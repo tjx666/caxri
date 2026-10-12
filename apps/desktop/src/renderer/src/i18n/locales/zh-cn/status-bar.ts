@@ -16,6 +16,11 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.throughput.tokensIn': '{{duration}} 内输出 {{tokens}} 个 Token',
     'statusBar.throughput.tokensAcrossResponses':
         '{{count}} 次响应在 {{duration}} 内输出 {{tokens}} 个 Token',
+    'statusBar.throughput.speed.fast': 'Fast',
+    'statusBar.throughput.speed.flex': 'Flex',
+    'statusBar.throughput.speed.standard': '标准',
+    'statusBar.throughput.speed.unknown': '未记录模式',
+    'statusBar.throughput.unknownModel': '未知模型',
     'statusBar.throughput.methodNote':
         '输出 Token 数除以每次请求的耗时，数据读取自 Agent 自身的对话记录。包含等待首个 Token 的时间，不含工具执行时间。',
     'statusBar.throughput.max': '最高 {{rate}}',
@@ -49,7 +54,8 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.usage.noPrice': '无价格',
     'statusBar.usage.models': '模型',
     'statusBar.usage.limit': '{{window}}限额',
-    'statusBar.usage.limitUsed': '已用 {{percent}}%',
+    'statusBar.usage.limitLeft': '剩余 {{percent}}%',
+    'statusBar.usage.chipLimitLeft': '{{window}} 剩余 {{percent}}%',
     'statusBar.usage.limitsAsOf': '限额更新于',
     'statusBar.usage.methodNote':
         'Token 数和费用读取自此对话自身的记录，并按 API 标价计费，规则与用量页面相同。套餐限额按账户计算，取任意对话中的最新读数。',

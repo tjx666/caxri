@@ -1,6 +1,9 @@
 import type { AgentUsageReadout, UsageLimit } from '@caxri/protocol';
 import { formatTokens, formatUsd } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+import { remainingLimitPercent } from '../../lib/usage-format';
 import { LIMIT_WARNING_PERCENT } from '../usage/usage-presentation';
 
 type LimitWindow = UsageLimit['windows'][number];
@@ -38,16 +41,25 @@ export function agentUsageCostLabel(readout: AgentUsageReadout): string | undefi
 
 /**
  * The chip text: conversation tokens, estimated cost, and the shortest live rate-limit window, e.g. `1.2M · $3.40 · 5h
- * 62%`. Cost follows {@link agentUsageCostLabel}. The limit is the newest account-wide reading the Server has seen,
+ * 38% left`. Cost follows {@link agentUsageCostLabel}. The limit is the newest account-wide reading the Server has seen,
  * which may come from another conversation, so the hover card states its age.
  */
-export function agentUsageLabel(readout: AgentUsageReadout, now: number): string {
+export function agentUsageLabel(
+    readout: AgentUsageReadout,
+    now: number,
+    t: Translate = translate,
+): string {
     const parts = [formatTokens(readout.tokens.total)];
     const cost = agentUsageCostLabel(readout);
     if (cost) parts.push(cost);
     const window = currentLimitWindows(readout.limit, now).at(0);
     if (window)
-        parts.push(`${shortWindowName(window.windowMinutes)} ${Math.round(window.usedPercent)}%`);
+        parts.push(
+            t('statusBar.usage.chipLimitLeft', {
+                window: shortWindowName(window.windowMinutes),
+                percent: remainingLimitPercent(window.usedPercent),
+            }),
+        );
     return parts.join(' · ');
 }
 

@@ -5,8 +5,10 @@ import type {
     AgentProvider,
     AgentProviderServiceStatus,
     AgentProviderStatus,
+    AgentProviderStatusComponent,
     AgentProviderStatusFailureReason,
     AgentProviderStatusIncident,
+    AgentProviderStatusUptime,
 } from '@caxri/protocol';
 import { agentProviderServiceStatuses, agentProviderStatusSchema } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -28,6 +30,10 @@ const SUCCESS_TTL_MS = 60_000;
  */
 const FAILURE_TTL_MS = 30_000;
 const MAX_UPDATE_LENGTH = 4_000;
+/**
+ * The history window status.openai.com itself draws (`history_window_days`).
+ */
+const HISTORY_WINDOW_MS = 90 * 86_400_000;
 
 type ParsedStatusPage = Pick<
     Extract<AgentProviderStatus, { state: 'available' }>,
@@ -40,8 +46,7 @@ interface StatusPageSource {
      */
     pageName: string;
     pageUrl: string;
-    endpoint: string;
-    parse(body: unknown): ParsedStatusPage | undefined;
+    read(fetch: Fetch, now: number): Promise<ParsedStatusPage>;
 }
 
 class StatusReadError extends Error {
@@ -217,15 +222,30 @@ const incidentIoPageSchema = z.object({
 const incidentIoSummarySchema = z.object({ summary: incidentIoPageSchema });
 
 const CODEX_GROUP_NAME = 'Codex';
+/**
+ * The only Codex component the Codex CLI depends on: Codex Web, the VS Code extension, and the CLI's own row going down
+ * does not slow a Codex Agent the way its API does.
+ */
+const CODEX_COMPONENT_NAME = 'Codex API';
 
-export function parseCodexStatusPage(body: unknown): ParsedStatusPage | undefined {
+interface ParsedCodexStatusPage extends ParsedStatusPage {
+    /**
+     * Incident.io component id per listed component name, so the history feed can be matched to it.
+     */
+    componentIds: Map<string, string>;
+}
+
+export function parseCodexStatusPage(body: unknown): ParsedCodexStatusPage | undefined {
     const parsed = incidentIoSummarySchema.safeParse(body);
     if (!parsed.success) return undefined;
     const summary = parsed.data.summary;
     const group = summary.structure.items.find(
         (item) => item.group?.name === CODEX_GROUP_NAME,
     )?.group;
-    const visible = group?.components.filter((component) => !component.hidden) ?? [];
+    const visible =
+        group?.components.filter(
+            (component) => !component.hidden && component.name === CODEX_COMPONENT_NAME,
+        ) ?? [];
     if (visible.length === 0) return undefined;
     // The feed lists only the components that are not operational; every other component is operational.
     const affected = new Map(
@@ -245,6 +265,7 @@ export function parseCodexStatusPage(body: unknown): ParsedStatusPage | undefine
         pageName: summary.name,
         pageUrl,
         components: byId.values().toArray(),
+        componentIds: new Map(visible.map((component) => [component.name, component.component_id])),
         incidents: summary.ongoing_incidents.flatMap((incident): AgentProviderStatusIncident[] => {
             const touched = incident.affected_components.filter((entry) =>
                 byId.has(entry.component_id),
@@ -267,49 +288,149 @@ export function parseCodexStatusPage(body: unknown): ParsedStatusPage | undefine
     };
 }
 
-const STATUS_PAGES: Partial<Record<AgentProvider, StatusPageSource>> = {
-    claude: {
-        pageName: 'Claude',
-        pageUrl: 'https://status.claude.com',
-        endpoint: 'https://status.claude.com/api/v2/summary.json',
-        parse: parseClaudeStatusPage,
-    },
-    codex: {
-        pageName: 'OpenAI',
-        pageUrl: 'https://status.openai.com',
-        endpoint: 'https://status.openai.com/proxy/status.openai.com',
-        parse: parseCodexStatusPage,
-    },
-};
+/**
+ * The incident.io page's history feed: every component's uptime over the requested window and each interval a component
+ * was not operational. Intervals overlapping the window are returned whole.
+ */
+const incidentIoImpactSchema = z.object({
+    component_id: z.string(),
+    start_at: z.string(),
+    end_at: nullableText,
+    status: z.string(),
+});
+const incidentIoUptimeSchema = z.object({
+    component_id: z.string(),
+    uptime: nullableText,
+    data_available_since: nullableText,
+});
+const incidentIoHistorySchema = z.object({
+    component_impacts: z.array(incidentIoImpactSchema),
+    component_uptimes: z.array(incidentIoUptimeSchema).default([]),
+});
 
-async function readStatusPage(fetch: Fetch, source: StatusPageSource): Promise<ParsedStatusPage> {
+export function parseIncidentIoHistory(
+    body: unknown,
+    componentId: string,
+    window: { start: number; end: number },
+): AgentProviderStatusUptime | undefined {
+    const parsed = incidentIoHistorySchema.safeParse(body);
+    if (!parsed.success) return undefined;
+    const { component_impacts: impacts, component_uptimes: uptimes } = parsed.data;
+    const uptime = uptimes.find((entry) => entry.component_id === componentId);
+    const percent = uptime?.uptime ? Number(uptime.uptime) : NaN;
+    const dataAvailableSince = epochMs(uptime?.data_available_since);
+    return {
+        windowStart: window.start,
+        windowEnd: window.end,
+        ...(Number.isFinite(percent) && percent >= 0 && percent <= 100 && { percent }),
+        ...(dataAvailableSince !== undefined && { dataAvailableSince }),
+        impacts: impacts.flatMap((impact) => {
+            if (impact.component_id !== componentId) return [];
+            const startAt = epochMs(impact.start_at);
+            if (startAt === undefined) return [];
+            const endAt = epochMs(impact.end_at);
+            return [
+                {
+                    startAt,
+                    ...(endAt !== undefined && { endAt }),
+                    status: serviceStatus(impact.status),
+                },
+            ];
+        }),
+    };
+}
+
+async function fetchJson(fetch: Fetch, url: string): Promise<unknown> {
     let response: Response;
     try {
-        response = await fetch(source.endpoint, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+        response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     } catch {
         throw new StatusReadError('network');
     }
     if (!response.ok) throw new StatusReadError('http');
-    let body: unknown;
     try {
-        body = await response.json();
+        return await response.json();
     } catch {
         throw new StatusReadError('invalidResponse');
     }
-    const parsed = source.parse(body);
+}
+
+function parsedOrThrow<T>(parsed: T | undefined): T {
     if (!parsed) throw new StatusReadError('invalidResponse');
     return parsed;
 }
 
+const CODEX_STATUS_ORIGIN = 'https://status.openai.com/proxy/status.openai.com';
+
 /**
- * The status-page read an E2E launch uses: never the network. With a fixture directory, each page answers with
- * `<directory>/<hostname>.json` (`status.claude.com.json`); without one, or for a page with no fixture, every page is
- * unreachable.
+ * The current state decides the read; the history is an addition, so a failed history read only leaves the component
+ * without `uptime` and never turns an answered page into an unavailable one.
+ */
+async function readCodexStatusPage(fetch: Fetch, now: number): Promise<ParsedStatusPage> {
+    const historyUrl = new URL(`${CODEX_STATUS_ORIGIN}/component_impacts`);
+    const window = { start: now - HISTORY_WINDOW_MS, end: now };
+    historyUrl.searchParams.set('start_at', new Date(window.start).toISOString());
+    historyUrl.searchParams.set('end_at', new Date(window.end).toISOString());
+    const readHistory = async (): Promise<unknown> => {
+        try {
+            return await fetchJson(fetch, historyUrl.href);
+        } catch {
+            return undefined;
+        }
+    };
+    const [summary, history] = await Promise.all([
+        fetchJson(fetch, CODEX_STATUS_ORIGIN),
+        readHistory(),
+    ]);
+    const { componentIds, ...page } = parsedOrThrow(parseCodexStatusPage(summary));
+    return {
+        ...page,
+        components: page.components.map((component): AgentProviderStatusComponent => {
+            const id = componentIds.get(component.name);
+            const uptime =
+                id === undefined || history === undefined
+                    ? undefined
+                    : parseIncidentIoHistory(history, id, window);
+            return uptime ? { ...component, uptime } : component;
+        }),
+    };
+}
+
+const STATUS_PAGES: Partial<Record<AgentProvider, StatusPageSource>> = {
+    claude: {
+        pageName: 'Claude',
+        pageUrl: 'https://status.claude.com',
+        read: async (fetch) =>
+            parsedOrThrow(
+                parseClaudeStatusPage(
+                    await fetchJson(fetch, 'https://status.claude.com/api/v2/summary.json'),
+                ),
+            ),
+    },
+    codex: {
+        pageName: 'OpenAI',
+        pageUrl: 'https://status.openai.com',
+        read: readCodexStatusPage,
+    },
+};
+
+/**
+ * The status-page read an E2E launch uses: never the network. With a fixture directory, a request answers with
+ * `<directory>/<hostname>.<last path segment>.json` when that file exists (`status.openai.com.component_impacts.json`
+ * for the history feed), else `<directory>/<hostname>.json` (`status.claude.com.json`); without a directory, or for a
+ * page with no fixture, every page is unreachable.
  */
 export function createE2EStatusPageFetch(directory: string | undefined): Fetch {
     return async (url) => {
         if (!directory) throw new Error('Status pages are offline in E2E');
-        const body = await readFile(join(directory, `${new URL(url).hostname}.json`), 'utf8');
+        const { hostname, pathname } = new URL(url);
+        const segment = pathname.split('/').findLast(Boolean);
+        let body: string;
+        try {
+            body = await readFile(join(directory, `${hostname}.${segment}.json`), 'utf8');
+        } catch {
+            body = await readFile(join(directory, `${hostname}.json`), 'utf8');
+        }
         return new Response(body, { headers: { 'content-type': 'application/json' } });
     };
 }
@@ -345,7 +466,7 @@ export function createAgentProviderStatus(options: {
         const checkedAt = now();
         let status: AgentProviderStatus;
         try {
-            const page = await readStatusPage(options.fetch, source);
+            const page = await source.read(options.fetch, checkedAt);
             status = {
                 ...page,
                 provider,

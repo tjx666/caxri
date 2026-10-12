@@ -9,6 +9,7 @@ import {
     createE2EStatusPageFetch,
     parseClaudeStatusPage,
     parseCodexStatusPage,
+    parseIncidentIoHistory,
 } from '../agent-provider-status';
 
 function statuspageSummary(
@@ -49,6 +50,7 @@ function incidentIoSummary(
                             name: 'Codex',
                             components: [
                                 { component_id: 'cx-web', name: 'Codex Web' },
+                                { component_id: 'cx-api', name: 'Codex API' },
                                 { component_id: 'cx-cli', name: 'CLI' },
                                 { component_id: 'cx-old', name: 'Retired', hidden: true },
                             ],
@@ -138,19 +140,23 @@ describe('parseClaudeStatusPage', () => {
 });
 
 describe('parseCodexStatusPage', () => {
-    it("reads the Codex group with each incident's newest update, treating unlisted components as operational", () => {
+    it("reads only the Codex API component with each incident's newest update", () => {
         const page = parseCodexStatusPage(
             incidentIoSummary({
                 affected: [
-                    { component_id: 'cx-cli', status: 'full_outage' },
+                    { component_id: 'cx-api', status: 'full_outage' },
+                    { component_id: 'cx-web', status: 'full_outage' },
                     { component_id: 'chat', status: 'degraded_performance' },
                 ],
                 incidents: [
                     {
                         id: 'o1',
-                        name: 'Codex CLI failing',
+                        name: 'Codex API failing',
                         status: 'monitoring',
-                        affected_components: [{ component_id: 'cx-cli', status: 'full_outage' }],
+                        affected_components: [
+                            { component_id: 'cx-api', status: 'full_outage' },
+                            { component_id: 'cx-web', status: 'full_outage' },
+                        ],
                         updates: [
                             {
                                 published_at: '2026-01-02T01:00:00Z',
@@ -161,6 +167,12 @@ describe('parseCodexStatusPage', () => {
                                 message: { markdown: 'Monitoring the fix.' },
                             },
                         ],
+                    },
+                    {
+                        id: 'o3',
+                        name: 'Codex Web down',
+                        status: 'investigating',
+                        affected_components: [{ component_id: 'cx-web', status: 'full_outage' }],
                     },
                     {
                         id: 'o2',
@@ -176,16 +188,14 @@ describe('parseCodexStatusPage', () => {
         expect(page).toEqual({
             pageName: 'OpenAI',
             pageUrl: 'https://status.example.test',
-            components: [
-                { name: 'Codex Web', status: 'operational' },
-                { name: 'CLI', status: 'majorOutage' },
-            ],
+            components: [{ name: 'Codex API', status: 'majorOutage' }],
+            componentIds: new Map([['Codex API', 'cx-api']]),
             incidents: [
                 {
-                    name: 'Codex CLI failing',
+                    name: 'Codex API failing',
                     phase: 'monitoring',
                     status: 'majorOutage',
-                    components: ['CLI'],
+                    components: ['Codex API'],
                     latestUpdate: 'Monitoring the fix.',
                     updatedAt: Date.parse('2026-01-02T03:04:05Z'),
                     url: 'https://status.example.test/incidents/o1',
@@ -198,6 +208,64 @@ describe('parseCodexStatusPage', () => {
         const summary = incidentIoSummary();
         (summary.summary as { structure: { items: unknown[] } }).structure.items = [];
         expect(parseCodexStatusPage(summary)).toBeUndefined();
+    });
+});
+
+describe('parseIncidentIoHistory', () => {
+    it("keeps the component's uptime and impact intervals, open ones without an end", () => {
+        const window = { start: 1_000, end: 9_000 };
+        expect(
+            parseIncidentIoHistory(
+                {
+                    component_impacts: [
+                        {
+                            component_id: 'cx-api',
+                            start_at: '2026-01-02T00:00:00Z',
+                            end_at: '2026-01-02T01:00:00Z',
+                            status: 'degraded_performance',
+                        },
+                        {
+                            component_id: 'cx-api',
+                            start_at: '2026-01-03T00:00:00Z',
+                            end_at: null,
+                            status: 'full_outage',
+                        },
+                        {
+                            component_id: 'cx-web',
+                            start_at: '2026-01-02T00:00:00Z',
+                            status: 'partial_outage',
+                        },
+                    ],
+                    component_uptimes: [
+                        {
+                            component_id: 'cx-api',
+                            uptime: '99.95',
+                            data_available_since: '2025-12-01T00:00:00Z',
+                        },
+                        { component_id: 'cx-web', uptime: '98.00' },
+                    ],
+                },
+                'cx-api',
+                window,
+            ),
+        ).toEqual({
+            windowStart: 1_000,
+            windowEnd: 9_000,
+            percent: 99.95,
+            dataAvailableSince: Date.parse('2025-12-01T00:00:00Z'),
+            impacts: [
+                {
+                    startAt: Date.parse('2026-01-02T00:00:00Z'),
+                    endAt: Date.parse('2026-01-02T01:00:00Z'),
+                    status: 'degraded',
+                },
+                { startAt: Date.parse('2026-01-03T00:00:00Z'), status: 'majorOutage' },
+            ],
+        });
+    });
+
+    it('rejects a body without impacts', () => {
+        expect(parseIncidentIoHistory({}, 'cx-api', { start: 0, end: 1 })).toBeUndefined();
     });
 });
 
@@ -295,6 +363,60 @@ describe('createAgentProviderStatus', () => {
     });
 });
 
+describe('createAgentProviderStatus Codex history', () => {
+    const history = {
+        component_impacts: [
+            {
+                component_id: 'cx-api',
+                start_at: '2026-01-02T00:00:00Z',
+                end_at: '2026-01-02T01:00:00Z',
+                status: 'partial_outage',
+            },
+        ],
+        component_uptimes: [{ component_id: 'cx-api', uptime: '99.50' }],
+    };
+
+    it('attaches the 90-day history window ending now to the Codex API component', async () => {
+        const now = Date.parse('2026-04-01T00:00:00Z');
+        const fetch = vi.fn((url: string) =>
+            jsonResponse(url.includes('/component_impacts') ? history : incidentIoSummary()),
+        );
+        const read = createAgentProviderStatus({ fetch, now: () => now });
+        const status = await read('codex');
+        expect(status).toMatchObject({
+            state: 'available',
+            components: [
+                {
+                    name: 'Codex API',
+                    uptime: {
+                        windowStart: now - 90 * 86_400_000,
+                        windowEnd: now,
+                        percent: 99.5,
+                        impacts: [{ status: 'partialOutage' }],
+                    },
+                },
+            ],
+        });
+        const historyUrl = new URL(String(fetch.mock.calls.at(-1)?.[0]));
+        expect(historyUrl.searchParams.get('end_at')).toBe('2026-04-01T00:00:00.000Z');
+    });
+
+    it('still answers the current state when the history read fails', async () => {
+        const read = createAgentProviderStatus({
+            fetch: (url) =>
+                url.includes('/component_impacts')
+                    ? jsonResponse({}, 503)
+                    : jsonResponse(incidentIoSummary()),
+        });
+        const status = await read('codex');
+        expect(status).toMatchObject({ state: 'available' });
+        expect(status?.state === 'available' && status.components[0]).toEqual({
+            name: 'Codex API',
+            status: 'operational',
+        });
+    });
+});
+
 describe('createE2EStatusPageFetch', () => {
     it('answers from the fixture named after the host, and is offline without a directory', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-status-fixture-'));
@@ -308,6 +430,24 @@ describe('createE2EStatusPageFetch', () => {
             await expect(read('codex')).resolves.toMatchObject({
                 state: 'unavailable',
                 reason: 'network',
+            });
+            // A path-specific fixture answers its own request; the page's other requests fall back to the host file.
+            await writeFile(
+                join(directory, 'status.openai.com.json'),
+                JSON.stringify(incidentIoSummary()),
+            );
+            await writeFile(
+                join(directory, 'status.openai.com.component_impacts.json'),
+                JSON.stringify({
+                    component_impacts: [],
+                    component_uptimes: [{ component_id: 'cx-api', uptime: '100.00' }],
+                }),
+            );
+            const withHistory = createAgentProviderStatus({
+                fetch: createE2EStatusPageFetch(directory),
+            });
+            await expect(withHistory('codex')).resolves.toMatchObject({
+                components: [{ name: 'Codex API', uptime: { percent: 100 } }],
             });
             const offline = createAgentProviderStatus({
                 fetch: createE2EStatusPageFetch(undefined),

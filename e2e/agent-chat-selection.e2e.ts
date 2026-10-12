@@ -13,11 +13,11 @@ import {
 
 /**
  * A Chat transcript selects only message text. Dragging from the user's message to the reply's time holds both
- * messages' text and none of the transcript chrome, and copying it confirms with a toast. The copy event is dispatched
- * rather than sent as Cmd+C, so the run never overwrites the developer's system clipboard.
+ * messages' text and none of the transcript chrome, and releasing it floats Copy and Add to message over the selection:
+ * Copy confirms in place rather than with a toast, and Add to message quotes the selection into the draft.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Chat selects and copies only message text', async ({}, testInfo) => {
+test('a Chat selects only message text and offers Copy and Add to message', async ({}, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-selection-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
@@ -54,14 +54,44 @@ test('a Chat selects and copies only message text', async ({}, testInfo) => {
         expect(selected).toContain('Hello from fake Codex. You said: hi there');
         expect(selected).not.toContain(timeText);
 
-        await reply.dispatchEvent('copy', { bubbles: true });
-        const toast = page.locator('[data-sonner-toast][data-type="success"]', {
-            hasText: 'Selection copied',
+        const toolbar = page.getByRole('toolbar', { name: 'Selection actions' });
+        await expect(toolbar).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-selection-toolbar.png') });
+
+        // Copy writes through a stubbed clipboard, so the run never overwrites the developer's system clipboard.
+        await page.evaluate(() => {
+            const target = globalThis as typeof globalThis & { __copiedText?: string };
+            navigator.clipboard.writeText = (text) => {
+                target.__copiedText = text;
+                return Promise.resolve();
+            };
         });
-        await expect(toast).toBeVisible();
-        // Sonner slides the toast in; wait out the entrance so the screenshot shows it rather than its first frame.
-        await expect.poll(() => toast.evaluate((node) => getComputedStyle(node).opacity)).toBe('1');
-        await page.screenshot({ path: testInfo.outputPath('agent-chat-selection-copied.png') });
+        await toolbar.getByRole('button', { name: 'Copy' }).click();
+        await expect(toolbar.getByRole('button', { name: 'Copied' })).toBeVisible();
+        const copied = await page.evaluate(
+            () => (globalThis as typeof globalThis & { __copiedText?: string }).__copiedText,
+        );
+        expect(copied).toBe(selected.trimEnd());
+        await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+
+        await toolbar.getByRole('button', { name: 'Add to message' }).click();
+        await expect(toolbar).toBeHidden();
+        await expect(message).toBeFocused();
+        // Every line of the selection is quoted, ending with the reply's text, and the caret waits on a new paragraph.
+        const draft = await message.inputValue();
+        expect(draft.endsWith('\n\n')).toBe(true);
+        expect(
+            draft
+                .trimEnd()
+                .split('\n')
+                .every((line) => line.startsWith('>')),
+        ).toBe(true);
+        expect(draft).toMatch(/^> (hi )?there\n/);
+        expect(draft).toMatch(/> Hello from fake Codex\. You said: hi there\n\n$/);
+        expect(await message.evaluate((input: HTMLTextAreaElement) => input.selectionStart)).toBe(
+            draft.length,
+        );
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-selection-quoted.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

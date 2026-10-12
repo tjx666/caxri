@@ -47,6 +47,31 @@ export function providerStatusDotClassName(status: AgentProviderServiceStatus): 
 }
 
 /**
+ * An uptime-strip day shares the dot's tones; a day before the page recorded the component reads as an empty slot.
+ */
+export function providerUptimeBarClassName(status: AgentProviderServiceStatus | 'noData'): string {
+    return status === 'noData' ? 'bg-border' : providerStatusDotClassName(status);
+}
+
+const uptimeDayFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+
+/**
+ * `Mar 9, 2026: Partial outage`, the day's tooltip and accessible name.
+ */
+export function describeUptimeDay(
+    day: { start: number; status: AgentProviderServiceStatus | 'noData' },
+    t: Translate = translate,
+): string {
+    return t('agentStatus.provider.uptimeDay', {
+        date: uptimeDayFormat.format(day.start),
+        status:
+            day.status === 'noData'
+                ? t('agentStatus.provider.uptimeNoData')
+                : providerServiceStatusLabel(day.status, t),
+    });
+}
+
+/**
  * The alert a provider reading raises on the status-bar throughput chip, and the words that stand in for its color.
  */
 export interface ProviderStatusAlert {
