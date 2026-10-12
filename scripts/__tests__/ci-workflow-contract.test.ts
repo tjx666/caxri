@@ -176,6 +176,11 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain(
             "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}",
         );
+        // A manual dispatch must default to the same Vitest worker cap as nightly, or the checks
+        // branch overlaps the parallel-safe pool (docs/ci-performance.md).
+        expect(workflow).toMatch(
+            /vitest_max_workers:\n(?:\s+(?:description|required|#).*\n)*\s+default: '2'\n/u,
+        );
         expect(workflow).toContain(
             "CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}",
         );
