@@ -71,6 +71,7 @@ export function AgentChatComposerActions({
     onCompact,
     onGoal,
     onPick,
+    onPickPaths,
     onReferenceSession,
     onStop,
     recentSessions,
@@ -116,6 +117,11 @@ export function AgentChatComposerActions({
      * Routes picked files: images attach, anything else is cited by path.
      */
     onPick: (files: readonly File[]) => void;
+    /**
+     * Opens the panel for files and folders together (`useAgentChatFileInput`'s `pickPaths`), or `undefined` in an SSH
+     * Host window.
+     */
+    onPickPaths: (() => void) | undefined;
     onReferenceSession: (candidate: SessionReferenceCandidate) => void;
     onStop: () => void;
     /**
@@ -152,6 +158,7 @@ export function AgentChatComposerActions({
                     isBusy={isAttaching}
                     onGoal={onGoal}
                     onPick={onPick}
+                    onPickPaths={onPickPaths}
                     onReferenceSession={onReferenceSession}
                     sessions={recentSessions}
                     planMode={

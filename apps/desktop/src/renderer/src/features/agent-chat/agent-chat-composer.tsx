@@ -410,6 +410,13 @@ export function AgentChatComposer({
                             fileInput.pick(files);
                             focusInput();
                         }}
+                        onPickPaths={
+                            fileInput.pickPaths &&
+                            (() => {
+                                // eslint-disable-next-line no-void -- pickAgentChatPaths reports its own failures through tryCommand
+                                void fileInput.pickPaths?.().then(focusInput);
+                            })
+                        }
                         onStop={stopAndFocus}
                         sendAction={sendAction}
                         sendTooltip={sendTooltip}

@@ -5,6 +5,7 @@ import type {
     AgentChatRequest,
     AgentChatResponse,
     AgentProvider,
+    MethodResult,
     TerminalRecord,
 } from '@caxri/protocol';
 import { agentChatAnsweredNotice, formatLongPasteReference } from '@caxri/protocol';
@@ -414,4 +415,16 @@ export function recoverAgentChat(
     }
     // eslint-disable-next-line no-void -- the query owns the refetch result and error state
     void refetch();
+}
+
+/**
+ * Opens the native panel for the composer's `+` → Files and folders (`dialog.selectPaths`). Resolves the chosen paths,
+ * empty when the panel was dismissed, or `undefined` after a toast when it could not open.
+ */
+export function pickAgentChatPaths(
+    shouldReadImages: boolean,
+): Promise<MethodResult<'dialog.selectPaths'> | undefined> {
+    return tryCommand(translate('agentChat.commands.pickPathsFailed'), () =>
+        caxri.request('dialog.selectPaths', { shouldReadImages }),
+    );
 }
