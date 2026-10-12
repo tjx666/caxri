@@ -29,6 +29,17 @@ const SAMPLE_ROWS = 500;
  */
 const NUMERIC_CELL = /^[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)?(?:\.\d+)?(?:e[+-]?\d+)?%?$/i;
 
+/**
+ * The value of a cell the numeric-column test accepts, read the way it displays: grouping commas dropped and a trailing
+ * percent kept as the number in front of it. Anything else is not a number.
+ */
+export function numericCellValue(cell: string): number | undefined {
+    const trimmed = cell.trim();
+    if (!NUMERIC_CELL.test(trimmed) || !/\d/.test(trimmed)) return undefined;
+    const value = Number(trimmed.replaceAll(',', '').replace(/%$/, ''));
+    return Number.isFinite(value) ? value : undefined;
+}
+
 interface TableParseIssue {
     /**
      * 1-based data row the parser reported, matching the row numbers the table shows; absent for a header issue.
@@ -140,7 +151,7 @@ export function parseDelimitedTable(
         for (const row of sample) {
             const cell = row[column].trim();
             if (!cell) continue;
-            if (!NUMERIC_CELL.test(cell) || !/\d/.test(cell)) return false;
+            if (numericCellValue(cell) === undefined) return false;
             isSawNumber = true;
         }
         return isSawNumber;
@@ -177,11 +188,23 @@ function columnsLabel(count: number, t: Translate): string {
 }
 
 /**
- * The status line under the table: its size. What the bounds cut off is a warning, not a statistic, and is reported by
- * {@link describeTableLimits} in the warning bar above the table.
+ * The status line under the table: its size, and while a filter hides rows, how many of them are showing ("12 of 2,000
+ * rows"). What the bounds cut off is a warning, not a statistic, and is reported by {@link describeTableLimits} in the
+ * warning bar above the table.
  */
-export function describeTableSize(table: DelimitedTable, t: Translate = translate): string {
-    return `${rowsLabel(table.rows.length, t)} × ${columnsLabel(table.header.length, t)}`;
+export function describeTableSize(
+    table: DelimitedTable,
+    t: Translate = translate,
+    visibleRows: number = table.rows.length,
+): string {
+    const rows =
+        visibleRows === table.rows.length
+            ? rowsLabel(table.rows.length, t)
+            : t('preview.table.filteredRows', {
+                  visible: visibleRows.toLocaleString('en-US'),
+                  total: rowsLabel(table.rows.length, t),
+              });
+    return `${rows} × ${columnsLabel(table.header.length, t)}`;
 }
 
 /**
@@ -201,6 +224,22 @@ export function describeTableLimits(
 }
 
 /**
+ * The table view's fixed row height in pixels; the virtualizer and the keyboard's scroll math both step by it.
+ */
+export const TABLE_ROW_HEIGHT = 24;
+
+/**
+ * The sticky header row: a body row's height plus its 1px bottom border. Body rows start below it, so scroll math that
+ * assumed a 24px header left the last row 1px under the scroller's bottom edge.
+ */
+export const TABLE_HEADER_HEIGHT = TABLE_ROW_HEIGHT + 1;
+
+/**
+ * The gutter's pixels beyond its digits: padding, border, and figure slack.
+ */
+export const ROW_NUMBER_GUTTER_EXTRA = 19;
+
+/**
  * Width of the row-number gutter, from the digit count of the largest row number it shows.
  *
  * The 16px is the cell's horizontal padding, 1px is its right border (the cell is border-box, so the border is taken
@@ -208,8 +247,14 @@ export function describeTableLimits(
  * defines `ch`. Without the border and slack, three-digit row numbers clip to "1…".
  */
 export function rowNumberGutterWidth(rowCount: number): string {
-    const digits = Math.max(2, String(Math.max(1, rowCount)).length);
-    return `calc(${digits}ch + 19px)`;
+    return `calc(${rowNumberDigits(rowCount)}ch + ${ROW_NUMBER_GUTTER_EXTRA}px)`;
+}
+
+/**
+ * Digits the row-number gutter is sized for: the largest row number's, and at least two.
+ */
+export function rowNumberDigits(rowCount: number): number {
+    return Math.max(2, String(Math.max(1, rowCount)).length);
 }
 
 /**

@@ -39,7 +39,10 @@ interface Harness {
     window: FakeWindow;
 }
 
-function setup(start: (harness: Harness) => Promise<void> = () => Promise.resolve()) {
+function setup(
+    start: (harness: Harness) => Promise<void> = () => Promise.resolve(),
+    keyOf: RemoteEnvironmentsOptions['keyOf'] = (destination) => destination.replace(/:22$/u, ''),
+) {
     const harnesses: Harness[] = [];
     const logger = { write: vi.fn() };
     const options: RemoteEnvironmentsOptions = {
@@ -72,7 +75,7 @@ function setup(start: (harness: Harness) => Promise<void> = () => Promise.resolv
                 window: window as never,
             };
         },
-        keyOf: (destination) => destination.replace(/:22$/u, ''),
+        keyOf,
         listHosts: () => Promise.resolve([{ alias: 'build-box' }]),
         logger: () => logger,
         recent: {
@@ -97,6 +100,28 @@ describe('SSH Host environments', () => {
         expect(harnesses).toHaveLength(1);
         expect(harnesses[0].window.focus).toHaveBeenCalled();
         await vi.waitFor(() => expect(lastState(harnesses[0]).phase).toBe('connected'));
+    });
+
+    it('focuses the window of an alias that resolves to the same SSH Host and says why', async () => {
+        // Both aliases name the same account, as `ssh -G` would resolve them.
+        const { environments: aliased, harnesses } = setup(undefined, () =>
+            Promise.resolve('dev@203.0.113.7:22'),
+        );
+        await aliased.connect('work');
+        await aliased.connect('work');
+        expect(
+            harnesses[0].events.filter((event) => event.event === 'environment.connectionReused'),
+        ).toEqual([]);
+
+        await aliased.connect('work-direct');
+
+        expect(harnesses).toHaveLength(1);
+        expect(harnesses[0].window.focus).toHaveBeenCalledTimes(2);
+        expect(
+            harnesses[0].events.filter((event) => event.event === 'environment.connectionReused'),
+        ).toEqual([
+            { event: 'environment.connectionReused', payload: { destination: 'work-direct' } },
+        ]);
     });
 
     it('routes a window to its own environment and answers local for any other sender', async () => {

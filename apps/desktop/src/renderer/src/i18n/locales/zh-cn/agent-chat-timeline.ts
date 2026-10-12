@@ -54,6 +54,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.timeline.announcement.stopped': '已停止',
     'agentChat.message.attachImagesOrPaths': '附加图片或插入文件路径',
     'agentChat.message.insertPaths': '插入文件路径',
+    'agentChat.message.attachImagesOrFolderPaths': '附加图片或插入文件和文件夹路径',
+    'agentChat.message.insertFolderPaths': '插入文件和文件夹路径',
     'agentChat.message.send': '发送',
     'agentChat.message.sendTooltip': '发送（Enter）',
     'agentChat.message.queue': '加入队列',

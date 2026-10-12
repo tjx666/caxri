@@ -1,6 +1,7 @@
-import type { UsageReport } from '@caxri/protocol';
+import type { UsageReport, UsageSessionRow } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
+import { sessionTitleForDisplay } from '../session/session-title';
 
 /**
  * Presentation rules shared by the Usage page's cards: bar tones and bases, tile detail facts, and the text twins of
@@ -88,4 +89,19 @@ export function usageRowStatusLabel(
     if (row.isDeleted) return t('usage.rowStatus.deleted');
     if (row.isOutsideCaxri && row.kind === 'session') return t('usage.rowStatus.outsideCaxri');
     return undefined;
+}
+
+/**
+ * The title a Most expensive Sessions row shows. The Server fills a deleted Session's title with an English constant
+ * and an unnamed Session's with the stored `Untitled` placeholder; both are translated here, as the PrimarySidebar
+ * does. A Session run outside Caxri is titled by its folder, which is the user's own text even when it reads
+ * `Untitled`.
+ */
+export function usageSessionTitle(
+    t: Translate,
+    row: Pick<UsageSessionRow, 'isDeleted' | 'isOutsideCaxri' | 'title'>,
+): string {
+    if (row.isOutsideCaxri) return row.title;
+    if (row.isDeleted) return t('usage.sessions.deletedTitle');
+    return sessionTitleForDisplay(row.title, t);
 }

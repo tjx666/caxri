@@ -43,6 +43,7 @@ export const core = {
 
     // components/ui
     'core.spinner.loading': 'Loading',
+    'core.command.suggestions': 'Suggestions',
 
     // lib/diff-stat-label.ts
     'core.diffStat.labelOne': '{{additions}} line added, {{deletions}} removed',

@@ -194,6 +194,7 @@ export const usage: TranslatedNamespace<typeof source> = {
     'usage.sessions.empty': '此时间范围内没有会话用量。',
     'usage.sessions.session': '会话',
     'usage.sessions.project': '项目',
+    'usage.sessions.deletedTitle': '已删除的会话',
     'usage.sessions.archived': '已归档',
     'usage.sessions.open': '打开会话 {{title}}',
 };

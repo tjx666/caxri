@@ -1,28 +1,21 @@
 import './pdf-preview.css';
 
-import type { ReactElement } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
+import { FindBar } from '../../components/find-bar';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
-import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import {
-    Menu,
-    MenuContent,
-    MenuRadioGroup,
-    MenuRadioItem,
-    MenuTrigger,
-} from '../../components/ui/menu';
-import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { documentLoadRecoveryAction } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
+import { usePdfDocument } from './hooks/use-pdf-document';
+import { usePdfFind } from './hooks/use-pdf-find';
 import type { PdfViewerSession, PdfViewState } from './pdf-document';
 import { createPdfViewerSession } from './pdf-document';
-import type { PdfZoomChoice } from './pdf-toolbar-model';
+import { isPdfFindMiss, isPdfFindShortcut, pdfFindCountLabel } from './pdf-find';
+import { PdfPasswordForm } from './pdf-password-form';
 import {
     describePdfView,
     parsePdfPageInput,
@@ -31,25 +24,7 @@ import {
 } from './pdf-toolbar-model';
 import { PREVIEW_LOADING_LABEL_KEY } from './preview-registry';
 import { readPreviewViewState, rememberPreviewViewState } from './preview-view-state';
-import { usePdfDocument } from './use-pdf-document';
-
-function ToolbarButton({
-    label,
-    icon,
-    onClick,
-}: {
-    label: string;
-    icon: ReactElement;
-    onClick: () => void;
-}) {
-    return (
-        <Tooltip content={label}>
-            <Button aria-label={label} size="icon" variant="ghost" onClick={onClick}>
-                {icon}
-            </Button>
-        </Tooltip>
-    );
-}
+import { ZoomControls } from './zoom-controls';
 
 /**
  * The page field. It shows the current page and takes a page number on Enter; Escape or leaving the field puts the
@@ -93,57 +68,6 @@ function PageField({
 }
 
 /**
- * The zoom percentage, which opens the zoom choices: the two fits and fixed scales. The checked row is the fit in
- * force, or the fixed scale matching the current zoom.
- */
-function ZoomMenu({
-    view,
-    onZoom,
-}: {
-    view: PdfViewState;
-    onZoom: (choice: PdfZoomChoice) => void;
-}) {
-    const { t } = useTranslation();
-    const checkedChoice = PDF_ZOOM_CHOICES.find(
-        (choice) => choice === view.scaleValue || choice === Number(view.scaleValue),
-    );
-    // The radio value is the choice itself, so the checked row does not depend on the display language.
-    const checked = checkedChoice === undefined ? null : String(checkedChoice);
-    return (
-        <Menu>
-            <MenuTrigger
-                aria-label={t('preview.pdf.zoomLabel', { percent: Math.round(view.scale * 100) })}
-                render={
-                    <Button
-                        className="w-16 gap-0.5 px-1 text-[12px] tabular-nums"
-                        size="sm"
-                        variant="ghost"
-                    />
-                }
-            >
-                {Math.round(view.scale * 100)}%
-                <ChevronDown aria-hidden="true" size={12} />
-            </MenuTrigger>
-            <MenuContent align="end" className="min-w-32">
-                <MenuRadioGroup
-                    value={checked}
-                    onValueChange={(value: string) => {
-                        const option = PDF_ZOOM_CHOICES.find((choice) => String(choice) === value);
-                        if (option !== undefined) onZoom(option);
-                    }}
-                >
-                    {PDF_ZOOM_CHOICES.map((choice) => (
-                        <MenuRadioItem key={choice} closeOnClick value={String(choice)}>
-                            {pdfZoomChoiceLabel(choice, t)}
-                        </MenuRadioItem>
-                    ))}
-                </MenuRadioGroup>
-            </MenuContent>
-        </Menu>
-    );
-}
-
-/**
  * A parsed document mounted into pdf.js's viewer, with the page field and zoom controls above it. The viewer owns the
  * scroll container's children, so React renders only the empty element pdf.js fills.
  *
@@ -180,6 +104,8 @@ function PdfDocumentView({
      * Tied to the document that failed to mount, so a reloaded document gets its own attempt without a reset effect.
      */
     const [failedDocument, setFailedDocument] = useState<PDFDocumentProxy>();
+    const find = usePdfFind(sessionReference, () => containerReference.current?.focus());
+    const { attach: attachFind, report: reportFind } = find;
 
     useEffect(() => {
         const container = containerReference.current;
@@ -193,6 +119,7 @@ function PdfDocumentView({
             viewerElement,
             document,
             restored: remembered,
+            onFindChange: reportFind,
             onViewChange: (next) => {
                 setView(next);
                 rememberPreviewViewState(viewStateKey, {
@@ -206,7 +133,10 @@ function PdfDocumentView({
         })
             .then((session) => {
                 if (isDisposed) session.dispose();
-                else sessionReference.current = session;
+                else {
+                    sessionReference.current = session;
+                    attachFind(session);
+                }
             })
             .catch(() => {
                 if (!isDisposed) setFailedDocument(document);
@@ -216,7 +146,7 @@ function PdfDocumentView({
             sessionReference.current?.dispose();
             sessionReference.current = undefined;
         };
-    }, [document, viewStateKey]);
+    }, [attachFind, document, reportFind, viewStateKey]);
 
     if (failedDocument === document)
         return (
@@ -234,7 +164,14 @@ function PdfDocumentView({
     };
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-background">
+        <div
+            className="flex h-full min-h-0 flex-col bg-background"
+            onKeyDown={(event) => {
+                if (!isPdfFindShortcut(event)) return;
+                event.preventDefault();
+                find.open();
+            }}
+        >
             <div className="flex h-8 flex-none items-center gap-1 bg-surface px-2 text-[12px] text-muted tabular-nums">
                 <PageField
                     key={view.pageNumber}
@@ -248,28 +185,44 @@ function PdfDocumentView({
                 <span aria-live="polite" className="sr-only">
                     {announcement}
                 </span>
-                <ToolbarButton
-                    icon={<ZoomOut aria-hidden="true" size={14} />}
-                    label={t('preview.pdf.zoomOut')}
-                    onClick={() => act((session) => session.zoomOut())}
-                />
-                <ZoomMenu
-                    view={view}
+                <ZoomControls
+                    checked={PDF_ZOOM_CHOICES.find(
+                        (choice) =>
+                            choice === view.scaleValue || choice === Number(view.scaleValue),
+                    )}
+                    choiceLabel={(choice) => pdfZoomChoiceLabel(choice, t)}
+                    choices={PDF_ZOOM_CHOICES}
+                    scale={view.scale}
                     onZoom={(choice) => act((session) => session.setZoom(choice))}
-                />
-                <ToolbarButton
-                    icon={<ZoomIn aria-hidden="true" size={14} />}
-                    label={t('preview.pdf.zoomIn')}
-                    onClick={() => act((session) => session.zoomIn())}
+                    onZoomIn={() => act((session) => session.zoomIn())}
+                    onZoomOut={() => act((session) => session.zoomOut())}
                 />
             </div>
+            {find.isOpen && (
+                <FindBar
+                    ariaLabel={t('preview.pdf.find')}
+                    countLabel={pdfFindCountLabel(find.query, find.result, t)}
+                    focusRevision={find.focusRevision}
+                    hasMatches={find.result.total > 0}
+                    inputLabel={t('preview.pdf.find')}
+                    isDocked
+                    isNoMatch={isPdfFindMiss(find.query, find.result)}
+                    query={find.query}
+                    onClose={find.close}
+                    onNext={find.next}
+                    onPrevious={find.previous}
+                    onQueryChange={find.changeQuery}
+                />
+            )}
             <div className="relative min-h-0 flex-1">
                 <div
                     ref={containerReference}
                     aria-label={t('preview.pdf.label')}
-                    className="caxri-pdf-preview absolute inset-0 overflow-auto"
+                    className="caxri-pdf-preview absolute inset-0 overflow-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent"
                     data-testid="pdf-preview"
                     role="document"
+                    // Focusable so a click on a page puts `Cmd+F` and the arrow keys inside the preview.
+                    tabIndex={0}
                     onScroll={(event) =>
                         rememberPreviewViewState(viewStateKey, {
                             scrollTop: event.currentTarget.scrollTop,
@@ -300,13 +253,28 @@ export function PdfPreview({
     workbenchProjectId: string | undefined;
 }) {
     const { t } = useTranslation();
-    const { state, retry } = usePdfDocument(sessionId, workbenchProjectId, path);
+    const { state, isCheckingPassword, retry, submitPassword } = usePdfDocument(
+        sessionId,
+        workbenchProjectId,
+        path,
+    );
     if (state.status === 'failed')
         return (
             <EditorLoadFailure
                 {...documentLoadRecoveryAction(state.failure.recovery, path, retry, t)}
                 reason={state.failure.reason}
                 tone={state.failure.tone}
+            />
+        );
+    if (state.status === 'password')
+        return (
+            <PdfPasswordForm
+                // A different protected file starts with an empty field.
+                key={path}
+                attempt={state.attempt}
+                isChecking={isCheckingPassword}
+                isIncorrect={state.isIncorrect}
+                onSubmit={submitPassword}
             />
         );
     if (state.status === 'loading')

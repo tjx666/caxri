@@ -32,6 +32,7 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.changes.hideChanges': '隐藏更改',
     'agentChat.undo.undone': '已撤销',
     'agentChat.undo.truncatedTooltip': '有差异过大，未能完整保留，因此无法撤销此轮',
+    'agentChat.undo.partialTurnTooltip': '此轮开头已不在 Chat 中，无法完整撤销',
     'agentChat.undo.tooltip': '将文件恢复到此轮之前的状态',
     'agentChat.undo.button': '撤销',
     'agentChat.review.tooltip': '在对话旁审阅此轮的更改并添加评论',
@@ -68,6 +69,7 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.undo.failureReason.changed': '它在 Agent 编辑后又被修改过',
     'agentChat.undo.failureReason.missing': '它已不存在',
     'agentChat.undo.failureReason.exists': '它在 Agent 删除后又被重新创建',
+    'agentChat.undo.failureReason.renamed': '它被 Agent 重命名，重命名的文件暂不支持撤销',
     'agentChat.undo.nextStep.changed':
         '请先撤销之后编辑过它的那一轮，或在开启此轮的消息上使用“恢复代码到此处”。',
     'agentChat.undo.successOne': '已撤销 1 个文件的更改',

@@ -1,9 +1,11 @@
 import type { CommandId } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
-import type { BaseWindow, BrowserWindow } from 'electron';
+import type { App, BaseWindow } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron';
 
 import type { MainEnvironmentMethods } from './main-environment-methods';
 import { unconfiguredEnvironment } from './main-environment-methods';
+import { syncLocalMachineMenuItems } from './menu';
 import type { RemoteEnvironments } from './remote-environments';
 
 /**
@@ -27,20 +29,67 @@ export function createLocalWorkbenchEnvironment(
     };
 }
 
+export interface RemoteWindowMenu {
+    /**
+     * Routes an application menu command to the focused SSH Host window, which is a full Workbench of its own. Returns
+     * `false` when `window` is not an SSH Host window, so the menu falls back to the local Workbench.
+     */
+    dispatch: (window: BaseWindow, command: CommandId, isViaAccelerator: boolean) => boolean;
+    /**
+     * Installs a freshly built application menu with the focused window's environment already applied.
+     */
+    setApplicationMenu: (menu: Menu) => void;
+}
+
 /**
- * Routes an application menu command to the focused SSH Host window, which is a full Workbench of its own. Returns
- * `false` when `window` is not an SSH Host window, so the menu falls back to the local Workbench.
+ * The Electron surfaces the menu bar controller reads; tests substitute fakes.
  */
-export function createRemoteWindowCommandDispatcher(
+export interface RemoteWindowMenuHost {
+    app: Pick<App, 'on'>;
+    applicationMenu: () => Pick<Menu, 'getMenuItemById'> | null;
+    focusedWindow: () => BrowserWindow | null;
+    setApplicationMenu: (menu: Menu) => void;
+}
+
+const electronMenuHost: RemoteWindowMenuHost = {
+    get app() {
+        return app;
+    },
+    applicationMenu: () => Menu.getApplicationMenu(),
+    focusedWindow: () => BrowserWindow.getFocusedWindow(),
+    setApplicationMenu: (menu) => Menu.setApplicationMenu(menu),
+};
+
+/**
+ * The menu bar's view of SSH Host windows. Besides routing commands, it disables local-machine-only items while an SSH
+ * Host window is focused and re-enables them on blur, so a window that closes without another taking focus leaves the
+ * menu in its local state.
+ */
+export function createRemoteWindowMenu(
     remoteEnvironments: () => RemoteEnvironments | undefined,
-): (window: BaseWindow, command: CommandId, isViaAccelerator: boolean) => boolean {
-    return (window, command, isViaAccelerator) => {
-        const environment = remoteEnvironments()?.forWindow(window as BrowserWindow);
-        if (!environment) return false;
-        environment.sendEvent({
-            event: 'command.execute',
-            payload: { command, viaAccelerator: isViaAccelerator },
-        });
-        return true;
+    electron: RemoteWindowMenuHost = electronMenuHost,
+): RemoteWindowMenu {
+    const isLocalMachine = (window: BrowserWindow | null): boolean =>
+        !remoteEnvironments()?.forWindow(window ?? undefined);
+    electron.app.on('browser-window-focus', (_event, window) =>
+        syncLocalMachineMenuItems(electron.applicationMenu(), isLocalMachine(window)),
+    );
+    electron.app.on('browser-window-blur', () =>
+        syncLocalMachineMenuItems(electron.applicationMenu(), true),
+    );
+    return {
+        dispatch: (window, command, isViaAccelerator) => {
+            const environment = remoteEnvironments()?.forWindow(window as BrowserWindow);
+            if (!environment) return false;
+            environment.sendEvent({
+                event: 'command.execute',
+                payload: { command, viaAccelerator: isViaAccelerator },
+            });
+            return true;
+        },
+        setApplicationMenu: (menu) => {
+            syncLocalMachineMenuItems(menu, isLocalMachine(electron.focusedWindow()));
+            electron.setApplicationMenu(menu);
+        },
     };
 }

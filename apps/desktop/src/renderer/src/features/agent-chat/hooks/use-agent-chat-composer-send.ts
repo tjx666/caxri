@@ -94,7 +94,11 @@ export function useAgentChatComposerSend({
                   focusInput();
                   if (isSending) return;
                   // eslint-disable-next-line no-void -- runCommand reports its own failures through tryCommand
-                  void runCommand(`/${compactCommand.name}`, { name: compactCommand.name });
+                  void runCommand(
+                      `/${compactCommand.name}`,
+                      { name: compactCommand.name },
+                      { isFromDraft: false },
+                  );
               }
             : undefined;
     /**

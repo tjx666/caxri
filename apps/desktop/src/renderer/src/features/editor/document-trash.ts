@@ -10,8 +10,8 @@ import { translate } from '../../i18n';
 import { getBootstrap } from '../../stores/selectors';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import { patchSessionState } from '../../stores/workbench';
-import { sessionStateOf } from './document-commands';
 import { discardPendingDocumentOperations } from './pending-document-operations';
+import { sessionStateOf } from './session-pane-state';
 
 /**
  * Every Session that can hold editor state for one Workbench Root. A file path belongs to the root it was authorized

@@ -39,6 +39,13 @@ describe('translate', () => {
         useLocaleStore.setState({ locale: 'en' });
         expect(translate('common.close')).toBe('Close');
     });
+
+    it('names the shared command list in the UI language instead of the cmdk English default', () => {
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        expect(translate('core.command.suggestions')).toBe('建议');
+        useLocaleStore.setState({ locale: 'en' });
+        expect(translate('core.command.suggestions')).toBe('Suggestions');
+    });
 });
 
 const compareText = (left: string, right: string) => left.localeCompare(right);

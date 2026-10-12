@@ -4,7 +4,7 @@ import { useImperativeHandle, useState } from 'react';
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
-import { draftAfterEditCancel } from '../agent-chat-drafts';
+import { draftAfterEditCancel, readAgentChatDraft } from '../agent-chat-drafts';
 import type { AgentChatEdit } from '../agent-chat-edit';
 import {
     agentChatEditRemovedTurns,
@@ -153,13 +153,28 @@ export function useAgentChatComposerEdit({
          */
         cancel,
         /**
-         * Sends `text` as the edit, or through `sendMessage` as a new message when no edit is in progress.
+         * Sends `text` as the edit, or through `sendMessage` as a new message when no edit is in progress. The edit
+         * ends as soon as it is on its way, like a sent message leaves the composer; if Server Core refuses it, the
+         * edit comes back with `text`, and Cancel then puts back the draft the composer held at that point.
          */
         submit: async (text: string, sendMessage: () => Promise<void>): Promise<void> => {
             if (!active) return sendMessage();
             const restoreFiles = active.restoreFiles && filesUnsupportedReason === undefined;
-            return submitEdit(text, { ...active, restoreFiles, providerName }, () =>
-                setEdit(undefined),
+            return submitEdit(
+                text,
+                { ...active, restoreFiles, providerName },
+                {
+                    onCleared: () => setEdit(undefined),
+                    onReturned: () => {
+                        setEdit({
+                            itemId: active.itemId,
+                            restoreFiles: active.restoreFiles,
+                            previousDraft: readAgentChatDraft(terminalId),
+                            appendedDraft: '',
+                        });
+                        setDraft(() => text);
+                    },
+                },
             );
         },
     };

@@ -1,5 +1,6 @@
 import type { CommandId, ViewContainerId } from '@caxri/protocol';
 
+import type { AgentChatComposerCommand } from '../features/agent-chat/agent-chat-composer-commands';
 import type { SessionNavigationDirection } from '../features/session/session-navigation-history';
 import type { SettingsView } from '../stores/dialogs';
 
@@ -11,6 +12,13 @@ export interface CommandContext {
     agentActions: {
         canOpen(): boolean;
         open(): void;
+    };
+    /**
+     * The active tab's Chat composer controls, present only while its provider offers them.
+     */
+    agentChat: {
+        canRun(command: AgentChatComposerCommand): boolean;
+        run(command: AgentChatComposerCommand): void;
     };
     project: {
         create(): void;
@@ -35,6 +43,7 @@ export interface CommandContext {
         resumeSelected(): void;
         selectAdjacent(delta: 1 | -1): void;
         switchMru(invocation?: SessionMruShortcutInvocation): void;
+        takeBackSelectedFromCommander(): void;
     };
     terminal: {
         create(): void;

@@ -129,6 +129,24 @@ export const settingsSpec = [
         default: false,
     },
     {
+        kind: 'integer',
+        key: 'agentChat.longPasteThreshold',
+        title: 'Chat long paste threshold',
+        description:
+            'Longer text pasted into a Chat is saved to a local file and the message cites it, so a log or a dump does not bury the message. Raise it to paste such text as is; text that would not fit in one message is still saved to a file.',
+        category: 'general',
+        keywords: ['chat', 'clipboard', 'paste', 'verbatim', 'file', 'context', 'tokens'],
+        min: 1,
+        /**
+         * The message length limit (`MAX_AGENT_CHAT_MESSAGE_LENGTH`): a paste the message cannot hold always takes the
+         * saved-file path, so a larger threshold would change nothing. The values are inlined to avoid a protocol
+         * configuration import cycle; `settings-spec.test.ts` keeps them equal to the Chat contract.
+         */
+        max: 100_000,
+        default: 32_768,
+        display: { unit: 'characters', step: 1024 },
+    },
+    {
         kind: 'enum',
         key: 'workbench.newWorktreeBehavior',
         title: 'New worktree behavior',

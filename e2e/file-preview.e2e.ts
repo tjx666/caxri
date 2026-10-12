@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -178,6 +179,12 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
  * from the same buffer the source tab edits.
  */
 test('previews PDF, CSV, and Mermaid files', async () => {
+    // Reading `sample.bin` as text is refused and logged in Main and Server Core; the Renderer then opens it as a
+    // no-preview tab instead of showing an error.
+    allowE2EErrors([
+        { source: 'desktop', event: 'ipc.request_failed', code: 'IO', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'IO', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-preview-formats-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -193,8 +200,14 @@ test('previews PDF, CSV, and Mermaid files', async () => {
             'city,note,population\n"Lisbon, PT","said ""hi""\nthen left",545000\nOslo,plain,709000\n',
             'utf8',
         ),
+        writeFile(
+            join(root, 'ledger.csv'),
+            `id,item,amount\n${Array.from({ length: 3000 }, (_, index) => `${index + 1},item-${index + 1},${index * 3}`).join('\n')}\n`,
+            'utf8',
+        ),
         writeFile(join(root, 'flow.mmd'), 'graph LR\n  Draft --> Review\n', 'utf8'),
         writeFile(join(root, 'broken.mmd'), 'graph LR\n  Draft -->\n', 'utf8'),
+        writeFile(join(root, 'sample.bin'), Buffer.from([0x89, 0x50, 0x00, 0xff, 0x00, 0x01])),
     ]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
@@ -244,15 +257,62 @@ test('previews PDF, CSV, and Mermaid files', async () => {
             'This file is not a valid PDF, or it is damaged.',
         );
 
+        // A binary file has no text to edit: it opens a no-preview tab whose way forward is Finder, not an error toast.
+        await page.getByRole('treeitem', { name: 'sample.bin', exact: true }).click();
+        await expect(page.getByRole('tab', { name: 'Preview: sample.bin' })).toBeVisible();
+        await expect(page.getByText('No preview is available for this file.')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Reveal in Finder' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Open Source' })).toHaveCount(0);
+
         await page.getByRole('treeitem', { name: 'cities.csv', exact: true }).click();
         await expect(page.getByRole('tab', { name: 'cities.csv', exact: true })).toBeVisible();
         await expect(page.locator('.monaco-editor').first()).toContainText('population');
         await page.keyboard.press('Meta+Shift+V');
-        const table = page.getByRole('table', { name: 'Table preview' });
+        const table = page.getByRole('grid', { name: 'Table preview' });
         await expect(table.getByRole('columnheader', { name: 'population' })).toBeVisible();
-        await expect(table.getByRole('cell', { name: 'Lisbon, PT' })).toBeVisible();
+        await expect(table.getByRole('gridcell', { name: 'Lisbon, PT' })).toBeVisible();
         await expect(table.getByRole('row')).toHaveCount(3);
         await expect(page.getByText('2 rows × 3 columns')).toBeVisible();
+        // A descending sort on a numeric column keeps each row's source number in the gutter.
+        const population = table.getByRole('columnheader', { name: 'population' });
+        await population.getByRole('button').click();
+        await population.getByRole('button').click();
+        await expect(population).toHaveAttribute('aria-sort', 'descending');
+        await expect(table.getByRole('row').nth(1)).toContainText('Oslo');
+        await expect(table.getByRole('rowheader').first()).toHaveText('2');
+        await page.keyboard.press('Meta+F');
+        const filter = page.getByRole('textbox', { name: 'Filter rows' });
+        await expect(filter).toBeFocused();
+        await page.keyboard.type('lisbon');
+        await expect(page.getByText('1 of 2 rows × 3 columns')).toBeVisible();
+        await expect(table.getByRole('rowheader').first()).toHaveText('1');
+
+        // Tab enters the grid on its first cell; the keyboard moves the active cell, which the grid names through
+        // `aria-activedescendant`, and Cmd+Down reaches the last row of a table far taller than the virtualized window.
+        await page.getByRole('treeitem', { name: 'ledger.csv', exact: true }).click();
+        await expect(page.getByRole('tab', { name: 'ledger.csv', exact: true })).toBeVisible();
+        await expect(page.locator('.monaco-editor').first()).toContainText('amount');
+        await page.keyboard.press('Meta+Shift+V');
+        const ledger = page.getByRole('grid', { name: 'Table preview' });
+        await expect(ledger.getByRole('gridcell', { name: 'item-1', exact: true })).toBeVisible();
+        await page.getByRole('textbox', { name: 'Filter rows' }).focus();
+        await page.keyboard.press('Tab');
+        await expect(ledger).toBeFocused();
+        const activeCell = async () => {
+            const id = await ledger.getAttribute('aria-activedescendant');
+            expect(id).toBeTruthy();
+            return page.locator(`[id="${id ?? ''}"]`);
+        };
+        await expect(await activeCell()).toHaveText('1');
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('ArrowDown');
+        await expect(await activeCell()).toHaveText('item-2');
+        await expect(await activeCell()).toHaveAttribute('aria-selected', 'true');
+        await page.keyboard.press('Meta+ArrowDown');
+        await expect(await activeCell()).toHaveText('item-3000');
+        await expect(await activeCell()).toBeInViewport({ ratio: 1 });
+        await page.keyboard.press('End');
+        await expect(await activeCell()).toHaveText('8997');
 
         await page.getByRole('treeitem', { name: 'flow.mmd', exact: true }).click();
         await expect(page.getByRole('tab', { name: 'flow.mmd', exact: true })).toBeVisible();

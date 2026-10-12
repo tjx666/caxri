@@ -66,6 +66,11 @@ export const commandDescriptions = {
         'Reopen the active Agent as a Chat, or a Chat as a Terminal, continuing its conversation',
     'commands.description.terminal.showAgentStatus':
         "Open the active Agent's output speed and its provider's service status",
+    'commands.description.agentChat.changeModel':
+        "Open the active Chat's model and reasoning effort picker",
+    'commands.description.agentChat.changePermissionMode':
+        "Open the active Chat's permission level menu",
+    'commands.description.agentChat.togglePlanMode': 'Turn plan mode on or off for the active Chat',
     'commands.description.terminal.close': 'Close the active Terminal',
     'commands.description.workbench.closeActiveTab': 'Close the active Terminal or file tab',
     'commands.description.workbench.nextTab': 'Activate the next Terminal or file tab',
@@ -137,6 +142,8 @@ export const commandDescriptions = {
         'Stop the Agent Commander running in the background; opening it again resumes the same conversation',
     'commands.description.agentCommander.handOver':
         'Pick Sessions, or Agent conversations started outside Caxri, for the Agent Commander to take over',
+    'commands.description.agentCommander.takeBack':
+        'End the Agent Commander’s management of the selected Session; its Agents keep running',
     'commands.description.processExplorer.open': 'Inspect Caxri process resource usage',
     'commands.description.developer.toggleScreencastMode':
         'Show clicks and Caxri shortcuts for external screen recording',
