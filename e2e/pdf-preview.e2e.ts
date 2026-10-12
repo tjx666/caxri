@@ -70,3 +70,53 @@ test('finds text across the pages of a PDF preview', async () => {
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+/**
+ * The password reaches pdf.js only through the form, so the real viewer is the only place to prove that a wrong one is
+ * rejected in place and the right one opens the pages.
+ */
+test('opens a password-protected PDF after the reader enters its password', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-pdf-password-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    await writeFile(
+        join(root, 'locked.pdf'),
+        syntheticPdf(['Locked page one', 'Locked page two'], { userPassword: 'open-sesame' }),
+    );
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const { page } = running;
+    try {
+        await createProjectSession(page);
+        await page.getByRole('treeitem', { name: 'locked.pdf', exact: true }).click();
+        await expect(
+            page.getByText('This PDF is password-protected. Enter its password to open it.'),
+        ).toBeVisible();
+        const field = page.getByLabel('Password', { exact: true });
+        await expect(field).toBeFocused();
+        const open = page.getByRole('button', { name: 'Open', exact: true });
+        await expect(open).toBeDisabled();
+
+        await field.fill('wrong');
+        await field.press('Enter');
+        await expect(
+            page.getByRole('alert').filter({ hasText: 'Incorrect password.' }),
+        ).toBeVisible();
+        await expect(field).toHaveAttribute('aria-invalid', 'true');
+        await expect(field).toBeFocused();
+
+        await field.fill('open-sesame');
+        await open.click();
+        const pdf = page.getByTestId('pdf-preview');
+        await expect(pdf.locator('.page')).toHaveCount(2);
+        await expect(pdf.locator('.textLayer').first()).toContainText('Locked page one');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});

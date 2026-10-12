@@ -6,9 +6,10 @@ export const PDF_FAILURE_CONFIRM_MS = 1000;
 
 /**
  * Why a PDF preview reads its file. `open` is the tab's first read and the user's Retry; `disk` is a watcher change to
- * the file; `confirm` is the second read of a `disk` reload whose first read failed.
+ * the file; `confirm` is the second read of a `disk` reload whose first read failed; `password` is an attempt to open a
+ * protected PDF with the password the reader just entered.
  */
-export type PdfReadCause = 'confirm' | 'disk' | 'open';
+export type PdfReadCause = 'confirm' | 'disk' | 'open' | 'password';
 
 /**
  * A finished read, tagged with the file it read (`source`) and the request it answered.
@@ -24,8 +25,9 @@ export interface PdfSettledRead<State> {
  *
  * A read that answers the current request is shown as is. While a reload caused by a disk change is in flight, the last
  * result for the same file stays on screen, so the reader keeps their page instead of watching the view blank out and
- * rebuild for a file that is most likely still readable. Retry and a different file show the loading state, as the user
- * asked for a fresh read or a different document.
+ * rebuild for a file that is most likely still readable. A password attempt keeps the password form on screen, so a
+ * wrong password does not flash a loading state and the form keeps its focus. Retry and a different file show the
+ * loading state, as the user asked for a fresh read or a different document.
  */
 export function shownPdfRead<State>(
     settled: PdfSettledRead<State> | undefined,

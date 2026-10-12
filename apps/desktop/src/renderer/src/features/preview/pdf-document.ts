@@ -65,10 +65,14 @@ function sharedWorker(): pdfjs.PDFWorker {
 /**
  * Starts parsing a PDF from bytes the Renderer already read through `files.readAsset`. pdf.js never fetches the file
  * itself, so it has no URL to reach the filesystem or the network with.
+ *
+ * A protected PDF opened without its `password`, or with a wrong one, rejects with a `PasswordException` (see
+ * `pdfPasswordPrompt`). The password goes to the worker only, never into a log.
  */
-export function loadPdfDocument(data: Uint8Array): PDFDocumentLoadingTask {
+export function loadPdfDocument(data: Uint8Array, password?: string): PDFDocumentLoadingTask {
     return pdfjs.getDocument({
         data,
+        password,
         worker: sharedWorker(),
         // Built-in CMaps, fonts, and decoders come from the bundle, never from a URL (see `pdf-binary-data.ts`).
         BinaryDataFactory: InlinePdfBinaryDataFactory,
