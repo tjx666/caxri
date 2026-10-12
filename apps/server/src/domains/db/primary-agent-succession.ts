@@ -45,5 +45,5 @@ export function removeTerminalWithSuccession(database: SuccessionStore, id: stri
             choosePrimaryAgentSuccessor(remaining, session),
         );
     }
-    database.sessions.removeTerminalFromAllRootStates(terminal.sessionId, id);
+    database.sessions.removeTerminalFromAllRootStates(terminal.sessionId, id, 'terminalClosed');
 }

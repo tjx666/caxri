@@ -687,8 +687,8 @@ export class CaxriDatabase {
         return this.db.sessions.getState(sessionId);
     }
 
-    updateSessionState(state: SessionState): void {
-        this.db.sessions.updateState(state);
+    updateSessionState(state: SessionState, reason?: 'clientWrite' | 'serviceWrite'): void {
+        this.db.sessions.updateState(state, reason);
     }
 
     remapWorkbenchEditorState(

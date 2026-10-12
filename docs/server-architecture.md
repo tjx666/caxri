@@ -299,6 +299,18 @@ at every boundary (`isCallerHandledFailure` in `@caxri/protocol`) instead of `er
 so its real volume remains measurable: ordinary contention must be countable without being mistaken
 for a fault.
 
+A rejection alone cannot say what moved the row, so every write that advances the revision names its
+writer with a closed reason: `clientWrite` for a `session.updateState` request, `serviceWrite` for a
+Server service writing a whole state (Agent delegation, a dispatch rollback), the read repairs
+`rootFirstVisit`, `terminalTabRepair`, and `unreadableRepair`, and the Root rewrites `terminalCreated`,
+`terminalClosed`, `terminalMovedAway`, and `projectPruned`. Server Core remembers the last writer of
+each Session in memory for its lifetime and logs every Server-owned advance as
+`db.session_state_revision_advanced`; client writes are only remembered, because there is one per
+layout change. A rejected write logs `db.session_state_stale_write` with `currentRevision`,
+`writtenRevision`, and the last writer's reason, stored revision, and age, or `unrecorded` when nothing
+moved the row during this lifetime. A `lastWriteRevision` that differs from `currentRevision` means
+the remembered write was rolled back, or a writer outside this bookkeeping moved the row since.
+
 Do not confuse `revision` with the `state_version` column, which is a storage-schema version used to
 decide whether a row can be parsed or must be repaired and is identical for every row under one schema.
 

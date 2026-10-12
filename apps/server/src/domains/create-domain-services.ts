@@ -527,7 +527,7 @@ export async function createDomainServices(
             send,
         }),
         'session.updateState': (state) => {
-            database.updateSessionState(state);
+            database.updateSessionState(state, 'clientWrite');
             return database.getSessionState(state.sessionId);
         },
         'session.queryForPrincipal': ({ principal, query }) =>

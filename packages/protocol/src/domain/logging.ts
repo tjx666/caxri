@@ -190,6 +190,18 @@ export const logEventCatalog = {
     },
     database: {
         sessionStateRepaired: 'db.session_state_repaired',
+        /**
+         * A Server-owned write advanced a Session state revision: the closed `reason` (`serviceWrite`,
+         * `rootFirstVisit`, `terminalTabRepair`, `unreadableRepair`, `terminalCreated`, `terminalClosed`,
+         * `terminalMovedAway`, `projectPruned`) and the stored `revision`. Client writes are not recorded per write.
+         */
+        sessionStateRevisionAdvanced: 'db.session_state_revision_advanced',
+        /**
+         * A Session state write rejected as stale: `currentRevision`, `writtenRevision`, and the last recorded write in
+         * this Server Core lifetime as `lastWriteReason` (the closed reason, `clientWrite`, or `unrecorded`),
+         * `lastWriteRevision`, and `lastWriteAgeMs`.
+         */
+        sessionStateStaleWrite: 'db.session_state_stale_write',
         sessionStateUnchanged: 'db.session_state_unchanged',
     },
     diagnostics: {

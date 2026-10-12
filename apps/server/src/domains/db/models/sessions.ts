@@ -33,6 +33,11 @@ import {
     workbenchProjects,
 } from './session-record';
 import type {
+    SessionStateRevisionObservers,
+    SessionStateWriteReason,
+} from './session-state-revisions';
+import { SessionStateRevisions } from './session-state-revisions';
+import type {
     SessionStateRepair,
     SessionStateRow,
     SessionStateUnchangedWrite,
@@ -65,12 +70,16 @@ export class SessionsModel {
      * Per-lifetime totals behind {@link SessionStateUnchangedWrite}.
      */
     private readonly stateWrites = { total: 0, unchanged: 0 };
+    private readonly revisions: SessionStateRevisions;
 
     constructor(
         private readonly database: CaxriDrizzleDatabase,
         private readonly onStateRepair?: (repair: SessionStateRepair) => void,
         private readonly onStateUnchanged?: (report: SessionStateUnchangedWrite) => void,
-    ) {}
+        revisionObservers?: SessionStateRevisionObservers,
+    ) {
+        this.revisions = new SessionStateRevisions(database, revisionObservers);
+    }
 
     /**
      * Places every durable Terminal of the Session into a single pane, in creation order. This is what a Workbench Root
@@ -139,9 +148,10 @@ export class SessionsModel {
             // Persist a first visit before another bootstrap can generate different pane/tab IDs.
             if (paneLayout === parsed.state.paneLayout && !parsed.isNewRoot) return parsed.state;
             const repaired = { ...parsed.state, paneLayout };
+            const reason = parsed.isNewRoot ? 'rootFirstVisit' : 'terminalTabRepair';
             // The reader must be handed the revision the repair just stored, not the one it read: returning the older
             // token would make the client's first ordinary write look stale and be rejected for the Server's own edit.
-            return { ...repaired, revision: this.updateState(repaired, ownedTerminalIds) };
+            return { ...repaired, revision: this.updateState(repaired, reason, ownedTerminalIds) };
         }
         /**
          * Repairing a row the Server itself could not parse is not a stale client write: it is based on the row that is
@@ -151,61 +161,13 @@ export class SessionsModel {
             ...this.defaultState(row.sessionId, ownedTerminalIds),
             revision: row.revision,
         };
-        const revision = this.updateState(repaired, ownedTerminalIds);
+        const revision = this.updateState(repaired, 'unreadableRepair', ownedTerminalIds);
         this.onStateRepair?.({
             sessionId: row.sessionId,
             stateVersion: row.stateVersion,
             reason: parsed.reason,
         });
         return { ...repaired, revision };
-    }
-
-    /**
-     * Applies a Terminal placement change to every Root the Session has already arranged. Terminal ownership is
-     * Session-global, not Root-scoped (see {@link defaultPaneLayout}), so a create or close must stay visible no matter
-     * which Root the Session displays next, not just the one selected right now. A Root with no stored snapshot yet is
-     * left alone: its first visit builds a layout straight from `terminals`, so it can never drift out of sync in the
-     * first place.
-     */
-    private mutateTerminalAcrossRootStates(
-        sessionId: string,
-        mutate: (paneLayout: SessionState['paneLayout']) => SessionState['paneLayout'],
-    ): void {
-        const row = this.database
-            .select({ workbenchStateJson: sessionStateTable.workbenchStateJson })
-            .from(sessionStateTable)
-            .where(eq(sessionStateTable.sessionId, sessionId))
-            .get();
-        if (!row) return;
-        const states = parseWorkbenchEditorStates(row.workbenchStateJson);
-        if (!states) return;
-        let isChanged = false;
-        const nextStates: WorkbenchEditorStates = {};
-        for (const [workbenchProjectId, rootState] of Object.entries(states)) {
-            if (!rootState) continue;
-            const paneLayout = mutate(rootState.paneLayout);
-            if (paneLayout !== rootState.paneLayout) isChanged = true;
-            nextStates[workbenchProjectId] =
-                paneLayout === rootState.paneLayout ? rootState : { ...rootState, paneLayout };
-        }
-        if (!isChanged) return;
-        this.writeWorkbenchStates(sessionId, JSON.stringify(nextStates));
-    }
-
-    /**
-     * The one way to rewrite a Session's stored Root arrangements outside {@link updateState}.
-     *
-     * Server-owned edits (a Terminal appearing in every Root, a deleted Project pruned out of them) change what a
-     * client last read just as much as a client write does. Leaving `revision` untouched would let a Renderer holding
-     * the pre-edit token write successfully and erase the edit, which is the exact race the token exists to stop. The
-     * increment is a SQL expression so it is computed from the row being written, not from a value read earlier.
-     */
-    private writeWorkbenchStates(sessionId: string, workbenchStateJson: string): void {
-        this.database
-            .update(sessionStateTable)
-            .set({ revision: sql`${sessionStateTable.revision} + 1`, workbenchStateJson })
-            .where(eq(sessionStateTable.sessionId, sessionId))
-            .run();
     }
 
     list(projectId?: string): SessionRecord[] {
@@ -315,7 +277,8 @@ export class SessionsModel {
             .all();
         for (const row of stateRows) {
             const pruned = pruneWorkbenchEditorState(row.workbenchStateJson, projectId);
-            if (pruned !== undefined) this.writeWorkbenchStates(row.sessionId, pruned);
+            if (pruned !== undefined)
+                this.revisions.rewriteRootStates(row.sessionId, pruned, 'projectPruned');
         }
         const sessionIds = this.database
             .select({ id: sessions.id })
@@ -642,11 +605,17 @@ export class SessionsModel {
      *
      * The check is whole-write, not per field: the pane layout is a tree, so merging two arrangements field by field
      * would produce a third one neither writer asked for. A caller whose revision no longer matches is told the current
-     * revision in `details` and re-derives its change against the fresh state instead.
+     * revision in `details` and re-derives its change against the fresh state instead. `reason` names the writer for
+     * the diagnostics of a later stale write; any write that is not a `session.updateState` request or a read repair is
+     * a Server service writing a whole state.
      *
      * @returns The revision now stored, which the caller must adopt before writing again.
      */
-    updateState(state: SessionState, terminalIds?: readonly string[]): number {
+    updateState(
+        state: SessionState,
+        reason: SessionStateWriteReason = 'serviceWrite',
+        terminalIds?: readonly string[],
+    ): number {
         const binding = this.getWorkbenchBinding(state.sessionId);
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
         if (binding.workbenchProjectId !== state.workbenchProjectId)
@@ -665,12 +634,7 @@ export class SessionsModel {
         // No row yet means nothing can be stale against it, so a first write declares `0`.
         const storedRevision = existing?.revision ?? 0;
         if (state.revision !== storedRevision)
-            throw new CaxriError(
-                'CONFLICT',
-                'Session state was written from a stale revision',
-                // The current revision travels with the rejection so the writer can rebase without another read.
-                { currentRevision: storedRevision, writtenRevision: state.revision },
-            );
+            throw this.revisions.staleWrite(state.sessionId, storedRevision, state.revision);
         const storedStates = existing
             ? parseWorkbenchEditorStates(existing.workbenchStateJson)
             : undefined;
@@ -735,6 +699,7 @@ export class SessionsModel {
                 },
             })
             .run();
+        if (!isUnchanged) this.revisions.recordWrite(state.sessionId, reason, values.revision);
         return values.revision;
     }
 
@@ -743,7 +708,7 @@ export class SessionsModel {
      * shows it instead of only the Root that was active at creation time.
      */
     addTerminalToAllRootStates(sessionId: string, terminalId: string): void {
-        this.mutateTerminalAcrossRootStates(sessionId, (paneLayout) =>
+        this.revisions.mutateTerminalAcrossRootStates(sessionId, 'terminalCreated', (paneLayout) =>
             addPaneTerminalSilently(paneLayout, terminalId),
         );
     }
@@ -752,8 +717,12 @@ export class SessionsModel {
      * Drops a closed or moved-away Terminal from every Root the Session has already arranged, so no stored snapshot
      * keeps a tab pointing at a PTY it no longer owns.
      */
-    removeTerminalFromAllRootStates(sessionId: string, terminalId: string): void {
-        this.mutateTerminalAcrossRootStates(sessionId, (paneLayout) =>
+    removeTerminalFromAllRootStates(
+        sessionId: string,
+        terminalId: string,
+        reason: 'terminalClosed' | 'terminalMovedAway',
+    ): void {
+        this.revisions.mutateTerminalAcrossRootStates(sessionId, reason, (paneLayout) =>
             removePaneTerminal(paneLayout, terminalId),
         );
     }
