@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { agentCommanderLogEvents } from './logging-agent-commander.js';
+import { remoteSshLogEvents } from './logging-remote-ssh.js';
 
 /**
  * Canonical structured-log event registry. Writers use these values so adding or renaming an event is one reviewed,
@@ -313,6 +314,7 @@ export const logEventCatalog = {
         eventLoopStall: 'process.event_loop_stall',
     },
     agentCommander: agentCommanderLogEvents,
+    remoteSsh: remoteSshLogEvents,
     processExplorer: {
         consoleError: 'process_explorer.console_error',
         pageException: 'process_explorer.page_exception',

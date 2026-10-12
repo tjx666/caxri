@@ -68,14 +68,27 @@ export interface WorkbenchIpcOptions {
      * startup-frame, editor, performance, and Workbench readiness diagnostics stay bound to the main window.
      */
     companion?: CompanionRendererPolicy;
+    /**
+     * Finds the SSH Host window a sender belongs to. Each SSH Host window has its own Server connection, so its
+     * requests use that environment's transport and never reach the local Server; its diagnostics are tagged `window:
+     * 'remote'`.
+     */
+    remote?(sender: WebContents): RemoteRendererRoute | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
+}
+
+export interface RemoteRendererRoute {
+    isRecovering(): boolean;
+    onEventsReady(): void;
+    transport: ReturnType<typeof createElectronIpcCommandAdapter>;
+    window(): BrowserWindow | undefined;
 }
 
 /**
  * Which window a Renderer diagnostic came from, logged as the closed `window` field so a Terminal failure in the Agent
  * Commander window is told apart from one in the Workbench.
  */
-export type RendererWindow = 'commander' | 'workbench';
+export type RendererWindow = 'commander' | 'remote' | 'workbench';
 
 /**
  * The diagnostics the Terminal pane emits, which both windows mount. Every other kind describes the Workbench itself
@@ -110,14 +123,15 @@ export interface CompanionRendererPolicy {
  * Installs the authenticated Electron transport without leaking Electron into the protocol.
  */
 export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
-    function senderRole(sender: WebContents): 'companion' | 'workbench' | undefined {
+    function senderRole(sender: WebContents): 'companion' | 'remote' | 'workbench' | undefined {
         if (options.renderer() && sender === options.renderer()) return 'workbench';
         const companion = options.companion?.renderer();
         if (companion && sender === companion) return 'companion';
+        if (options.remote?.(sender)) return 'remote';
         return undefined;
     }
 
-    function assertSender(sender: WebContents): 'companion' | 'workbench' {
+    function assertSender(sender: WebContents): 'companion' | 'remote' | 'workbench' {
         const role = senderRole(sender);
         if (!role) throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
         return role;
@@ -129,7 +143,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             options.companion?.onRendererError(rawKind);
             return;
         }
-        if (event.sender !== options.renderer()) return;
+        if (event.sender !== options.renderer() && !options.remote?.(event.sender)) return;
         options
             .logger()
             ?.write(
@@ -152,7 +166,12 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         if (!parsed.success) return;
         const diagnostic = parsed.data;
         if (role === 'companion' && !TERMINAL_DIAGNOSTIC_KINDS.has(diagnostic.kind)) return;
-        const rendererWindow: RendererWindow = role === 'companion' ? 'commander' : 'workbench';
+        /**
+         * Startup frames and performance scenarios measure the local Workbench's boot; an SSH Host window's would skew
+         * them with network latency.
+         */
+        if (role === 'remote' && !TERMINAL_DIAGNOSTIC_KINDS.has(diagnostic.kind)) return;
+        const rendererWindow: RendererWindow = role === 'companion' ? 'commander' : role;
         if (diagnostic.kind === 'terminal-renderer') {
             options.onRendererDiagnostic?.(diagnostic, rendererWindow);
             return;
@@ -384,17 +403,25 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         });
     });
     ipcMain.on('caxri:renderer-events-ready', (event) => {
-        if (assertSender(event.sender) === 'companion') {
+        const role = assertSender(event.sender);
+        if (role === 'companion') {
             options.companion?.onEventsReady();
+            return;
+        }
+        if (role === 'remote') {
+            options.remote?.(event.sender)?.onEventsReady();
             return;
         }
         options.onEventsReady?.();
     });
     ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
         let isTrustedRenderer = false;
+        let isRecovering = () => options.isRecovering();
         try {
             const role = assertSender(event.sender);
             if (role === 'companion') options.companion?.admit(raw);
+            const remote = role === 'remote' ? options.remote?.(event.sender) : undefined;
+            if (remote) isRecovering = () => remote.isRecovering();
             isTrustedRenderer = true;
             /**
              * Refuse queued Renderer work; explicit quit owns final Server I/O and shutdown.
@@ -412,8 +439,8 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     error: toWireError(new CaxriError('CANCELLED', 'Application is quitting')),
                 };
             const reply = await runInRequestWindow(
-                role === 'companion' ? options.companion?.window() : undefined,
-                () => options.transport.dispatch(raw),
+                role === 'companion' ? options.companion?.window() : remote?.window(),
+                () => (remote?.transport ?? options.transport).dispatch(raw),
             );
             if (role === 'companion' && reply.ok) options.companion?.observeReply?.(raw, reply);
             /**
@@ -423,7 +450,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 options
                     .logger()
                     ?.write(
-                        requestFailureLevel(reply.error.code, options.isRecovering()),
+                        requestFailureLevel(reply.error.code, isRecovering()),
                         logEventCatalog.ipc.requestFailed,
                         {
                             correlationId: requestIdFromEnvelope(raw) ?? undefined,
@@ -444,7 +471,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 options
                     .logger()
                     ?.write(
-                        requestFailureLevel(wire.code, options.isRecovering()),
+                        requestFailureLevel(wire.code, isRecovering()),
                         logEventCatalog.ipc.requestFailed,
                         {
                             correlationId: requestIdFromEnvelope(raw) ?? undefined,
@@ -464,7 +491,10 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         }
     });
     ipcMain.handle('caxri:negotiate', (event, hello: unknown) => {
-        assertSender(event.sender);
-        return options.transport.negotiate(hello);
+        const role = assertSender(event.sender);
+        const transport =
+            (role === 'remote' ? options.remote?.(event.sender)?.transport : undefined) ??
+            options.transport;
+        return transport.negotiate(hello);
     });
 }

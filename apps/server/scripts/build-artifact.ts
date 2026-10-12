@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { execFile } from 'node:child_process';
-import { chmod, cp, mkdir, readFile, rm } from 'node:fs/promises';
+import { access, chmod, cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
@@ -12,13 +12,35 @@ import { binPathFor } from '@vscode/ripgrep-universal';
 
 import { selectNodePtyNativeDirectory } from '../../../scripts/node-pty-layout';
 import { assembleServerArtifact, verifyServerArtifact } from './artifact';
+import type { LinuxNatives } from './linux-target';
+import {
+    ensureLinuxNatives,
+    ensureLinuxRuntime,
+    extractLinuxNode,
+    parseLinuxTargets,
+    pinnedRuntimeVersion,
+} from './linux-target';
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 const root = resolve(import.meta.dirname, '../../..');
 const serverRoot = resolve(import.meta.dirname, '..');
-const nativeStageRoot = resolve(root, '.cache/server-artifact-native');
+const nativeStageRootBase = resolve(root, '.cache/server-artifact-native');
 const directNativePackageNames = ['@parcel/watcher', 'better-sqlite3', 'node-pty'] as const;
+/**
+ * Header-only packages that native addons need at compile time and never load at runtime.
+ */
+const buildOnlyDependencies = new Set(['node-addon-api']);
+
+/**
+ * The machine the artifact targets. The default is the build host; `--target linux-<arch>` cross-assembles the Server
+ * an SSH Host runs, with natives built in a manylinux container (`linux-target.ts`).
+ */
+interface StagingTarget {
+    arch: string;
+    linuxNatives?: LinuxNatives;
+    platform: NodeJS.Platform;
+}
 
 interface PackageManifest {
     dependencies?: Record<string, string>;
@@ -41,11 +63,67 @@ function betterSqlitePrebuildName(): string {
     return `${linuxPrefix}-${process.arch}.node`;
 }
 
+/**
+ * Stages a native package for a cross-assembled Linux target: the platform-neutral JavaScript from the host install
+ * plus the addon built in the manylinux container, placed where each package's own loader looks first.
+ */
+async function copyLinuxRuntimePackage(
+    name: string,
+    source: string,
+    destination: string,
+    target: StagingTarget & { linuxNatives: LinuxNatives },
+): Promise<void> {
+    const entries =
+        name === '@parcel/watcher'
+            ? ['LICENSE', 'index.js', 'package.json', 'wrapper.js']
+            : ['LICENSE', 'lib', 'package.json'];
+    await mkdir(destination, { recursive: true });
+    await Promise.all(
+        entries.map((entry) =>
+            cp(join(source, entry), join(destination, entry), { recursive: true }),
+        ),
+    );
+    switch (name) {
+        case 'node-pty': {
+            await mkdir(join(destination, 'build', 'Release'), { recursive: true });
+            await cp(
+                target.linuxNatives.nodePty,
+                join(destination, 'build', 'Release', 'pty.node'),
+            );
+            break;
+        }
+        case 'better-sqlite3': {
+            await mkdir(join(destination, 'prebuilds'), { recursive: true });
+            await cp(
+                target.linuxNatives.betterSqlite,
+                join(destination, 'prebuilds', `linux-${target.arch}.node`),
+            );
+            break;
+        }
+        case '@parcel/watcher': {
+            await cp(
+                target.linuxNatives.watcherPackage,
+                join(destination, 'node_modules', '@parcel', `watcher-linux-${target.arch}-glibc`),
+                { recursive: true },
+            );
+            break;
+        }
+    }
+}
+
 async function copyRuntimePackage(
     name: string,
     source: string,
     destination: string,
+    target: StagingTarget,
 ): Promise<void> {
+    if (target.linuxNatives && directNativePackageNames.includes(name as never)) {
+        await copyLinuxRuntimePackage(name, source, destination, {
+            ...target,
+            linuxNatives: target.linuxNatives,
+        });
+        return;
+    }
     const nodePtyNativeDirectory =
         name === 'node-pty'
             ? selectNodePtyNativeDirectory(
@@ -86,7 +164,8 @@ async function copyRuntimePackage(
             await cp(join(source, entry), join(destination, entry), { recursive: true });
         }),
     );
-    if (name === 'node-pty' && process.platform !== 'win32') {
+    // node-pty 1.1.0 builds `spawn-helper` only on macOS; Linux forks directly.
+    if (name === 'node-pty' && process.platform === 'darwin') {
         await chmod(join(destination, nodePtyNativeEntry, 'spawn-helper'), 0o755);
     }
 }
@@ -101,12 +180,17 @@ async function stageDependency(
     source: string,
     destination: string,
     ancestors: Set<string>,
+    target: StagingTarget,
 ): Promise<void> {
+    if (buildOnlyDependencies.has(dependency)) return;
+    // Platform addon packages are resolved for the host; a cross-assembled target injects its own.
+    if (isOptional && target.linuxNatives && dependency.startsWith('@parcel/watcher-')) return;
     try {
         await stagePackageTree(
             dependency,
             source,
             join(destination, 'node_modules', ...dependency.split('/')),
+            target,
             ancestors,
         );
     } catch (error) {
@@ -126,6 +210,7 @@ async function stagePackageTree(
     name: string,
     searchPath: string,
     destination: string,
+    target: StagingTarget,
     ancestors = new Set<string>(),
 ): Promise<{ source: string; version: string }> {
     const manifestPath = packageManifestPath(name, searchPath);
@@ -133,7 +218,7 @@ async function stagePackageTree(
     const manifest = await packageManifest(manifestPath);
     const identity = `${name}@${manifest.version}`;
     if (ancestors.has(identity)) throw new Error(`Native dependency cycle: ${identity}`);
-    await copyRuntimePackage(name, source, destination);
+    await copyRuntimePackage(name, source, destination, target);
     const nextAncestors = new Set(ancestors).add(identity);
     const dependencies = [
         ...Object.keys(manifest.dependencies ?? {}).map((value) => [value, false] as const),
@@ -141,7 +226,7 @@ async function stagePackageTree(
     ];
     await Promise.all(
         dependencies.map(([dependency, isOptional]) =>
-            stageDependency(dependency, isOptional, source, destination, nextAncestors),
+            stageDependency(dependency, isOptional, source, destination, nextAncestors, target),
         ),
     );
     return { source: destination, version: manifest.version };
@@ -184,12 +269,32 @@ async function runtimeExecutable(version: string): Promise<string> {
 }
 
 const workspaceManifest = await packageManifest(resolve(root, 'package.json'));
-const miseSource = await readFile(resolve(root, 'mise.toml'), 'utf8');
-const runtimeVersion = /^node\s*=\s*"([^"]+)"$/mu.exec(miseSource)?.[1];
-if (!runtimeVersion) throw new Error('mise.toml must pin the Server runtime version');
-const executable = await runtimeExecutable(runtimeVersion);
+const runtimeVersion = await pinnedRuntimeVersion();
+const targetArguments = process.argv.slice(2);
+const linuxTarget = targetArguments.includes('--target')
+    ? parseLinuxTargets(targetArguments)[0]
+    : undefined;
 const commit = (await commandOutputOrEmpty('git', ['rev-parse', '--short=8', 'HEAD'])) || 'unknown';
+const linuxRuntime = linuxTarget
+    ? await ensureLinuxRuntime(linuxTarget, runtimeVersion)
+    : undefined;
+const target: StagingTarget = linuxTarget
+    ? {
+          arch: linuxTarget,
+          linuxNatives: await ensureLinuxNatives(linuxTarget, linuxRuntime!),
+          platform: 'linux',
+      }
+    : { arch: process.arch, platform: process.platform };
+let executable: string;
+if (linuxRuntime) {
+    executable = resolve(root, `.cache/server-linux-target/runtime/node-${linuxTarget}`);
+    await extractLinuxNode(linuxRuntime, executable);
+} else {
+    executable = await runtimeExecutable(runtimeVersion);
+}
 
+// Per-target staging keeps a host build and a cross-assembled target build from deleting each other's inputs.
+const nativeStageRoot = join(nativeStageRootBase, `${target.platform}-${target.arch}`);
 await rm(nativeStageRoot, { force: true, recursive: true });
 await mkdir(nativeStageRoot, { recursive: true });
 const nativePackages: Array<{ name: string; source: string; version: string }> = await Promise.all(
@@ -197,14 +302,16 @@ const nativePackages: Array<{ name: string; source: string; version: string }> =
         const destination = join(nativeStageRoot, ...name.split('/'));
         return {
             name,
-            ...(await stagePackageTree(name, serverRoot, destination)),
+            ...(await stagePackageTree(name, serverRoot, destination, target)),
         };
     }),
 );
-const ripgrepExecutable = binPathFor({ arch: process.arch, os: process.platform });
+const ripgrepExecutable = binPathFor({ arch: target.arch, os: target.platform });
 const ripgrepPackageRoot = resolve(dirname(ripgrepExecutable), '../..');
 
-const artifactRoot = resolve(serverRoot, 'dist/server');
+const artifactRoot = linuxTarget
+    ? resolve(serverRoot, 'dist/targets', `linux-${linuxTarget}`, 'server')
+    : resolve(serverRoot, 'dist/server');
 const extensions = [
     { id: 'caxri.git', source: resolve(root, 'extensions/git') },
     { id: 'caxri.project-status', source: resolve(root, 'extensions/status') },
@@ -212,16 +319,38 @@ const extensions = [
 if (process.env.CAXRI_SERVER_INCLUDE_TEST_EXTENSION === '1') {
     extensions.push({ id: 'caxri.fixture', source: resolve(root, 'extensions/fixture') });
 }
+/**
+ * SSH Host targets carry the `caxri` CLI so remote Terminals and Agents can call it; build it on demand so a fresh
+ * checkout can produce a target artifact without a separate step.
+ */
+async function ensureCliBundle(): Promise<string> {
+    const bundle = resolve(root, 'apps/cli/dist/caxri.cjs');
+    try {
+        await access(bundle);
+    } catch {
+        await execFileAsync('bun', ['run', 'build:cli'], { cwd: root });
+    }
+    return bundle;
+}
+
 const manifest = await assembleServerArtifact({
-    architecture: process.arch,
+    architecture: target.arch,
     artifactRoot,
     bundleSource: resolve(serverRoot, 'dist/bundles'),
+    ...(linuxTarget && { cliBundle: await ensureCliBundle(), omitSourceMaps: true }),
     commit,
     extensions,
     migrationsSource: resolve(serverRoot, 'src/domains/db/migrations'),
     nativePackages,
-    platform: process.platform,
+    platform: target.platform,
     protocolVersion: CAXRI_PROTOCOL_VERSION,
+    ...(linuxRuntime && {
+        runtimeSource: {
+            url: linuxRuntime.url,
+            sha256: linuxRuntime.sha256,
+            member: linuxRuntime.member,
+        },
+    }),
     ripgrep: {
         executable: ripgrepExecutable,
         ripgrepLicense: resolve(root, 'licenses/RIPGREP_LICENSE.txt'),
