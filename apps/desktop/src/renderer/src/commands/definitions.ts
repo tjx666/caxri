@@ -406,6 +406,11 @@ export const commandDefinitions: CommandDefinition[] = [
         when: (context) => context.remote.isLocalOnlyAvailable(),
     }),
     fromCatalog(
+        'agentCommander.takeBack',
+        (context) => context.session.takeBackSelectedFromCommander(),
+        { when: (context) => context.remote.isLocalOnlyAvailable() },
+    ),
+    fromCatalog(
         'developer.toggleScreencastMode',
         (context) => context.developer.toggleScreencastMode(),
         {

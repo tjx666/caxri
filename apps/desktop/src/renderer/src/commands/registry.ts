@@ -43,6 +43,7 @@ export interface CommandContext {
         resumeSelected(): void;
         selectAdjacent(delta: 1 | -1): void;
         switchMru(invocation?: SessionMruShortcutInvocation): void;
+        takeBackSelectedFromCommander(): void;
     };
     terminal: {
         create(): void;

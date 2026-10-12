@@ -142,6 +142,8 @@ export const commandDescriptions = {
         'Stop the Agent Commander running in the background; opening it again resumes the same conversation',
     'commands.description.agentCommander.handOver':
         'Pick Sessions, or Agent conversations started outside Caxri, for the Agent Commander to take over',
+    'commands.description.agentCommander.takeBack':
+        'End the Agent Commander’s management of the selected Session; its Agents keep running',
     'commands.description.processExplorer.open': 'Inspect Caxri process resource usage',
     'commands.description.developer.toggleScreencastMode':
         'Show clicks and Caxri shortcuts for external screen recording',
