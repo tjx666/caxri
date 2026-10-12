@@ -1018,23 +1018,23 @@ the caret as its path, spelled relative to the Agent's directory the way a Termi
 from a preview that covers the 96px sent-message tile at 2x, each with its remove control inset in
 the top-right corner; clicking one previews the full image in a dialog, and an image that takes
 noticeably long to read holds a placeholder tile with a spinner, so a disabled Send has a visible
-cause), a borderless auto-growing textarea, and one action row, right-aligned in
-`--muted`: Attach files (a paperclip ghost icon that turns into a spinner while picked images are
-read, a long paste is saved, or an `@` Session reference is written; its tooltip says what a pick
-does for this provider, `Attach images or insert file paths` or `Insert file paths`; pasting or
-dropping is the common path, so the picker does not claim the leading corner), the context meter (a
+cause), a borderless auto-growing textarea, and one action row in `--muted`, split like the Codex
+app's composer. Leading on the left: Attach files (a paperclip ghost icon that turns into a spinner
+while picked images are read, a long paste is saved, or an `@` Session reference is written; its
+tooltip says what a pick does for this provider, `Attach images or insert file paths` or `Insert
+file paths`) and the permission picker. Trailing on the right: the context meter (a
 14px ring that fills with the share of the window in use, its percentage beside it, `--warning`
 from 60% and `--danger` from 85%; a `meter` and a Tab stop whose popover gives the token breakdown
 and, when the provider has a compact command, a Compact button; hovering opens it as a preview, and
 Enter, Space, or a click opens it with focus inside so Tab reaches Compact; a preview card opened by
-focus would close as soon as focus left the ring), the permission picker (a shield, the level's
-name, a `--warning` shield for full access, `Plan` in `--foreground` while plan mode is on, and,
-for a provider that applies a switch only from the next turn (Codex), a `from next turn` caption
-while a turn runs), and the model picker (the model's name and
+focus would close as soon as focus left the ring), the model picker (the model's name and
 the next turn's effort, with `Ultracode` in `--foreground` like `Plan` while that mode is on,
 opening a menu of models with their descriptions and the current model's
 efforts; choosing a model keeps the menu open so its efforts show, choosing an effort closes it, and
-a spinner replaces the chevron until the switch is confirmed), and a single primary action slot: a 28px `--foreground`
+a spinner replaces the chevron until the switch is confirmed), and a single primary action slot. The
+permission picker shows a shield, the level's name, a `--warning` shield for full access, `Plan` in
+`--foreground` while plan mode is on, and, for a provider that applies a switch only from the next
+turn (Codex), a `from next turn` caption while a turn runs. The primary action slot is a 28px `--foreground`
 circle holding a `--background` up arrow for Send (a return arrow while the message would queue), or
 a small filled square for Stop. That slot
 shows Stop while a turn runs and the input is empty, and Send as soon as there is content; the two
