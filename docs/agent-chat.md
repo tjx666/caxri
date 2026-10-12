@@ -421,8 +421,12 @@ reason when it cannot run and left out when the message does not offer it
 message's text into the composer (any draft is set aside) and opens the edit bar above the input:
 how many turns sending replaces, an "Also revert file changes" checkbox, and Cancel (Escape), which
 brings the set-aside draft back (Cancel's tooltip names Escape only while Escape cancels; during a
-running turn Escape stops the turn). The edited message keeps a quiet `--muted` outline, leaving the
-accent to the edit bar. Sending calls
+running turn Escape stops the turn). A turn review comment added to the Chat during the edit lands in
+the edited message and is also recorded on the edit (`appendedDraft` in `agent-chat-edit.ts`):
+Cancel, or editing another message instead, puts it back after the set-aside draft rather than
+dropping it with the edited text, while a sent edit already carries it and brings back only the
+set-aside draft. The edited message keeps a quiet `--muted` outline, leaving the accent to the edit
+bar. Sending calls
 `agentChat.rewind`, which rewinds the provider's own record to just before the message and sends
 the draft in its place as one request; a later resume shows the same shorter conversation. The edit
 survives switching tabs and restarting Caxri, like a draft: the edit (message id, the revert choice,

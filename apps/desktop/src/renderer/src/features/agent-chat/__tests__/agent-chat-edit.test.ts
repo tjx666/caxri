@@ -65,7 +65,7 @@ describe('Agent Chat edit from here', () => {
     });
 
     it('counts the turns an edit replaces, and ends an edit whose message is gone', () => {
-        const edit = { itemId: 'u1', restoreFiles: false, previousDraft: '' };
+        const edit = { itemId: 'u1', restoreFiles: false, previousDraft: '', appendedDraft: '' };
         expect(agentChatEditRemovedTurns(settled, edit)).toBe(3);
         expect(agentChatEditRemovedTurns({ ...settled, activeTurnId: 't3' }, edit)).toBe(3);
         expect(agentChatEditRemovedTurns({ items: [], turns: [] }, edit)).toBeUndefined();
@@ -102,11 +102,13 @@ describe('Agent Chat edit persistence', () => {
             itemId: 'u1',
             restoreFiles: true,
             previousDraft: 'half written',
+            appendedDraft: 'review comment',
         });
         first.writeAgentChatEdit('chat-b', {
             itemId: 'u2',
             restoreFiles: false,
             previousDraft: '',
+            appendedDraft: '',
         });
 
         const restarted = await restart(storage);
@@ -114,6 +116,7 @@ describe('Agent Chat edit persistence', () => {
             itemId: 'u1',
             restoreFiles: true,
             previousDraft: 'half written',
+            appendedDraft: 'review comment',
         });
         restarted.writeAgentChatEdit('chat-a', undefined);
 
@@ -124,10 +127,14 @@ describe('Agent Chat edit persistence', () => {
 
     it('drops malformed entries instead of trusting them', () => {
         const parsed = parsePersistedAgentChatEdits([
-            ['chat-a', { itemId: 'u1', restoreFiles: false, previousDraft: 'kept' }],
-            ['chat-b', { itemId: '', restoreFiles: false, previousDraft: '' }],
-            ['chat-c', { itemId: 'u3', restoreFiles: 'yes', previousDraft: '' }],
-            ['', { itemId: 'u4', restoreFiles: false, previousDraft: '' }],
+            [
+                'chat-a',
+                { itemId: 'u1', restoreFiles: false, previousDraft: 'kept', appendedDraft: '' },
+            ],
+            ['chat-b', { itemId: '', restoreFiles: false, previousDraft: '', appendedDraft: '' }],
+            ['chat-c', { itemId: 'u3', restoreFiles: 'yes', previousDraft: '', appendedDraft: '' }],
+            ['chat-d', { itemId: 'u5', restoreFiles: false, previousDraft: '' }],
+            ['', { itemId: 'u4', restoreFiles: false, previousDraft: '', appendedDraft: '' }],
             ['chat-e', null],
             'garbage',
         ]);
@@ -140,7 +147,7 @@ describe('Agent Chat edit persistence', () => {
         const edits = new Map(
             Array.from({ length: MAX_PERSISTED_AGENT_CHAT_EDITS + 2 }, (_, index) => [
                 `chat-${index}`,
-                { itemId: `u${index}`, restoreFiles: false, previousDraft: '' },
+                { itemId: `u${index}`, restoreFiles: false, previousDraft: '', appendedDraft: '' },
             ]),
         );
         const kept = persistableAgentChatEdits(edits);
