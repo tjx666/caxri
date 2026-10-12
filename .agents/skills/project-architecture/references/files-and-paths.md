@@ -31,7 +31,12 @@ Main-vouched folder as a Terminal cwd; Renderer-supplied `terminal.create` cwds 
 Session's roots. Main watches each open external document's folder (rename-over saves never reach a
 watch on the file) and reports a document only when its size or modification time differs from what
 Main last read or wrote; a write in flight reads as busy and is checked again after it settles. The
-Renderer then re-reads it under the same disk-wins rule as a Project file.
+Renderer then re-reads it under the same disk-wins rule as a Project file. Disk wins without a
+conflict dialog (ADR 0013), so a newer disk state that replaces an unsaved buffer raises a
+persistent warning toast naming the loss (`Your unsaved changes to <file> were replaced by changes
+on disk.`) with **Restore My Changes**: the replaced text is kept in a bounded, Renderer-memory-only
+stash (`discarded-buffers.ts`, at most 20 buffers) and the action puts it back as an unsaved buffer
+over the new disk version. The toast's follow-up carries only paths, never a document body.
 
 Create, rename, and move use a durable Server Core operation ID and journal under Electron user data. Each new record captures the originating Workbench Project before crossing an asynchronous boundary; legacy records without that field resolve to the owning Project because they predate alternate roots. A `pre_stage` record may time out or cancel before any file-system mutation; once the final path and source identity checks persist a `staged` record, the native mutation continues even if Main's ordinary request deadline expires. Source and parent identities are checked again after that durable write, and create records add the newly created inode before reporting completion. Final records remain queryable until the Renderer refreshes affected file trees and reconciles root-scoped dirty buffers. Before acknowledgement removes a completed rename or move, Server Core idempotently remaps the originating Project's SQLite editor snapshot for every participating Session, including snapshots that became inactive after a root switch. Server Core restart converts abandoned pre-stage records to canceled, reconciles a staged create only against its confirmed post-create inode, and reconciles staged rename or move only when the target still has the original source inode and the source path is absent; uncertain results preserve every path and force a file-tree refresh. Per-Session execution slots remain occupied until the underlying call settles even after cancellation or acknowledgement, while retained results and pre-stage time are separately bounded. Phase logs include the operation ID, kind, Session, phase, and duration, never file contents.
 

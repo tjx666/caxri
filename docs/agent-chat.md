@@ -161,6 +161,10 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   composer refuses input and a neutral row above it carries the PTY recovery bar's Detached label
   with Resume, which restarts the Chat. The phone reads the same record: it shows `Chat was handed
 off on your computer`, refuses input, and offers no Resume, matching its detached PTY Terminals.
+  A conversation the provider reports open in another of its own apps or windows
+  (`conversation_in_use`) is a state, not a fault, too: the Desktop row takes the same neutral
+  border with an info glyph and a polite `status`, says `Close it there, then retry.`, and offers
+  Retry; only a real failure reads in `--danger` as an `alert`.
 - **State.** `lastProcessState` and `lastAgentProcessState` follow the child: `starting`,
   `running`, `stopped` after an orderly stop, `detached` after a detach, `dead` after an
   unexpected exit, `failed` with a closed `failureReason` when it cannot start. Orderly Server
@@ -340,8 +344,12 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   split beside the Chat, reusing that side pane for later tasks. A subagent tab is a read-only
   timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
-  in a Background work list above the composer, where each opens or stops on its own; a finished
-  task stays reachable from its timeline row.
+  in a Background work list above the composer, where each opens or stops on its own, and an `N
+ended` count expands the ended ones. When the last task ends, the strip collapses to that `N
+ended` row for the work that ended since the latest turn started, with a Dismiss button, instead
+  of vanishing before the user sees how it ended; the next turn or Dismiss clears it
+  (`agentChatTaskStripView` in `agent-chat-tasks.ts`). A finished task stays reachable from its
+  timeline row.
 
 ## Follow-up queue
 
@@ -379,13 +387,22 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
 
 ## Edit from here
 
-Hovering a user message that started a turn shows "Edit from here" beside Copy. It puts the
+Hovering a user message that started a turn shows "Edit from here" beside Copy; right-clicking any
+user message opens a native menu with the same actions (Copy, or Copy Message without a selection,
+then Edit from Here, Fork from Here, and Restore Code to Here), each disabled with the hover row's
+reason when it cannot run and left out when the message does not offer it
+(`agent-chat-user-message-menu.ts`). It puts the
 message's text into the composer (any draft is set aside) and opens the edit bar above the input:
 how many turns sending replaces, an "Also revert file changes" checkbox, and Cancel (Escape), which
-brings the set-aside draft back. The edited message keeps an accent outline. Sending calls
+brings the set-aside draft back (Cancel's tooltip names Escape only while Escape cancels; during a
+running turn Escape stops the turn). The edited message keeps a quiet `--muted` outline, leaving the
+accent to the edit bar. Sending calls
 `agentChat.rewind`, which rewinds the provider's own record to just before the message and sends
 the draft in its place as one request; a later resume shows the same shorter conversation. The edit
-survives switching tabs, like a draft.
+survives switching tabs and restarting Caxri, like a draft: the edit (message id, the revert choice,
+and the set-aside draft) is mirrored to device-local `localStorage` (`caxri.agent-chat.edits`,
+bounded to the 50 newest edits), so a restart never brings back the earlier message's text as an
+ordinary draft with the held-back draft lost.
 
 - Only a settled Chat rewinds: while a turn runs, the action and Send are disabled and say to stop
   the turn. A steered message did not start its turn, so it offers no edit, and a message with
@@ -394,6 +411,10 @@ survives switching tabs, like a draft.
   `CONFLICT` when the Chat changed under the request.
 - Reverting files can discard the user's own later edits to those files, so it asks first in a
   native dialog (`agentChat.confirmRevertFiles`); Cancel sends nothing and keeps the draft.
+  Replacing more than one turn without reverting files asks in the in-app confirmation instead
+  (`Replace N later turns?`, confirmed with Replace Turns), pointing at Fork from Here as the way to
+  keep them (`agent-chat-rewind-copy.ts`); an edit of the message's own single turn sends without
+  asking, since the edit bar already names it.
 - Each provider rewinds with its native mechanism; Caxri takes no snapshots of its own.
   `capabilities.chatRewindFiles` says whether files can be reverted, and when they cannot, the
   checkbox stays disabled with the reason on hover.
@@ -401,7 +422,9 @@ survives switching tabs, like a draft.
   `agentChat.restoreFiles`, which puts back the files changed from that message onward and keeps
   the conversation, as Claude Code's `/rewind` "Restore code" does. It asks first in the same
   native dialog, follows the same running-turn and turn-start rules (a message with images can
-  restore code, since nothing returns to the composer), and logs `agent_chat.files_restored`.
+  restore code, since nothing returns to the composer), logs `agent_chat.files_restored`, and
+  confirms with a success toast (`Restored the code changed in N turns`), since the transcript
+  itself does not change.
   Claude Code uses `rewindFiles` alone, without a restart; Grok Build uses
   `_x.ai/rewind/execute { mode: 'files_only' }`. Codex offers no file restore, so the action is
   absent there.
@@ -428,7 +451,8 @@ point's preview matches the message before rewinding. Mobile does not offer the 
 Beside "Edit from here", a message that started a turn offers "Fork from here". It copies the
 conversation up to just before that message into a new Agent Session through the provider's own
 fork, opens it as a Chat in a new Session of the same Project and cwd, puts the message's text in
-the new composer, and selects that Session. The source Chat is not touched, and nothing is merged
+the new composer, and selects that Session, then a success toast names where the conversation went
+(`Forked into a new Session: <title>`). The source Chat is not touched, and nothing is merged
 back. `agentChat.fork` creates the Session without selecting it; the Renderer writes the composer
 draft first and then selects it, so the new composer mounts with the text.
 
@@ -513,7 +537,7 @@ several callbacks can share one item, so the transport id is never the key.
   still walks on. A recalled prompt left in the input is an ordinary draft, so it persists like
   one and editing it ends the walk. Its action row shows how much of the
   context window is used, as a filling ring and a percentage with the token counts and what fills
-  the window in its tooltip, and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
+  the window in its popover (opened by hover, or by Enter or Space on the focused ring), and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
   text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
   A status row at the top of the composer card says whether the Chat is starting, working, or waiting on an
@@ -553,7 +577,8 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   when a long conversation would overflow the view
   (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-rail-marks.ts`).
 - Cmd+F in a Chat opens a find bar at the conversation's top right, clear of the message rail and
-  Jump to latest. It reuses the Terminal's `terminal.find` command: a Chat registers itself as its
+  Jump to latest. It takes its own strip above the conversation rather than floating over it, so it
+  never covers the text it searches, and its buttons' tooltips name Enter, Shift+Enter, and Escape. It reuses the Terminal's `terminal.find` command: a Chat registers itself as its
   Terminal's search handler, so the same key reaches it in a pane or the Commander window. Every
   occurrence of the query in the rendered conversation is painted through the CSS Custom Highlight
   API (`::highlight(agent-chat-find)` and `agent-chat-find-active` in `styles.css`), leaving the
@@ -609,15 +634,19 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
 - A finished turn ends with what it left behind, between its final reply and Copy (or alone when
   the turn stopped before replying), so the result survives the `Worked for X` fold. The files its
   completed changes touched merge into one card: `Edited <file>`, `Created <file>`, or
-  `Edited 3 files` over the turn's `+A -D`. Hovering the counts swaps them for `View changes` and
-  previews every diff; View changes (or a row) discloses them in place. A file the turn created and
-  deleted again is left out. Undo restores the turn's files all or nothing: each file is read and
-  its reverse planned first, and if any no longer holds what the turn left (edited since, missing,
-  recreated, or a diff Server Core truncated) nothing is written and a toast names the file.
+  `Edited 3 files` over the turn's `+A -D`, then Undo and a labeled Review. The counts with their
+  chevron are the card's single expand toggle: hovering or focusing them swaps them for `View
+changes` (or `Hide changes`) and previews every diff, and a click discloses them in place; a file
+  row discloses its own diff. A file the turn created and deleted again is left out. Undo restores
+  the turn's files all or nothing: each file is read and its reverse planned first, and if any no
+  longer holds what the turn left (edited since, missing, recreated, or a diff Server Core
+  truncated) nothing is written and a toast names the file; for a file changed since, it also
+  suggests undoing the later turn first or Restore Code to Here. A complete Undo confirms with a
+  success toast (`Undid the changes to N files`) and the card stops offering Undo.
   Created files go to the Trash behind its usual confirmation; edits and deletions are reversed
   through `files.write`/`files.create`, so Session path authorization applies and a file outside
   the Project cannot be undone. Pull requests and issues the turn created or edited follow as
-  cards opening the page: a completed `gh pr|issue create|edit` whose output printed the URL, or
+  cards opening the page, each with a trailing external arrow: a completed `gh pr|issue create|edit` whose output printed the URL, or
   a GitHub or Linear MCP create/update/save call. Collection lives in `agent-chat-turn-artifacts.ts`
   and `agent-chat-trackers.ts`, Undo in `agent-chat-undo.ts`. Desktop only; the phone shows the
   plain timeline.
@@ -856,7 +885,9 @@ approvals itself. Server Core rejects any other level, or plan mode for a provid
 
 The snapshot's `permissionMode` is the level the provider runs with. It is absent ("Custom" in the
 picker) when the launch settings match no level, for example Codex with `--ask-for-approval
-untrusted`; such a Chat keeps those settings until the user picks a level. `planMode` is present
+untrusted`; such a Chat keeps those settings until the user picks a level. The menu then lists a
+checked `Custom (from launch settings)` row above the levels, so the trigger's "Custom" has a row
+to point at. Picking a level closes the menu; toggling plan mode keeps it open. `planMode` is present
 only for a provider that has plan mode.
 
 A switch is saved on the Chat's Terminal (`terminals.chat_permission_mode`,
@@ -872,7 +903,9 @@ mid-Chat differs per provider:
   runs with: it is sent on every turn while on, and `default` is sent once to turn it off when the
   thread last ran in plan mode (as `thread/resume` reports or the last turn sent). Codex's `plan`
   item shows as an Agent message. A real-Agent E2E ignores the choice and keeps its fixed read-only
-  thread.
+  thread. Because a running turn keeps its level, a switch made during one says so: the menu notes
+  `Applies to the next turn.`, and the trigger adds a `from next turn` caption until that turn
+  ends.
 - **Claude Code** switches in place with `Query.setPermissionMode`, so a level applies from the next
   tool call, including inside a running turn. The Chat always opens with
   `allowDangerouslySkipPermissions` so Full access can be chosen later. Level and plan mode are kept
@@ -884,8 +917,11 @@ mid-Chat differs per provider:
   conversation (`session/load`) with the new options. A running turn would be cut short, so the
   switch fails with `CONFLICT` until it finishes.
 
-**Project default.** "Use as Project default" saves the Chat's level and plan mode for that
-provider on its Project (`projects.chat_defaults`, `project.setChatDefault`). A new Chat copies it at
+**Project default.** The menu's last row is a checkbox item. "Use as Project default" saves the
+Chat's level and plan mode for that provider on its Project; once the Chat matches the saved
+default the row reads "Project default" and stays checked. While the level is Custom it stays
+visible but disabled with `Choose a level to save it as the default`, since a default must name a
+level. The default is stored (`projects.chat_defaults`, `project.setChatDefault`). A new Chat copies it at
 creation, and so does a Terminal switched to Chat for the first time; a Chat that already has a
 choice keeps it, and changing the default never touches existing Chats. Without a default, a new
 Chat follows its provider's launch settings.

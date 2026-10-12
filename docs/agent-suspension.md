@@ -17,13 +17,15 @@ interrupted-restore path relaunches it with the provider's resume arguments (`cl
 
 ## Settings
 
-Settings › Terminal has three rows:
+Settings › Agents has three rows. Their keys keep the `terminal.` prefix so values already written
+to `settings.jsonc` still apply, but the rows sit with the Agents because they decide when an Agent
+is paused:
 
-| Setting                                                           | Default    | Range     |
-| ----------------------------------------------------------------- | ---------- | --------- |
-| `terminal.suspendUntouchedAgents`: Suspend untouched Agents       | on         | on / off  |
-| `terminal.idleSuspension.enabled`: Suspend idle background Agents | off        | on / off  |
-| `terminal.idleSuspension.afterMinutes`: Suspend idle Agents after | 30 minutes | 1 to 1440 |
+| Setting                                                                   | Default    | Range     |
+| ------------------------------------------------------------------------- | ---------- | --------- |
+| `terminal.suspendUntouchedAgents`: Pause Agents you opened but never used | on         | on / off  |
+| `terminal.idleSuspension.enabled`: Pause idle Agents in the background    | off        | on / off  |
+| `terminal.idleSuspension.afterMinutes`: Pause idle Agents after           | 30 minutes | 1 to 1440 |
 
 The idle window applies only while idle suspension is on. Both rules are evaluated by one Server
 Core sweep every 15 seconds, so a park lands at most one sweep after its window elapses.
@@ -78,6 +80,13 @@ Selecting the Session relaunches every `suspended` Terminal in it through the sh
 budget. A Terminal on screen waits for its pane's grid before its PTY starts. If the conversation
 cannot be resumed because it was never written to disk, the Terminal starts a fresh Agent session
 instead and logs `terminal.resume_skipped`.
+
+While a Terminal is suspended, the PrimarySidebar's Session hover card reads `Suspended` in the
+neutral tone (not the idle state it last probed) and says the Agent resumes when the Session is
+opened, naming Settings > Agents. The Terminal's recovery row reads `Suspended in the background,
+resuming`, and its tooltip names the same setting. Neither claims the idle rule caused the park,
+because the record does not say whether the idle rule, an archive, or a Process Explorer stop
+parked it.
 
 ## Logging
 
