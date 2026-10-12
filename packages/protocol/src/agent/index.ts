@@ -13,6 +13,7 @@ export * from './agent-chat-rewind.js';
 export * from './agent-chat-task-contract.js';
 export * from './agent-chat-trackers.js';
 export * from './agent-chat-turn-artifacts.js';
+export * from './agent-chat-turn-fold.js';
 export * from './agent-chat-usage.js';
 export * from './agent-chat-work.js';
 export * from './agent-chat-work-output.js';
