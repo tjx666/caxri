@@ -20,13 +20,11 @@ const AgentChatMessageItem = memo(
     ({
         artifacts,
         isFinalReply,
-        isLatestReply,
         item,
         onOpenFile,
     }: {
         artifacts?: AgentChatTurnArtifacts;
         isFinalReply?: boolean;
-        isLatestReply?: boolean;
         item: MessageItem;
         onOpenFile?: (target: string) => void;
     }) => {
@@ -48,7 +46,6 @@ const AgentChatMessageItem = memo(
                     <AgentChatReply
                         artifacts={artifacts}
                         canCopy={isFinalReply === true}
-                        isLatest={isLatestReply === true}
                         item={item}
                         onOpenFile={onOpenFile}
                     />
@@ -81,7 +78,6 @@ export function AgentChatTimelineEntryView({
                 <AgentChatMessageItem
                     artifacts={entry.artifacts}
                     isFinalReply={entry.isFinalReply}
-                    isLatestReply={entry.isLatestReply}
                     item={entry.item}
                     onOpenFile={onOpenFile}
                 />
