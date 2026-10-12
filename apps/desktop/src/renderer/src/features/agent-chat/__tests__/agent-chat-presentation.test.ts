@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { getTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
 import {
     agentChatActivity,
+    agentChatAttachLabel,
     agentChatCommandCwd,
     agentChatDeliveryCaption,
     agentChatEmptyHint,
@@ -119,6 +120,26 @@ describe('agentChatRecoveryNotice', () => {
         });
     });
 
+    it('reads a conversation another client holds as neutral, without repeating the heading', () => {
+        const notice = agentChatRecoveryNotice(
+            {
+                status: 'failed',
+                failure: {
+                    reason: 'conversation_in_use',
+                    detail: 'Another Codex client is using this conversation',
+                },
+            },
+            { isLoadError: false, processState: 'failed' },
+            'Codex',
+        );
+        expect(notice).toEqual({
+            kind: 'inUse',
+            message: 'This conversation is open in another Codex app or window.',
+            detail: 'Close it there, then retry.',
+            recovery: 'restart',
+        });
+    });
+
     it('reloads a projection that could not be read', () => {
         expect(
             agentChatRecoveryNotice(
@@ -150,6 +171,16 @@ describe('agentChatSendAction', () => {
             placeholder: 'Queue a follow-up (⌘Enter to steer)',
         });
     });
+
+    it('asks what to plan in an idle Chat with plan mode on', () => {
+        expect(
+            agentChatSendAction({ isTurnRunning: false, isBusy: false, isPlanMode: true }, 'Codex'),
+        ).toMatchObject({ label: 'Send', placeholder: 'Describe what to plan…' });
+        // A running turn still says what Enter and Cmd+Enter do with a follow-up.
+        expect(
+            agentChatSendAction({ isTurnRunning: true, isBusy: true, isPlanMode: true }, 'Codex'),
+        ).toMatchObject({ placeholder: 'Queue a follow-up (⌘Enter to steer)' });
+    });
 });
 
 describe('agentChatSendTooltip', () => {
@@ -169,6 +200,13 @@ describe('agentChatSendTooltip', () => {
             agentChatSendTooltip(action, { ...ready, block: 'detached', isAttaching: true }),
         ).toBe('Chat detached. Resume above');
         expect(agentChatSendTooltip(action, { ...ready, isAttaching: true })).toBe('Attaching…');
+        expect(
+            agentChatSendTooltip(action, {
+                ...ready,
+                isAttaching: true,
+                isPreparingReference: true,
+            }),
+        ).toBe('Preparing Session reference…');
         expect(agentChatSendTooltip(action, { ...ready, hasContent: false })).toBe(
             'Type a message to send',
         );
@@ -179,11 +217,18 @@ describe('agentChatSendTooltip', () => {
 describe('agentChatEmptyHint', () => {
     it('names the composer gestures, offering images only when the provider takes them', () => {
         expect(agentChatEmptyHint(true)).toBe(
-            'Type / for commands, $ for skills · paste or drop images and files · ⇧Enter for a new line',
+            'Type / or $ for commands and skills · paste or drop images and files · ⇧Enter for a new line',
         );
         expect(agentChatEmptyHint(false)).toBe(
-            'Type / for commands, $ for skills · drop files to insert paths · ⇧Enter for a new line',
+            'Type / or $ for commands and skills · drop files to insert paths · ⇧Enter for a new line',
         );
+    });
+});
+
+describe('agentChatAttachLabel', () => {
+    it('says a pick inserts paths, and attaches images only when the provider takes them', () => {
+        expect(agentChatAttachLabel(true)).toBe('Attach images or insert file paths');
+        expect(agentChatAttachLabel(false)).toBe('Insert file paths');
     });
 });
 

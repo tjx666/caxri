@@ -1,5 +1,7 @@
 import type {
     AgentChatDefault,
+    AgentChatPermissionMode,
+    AgentChatPermissionRequest,
     AgentChatSnapshot,
     AgentProvider,
     ProjectChatDefaults,
@@ -49,6 +51,19 @@ export function isAgentChatProjectDefault(
 }
 
 /**
+ * The "Use as Project default" row: what it reads, whether it shows as checked (the Chat already matches the saved
+ * default), and why it is unavailable when it is.
+ */
+export interface AgentChatProjectDefaultItem {
+    label: 'Project default' | 'Use as Project default';
+    isChecked: boolean;
+    /**
+     * Shown under the row while it is disabled, so the action reads as unavailable rather than missing.
+     */
+    disabledReason?: string;
+}
+
+/**
  * What the composer's permission trigger and its menu show for one Chat.
  */
 export interface AgentChatPermissionView {
@@ -57,7 +72,7 @@ export interface AgentChatPermissionView {
      */
     label: string;
     /**
-     * The trigger's accessible name, which also says when plan mode is on.
+     * The trigger's accessible name, which also says when plan mode is on and when the choice waits for the next turn.
      */
     ariaLabel: string;
     /**
@@ -72,25 +87,166 @@ export interface AgentChatPermissionView {
      * Whether the Project already has this default, so the menu shows it as saved instead.
      */
     isSavedDefault: boolean;
+    projectDefaultItem: AgentChatProjectDefaultItem;
+    /**
+     * The trigger's muted suffix while the shown choice reaches the provider only with the next turn.
+     */
+    pendingCaption: 'from next turn' | undefined;
 }
 
 /**
- * Derives everything the permission trigger and menu render, so the component stays wiring only.
+ * The menu row a Chat whose launch settings match no level shows checked, so "Custom" in the trigger has a row that
+ * explains it. Choosing it changes nothing: Caxri cannot put launch settings back once a level replaced them.
+ */
+export const AGENT_CHAT_CUSTOM_PERMISSION = {
+    value: 'custom',
+    label: 'Custom (from launch settings)',
+    description: 'Launch settings decide; choose a level to override them',
+} as const;
+
+function projectDefaultItem(
+    projectDefault: AgentChatDefault | undefined,
+    isSavedDefault: boolean,
+): AgentChatProjectDefaultItem {
+    if (!projectDefault)
+        return {
+            label: 'Use as Project default',
+            isChecked: false,
+            disabledReason: 'Choose a level to save it as the default',
+        };
+    return isSavedDefault
+        ? { label: 'Project default', isChecked: true }
+        : { label: 'Use as Project default', isChecked: false };
+}
+
+/**
+ * Derives everything the permission trigger and menu render, so the component stays wiring only. `isDeferred` says the
+ * shown choice waits for the next turn (`isAgentChatPermissionDeferred`).
  */
 export function agentChatPermissionView(
     snapshot: Pick<AgentChatSnapshot, 'permissionMode' | 'planMode'>,
     provider: AgentProvider,
     defaults: ProjectChatDefaults | undefined,
+    { isDeferred = false }: { isDeferred?: boolean } = {},
 ): AgentChatPermissionView {
     const label = agentChatPermissionLabel(snapshot, provider);
     const projectDefault = agentChatProjectDefault(snapshot);
+    const isSavedDefault =
+        projectDefault !== undefined &&
+        isAgentChatProjectDefault(projectDefault, defaults, provider);
     return {
         label,
-        ariaLabel: `Permissions: ${label}${snapshot.planMode ? ', plan mode on' : ''}`,
+        ariaLabel: `Permissions: ${label}${snapshot.planMode ? ', plan mode on' : ''}${isDeferred ? ', from the next turn' : ''}`,
         isFullAccess: snapshot.permissionMode === 'fullAccess',
         projectDefault,
-        isSavedDefault:
-            projectDefault !== undefined &&
-            isAgentChatProjectDefault(projectDefault, defaults, provider),
+        isSavedDefault,
+        projectDefaultItem: projectDefaultItem(projectDefault, isSavedDefault),
+        pendingCaption: isDeferred ? 'from next turn' : undefined,
     };
+}
+
+type PermissionSnapshot = Pick<AgentChatSnapshot, 'permissionMode' | 'planMode'>;
+
+/**
+ * A permission switch the picker already shows while Server Core and the provider apply it, mirroring the model
+ * picker's `AgentChatPendingSelection`: the choice shows at once, and a failed switch drops it again.
+ */
+export interface AgentChatPendingPermission {
+    change: AgentChatPermissionRequest;
+    /**
+     * The level and plan mode the snapshot reported when the switch was requested.
+     */
+    baseline: {
+        permissionMode: AgentChatPermissionMode | undefined;
+        planMode: boolean | undefined;
+    };
+    /**
+     * Server Core accepted the switch, so any change in the reported choice is its answer.
+     */
+    isAccepted: boolean;
+}
+
+/**
+ * Whether the snapshot now answers the pending switch: it reports the requested level and plan mode, or, once the
+ * switch was accepted, it changed from the baseline at all.
+ */
+export function isAgentChatPermissionSettled(
+    pending: AgentChatPendingPermission,
+    snapshot: PermissionSnapshot | undefined,
+): boolean {
+    const { change, baseline } = pending;
+    const isLevelConfirmed =
+        change.permissionMode === undefined || snapshot?.permissionMode === change.permissionMode;
+    const isPlanConfirmed =
+        change.planMode === undefined || (snapshot?.planMode ?? false) === change.planMode;
+    if (isLevelConfirmed && isPlanConfirmed) return true;
+    return (
+        pending.isAccepted &&
+        (snapshot?.permissionMode !== baseline.permissionMode ||
+            snapshot?.planMode !== baseline.planMode)
+    );
+}
+
+/**
+ * The snapshot as the picker shows it while a switch is pending.
+ */
+export function agentChatPermissionSelectionView<Snapshot extends PermissionSnapshot>(
+    snapshot: Snapshot,
+    pending: AgentChatPendingPermission | undefined,
+): Snapshot {
+    if (!pending) return snapshot;
+    const permissionMode = pending.change.permissionMode ?? snapshot.permissionMode;
+    const planMode = pending.change.planMode ?? snapshot.planMode;
+    return {
+        ...snapshot,
+        ...(permissionMode && { permissionMode }),
+        ...(planMode !== undefined && { planMode }),
+    };
+}
+
+/**
+ * The level and plan mode the running turn started with, captured when the user first switches during that turn, so the
+ * picker can tell a choice still waiting for the next turn from one already in force.
+ */
+export interface AgentChatPermissionTurnBaseline {
+    turnId: string;
+    permissionMode: AgentChatPermissionMode | undefined;
+    planMode: boolean;
+}
+
+/**
+ * The baseline to keep after a switch requested now: the running turn's existing one, a fresh capture of what the turn
+ * runs with, or none when no turn runs or the provider applies switches in place.
+ */
+export function nextAgentChatPermissionTurnBaseline(
+    current: AgentChatPermissionTurnBaseline | undefined,
+    state: {
+        activeTurnId: string | undefined;
+        appliesOnNextTurn: boolean;
+        reported: PermissionSnapshot;
+    },
+): AgentChatPermissionTurnBaseline | undefined {
+    if (!state.appliesOnNextTurn || !state.activeTurnId) return undefined;
+    if (current?.turnId === state.activeTurnId) return current;
+    return {
+        turnId: state.activeTurnId,
+        permissionMode: state.reported.permissionMode,
+        planMode: state.reported.planMode ?? false,
+    };
+}
+
+/**
+ * Whether the shown choice differs from what the running turn uses, so it applies only from the next turn. A baseline
+ * from an earlier turn no longer counts: that turn ended and the next one picked the choice up.
+ */
+export function isAgentChatPermissionDeferred(
+    baseline: AgentChatPermissionTurnBaseline | undefined,
+    shown: PermissionSnapshot,
+    activeTurnId: string | undefined,
+): boolean {
+    if (!baseline || baseline.turnId !== activeTurnId) return false;
+    return (
+        shown.permissionMode !== baseline.permissionMode ||
+        (shown.planMode ?? false) !== baseline.planMode
+    );
 }

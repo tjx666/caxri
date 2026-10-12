@@ -79,13 +79,14 @@ describe('Status extension tree', () => {
     it.each(['primary', 'submodule'] as const)(
         'keeps merged %s PRs distinct from every CI result',
         (kind) => {
-            for (const [state, checkLabel, checkIcon, badgeLabel] of [
-                ['success', 'CI passed', 'circle-check', 'passed'],
-                ['failure', 'CI failed', 'circle-x', 'failed'],
-                ['pending', 'CI running', 'loading', 'running'],
-                ['queued', 'CI queued', 'circle-small-filled', 'queued'],
-                ['neutral', 'CI neutral', 'circle-outline', 'neutral'],
-                ['unknown', 'CI unknown', 'circle-dot', 'unknown'],
+            // The last column is the trailing count word: only a check that asks for attention spends that slot.
+            for (const [state, checkLabel, checkIcon, badgeLabel, attention] of [
+                ['success', 'CI passed', 'circle-check', 'passed', undefined],
+                ['failure', 'CI failed', 'circle-x', 'failed', 'failing'],
+                ['pending', 'CI running', 'loading', 'running', 'running'],
+                ['queued', 'CI queued', 'circle-small-filled', 'queued', 'queued'],
+                ['neutral', 'CI neutral', 'circle-outline', 'neutral', undefined],
+                ['unknown', 'CI unknown', 'circle-dot', 'unknown', undefined],
             ] as const) {
                 const root = buildRepoNode({
                     id: 'fixture',
@@ -110,7 +111,7 @@ describe('Status extension tree', () => {
                 expect(iconId(pr)).toBe(checkIcon);
                 expect(iconId(branch)).toBe('git-merge');
                 expect(pr.item.trailingIcon).toBeUndefined();
-                expect(pr.item.description).toBeUndefined();
+                expect(pr.item.description).toBe(attention && `1 ${attention}`);
                 expect(pr.item.accessibilityInformation?.label).toBe(
                     `#42 Lifecycle fixture, Merged, ${checkLabel}`,
                 );
@@ -122,11 +123,9 @@ describe('Status extension tree', () => {
                 expect(pr.children?.[0].item.tooltip).toMatchObject({
                     badge: { label: badgeLabel },
                 });
-                expect(pr.item.collapsibleState).toBe(
-                    state === 'failure'
-                        ? TreeItemCollapsibleState.Expanded
-                        : TreeItemCollapsibleState.Collapsed,
-                );
+                // A failed or still-running check keeps the row open.
+                const expanded = attention ? 'Expanded' : 'Collapsed';
+                expect(pr.item.collapsibleState).toBe(TreeItemCollapsibleState[expanded]);
             }
         },
     );

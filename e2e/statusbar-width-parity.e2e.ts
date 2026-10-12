@@ -10,7 +10,7 @@ import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 /**
- * Held constant across every capture so width is the only variable between the three snapshots.
+ * Held constant across every capture so width is the only variable between the snapshots.
  */
 const WINDOW_HEIGHT = 900;
 
@@ -18,54 +18,30 @@ interface WidthCapture {
     /**
      * Snapshot file suffix: `status-bar-<name>.png`.
      */
-    name: 'wide' | 'medium' | 'narrow';
+    name: 'wide' | 'narrow';
     /**
      * Emulated viewport width.
      */
     width: number;
-    /**
-     * Footer width the Renderer resolves at `width`; asserted so a padding or quantization change fails loudly here
-     * instead of silently moving a capture into the neighbouring band.
-     */
-    measuredWidth: number;
-    showChildProcessCount: boolean;
-    showMemory: boolean;
 }
 
 /**
- * Derived from `CHIP_PRIORITY_BREAKPOINTS` in `apps/desktop/src/renderer/src/features/status-bar/chip-priority.ts`:
- * child-process count 830, memory 752, output speed 680, pull request 480.
+ * The bar drops whole chips by measured width, lowest priority first (`chip-priority.ts`), so the spec asserts that
+ * contract rather than fixed breakpoints:
  *
- * Those thresholds are compared against the footer's _content-box_ width quantized down to a multiple of 8
- * (`useContainerWidth`), and the footer carries `px-2` (8px per side), so the number the Renderer resolves is
- * `floor((viewport - 16) / 8) * 8`, not the viewport width. Each width below therefore sits at least 16px clear of the
- * nearest breakpoint _after_ that conversion, so a small padding or scrollbar change cannot silently flip a chip:
- *
- * - 868 -> 848: above 830, every chip renders.
- * - 812 -> 792: below 830 and above 752, so only the child-process count is dropped.
- * - 656 -> 640: below 752 and above 480, so memory goes too while the pull request stays.
- *
- * The numbers are restated rather than imported from the Renderer on purpose: this spec must keep asserting the shipped
- * behavior across a Renderer-internal file move, and an import of the same constant the component uses would make the
- * assertion a tautology.
+ * - `wide` has room for everything, so every chip renders.
+ * - `narrow` cannot fit the fixture: the Project and branch names are both longer than the pickers' cap, so the context
+ *   alone is close to 600px, and at least the child-process count has to go.
+ * - At both widths no item's label is truncated, nothing overflows its region, and any chip still shown outranks every
+ *   chip already dropped.
  */
 const WIDTH_CAPTURES: readonly WidthCapture[] = [
-    { name: 'wide', width: 868, measuredWidth: 848, showChildProcessCount: true, showMemory: true },
-    {
-        name: 'medium',
-        width: 812,
-        measuredWidth: 792,
-        showChildProcessCount: false,
-        showMemory: true,
-    },
-    {
-        name: 'narrow',
-        width: 656,
-        measuredWidth: 640,
-        showChildProcessCount: false,
-        showMemory: false,
-    },
+    { name: 'wide', width: 1_280 },
+    { name: 'narrow', width: 656 },
 ];
+
+const PROJECT_NAME = 'width-project-with-a-deliberately-long-folder-name';
+const BRANCH_NAME = 'feat/width-with-a-deliberately-long-branch-name';
 
 async function expectChip(chip: Locator, isVisible: boolean): Promise<void> {
     if (isVisible) await expect(chip).toBeVisible();
@@ -80,7 +56,7 @@ test('Status Bar drops the lowest-priority chips as the window narrows', async (
     const snapshotDirectory = process.env.CAXRI_STATUSBAR_SNAPSHOT_DIR;
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-statusbar-width-e2e-'));
     const userData = join(testDirectory, 'user-data');
-    const root = join(testDirectory, 'width-project');
+    const root = join(testDirectory, PROJECT_NAME);
     const bin = join(testDirectory, 'bin');
     const gh = join(bin, 'gh');
     const loginShell = join(testDirectory, 'login-shell');
@@ -90,10 +66,10 @@ test('Status Bar drops the lowest-priority chips as the window narrows', async (
         snapshotDirectory ? mkdir(snapshotDirectory, { recursive: true }) : undefined,
     ]);
     /**
-     * The pull request is one of the three priority chips, so the fixed state has to own one. The stub answers the
-     * Server's GraphQL-budget probe, the unbilled `rateLimit` self-query, with a realistic payload first, otherwise the
-     * Server re-probes on every request. Matched on its `-f` flag so the branch-publication query, also `gh api
-     * graphql` but with `--hostname`, is not mistaken for it.
+     * The pull request is one of the droppable chips, so the fixed state has to own one. The stub answers the Server's
+     * GraphQL-budget probe, the unbilled `rateLimit` self-query, with a realistic payload first, otherwise the Server
+     * re-probes on every request. Matched on its `-f` flag so the branch-publication query, also `gh api graphql` but
+     * with `--hostname`, is not mistaken for it.
      */
     await writeFile(
         gh,
@@ -123,7 +99,7 @@ exec /bin/zsh -l
         'utf8',
     );
     await chmod(loginShell, 0o755);
-    await execFileAsync('git', ['init', '-b', 'feat/width'], { cwd: root });
+    await execFileAsync('git', ['init', '-b', BRANCH_NAME], { cwd: root });
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
     await execFileAsync(
@@ -163,17 +139,17 @@ exec /bin/zsh -l
 
         const statusbar = running.page.locator('.statusbar');
         const project = running.page.getByRole('combobox', {
-            name: /^Switch Workbench Root from width-project/,
+            name: new RegExp(`^Switch Workbench Root from ${PROJECT_NAME}`),
         });
         const branch = running.page.getByRole('combobox', {
-            name: 'Switch branch from feat/width',
+            name: `Switch branch from ${BRANCH_NAME}`,
         });
         const pullRequest = running.page.getByRole('link', { name: 'Open pull request #11' });
         const changes = running.page.getByRole('button', {
             name: 'Open changes: 2 lines added, 1 removed',
         });
-        await expect(project).toHaveText('width-project');
-        await expect(branch).toHaveText('feat/width');
+        await expect(project).toHaveText(PROJECT_NAME);
+        await expect(branch).toHaveText(BRANCH_NAME);
         await expect(pullRequest).toBeVisible();
         await expect(changes).toHaveText('+2 -1');
 
@@ -190,9 +166,9 @@ exec /bin/zsh -l
         /**
          * The status bar spans every column of the `app-shell` grid, so its width is the shell's, not the window's.
          * With both sidebars open `clampLayoutToViewport`'s minimums floor that shell at 180 + 6 + 320 + 6 + 240 =
-         * 752px (`stores/chrome-layout.ts`), which is above two of the three breakpoints: the bar simply overflows a
-         * narrower window instead of shrinking. Closing the SecondarySidebar is the ordinary ⌘] state that lets the
-         * shell actually reach the widths under test.
+         * 752px (`stores/chrome-layout.ts`), wider than the narrow capture: the bar simply overflows a narrower window
+         * instead of shrinking. Closing the SecondarySidebar is the ordinary ⌘] state that lets the shell actually
+         * reach the widths under test.
          */
         await running.page.keyboard.press('Meta+]');
         await expect(running.page.locator('.secondary-sidebar')).toHaveCount(0);
@@ -220,28 +196,50 @@ exec /bin/zsh -l
         await expect(childProcesses).toBeVisible();
         await expect(running.page.getByLabel('File type: TypeScript')).toHaveCount(0);
 
+        /**
+         * Lowest priority first, mirroring `CHIP_DROP_ORDER`: a chip may only be shown while every chip after it is.
+         */
+        const dropOrder = [childProcesses, memory, pullRequest];
         const captureWidth = async (capture: WidthCapture): Promise<void> => {
             await running.page.setViewportSize({ width: capture.width, height: WINDOW_HEIGHT });
-            await expect
-                .poll(() =>
-                    statusbar.evaluate((element) => {
-                        const style = getComputedStyle(element);
-                        const content =
-                            element.clientWidth -
-                            Number(style.paddingLeft.replace('px', '')) -
-                            Number(style.paddingRight.replace('px', ''));
-                        // Mirrors `useContainerWidth`'s 8px quantization, which is the number the breakpoints see.
-                        return Math.floor(content / 8) * 8;
-                    }),
-                )
-                .toBe(capture.measuredWidth);
-            await expectChip(memory, capture.showMemory);
-            await expectChip(childProcesses, capture.showChildProcessCount);
-            // Never dropped above 480px: the narrow capture must still prove which chips survived.
-            await expect(pullRequest).toBeVisible();
+            if (capture.name === 'wide') {
+                for (const chip of dropOrder) {
+                    // eslint-disable-next-line no-await-in-loop -- each chip is asserted in turn on the settled bar.
+                    await expectChip(chip, true);
+                }
+            } else {
+                await expectChip(childProcesses, false);
+            }
+            const shown = await Promise.all(
+                dropOrder.map(async (chip) => (await chip.count()) > 0),
+            );
+            for (const [index, isShown] of shown.entries())
+                if (isShown) expect(shown.slice(index + 1).every(Boolean)).toBe(true);
+            // Never dropped: the Project, branch, and change counter have no other home in the bar.
             await expect(project).toBeVisible();
             await expect(branch).toBeVisible();
             await expect(changes).toBeVisible();
+            const layout = await statusbar.evaluate((element) => {
+                const items = [
+                    ...element.querySelectorAll<HTMLElement>(
+                        ':scope .statusbar-item:not([role="combobox"]) > span, :scope .statusbar-info > span',
+                    ),
+                ];
+                const regions = [
+                    ...element.querySelectorAll<HTMLElement>(
+                        '.statusbar-context, .statusbar-actions',
+                    ),
+                ];
+                return {
+                    truncated: items
+                        .filter((label) => label.scrollWidth > label.clientWidth + 1)
+                        .map((label) => label.textContent),
+                    overflowing: regions
+                        .filter((region) => region.scrollWidth > region.clientWidth + 1)
+                        .map((region) => region.className),
+                };
+            });
+            expect(layout).toEqual({ truncated: [], overflowing: [] });
             if (!snapshotDirectory) return;
             await statusbar.screenshot({
                 animations: 'disabled',

@@ -145,7 +145,7 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
         await expect(running.page.getByRole('tab', { name: 'Preview: guide.md' })).toBeVisible();
         const failure = running.page.locator('.empty-work[role="alert"]');
         await expect(failure).toContainText("Couldn't open this file");
-        await expect(running.page.getByText('Loading file…', { exact: true })).toHaveCount(0);
+        await expect(running.page.getByText('Loading preview…', { exact: true })).toHaveCount(0);
         await writeFile(join(root, 'guide.md'), '# Guide\n', 'utf8');
         const retry = failure.getByRole('button', { name: 'Retry', exact: true });
         await retry.focus();
@@ -201,17 +201,23 @@ test('previews PDF, CSV, and Mermaid files', async () => {
         await createProjectSession(page);
 
         await page.getByRole('treeitem', { name: 'manual.pdf', exact: true }).click();
-        await expect(page.getByRole('tab', { name: 'Preview: manual.pdf' })).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'manual.pdf', exact: true })).toBeVisible();
         const pdf = page.getByTestId('pdf-preview');
         await expect(pdf.locator('.page')).toHaveCount(2);
         await expect(pdf.locator('.textLayer').first()).toContainText('Synthetic page one');
-        await expect(page.getByText('Page 1 of 2')).toBeVisible();
-        const zoom = page.getByText(/^\d+%$/u);
-        const fitted = await zoom.textContent();
+        const pageField = page.getByRole('textbox', { name: 'Page' });
+        await expect(pageField).toHaveValue('1');
+        await expect(page.getByText('of 2', { exact: true })).toBeVisible();
+        await pageField.fill('2');
+        await pageField.press('Enter');
+        await expect(pageField).toHaveValue('2');
+        const zoom = page.getByRole('button', { name: /^Zoom: \d+%$/u });
+        const fitted = await zoom.getAttribute('aria-label');
         await page.getByRole('button', { name: 'Zoom In' }).click();
-        await expect(zoom).not.toHaveText(fitted ?? '');
-        await page.getByRole('button', { name: 'Fit Width' }).click();
-        await expect(zoom).toHaveText(fitted ?? '');
+        await expect(zoom).not.toHaveAttribute('aria-label', fitted ?? '');
+        await zoom.click();
+        await page.getByRole('menuitemradio', { name: 'Fit Width' }).click();
+        await expect(zoom).toHaveAttribute('aria-label', fitted ?? '');
 
         await page.getByRole('treeitem', { name: 'broken.pdf', exact: true }).click();
         await expect(page.locator('.empty-work[role="alert"]')).toContainText(

@@ -13,6 +13,17 @@ function loading(emptyMessage: string): Pick<SourceControlGroup, 'emptyMessage' 
 }
 
 /**
+ * Appends the recovery step to a failed pull request lookup. The lookup is not retried on its own, so the caption names
+ * the panel's Refresh action instead of leaving a dead end; the provider's message may or may not end in a period.
+ */
+export function withRetryHint(message: string): string {
+    const trimmed = message.trim();
+    // A safe provider message may already name the step (`... Check remote access and refresh.`); say it once.
+    if (/\brefresh\b/i.test(trimmed)) return trimmed;
+    return `${/[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`} Refresh to retry.`;
+}
+
+/**
  * The group body shown when a repository contributes no visible rows. `isLoading` marks the states that will resolve on
  * their own, so the Workbench can draw a progress glyph instead of a caption that reads like a settled empty result.
  */
@@ -48,10 +59,11 @@ export function emptyStateForMode(
         };
     if (detailError)
         return {
-            emptyMessage:
+            emptyMessage: withRetryHint(
                 typeof detailError === 'string'
                     ? detailError
                     : 'Unable to load pull request changes.',
+            ),
         };
     if (pullRequest === null) return { emptyMessage: 'No pull request for this branch.' };
     return pullRequest

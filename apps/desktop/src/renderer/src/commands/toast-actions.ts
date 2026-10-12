@@ -1,4 +1,8 @@
 import {
+    discardedChangesUnavailableReason,
+    restoreDiscardedChanges,
+} from '../features/editor/discarded-buffers';
+import {
     retrySaveDocument,
     saveRetryUnavailableReason,
 } from '../features/editor/document-commands';
@@ -7,7 +11,7 @@ import {
     openHardwareAccelerationSettings,
 } from '../features/gpu/gpu-commands';
 import { openProcessExplorer } from '../features/process-explorer/process-explorer-commands';
-import { unarchiveSession } from '../features/session/session-commands';
+import { unarchiveSession } from '../features/session/session-archive-commands';
 import { createTerminalForSession } from '../features/terminal/terminal-commands';
 import { terminalToastActionHandlers } from '../features/terminal/terminal-toast-actions';
 import { showUpdateDialog } from '../features/updates/update-commands';
@@ -41,6 +45,10 @@ export const toastActionHandlers: ToastActionHandlers = {
             // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast
             void tryCommand('Copy details failed', () => navigator.clipboard.writeText(text));
         },
+    },
+    'editor.restoreDiscardedChanges': {
+        unavailable: discardedChangesUnavailableReason,
+        run: restoreDiscardedChanges,
     },
     'editor.retrySave': {
         unavailable: saveRetryUnavailableReason,

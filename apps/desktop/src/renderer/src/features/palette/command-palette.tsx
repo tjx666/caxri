@@ -18,10 +18,9 @@ import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
+import { hasDetachedAgentTerminal, hasLiveAgentTerminal } from '../session/session-agent-commands';
 import {
     didSelectSession,
-    hasDetachedAgentTerminal,
-    hasLiveAgentTerminal,
     selectProject,
     SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
 } from '../session/session-commands';

@@ -126,3 +126,41 @@ export function pullRequestCheckNodes(prefix: string, pullRequest: PullRequest):
     }
     return nodes;
 }
+
+/**
+ * Check states a pull request row counts in its trailing text, in display order. Only states that ask for attention are
+ * counted: a passed, neutral, or cancelled check needs no look, so it never spends the row's width.
+ */
+const attentionCheckCounts: ReadonlyArray<{
+    state: PullRequestCheck['state'];
+    label: string;
+}> = [
+    { state: 'failure', label: 'failing' },
+    { state: 'pending', label: 'running' },
+    { state: 'queued', label: 'queued' },
+];
+
+/**
+ * The pull request row's trailing text, such as `1 failing · 3 running`, or undefined when no check is failing,
+ * running, or queued. Hidden checks are not in `checks`, so they are never counted here.
+ */
+export function pullRequestCheckSummary(checks: readonly PullRequestCheck[]): string | undefined {
+    const parts = attentionCheckCounts.flatMap(({ state, label }) => {
+        const count = checks.filter((check) => check.state === state).length;
+        return count > 0 ? [`${count} ${label}`] : [];
+    });
+    return parts.length > 0 ? parts.join(' · ') : undefined;
+}
+
+/**
+ * Whether the pull request row opens by default. A failed check is the reason to look, and a running one is what the
+ * user is watching, so both keep the row open; a settled, passing pull request stays folded.
+ */
+export function isPullRequestRowExpanded(pullRequest: PullRequest): boolean {
+    return (
+        pullRequest.state === 'failure' ||
+        pullRequest.state === 'pending' ||
+        pullRequest.state === 'queued' ||
+        pullRequest.checks.some((check) => check.state === 'pending' || check.state === 'queued')
+    );
+}

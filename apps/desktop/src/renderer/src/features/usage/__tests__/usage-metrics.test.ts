@@ -218,7 +218,7 @@ describe('usage page captions', () => {
         expect(usageSessionCount(1, false)).toBe('1 Session');
         expect(usageSessionCount(3, false)).toBe('3 Sessions');
         expect(usageSessionCount(1, true)).toBe('1 Agent Session');
-        expect(usageSessionCount(2819, true)).toBe('2819 Agent Sessions');
+        expect(usageSessionCount(2819, true)).toBe('2,819 Agent Sessions');
     });
 
     it('shows scan progress only while transcripts remain', () => {

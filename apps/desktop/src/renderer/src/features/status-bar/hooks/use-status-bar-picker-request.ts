@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 
-import { useLatestReference } from '../../hooks/use-latest-reference';
-import type { StatusBarPicker } from '../../stores/dialogs';
-import { useDialogStore } from '../../stores/dialogs';
+import { useLatestReference } from '../../../hooks/use-latest-reference';
+import type { StatusBarPicker } from '../../../stores/dialogs';
+import { useDialogStore } from '../../../stores/dialogs';
 
 /**
  * Opens one status-bar picker when a command asks for it, following the shared "bump a revision to request something"

@@ -25,22 +25,21 @@ import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useSessionById, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { resumeSession } from '../session/session-agent-commands';
 import { useTerminalLinkPicker } from './hooks/use-terminal-link-picker';
 import { useTerminalPaneRuntime } from './hooks/use-terminal-pane-runtime';
+import { activateTerminal, restartTerminal, startNewAgentSession } from './terminal-commands';
+import { getTerminalExitPresentation } from './terminal-exit-presentation';
+import { terminalFontFamily } from './terminal-fonts';
+import { openTerminalLinkPicker } from './terminal-link-actions';
+import { TerminalLinkPicker } from './terminal-link-picker';
 import {
-    activateTerminal,
     clearActiveTerminal,
     copyActiveTerminalSelection,
     findInActiveTerminal,
     hasActiveTerminalSelection,
     registerTerminalFocusHandler,
-    restartTerminal,
-    startNewAgentSession,
-} from './terminal-commands';
-import { getTerminalExitPresentation } from './terminal-exit-presentation';
-import { terminalFontFamily } from './terminal-fonts';
-import { openTerminalLinkPicker } from './terminal-link-actions';
-import { TerminalLinkPicker } from './terminal-link-picker';
+} from './terminal-pane-handlers';
 import { terminalPaneHost } from './terminal-pane-host';
 import type { TerminalSearchOptions } from './terminal-search';
 import {
@@ -84,12 +83,14 @@ function TerminalRecoveryActions({
     processState,
     provider,
     resumesAgentSession,
+    sessionId,
     terminalId,
 }: {
     failureReason: TerminalFailureReason | undefined;
     processState: ProcessState;
     provider: AgentProvider | undefined;
     resumesAgentSession: boolean;
+    sessionId: string | undefined;
     terminalId: string;
 }) {
     /**
@@ -100,6 +101,24 @@ function TerminalRecoveryActions({
     const restartShortcut = useCommandShortcut('terminal.restart');
     // Automatic restore owns the Terminal until it settles into a state requiring user action.
     if (processState === 'interrupted' || processState === 'suspended') return null;
+    /**
+     * A detached row says "resume when you are done elsewhere", so its action is Resume, the same `session.resume`
+     * request as the Session row menu's Resume Agent: it brings back every Agent the Detach parked, not just this one.
+     */
+    if (processState === 'detached' && sessionId)
+        return (
+            <CommandTooltip commandId="session.resume">
+                <Button
+                    aria-label="Resume Agent"
+                    className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => resumeSession(sessionId)}
+                >
+                    <RotateCcw size={12} /> Resume
+                </Button>
+            </CommandTooltip>
+        );
     const isNeedsSettings = processState === 'failed' && failureReason === 'executable_not_found';
     const restartDescription =
         !isNeedsSettings && resumesAgentSession ? 'Restart Agent' : 'Restart Terminal';
@@ -132,13 +151,13 @@ function TerminalRecoveryActions({
             {resumesAgentSession && !isNeedsSettings && (
                 <CommandTooltip commandId="terminal.startNewAgentSession">
                     <Button
-                        aria-label="Start New Agent Session"
+                        aria-label="Start New Conversation"
                         className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
                         size="sm"
                         variant="ghost"
                         onClick={() => startNewAgentSession(terminalId)}
                     >
-                        <MessageSquarePlus size={12} /> New session
+                        <MessageSquarePlus size={12} /> New Conversation
                     </Button>
                 </CommandTooltip>
             )}
@@ -152,6 +171,7 @@ function TerminalRecoveryBar({
     processState,
     provider,
     resumesAgentSession,
+    sessionId,
     terminalId,
 }: {
     failureDetail: string | undefined;
@@ -159,6 +179,7 @@ function TerminalRecoveryBar({
     processState: ProcessState;
     provider: AgentProvider | undefined;
     resumesAgentSession: boolean;
+    sessionId: string | undefined;
     terminalId: string;
 }) {
     const exitPresentation = getTerminalExitPresentation(
@@ -189,7 +210,7 @@ function TerminalRecoveryBar({
             data-terminal-exit-state={processState}
             role="status"
         >
-            <Tooltip content={exitPresentation.label}>
+            <Tooltip content={exitPresentation.detail ?? exitPresentation.label}>
                 <span className={terminalRecoveryMessageClassName}>
                     {exitPresentation.icon === 'pending' ? (
                         <Spinner size={14} />
@@ -204,6 +225,7 @@ function TerminalRecoveryBar({
                 processState={processState}
                 provider={provider}
                 resumesAgentSession={resumesAgentSession}
+                sessionId={sessionId}
                 terminalId={terminalId}
             />
         </div>
@@ -439,6 +461,7 @@ export function TerminalPane({
                 processState={processState}
                 provider={provider}
                 resumesAgentSession={isResumesAgentSession}
+                sessionId={terminal?.sessionId}
                 terminalId={terminalId}
             />
         </div>

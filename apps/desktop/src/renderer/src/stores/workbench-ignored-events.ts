@@ -8,7 +8,9 @@ import type { ServerEvent } from '@caxri/protocol';
  *   `queries/invalidation.ts`, which refreshes the Session row menu's `session.permissionAutoAllowStatus` read.
  * - `gitReview.changed` (issue caxri#1294) likewise refreshes `gitReview.list` and `gitReview.pending`.
  * - `agentChat.patch` and `agentChat.taskPatch` update cached snapshots through `subscribeAgentChatPatches`.
- * - `commanderInbox.changed` concerns only the Agent Commander window, which re-reads its Inbox in `useAgentCommander`.
+ * - `commanderInbox.changed` goes to `subscribeRuntimeQueryInvalidation`, which refreshes the `commander.inbox.list` read
+ *   behind the status bar's "Needs you" chip; the Agent Commander window re-reads its own Inbox in
+ *   `useAgentCommander`.
  * - `subscribeUnsavedEditorRequests` answers `editor.unsavedRequest`, and `subscribeExternalDocumentSync` handles
  *   `externalDocument.changed`.
  */

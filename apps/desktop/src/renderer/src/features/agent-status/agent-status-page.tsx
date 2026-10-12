@@ -24,7 +24,7 @@ export function AgentStatusPage({ terminalId }: { terminalId: string }) {
     );
     const throughput = throughputQuery.data;
     const provider = terminal?.provider ?? throughput?.provider;
-    const providerStatus = useAgentProviderStatus(provider).data;
+    const providerStatusQuery = useAgentProviderStatus(provider);
     const agentName = provider ? agentProviderCatalog[provider].displayName : undefined;
     // A Terminal titled after its Agent would only repeat the heading's provider name.
     const subtitle = terminal
@@ -62,7 +62,15 @@ export function AgentStatusPage({ terminalId }: { terminalId: string }) {
                 />
                 {/* A closed Terminal with no measured response leaves the provider unknown: nothing to check. */}
                 {provider && agentName && (
-                    <AgentProviderStatusSection agentName={agentName} status={providerStatus} />
+                    <AgentProviderStatusSection
+                        agentName={agentName}
+                        isError={providerStatusQuery.isError}
+                        status={providerStatusQuery.data}
+                        onRetry={() => {
+                            // eslint-disable-next-line no-void -- a failed retry surfaces through the same error state
+                            void providerStatusQuery.refetch();
+                        }}
+                    />
                 )}
             </div>
         </div>

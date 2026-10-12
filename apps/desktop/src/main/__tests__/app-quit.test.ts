@@ -349,7 +349,7 @@ describe('appQuitPrompt', () => {
             cancelId: 2,
             defaultId: 1,
             detail: 'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent sessions so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.\n\n1 other client is connected to Caxri Server. Stopping will disconnect it.',
-            message: '2 tasks are still running.',
+            message: 'Quit Caxri while 2 tasks are running?',
             title: 'Quit Caxri?',
             type: 'warning',
         });
@@ -389,7 +389,7 @@ describe('appQuitPrompt', () => {
             cancelId: 1,
             defaultId: 1,
             detail: 'Review comments live in memory only and do not survive quitting Caxri. 2 repositories have unsent comments.',
-            message: '3 pending review comments will be lost.',
+            message: 'Quit Caxri and lose 3 pending review comments?',
             title: 'Quit with pending review comments?',
             type: 'warning',
         });

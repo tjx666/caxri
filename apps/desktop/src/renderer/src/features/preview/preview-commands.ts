@@ -12,7 +12,7 @@ import {
     getActivePaneTab,
     splitPaneTab,
 } from '../workbench/pane-actions';
-import { canPreviewPath, previewerForPath } from './preview-registry';
+import { canPreviewPath, previewerForPath, shouldOpenAsPreview } from './preview-registry';
 
 /**
  * The document a preview of this editor tab would show: the tab's own document when a previewer claims it, or, for a
@@ -32,6 +32,33 @@ export function previewSourcePath(tabPath: string): string | undefined {
         return previewerForPath(tabPath)?.id === 'markdown' ? tabPath : undefined;
     if (isVirtualEditorTabPath(tabPath)) return undefined;
     return canPreviewPath(tabPath) ? tabPath : undefined;
+}
+
+/**
+ * The one-click switch a tab offers between a document's two views: a source tab offers its preview, and a preview tab
+ * offers its source. A preview whose format has no text form (a PDF) offers nothing, because its "source" would open
+ * straight back into the same preview.
+ *
+ * Shared by the tab rail's icon and the tab context menu, so the two never disagree about which way the switch goes.
+ */
+export type PreviewTabSwitch =
+    { kind: 'openPreview'; path: string } | { kind: 'openSource'; path: string };
+
+export function previewTabSwitch(tabPath: string): PreviewTabSwitch | undefined {
+    const preview = parseFilePreviewTab(tabPath);
+    if (preview)
+        return shouldOpenAsPreview(preview.path)
+            ? undefined
+            : { kind: 'openSource', path: preview.path };
+    const source = previewSourcePath(tabPath);
+    return source ? { kind: 'openPreview', path: source } : undefined;
+}
+
+/**
+ * Opens the editable source of a preview in the active pane, or activates it where it is already open.
+ */
+export function openPreviewSource(path: string): void {
+    openEditorTab(path);
 }
 
 /**

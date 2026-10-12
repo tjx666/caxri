@@ -207,14 +207,22 @@ export function UsageActivityCard({
 
     return (
         <section
-            className="rounded-md border border-border bg-surface p-4"
+            // `min-w-0` lets the page grid shrink this card to the pane, so the year chart scrolls inside it instead of
+            // widening the whole page past a narrow pane.
+            className="min-w-0 rounded-md border border-border bg-surface p-4"
             aria-label={activityCardLabel(metric)}
         >
-            <div className="flex items-center justify-between gap-3">
-                {/* The range selector does not apply here: the chart always covers the trailing year. */}
+            {/* Wraps so a narrow pane drops the switches under the title instead of clipping them. */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                {/*
+                 * The range selector does not apply here: the chart always covers the trailing year, and the caption
+                 * says so, since a 30D selection above a year-long chart otherwise reads as a bug.
+                 */}
                 <h2 className="m-0 flex items-baseline gap-2 text-[13px] font-semibold">
                     Activity
-                    <span className="text-[11px] font-normal text-muted">Last 12 months</span>
+                    <span className="text-[11px] font-normal text-muted">
+                        Last 12 months, for every range
+                    </span>
                 </h2>
                 <div className="flex flex-wrap items-center justify-end gap-2">
                     <ToggleGroup

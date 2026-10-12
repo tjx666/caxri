@@ -1,4 +1,4 @@
-import { CircleDot, GitPullRequest } from 'lucide-react';
+import { ArrowUpRight, CircleDot, GitPullRequest } from 'lucide-react';
 
 import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
 import { LinearLogoIcon } from '../../icons/brands/linear-logo-icon';
@@ -21,7 +21,8 @@ function actionLabel(artifact: AgentChatTrackerArtifact): string {
 /**
  * A pull request or issue the Agent created or edited this turn, as one clickable card: the tracker's mark in a tile,
  * the title beside its `owner/repo#N` or `ENG-123` reference, what was done to it, and the body's first line. Opens the
- * page in the browser.
+ * page in the browser, which the trailing external arrow says before the click; the edited-files card beside it expands
+ * in place and carries no arrow.
  */
 export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerArtifact }) {
     const Mark = artifact.provider === 'github' ? GithubMarkIcon : LinearLogoIcon;
@@ -30,7 +31,7 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
     return (
         <button
             aria-label={`${label}: ${artifact.title ?? artifact.reference}, ${artifact.reference}. Open in browser`}
-            className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors duration-150 hover:bg-elevated focus-visible:outline focus-visible:outline-accent"
+            className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
             data-agent-chat-tracker={artifact.provider}
             type="button"
             onClick={() => {
@@ -61,6 +62,7 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
             <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted">
                 <KindIcon aria-hidden="true" className="size-3.5" />
                 {label}
+                <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </span>
         </button>
     );

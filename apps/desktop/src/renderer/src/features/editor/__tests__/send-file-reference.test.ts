@@ -36,8 +36,10 @@ vi.mock('../../../stores/session-view', () => ({ sessionViewScope: mocks.session
 vi.mock('../../../stores/toasts', () => ({ pushToast: mocks.pushToast }));
 vi.mock('../../terminal/terminal-commands', () => ({
     activateTerminal: mocks.activateTerminal,
-    focusTerminalById: mocks.focusTerminalById,
     sendTerminalSequence: mocks.sendTerminalSequence,
+}));
+vi.mock('../../terminal/terminal-pane-handlers', () => ({
+    focusTerminalById: mocks.focusTerminalById,
     whenTerminalAttached: mocks.whenTerminalAttached,
 }));
 vi.mock('../../workbench/pane-actions', () => ({

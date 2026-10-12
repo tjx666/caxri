@@ -3,13 +3,13 @@ import type {
     AgentChatDefault,
     AgentChatMessageInput,
     AgentChatModelRequest,
-    AgentChatPermissionRequest,
     AgentProvider,
     TerminalRecord,
 } from '@caxri/protocol';
 import { formatLongPasteReference } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
+import { getBootstrap } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { didSelectSession } from '../session/session-commands';
@@ -17,6 +17,11 @@ import { createTerminalForSession } from '../terminal/terminal-commands';
 import { writeAgentChatDraft } from './agent-chat-drafts';
 import { agentChatHandoffPrompt } from './agent-chat-handoff';
 import { agentChatConfigureFailureMessage } from './agent-chat-model-selection';
+import {
+    agentChatForkSuccessMessage,
+    agentChatReplaceTurnsConfirm,
+    agentChatRestoreSuccessMessage,
+} from './agent-chat-rewind-copy';
 
 /**
  * Sends a message. An idle Chat starts a turn; while a turn runs, `delivery` decides whether the message waits in the
@@ -57,8 +62,9 @@ export function saveAgentChatLongPaste(
 
 /**
  * "Edit from here": rewinds the Chat to before message `itemId` and sends `message` in its place. Reverting files first
- * asks for confirmation in a native dialog, since it can discard the user's own edits; declining sends nothing and
- * keeps the draft. Resolves `true` once Server Core rewound the Chat and accepted the message.
+ * asks for confirmation in a native dialog, since it can discard the user's own edits; replacing more than one turn
+ * without reverting files asks in the in-app confirmation (see {@link agentChatReplaceTurnsConfirm}). Declining either
+ * sends nothing and keeps the draft. Resolves `true` once Server Core rewound the Chat and accepted the message.
  */
 export async function didRewindAgentChat(
     terminalId: string,
@@ -72,6 +78,8 @@ export async function didRewindAgentChat(
 ): Promise<boolean> {
     let isSent = false;
     await tryCommand('Message could not be edited', async () => {
+        const replaceTurns = agentChatReplaceTurnsConfirm(request);
+        if (replaceTurns && !(await caxri.window.showConfirm(replaceTurns))) return;
         if (request.restoreFiles) {
             const { confirmed } = await caxri.request('agentChat.confirmRevertFiles', {
                 providerName: request.providerName,
@@ -93,7 +101,8 @@ export async function didRewindAgentChat(
 /**
  * "Fork from here": copies the conversation before message `itemId` into a Chat in a new Session, puts the message's
  * text in that Chat's composer to send as it is or change first, and opens the Session. The draft is written before the
- * selection so the new composer mounts with it.
+ * selection so the new composer mounts with it. A toast then says where the conversation went, since the switch to
+ * another Session is otherwise the only sign the fork happened.
  */
 export async function forkAgentChat(
     terminalId: string,
@@ -104,13 +113,17 @@ export async function forkAgentChat(
         const forked = await caxri.request('agentChat.fork', { terminalId, itemId });
         if (text) writeAgentChatDraft(forked.terminalId, text);
         await didSelectSession(forked.sessionId);
+        const session = getBootstrap()?.sessions.find(
+            (candidate) => candidate.id === forked.sessionId,
+        );
+        pushToast('success', agentChatForkSuccessMessage(session?.displayTitle));
     });
 }
 
 /**
  * "Restore code to here": puts back the files the turns from message `itemId` onward changed and keeps the
  * conversation. It overwrites the user's own edits since, so it asks first in the same native dialog an edit that
- * reverts files uses; Cancel is the default.
+ * reverts files uses; Cancel is the default. A success toast confirms it, since the transcript itself does not change.
  */
 export async function restoreAgentChatFiles(
     terminalId: string,
@@ -123,6 +136,7 @@ export async function restoreAgentChatFiles(
         });
         if (!confirmed) return;
         await caxri.request('agentChat.restoreFiles', { terminalId, itemId: request.itemId });
+        pushToast('success', agentChatRestoreSuccessMessage(request.restoredTurns));
     });
 }
 
@@ -182,20 +196,6 @@ export async function didConfigureAgentChat(
         isConfigured = true;
     });
     return isConfigured;
-}
-
-/**
- * Switches the Chat's permission level or plan mode. Grok Build restarts on the same conversation to apply a level, and
- * refuses while a turn runs; the toast reports that.
- */
-export function configureAgentChatPermission(
-    terminalId: string,
-    change: AgentChatPermissionRequest,
-): void {
-    // eslint-disable-next-line no-void -- tryCommand reports a failed switch through the toast
-    void tryCommand('Unable to change permissions', () =>
-        caxri.request('agentChat.configure', { terminalId, ...change }),
-    );
 }
 
 /**

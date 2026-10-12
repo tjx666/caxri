@@ -1,4 +1,4 @@
-import type { AgentThroughputSample } from '@caxri/protocol';
+import type { AgentProvider, AgentProviderStatus, AgentThroughputSample } from '@caxri/protocol';
 import { agentProviderCatalog, agentStatusTabLabel } from '@caxri/protocol';
 import { Gauge } from 'lucide-react';
 
@@ -6,6 +6,11 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { useTerminal } from '../../stores/selectors';
+import {
+    describeProviderStatus,
+    isProviderStatusDisrupted,
+} from '../agent-status/agent-provider-status-label';
 import { openAgentStatusTab } from '../agent-status/open-agent-status-tab';
 import { ProviderStatusSummary } from '../agent-status/provider-status-summary';
 import { useAgentProviderStatus } from '../agent-status/use-agent-provider-status';
@@ -67,22 +72,78 @@ function ThroughputBars({ samples }: { samples: readonly AgentThroughputSample[]
 }
 
 /**
+ * The chip before the Agent's first measured response, shown only while the provider's status page reports a problem: a
+ * muted dash placeholder rate, so an incident is visible before the user's first prompt rather than only after a slow
+ * answer.
+ */
+function UnmeasuredThroughputStatus({
+    provider,
+    status,
+    terminalId,
+}: {
+    provider: AgentProvider;
+    status: Extract<AgentProviderStatus, { state: 'available' }>;
+    terminalId: string;
+}) {
+    const agentName = agentProviderCatalog[provider].displayName;
+    const tabLabel = agentStatusTabLabel(agentName);
+    return (
+        <StatusItem
+            ariaLabel={`Open ${tabLabel} — ${agentName} output speed: not measured yet; API status: ${describeProviderStatus(status)}`}
+            className="statusbar-agent-throughput text-muted [&>span]:min-w-[8ch]"
+            icon={<Gauge />}
+            onClick={() => openAgentStatusTab(terminalId)}
+            title={
+                <StructuredTooltip
+                    eyebrow={`${agentName} output speed`}
+                    title="Not measured yet"
+                    details={['Shown because the provider reports a problem']}
+                    rows={[
+                        { label: 'API status', value: <ProviderStatusSummary status={status} /> },
+                    ]}
+                    notes={[AGENT_THROUGHPUT_METHOD_NOTE]}
+                    hint={`Click to open ${tabLabel}`}
+                />
+            }
+        >
+            —
+        </StatusItem>
+    );
+}
+
+/**
  * Output speed of the Agent in the active Terminal, measured from the provider's own transcript, with the provider's
  * public service status beside it so a slow Agent can be told apart from a provider incident. Clicking opens the
- * Terminal's Agent status tab, the same tab `Show Agent Status` opens. Renders nothing for a Shell, an unsupported
- * provider, or before the first measured response, so it never holds a slot to say "none".
+ * Terminal's Agent status tab, the same tab `Show Agent Status` opens. Renders nothing for a Shell or an unsupported
+ * provider. Before the first measured response it renders nothing either, unless the provider's status page reports a
+ * problem (`UnmeasuredThroughputStatus`), so it never holds a slot to say "none".
  */
 export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
-    const throughput = usePolledQuery(
+    const throughputQuery = usePolledQuery(
         'terminal.agentThroughput',
         { terminalId },
         { label: 'terminal.agentThroughput', intervalMs: 2_000, staleTime: 1_000, retry: false },
-    ).data;
-    const providerStatus = useAgentProviderStatus(throughput?.provider).data;
+    );
+    const throughput = throughputQuery.data;
+    // The transcript names the provider once it exists; until then the Terminal record does.
+    const terminalProvider = useTerminal(terminalId)?.provider;
+    const provider = throughput?.provider ?? terminalProvider;
+    const providerStatusQuery = useAgentProviderStatus(provider);
+    const providerStatus = providerStatusQuery.data;
     const latest = throughput?.samples.at(-1);
     const lastResponseAgo = useRelativeTime(latest?.completedAt);
     const rate = throughput ? throughputRate(throughput.recent) : undefined;
-    if (!throughput || !latest || rate === undefined) return null;
+    if (!throughput || !latest || rate === undefined) {
+        if (!provider || providerStatus?.state !== 'available') return null;
+        if (!isProviderStatusDisrupted(providerStatus)) return null;
+        return (
+            <UnmeasuredThroughputStatus
+                provider={provider}
+                status={providerStatus}
+                terminalId={terminalId}
+            />
+        );
+    }
     const label = formatThroughputRate(rate);
     const agentName = agentProviderCatalog[throughput.provider].displayName;
     const tabLabel = agentStatusTabLabel(agentName);
@@ -151,7 +212,12 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
                             : [
                                   {
                                       label: 'API status',
-                                      value: <ProviderStatusSummary status={providerStatus} />,
+                                      value: (
+                                          <ProviderStatusSummary
+                                              isError={providerStatusQuery.isError}
+                                              status={providerStatus}
+                                          />
+                                      ),
                                   },
                               ]),
                     ]}

@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
     CHECKS_COLLAPSE_THRESHOLD,
+    isPullRequestRowExpanded,
     partitionPullRequestChecks,
     pullRequestCheckNodes,
+    pullRequestCheckSummary,
 } from '../status-checks';
 
 type PullRequest = NonNullable<ProjectStatusRepository['pullRequest']>;
@@ -92,5 +94,38 @@ describe('pullRequestCheckNodes', () => {
         // A check keeps its provider index as its identity whether it is listed or folded.
         expect(nodes[0].item.id).toBe('status:repo:check:5');
         expect(summary.children?.[0].item.id).toBe('status:repo:check:0');
+    });
+});
+
+describe('pullRequestCheckSummary', () => {
+    it('counts only the checks that ask for attention, failing first', () => {
+        expect(
+            pullRequestCheckSummary([
+                { name: 'Build', state: 'pending' },
+                passed('Lint'),
+                { name: 'Test', state: 'failure' },
+                { name: 'E2E', state: 'pending' },
+                { name: 'Deploy', state: 'queued' },
+                { name: 'Docs', state: 'pending' },
+            ]),
+        ).toBe('1 failing · 3 running · 1 queued');
+    });
+
+    it('says nothing when every check settled without a failure', () => {
+        expect(
+            pullRequestCheckSummary([passed('Lint'), { name: 'Skip', state: 'neutral' }]),
+        ).toBeUndefined();
+        expect(pullRequestCheckSummary([])).toBeUndefined();
+    });
+});
+
+describe('isPullRequestRowExpanded', () => {
+    it('opens while checks are running or failed and folds a passing pull request', () => {
+        const running = pullRequest([{ name: 'Build', state: 'pending' }]);
+        expect(isPullRequestRowExpanded(running)).toBe(true);
+        const failed = { ...pullRequest([{ name: 'Build', state: 'failure' }]), state: 'failure' };
+        expect(isPullRequestRowExpanded(failed as PullRequest)).toBe(true);
+        const settled = pullRequest([passed('Build')]);
+        expect(isPullRequestRowExpanded({ ...settled, state: 'success' })).toBe(false);
     });
 });

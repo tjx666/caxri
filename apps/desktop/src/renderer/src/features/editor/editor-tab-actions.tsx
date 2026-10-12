@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
-import { previewSourcePath } from '../preview/preview-commands';
+import { previewTabSwitch } from '../preview/preview-commands';
 import { PreviewTabAction } from '../preview/preview-tab-action';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { openEditorTab, openFileForSession } from './document-commands';
@@ -48,10 +48,10 @@ export function EditorTabActions({ path, paneId }: { paneId?: string; path: stri
             </>
         );
     }
-    const previewPath = previewSourcePath(path);
+    const tabSwitch = previewTabSwitch(path);
     return (
         <>
-            {previewPath && <PreviewTabAction path={previewPath} />}
+            {tabSwitch && <PreviewTabAction tabSwitch={tabSwitch} />}
             {/* An external document belongs to no Project repository, so it has no Git history to open. */}
             {!isExternalEditorTabPath(path) && <FileEditorTabActions path={path} />}
         </>

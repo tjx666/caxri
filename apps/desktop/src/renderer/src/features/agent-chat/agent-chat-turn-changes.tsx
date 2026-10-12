@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 
 import { pathBasename } from '@caxri/utils';
-import { ArrowUpRight, FileDiff, LoaderCircle, MessageSquareDiff, Undo2 } from 'lucide-react';
+import { ChevronDown, FileDiff, LoaderCircle, MessageSquareDiff, Undo2 } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
@@ -10,6 +10,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/
 import { Tooltip } from '../../components/ui/tooltip';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { parentDirectoryPath, projectRelativePath } from '../../lib/file-path';
+import { cn } from '../../lib/utilities';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatDiff } from './agent-chat-file-changes';
 import { openAgentChatTurnReview } from './agent-chat-task-opener';
@@ -40,7 +41,8 @@ function EditedFileDiff({ file, label }: { file: AgentChatEditedFile; label?: st
                     <DiffStat additions={file.additions} deletions={file.deletions} />
                 </div>
             )}
-            <div className="bg-background">
+            {/* Diff text is content in an otherwise `select-none` transcript; its gutters stay unselectable. */}
+            <div className="bg-background select-text">
                 <AgentChatDiff lines={lines} truncated={file.truncated} />
             </div>
         </div>
@@ -96,9 +98,11 @@ function EditedFileRow({
 
 /**
  * The files a finished turn changed, as the Codex app ends a turn: a glyph tile, `Edited app.ts` or `Edited 3 files`
- * over the turn's `+N -M` (which, hovered, turns into `View changes` and previews the diff), Undo, and View changes.
- * More than one file lists each under the header; a row or View changes discloses the diffs in place. Review opens the
- * whole turn as one diff beside the Chat, where its lines can be commented on.
+ * over the turn's `+N -M`, Undo, and Review. The counts, with a disclosure chevron, are the card's one inline toggle:
+ * hovered or focused they turn into `View changes` (or `Hide changes`) and preview the diff in a hover card, and a
+ * click discloses every diff in place. No external-arrow glyph, since nothing leaves the Chat. More than one file lists
+ * each under the header, and a row discloses its own diff. Review, labeled because it is the one action that opens
+ * something else, shows the whole turn as one diff in a side tab where its lines can be commented on.
  */
 export function AgentChatTurnChanges({
     files,
@@ -147,7 +151,9 @@ export function AgentChatTurnChanges({
                             delay={350}
                             render={
                                 <button
-                                    aria-label={`View changes, ${diffStatLabel(stat)}`}
+                                    aria-controls={files.length === 1 ? detailId : undefined}
+                                    aria-expanded={isAllExpanded}
+                                    aria-label={`${isAllExpanded ? 'Hide' : 'View'} changes, ${diffStatLabel(stat)}`}
                                     className="group/stat flex h-5 cursor-pointer items-center border-0 bg-transparent p-0 text-[12px] text-muted hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                                     type="button"
                                     onClick={toggleAll}
@@ -159,10 +165,17 @@ export function AgentChatTurnChanges({
                                 className="group-hover/stat:hidden group-focus-visible/stat:hidden"
                                 deletions={stat.deletions}
                             />
-                            <span className="hidden items-center gap-1 group-hover/stat:flex group-focus-visible/stat:flex">
-                                View changes
-                                <ArrowUpRight aria-hidden="true" className="size-3.5" />
+                            <span className="hidden group-hover/stat:inline group-focus-visible/stat:inline">
+                                {isAllExpanded ? 'Hide changes' : 'View changes'}
                             </span>
+                            {/* Always shown, so the counts read as a disclosure before the pointer finds them. */}
+                            <ChevronDown
+                                aria-hidden="true"
+                                className={cn(
+                                    'ml-1 size-3.5 transition-transform duration-(--motion-expand) ease-(--motion-ease-emphasized) motion-reduce:transition-none',
+                                    isAllExpanded && 'rotate-180',
+                                )}
+                            />
                         </HoverCardTrigger>
                         <HoverCardContent
                             align="start"
@@ -219,29 +232,18 @@ export function AgentChatTurnChanges({
                         </Tooltip>
                     ))}
                 {terminalId !== undefined && (
-                    <Tooltip content="Review this turn's changes and comment on them">
-                        {/* Icon-only so the card's title keeps its room in a half-width Chat. */}
+                    <Tooltip content="Review this turn's changes beside the Chat and comment on them">
                         <Button
-                            aria-label="Review"
-                            className="size-7 shrink-0 text-muted hover:text-foreground"
-                            size="icon"
-                            variant="ghost"
+                            className="shrink-0 gap-1 text-[12px]"
+                            size="sm"
+                            variant="secondary"
                             onClick={() => openAgentChatTurnReview(terminalId, turnId)}
                         >
                             <MessageSquareDiff aria-hidden="true" className="size-3.5" />
+                            Review
                         </Button>
                     </Tooltip>
                 )}
-                <Button
-                    aria-controls={only && files.length === 1 ? detailId : undefined}
-                    aria-expanded={isAllExpanded}
-                    className="shrink-0 text-[12px]"
-                    size="sm"
-                    variant="secondary"
-                    onClick={toggleAll}
-                >
-                    {isAllExpanded ? 'Hide changes' : 'View changes'}
-                </Button>
             </div>
             {files.length > 1 ? (
                 <ul className="m-0 list-none p-0">

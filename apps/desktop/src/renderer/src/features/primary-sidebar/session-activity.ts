@@ -123,6 +123,19 @@ const DETACHED_PRESENTATION: SessionActivityPresentation = {
 };
 
 /**
+ * A suspended Agent was parked while its Session sat in the background; its last probed state would claim it is still
+ * idle at its prompt. Opening the Session resumes it, so the card says that and where the automatic rule is changed.
+ * The sentence stays neutral about the cause because the record does not say whether the idle rule, an archive, or a
+ * Process Explorer stop parked it.
+ */
+const SUSPENDED_PRESENTATION = presentation(
+    'Suspended',
+    'Paused in the background to save memory, and resumes when you open this Session. Automatic suspension is set in Settings > Agents.',
+    'neutral',
+    'text-muted',
+);
+
+/**
  * A Shell Session has no Agent, so its card must not claim one is idle or working; Session Activity only ever describes
  * an Agent's turn.
  */
@@ -143,5 +156,6 @@ export function currentSessionActivityPresentation(
 ): SessionActivityPresentation {
     if (terminal?.kind === 'shell') return NO_AGENT_PRESENTATION;
     if (terminal?.lastProcessState === 'detached') return DETACHED_PRESENTATION;
+    if (terminal?.lastProcessState === 'suspended') return SUSPENDED_PRESENTATION;
     return sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
 }

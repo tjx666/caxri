@@ -98,7 +98,7 @@ async function renderDiagram(
     const key = `${themeKey}\0${source}`;
     const cached = renderedDiagrams.get(key);
     if (cached !== undefined) {
-        element.innerHTML = cached;
+        showDiagram(element, cached);
         return;
     }
     const mermaid = await loadMermaid(theme, themeKey);
@@ -109,11 +109,21 @@ async function renderDiagram(
     renderedDiagrams.set(key, svg);
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the render above is awaited, so the signal can abort between the two checks; the narrowing is a false positive
     if (signal.aborted) return;
+    showDiagram(element, svg);
+}
+
+/**
+ * Marks a diagram whose source stopped parsing while it still shows the last version that did.
+ */
+const STALE_DIAGRAM_CLASS = 'is-stale';
+
+function showDiagram(element: HTMLElement, svg: string): void {
+    element.classList.remove(STALE_DIAGRAM_CLASS);
     element.innerHTML = svg;
 }
 
 /**
- * Renders one Mermaid source into `element`, or replaces its content with the parse or layout error.
+ * Renders one Mermaid source into `element`, or shows the parse or layout error (under the last good diagram, if any).
  *
  * Shared by the Markdown preview's `mermaid` fences and the `.mmd` / `.mermaid` file preview, so both take the same
  * theme seeding, render cache, layout permit, and error presentation.
@@ -139,8 +149,18 @@ export async function renderMermaidDiagram(
     }
 }
 
+/**
+ * Shows a parse or layout error under the diagram.
+ *
+ * While the user types, nearly every keystroke between two valid states fails to parse. Replacing the diagram with the
+ * error each time made the picture vanish and reappear on every edge being typed, so the last diagram that rendered
+ * stays in place, dimmed, with the error below it. Only a diagram that never rendered shows the error alone.
+ */
 function reportDiagramFailure(element: HTMLElement, error: unknown): void {
-    element.replaceChildren();
+    const hasLastGood = element.querySelector(':scope > svg') !== null;
+    if (hasLastGood) element.querySelector(':scope > .caxri-markdown-diagram-error')?.remove();
+    else element.replaceChildren();
+    element.classList.toggle(STALE_DIAGRAM_CLASS, hasLastGood);
     const message = element.ownerDocument.createElement('p');
     message.className = 'caxri-markdown-diagram-error';
     message.textContent =

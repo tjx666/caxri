@@ -3,7 +3,7 @@ import { Fragment } from 'react';
 import { formatTokens } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { cn } from '../../lib/utilities';
 import type { AgentChatContextUsage } from './agent-chat-context';
 
@@ -34,8 +34,8 @@ function shade(index: number): string {
 }
 
 /**
- * The meter's hover card, laid out like Claude Code's `/context`: the headline count, a bar of the window with what
- * fills it, and a legend. Without a breakdown the bar is one segment in the meter's tone.
+ * The meter's card, laid out like Claude Code's `/context`: the headline count, a bar of the window with what fills it,
+ * and a legend. Without a breakdown the bar is one segment in the meter's tone.
  */
 function ContextCard({
     onCompact,
@@ -110,10 +110,12 @@ function ContextCard({
 /**
  * How much of the context window the conversation uses, as a filling ring with the percentage beside it, the way the
  * Codex app shows it. Both measure against the window the provider compacts at, so the ring turns `--danger` exactly
- * when the composer suggests compacting. The hover card gives the token counts, what fills the window when the provider
- * reports it, and a Compact button when the provider has a compact command; it is a preview card rather than a tooltip
- * because it holds that button. The ring is a Tab stop so a keyboard user can raise the card too, and it is a `meter`,
- * so a screen reader hears the share as a value with the counts as its text.
+ * when the composer suggests compacting. Its card gives the token counts, what fills the window when the provider
+ * reports it, and a Compact button when the provider has a compact command. Hovering opens the card as a preview; it is
+ * a popover rather than a preview card because it holds that button: a preview card opened by focus closes as soon as
+ * focus leaves the ring, so Tab could never reach Compact. Enter, Space, or a click on the ring (a Tab stop) opens the
+ * same card with focus inside it, and Escape hands focus back. The ring is a `meter`, so a screen reader hears the
+ * share as a value with the counts as its text.
  */
 export function AgentChatContextMeter({
     onCompact,
@@ -129,10 +131,12 @@ export function AgentChatContextMeter({
     const tokens = `${formatTokens(usage.totalTokens)} / ${formatTokens(usage.window)} tokens`;
     const description = `${percent}% of context used, ${tokens}`;
     return (
-        <HoverCard>
-            <HoverCardTrigger
+        <Popover>
+            <PopoverTrigger
                 closeDelay={120}
                 delay={300}
+                nativeButton={false}
+                openOnHover
                 render={
                     <span
                         aria-label={description}
@@ -144,7 +148,7 @@ export function AgentChatContextMeter({
                             'flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-[12px] leading-4 tabular-nums focus-visible:outline focus-visible:outline-accent',
                             TONE_CLASS_NAMES[usage.tone],
                         )}
-                        // react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- the HoverCard trigger draws an SVG ring; a native <meter> cannot host it.
+                        // react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- the Popover trigger draws an SVG ring; a native <meter> cannot host it.
                         role="meter"
                         tabIndex={0}
                     />
@@ -174,10 +178,10 @@ export function AgentChatContextMeter({
                     )}
                 </svg>
                 {percent}%
-            </HoverCardTrigger>
-            <HoverCardContent align="end" className="w-60" side="top">
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-60 overflow-visible p-2.5" side="top">
                 <ContextCard onCompact={onCompact} percent={percent} usage={usage} />
-            </HoverCardContent>
-        </HoverCard>
+            </PopoverContent>
+        </Popover>
     );
 }

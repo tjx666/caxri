@@ -25,11 +25,13 @@ const REVEAL_ON_HOVER =
 
 /**
  * The Terminal | Chat toggle is visible at rest whenever the active tab can switch, so the user can find it without
- * hovering first, but muted until the bar is hovered or focused, or a switch is pending, so it does not compete with
- * the tabs.
+ * hovering first, but quiet until the bar is hovered or focused, or a switch is pending, so it does not compete with
+ * the tabs. Only the pressed segment's icon dims, to `--muted` like its neighbour, through the
+ * `--agent-surface-toggle-pressed` color `AgentSurfaceToggle` reads. Fading the whole control with opacity also faded
+ * its border below the non-text contrast a control outline needs.
  */
 const MUTED_AT_REST =
-    'opacity-60 group-hover/work-tabs:opacity-100 focus-within:opacity-100 has-[[aria-busy=true]]:opacity-100';
+    '[--agent-surface-toggle-pressed:var(--muted)] group-hover/work-tabs:[--agent-surface-toggle-pressed:var(--foreground)] focus-within:[--agent-surface-toggle-pressed:var(--foreground)] has-[[aria-busy=true]]:[--agent-surface-toggle-pressed:var(--foreground)]';
 
 /**
  * The bar's trailing strip. With one tab, the Terminal | Chat toggle and + float over its end: a reserved slot showed

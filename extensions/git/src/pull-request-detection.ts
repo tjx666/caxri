@@ -21,3 +21,35 @@ export function hasDetectedPullRequest(
 ): boolean {
     return repositories.some((repo) => Boolean(pullRequests.get(repo.id)?.value));
 }
+
+/**
+ * Whether Source Control may move a Working Tree scope to Pull Request mode on its own. Uncommitted changes are what
+ * Working Tree mode exists to show, so the panel never trades them for the pull request's diff behind the user's back.
+ */
+export function canAutoSelectPullRequestMode(
+    repositories: ReadonlyArray<Pick<GitRepositorySummary, 'changedFileCount'>>,
+): boolean {
+    return repositories.every((repo) => repo.changedFileCount === 0);
+}
+
+/**
+ * Runs the automatic Working Tree to Pull Request mode pick for one snapshot: while the scope's mode is unsettled and
+ * the tree is clean, it starts each repository's pull request lookup through `loadPullRequest` and answers whether a
+ * settled lookup already found one. A settled mode or a dirty tree starts no lookup at all.
+ */
+export function shouldAutoSelectPullRequestMode<
+    Repo extends Pick<GitRepositorySummary, 'branch' | 'changedFileCount' | 'id'>,
+>(
+    scope: {
+        isModeChosen: boolean;
+        mode: string;
+        pullRequests: ReadonlyMap<string, { value?: GitPullRequestChanges | null }>;
+    },
+    repositories: readonly Repo[],
+    loadPullRequest: (repo: Repo) => void,
+): boolean {
+    if (scope.isModeChosen || scope.mode !== 'working') return false;
+    if (!canAutoSelectPullRequestMode(repositories)) return false;
+    for (const repo of repositories) if (canDetectPullRequest(repo)) loadPullRequest(repo);
+    return hasDetectedPullRequest(repositories, scope.pullRequests);
+}

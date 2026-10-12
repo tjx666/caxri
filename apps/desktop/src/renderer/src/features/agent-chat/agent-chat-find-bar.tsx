@@ -15,8 +15,9 @@ const ACTION_CLASS_NAME =
 
 /**
  * The Chat's find bar, at the top right of the conversation like the Terminal's, clear of the message rail on the left
- * and Jump to latest at the bottom. Enter and Shift+Enter step through matches; Escape closes and returns to the
- * composer.
+ * and Jump to latest at the bottom. It takes its own strip above the conversation (`AgentChatFindScope`) rather than
+ * floating over it, so it never covers the transcript text it searches. Enter and Shift+Enter step through matches, and
+ * Escape closes and returns to the composer; the buttons' tooltips name those keys.
  */
 export function AgentChatFindBar({
     activeIndex,
@@ -54,66 +55,68 @@ export function AgentChatFindBar({
         else onNext();
     };
     return (
-        <search
-            aria-label="Find in Chat"
-            className="absolute top-2 right-2 z-10 flex max-w-[calc(100%-1rem)] items-center gap-1 rounded border border-border bg-surface p-1 shadow-lg"
-            data-agent-chat-find=""
-        >
-            <InputGroup appearance="workbench" className="w-56" size="dense">
-                <Input
-                    ref={inputReference}
-                    appearance="embedded"
-                    aria-label="Find in Chat"
-                    className="flex-1 text-foreground"
-                    placeholder="Find"
-                    size="dense"
-                    spellCheck={false}
-                    value={query}
-                    onChange={(event) => onQueryChange(event.currentTarget.value)}
-                    onKeyDown={handleKeyDown}
-                />
-            </InputGroup>
-            <span
-                aria-live="polite"
-                className={cn(
-                    'min-w-10 text-center text-[11px] tabular-nums',
-                    hasNoMatch ? 'text-danger' : 'text-muted',
-                )}
+        <div className="flex shrink-0 justify-end px-2 pt-2">
+            <search
+                aria-label="Find in Chat"
+                className="flex max-w-full items-center gap-1 rounded border border-border bg-surface p-1"
+                data-agent-chat-find=""
             >
-                {label}
-            </span>
-            <Tooltip content="Previous Match">
-                <button
-                    aria-label="Previous match"
-                    className={ACTION_CLASS_NAME}
-                    disabled={count === 0}
-                    type="button"
-                    onClick={onPrevious}
+                <InputGroup appearance="workbench" className="w-56" size="dense">
+                    <Input
+                        ref={inputReference}
+                        appearance="embedded"
+                        aria-label="Find in Chat"
+                        className="flex-1 text-foreground"
+                        placeholder="Find"
+                        size="dense"
+                        spellCheck={false}
+                        value={query}
+                        onChange={(event) => onQueryChange(event.currentTarget.value)}
+                        onKeyDown={handleKeyDown}
+                    />
+                </InputGroup>
+                <span
+                    aria-live="polite"
+                    className={cn(
+                        'min-w-10 text-center text-[11px] tabular-nums',
+                        hasNoMatch ? 'text-danger' : 'text-muted',
+                    )}
                 >
-                    <ChevronUp size={14} />
-                </button>
-            </Tooltip>
-            <Tooltip content="Next Match">
-                <button
-                    aria-label="Next match"
-                    className={ACTION_CLASS_NAME}
-                    disabled={count === 0}
-                    type="button"
-                    onClick={onNext}
-                >
-                    <ChevronDown size={14} />
-                </button>
-            </Tooltip>
-            <Tooltip content="Close Find">
-                <button
-                    aria-label="Close find"
-                    className={ACTION_CLASS_NAME}
-                    type="button"
-                    onClick={onClose}
-                >
-                    <X size={14} />
-                </button>
-            </Tooltip>
-        </search>
+                    {label}
+                </span>
+                <Tooltip content="Previous Match" shortcut="shift+enter">
+                    <button
+                        aria-label="Previous match"
+                        className={ACTION_CLASS_NAME}
+                        disabled={count === 0}
+                        type="button"
+                        onClick={onPrevious}
+                    >
+                        <ChevronUp size={14} />
+                    </button>
+                </Tooltip>
+                <Tooltip content="Next Match" shortcut="enter">
+                    <button
+                        aria-label="Next match"
+                        className={ACTION_CLASS_NAME}
+                        disabled={count === 0}
+                        type="button"
+                        onClick={onNext}
+                    >
+                        <ChevronDown size={14} />
+                    </button>
+                </Tooltip>
+                <Tooltip content="Close Find" shortcut="escape">
+                    <button
+                        aria-label="Close find"
+                        className={ACTION_CLASS_NAME}
+                        type="button"
+                        onClick={onClose}
+                    >
+                        <X size={14} />
+                    </button>
+                </Tooltip>
+            </search>
+        </div>
     );
 }

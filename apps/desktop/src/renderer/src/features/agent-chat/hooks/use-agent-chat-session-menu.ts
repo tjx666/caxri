@@ -1,5 +1,5 @@
 import type { KeyboardEvent, RefObject } from 'react';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 
 import { useProjects, useSessions } from '../../../stores/selectors';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
@@ -9,26 +9,35 @@ import { draftWithInsertion } from '../agent-chat-drafts';
 import { agentChatMenuKeyAction } from '../agent-chat-slash-commands';
 import {
     agentChatMentionAt,
+    agentChatSessionEmptyText,
+    agentChatSessionPreparingText,
     agentChatSessionSuggestion,
+    agentChatSessionSuggestions,
     agentChatSuggestionOptionId,
 } from '../agent-chat-suggestions';
 
 /**
  * The `@` Sessions list: typing `@` at the start of a word offers the other Sessions with an Agent conversation,
- * searched by title. Choosing one asks the Server to condense that conversation into a reference file and replaces the
- * typed `@word` with `@<path>` and a sentence saying whose conversation it is. Keys match the slash-command list:
- * arrows move, Enter or Tab chooses, Escape dismisses until the next edit.
+ * searched by title, each with its Project and, when titles repeat, when it was last opened. A query with no match
+ * keeps the list open on a `No Sessions match` row, as the slash-command list does. Choosing one asks the Server to
+ * condense that conversation into a reference file and replaces the typed `@word` with `@<path>` and a sentence saying
+ * whose conversation it is; meanwhile the list shows a progress row naming the Session (`preparing`), and Enter waits
+ * rather than sending the half-typed `@word`. Keys match the slash-command list: arrows move, Enter or Tab chooses,
+ * Escape dismisses until the next edit. The list shows only while the input has focus, so it never covers another
+ * surface.
  */
 export function useAgentChatSessionMenu({
     currentSessionId,
     draft,
     inputReference,
+    isInputFocused,
     isSuppressed,
     setDraft,
 }: {
     currentSessionId: string | undefined;
     draft: string;
     inputReference: RefObject<HTMLTextAreaElement | null>;
+    isInputFocused: boolean;
     /**
      * The slash-command list is open; it owns the keys and the space above the input.
      */
@@ -42,15 +51,23 @@ export function useAgentChatSessionMenu({
     const projects = useProjects();
     const mention = agentChatMentionAt(draft, caret);
     const [dismissedDraft, setDismissedDraft] = useState<string>();
-    const [isPreparing, setIsPreparing] = useState(false);
+    /**
+     * The title of the Session whose reference is being written, or `undefined` when none is.
+     */
+    const [preparing, setPreparing] = useState<string>();
+    const isPreparing = preparing !== undefined;
     // Reset during render, as the slash-command list does: the dismissal ends at the first edit.
     if (dismissedDraft !== undefined && dismissedDraft !== draft) setDismissedDraft(undefined);
     const candidates = mention
         ? searchSessionReferences(sessions, projects, currentSessionId, mention.query)
         : [];
+    const openedAt = useMemo(
+        () => new Map(sessions?.map((session) => [session.id, session.lastOpenedAt])),
+        [sessions],
+    );
     const [active, setActive] = useState({ query: mention?.query, index: 0 });
-    const isOpen =
-        candidates.length > 0 && dismissedDraft !== draft && !isPreparing && !isSuppressed;
+    const isVisible = isInputFocused && !isSuppressed;
+    const isOpen = mention !== undefined && dismissedDraft !== draft && !isPreparing && isVisible;
     const activeIndex =
         active.query === mention?.query ? Math.min(active.index, candidates.length - 1) : 0;
     const activeCandidate = isOpen ? candidates[activeIndex] : undefined;
@@ -67,9 +84,9 @@ export function useAgentChatSessionMenu({
     const choose = async (candidate: SessionReferenceCandidate): Promise<void> => {
         if (!mention || isPreparing) return;
         const typed = draft.slice(mention.start, mention.end);
-        setIsPreparing(true);
+        setPreparing(candidate.title);
         const reference = await prepareSessionReference(candidate.sessionId);
-        setIsPreparing(false);
+        setPreparing(undefined);
         const textarea = inputReference.current;
         if (!reference || !textarea) return;
         // The user may have kept typing while the file was written; replace the mention only if it is still there.
@@ -88,9 +105,21 @@ export function useAgentChatSessionMenu({
 
     return {
         activeIndex,
+        emptyText: agentChatSessionEmptyText(mention?.query ?? ''),
         isOpen,
+        /**
+         * Whether a chosen Session's reference is still being written, which holds Send.
+         */
+        isPreparing,
         listId,
-        suggestions: candidates.map(agentChatSessionSuggestion),
+        /**
+         * The progress row shown in place of the list while the reference is written.
+         */
+        preparingText:
+            preparing !== undefined && isVisible
+                ? agentChatSessionPreparingText(preparing)
+                : undefined,
+        suggestions: agentChatSessionSuggestions(candidates, openedAt),
         inputAria: isOpen
             ? {
                   'aria-activedescendant': activeOptionId,
@@ -120,19 +149,20 @@ export function useAgentChatSessionMenu({
                 event.preventDefault();
                 return true;
             }
-            if (!activeCandidate) return false;
+            if (!isOpen) return false;
             const action = agentChatMenuKeyAction(event);
-            if (!action) return false;
+            // With no row to choose, only Escape is the list's; Enter still sends the draft.
+            if (!action || (action !== 'dismiss' && !activeCandidate)) return false;
             event.preventDefault();
             if (action === 'next' || action === 'previous') {
                 const delta = action === 'next' ? 1 : -1;
                 setActive({
-                    query: mention?.query,
+                    query: mention.query,
                     index: (activeIndex + delta + candidates.length) % candidates.length,
                 });
             } else if (action === 'dismiss') setDismissedDraft(draft);
             // eslint-disable-next-line no-void -- prepareSessionReference reports its own failures through tryCommand
-            else void choose(activeCandidate);
+            else if (activeCandidate) void choose(activeCandidate);
             return true;
         },
     };

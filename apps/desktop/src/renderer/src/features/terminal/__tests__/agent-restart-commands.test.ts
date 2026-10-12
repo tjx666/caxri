@@ -51,6 +51,12 @@ describe('agentRestartMenuEntry', () => {
         expect(mocks.restartTerminal).toHaveBeenCalledWith('terminal-1');
     });
 
+    it('drops the key hint when the clicked row is not the active Terminal', () => {
+        const entry = agentRestartMenuEntry(agentTerminal(), undefined, false);
+        expect(entry).toMatchObject({ label: 'Restart Agent', disabled: false });
+        expect(entry).not.toHaveProperty('shortcut', 'cmd+shift+r');
+    });
+
     it('still restarts an Agent whose process already exited', () => {
         expect(agentRestartMenuEntry(agentTerminal({ lastProcessState: 'stopped' }))).toMatchObject(
             {

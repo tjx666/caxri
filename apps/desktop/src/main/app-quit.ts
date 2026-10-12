@@ -84,9 +84,13 @@ export function appQuitPrompt(impact: AppQuitImpact): AppQuitPrompt {
     return {
         type: 'warning',
         title: 'Quit Caxri?',
-        message: `${impact.activePtyCount} ${plural(impact.activePtyCount, 'task')} ${
+        /**
+         * The question lives in `message` because macOS sheets and alerts do not show `title`; the title is only for
+         * platforms that draw one.
+         */
+        message: `Quit Caxri while ${impact.activePtyCount} ${plural(impact.activePtyCount, 'task')} ${
             impact.activePtyCount === 1 ? 'is' : 'are'
-        } still running.`,
+        } running?`,
         detail: `Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent sessions so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.${
             otherClientDetail
         }`,
@@ -135,7 +139,8 @@ export function pendingReviewCommentsPrompt(
     return {
         type: 'warning',
         title: 'Quit with pending review comments?',
-        message: `${summary.count} pending review ${plural(summary.count, 'comment')} will be lost.`,
+        // The question is the message, as in `appQuitPrompt`: macOS does not show the title.
+        message: `Quit Caxri and lose ${summary.count} pending review ${plural(summary.count, 'comment')}?`,
         detail: `Review comments live in memory only and do not survive quitting Caxri. ${repoCount} ${plural(
             repoCount,
             'repository',

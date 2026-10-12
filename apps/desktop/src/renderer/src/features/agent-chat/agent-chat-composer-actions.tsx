@@ -52,6 +52,7 @@ function AgentChatSendButton({
  * slot that holds Stop while a turn runs and nothing is typed, and Send otherwise.
  */
 export function AgentChatComposerActions({
+    canAttachImages,
     isAttaching,
     isSendable,
     isStopping,
@@ -64,6 +65,10 @@ export function AgentChatComposerActions({
     snapshot,
     terminalId,
 }: {
+    /**
+     * Whether the provider accepts images, which decides what Attach files says it does.
+     */
+    canAttachImages: boolean;
     /**
      * Whether picked images are still being read or a long paste saved, which turns Attach files into a spinner.
      */
@@ -85,7 +90,13 @@ export function AgentChatComposerActions({
     snapshot:
         | Pick<
               AgentChatSnapshot,
-              'effort' | 'model' | 'models' | 'permissionMode' | 'planMode' | 'usage'
+              | 'activeTurnId'
+              | 'effort'
+              | 'model'
+              | 'models'
+              | 'permissionMode'
+              | 'planMode'
+              | 'usage'
           >
         | undefined;
     terminalId: string;
@@ -94,7 +105,11 @@ export function AgentChatComposerActions({
     return (
         <div className="flex items-center gap-1 px-2 pb-2">
             <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
-                <AgentChatAttachButton isBusy={isAttaching} onPick={onPick} />
+                <AgentChatAttachButton
+                    canAttachImages={canAttachImages}
+                    isBusy={isAttaching}
+                    onPick={onPick}
+                />
                 {contextUsage && (
                     <AgentChatContextMeter onCompact={onCompact} usage={contextUsage} />
                 )}

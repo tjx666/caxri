@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipProvider } from '../../components/ui/tooltip';
 import { useWorkbenchAppearance } from '../../hooks/use-workbench-appearance';
 import { queryClient } from '../../queries/client';
-import { useTerminal } from '../../stores/selectors';
+import { useProjectById, useTerminal } from '../../stores/selectors';
 import { subscribeAgentChatPatches } from '../agent-chat/agent-chat-client';
 import { ConfirmationDialog } from '../confirmations/confirmation-dialog';
 import { AgentSurfaceToggle } from '../terminal/agent-surface-toggle';
@@ -68,17 +68,22 @@ export function AgentCommanderApp() {
 function AgentCommanderHeader() {
     const workspacePath = useAgentCommanderStore((state) => state.workspacePath);
     const terminalId = useAgentCommanderStore((state) => state.identity?.terminalId);
+    const projectId = useAgentCommanderStore((state) => state.identity?.projectId);
+    const projectTitle = useProjectById(projectId)?.displayTitle;
     const terminal = useTerminal(terminalId ?? '');
     return (
         <header className="agent-commander-header flex h-11 flex-none items-center gap-2 bg-surface pr-3 pl-(--traffic-light-clearance) [-webkit-app-region:drag]">
             <h1 className="m-0 flex-none text-[13px] font-medium">Agent Commander</h1>
             {workspacePath && (
-                <span
-                    className="overflow-fade min-w-0 text-[12px] text-muted"
-                    title={workspacePath}
-                >
-                    {workspacePath}
-                </span>
+                /*
+                 * The workspace is a long generated folder, so the bar names its Project and the full path waits in
+                 * the tooltip. The label opts out of the drag region: a drag region swallows the hover a tooltip needs.
+                 */
+                <Tooltip content={workspacePath}>
+                    <span className="agent-commander-workspace min-w-0 truncate text-[12px] text-muted [-webkit-app-region:no-drag]">
+                        {projectTitle ?? workspacePath.split('/').at(-1)}
+                    </span>
+                </Tooltip>
             )}
             <div className="ml-auto flex flex-none items-center gap-2 [-webkit-app-region:no-drag]">
                 <InboxToggle />
@@ -120,7 +125,7 @@ function InboxToggle() {
                 <Inbox size={13} />
                 Needs you
                 {count > 0 && (
-                    <span className="agent-commander-inbox-count rounded-full bg-accent px-1.5 text-[10px] leading-4 text-accent-foreground">
+                    <span className="agent-commander-inbox-count rounded-full bg-badge px-1.5 text-[10px] leading-4 text-badge-foreground">
                         {count}
                     </span>
                 )}

@@ -3,6 +3,7 @@ import { defaultAppSettings } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    isRowEnabled,
     isRowModified,
     isRowResettable,
     rowResetAction,
@@ -11,6 +12,19 @@ import {
 
 const settings = (): AppSettings => structuredClone(defaultAppSettings);
 const argv: ArgvConfig = { hardwareAcceleration: true, remoteDebugging: true };
+
+describe('isRowEnabled', () => {
+    it('disables a dependent row while the switch it depends on is off', () => {
+        const row = { enabledBy: 'terminal.idleSuspension.enabled' as const };
+        expect(
+            isRowEnabled(row, { ...defaultAppSettings, 'terminal.idleSuspension.enabled': false }),
+        ).toBe(false);
+        expect(
+            isRowEnabled(row, { ...defaultAppSettings, 'terminal.idleSuspension.enabled': true }),
+        ).toBe(true);
+        expect(isRowEnabled({}, defaultAppSettings)).toBe(true);
+    });
+});
 
 describe('isRowModified', () => {
     it('tracks and resets Git exclusions independently of file-tree exclusions', () => {

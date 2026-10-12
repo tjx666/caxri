@@ -84,9 +84,15 @@ export const terminalCommandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'terminal.startNewAgentSession',
-        title: 'Start New Agent Session',
+        /**
+         * "Conversation", not "Agent Session": a bare "session" in a title collides with Caxri's own Session, and this
+         * command never touches one. The id keeps its old name so saved keybindings still resolve.
+         */
+        title: 'Start New Conversation',
         category: 'Terminal',
-        description: 'Restart the active Agent Terminal without its current session binding',
+        description:
+            'Restart the active Agent with a new conversation instead of resuming the current one',
+        keywords: ['new agent session', 'fresh conversation', 'new chat', 'reset agent'],
         nativeMenu: { menu: 'terminal', group: 0, order: 3 },
     },
     {

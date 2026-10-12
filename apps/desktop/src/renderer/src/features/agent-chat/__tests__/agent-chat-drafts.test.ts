@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatAttachmentLabel,
+    agentChatAttachmentName,
     appendToAgentChatDraft,
     draftAfterSend,
     draftWithInsertion,
@@ -46,6 +47,11 @@ describe('Agent Chat drafts', () => {
         expect(agentChatAttachmentLabel({ name: 'diagram.png' }, 0)).toBe('diagram.png');
         expect(agentChatAttachmentLabel({ name: '' }, 1)).toBe('Attachment 2');
         expect(agentChatAttachmentLabel({}, 2)).toBe('Attachment 3');
+    });
+
+    it('names an attachment the same way for Remove, without the resized note', () => {
+        expect(agentChatAttachmentName({ name: 'diagram.png' }, 0)).toBe('diagram.png');
+        expect(agentChatAttachmentName({ name: '' }, 1)).toBe('Attachment 2');
     });
 });
 

@@ -13,6 +13,7 @@ import { getSessionDocuments, useSessionViewStore } from '../../stores/session-v
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useFileOperationStore } from '../view-containers/resource-explorer/file-operation-state';
+import { stashDiscardedBuffers } from './discarded-buffers';
 import { readDocuments } from './document-commands';
 import { readExternalDocument, watchExternalDocuments } from './external-document-client';
 import { ExternalSyncDeferral } from './external-sync-deferral';
@@ -45,8 +46,19 @@ function readCachedDocument<T>(cached: Record<string, T>, path: string): T | und
 }
 
 /**
+ * The notice for unsaved buffers a newer disk state just replaced. It names the loss rather than the reload: the reload
+ * is routine, and what the user needs to learn is that their typing is gone and can still be taken back.
+ */
+function discardedChangesMessage(names: readonly string[]): string {
+    return names.length === 1
+        ? `Your unsaved changes to ${names[0]} were replaced by changes on disk.`
+        : `Your unsaved changes to ${names.length} files were replaced by changes on disk.`;
+}
+
+/**
  * Caxri's explicit product policy: a newer disk state replaces the open buffer without prompting, even when that buffer
- * is dirty. Routine Agent writes to clean buffers stay silent; only discarded unsaved work is announced.
+ * is dirty (ADR 0013). Routine Agent writes to clean buffers stay silent; only discarded unsaved work is announced, and
+ * its text is kept so "Restore My Changes" can put it back as an unsaved buffer over the new disk version.
  */
 function applyExternalDocuments(
     sessionId: string,
@@ -67,22 +79,27 @@ function applyExternalDocuments(
     });
     const name = (document: EditorDocument) =>
         parseExternalEditorTab(document.path)?.name ?? pathBasename(document.path);
+    stashDiscardedBuffers(sessionId, workbenchProjectId, discardedDirtyDocuments);
     useSessionViewStore
         .getState()
         .cacheDocuments(sessionId, reloaded.map(replaceWithExternalDocument), workbenchProjectId);
     if (discardedDirtyDocuments.length === 0) return;
     /**
      * A 4-second auto-dismiss would let this notice vanish while the user is away from the window, silently taking the
-     * only record of a discarded dirty buffer with it. This event already cost the user unsaved work, so it stays until
-     * explicitly dismissed.
+     * only way back to the discarded buffer with it. This event already cost the user unsaved work, so it stays until
+     * explicitly dismissed, and it is a warning: the editor still works, but on terms the user did not choose.
      */
-    pushToast(
-        'info',
-        discardedDirtyDocuments.length === 1
-            ? `${name(discardedDirtyDocuments[0])} reloaded from disk; external changes take precedence.`
-            : `${discardedDirtyDocuments.length} open files reloaded from disk; external changes take precedence.`,
-        { persist: true },
-    );
+    pushToast('warning', discardedChangesMessage(discardedDirtyDocuments.map(name)), {
+        persist: true,
+        action: {
+            id: 'editor.restoreDiscardedChanges',
+            params: {
+                sessionId,
+                workbenchProjectId,
+                paths: discardedDirtyDocuments.map((document) => document.path),
+            },
+        },
+    });
 }
 
 async function syncFilesChanged(sessionId: string, changedPaths: readonly string[]): Promise<void> {

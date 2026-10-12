@@ -25,9 +25,11 @@ import { useResourceLoad } from '../../hooks/use-resource-load';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
+import { PREVIEW_LOADING_LABEL } from '../preview/preview-registry';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-commands';
+import { documentLoadRecoveryAction, documentReadRecovery } from './document-load-recovery';
 import { EditorErrorBoundary } from './editor-error-boundary';
 import { EditorLoadFailure } from './editor-load-failure';
 import {
@@ -171,9 +173,12 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
         if (failure)
             return (
                 <EditorLoadFailure
-                    actionLabel="Retry"
                     {...describeDocumentReadFailure(failure.error)}
-                    onAction={retry}
+                    {...documentLoadRecoveryAction(
+                        documentReadRecovery(failure.error),
+                        path,
+                        retry,
+                    )}
                 />
             );
         return <div className={emptyWorkClassName}>Loading file…</div>;
@@ -258,8 +263,8 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
     const previewTab = parseFilePreviewTab(path);
     if (previewTab)
         return (
-            <Suspense fallback={<div className={emptyWorkClassName}>Loading preview…</div>}>
-                <PreviewSurface key={previewTab.path} tab={previewTab} />
+            <Suspense fallback={<div className={emptyWorkClassName}>{PREVIEW_LOADING_LABEL}</div>}>
+                <PreviewSurface key={previewTab.path} paneId={paneId} tab={previewTab} />
             </Suspense>
         );
     if (isSettingsTabPath(path))

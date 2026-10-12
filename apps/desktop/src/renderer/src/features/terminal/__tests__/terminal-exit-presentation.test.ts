@@ -1,7 +1,8 @@
 import type { ProcessState } from '@caxri/protocol';
+import { settingCategories, settingsSpecByKey } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { getTerminalExitPresentation } from '../terminal-exit-presentation';
+import { getTerminalExitPresentation, SUSPENDED_DETAIL } from '../terminal-exit-presentation';
 
 describe('getTerminalExitPresentation', () => {
     it.each([
@@ -19,8 +20,9 @@ describe('getTerminalExitPresentation', () => {
         [
             'suspended',
             {
+                detail: SUSPENDED_DETAIL,
                 icon: 'pending',
-                label: 'Suspended while inactive — resuming',
+                label: 'Suspended in the background, resuming',
                 tone: 'neutral',
             },
         ],
@@ -78,5 +80,16 @@ describe('getTerminalExitPresentation', () => {
             label: 'Claude CLI was not found',
             tone: 'danger',
         });
+    });
+
+    /**
+     * The tooltip sends the user to a Settings category by name, so it must keep naming the category the suspension
+     * settings actually live in.
+     */
+    it('names the Settings category that owns the suspension settings', () => {
+        const category = settingsSpecByKey['terminal.idleSuspension.enabled'].category;
+        expect(settingsSpecByKey['terminal.suspendUntouchedAgents'].category).toBe(category);
+        const title = settingCategories.find((entry) => entry.id === category)?.title;
+        expect(SUSPENDED_DETAIL).toContain(`Settings > ${title}.`);
     });
 });

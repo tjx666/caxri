@@ -44,17 +44,21 @@ import { openSeededProjectSearch } from '../features/project-search/project-sear
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import { deleteProject, hideSelectedProject } from '../features/session/project-removal-commands';
 import {
+    detachSelectedSession,
+    resumeSelectedSession,
+} from '../features/session/session-agent-commands';
+import {
     archiveSelectedSession,
     archiveSession,
+    openArchivedSessions,
+} from '../features/session/session-archive-commands';
+import {
     canNavigateSessionHistory,
     deleteSelectedSession,
-    detachSelectedSession,
     moveTerminalToNewSession,
     navigateSessionHistory,
-    openArchivedSessions,
     openSelectedProjectInExternalEditor,
     openSelectedSessionPullRequest,
-    resumeSelectedSession,
     selectAdjacentSession,
     switchMruSession,
 } from '../features/session/session-commands';
@@ -80,18 +84,20 @@ import {
 } from '../features/status-bar/status-bar-picker-commands';
 import { cycleActiveTab } from '../features/tabs/tab-navigation';
 import {
-    clearActiveTerminal,
     closeTerminal,
-    copyActiveTerminalSelection,
     createDefaultTerminal,
-    findInActiveTerminal,
-    hasActiveTerminalSelection,
-    navigateActiveTerminalCommand,
     restartActiveTerminal,
     sendTerminalSequence,
     startNewAgentSession,
 } from '../features/terminal/terminal-commands';
 import { openTerminalLinkPicker } from '../features/terminal/terminal-link-actions';
+import {
+    clearActiveTerminal,
+    copyActiveTerminalSelection,
+    findInActiveTerminal,
+    hasActiveTerminalSelection,
+    navigateActiveTerminalCommand,
+} from '../features/terminal/terminal-pane-handlers';
 import {
     canSwitchTerminalSurface,
     switchTerminalToOtherSurface,

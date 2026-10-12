@@ -167,6 +167,9 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await expect(shell.getByText(/tick \d+/u).first()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-shell-tab.png') });
         await strip.getByRole('button', { name: /^Stop / }).click();
+        // The idle strip keeps a collapsed count of what just ended until it is dismissed or the next turn starts.
+        await expect(strip.getByRole('button', { name: /^\d+ ended$/u })).toBeVisible();
+        await strip.getByRole('button', { name: 'Dismiss ended background work' }).click();
         await expect(strip).toHaveCount(0);
         await expect(shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('claude-shell-stopped.png') });

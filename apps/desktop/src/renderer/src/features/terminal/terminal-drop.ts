@@ -12,7 +12,7 @@ import {
 } from '../../lib/file-drag';
 import { pushToast } from '../../stores/toasts';
 import { EDITOR_PATH_DRAG_TYPE, resolvePaneDropIntent } from '../workbench/pane-drop-zone';
-import { didPasteIntoTerminal } from './terminal-commands';
+import { didPasteIntoTerminal } from './terminal-pane-handlers';
 
 /**
  * Whether a drag over a lone Terminal, one with no pane to split or move a tab into, carries something to paste.

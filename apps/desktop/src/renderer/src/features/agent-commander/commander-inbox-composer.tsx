@@ -34,8 +34,9 @@ export function CommanderInboxComposer({ items }: { items: readonly CommanderInb
                             aria-selected={index === composer.highlight}
                             className={cn(
                                 'flex cursor-pointer flex-col rounded px-2 py-1 text-[12px]',
+                                // A picker row paints only `--list-focus-*`, like every other picker (DESIGN.md).
                                 index === composer.highlight &&
-                                    'bg-[color-mix(in_srgb,var(--accent)_25%,transparent)]',
+                                    'bg-list-focus-background text-list-focus-foreground',
                             )}
                             onMouseDown={(event) => {
                                 // Keeps focus in the textarea, so the caret the mention is measured from survives.

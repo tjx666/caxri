@@ -18,6 +18,8 @@ import {
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
+import { shouldOpenAsPreview } from '../preview/preview-registry';
+
 const OUTSIDE_PROJECT_DESCRIPTION = 'Outside every Project';
 
 function directorySegments(displayPath: string): string[] {
@@ -100,7 +102,9 @@ export function documentTabPresentation(
               : turnReview
                 ? 'Turn changes'
                 : preview
-                  ? filePreviewTabLabel(preview.path)
+                  ? filePreviewTabLabel(preview.path, {
+                        isOnlyView: shouldOpenAsPreview(preview.path),
+                    })
                   : isSettings
                     ? SETTINGS_TAB_LABEL
                     : isUsage

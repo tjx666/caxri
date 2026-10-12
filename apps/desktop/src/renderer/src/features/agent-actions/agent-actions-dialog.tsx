@@ -21,7 +21,7 @@ import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, useSessions, useTerminal } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
 import type { SessionReferenceCandidate } from '../session/session-reference';
-import { focusTerminalById } from '../terminal/terminal-commands';
+import { focusTerminalById } from '../terminal/terminal-pane-handlers';
 import type { AgentActionSubmitMode } from './agent-action-input';
 import {
     agentActionSubmitModes,

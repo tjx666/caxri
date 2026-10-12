@@ -339,9 +339,9 @@ export function usageEmptyState(
 export function agentTimeDetail(
     totals: Pick<UsageReport['totals'], 'sessionsWithUsage' | 'outsideSessionsWithUsage'>,
 ): string {
-    const sessions = `Across ${totals.sessionsWithUsage} ${totals.sessionsWithUsage === 1 ? 'Session' : 'Sessions'}`;
+    const sessions = `Across ${countLabel(totals.sessionsWithUsage, 'Session')}`;
     return totals.outsideSessionsWithUsage > 0
-        ? `${sessions} + ${totals.outsideSessionsWithUsage} outside`
+        ? `${sessions} + ${totals.outsideSessionsWithUsage.toLocaleString('en-US')} outside`
         : sessions;
 }
 
@@ -350,8 +350,7 @@ export function agentTimeDetail(
  * have no Caxri Session.
  */
 export function usageSessionCount(count: number, isOutsideCaxri: boolean): string {
-    if (isOutsideCaxri) return `${count} ${count === 1 ? 'Agent Session' : 'Agent Sessions'}`;
-    return `${count} ${count === 1 ? 'Session' : 'Sessions'}`;
+    return countLabel(count, isOutsideCaxri ? 'Agent Session' : 'Session');
 }
 
 /**
@@ -373,25 +372,28 @@ export function usageCoverageNotes(
     report: Pick<UsageReport, 'coverage' | 'pricing' | 'scope'>,
 ): string[] {
     const { coverage, pricing } = report;
-    const counted = `${coverage.agentSessions} ${coverage.agentSessions === 1 ? 'Agent Session' : 'Agent Sessions'} started in Caxri Sessions, including archived and deleted Sessions`;
+    const counted = `${countLabel(coverage.agentSessions, 'Agent Session')} started in Caxri Sessions, including archived and deleted Sessions`;
     const outside = coverage.outsideCaxri?.agentSessions ?? 0;
     const notes = [
         `Costs are estimated from public API list prices (${pricing.source === 'bundled' ? 'bundled price list' : `LiteLLM prices updated ${pricing.updatedAt ? formatTimestampDate(pricing.updatedAt) : 'recently'}`}); a subscription plan bills differently.`,
         report.scope === 'all'
-            ? `Counts ${counted}, plus ${outside} run outside Caxri on this Mac.`
+            ? `Counts ${counted}, plus ${outside.toLocaleString('en-US')} run outside Caxri on this Mac.`
             : `Counts ${counted}.`,
     ];
     // An unread row has no aggregate yet either; only a finished scan proves the transcript is gone.
     if (coverage.unavailable > 0 && coverage.pendingScans === 0)
         notes.push(
-            `${coverage.unavailable} ${coverage.unavailable === 1 ? 'Agent Session has' : 'Agent Sessions have'} no transcript on this machine, so their usage is missing.`,
+            `${coverage.unavailable.toLocaleString('en-US')} ${coverage.unavailable === 1 ? 'Agent Session has' : 'Agent Sessions have'} no transcript on this machine, so their usage is missing.`,
         );
     if (coverage.pendingPullRequests > 0)
         notes.push(
             `Checking ${countLabel(coverage.pendingPullRequests, 'pull request')} on GitHub.`,
         );
     if (coverage.unpricedModels.length > 0)
-        notes.push(`No price for ${coverage.unpricedModels.join(', ')}; counted as $0.`);
+        // Worded like every cost cell ("No price") rather than "$0", which read as "this usage was free".
+        notes.push(
+            `No price for ${coverage.unpricedModels.join(', ')}; their usage is left out of every cost figure.`,
+        );
     return notes;
 }
 

@@ -11,12 +11,14 @@ import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { useProjectById, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
 import { cacheDocument } from '../editor/document-commands';
+import { documentLoadRecoveryAction, documentReadRecovery } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { ImagePreview } from './image-preview';
 import { MarkdownPreview } from './markdown-preview';
 import { MermaidPreview } from './mermaid-preview';
-import { previewerForPath } from './preview-registry';
+import { PREVIEW_LOADING_LABEL, previewerForPath } from './preview-registry';
+import { previewViewStateKey } from './preview-view-state';
 
 /**
  * Lazy because the table view carries the CSV parser, and the PDF view carries pdf.js and its worker. A Markdown
@@ -77,12 +79,11 @@ function TextPreviewSurface({
     if (!document)
         return failure ? (
             <EditorLoadFailure
-                actionLabel="Retry"
                 {...describeDocumentReadFailure(failure.error)}
-                onAction={retry}
+                {...documentLoadRecoveryAction(documentReadRecovery(failure.error), path, retry)}
             />
         ) : (
-            <div className={emptyWorkClassName}>Loading file…</div>
+            <div className={emptyWorkClassName}>{PREVIEW_LOADING_LABEL}</div>
         );
     return children(document);
 }
@@ -91,9 +92,10 @@ function TextPreviewSurface({
  * Routes a `caxri-file-preview://` tab to the view registered for its format.
  *
  * Every renderer is reached through {@link previewerForPath}, so adding a format is a registry entry plus its view: no
- * branch in the editor surface, the tab bar, or the commands.
+ * branch in the editor surface, the tab bar, or the commands. A scrollable view remembers where it was per pane, so the
+ * same file previewed in two panes keeps two positions.
  */
-export function PreviewSurface({ tab }: { tab: FilePreviewTab }) {
+export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePreviewTab }) {
     const session = usePaneViewSession();
     const project = useProjectById(session?.workbenchProjectId);
     const theme = useTheme();
@@ -101,6 +103,7 @@ export function PreviewSurface({ tab }: { tab: FilePreviewTab }) {
     const previewer = previewerForPath(tab.path);
     if (!previewer)
         return <div className={emptyWorkClassName}>No preview is available for this file.</div>;
+    const viewStateKey = previewViewStateKey(session.id, paneId, tab.path);
     const textSurface = (render: (document: EditorDocument) => ReactNode) => (
         <TextPreviewSurface
             sessionId={session.id}
@@ -112,7 +115,13 @@ export function PreviewSurface({ tab }: { tab: FilePreviewTab }) {
     );
     switch (previewer.id) {
         case 'image': {
-            return <ImagePreview sessionId={session.id} path={tab.path} />;
+            return (
+                <ImagePreview
+                    path={tab.path}
+                    sessionId={session.id}
+                    workbenchProjectId={session.workbenchProjectId}
+                />
+            );
         }
         case 'markdown': {
             return textSurface((document) => {
@@ -131,6 +140,7 @@ export function PreviewSurface({ tab }: { tab: FilePreviewTab }) {
                             projectRoot={displayPath.slice(0, displayPath.lastIndexOf('/')) || '/'}
                             source={document.content}
                             theme={theme}
+                            viewStateKey={viewStateKey}
                         />
                     );
                 }
@@ -141,6 +151,7 @@ export function PreviewSurface({ tab }: { tab: FilePreviewTab }) {
                         projectRoot={project.rootPath}
                         source={document.content}
                         theme={theme}
+                        viewStateKey={viewStateKey}
                     />
                 );
             });
@@ -152,15 +163,28 @@ export function PreviewSurface({ tab }: { tab: FilePreviewTab }) {
         }
         case 'table': {
             return textSurface((document) => (
-                <Suspense fallback={<div className={emptyWorkClassName}>Loading preview…</div>}>
-                    <CsvPreview path={tab.path} source={document.content} />
+                <Suspense
+                    fallback={<div className={emptyWorkClassName}>{PREVIEW_LOADING_LABEL}</div>}
+                >
+                    <CsvPreview
+                        path={tab.path}
+                        source={document.content}
+                        viewStateKey={viewStateKey}
+                    />
                 </Suspense>
             ));
         }
         case 'pdf': {
             return (
-                <Suspense fallback={<div className={emptyWorkClassName}>Loading preview…</div>}>
-                    <PdfPreview sessionId={session.id} path={tab.path} />
+                <Suspense
+                    fallback={<div className={emptyWorkClassName}>{PREVIEW_LOADING_LABEL}</div>}
+                >
+                    <PdfPreview
+                        path={tab.path}
+                        sessionId={session.id}
+                        viewStateKey={viewStateKey}
+                        workbenchProjectId={session.workbenchProjectId}
+                    />
                 </Suspense>
             );
         }

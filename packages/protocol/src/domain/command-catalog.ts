@@ -408,7 +408,7 @@ export const commandDefinitions: CommandDefinition[] = [
         id: 'agentCommander.open',
         title: 'Open Agent Commander',
         category: 'View',
-        description: 'Open the cross-Project Agent board beside a Codex commander Terminal',
+        description: 'Open the cross-Project Agent board beside the Commander Agent',
         nativeMenu: { menu: 'view', group: 1, order: 2 },
     },
     {
