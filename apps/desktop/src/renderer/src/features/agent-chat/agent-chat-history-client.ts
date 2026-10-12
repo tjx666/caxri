@@ -69,15 +69,18 @@ export async function loadOlderAgentChatHistory(
             terminalId,
             beforeItemId: cursor,
         });
-        if (page.items.length > 0 && page.historyId === historyId) onBeforePrepend();
         const live =
             queryClient.getQueryData<AgentChatSnapshot>(
                 caxriQueryKey('agentChat.read', { terminalId }),
             )?.items ?? [];
-        update((current) => ({
-            ...prependAgentChatHistoryPage(current, page, live),
-            status: 'idle',
-        }));
+        const current =
+            queryClient.getQueryData<AgentChatOlderHistory>(queryKey) ??
+            emptyAgentChatOlderHistory(historyId);
+        const next = prependAgentChatHistoryPage(current, page, live);
+        // Only a page that adds entries moves the transcript; holding the view for one that does not would leave the
+        // hold to pull the view back on an unrelated later change.
+        if (next.items !== current.items) onBeforePrepend();
+        queryClient.setQueryData<AgentChatOlderHistory>(queryKey, { ...next, status: 'idle' });
     } catch {
         update((current) => ({ ...current, status: 'failed' }));
     } finally {

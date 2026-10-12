@@ -111,17 +111,18 @@ export function prependAgentChatHistoryPage(
 }
 
 /**
- * Keeps what the live projection just evicted once the pane reads history, so the items between the pages read and the
- * projection never go missing while the user reads back. Before any page is read there is nothing to keep: the first
- * page starts right before the projection.
+ * Keeps what the live projection just evicted once the pane starts reading history, so the items between the pages read
+ * and the projection never go missing while the user reads back. Before the first request there is nothing to keep: it
+ * starts right before the projection. From the request on, an item evicted while the page is on its way sits between
+ * the page and the projection, so it is kept too.
  */
 export function retainEvictedAgentChatItems(
     history: AgentChatOlderHistory,
     previous: Pick<AgentChatSnapshot, 'items' | 'turns'>,
     next: Pick<AgentChatSnapshot, 'items'>,
 ): AgentChatOlderHistory {
-    if (!history.isLoaded || previous.items === next.items || previous.items.length === 0)
-        return history;
+    const isReading = history.isLoaded || history.status !== 'idle' || history.items.length > 0;
+    if (!isReading || previous.items === next.items || previous.items.length === 0) return history;
     const first = next.items.at(0);
     if (first?.id === previous.items.at(0)?.id) return history;
     const kept = first ? previous.items.findIndex((item) => item.id === first.id) : -1;
