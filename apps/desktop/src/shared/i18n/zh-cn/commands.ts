@@ -4,6 +4,7 @@ import { commandDescriptions } from './commands-descriptions';
 
 export const commands: TranslatedNamespace<typeof source> = {
     'commands.category.agent': 'Agent',
+    'commands.category.chat': '对话',
     'commands.category.developer': '开发者',
     'commands.category.editor': '编辑器',
     'commands.category.git': 'Git',
@@ -55,6 +56,9 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.terminal.startNewAgentSession': '开始新对话',
     'commands.terminal.switchAgentSurface': '以终端或对话打开',
     'commands.terminal.showAgentStatus': '显示 Agent 状态',
+    'commands.agentChat.changeModel': '切换模型…',
+    'commands.agentChat.changePermissionMode': '切换权限模式…',
+    'commands.agentChat.togglePlanMode': '切换计划模式',
     'commands.terminal.close': '关闭终端',
     'commands.workbench.closeActiveTab': '关闭当前标签页',
     'commands.workbench.nextTab': '显示下一个标签页',

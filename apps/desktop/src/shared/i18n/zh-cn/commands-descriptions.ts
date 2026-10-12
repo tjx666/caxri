@@ -45,6 +45,9 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
         '将当前 Agent 以对话方式重新打开，或将对话以终端方式重新打开，并延续其对话',
     'commands.description.terminal.showAgentStatus':
         '打开当前 Agent 的输出速度及其提供商的服务状态',
+    'commands.description.agentChat.changeModel': '打开当前对话的模型与推理强度选择器',
+    'commands.description.agentChat.changePermissionMode': '打开当前对话的权限级别菜单',
+    'commands.description.agentChat.togglePlanMode': '为当前对话开启或关闭计划模式',
     'commands.description.terminal.close': '关闭当前终端',
     'commands.description.workbench.closeActiveTab': '关闭当前终端或文件标签页',
     'commands.description.workbench.nextTab': '激活下一个终端或文件标签页',

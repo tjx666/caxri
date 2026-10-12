@@ -66,6 +66,11 @@ export const commandDescriptions = {
         'Reopen the active Agent as a Chat, or a Chat as a Terminal, continuing its conversation',
     'commands.description.terminal.showAgentStatus':
         "Open the active Agent's output speed and its provider's service status",
+    'commands.description.agentChat.changeModel':
+        "Open the active Chat's model and reasoning effort picker",
+    'commands.description.agentChat.changePermissionMode':
+        "Open the active Chat's permission level menu",
+    'commands.description.agentChat.togglePlanMode': 'Turn plan mode on or off for the active Chat',
     'commands.description.terminal.close': 'Close the active Terminal',
     'commands.description.workbench.closeActiveTab': 'Close the active Terminal or file tab',
     'commands.description.workbench.nextTab': 'Activate the next Terminal or file tab',

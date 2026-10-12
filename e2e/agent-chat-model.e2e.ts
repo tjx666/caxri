@@ -33,6 +33,18 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         const picker = chat.getByRole('button', { name: /^Model: / });
         await expect(picker).toHaveAccessibleName('Model: Fake Codex, Medium effort');
 
+        // `Cmd+/` opens the picker from the composer, and Escape hands focus back to it.
+        await message.focus();
+        await page.keyboard.press('Meta+/');
+        // It starts on the current choice, so the arrows adjust the effort right away.
+        await expect(
+            page.getByRole('dialog').getByRole('slider', { name: 'Reasoning effort' }),
+        ).toBeFocused();
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-model-shortcut.png') });
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toBeHidden();
+        await expect(message).toBeFocused();
+
         // The picker opens on the effort: a slider with one stop per effort, titled with the effort over the model.
         await picker.click();
         const panel = page.getByRole('dialog');

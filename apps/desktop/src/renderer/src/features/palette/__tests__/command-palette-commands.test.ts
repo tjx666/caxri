@@ -62,7 +62,12 @@ describe('getPaletteExtensionCommands', () => {
 });
 
 describe('isCommandVisibleInPalette', () => {
-    const localWindow = { localMachine: true, sshHost: false };
+    const noChat = {
+        agentChatModels: false,
+        agentChatPermissionModes: false,
+        agentChatPlanMode: false,
+    };
+    const localWindow = { localMachine: true, sshHost: false, ...noChat };
     const detach = commandDefinitions.find((command) => command.id === 'session.detach');
     const resume = commandDefinitions.find((command) => command.id === 'session.resume');
     const openPullRequest = commandDefinitions.find(
@@ -84,7 +89,7 @@ describe('isCommandVisibleInPalette', () => {
             sessionHasDetachedAgent: false,
             sessionHasPullRequest: false,
         };
-        const sshHostWindow = { ...session, localMachine: false, sshHost: true };
+        const sshHostWindow = { ...session, ...noChat, localMachine: false, sshHost: true };
         const local = { ...session, ...localWindow };
 
         expect(isCommandVisibleInPalette(processExplorer, local)).toBe(true);
@@ -93,6 +98,31 @@ describe('isCommandVisibleInPalette', () => {
         expect(isCommandVisibleInPalette(stopServer, sshHostWindow)).toBe(true);
         expect(isCommandVisibleInPalette(connect, local)).toBe(true);
         expect(isCommandVisibleInPalette(connect, sshHostWindow)).toBe(true);
+    });
+
+    it('offers each Chat composer command only while the active Chat offers its control', () => {
+        const session = {
+            sessionHasLiveAgent: true,
+            sessionHasDetachedAgent: false,
+            sessionHasPullRequest: false,
+        };
+        const chatCommands = {
+            agentChatModels: 'agentChat.changeModel',
+            agentChatPermissionModes: 'agentChat.changePermissionMode',
+            agentChatPlanMode: 'agentChat.togglePlanMode',
+        } as const;
+        for (const [predicate, id] of Object.entries(chatCommands)) {
+            const command = commandDefinitions.find((definition) => definition.id === id);
+            if (!command) throw new Error(`${id} is missing from the catalog`);
+            expect(isCommandVisibleInPalette(command, { ...session, ...localWindow })).toBe(false);
+            expect(
+                isCommandVisibleInPalette(command, {
+                    ...session,
+                    ...localWindow,
+                    [predicate]: true,
+                }),
+            ).toBe(true);
+        }
     });
 
     it('hides gated commands when the current session lacks the matching Agent Terminal', () => {
