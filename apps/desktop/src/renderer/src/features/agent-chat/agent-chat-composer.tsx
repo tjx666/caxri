@@ -25,6 +25,7 @@ import type { agentChatSendBlock } from './agent-chat-presentation';
 import { agentChatComposerPlaceholder, agentChatSendTooltip } from './agent-chat-presentation';
 import { agentChatNextQueuedId } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
+import { agentChatGoalDraft, isAgentChatGoalOffered } from './agent-chat-slash-commands';
 import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
@@ -38,6 +39,11 @@ import { useAgentChatHandoff } from './hooks/use-agent-chat-handoff';
 import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
 import { useAgentChatSessionMenu } from './hooks/use-agent-chat-session-menu';
 import { useAgentChatStop } from './hooks/use-agent-chat-stop';
+
+/**
+ * How many recent Sessions the composer's Add menu offers to cite, as the Codex app lists a handful of recent chats.
+ */
+const RECENT_SESSION_LIMIT = 5;
 
 interface AgentChatComposerProperties {
     /**
@@ -119,22 +125,23 @@ interface AgentChatComposerProperties {
  * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
  * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
  * input, and Enter in an empty input sends the first of them now. Escape or the Stop button that replaces Send while
- * the input is empty interrupts the turn. Images can be pasted, dropped, or picked with Attach files when the provider
- * accepts them; any other dropped or picked file, Files entry, or Editor tab, and an image in a format or size the
- * provider cannot take, is inserted as its path. Text pasted past `AGENT_CHAT_LONG_PASTE_THRESHOLD` is saved to a file
- * and the message cites it instead. A drag anywhere over the Chat tints the whole pane with a one-line caption. While a
- * turn runs and something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue glyph.
- * A disabled Send says why in its tooltip, and an Enter it refuses says the same in the strip for two seconds and
- * through the live region. A leading `/` or `$` offers the provider's commands and the discovered skills, and a word
- * that starts with `@` offers other Sessions whose conversation the message can cite; both lists show only while the
- * input has focus. It shares the timeline's centered column so the input lines up with the conversation, and keeps the
- * activity row, attachments, the input, and its actions inside one card so they read as a single control. The action
- * row picks the model and effort for the next turn and shows how full the context window is. Clicking Send, Stop, or a
- * chip or queue action hands focus back to the input, since each of those controls disables or unmounts itself and
- * would otherwise drop focus to the document body. The unsent text survives switching Sessions and restarting Caxri,
- * and ArrowUp on an empty input recalls the prompts this Chat already sent. "Edit from here" on an earlier message
- * (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it; sending then rewinds the Chat to
- * before that message and sends the draft in its place, and Escape or Cancel puts the previous draft back.
+ * the input is empty interrupts the turn. Images can be pasted, dropped, or picked from the `+` menu's Files when the
+ * provider accepts them; any other dropped or picked file, Files entry, or Editor tab, and an image in a format or size
+ * the provider cannot take, is inserted as its path. Text pasted past `AGENT_CHAT_LONG_PASTE_THRESHOLD` is saved to a
+ * file and the message cites it instead. A drag anywhere over the Chat tints the whole pane with a one-line caption.
+ * While a turn runs and something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue
+ * glyph. A disabled Send says why in its tooltip, and an Enter it refuses says the same in the strip for two seconds
+ * and through the live region. A leading `/` or `$` offers the provider's commands and the discovered skills, and a
+ * word that starts with `@` offers other Sessions whose conversation the message can cite; both lists show only while
+ * the input has focus. It shares the timeline's centered column so the input lines up with the conversation, and keeps
+ * the activity row, attachments, the input, and its actions inside one card so they read as a single control. The
+ * action row picks the model and effort for the next turn and shows how full the context window is. Clicking Send,
+ * Stop, or a chip or queue action hands focus back to the input, since each of those controls disables or unmounts
+ * itself and would otherwise drop focus to the document body. The unsent text survives switching Sessions and
+ * restarting Caxri, and ArrowUp on an empty input recalls the prompts this Chat already sent. "Edit from here" on an
+ * earlier message (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it; sending then
+ * rewinds the Chat to before that message and sends the draft in its place, and Escape or Cancel puts the previous
+ * draft back.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -380,11 +387,20 @@ export function AgentChatComposer({
                     <AgentChatComposerActions
                         canAttachImages={supportsImages}
                         canSaveProjectDefault={canSaveProjectDefault}
-                        isAttaching={isAttaching}
+                        isAttaching={isAttaching || sessionMenu.isPreparing}
                         isQueueing={!edit.isEditing && (isTurnRunning || isBusy)}
                         isSendable={isSendable}
                         isStopping={isStopping}
                         onCompact={compact}
+                        onGoal={
+                            isAgentChatGoalOffered(commands)
+                                ? () => {
+                                      setDraft(agentChatGoalDraft);
+                                      focusInput();
+                                  }
+                                : undefined
+                        }
+                        onReferenceSession={sessionMenu.reference}
                         onPick={(files) => {
                             fileInput.pick(files);
                             focusInput();
@@ -392,6 +408,7 @@ export function AgentChatComposer({
                         onStop={stopAndFocus}
                         sendAction={sendAction}
                         sendTooltip={sendTooltip}
+                        recentSessions={sessionMenu.recentCandidates(RECENT_SESSION_LIMIT)}
                         showsStop={isTurnRunning && !hasContent}
                         snapshot={snapshot}
                         terminalId={terminalId}

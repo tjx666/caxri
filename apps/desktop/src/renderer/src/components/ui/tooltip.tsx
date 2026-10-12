@@ -27,6 +27,7 @@ export function Tooltip({
     disabled,
     hoverOnly,
     shortcut,
+    side: elementSide = 'bottom',
     triggerId,
 }: {
     /**
@@ -49,6 +50,10 @@ export function Tooltip({
      */
     hoverOnly?: boolean;
     shortcut?: string;
+    /**
+     * The trigger edge an element-anchored tooltip opens from; a cursor-anchored one always sits beside the pointer.
+     */
+    side?: 'bottom' | 'left' | 'right' | 'top';
     /**
      * Required when the trigger element needs an `id` of its own (a WAI-ARIA `role="tab"`, for example).
      *
@@ -81,7 +86,7 @@ export function Tooltip({
      * Keeps the popup beside the pointer so its vertical path through adjacent tree rows stays clear. Floating UI flips
      * the popup to the left near the right edge without moving it across that path.
      */
-    const side = isCursorAnchored ? 'right' : 'bottom';
+    const side = isCursorAnchored ? 'right' : elementSide;
     return (
         <TooltipPrimitive.Root
             disabled={disabled}

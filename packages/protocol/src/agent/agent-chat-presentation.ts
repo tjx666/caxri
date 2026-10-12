@@ -149,33 +149,38 @@ export function agentChatQuestionAnswers(
 
 /**
  * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
- * in it, as Claude Code's spinner does; the words stay calm and never claim a specific step.
+ * in it, as Claude Code's spinner does; the words never claim a specific step. The phrases are LobeHub's
+ * (`opStatusTray.generatingPhrases`); Desktop's translated list keeps the same order, so both pick the same position.
  */
 const WORKING_VERBS = [
-    'Pondering',
-    'Tinkering',
-    'Mulling it over',
+    'Summoning electrons',
+    'Herding tokens',
+    'Waking the hamsters',
+    'Reticulating splines',
+    'Consulting the oracle',
+    'Bribing the GPU',
+    'Untangling thoughts',
+    'Doing big-brain things',
+    'Letting it cook',
+    'Pondering the orb',
     'Connecting the dots',
-    'Untangling',
-    'Sketching',
-    'Percolating',
-    'Rummaging',
-    'Piecing it together',
-    'Noodling',
-    'Brewing',
-    'Weighing options',
-    'Tracing',
-    'Sleuthing',
-    'Distilling',
-    'Simmering',
-    'Calibrating',
-    'Whittling',
-    'Wrangling',
-    'Conjuring',
-    'Exploring',
-    'Cross-checking',
-    'Lining things up',
-    'Spelunking',
+    'Spinning up neurons',
+    'Chasing the muse',
+    'Aligning the stars',
+    'Brewing brilliance',
+    'Tickling transistors',
+    'Wrangling ideas',
+    'Crunching numbers',
+    'Channeling genius',
+    'Charging brain cells',
+    'Asking the rubber duck',
+    'Overthinking it',
+    'Shuffling synapses',
+    'Mining for answers',
+    'Polishing the prose',
+    'Befriending the algorithm',
+    'Greasing the gears',
+    'Decoding the universe',
 ] as const;
 
 /**
