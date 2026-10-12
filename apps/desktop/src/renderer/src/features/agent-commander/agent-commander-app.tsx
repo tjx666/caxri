@@ -11,6 +11,7 @@ import { useWindowZoomFactor } from '../window-zoom/use-window-zoom-factor';
 import { AgentCommanderHeader } from './agent-commander-header';
 import { useCommanderBoardUiStore } from './commander-board-store';
 import { CommanderBoardView } from './commander-board-view';
+import { CommanderHandoverDialog } from './commander-handover-dialog';
 import { CommanderInboxColumn } from './commander-inbox-column';
 import { useCommanderShortcuts } from './commander-shortcuts';
 import { CommanderTerminal } from './commander-terminal';
@@ -51,6 +52,7 @@ export function AgentCommanderApp() {
                     <CommanderInboxColumn />
                 </div>
                 <ConfirmationDialog />
+                <CommanderHandoverDialog isFromWorkbench={false} />
                 <ToastOutlet />
             </div>
         </TooltipProvider>

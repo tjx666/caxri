@@ -96,6 +96,8 @@ export const primarySidebar = {
     'primarySidebar.sessionMenu.pin': 'Pin Session',
     'primarySidebar.sessionMenu.unpin': 'Unpin Session',
     'primarySidebar.sessionMenu.archive': 'Archive',
+    'primarySidebar.sessionMenu.handOverToCommander': 'Hand Over to Agent Commander…',
+    'primarySidebar.sessionMenu.takeBackFromCommander': 'Take Back from Agent Commander',
     'primarySidebar.sessionMenu.resumeAgent': 'Resume Agent',
     'primarySidebar.sessionMenu.detachAgent': 'Detach Agent',
     'primarySidebar.sessionMenu.turnOffAlwaysAllow': 'Turn Off Always Allow in This Session',

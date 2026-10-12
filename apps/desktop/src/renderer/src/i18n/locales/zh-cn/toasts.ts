@@ -27,6 +27,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.action.turnOffHardwareAcceleration': '关闭硬件加速…',
     'toasts.action.stop': '停止',
     'toasts.action.showUpdate': '查看更新',
+    'toasts.action.openAgentCommander': '打开 Agent Commander',
 
     'toasts.actionUnavailable.unknown': 'Caxri 无法执行此操作。',
     'toasts.actionUnavailable.missingSession': '该会话已不存在。',

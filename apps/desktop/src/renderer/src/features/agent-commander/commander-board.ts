@@ -454,3 +454,19 @@ export function commanderTaskBadge(
         toneClassName: TONE_TEXT_CLASSNAME[tone],
     };
 }
+
+/**
+ * A handed-over Session the Commander has not continued yet: whether it has a conversation to continue, for the row's
+ * tooltip. Once the first task continues it, the row shows that task instead.
+ */
+export function commanderHandoverDescription(
+    handover: CommanderBoardRow['handover'],
+    t: Translate = translate,
+): string | undefined {
+    if (!handover) return undefined;
+    return t(
+        handover.state === 'continuable'
+            ? 'agentCommander.board.handoverContinuable'
+            : 'agentCommander.board.handoverOwnershipOnly',
+    );
+}

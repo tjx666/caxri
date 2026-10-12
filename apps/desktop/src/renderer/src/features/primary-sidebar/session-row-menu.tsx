@@ -15,6 +15,8 @@ import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { fetchCaxriQuery } from '../../queries/client';
 import { getBootstrap } from '../../stores/selectors';
+import { takeBackFromCommander } from '../agent-commander/commander-handover-commands';
+import { openCommanderHandover } from '../agent-commander/commander-handover-store';
 import { revokePermissionAutoAllow } from '../session/permission-auto-allow-commands';
 import {
     copyAgentSessionId,
@@ -121,30 +123,51 @@ export function SessionRowMenu({
 }
 
 /**
- * A native menu cannot be patched once it is showing, so the grant read gates the whole menu. It is bounded: a slow or
+ * A native menu cannot be patched once it is showing, so these reads gate the whole menu. They are bounded: a slow or
  * stalled Server must not turn a right-click into nothing happening.
  */
-const AUTO_ALLOW_READ_TIMEOUT_MS = 300;
+const MENU_READ_TIMEOUT_MS = 300;
 
 /**
- * "Always allow in this Session" (issue caxri#1295) is a Server in-memory grant, not part of the bootstrap
- * `SessionRecord`, so it is read only when the menu opens rather than for every row in the tree. A failed or timed-out
- * read hides the entry instead of blocking the menu.
+ * Reads Server state the bootstrap `SessionRecord` does not carry, only when the menu opens rather than for every row
+ * in the tree. A failed or timed-out read answers `false`, which hides the entry it gates instead of blocking the
+ * menu.
  */
-async function isPermissionAutoAllowGranted(sessionId: string): Promise<boolean> {
+async function isConfirmedInTime(isTrue: () => Promise<boolean>): Promise<boolean> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<false>((resolve) => {
-        timer = setTimeout(() => resolve(false), AUTO_ALLOW_READ_TIMEOUT_MS);
+        timer = setTimeout(() => resolve(false), MENU_READ_TIMEOUT_MS);
     });
     try {
-        const isGranted = async (): Promise<boolean> =>
-            (await fetchCaxriQuery('session.permissionAutoAllowStatus', { sessionId })).granted;
-        return await Promise.race([isGranted(), timeout]);
+        return await Promise.race([isTrue(), timeout]);
     } catch {
         return false;
     } finally {
         clearTimeout(timer);
     }
+}
+
+/**
+ * "Always allow in this Session" (issue caxri#1295) is a Server in-memory grant.
+ */
+async function isPermissionAutoAllowGranted(sessionId: string): Promise<boolean> {
+    return isConfirmedInTime(
+        async () =>
+            (await fetchCaxriQuery('session.permissionAutoAllowStatus', { sessionId })).granted,
+    );
+}
+
+/**
+ * Whether the Agent Commander manages the Session, which decides between Hand Over and Take Back. An unanswered read
+ * offers Hand Over, which the Server refuses as `already_managed` if it was wrong. The set changes without a Workbench
+ * record change (the Commander takes a Session, or human input takes it back), so every open reads it fresh.
+ */
+async function isCommanderManaged(sessionId: string): Promise<boolean> {
+    return isConfirmedInTime(async () =>
+        (
+            await fetchCaxriQuery('commander.managedSessions', {}, { staleTime: 0 })
+        ).sessionIds.includes(sessionId),
+    );
 }
 
 async function sessionRowMenu({
@@ -186,13 +209,15 @@ async function sessionRowMenu({
      * the selected one never advertises a chord that would act somewhere else.
      */
     const isPrimaryTerminalActive = isActiveTerminal(primaryTerminal?.id);
-    const [isAutoAllowGranted, isResumable] = await Promise.all([
+    const [isAutoAllowGranted, isResumable, isManaged] = await Promise.all([
         isPermissionAutoAllowGranted(session.id),
         isAgentConversationResumable(primaryTerminal),
+        isCommanderManaged(session.id),
     ]);
     /**
-     * Five groups: the Session itself (Rename, Rename with AI, Pin, Archive), its Agent, opening it elsewhere, copying
-     * its Agent's identity, and Delete. `serializeContextMenu` drops a separator left without neighbors.
+     * Five groups: the Session itself (Rename, Rename with AI, Pin, Archive, and Hand Over to or Take Back from the
+     * Agent Commander), its Agent, opening it elsewhere, copying its Agent's identity, and Delete.
+     * `serializeContextMenu` drops a separator left without neighbors.
      */
     return [
         /**
@@ -240,6 +265,18 @@ async function sessionRowMenu({
             shortcut: onMarkRead ? undefined : 'delete',
             onSelect: () => archiveSession(session.id),
         },
+        /**
+         * Hand Over opens the picker with this Session selected, so the user can add a note or more Sessions first.
+         */
+        isManaged
+            ? {
+                  label: translate('primarySidebar.sessionMenu.takeBackFromCommander'),
+                  onSelect: () => takeBackFromCommander(session.id),
+              }
+            : {
+                  label: translate('primarySidebar.sessionMenu.handOverToCommander'),
+                  onSelect: () => openCommanderHandover([session.id]),
+              },
         CONTEXT_MENU_SEPARATOR,
         /**
          * The Agent group. The surface switch and Restart Agent act on the Primary Agent, the same Terminal the copy
