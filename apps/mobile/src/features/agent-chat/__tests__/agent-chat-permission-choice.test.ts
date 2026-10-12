@@ -60,6 +60,13 @@ describe('Agent Chat permission choice', () => {
         ]);
         expect(codex[1]?.description).toBe('Edits in the workspace; asks to go further');
         expect(codex.find((option) => option.isFullAccess)?.value).toBe('fullAccess');
+        // Android reports only lower-case resource IDs, so each level's row stays reachable by its `testID`.
+        expect(codex.map((option) => option.testID)).toEqual([
+            'agent-chat-permission-read-only',
+            'agent-chat-permission-accept-edits',
+            'agent-chat-permission-auto',
+            'agent-chat-permission-full-access',
+        ]);
         expect(
             agentChatPermissionOptions({ permissionMode: 'ask' }, 'grok').map(
                 (option) => option.value,

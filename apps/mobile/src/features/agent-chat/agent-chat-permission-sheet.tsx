@@ -83,7 +83,7 @@ const AgentChatPermissionSheet = ({
                                         // eslint-disable-next-line no-void -- `didConfigure` reports its own failure in the sheet.
                                         void chooseLevel(option.value);
                                     }}
-                                    testID={`agent-chat-permission-${option.value}`}
+                                    testID={option.testID}
                                     theme={theme}
                                 />
                             ))}
