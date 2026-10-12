@@ -786,7 +786,9 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   Project relative and leaves a path outside it absolute (`projectDisplayPath`). A finished turn ends under its final reply with its artifacts
   (`collectAgentChatTurnArtifacts`): the edited-files card, which expands to every file's diff but
   offers no Undo or Review, since the phone neither writes the files back nor opens a side tab, and
-  a card per pull request, issue, or acceptance report that opens the page in the browser. The phone folds a finished turn as Desktop does
+  a card per pull request, issue, or acceptance report that opens the page in the browser. When the
+  window cut older items (`truncated`), the oldest turn in it may be missing its start, so it shows
+  no artifacts rather than an incomplete summary. The phone folds a finished turn as Desktop does
   (`foldAgentChatTurn`): its work and commentary sit behind a `Worked for X`, `Failed after X`, or
   `Stopped after X` row (`agentChatTurnLabel`) that a tap expands, and a turn with nothing to fold
   keeps the row, without a chevron, before its reply. The Chat view holds the expanded turn ids,
