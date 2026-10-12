@@ -1,4 +1,4 @@
-import type { AgentTimelineItem } from '@caxri/protocol';
+import type { AgentTimelineItem, AgentTimelineTurnOutcome } from '@caxri/protocol';
 
 import type { SystemEventProjection } from './system-event';
 import { stripInjectedTranscriptContent } from './visible-transcript-message';
@@ -161,12 +161,22 @@ export class TimelineBuilder {
         );
     }
 
-    addBoundary(offset: number, part: number, durationMs?: number, timestamp?: number): void {
+    /**
+     * Ends a turn. `outcome` is set only when the record says how the turn ended; a bare boundary reads as completed.
+     */
+    addBoundary(
+        offset: number,
+        part: number,
+        durationMs?: number,
+        timestamp?: number,
+        outcome?: AgentTimelineTurnOutcome,
+    ): void {
         this.#add(
             {
                 id: this.#id(offset, part),
                 type: 'turnBoundary',
                 ...(durationMs !== undefined && { durationMs }),
+                ...(outcome && { outcome }),
                 ...(timestamp && { timestamp }),
             },
             offset,

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     applyLatestConversationPage,
     applyOlderConversationPage,
+    conversationTurnDivider,
     groupConversationItems,
     isConversationObservableThroughBlur,
     mergeLatestConversationItems,
@@ -212,5 +213,35 @@ describe('Conversation projection', () => {
                 isConversationObservableThroughBlur(false, true),
             ),
         ).toBe('stale');
+    });
+});
+
+describe('conversationTurnDivider', () => {
+    it('labels a completed turn by its duration and keeps it quiet', () => {
+        expect(conversationTurnDivider({ durationMs: 4_000, outcome: 'completed' })).toEqual({
+            label: 'Worked for 4s',
+            tone: 'muted',
+        });
+    });
+
+    it('reads a boundary without an outcome as completed work', () => {
+        expect(conversationTurnDivider({})).toEqual({ label: 'Worked', tone: 'muted' });
+    });
+
+    it('says an interrupted turn stopped instead of completing', () => {
+        expect(conversationTurnDivider({ outcome: 'interrupted' })).toEqual({
+            label: 'Stopped',
+            tone: 'warning',
+        });
+        expect(conversationTurnDivider({ durationMs: 4_000, outcome: 'interrupted' }).label).toBe(
+            'Stopped after 4s',
+        );
+    });
+
+    it('says a failed turn failed', () => {
+        expect(conversationTurnDivider({ durationMs: 4_000, outcome: 'failed' })).toEqual({
+            label: 'Failed after 4s',
+            tone: 'danger',
+        });
     });
 });
