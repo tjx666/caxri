@@ -11,6 +11,7 @@ import {
     CommandList,
 } from '../../components/ui/command';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
+import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import type { SshHostPickerRow } from './ssh-destination';
@@ -105,8 +106,10 @@ function ConnectSshHostBody() {
 }
 
 function SshHostRow({ label, row }: { label?: string; row: SshHostPickerRow }) {
+    const connecting = useSshHostDialogsStore((state) => state.connectingDestination);
     return (
         <CommandItem
+            disabled={connecting !== undefined}
             // `cmdk` tracks selection by value; the group prefix keeps a destination listed in two groups distinct.
             value={`${label === undefined ? 'host' : 'typed'}:${row.destination}`}
             // eslint-disable-next-line no-void -- connectToSshHost reports its own failure through a toast
@@ -116,10 +119,14 @@ function SshHostRow({ label, row }: { label?: string; row: SshHostPickerRow }) {
                 <Server aria-hidden="true" className="flex-none text-muted" size={14} />
                 <span className="truncate">{label ?? row.destination}</span>
             </span>
-            {row.detail && (
-                <small className="min-w-0 flex-none truncate text-[11px] text-muted">
-                    {row.detail}
-                </small>
+            {connecting === row.destination ? (
+                <Spinner className="flex-none text-muted" />
+            ) : (
+                row.detail && (
+                    <small className="min-w-0 flex-none truncate text-[11px] text-muted">
+                        {row.detail}
+                    </small>
+                )
             )}
         </CommandItem>
     );

@@ -3,6 +3,10 @@ import { createStore } from '../../lib/store';
 interface SshHostDialogsState {
     isConnectOpen: boolean;
     /**
+     * The destination the Connect picker is opening a window for; present while Main resolves it.
+     */
+    connectingDestination?: string;
+    /**
      * Settles the open folder picker; present exactly while it is open.
      */
     resolveFolder?: (path: string | undefined) => void;
@@ -12,8 +16,12 @@ export const useSshHostDialogsStore = createStore<SshHostDialogsState>('ssh-host
     isConnectOpen: false,
 }));
 
+/**
+ * Closing the picker also drops a pending connect from it: Main still opens the window it was asked for, but the picker
+ * no longer waits on it, so reopening it starts idle.
+ */
 export function setConnectSshHostOpen(isOpen: boolean): void {
-    useSshHostDialogsStore.setState({ isConnectOpen: isOpen });
+    useSshHostDialogsStore.setState({ isConnectOpen: isOpen, connectingDestination: undefined });
 }
 
 /**
