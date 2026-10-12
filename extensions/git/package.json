@@ -1,6 +1,6 @@
 {
     "name": "caxri.git",
-    "version": "0.0.95",
+    "version": "0.0.96",
     "private": true,
     "type": "module",
     "main": "./dist/extension.js",
@@ -14,7 +14,7 @@
         "caxri": "workspace:*"
     },
     "engines": {
-        "caxri": "^0.0.95"
+        "caxri": "^0.0.96"
     },
     "caxri": {
         "capabilities": [
