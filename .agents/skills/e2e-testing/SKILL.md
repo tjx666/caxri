@@ -40,7 +40,7 @@ attention), a wall-clock assertion such as a 4s toast it must catch, or machine 
 `desktopExclusiveSpecs` in `e2e/support/pools.ts` with its reason in the same change. The reason
 enum, admission conditions, and the contract test that derives `clipboard: true`,
 `windowMode: 'visible'`, and `gpuMode: 'enabled'` from spec sources live there; split a spec when
-only some of its tests need the exclusive pool, as `agent-commander-workbench-handoff.e2e.ts` does.
+only some of its tests need the exclusive pool.
 
 ## Focused workflow
 
