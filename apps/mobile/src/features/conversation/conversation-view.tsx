@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Platform, Pressable, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -16,8 +16,11 @@ import { ConversationEntry } from './conversation-entry';
 import type { ConversationEntry as GroupedEntry } from './conversation-model';
 import {
     CONVERSATION_FOLLOW_THRESHOLD,
+    CONVERSATION_SEND_FOLLOW_HOLD_MS,
+    followConversationToLatest,
     groupConversationItems,
-    shouldFollowConversation,
+    isConversationFollowing,
+    isNewConversationSend,
     shouldShowConversationJump,
 } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
@@ -147,6 +150,7 @@ const ConversationStatus = ({
 export const ConversationList = <Entry extends { id: string }>({
     entries,
     enterFrom,
+    followKey,
     isConnected,
     onRetry,
     renderEntry,
@@ -159,6 +163,11 @@ export const ConversationList = <Entry extends { id: string }>({
      */
     entries: readonly Entry[];
     enterFrom: -1 | 0 | 1 | null;
+    /**
+     * Grows with each message the user sends from this screen; the list then returns to its end and follows again,
+     * wherever the reader had scrolled. A Conversation without a composer of its own leaves it unset.
+     */
+    followKey?: number;
     isConnected: boolean;
     onRetry: () => void;
     renderEntry: (entry: Entry) => ReactNode;
@@ -170,6 +179,7 @@ export const ConversationList = <Entry extends { id: string }>({
     const isAtBottomReference = useRef(true);
     const viewportHeight = useRef(0);
     const isPositionedReference = useRef(false);
+    const followHoldUntil = useRef(0);
     const revealProgress = useSharedValue(0);
     const enterOffset = enterFrom === null ? 0 : segmentEnterOffset(enterFrom);
     const revealStyle = useAnimatedStyle(() => ({
@@ -181,7 +191,12 @@ export const ConversationList = <Entry extends { id: string }>({
         if (!isPositionedReference.current) return;
         const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
         const distance = contentSize.height - layoutMeasurement.height - contentOffset.y;
-        const isFollowing = shouldFollowConversation(distance, layoutMeasurement.height);
+        const isFollowing = isConversationFollowing(
+            distance,
+            layoutMeasurement.height,
+            Date.now(),
+            followHoldUntil.current,
+        );
         isAtBottomReference.current = isFollowing;
         setIsAtBottom(isFollowing);
     }, []);
@@ -221,6 +236,21 @@ export const ConversationList = <Entry extends { id: string }>({
     const jumpToLatest = useCallback((): void => {
         list.current?.scrollToEnd({ animated: true });
     }, []);
+    const lastFollowKey = useRef(followKey);
+    useEffect(() => {
+        const previous = lastFollowKey.current;
+        lastFollowKey.current = followKey;
+        if (!isNewConversationSend(previous, followKey)) return;
+        followConversationToLatest({
+            follow: () => {
+                followHoldUntil.current = Date.now() + CONVERSATION_SEND_FOLLOW_HOLD_MS;
+                isAtBottomReference.current = true;
+                setIsAtBottom(true);
+            },
+            nextFrame: requestAnimationFrame,
+            scrollToEnd: jumpToLatest,
+        });
+    }, [followKey, jumpToLatest]);
     return (
         <View style={styles.root} testID="conversation-view">
             {/*

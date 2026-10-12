@@ -1,7 +1,7 @@
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
+import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
 
 import { agentChatCompactCommand } from '../agent-chat-context';
-import { draftWithReturnedMessage } from '../agent-chat-drafts';
 import { completeAgentChatAction } from '../agent-chat-slash-commands';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
 import { useAgentChatComposerEdit } from './use-agent-chat-composer-edit';
@@ -65,7 +65,7 @@ export function useAgentChatComposerSend({
         terminalId,
     });
     useAgentChatUnsentReturns(terminalId, (text, attachments) => {
-        if (text) setDraft((current) => draftWithReturnedMessage(current, text));
+        if (text) setDraft((current) => agentChatDraftWithReturnedMessage(current, text));
         images.restoreUnsent(attachments);
     });
     const edit = useAgentChatComposerEdit({

@@ -19,6 +19,17 @@ const queue = [
 ];
 
 describe('agentChatQueueEntries', () => {
+    it('ends the queue with messages still on their way, which cannot be sent now', () => {
+        const rows = agentChatQueueEntries(queue.slice(0, 1), false, new Set(), [
+            { id: 'p1', text: 'Then lint', imageUris: ['file:///a.jpg'] },
+        ]);
+        expect(rows.map(({ id, isPending }) => [id, isPending])).toEqual([
+            ['a', undefined],
+            ['p1', true],
+        ]);
+        expect(rows[1]).toMatchObject({ canSendNow: false, imageLabel: '1 image' });
+    });
+
     it('lists the queue in send order, hiding entries whose delete or steer is still pending', () => {
         expect(agentChatQueueEntries(queue, false).map(({ id }) => id)).toEqual([
             'a',

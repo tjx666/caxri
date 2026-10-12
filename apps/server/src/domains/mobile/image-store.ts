@@ -7,7 +7,11 @@ import { CaxriError } from '@caxri/protocol';
 
 const MAX_IMAGE_BYTES = 3 * 1_024 * 1_024;
 const MAX_PENDING_UPLOADS = 16;
-const MAX_COMPLETED_IMAGES = 64;
+/**
+ * Uploads kept for their hour after completing. A Chat message carries up to `MAX_AGENT_CHAT_IMAGES` images, each with
+ * its thumbnail, so this holds three full messages' worth plus Terminal attachments.
+ */
+const MAX_COMPLETED_IMAGES = 128;
 const PENDING_LIFETIME_MS = 2 * 60_000;
 const IMAGE_LIFETIME_MS = 60 * 60_000;
 const IMAGE_ROOT = join(tmpdir(), 'caxri-mobile-images');

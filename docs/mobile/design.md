@@ -199,14 +199,31 @@ added without moving screens. Query keys include the same host identity.
 - Drafts are kept per Session in memory and survive segment switches, navigation, and reconnects.
 - The attach button opens an image source sheet. A choice slides the sheet away first and only then
   opens the photo picker or camera, so system UI never covers a sheet still on screen
-  (`MOB-COMPOSE-02`). A Chat composer offers the same sheet and strip, for up to 4 images, when the
+  (`MOB-COMPOSE-02`). A Chat composer offers the same sheet and strip, for up to 20 images and
+  20 MB together (Desktop's `MAX_AGENT_CHAT_IMAGES` and combined limit), when the
   provider takes images in a Chat (Claude Code and Codex); an image alone is a valid message
-  (`MOB-CHAT-05`). For a provider that does not (Grok Build) the attach button stays visible but
+  (`MOB-CHAT-05`). The strip scrolls sideways once it outgrows the composer and follows the newest
+  image. Each thumbnail's remove button is a `22dp` circle inside a `44dp` target that stays within
+  its cell, because Android drops touches outside a view's bounds; a preparing image shows a
+  spinner. Past 75% of the combined limit the composer notes `Images use 16.2 of 20 MB.`, and an
+  image that would cross it is refused with `Images in one message must add up to 20 MB or less.` For a provider that does not (Grok Build) the attach button stays visible but
   disabled, and tapping it explains why (`Grok Build can't read images in a Chat.`). A sent image opens full screen; when the provider's record has
   no original (always for Codex) the viewer shows the thumbnail and says `Showing a preview. The
 full-size image is not available.` (`MOB-CHAT-07`), and with neither it says `This image is no
-longer available.` without a Retry (`MOB-CHAT-08`).
-- Delivery states:
+longer available.` without a Retry (`MOB-CHAT-08`). The viewer pages through the message's
+  images with a horizontal swipe and a `2 / 3` counter, and a downward swipe closes it. Both apply
+  only to a fitted image: a zoomed image pans instead.
+- A Chat sends optimistically, as Desktop does (shared rules in `agent-chat-pending.ts` of
+  `@caxri/protocol`): the message shows at once, faded with `Sending…`, at the end of the timeline
+  or in the queue card where it is going to land, and the composer clears and stays editable. The
+  row hands over to the real message when the projection shows it. A failed send removes the row,
+  puts the text and images back ahead of anything typed since, and says `Your message was not
+sent. Try again.` After the user's own send the timeline scrolls to the newest row, even when
+  they had scrolled up (`MOB-CHAT-FOLLOW-01`). An answered approval or question leaves at once and
+  a question's answers show in the timeline; a failed answer brings the card back with its error.
+- While a turn runs a Chat composer shows a `Steer` button beside Send, which adds the draft to the
+  running turn instead of the queue; long-pressing Send still does the same.
+- Terminal delivery states:
   - `Sending…`: input disabled, draft kept.
   - Delivered to the Terminal: clear the draft.
   - Failed before reaching the Server: keep the draft, show the reason, allow retry.
