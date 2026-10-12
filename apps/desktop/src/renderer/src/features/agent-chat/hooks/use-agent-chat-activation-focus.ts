@@ -3,21 +3,22 @@ import { useEffect, useRef } from 'react';
 
 import { useDialogStore } from '../../../stores/dialogs';
 import { canClaimTerminalFocus } from '../../terminal/terminal-process-focus';
+import { agentChatDraftEndCaret } from '../agent-chat-composer-caret';
 
 /**
  * Focuses the composer for an automatic focus claim (the Chat being shown) with the caret after the draft, so typing
  * continues a restored draft instead of prepending to it. React writes a restored draft as the textarea's initial
  * value, which leaves Chromium's selection at 0 until something moves it.
  *
- * Only that untouched 0..0 selection moves; any other selection is one the user placed and focus keeps it. This sets
- * the DOM selection only, never the caret `useAgentChatPlacedCaret` follows, so a restored draft ending in `@word`
- * still waits for the user before opening the Sessions list.
+ * Only that untouched 0..0 selection moves; a selection the user placed, including a caret deliberately put at the
+ * start of the draft, is kept (see `agentChatDraftEndCaret`). This sets the DOM selection only, never the caret
+ * `useAgentChatPlacedCaret` follows, so a restored draft ending in `@word` still waits for the user before opening the
+ * Sessions list.
  */
 export function focusComposerAtDraftEnd(input: HTMLTextAreaElement): void {
     input.focus();
-    const { length } = input.value;
-    if (length > 0 && input.selectionStart === 0 && input.selectionEnd === 0)
-        input.setSelectionRange(length, length);
+    const caret = agentChatDraftEndCaret(input);
+    if (caret !== undefined) input.setSelectionRange(caret, caret);
 }
 
 /**
