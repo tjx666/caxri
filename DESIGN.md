@@ -1160,7 +1160,12 @@ returns focus to the composer (to the scroll view in a read-only task tab). Expa
 in the shared code view at the `meta` size diffs, the command preview, and task output use, painted in the language inferred from what produced it (a printed file's
 extension, a Git diff, JSON), any other command output as shell, and capped in height. A new
 tool kind gets its glyph in one table, not a new component. References: the Codex app and T3 Code's
-work log.
+work log. Releasing a text selection in a transcript (a Chat or a subagent tab) floats a popover-styled
+`--elevated` toolbar 8px above the selection's first line, below its last line when there is no
+room, holding `Copy` and `Add to message`. Copy confirms in place with a check, never a toast; Add
+to message appends the selection as a `>` Markdown quote paragraph to the Chat's draft and puts
+the caret on a new line after it; from a subagent tab it brings the parent Chat forward. The toolbar follows the selection as the transcript scrolls and leaves on
+Escape, an outside press, or a collapsed selection. References: Synara, LibreChat, assistant-ui.
 
 **Settings**: a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
 this one tab instead of raising a dialog, so it composes with every other document (the Archived
