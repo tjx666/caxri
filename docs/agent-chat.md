@@ -359,6 +359,10 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   thread lists each command its history still shows running in a finished turn as a stopped shell
   task ("Ended: Caxri restarted and can no longer track it"), since the app-server that ran it is
   gone; one `thread/backgroundTerminals/list` still reports is taken back running and stoppable.
+  That list is read at start, after each turn, and when a running shell's tab opens, one read at a
+  time: a request made during a read gets one more read after it, shared with every other request
+  made meanwhile, so a turn end never settles for an answer from before Codex reaped a terminal. A
+  terminal that completed while a read was in flight is not taken back running from that answer.
 - **Grok Build.** No tasks are projected yet: its background task updates are ignored, `stopTask`
   answers `CONFLICT`, and `readTaskHistory` knows no task.
 - **Pane.** A subagent or background row opens its task in a Workbench tab

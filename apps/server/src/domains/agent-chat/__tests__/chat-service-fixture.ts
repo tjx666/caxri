@@ -118,10 +118,24 @@ export async function fixture(
         }
         return mirror;
     }
+    /**
+     * Waits for the mirrored snapshot to reach a state. A timeout names the Chat, turn, and task states it last saw, so
+     * a flaky wait says what it was stuck on instead of only "expected false to be true".
+     */
     async function until(isReached: (snapshot: AgentChatSnapshot) => boolean) {
         await vi.waitFor(
             () => {
-                expect(isReached(client())).toBe(true);
+                const snapshot = client();
+                const { status, activeTurnId, turns, tasks } = snapshot;
+                expect(
+                    isReached(snapshot),
+                    `last snapshot: ${JSON.stringify({
+                        status,
+                        activeTurnId,
+                        turns: turns.map((turn) => turn.status),
+                        tasks: tasks?.map(({ kind, status: taskStatus }) => ({ kind, taskStatus })),
+                    })}`,
+                ).toBe(true);
             },
             { timeout: 5_000, interval: 10 },
         );
