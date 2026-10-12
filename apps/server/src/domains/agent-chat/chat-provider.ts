@@ -31,17 +31,21 @@ type ChatLifecyclePhase = Extract<
     | 'compactionFinished'
     | 'compactionStarted'
     | 'sessionIdentified'
+    | 'shellToolFailed'
+    | 'shellToolFinished'
+    | 'shellToolStarted'
     | 'turnFailed'
     | 'turnFinished'
     | 'turnStarted'
 >;
 
-interface ChatLifecycleEvent {
+export interface ChatLifecycleEvent {
     phase: ChatLifecyclePhase;
     agentSessionId?: string;
     agentTurnId?: string;
     agentToolUseId?: string;
     agentFailure?: AgentLifecycleSignal['agentFailure'];
+    worktreeCreateIntent?: true;
 }
 
 /**
@@ -164,6 +168,12 @@ export interface AgentChatSessionHost {
      */
     readTask(taskId: string): AgentChatTaskSnapshot | undefined;
     lifecycle(event: ChatLifecycleEvent): void;
+    /**
+     * `lifecycle`, resolved once the shared lifecycle path has handled the event. A provider awaits it only where it
+     * can hold the tool back: Claude Chat's PreToolUse hook blocks a `git worktree add` until Server Core captured the
+     * before-snapshot that later proves which worktree it created.
+     */
+    observeLifecycle(event: ChatLifecycleEvent): Promise<void>;
     /**
      * Binds an Agent Session to the Terminal. Called only once the provider has durably recorded it (its first turn
      * started), because binding earlier would leave an identity that can never be resumed.
