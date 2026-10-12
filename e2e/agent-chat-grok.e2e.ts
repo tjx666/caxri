@@ -50,8 +50,11 @@ test('a Grok Build Chat streams a reply, answers an approval and a question, swi
         const question = chat.getByRole('region', { name: 'Grok Build has 2 questions' });
         await expect(question).toContainText('Which color?');
         await page.screenshot({ path: testInfo.outputPath('grok-chat-question.png') });
-        await question.getByRole('button', { name: /^Blue/u }).click();
-        await question.getByRole('button', { name: 'Large', exact: true }).click();
+        // Several questions are asked one at a time: Next moves on, Submit on the last sends them all.
+        await question.getByRole('radio', { name: /^Blue/u }).click();
+        await question.getByRole('button', { name: 'Next' }).click();
+        await expect(question).toContainText('Which sizes?');
+        await question.getByRole('radio', { name: 'Large', exact: true }).click();
         await question.getByRole('button', { name: 'Submit' }).click();
         await expect(question).toHaveCount(0);
         await expect(chat.getByText('Answered: Which color?: Blue')).toBeVisible();

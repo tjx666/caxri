@@ -4,124 +4,21 @@ import type { AgentChatItem, AgentChatRequest, AgentChatResponse } from '@caxri/
 import {
     AGENT_CHAT_EXIT_PLAN_TOOL,
     agentChatApprovalChoices,
-    agentChatQuestionAnswers,
     agentChatRequestTitle,
 } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
-import { cn } from '../../lib/utilities';
 import { AGENT_CHAT_APPROVE_SHORTCUT, AGENT_CHAT_DENY_SHORTCUT } from './agent-chat-approval-keys';
 import { didAnswerAgentChatRequest } from './agent-chat-commands';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMessage } from './agent-chat-message';
 import { agentChatCommandCwd } from './agent-chat-presentation';
+import { AgentChatQuestionForm } from './agent-chat-question-form';
 import {
     AGENT_CHAT_APPROVAL_ATTRIBUTE,
     useAgentChatApprovalKeys,
 } from './hooks/use-agent-chat-approval-keys';
-
-function QuestionForm({
-    isAnswering,
-    request,
-    respond,
-}: {
-    isAnswering: boolean;
-    request: Extract<AgentChatRequest, { kind: 'question' }>;
-    respond: (response: AgentChatResponse) => void;
-}) {
-    const [selected, setSelected] = useState<Record<string, string | undefined>>({});
-    const [other, setOther] = useState<Record<string, string | undefined>>({});
-    const { answers, isComplete } = agentChatQuestionAnswers(request, selected, other);
-    return (
-        <form
-            className="space-y-3"
-            onSubmit={(event) => {
-                event.preventDefault();
-                if (isComplete && !isAnswering) respond({ kind: 'answers', answers });
-            }}
-        >
-            {request.questions.map((question) => (
-                <fieldset className="m-0 space-y-1.5 border-0 p-0" key={question.id}>
-                    <legend className="mb-1 p-0 text-[12px] text-foreground">
-                        {question.header && (
-                            <span className="mr-1 font-semibold">{question.header}</span>
-                        )}
-                        {question.question}
-                    </legend>
-                    {/* Options that explain themselves stack, so each description reads under its label. */}
-                    <div
-                        className={cn(
-                            'gap-1.5',
-                            question.options.some((option) => option.description)
-                                ? 'flex flex-col items-stretch'
-                                : 'flex flex-wrap',
-                        )}
-                    >
-                        {question.options.map((option) => {
-                            const isSelected =
-                                selected[question.id] === option.label && !other[question.id];
-                            return (
-                                <Button
-                                    aria-pressed={isSelected}
-                                    className={cn(
-                                        option.description &&
-                                            'flex-col items-start justify-center gap-0 py-1 text-left',
-                                        isSelected && 'bg-[var(--selection)] text-foreground',
-                                    )}
-                                    key={option.label}
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => {
-                                        setSelected((value) => ({
-                                            ...value,
-                                            [question.id]: option.label,
-                                        }));
-                                        setOther((value) => ({ ...value, [question.id]: '' }));
-                                    }}
-                                >
-                                    <span>{option.label}</span>
-                                    {option.description && (
-                                        <span className="text-[11px] leading-4 text-muted">
-                                            {option.description}
-                                        </span>
-                                    )}
-                                </Button>
-                            );
-                        })}
-                    </div>
-                    {(question.allowsOther || question.options.length === 0) && (
-                        <Input
-                            aria-label={`Other answer: ${question.question}`}
-                            placeholder="Other answer"
-                            value={other[question.id] ?? ''}
-                            onChange={(event) =>
-                                setOther((value) => ({
-                                    ...value,
-                                    [question.id]: event.target.value,
-                                }))
-                            }
-                        />
-                    )}
-                </fieldset>
-            ))}
-            <div className="flex gap-2">
-                <Button disabled={!isComplete || isAnswering} size="sm" type="submit">
-                    Submit
-                </Button>
-                <Button
-                    disabled={isAnswering}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => respond({ kind: 'decision', decision: 'cancel' })}
-                >
-                    Skip
-                </Button>
-            </div>
-        </form>
-    );
-}
 
 /**
  * The files an approval would change, read from the timeline item it gates: the provider announces the file change
@@ -216,11 +113,17 @@ export function AgentChatRequestCard({
             className="space-y-2 rounded-lg border border-warning bg-surface px-3 py-2.5 text-[12px] leading-5"
             {...(request.kind !== 'question' && { [AGENT_CHAT_APPROVAL_ATTRIBUTE]: '' })}
         >
-            <h3 className="m-0 text-[12px] font-semibold text-foreground">{title}</h3>
             {request.kind === 'question' ? (
-                <QuestionForm isAnswering={isAnswering} request={request} respond={respond} />
+                <AgentChatQuestionForm
+                    isAnswering={isAnswering}
+                    providerName={providerName}
+                    request={request}
+                    respond={respond}
+                    title={title}
+                />
             ) : (
                 <>
+                    <h3 className="m-0 text-[12px] font-semibold text-foreground">{title}</h3>
                     {request.kind === 'tool' && request.summary && (
                         <ApprovalToolSummary name={request.name} summary={request.summary} />
                     )}
