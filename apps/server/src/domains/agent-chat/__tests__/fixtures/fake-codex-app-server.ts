@@ -3,8 +3,8 @@
  * no test ever launches the real CLI or calls a model. Behavior is selected by keywords in the user's message:
  *
  * - `approve`: a command needing approval; accept runs it, decline records it as declined.
- * - `artifacts`: edits and creates files on disk, opens a pull request, rewrites another through `gh api`, files a
- *   Linear issue, and publishes an acceptance report.
+ * - `artifacts`: edits and creates files on disk, opens a pull request, rewrites another through `gh api`, files a Linear
+ *   issue, and publishes an acceptance report.
  * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
  * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
  * - `ask`: a question; the reply quotes the chosen answer.

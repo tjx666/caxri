@@ -82,7 +82,7 @@ interface AgentChatContextAlert {
     detail: string;
 }
 
-export interface AgentChatCacheAlert extends AgentChatContextAlert {
+interface AgentChatCacheAlert extends AgentChatContextAlert {
     /**
      * `expiring` while the cache is still warm but within the warning lead of its TTL; `expired` once it is gone.
      */
