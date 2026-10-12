@@ -5,11 +5,8 @@ import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useTerminal } from '../../stores/selectors';
 import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
-import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
-import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import { registerTerminalFocusHandler } from '../terminal/terminal-pane-handlers';
-import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import {
     canSwitchTerminalSurface,
     switchTerminalSurfaceTo,
@@ -49,6 +46,7 @@ import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHistory } from './hooks/use-agent-chat-history';
 import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
+import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
@@ -129,16 +127,7 @@ export function AgentChatPane({
      * reach, with the same candidate picker when several match.
      */
     const linkPicker = useTerminalLinkPicker(terminalId, focusComposer);
-    const openFile = useCallback(
-        (reference: string) => {
-            const { target, location } = parseTerminalFileLocation(reference);
-            // eslint-disable-next-line no-void -- the opener reports its own failures as toasts
-            void openTerminalFileTarget(terminalId, target, location, {
-                hasWorkbenchLinks: terminalPaneHost().hasWorkbenchLinks,
-            });
-        },
-        [terminalId],
-    );
+    const openFile = useAgentChatOpenFile(terminalId);
     useEffect(
         () =>
             registerTerminalFocusHandler(

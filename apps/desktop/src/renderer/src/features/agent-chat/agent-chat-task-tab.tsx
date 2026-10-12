@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol';
 import { ArrowLeft, RotateCcw, Square } from 'lucide-react';
@@ -7,9 +7,6 @@ import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
-import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
-import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { stopAgentChatTask } from './agent-chat-commands';
 import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
@@ -30,6 +27,7 @@ import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
+import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { useAgentChatTask } from './hooks/use-agent-chat-task';
 
@@ -126,20 +124,7 @@ function TaskTimeline({
         () => ({ state: expansionState, onUserToggle: anchor }),
         [anchor, expansionState],
     );
-    /**
-     * A file the subagent cites resolves the way the parent Chat resolves one: against the Projects its Terminal may
-     * reach.
-     */
-    const openFile = useCallback(
-        (reference: string) => {
-            const { target, location } = parseTerminalFileLocation(reference);
-            // eslint-disable-next-line no-void -- the opener reports its own failures as toasts
-            void openTerminalFileTarget(terminalId, target, location, {
-                hasWorkbenchLinks: terminalPaneHost().hasWorkbenchLinks,
-            });
-        },
-        [terminalId],
-    );
+    const openFile = useAgentChatOpenFile(terminalId);
     return (
         <div className="relative h-full min-h-0">
             <div
