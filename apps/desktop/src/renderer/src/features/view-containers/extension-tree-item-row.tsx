@@ -1,12 +1,17 @@
 import type { KeyboardEvent, MouseEvent, RefObject } from 'react';
 import { useId, useRef } from 'react';
 
+import { useContextMenu } from '../../hooks/use-context-menu';
+import type { ContextMenuEntries } from '../../lib/context-menu';
+import { showContextMenu } from '../../lib/context-menu';
 import { cn } from '../../lib/utilities';
 import type { ExtensionTreeNavigationKey } from './extension-tree-navigation';
 import { ExtensionTreeRowContent, ExtensionTreeRowTooltip } from './extension-tree-row-content';
+import { extensionTreeRowMenu, hasExtensionTreeRowMenu } from './extension-tree-row-menu';
 import type { VisibleItemRow } from './extension-tree-rows';
 import type { TreeRowAction } from './extension-tree-state';
 import { keyboardTreeRowAction, pointerTreeRowAction } from './extension-tree-state';
+import { useTreeItemActionRunner } from './hooks/use-tree-item-action-runner';
 
 /**
  * Every navigation key is resolved against the flat row list by `onNavigate`, which the tree owns: the row knows its
@@ -18,16 +23,34 @@ function handleTreeItemKeyDown(
     {
         dispatchRowAction,
         index,
+        menu,
         onNavigate,
         row,
     }: {
         dispatchRowAction: (action: TreeRowAction) => void;
         index: number;
+        /**
+         * Absent when the row has nothing to run, so the menu keys fall through untouched.
+         */
+        menu: (() => ContextMenuEntries) | undefined;
         onNavigate: (key: ExtensionTreeNavigationKey, index: number) => void;
         row: VisibleItemRow;
     },
 ): void {
     if (event.nativeEvent.isComposing) return;
+    if (menu && (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey))) {
+        event.preventDefault();
+        /**
+         * MacOS Chromium does not turn these keys into a `contextmenu` event, so the row opens its menu itself,
+         * anchored under the row instead of at a pointer the keyboard user never moved. Same handling as the Source
+         * Control rows.
+         */
+        const bounds = event.currentTarget.getBoundingClientRect();
+        // `showContextMenu` reports its own failures through a toast; nothing to await in a key handler.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void showContextMenu(menu(), { x: bounds.left, y: bounds.bottom });
+        return;
+    }
     switch (event.key) {
         case 'ArrowDown':
         case 'ArrowUp':
@@ -137,6 +160,14 @@ export function ExtensionTreeItemRow({
             onAction,
             row,
         });
+    const actionRunner = useTreeItemActionRunner();
+    const hasMenu = hasExtensionTreeRowMenu(row.item);
+    const menu = (): ContextMenuEntries =>
+        extensionTreeRowMenu(row.item, {
+            activate: () => dispatchRowAction('activate'),
+            ...actionRunner,
+        });
+    const openContextMenu = useContextMenu(menu);
     const treeItem = (
         <div
             aria-busy={presentation.isRefreshingMessage || undefined}
@@ -161,17 +192,22 @@ export function ExtensionTreeItemRow({
             style={presentation.style}
             tabIndex={active ? 0 : -1}
             onClick={(event) => handleTreeItemClick(event, rowElement, row, dispatchRowAction)}
+            onContextMenu={(event) => {
+                if (hasMenu) openContextMenu(event);
+            }}
             onFocus={() => onFocus(row)}
             onKeyDown={(event) =>
                 handleTreeItemKeyDown(event, {
                     dispatchRowAction,
                     index,
+                    menu: hasMenu ? menu : undefined,
                     onNavigate,
                     row,
                 })
             }
         >
             <ExtensionTreeRowContent
+                actionRunner={actionRunner}
                 actionsDescriptionId={actionsDescriptionId}
                 dispatchRowAction={dispatchRowAction}
                 isRefreshing={isRefreshing}

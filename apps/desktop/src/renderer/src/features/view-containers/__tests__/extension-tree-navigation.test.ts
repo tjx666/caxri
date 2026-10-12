@@ -218,11 +218,11 @@ describe('extensionTreeActionsHint', () => {
 
     it('promises Right Arrow only where Right reaches the actions', () => {
         expect(extensionTreeActionsHint(actions, false)).toBe(
-            'Actions: Merge Pull Request (Checks still running). Press Right Arrow to reach them.',
+            'Actions: Merge Pull Request (Checks still running). Press Right Arrow to reach them, or Shift+F10 for a menu.',
         );
         // A collapsed branch expands on the first Right, so the hint must say so.
         expect(extensionTreeActionsHint(actions, true)).toContain(
-            'Press Right Arrow to expand the row, then Right Arrow again to reach them.',
+            'Press Right Arrow to expand the row, then Right Arrow again to reach them, or Shift+F10 for a menu.',
         );
     });
 });
