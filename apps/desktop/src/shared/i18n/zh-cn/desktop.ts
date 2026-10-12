@@ -173,6 +173,9 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.externalFile.trustFolder': '信任文件夹并打开',
     'desktop.chooseProjectFolder': '选择项目文件夹',
 
+    'desktop.fallback.thisProject': '此项目',
+    'desktop.fallback.thisSession': '此会话',
+
     'desktop.reset.title': 'Caxri 需要本地重置',
     'desktop.reset.intro':
         '此预发布版本不会迁移未发布的 Host 协议。请退出 Caxri，预览重置计划，然后执行：',

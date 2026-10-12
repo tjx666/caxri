@@ -8,20 +8,22 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 import { ErrorBoundary } from './components/error-boundary';
-import { WorkbenchI18nProvider } from './components/workbench-i18n-provider';
 import { AgentCommanderApp } from './features/agent-commander/agent-commander-app';
 import { readAgentCommanderWorkbench } from './features/agent-commander/commander-client';
 import { configureCommanderTerminalHost } from './features/agent-commander/commander-commands';
 import { configureCommanderToastActions } from './features/agent-commander/commander-toast-actions';
+import { I18nProvider } from './i18n';
 import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
 import { queryClient } from './queries/client';
 import { installRendererErrorReporter } from './renderer-error-reporter';
 import { configureWorkbenchSnapshotSource } from './stores/workbench';
+import { syncWorkbenchLocale } from './stores/workbench-locale';
 
 installRendererErrorReporter((kind) => globalThis.caxri.reportError(kind));
 installStoreInspector();
 observeWindowActive();
+syncWorkbenchLocale();
 // Before the first render: Main denies this window `app.bootstrap`, so every shared refresh path must already read the
 // Commander-scoped snapshot by the time a Terminal pane can trigger one.
 configureWorkbenchSnapshotSource(readAgentCommanderWorkbench);
@@ -30,7 +32,7 @@ configureCommanderTerminalHost();
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>
-        <WorkbenchI18nProvider>
+        <I18nProvider>
             <QueryClientProvider client={queryClient}>
                 <ErrorBoundary
                     titleKey="core.errorBoundary.agentCommander.title"
@@ -41,6 +43,6 @@ createRoot(document.querySelector('#root')!).render(
                     <AgentCommanderApp />
                 </ErrorBoundary>
             </QueryClientProvider>
-        </WorkbenchI18nProvider>
+        </I18nProvider>
     </StrictMode>,
 );

@@ -7,6 +7,7 @@ import { LinearLogoIcon } from '../../icons/brands/linear-logo-icon';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import type { AgentChatTrackerArtifact } from './agent-chat-trackers';
+import { trackerExcerptText, trackerReferenceText } from './agent-chat-trackers';
 
 const ACTION_LABEL_KEYS: Record<
     AgentChatTrackerArtifact['action'],
@@ -57,6 +58,8 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
     const KindIcon = KIND_ICON[artifact.kind];
     const { t } = useTranslation();
     const label = actionLabel(artifact, t);
+    const reference = trackerReferenceText(artifact, t);
+    const excerpt = trackerExcerptText(artifact, t);
     // An acceptance round ingested with `--requirement "$VAR"` carries no readable title; name the report instead of
     // promoting `Round N` to the headline.
     const title =
@@ -66,8 +69,8 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
         <button
             aria-label={t('agentChat.tracker.cardLabel', {
                 action: label,
-                title: title ?? artifact.reference,
-                reference: artifact.reference,
+                title: title ?? reference,
+                reference,
             })}
             className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
             data-agent-chat-tracker={artifact.provider}
@@ -83,18 +86,16 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex min-w-0 items-baseline gap-2">
                     <span className="min-w-0 shrink truncate text-[13px] leading-5 text-foreground">
-                        {title ?? artifact.reference}
+                        {title ?? reference}
                     </span>
                     {title && (
                         <span className="shrink-0 font-mono text-[11px] text-muted">
-                            {artifact.reference}
+                            {reference}
                         </span>
                     )}
                 </span>
-                {artifact.excerpt && (
-                    <span className="truncate text-[12px] leading-5 text-muted">
-                        {artifact.excerpt}
-                    </span>
+                {excerpt && (
+                    <span className="truncate text-[12px] leading-5 text-muted">{excerpt}</span>
                 )}
             </span>
             <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted">

@@ -14,7 +14,7 @@ observeWindowActive();
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>
-        <I18nProvider preference={undefined}>
+        <I18nProvider>
             <ErrorBoundary
                 titleKey="core.errorBoundary.processExplorer.title"
                 descriptionKey="core.errorBoundary.processExplorer.description"

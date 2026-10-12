@@ -335,12 +335,9 @@ export function AgentChatPane({
             />
             <AgentChatComposer
                 activeTurnId={snapshot?.activeTurnId}
-                activity={agentChatActivity(
-                    snapshot,
-                    providerName,
-                    { hasConversation: Boolean(terminal?.agentSessionId) },
-                    t,
-                )}
+                activity={agentChatActivity(snapshot, providerName, {
+                    hasConversation: Boolean(terminal?.agentSessionId),
+                })}
                 canSaveProjectDefault={canSaveProjectDefault}
                 sendBlock={agentChatSendBlock(snapshot, processState)}
                 commands={snapshot?.commands}

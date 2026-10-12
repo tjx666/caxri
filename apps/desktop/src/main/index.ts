@@ -53,6 +53,7 @@ import { createMainEventRelay } from './event-relay';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
+import { setMainLanguage } from './locale';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
 import { createMenuRefreshController, createMenuStateLoader } from './menu-refresh';
@@ -558,6 +559,7 @@ if (ownsProfileInstance) {
     app.whenReady()
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .then(async () => {
+            setMainLanguage(null, [app.getLocale()]); // Dialogs shown before the first menu read follow the system.
             if (
                 shouldEnableAcceptanceAccessibility({
                     environment: process.env,
