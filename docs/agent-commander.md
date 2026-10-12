@@ -281,6 +281,15 @@ Session and back; the choice is remembered in the window's local storage
 `Commander`. The Server's board, and `caxri commander board`, always cover every Session, so the
 Commander itself still sees the whole Workbench.
 
+The title bar's **Sessions** toggle, left of **Needs you**, collapses the board column so the
+Terminal takes its width, for example to read the Terminal beside the Inbox in a medium-width
+window: with the board open the Inbox becomes a drawer over the Terminal below 1080px, and with it
+collapsed only below 720px. The column has a fixed width and no resize edge, so open or collapsed
+is the only state, and it is remembered in the window's local storage (`commander-board-store.ts`).
+A collapsed board stops polling until it opens again. Neither toggle has a keyboard shortcut: the
+window's keyboard reaches only the Terminal's own commands (see
+[Window and Desktop Main](#window-and-desktop-main)).
+
 Each row favors icons over words so the Project name keeps its width. The first line holds the
 activity glyph (a live turn draws the PrimarySidebar's monochrome running arc in `--muted`, not a
 green spinner, so the same Session reads the same in both windows and a board of busy Agents does
