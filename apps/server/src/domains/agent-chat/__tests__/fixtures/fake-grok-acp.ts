@@ -16,8 +16,9 @@
  * `session/set_model` switches between the two listed models.
  *
  * An `_x.ai/interject` during `slow` is quoted in the rest of the reply. Sessions persist to `FAKE_GROK_STATE_DIR` (or
- * the OS temp directory) as their update list, so `session/load` replays real history. Each session open appends its
- * method and the process arguments to `session-opens.jsonl` there, so tests can assert what Caxri asked for.
+ * the OS temp directory) as their update list, so `session/load` replays real history, one merged `tool_call` frame per
+ * tool call like Grok Build (`fake-grok-replay.ts`). Each session open appends its method and the process arguments to
+ * `session-opens.jsonl` there, so tests can assert what Caxri asked for.
  *
  * Mirrors the shapes a real Grok Build 1.0.50 agent emitted in a content-free protocol probe: `_meta.availableCommands`
  * on `initialize`, `_x.ai/*` process notifications, replayed frames marked `_meta.isReplay` with their original
@@ -30,7 +31,11 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 
+import type { StoredFrame } from './fake-grok-replay.ts';
+import { replayFrames } from './fake-grok-replay.ts';
 import { forkSession, rewindExecute, rewindPoints } from './fake-grok-rewind.ts';
+import type { FakeGrokTurn, PromptState } from './fake-grok-tools.ts';
+import { askQuestions, delay, wasPatchApproved, wasShellCallApproved } from './fake-grok-tools.ts';
 
 interface RpcMessage {
     id?: number | string;
@@ -38,21 +43,9 @@ interface RpcMessage {
     params?: Record<string, unknown>;
     result?: unknown;
 }
-interface StoredFrame {
-    method: string;
-    update: Record<string, unknown>;
-    /**
-     * When the frame was emitted, replayed as `_meta.agentTimestampMs` like Grok Build's own records.
-     */
-    at?: number;
-}
 interface FakeSession {
     id: string;
     frames: StoredFrame[];
-}
-interface PromptState {
-    cancelled: boolean;
-    interjections: string[];
 }
 
 if (process.argv.includes('--version')) {
@@ -124,9 +117,6 @@ function update(sessionUpdate: Record<string, unknown>) {
     session.frames.push({ method: 'session/update', update: sessionUpdate, at: Date.now() });
     send({ method: 'session/update', params: { sessionId: session.id, update: sessionUpdate } });
 }
-function delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
 function request(method: string, parameters: Record<string, unknown>): Promise<unknown> {
     const id = state.nextRequestId++;
     return new Promise((resolve) => {
@@ -158,170 +148,11 @@ async function streamText(
     }
 }
 
-async function wasShellCallApproved(
-    command: string,
-    isApprovalRequired: boolean,
-): Promise<boolean> {
-    const session = currentSession();
-    const toolCallId = `call-${crypto.randomUUID()}`;
-    const rawInput = { variant: 'Bash', command, description: `Run ${command}` };
-    update({
-        sessionUpdate: 'tool_call',
-        toolCallId,
-        title: 'Bash',
-        kind: 'other',
-        status: 'pending',
-        rawInput,
-    });
-    update({
-        sessionUpdate: 'tool_call_update',
-        toolCallId,
-        title: `Execute \`${command}\``,
-        kind: 'execute',
-        rawInput,
-        content: [{ type: 'content', content: { type: 'text', text: `Run ${command}` } }],
-    });
-    if (isApprovalRequired) {
-        const result = (await request('session/request_permission', {
-            sessionId: session.id,
-            toolCall: { toolCallId, title: `Execute \`${command}\``, kind: 'execute', rawInput },
-            options: [
-                { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
-                { optionId: 'always-allow', name: 'Always allow', kind: 'allow_always' },
-                { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
-            ],
-        })) as { outcome?: { outcome?: string; optionId?: string } };
-        // A `cancelled` outcome stops the turn, whether or not `session/cancel` has arrived yet.
-        if (result.outcome?.outcome === 'cancelled' && state.prompt) state.prompt.cancelled = true;
-        if (
-            result.outcome?.optionId !== 'allow-once' &&
-            result.outcome?.optionId !== 'always-allow'
-        ) {
-            update({
-                sessionUpdate: 'tool_call_update',
-                toolCallId,
-                status: 'failed',
-                content: rejectedContent('run_terminal_command'),
-            });
-            return false;
-        }
-    }
-    update({ sessionUpdate: 'tool_call_update', toolCallId, status: 'in_progress' });
-    update({
-        sessionUpdate: 'tool_call_update',
-        toolCallId,
-        status: 'completed',
-        content: [{ type: 'content', content: { type: 'text', text: `${command}: ok` } }],
-    });
-    return true;
-}
-
-/**
- * The content Grok Build reports for a tool call the user rejected, live and again in its `session/load` replay, where
- * the call's status is `failed` like a call that broke. Verified against Grok Build 1.0.50 for `run_terminal_command`;
- * the file-edit tool's name is this fixture's stand-in.
- */
-function rejectedContent(tool: string): unknown[] {
-    return [
-        {
-            type: 'content',
-            content: { type: 'text', text: `User rejected the execution for tool \`${tool}\`` },
-        },
-    ];
-}
-
-async function wasPatchApproved(): Promise<boolean> {
-    const session = currentSession();
-    const toolCallId = `call-${crypto.randomUUID()}`;
-    const diff = {
-        type: 'diff',
-        path: path.join(process.cwd(), 'src', 'app.ts'),
-        oldText: 'const value = 1;\n',
-        newText: 'const value = 2;\n',
-    };
-    update({
-        sessionUpdate: 'tool_call',
-        toolCallId,
-        title: 'Edit',
-        kind: 'other',
-        status: 'pending',
-        rawInput: {},
-    });
-    update({
-        sessionUpdate: 'tool_call_update',
-        toolCallId,
-        title: 'Edit src/app.ts',
-        kind: 'edit',
-        content: [diff],
-    });
-    const result = (await request('session/request_permission', {
-        sessionId: session.id,
-        toolCall: { toolCallId, kind: 'edit', content: [diff] },
-        options: [
-            { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
-            { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
-        ],
-    })) as { outcome?: { optionId?: string } };
-    const isAccepted = result.outcome?.optionId === 'allow-once';
-    update({
-        sessionUpdate: 'tool_call_update',
-        toolCallId,
-        status: isAccepted ? 'completed' : 'failed',
-        ...(!isAccepted && { content: rejectedContent('search_replace') }),
-    });
-    return isAccepted;
-}
-
-/**
- * Asks Grok Build's extension question and resolves with its answers, or `undefined` once the turn is cancelled: Grok
- * Build stops the turn on `session/cancel` and ignores a later answer.
- */
-async function askQuestions(): Promise<Record<string, unknown> | undefined> {
-    const session = currentSession();
-    const answer = request('_x.ai/ask_user_question', {
-        sessionId: session.id,
-        toolCallId: `call-${crypto.randomUUID()}`,
-        questions: [
-            {
-                question: 'Which color?',
-                options: [
-                    { label: 'Red', description: 'Warm' },
-                    { label: 'Blue', description: 'Cool' },
-                ],
-                multiSelect: false,
-            },
-            {
-                question: 'Which sizes?',
-                options: [
-                    { label: 'Small', description: '' },
-                    { label: 'Large', description: '' },
-                ],
-                multiSelect: true,
-            },
-        ],
-        mode: 'default',
-    }) as Promise<{ outcome?: string; answers?: Record<string, unknown> }>;
-    const cancelled = new Promise<undefined>((resolve) => {
-        const timer = setInterval(() => {
-            if (!state.prompt?.cancelled) return;
-            clearInterval(timer);
-            resolve(undefined);
-        }, 20);
-        // eslint-disable-next-line no-void -- the poll only needs to stop once the answer arrives
-        void answer.then(() => clearInterval(timer));
-    });
-    const result = await Promise.race([answer, cancelled]);
-    if (!result) return undefined;
-    if (result.outcome === 'accepted') return result.answers ?? {};
-    // Caxri answers `cancelled` just before `session/cancel` when the user stops the turn.
-    await delay(50);
-    return state.prompt?.cancelled ? undefined : {};
-}
-
 async function runPrompt(id: number | string | undefined, text: string) {
     const session = currentSession();
     const prompt: PromptState = { cancelled: false, interjections: [] };
     state.prompt = prompt;
+    const turn: FakeGrokTurn = { sessionId: session.id, prompt, update, request };
     session.frames.push({
         method: 'session/update',
         update: { sessionUpdate: 'user_message_chunk', content: { type: 'text', text } },
@@ -366,7 +197,7 @@ async function runPrompt(id: number | string | undefined, text: string) {
     }
     await streamText('agent_thought_chunk', 'Thinking about the request.');
     if (text.includes('approve')) {
-        const ran = await wasShellCallApproved('npm test', true);
+        const ran = await wasShellCallApproved(turn, 'npm test', true);
         await streamText(
             'agent_message_chunk',
             ran ? 'The command ran.' : 'The command was declined.',
@@ -376,7 +207,7 @@ async function runPrompt(id: number | string | undefined, text: string) {
         return;
     }
     if (text.includes('question')) {
-        const answers = await askQuestions();
+        const answers = await askQuestions(turn);
         if (!answers) {
             finish('cancelled');
             return;
@@ -391,7 +222,7 @@ async function runPrompt(id: number | string | undefined, text: string) {
         return;
     }
     if (text.includes('patch')) {
-        const applied = await wasPatchApproved();
+        const applied = await wasPatchApproved(turn);
         await streamText(
             'agent_message_chunk',
             applied ? 'The edit was applied.' : 'The edit was declined.',
@@ -400,7 +231,7 @@ async function runPrompt(id: number | string | undefined, text: string) {
         return;
     }
     if (text.includes('slow')) {
-        await wasShellCallApproved('sleep 1', false);
+        await wasShellCallApproved(turn, 'sleep 1', false);
         for (let index = 0; index < 200 && !prompt.cancelled; index += 1) {
             const heard = prompt.interjections.shift();
             // eslint-disable-next-line no-await-in-loop -- the turn streams until it is cancelled
@@ -510,7 +341,7 @@ function handle(message: RpcMessage) {
             const stored = JSON.parse(
                 fs.readFileSync(sessionPath(sessionId), 'utf8'),
             ) as FakeSession;
-            for (const frame of stored.frames)
+            for (const frame of replayFrames(stored.frames))
                 send({
                     method: frame.method,
                     params: {
