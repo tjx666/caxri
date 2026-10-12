@@ -1,6 +1,6 @@
 import { createContext } from 'react';
 
-import { escapeRegExp } from 'es-toolkit';
+import { escapeRegExp, throttle } from 'es-toolkit';
 
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 
@@ -93,6 +93,30 @@ export function isAgentChatTurnFoldMatch(
  * match.
  */
 export const AgentChatFindQueryContext = createContext('');
+
+/**
+ * The shortest gap between two find repaints that conversation DOM changes trigger. Every repaint walks all of the
+ * conversation's text and rebuilds every match range, and a streaming reply changes the DOM many times a second, so a
+ * long conversation repaints at most this often while it streams instead of on every frame.
+ */
+export const AGENT_CHAT_FIND_REPAINT_INTERVAL_MS = 250;
+
+/**
+ * Coalesces the find repaints that conversation DOM changes ask for. The first change after a quiet spell repaints at
+ * once, so an opened fold shows its matches without delay; a run of changes, such as a streaming reply, repaints at
+ * most once per {@link AGENT_CHAT_FIND_REPAINT_INTERVAL_MS} plus once after the last change, so the final text is always
+ * searched. Typing a query and stepping through matches repaint directly and never wait for it.
+ */
+export function createAgentChatFindRepaintScheduler(repaint: () => void): {
+    schedule: () => void;
+    cancel: () => void;
+} {
+    const throttled = throttle(repaint, AGENT_CHAT_FIND_REPAINT_INTERVAL_MS);
+    return {
+        schedule: () => throttled(),
+        cancel: () => throttled.cancel(),
+    };
+}
 
 /**
  * Elements whose text is not what the reader sees: screen-reader-only labels, folded or hidden content, icons, and

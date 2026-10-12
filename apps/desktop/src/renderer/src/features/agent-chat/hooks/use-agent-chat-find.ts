@@ -9,7 +9,11 @@ import {
 } from 'react';
 
 import { registerTerminalSearchHandler } from '../../terminal/terminal-search';
-import { collectAgentChatFindRanges, stepAgentChatFindIndex } from '../agent-chat-find';
+import {
+    collectAgentChatFindRanges,
+    createAgentChatFindRepaintScheduler,
+    stepAgentChatFindIndex,
+} from '../agent-chat-find';
 import {
     clearAgentChatFindHighlights,
     setAgentChatFindHighlights,
@@ -137,7 +141,8 @@ function paintFind({
  * Find in a Chat: `Cmd+F` (the Terminal's own find command, which reaches the Chat a Terminal shows) opens the bar,
  * every occurrence of the query in the visible conversation is highlighted, and Enter steps through them, scrolling
  * each into view. Matches are recomputed as the conversation streams or a fold opens, keeping the current one by
- * position.
+ * position; a streaming reply repaints them at most every `AGENT_CHAT_FIND_REPAINT_INTERVAL_MS`, since each repaint
+ * walks the whole conversation.
  */
 export function useAgentChatFind({
     terminalId,
@@ -188,25 +193,21 @@ export function useAgentChatFind({
     useEffect(() => {
         const content = contentReference.current;
         if (!content || !searched) return;
-        let frame: number | undefined;
-        const observer = new MutationObserver(() => {
-            if (frame !== undefined) return;
-            frame = requestAnimationFrame(() => {
-                frame = undefined;
-                paintFind({
-                    content,
-                    view: scrollReference.current,
-                    owner,
-                    query: searched,
-                    session,
-                    stopFollowing,
-                });
-            });
-        });
+        const repaints = createAgentChatFindRepaintScheduler(() =>
+            paintFind({
+                content,
+                view: scrollReference.current,
+                owner,
+                query: searched,
+                session,
+                stopFollowing,
+            }),
+        );
+        const observer = new MutationObserver(repaints.schedule);
         observer.observe(content, { characterData: true, childList: true, subtree: true });
         return () => {
             observer.disconnect();
-            if (frame !== undefined) cancelAnimationFrame(frame);
+            repaints.cancel();
         };
     }, [contentReference, owner, scrollReference, searched, session, stopFollowing]);
     useEffect(() => () => clearAgentChatFindHighlights(owner), [owner]);

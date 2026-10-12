@@ -622,9 +622,12 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   two blocks. The bar counts `i/N`; Enter and Shift+Enter step with wraparound and scroll the
   current match to a third of the view, which stops following new output. A new query starts at
   the first match on screen rather than the top of the conversation. Matches are recomputed as a
-  reply streams without moving the view. A finished turn folded behind `Worked for` opens when one
-  of its messages mentions a query of three or more characters, since folded content is not in the
-  DOM, and folds back when a refined query stops matching. Escape closes the
+  reply streams without moving the view: each recompute walks the whole conversation, so the first
+  DOM change after a quiet spell repaints at once and a streaming reply repaints at most every
+  250 ms plus once after its last change (`createAgentChatFindRepaintScheduler` in
+  `agent-chat-find.ts`); typing and stepping repaint immediately. A finished turn folded behind
+  `Worked for` opens when one of its messages mentions a query of three or more characters, since
+  folded content is not in the DOM, and folds back when a refined query stops matching. Escape closes the
   bar, clears the highlights, leaves opened turns open, and returns focus to the composer. Times in
   a message's hover row are not searched, since they are invisible until hovered. Find does not read tool output
   inside a collapsed work row, earlier messages the window has truncated, or regular expressions.
