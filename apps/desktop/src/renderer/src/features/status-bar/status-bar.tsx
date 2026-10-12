@@ -19,7 +19,7 @@ import { useWorkbenchStore } from '../../stores/workbench';
 import { NotificationCenter } from '../toasts/notification-center';
 import { useActivePaneTab } from '../workbench/pane-actions';
 import { ActiveFileStatus } from './active-file-status';
-import { shouldShowActiveFileStatus } from './active-file-status-target';
+import { activeFileStatusTier } from './active-file-status-target';
 import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
@@ -133,15 +133,14 @@ function ActivePaneStatus({
 }) {
     const session = useSelectedSession();
     const activeResource = useActivePaneTab()?.resource;
-    if (
-        session &&
-        activeResource?.kind === 'file' &&
-        shouldShowActiveFileStatus(activeResource.path)
-    )
+    const fileStatusTier =
+        activeResource?.kind === 'file' ? activeFileStatusTier(activeResource.path) : 'hidden';
+    if (fileStatusTier !== 'hidden' && session && activeResource?.kind === 'file')
         return (
             <ActiveFileStatus
                 sessionId={session.id}
                 path={activeResource.path}
+                tier={fileStatusTier}
                 workbenchProjectId={session.workbenchProjectId}
             />
         );
