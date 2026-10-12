@@ -432,6 +432,10 @@ export const logEventCatalog = {
         versionMismatch: 'server_connection.version_mismatch',
     },
     serverCore: {
+        /**
+         * The Agent CLI launcher (`<userData>/bin/caxri`) could not be written, so managed Agents get no `CAXRI_CLI`.
+         */
+        cliLauncherFailed: 'server_core.cli_launcher_failed',
         clientCount: 'server_core.client_count',
         commandReceipt: 'server_core.command_receipt',
         desktopLeaseGraceEntered: 'server_core.desktop_lease_grace_entered',
