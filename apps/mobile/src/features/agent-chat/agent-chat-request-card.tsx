@@ -333,19 +333,24 @@ const QuestionContent = ({
     const [questionIndex, setQuestionIndex] = useState(0);
     const { answers } = agentChatQuestionAnswers(request, selected, other);
     const question = request.questions.at(questionIndex);
+    const send = (nextAnswers: Record<string, string[]>): void => {
+        // eslint-disable-next-line no-void -- The card reports a failed answer itself.
+        void actions.respond('agent-chat-question-submit', {
+            kind: 'answers',
+            answers: nextAnswers,
+        });
+    };
+    /**
+     * A tap answers, as in the Codex app: it moves on to the next unanswered question, and answering the last one sends
+     * the card, so a single question needs one tap. A device that cannot answer only moves the selection.
+     */
     const answer = (id: string, value: string): void => {
         const nextSelected = { ...selected, [id]: value };
         setSelected(nextSelected);
-        /*
-         * A tap answers and moves on to the next unanswered question, as the Codex app does. Sending stays with Submit,
-         * so a stray tap on a phone never sends the card.
-         */
-        const next = agentChatNextUnansweredQuestion(
-            request,
-            agentChatQuestionAnswers(request, nextSelected, other).answers,
-            questionIndex,
-        );
+        const nextAnswers = agentChatQuestionAnswers(request, nextSelected, other).answers;
+        const next = agentChatNextUnansweredQuestion(request, nextAnswers, questionIndex);
         if (next !== undefined) setQuestionIndex(next);
+        else if (actions.isShowsActions && !actions.isDisabled) send(nextAnswers);
     };
     return (
         <>
@@ -391,13 +396,7 @@ const QuestionContent = ({
                         disabled={actions.isDisabled || Object.keys(answers).length === 0}
                         isPending={actions.pendingAction === 'agent-chat-question-submit'}
                         label="Submit"
-                        onPress={() => {
-                            // eslint-disable-next-line no-void -- The card reports a failed answer itself.
-                            void actions.respond('agent-chat-question-submit', {
-                                kind: 'answers',
-                                answers,
-                            });
-                        }}
+                        onPress={() => send(answers)}
                         testID="agent-chat-question-submit"
                         theme={theme}
                         tone="primary"
