@@ -43,11 +43,13 @@ test('a Codex Chat open in another Codex client says so and resumes once release
         const crashed = chat.getByRole('alert').filter({ hasText: 'Codex stopped unexpectedly' });
         await expect(crashed).toBeVisible();
         await crashed.getByRole('button', { name: 'Retry' }).click();
-        const inUse = chat.getByRole('alert').filter({
+        // A conversation held by another client is a state, not a fault: it reads as a polite `status`, not an `alert`.
+        const inUse = chat.getByRole('status').filter({
             hasText: 'This conversation is open in another Codex app or window.',
         });
         await expect(inUse).toBeVisible();
-        await expect(inUse).toContainText('Another Codex client is using this conversation');
+        await expect(inUse).toContainText('Close it there, then retry.');
+        await expect(chat.getByRole('alert')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-conversation-in-use.png') });
 
         // Closing it in the other client and retrying resumes the same conversation here.

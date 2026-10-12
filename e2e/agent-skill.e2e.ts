@@ -218,7 +218,10 @@ process.stdin.resume();
             'Use a Caxri CLI that supports installed marker schema 99',
         );
         const globalSkill = codexSkill.locator('[data-agent-skill-scope="global"]');
-        await expect(globalSkill).toContainText('Global · Missing · not installed');
+        await expect(globalSkill).toContainText('Global · Not installed');
+        await expect(globalSkill).toContainText(
+            'Install the bundled skill into this explicit Provider scope.',
+        );
         await expect(globalSkill.locator('code')).toHaveText(
             'caxri skills install caxri-cli --provider codex --global --yes',
         );
