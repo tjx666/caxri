@@ -449,7 +449,7 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         const message = chat.getByRole('textbox', { name: 'Message' });
         await expect(message).toHaveAttribute('placeholder', 'Message Claude');
         // Files can be picked as well as pasted or dropped (`agent-chat-input.e2e.ts` covers what a pick does).
-        await expect(chat.getByRole('button', { name: 'Attach files' })).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Add files and more' })).toBeVisible();
         // Claude Code names its model only in a turn's init, so the picker reads as the default until then, but the
         // effort it will apply is known as soon as it starts.
         await expect(

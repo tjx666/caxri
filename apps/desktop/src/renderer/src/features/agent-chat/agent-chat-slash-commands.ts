@@ -139,3 +139,23 @@ export function agentChatLeadingInvocation(
     const invocation = match?.[1];
     return invocation ? { invocation, rest: text.slice(invocation.length) } : undefined;
 }
+
+/**
+ * The provider's goal command (Codex's `/goal`), which the composer's Add menu offers as Goal only when the provider
+ * reports it.
+ */
+const GOAL_COMMAND = 'goal';
+
+export function isAgentChatGoalOffered(commands: readonly AgentChatCommand[] | undefined): boolean {
+    return commands?.some((command) => command.name === GOAL_COMMAND) === true;
+}
+
+/**
+ * The draft with Goal chosen from the Add menu: what is typed becomes the goal's text, as Synara's Codex-style menu
+ * does, and a draft that already starts with `/goal` stays as it is.
+ */
+export function agentChatGoalDraft(draft: string): string {
+    const text = draft.trimStart();
+    if (new RegExp(String.raw`^/${GOAL_COMMAND}(?:\s|$)`, 'u').test(text)) return draft;
+    return `/${GOAL_COMMAND} ${text}`;
+}

@@ -8,7 +8,11 @@ import {
     agentChatLocalizedEditedFilesTitle,
 } from '../agent-chat-diff-labels';
 import { agentChatActivity, agentChatItemStatusLabel } from '../agent-chat-presentation';
-import { describeAgentChatWork, summarizeAgentChatWork } from '../agent-chat-timeline';
+import {
+    agentChatTurnLabel,
+    describeAgentChatWork,
+    summarizeAgentChatWork,
+} from '../agent-chat-timeline';
 import { trackerExcerptText, trackerReferenceText } from '../agent-chat-tracker-labels';
 
 const translateIn =
@@ -19,6 +23,22 @@ const translateIn =
     };
 
 describe('Desktop Agent Chat labels over the shared English rules', () => {
+    it("writes a turn duration in the language's own units, as the Codex app does", () => {
+        const zh = translateIn('zh-CN');
+        expect(agentChatTurnLabel({ status: 'completed', durationMs: 93_000 }, zh)).toBe(
+            '用时 1分钟 33秒',
+        );
+        expect(agentChatTurnLabel({ status: 'completed', durationMs: 120_000 }, zh)).toBe(
+            '用时 2分钟',
+        );
+        expect(agentChatTurnLabel({ status: 'completed', durationMs: 40_000 }, zh)).toBe(
+            '用时 40秒',
+        );
+        expect(
+            agentChatTurnLabel({ status: 'completed', durationMs: 93_000 }, translateIn('en')),
+        ).toBe('Worked for 1m 33s');
+    });
+
     it('localizes an acceptance round and check count when the card renders', () => {
         const artifact = {
             provider: 'lobehub',

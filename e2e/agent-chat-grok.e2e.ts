@@ -64,13 +64,11 @@ test('a Grok Build Chat streams a reply, answers an approval and a question, swi
         ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('grok-chat-question-answered.png') });
 
+        // A model without effort control opens straight on the model list.
         await picker.click();
-        const menu = page.getByRole('menu');
-        await expect(menu.getByRole('menuitemradio')).toHaveText([
-            'Grok Fake',
-            /Grok Fake Fast\s*Faster replies/,
-        ]);
-        await menu.getByRole('menuitemradio', { name: /Grok Fake Fast/ }).click();
+        const list = page.getByRole('dialog');
+        await expect(list.getByRole('radio')).toHaveText(['Grok Fake', 'Grok Fake Fast']);
+        await list.getByRole('radio', { name: 'Grok Fake Fast' }).click();
         await expect(picker).toHaveAccessibleName('Model: Grok Fake Fast');
         await page.keyboard.press('Escape');
         await message.fill('which model');

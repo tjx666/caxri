@@ -17,7 +17,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     // Project tree
     'primarySidebar.tree.ariaLabel': '主侧边栏',
     'primarySidebar.tree.addFirstProject': '添加第一个项目',
-    'primarySidebar.reveal.showMore': '再显示 {{count}} 个',
+    'primarySidebar.reveal.showMore': '展开显示',
     'primarySidebar.project.collapse': '折叠 {{title}}',
     'primarySidebar.project.expand': '展开 {{title}}',
     'primarySidebar.project.actionsHint': '按 Shift+F10 打开项目操作',

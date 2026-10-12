@@ -33,46 +33,41 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         const picker = chat.getByRole('button', { name: /^Model: / });
         await expect(picker).toHaveAccessibleName('Model: Fake Codex, Medium effort');
 
+        // The picker opens on the effort: a slider with one stop per effort, titled with the effort over the model.
         await picker.click();
-        const menu = page.getByRole('menu');
-        await expect(menu.getByRole('menuitemradio')).toHaveText([
-            /Fake Codex\s*The default fake model/,
-            /Fake Codex Mini/,
-            'Low',
-            /MediumDefault/,
-            'High',
-        ]);
-        await expect(menu.getByRole('menuitemradio', { name: 'Medium' })).toBeChecked();
+        const panel = page.getByRole('dialog');
+        const effort = panel.getByRole('slider', { name: 'Reasoning effort' });
+        await expect(effort).toHaveAttribute('aria-valuetext', 'Medium');
+        await expect(picker).toHaveText(/Choose effort/u);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-model-menu.png') });
-        await menu.getByRole('menuitemradio', { name: 'High' }).click();
+        await effort.press('ArrowRight');
         await expect(picker).toHaveAccessibleName('Model: Fake Codex, High effort');
-        // Choosing an effort completes the selection and closes the menu.
-        await expect(menu).toBeHidden();
-        // Fast mode is a toggle below the efforts, described in Codex's own words, and reads as a word on the trigger.
-        await picker.click();
-        const fast = menu.getByRole('menuitemcheckbox', { name: /Fast/u });
-        await expect(fast).toHaveText(/Fast\s*1\.5x speed, increased usage/u);
-        await expect(fast).not.toBeChecked();
+        // Changing the effort keeps the panel open; Fast mode is a bolt toggle in its header.
+        const fast = panel.getByRole('button', { name: 'Fast', exact: true });
+        await expect(fast).toHaveAttribute('aria-pressed', 'false');
         await fast.click();
-        await expect(fast).toBeChecked();
+        await expect(fast).toHaveAttribute('aria-pressed', 'true');
         await page.screenshot({ path: testInfo.outputPath('codex-chat-fast-menu.png') });
         await page.keyboard.press('Escape');
+        await expect(panel).toBeHidden();
         await expect(picker).toHaveAccessibleName('Model: Fake Codex, High effort, Fast mode on');
-        await expect(picker).toHaveText(/Fast/u);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-fast-trigger.png') });
-        // A model choice keeps the menu open, so the new model's efforts show in place; a model without Fast mode
-        // turns it off and drops the toggle.
+        // The model name opens the model list; a model without Fast mode turns it off and drops the toggle, and
+        // choosing a model with an effort returns to the effort panel.
         await picker.click();
-        await menu.getByRole('menuitemradio', { name: /Fake Codex Mini/ }).click();
+        await panel.getByRole('button', { name: 'Fake Codex, choose model' }).click();
+        await expect(panel.getByRole('radio')).toHaveText(['Fake Codex', 'Fake Codex Mini']);
+        await expect(panel.getByRole('radio', { name: 'Fake Codex', exact: true })).toBeChecked();
+        await panel.getByRole('radio', { name: 'Fake Codex Mini' }).click();
         await expect(picker).toHaveAccessibleName('Model: Fake Codex Mini, Low effort');
+        // Its one effort leaves nothing to slide between, so the panel keeps only its header.
+        await expect(
+            panel.getByRole('button', { name: 'Fake Codex Mini, choose model' }),
+        ).toBeVisible();
+        await expect(effort).toHaveCount(0);
         await expect(fast).toHaveCount(0);
-        await expect(menu.getByRole('menuitemradio')).toHaveText([
-            /Fake Codex\s*The default fake model/,
-            /Fake Codex Mini/,
-            /LowDefault/,
-        ]);
         await page.keyboard.press('Escape');
-        await expect(menu).toBeHidden();
+        await expect(panel).toBeHidden();
 
         // A running turn shows its status row in the strip on top of the composer card, not inside it.
         await message.fill('slow please');
@@ -136,14 +131,15 @@ test('a Claude Chat turns ultracode on beside the effort and keeps it through an
 
         const picker = chat.getByRole('button', { name: /^Model: / });
         await picker.click();
-        const menu = page.getByRole('menu');
-        const ultracode = menu.getByRole('menuitemcheckbox', { name: /Ultracode/u });
-        await expect(ultracode).not.toBeChecked();
+        const panel = page.getByRole('dialog');
+        const ultracode = panel.getByRole('button', { name: 'Ultracode', exact: true });
+        await expect(ultracode).toHaveAttribute('aria-pressed', 'false');
         await ultracode.click();
-        await expect(ultracode).toBeChecked();
-        await menu.getByRole('menuitemradio', { name: 'High' }).click();
-        await expect(menu.getByRole('menuitemradio', { name: 'High' })).toBeChecked();
-        await expect(ultracode).toBeChecked();
+        await expect(ultracode).toHaveAttribute('aria-pressed', 'true');
+        const effort = panel.getByRole('slider', { name: 'Reasoning effort' });
+        await effort.press('ArrowRight');
+        await expect(effort).toHaveAttribute('aria-valuetext', 'High');
+        await expect(ultracode).toHaveAttribute('aria-pressed', 'true');
         await page.screenshot({ path: testInfo.outputPath('claude-chat-ultracode-menu.png') });
         await page.keyboard.press('Escape');
         await expect(picker).toHaveAccessibleName('Model: Fake, High effort, ultracode on');
