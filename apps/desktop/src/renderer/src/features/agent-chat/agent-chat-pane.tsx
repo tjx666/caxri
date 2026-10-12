@@ -23,7 +23,6 @@ import { AgentChatComposer } from './agent-chat-composer';
 import { AgentChatDock } from './agent-chat-dock';
 import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatFindScope } from './agent-chat-find-scope';
-import { splitAgentChatHistory } from './agent-chat-history';
 import { AgentChatHistoryHead } from './agent-chat-history-head';
 import type { AgentChatHost } from './agent-chat-host';
 import { agentChatHostCapabilities } from './agent-chat-host';
@@ -38,16 +37,10 @@ import {
     agentChatSendBlock,
     isAgentChatBusy,
 } from './agent-chat-presentation';
-import {
-    agentChatRailMarks,
-    isAgentChatMessageRailShown,
-    sampleAgentChatRailMarks,
-} from './agent-chat-rail-marks';
+import { isAgentChatMessageRailShown } from './agent-chat-rail-marks';
 import { announceAgentChatSelectionCopy } from './agent-chat-selection-copy';
-import { agentChatSettledChunks } from './agent-chat-settled-chunks';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
-import { agentChatDayBreaks } from './agent-chat-time';
-import { agentChatTimelineEntryKey, buildAgentChatTimeline } from './agent-chat-timeline';
+import { agentChatTimelineEntryKey } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
@@ -61,6 +54,7 @@ import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
+import { useAgentChatTimelines } from './hooks/use-agent-chat-timelines';
 
 /**
  * The structured surface of a Chat Terminal (ADR 0012): the conversation Server Core projects from the provider's own
@@ -160,53 +154,10 @@ export function AgentChatPane({
         contentReference,
         stopFollowing,
     });
-    const items = snapshot?.items;
-    const turns = snapshot?.turns;
-    const activeTurnId = snapshot?.activeTurnId;
     const olderItems = history.history.items;
-    const olderTurns = history.history.turns;
-    const liveTurnId = items?.[0]?.turnId;
-    const { settled, carried } = useMemo(
-        () => splitAgentChatHistory(olderItems, liveTurnId),
-        [olderItems, liveTurnId],
-    );
-    /**
-     * History read back renders apart from the live projection: it never changes while the conversation streams, so a
-     * patch rebuilds and reconciles only the live part however far back the reader went.
-     */
-    const settledChunks = useMemo(
-        () => agentChatSettledChunks(settled, olderTurns),
-        [settled, olderTurns],
-    );
-    const timeline = useMemo(() => {
-        if (!items || !turns) return [];
-        if (carried.length === 0) return buildAgentChatTimeline(items, turns, activeTurnId);
-        const carriedTurn = olderTurns.find((turn) => turn.id === liveTurnId);
-        return buildAgentChatTimeline(
-            [...carried, ...items],
-            carriedTurn && turns.every((turn) => turn.id !== liveTurnId)
-                ? [carriedTurn, ...turns]
-                : turns,
-            activeTurnId,
-        );
-    }, [items, turns, activeTurnId, carried, olderTurns, liveTurnId]);
-    const dayBreaks = useMemo(
-        () =>
-            agentChatDayBreaks(
-                timeline,
-                settledChunks.findLast((chunk) => chunk.lastDay !== undefined)?.lastDay,
-            ),
-        [timeline, settledChunks],
-    );
-    const railMarks = useMemo(
-        () =>
-            sampleAgentChatRailMarks(
-                agentChatRailMarks([
-                    ...settledChunks.flatMap((chunk) => chunk.entries),
-                    ...timeline,
-                ]),
-            ),
-        [settledChunks, timeline],
+    const { settledChunks, timeline, dayBreaks, railMarks } = useAgentChatTimelines(
+        snapshot,
+        history.history,
     );
     const railMarkIds = useMemo(() => railMarks.map((mark) => mark.id), [railMarks]);
     const rail = useAgentChatMessageRail(scrollReference, contentReference, railMarkIds);
