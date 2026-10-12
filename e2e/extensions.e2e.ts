@@ -126,7 +126,9 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         });
         await expect(fixtureTab).toBeVisible();
         await fixtureTab.click();
-        await expect(running.page.getByText('Loading view…', { exact: true })).toBeVisible();
+        await expect(
+            running.page.getByRole('status', { name: 'Loading view…', exact: true }),
+        ).toBeVisible();
 
         const tree = running.page.getByRole('tree', { name: 'Fixture Tree' });
         const lazy = tree.getByRole('treeitem', { name: 'Lazy children', exact: true });

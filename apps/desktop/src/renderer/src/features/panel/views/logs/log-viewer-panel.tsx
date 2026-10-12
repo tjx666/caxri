@@ -4,6 +4,7 @@ import type { LogLevel, LogProcess, LogQueryRecord } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Trash2, X } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../../../components/loading-skeleton';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import {
@@ -254,11 +255,11 @@ export function LogViewerPanel() {
                 </div>
             )}
             <div ref={scrollReference} className="min-h-0 flex-1 overflow-auto" onScroll={handleScroll}>
-                {visible.length === 0 ? (
+                {visible.length === 0 && stream.isLoading ? (
+                    <LoadingSkeleton variant="document" label="Loading logs…" lines={10} />
+                ) : visible.length === 0 ? (
                     <div className="flex flex-col items-center gap-1 px-3 py-4 text-center text-[12px] text-muted">
-                        {stream.isLoading ? (
-                            'Loading logs…'
-                        ) : hasActiveFilter ? (
+                        {hasActiveFilter ? (
                             <>
                                 <span>No log records match the filter text or level toggles.</span>
                                 <Button size="sm" variant="ghost" onClick={clearFilters}>

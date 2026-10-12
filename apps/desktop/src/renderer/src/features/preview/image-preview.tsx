@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { Skeleton } from '../../components/ui/skeleton';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { documentLoadRecoveryAction, documentReadRecovery } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
@@ -108,7 +109,12 @@ export function ImagePreview({
         <div className="flex h-full min-h-0 flex-col bg-background">
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-6">
                 {state.status === 'loading' ? (
-                    <span className="text-muted">{PREVIEW_LOADING_LABEL}</span>
+                    <Skeleton
+                        className="h-full max-h-80 w-full max-w-120"
+                        role="status"
+                        aria-hidden={false}
+                        aria-label={PREVIEW_LOADING_LABEL}
+                    />
                 ) : (
                     <img
                         className="caxri-image-preview-canvas max-h-full max-w-full object-contain"

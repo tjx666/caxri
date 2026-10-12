@@ -4,7 +4,7 @@ import type { FileSearchMatch } from '@caxri/protocol';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
-import { Spinner } from '../../components/ui/spinner';
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
@@ -63,9 +63,12 @@ export function ProjectSearchPreview({
     if (!match) return <PreviewMessage>Select a result to preview it.</PreviewMessage>;
     if (!previewed || document.isPending)
         return (
-            <PreviewMessage>
-                <Spinner size={16} />
-            </PreviewMessage>
+            <LoadingSkeleton
+                variant="document"
+                className="min-h-0 flex-1"
+                label="Loading preview…"
+                lines={9}
+            />
         );
     if (document.isError) return <PreviewMessage>Unable to read this file.</PreviewMessage>;
     const name = previewed.relativePath.split('/').at(-1) ?? previewed.relativePath;

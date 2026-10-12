@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react';
 
 import { useEditorOptions } from '@/hooks/use-editor-options';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { useCaxriQuery } from '../../queries/client';
@@ -30,7 +31,7 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
     });
     const follow = useAgentTranscriptFollow(query.data?.path ?? tab.terminalId);
     if (!theme) return null;
-    if (query.isPending) return <div className={emptyWorkClassName}>Loading transcript…</div>;
+    if (query.isPending) return <LoadingSkeleton variant="document" label="Loading transcript…" />;
     if (query.isError)
         return (
             <div className={emptyWorkDangerClassName}>

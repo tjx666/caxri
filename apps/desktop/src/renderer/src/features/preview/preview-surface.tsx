@@ -6,6 +6,7 @@ import { isExternalEditorTabPath, parseExternalEditorTab } from '@caxri/protocol
 import type { EditorDocument } from '@desktop-shared/editor-state';
 
 import { executeCommand } from '../../commands/execute';
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useResourceLoad } from '../../hooks/use-resource-load';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { useProjectById, useTheme } from '../../stores/selectors';
@@ -83,7 +84,7 @@ function TextPreviewSurface({
                 {...documentLoadRecoveryAction(documentReadRecovery(failure.error), path, retry)}
             />
         ) : (
-            <div className={emptyWorkClassName}>{PREVIEW_LOADING_LABEL}</div>
+            <LoadingSkeleton variant="document" label={PREVIEW_LOADING_LABEL} />
         );
     return children(document);
 }
@@ -164,7 +165,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
         case 'table': {
             return textSurface((document) => (
                 <Suspense
-                    fallback={<div className={emptyWorkClassName}>{PREVIEW_LOADING_LABEL}</div>}
+                    fallback={<LoadingSkeleton variant="document" label={PREVIEW_LOADING_LABEL} />}
                 >
                     <CsvPreview
                         path={tab.path}
@@ -177,7 +178,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
         case 'pdf': {
             return (
                 <Suspense
-                    fallback={<div className={emptyWorkClassName}>{PREVIEW_LOADING_LABEL}</div>}
+                    fallback={<LoadingSkeleton variant="document" label={PREVIEW_LOADING_LABEL} />}
                 >
                     <PdfPreview
                         path={tab.path}
