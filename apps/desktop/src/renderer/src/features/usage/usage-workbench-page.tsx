@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 
-import type { AgentProvider, UsageRange, UsageReport, UsageScope } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    UsageRange,
+    UsageReport,
+    UsageScope,
+    UsageSessionRow,
+} from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { ChartColumn, RefreshCw, X } from 'lucide-react';
 
@@ -24,6 +30,7 @@ import {
     usageScanCaption,
 } from './usage-metrics';
 import { useUsagePageRequestStore } from './usage-page-request';
+import { usageSessionFilterTitle } from './usage-presentation';
 import { UsageSections } from './usage-sections';
 import { useUsageReport } from './use-usage-report';
 
@@ -123,16 +130,20 @@ function UsageBody({
  * back to the report's own Session row once the Session itself is gone from the Workbench.
  */
 function SessionFilterButton({
-    fallbackTitle,
     onClear,
+    reportRow,
     sessionId,
 }: {
-    fallbackTitle: string | undefined;
     onClear: () => void;
+    reportRow: UsageSessionRow | undefined;
     sessionId: string;
 }) {
     const { t } = useTranslation();
-    const title = useSessionById(sessionId)?.displayTitle ?? fallbackTitle ?? sessionId;
+    const title = usageSessionFilterTitle(t, {
+        liveTitle: useSessionById(sessionId)?.displayTitle,
+        reportRow,
+        sessionId,
+    });
     return (
         <Tooltip content={t('usage.filter.showAllSessions')}>
             <Button
@@ -177,11 +188,11 @@ function usageReportParameters({
  * The page title, followed by the removable Session filter while the report is narrowed to one Session.
  */
 function UsageHeading({
-    fallbackSessionTitle,
     onClearSession,
+    sessionReportRow,
     sessionId,
 }: {
-    fallbackSessionTitle: string | undefined;
+    sessionReportRow: UsageSessionRow | undefined;
     onClearSession: () => void;
     sessionId: string | undefined;
 }) {
@@ -191,7 +202,7 @@ function UsageHeading({
             <h1 className="m-0 text-[15px] font-semibold">{t('usage.title')}</h1>
             {sessionId && (
                 <SessionFilterButton
-                    fallbackTitle={fallbackSessionTitle}
+                    reportRow={sessionReportRow}
                     sessionId={sessionId}
                     onClear={onClearSession}
                 />
@@ -260,8 +271,8 @@ export function UsageWorkbenchPage() {
             <div className="flex flex-wrap items-end justify-between gap-3 bg-surface pt-4 pr-4 pb-3 pl-4">
                 <div className="min-w-0">
                     <UsageHeading
-                        fallbackSessionTitle={report?.sessions[0]?.title}
                         sessionId={sessionId}
+                        sessionReportRow={report?.sessions[0]}
                         onClearSession={() => setSessionId(undefined)}
                     />
                     <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
