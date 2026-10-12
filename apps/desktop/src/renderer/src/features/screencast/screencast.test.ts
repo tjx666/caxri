@@ -24,6 +24,7 @@ function keyboardInput(
         ctrlKey: false,
         isComposing: false,
         key,
+        keyCode: 0,
         metaKey: false,
         shiftKey: false,
         ...overrides,

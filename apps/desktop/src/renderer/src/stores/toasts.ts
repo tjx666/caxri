@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { createElement } from 'react';
 
+import type { CaxriErrorCode } from '@caxri/protocol';
 import { errorMessage, isCaxriError } from '@caxri/protocol';
 import type { ToastT } from 'sonner';
 import { toast } from 'sonner';
 
 import type { TranslationKey } from '../i18n';
-import { translate } from '../i18n';
+import { translate, useLocaleStore } from '../i18n';
 import { caxri } from '../lib/caxri';
 import type { NotificationType } from './notifications';
 import {
@@ -262,9 +263,44 @@ function redactAbsolutePaths(message: string): string {
 }
 
 /**
- * Preserves the caller's operation label and turns low-level failures into a path-free reason.
+ * A localized reason per `CaxriError` code, for a locale the Server's English messages are not written in.
  */
-export function describeFailure(error: unknown, label: string): string {
+const caxriErrorReasons: Record<CaxriErrorCode, TranslationKey> = {
+    VALIDATION: 'toasts.failure.code.VALIDATION',
+    NOT_FOUND: 'toasts.failure.code.NOT_FOUND',
+    PATH_DENIED: 'toasts.failure.code.PATH_DENIED',
+    CAPACITY: 'toasts.failure.code.CAPACITY',
+    UNAVAILABLE: 'toasts.failure.notReady',
+    TIMEOUT: 'toasts.failure.timedOut',
+    CANCELLED: 'toasts.failure.code.CANCELLED',
+    CONFLICT: 'toasts.failure.code.CONFLICT',
+    FORBIDDEN: 'toasts.failure.code.FORBIDDEN',
+    IO: 'toasts.failure.code.IO',
+    GIT: 'toasts.failure.code.GIT',
+    INTERNAL: 'toasts.failure.code.INTERNAL',
+};
+
+export interface FailureNotice {
+    /**
+     * The toast sentence: the caller's operation label plus a path-free reason, entirely in the active locale.
+     */
+    message: string;
+    /**
+     * The raw error text the sentence left out, offered through `Copy details` instead. Set only when the locale hid a
+     * Server or exception message, so nothing a user could report is lost.
+     */
+    detail?: string;
+}
+
+/**
+ * Preserves the caller's operation label and turns low-level failures into a path-free reason.
+ *
+ * The Server, Git, and the OS speak English. In English the message itself is the most specific reason and is shown
+ * (paths and error enums removed). In any other locale quoting it would leave an English sentence inside a translated
+ * toast, so the reason comes from the `CaxriError` code or the errno instead, and the raw text moves to
+ * {@link FailureNotice.detail}.
+ */
+export function describeFailureNotice(error: unknown, label: string): FailureNotice {
     const rawMessage = errorMessage(error, '');
     const errorCode = (error as { code?: unknown } | null)?.code;
     const errnoReason =
@@ -275,28 +311,43 @@ export function describeFailure(error: unknown, label: string): string {
             )?.[0] ?? ''
         ];
     const fallback = translate(
-        isCaxriError(error) && error.code === 'UNAVAILABLE'
-            ? 'toasts.failure.notReady'
-            : isCaxriError(error) && error.code === 'TIMEOUT'
-              ? 'toasts.failure.timedOut'
-              : 'toasts.failure.couldNotComplete',
+        isCaxriError(error) ? caxriErrorReasons[error.code] : 'toasts.failure.couldNotComplete',
     );
-    const reason = errnoReason
-        ? translate(errnoReason)
-        : redactAbsolutePaths(rawMessage)
-              .replaceAll(
-                  /\b(?:VALIDATION|NOT_FOUND|PATH_DENIED|CAPACITY|UNAVAILABLE|TIMEOUT|CANCELLED|CONFLICT|FORBIDDEN|IO|GIT|INTERNAL)\b:?\s*/gu,
-                  '',
-              )
-              .replaceAll(/\bE[A-Z0-9]{2,}\b:?\s*/gu, '')
-              .replaceAll(/\s+/gu, ' ')
-              .trim() || fallback;
-    // Full-width marks count too: a translated label or reason already ends in Chinese punctuation.
+    const isServerTextShown = useLocaleStore.getState().locale === 'en';
+    let reason: string;
+    let detail: string | undefined;
+    if (errnoReason) reason = translate(errnoReason);
+    else if (isServerTextShown)
+        reason =
+            redactAbsolutePaths(rawMessage)
+                .replaceAll(
+                    /\b(?:VALIDATION|NOT_FOUND|PATH_DENIED|CAPACITY|UNAVAILABLE|TIMEOUT|CANCELLED|CONFLICT|FORBIDDEN|IO|GIT|INTERNAL)\b:?\s*/gu,
+                    '',
+                )
+                .replaceAll(/\bE[A-Z0-9]{2,}\b:?\s*/gu, '')
+                .replaceAll(/\s+/gu, ' ')
+                .trim() || fallback;
+    else {
+        reason = fallback;
+        detail = rawMessage.trim() || undefined;
+    }
+    // Full-width marks count too: a translated label or reason already ends in Chinese punctuation. Only an English
+    // Server message can lack one, so the appended mark is the English period.
     const sentence = /[.!?。！？]$/u.test(reason) ? reason : `${reason}.`;
-    return translate('toasts.failure.withReason', {
-        label: redactAbsolutePaths(label).replaceAll(/[.:!?。：！？\s]+$/gu, ''),
-        reason: sentence,
-    });
+    return {
+        message: translate('toasts.failure.withReason', {
+            label: redactAbsolutePaths(label).replaceAll(/[.:!?。：！？\s]+$/gu, ''),
+            reason: sentence,
+        }),
+        ...(detail !== undefined && { detail }),
+    };
+}
+
+/**
+ * The toast sentence of {@link describeFailureNotice}, for callers that raise their own toast without a details action.
+ */
+export function describeFailure(error: unknown, label: string): string {
+    return describeFailureNotice(error, label).message;
 }
 
 /**
@@ -338,11 +389,19 @@ export async function tryCommand<T>(
     } catch (error) {
         if (!isCancelledRequest(error)) {
             const recovery = options.recovery?.(error);
-            pushToast('error', describeFailure(error, label), {
-                action: recovery && {
-                    ...recovery,
-                    accessibleLabel: `${translate(toastActionLabelKeys[recovery.id])} ${redactAbsolutePaths(label)}`,
-                },
+            const notice = describeFailureNotice(error, label);
+            const copyDetails: ToastAction | undefined =
+                notice.detail === undefined || recovery?.id === 'diagnostics.copyFailure'
+                    ? undefined
+                    : { id: 'diagnostics.copyFailure', params: { text: notice.detail } };
+            pushToast('error', notice.message, {
+                action: recovery
+                    ? {
+                          ...recovery,
+                          accessibleLabel: `${translate(toastActionLabelKeys[recovery.id])} ${redactAbsolutePaths(label)}`,
+                      }
+                    : copyDetails,
+                ...(recovery && copyDetails && { secondaryAction: copyDetails }),
             });
         }
         return undefined;

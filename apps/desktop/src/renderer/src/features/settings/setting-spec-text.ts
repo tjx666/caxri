@@ -6,9 +6,12 @@ import type {
     settingsSpec,
     StringSettingSpec,
 } from '@caxri/protocol';
+import { settingsSpecByKey } from '@caxri/protocol';
+import { resolveAppLocale } from '@desktop-shared/i18n/locale';
 
 import type { Translate } from '../../i18n';
 import { isTranslationKey } from '../../i18n';
+import { systemLanguages } from '../../i18n/locale';
 
 /**
  * Display-time translation of the protocol settings catalog. The catalog keeps its English text (it feeds search, the
@@ -36,10 +39,32 @@ export function settingCategoryTitle(t: Translate, id: SettingCategoryId): strin
     return t(`settings.category.${id}`);
 }
 
-export function settingNullLabel(t: Translate, spec: EnumSettingSpec): string | undefined {
-    return spec.nullLabel === undefined
-        ? undefined
-        : t(`settings.${spec.key as NullLabeledSettingKey}.nullLabel`);
+/**
+ * The breadcrumb that sends a user to the Settings category owning `key` (`Settings › Agents`). Built from the
+ * catalog's category and the same translations the Settings page shows, so copy that points at a setting can never name
+ * a category that does not exist or spell it differently from the sidebar.
+ */
+export function settingCategoryPath(t: Translate, key: SettingKey): string {
+    const category = settingsSpecByKey[key].category;
+    return `${t('settings.page.heading')} › ${settingCategoryTitle(t, category)}`;
+}
+
+/**
+ * `systemLanguages` defaults to the live system list; tests pass their own. The Language setting's `Follow system`
+ * names the language it currently resolves to (`Follow system (English)`), so choosing it never hides which language
+ * the interface will use.
+ */
+export function settingNullLabel(
+    t: Translate,
+    spec: EnumSettingSpec,
+    languages: readonly string[] = systemLanguages(),
+): string | undefined {
+    if (spec.nullLabel === undefined) return undefined;
+    if (spec.key === 'workbench.language')
+        return t('settings.workbench.language.nullLabelResolved', {
+            language: settingOptionLabel(t, spec, resolveAppLocale(null, languages)),
+        });
+    return t(`settings.${spec.key as NullLabeledSettingKey}.nullLabel`);
 }
 
 /**

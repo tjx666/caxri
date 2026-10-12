@@ -25,6 +25,7 @@ export const agentStatus: TranslatedNamespace<typeof source> = {
     'agentStatus.summary.readFailed': '无法读取状态页',
     'agentStatus.summary.checking': '正在检查…',
     // Agent status tab
+    'agentStatus.page.agentFallback': 'Agent',
     'agentStatus.page.terminalClosed': '此终端已关闭，数据不再更新。',
     // Output speed section
     'agentStatus.throughput.title': '输出速度',
@@ -41,7 +42,7 @@ export const agentStatus: TranslatedNamespace<typeof source> = {
     'agentStatus.throughput.firstToken': '首个 Token',
     'agentStatus.throughput.firstTokenNotReported': '最近完成的一轮未报告',
     'agentStatus.throughput.firstTokenLastTurn': '最近完成的一轮',
-    'agentStatus.throughput.agentSession': 'Agent 会话',
+    'agentStatus.throughput.agentSession': '对话',
     'agentStatus.throughput.chartCaption': '最近 {{count}} 次响应，从旧到新；虚线为近期平均值',
     'agentStatus.throughput.chartPending': '测得第二次响应后将显示图表。',
     // API status section

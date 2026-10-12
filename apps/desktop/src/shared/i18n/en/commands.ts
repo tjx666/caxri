@@ -106,6 +106,7 @@ export const commands = {
     'commands.commandPalette.open': 'Open Command Palette',
     'commands.agentCommander.open': 'Open Agent Commander',
     'commands.agentCommander.stop': 'Stop Agent Commander',
+    'commands.agentCommander.handOver': 'Hand Over to Agent Commander…',
     'commands.processExplorer.open': 'Open Process Explorer',
     'commands.developer.toggleScreencastMode': 'Toggle Screencast Mode',
     'commands.developer.reportBug': 'Report Bug to Agent',

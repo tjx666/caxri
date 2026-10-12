@@ -185,10 +185,41 @@ describe('summarizeHandover', () => {
         ).toEqual({
             accepted: 2,
             ownershipOnly: 1,
+            rejectedByKey: new Map([
+                ['s3', 'session_archived'],
+                ['s4', 'already_managed'],
+                ['s5', 'already_managed'],
+            ]),
             rejected: [
                 { reason: 'already_managed', count: 2 },
                 { reason: 'session_archived', count: 1 },
             ],
         });
+    });
+});
+
+describe('handover refusals in place', () => {
+    it('keys a refused conversation like its picker row and keeps a refused managed Session listed', () => {
+        const summary = summarizeHandover({
+            outcomes: [
+                {
+                    outcome: 'rejected',
+                    reason: 'conversation_bound',
+                    conversation: { provider: 'claude', providerSessionId: 'conversation-1' },
+                },
+                { outcome: 'rejected', reason: 'already_managed', sessionId: 'managed' },
+            ],
+        });
+
+        expect([...summary.rejectedByKey]).toEqual([
+            ['claude:conversation-1', 'conversation_bound'],
+            ['managed', 'already_managed'],
+        ]);
+        const rows = [row({ sessionId: 'managed', commanderSession: true })];
+        expect(handoverSessionGroups(rows, '')).toEqual([]);
+        const kept = handoverSessionGroups(rows, '', new Set(summary.rejectedByKey.keys()));
+        expect(kept.flatMap((group) => group.candidates).map((candidate) => candidate.key)).toEqual(
+            ['managed'],
+        );
     });
 });

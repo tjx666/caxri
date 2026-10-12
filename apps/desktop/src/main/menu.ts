@@ -268,7 +268,13 @@ export function buildAppMenuTemplate({
                 ...commandItems('view'),
             ],
         },
+        /**
+         * `windowMenu` and `help` roles on the top-level items register them with AppKit as the Window and Help menus:
+         * macOS then appends the open-window list and the Help search field. An explicit submenu replaces Electron's
+         * default items, so the labels still follow `workbench.language`.
+         */
         {
+            role: 'windowMenu',
             label: translateMain('desktop.menu.window'),
             submenu: [
                 ...commandItems('window'),
@@ -278,6 +284,6 @@ export function buildAppMenuTemplate({
                 { role: 'front', label: translateMain('desktop.menu.bringAllToFront') },
             ],
         },
-        { label: translateMain('desktop.menu.help'), submenu: commandItems('help') },
+        { role: 'help', label: translateMain('desktop.menu.help'), submenu: commandItems('help') },
     ];
 }

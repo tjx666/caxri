@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { describeFailure } from '../../stores/toasts';
+import { CommanderHandoverEmptyAction } from './commander-handover-empty-action';
 import { commanderInboxSections, inboxReplyTarget } from './commander-inbox';
 import { CommanderInboxCard } from './commander-inbox-card';
 import { CommanderInboxComposer } from './commander-inbox-composer';
@@ -81,8 +82,9 @@ function CommanderInboxList({
     return (
         <>
             {sections.length === 0 ? (
-                <div className="commander-inbox-empty flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-xs text-muted">
-                    {t('agentCommander.inbox.empty')}
+                <div className="commander-inbox-empty flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted">
+                    <span>{t('agentCommander.inbox.empty')}</span>
+                    <CommanderHandoverEmptyAction />
                 </div>
             ) : (
                 <div className="commander-inbox min-h-0 flex-1 overflow-auto px-2 pb-2">

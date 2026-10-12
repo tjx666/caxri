@@ -152,7 +152,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.activity.detached.ariaLabel': '已分离。Agent 已停止，以便其他客户端恢复。',
     'primarySidebar.activity.suspended.label': '已挂起',
     'primarySidebar.activity.suspended.description':
-        '为节省内存已在后台暂停，打开此会话时会自动恢复。自动挂起可在“设置 > Agent”中调整。',
+        '为节省内存已在后台挂起，打开此会话时会自动恢复。自动挂起可在“{{settingsPath}}”中调整。',
     'primarySidebar.activity.noAgent.label': '无 Agent',
     'primarySidebar.activity.noAgent.description': '此会话没有 Agent。',
 

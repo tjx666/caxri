@@ -88,13 +88,14 @@ export function AgentChatUserMessage({
             {caption && <span className="-mt-0.5 text-[11px] leading-4 text-muted">{caption}</span>}
             {hasActions && (
                 <div
-                    className="-mt-1 flex h-6 items-center gap-1 opacity-0 group-hover/user-message:opacity-100 focus-within:opacity-100"
+                    className="-mt-1 flex h-6 items-center gap-1 opacity-0 group-hover/user-message:opacity-100 focus-within:opacity-100 has-[[aria-busy]]:opacity-100"
                     data-agent-chat-find-ignore=""
                 >
                     {createdAt !== undefined && <AgentChatMessageTime timestamp={createdAt} />}
                     <AgentChatUserMessageActions
                         id={id}
                         isForking={menu.isForking}
+                        isRestoring={menu.isRestoring}
                         text={text}
                         onFork={menu.fork}
                     />

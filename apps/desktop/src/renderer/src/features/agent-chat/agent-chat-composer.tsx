@@ -11,6 +11,7 @@ import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 
 import { Textarea } from '../../components/ui/textarea';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 import { cn } from '../../lib/utilities';
 import { useTerminal } from '../../stores/selectors';
 import { usePaneViewSession } from '../workbench/pane-view-session';
@@ -24,7 +25,11 @@ import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { agentChatSendBlock } from './agent-chat-presentation';
-import { agentChatComposerPlaceholder, agentChatSendTooltip } from './agent-chat-presentation';
+import {
+    agentChatComposerPlaceholder,
+    agentChatSendRefusal,
+    agentChatSendTooltip,
+} from './agent-chat-presentation';
 import { agentChatNextQueuedId } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';
@@ -32,6 +37,7 @@ import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
 import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-composer-edit';
 import { useAgentChatComposerInput } from './hooks/use-agent-chat-composer-input';
+import { useAgentChatComposerNotice } from './hooks/use-agent-chat-composer-notice';
 import { useAgentChatComposerSend } from './hooks/use-agent-chat-composer-send';
 import { useAgentChatDraft } from './hooks/use-agent-chat-draft';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
@@ -104,6 +110,7 @@ interface AgentChatComposerProperties {
               | 'models'
               | 'permissionMode'
               | 'planMode'
+              | 'queuePauseReason'
               | 'turns'
               | 'usage'
           >
@@ -124,7 +131,8 @@ interface AgentChatComposerProperties {
  * provider cannot take, is inserted as its path. Text pasted past `AGENT_CHAT_LONG_PASTE_THRESHOLD` is saved to a file
  * and the message cites it instead. A drag anywhere over the Chat tints the whole pane with a one-line caption. While a
  * turn runs and something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue glyph.
- * A disabled Send says why in its tooltip. A leading `/` or `$` offers the provider's commands and the discovered
+ * A disabled Send says why in its tooltip, and an Enter it refuses says the same in the strip for two
+ * seconds and through the live region. A leading `/` or `$` offers the provider's commands and the discovered
  * skills, and a word that starts with `@` offers other Sessions whose conversation the message can cite; both lists
  * show only while the input has focus. It shares the timeline's centered column so the input lines up with the
  * conversation, and keeps the activity row, attachments, the input, and its actions inside one card so they read as a
@@ -235,17 +243,24 @@ export function AgentChatComposer({
     });
     const { sendAction } = edit;
     const nextQueuedId = agentChatNextQueuedId(queue, isTurnRunning);
-    const sendTooltip = agentChatSendTooltip(
-        sendAction,
-        {
-            block: sendBlock,
-            hasContent,
-            isAttaching,
-            isPreparingReference: sessionMenu.isPreparing,
-            isSending,
-        },
-        t,
-    );
+    const sendState = {
+        block: sendBlock,
+        hasContent,
+        isAttaching,
+        isPreparingReference: sessionMenu.isPreparing,
+        isSending,
+    };
+    const sendTooltip = agentChatSendTooltip(sendAction, sendState, t);
+    const refusalNotice = useAgentChatComposerNotice();
+    /**
+     * Enter on a draft the composer cannot send yet says why instead of doing nothing (`agentChatSendRefusal`).
+     */
+    const submitFromKey = (delivery: 'steer' | undefined): void => {
+        const refusal = agentChatSendRefusal(sendAction, { ...sendState, isSendable }, t);
+        if (refusal) refusalNotice.show(refusal);
+        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
+        else void submit(delivery);
+    };
     const stopAndFocus = (): void => {
         stop();
         focusInput();
@@ -257,10 +272,13 @@ export function AgentChatComposer({
                 supportsImages={supportsImages}
             />
             <AgentChatQueueList
-                isPaused={isQueuePaused}
                 isTurnRunning={isTurnRunning}
                 pending={pendingQueue}
                 queue={queue}
+                snapshot={{
+                    queuePaused: isQueuePaused,
+                    queuePauseReason: snapshot?.queuePauseReason,
+                }}
                 terminalId={terminalId}
                 onAction={focusInput}
                 onEdit={restoreQueued}
@@ -280,18 +298,23 @@ export function AgentChatComposer({
                 >
                     <AgentChatActivityBar
                         activity={activity}
+                        notice={
+                            refusalNotice.notice ??
+                            (menu.confirmsSendAsText
+                                ? t('agentChat.slash.confirmSendAsText')
+                                : undefined)
+                        }
                         showsDeliveryHint={isTurnRunning && draft.trim().length > 0}
                         onStop={stopAndFocus}
                     />
                     <AgentChatEditBar edit={edit.bar} />
-                    {!activity && !edit.isEditing && snapshot?.usage && (
-                        <AgentChatContextAlerts
-                            isContinuing={isContinuing}
-                            usage={snapshot.usage}
-                            onCompact={compact}
-                            onContinueInNewChat={continueInNewChat}
-                        />
-                    )}
+                    <AgentChatContextAlerts
+                        isContinuing={isContinuing}
+                        isShown={!activity && !edit.isEditing}
+                        usage={snapshot?.usage}
+                        onCompact={compact}
+                        onContinueInNewChat={continueInNewChat}
+                    />
                 </div>
                 <form
                     className={cn(
@@ -359,7 +382,7 @@ export function AgentChatComposer({
                                     key: event.key,
                                     altKey: event.altKey,
                                     ctrlKey: event.ctrlKey,
-                                    isComposing: event.nativeEvent.isComposing,
+                                    isComposing: isImeComposing(event),
                                     metaKey: event.metaKey,
                                     repeat: event.repeat,
                                     shiftKey: event.shiftKey,
@@ -393,8 +416,7 @@ export function AgentChatComposer({
                                     break;
                                 }
                                 default: {
-                                    // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                                    void submit(action.delivery);
+                                    submitFromKey(action.delivery);
                                 }
                             }
                         }}

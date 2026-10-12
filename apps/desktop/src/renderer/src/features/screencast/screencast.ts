@@ -4,6 +4,7 @@ import { commandDefinitions } from '@caxri/protocol';
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import { commandTitle } from '../../lib/command-labels';
+import { isImeComposing } from '../../lib/ime';
 import {
     buildShortcutMap,
     keyboardEventShortcut,
@@ -17,6 +18,7 @@ export interface ScreencastKeyboardInput {
     ctrlKey: boolean;
     isComposing: boolean;
     key: string;
+    keyCode: number;
     metaKey: boolean;
     shiftKey: boolean;
 }
@@ -65,7 +67,7 @@ export function describeScreencastKey(
     t: Translate = translate,
 ): ScreencastKeyDescription | undefined {
     if (
-        event.isComposing ||
+        isImeComposing(event) ||
         event.key === 'Dead' ||
         event.key === 'Process' ||
         event.key === 'Unidentified' ||

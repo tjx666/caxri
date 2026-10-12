@@ -1,4 +1,8 @@
 import {
+    agentChatRedoUnavailableReason,
+    redoAgentChatTurn,
+} from '../features/agent-chat/agent-chat-undo-commands';
+import {
     discardedChangesUnavailableReason,
     restoreDiscardedChanges,
 } from '../features/editor/discarded-buffers';
@@ -40,6 +44,14 @@ function hasSession(sessionId: string): boolean {
  * would be exactly the duplicate path this repository refuses to keep.
  */
 export const toastActionHandlers: ToastActionHandlers = {
+    'agentChat.redoUndo': {
+        unavailable: agentChatRedoUnavailableReason,
+        run: (parameters) => {
+            // Fire-and-forget: redoAgentChatTurn reports every failure through tryCommand.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void redoAgentChatTurn(parameters);
+        },
+    },
     'agentCommander.open': { run: () => executeCommand('agentCommander.open') },
     'diagnostics.copyFailure': {
         run: ({ text }) => {

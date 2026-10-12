@@ -149,6 +149,25 @@ export function agentChatContextAlerts(
 }
 
 /**
+ * What the context row's live region says: one fixed phrase per notice state, never the countdown or the idle time. The
+ * visible row ticks every minute, and a live region holding it would announce each tick; this text changes only when a
+ * notice appears, the cache goes from expiring to expired, or a notice goes away.
+ */
+export function agentChatContextAnnouncement(alerts: AgentChatContextAlerts): string {
+    const parts: string[] = [];
+    if (alerts.cache)
+        parts.push(
+            translate(
+                alerts.cache.state === 'expired'
+                    ? 'agentChat.context.cacheExpiredAnnouncement'
+                    : 'agentChat.context.cacheExpiringAnnouncement',
+            ),
+        );
+    if (alerts.pressure) parts.push(translate('agentChat.context.pressureAnnouncement'));
+    return parts.join('. ');
+}
+
+/**
  * The provider command that compacts the conversation, when the provider reports one, so the context alert and the
  * meter's card can offer a Compact button that runs it the way typing `/compact` would.
  */

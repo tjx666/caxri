@@ -6,6 +6,7 @@ import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { translate } from '../../../i18n';
 import { clearSessionRenameRequest, useDialogStore } from '../../../stores/dialogs';
 import { didRenameSession } from '../../session/session-commands';
+import { sessionTitleForDisplay } from '../../session/session-title';
 import { suggestSessionTitle } from '../../session/session-title-suggestion-commands';
 import {
     decideSessionRename,
@@ -127,7 +128,9 @@ export function useSessionRename(
         const next = syncUntouchedRenameDraft(
             isRenameDraftEditedReference.current,
             renameBaselineReference.current,
-            currentTitle,
+            currentTitle === undefined
+                ? undefined
+                : sessionTitleForDisplay(currentTitle, translate),
         );
         if (next === undefined) return;
         renameBaselineReference.current = next;
@@ -145,10 +148,15 @@ export function useSessionRename(
                 treeRow(rowId)?.matches(':focus-visible') === true;
             renamingSessionIdReference.current = sessionId;
             renamingRowIdReference.current = rowId;
-            renameBaselineReference.current = displayTitle;
+            /**
+             * The editor starts from the title the row shows, so an unnamed Session opens on the localized `Untitled`
+             * and committing it unchanged is a no-op rather than a rename to the translation.
+             */
+            const shownTitle = sessionTitleForDisplay(displayTitle, translate);
+            renameBaselineReference.current = shownTitle;
             isRenameDraftEditedReference.current = false;
             setRenamingRowId(rowId);
-            setRenameValue(displayTitle);
+            setRenameValue(shownTitle);
             setRenameError(undefined);
         },
         [],

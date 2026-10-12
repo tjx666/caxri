@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { setMainLanguage } from '../locale';
 import type { UnsavedEditorsDecisionOptions, UnsavedEditorsSummary } from '../unsaved-editors';
 import {
     createUnsavedEditorsBridge,
@@ -121,6 +122,36 @@ describe('unsavedEditorsPrompt', () => {
             "a.ts\nb.ts\nc.ts\nand 2 more\n\nYour changes will be lost if you don't save them.",
         );
         expect(prompt.buttons).toEqual(['Save All', "Don't Save", 'Cancel']);
+    });
+
+    it('speaks the workbench.language locale with no English left over', () => {
+        setMainLanguage('zh-CN', []);
+        try {
+            const single = unsavedEditorsPrompt(
+                { kind: 'summary', count: 1, names: ['greeting.ts'] },
+                'quit',
+            );
+            const several = unsavedEditorsPrompt(
+                { kind: 'summary', count: 5, names: ['a.ts', 'b.ts', 'c.ts'] },
+                'close',
+            );
+
+            expect(single.message).toBe('退出前要保存对“greeting.ts”所做的更改吗？');
+            expect(several.buttons).toEqual(['全部保存', '不保存', '取消']);
+            for (const prompt of [single, several]) {
+                const copy = [
+                    prompt.title,
+                    prompt.message,
+                    prompt.detail,
+                    ...(prompt.buttons ?? []),
+                ]
+                    .join('\n')
+                    .replaceAll(/[a-c]\.ts|greeting\.ts/g, '');
+                expect(copy).not.toMatch(/[A-Z]/i);
+            }
+        } finally {
+            setMainLanguage(null, []);
+        }
     });
 });
 

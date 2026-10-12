@@ -15,6 +15,7 @@ import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 
 interface AgentActionSettingsEditorProperties {
     provider: AgentProvider;
@@ -188,7 +189,7 @@ export function AgentActionSettingsEditor({
                     value={invocationDraft}
                     onChange={(event) => setInvocationDraft(event.target.value)}
                     onKeyDown={(event) => {
-                        if (event.key === 'Enter') addAction();
+                        if (event.key === 'Enter' && !isImeComposing(event)) addAction();
                     }}
                 />
                 <Input
@@ -200,7 +201,7 @@ export function AgentActionSettingsEditor({
                     value={descriptionDraft}
                     onChange={(event) => setDescriptionDraft(event.target.value)}
                     onKeyDown={(event) => {
-                        if (event.key === 'Enter') addAction();
+                        if (event.key === 'Enter' && !isImeComposing(event)) addAction();
                     }}
                 />
                 <Button

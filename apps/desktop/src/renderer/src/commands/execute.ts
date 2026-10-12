@@ -9,6 +9,7 @@ import {
 } from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
+import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
 import {
@@ -409,6 +410,10 @@ const commandContext: CommandContext = {
             else pushToast('info', translate('core.commands.usageNeedsProject'));
         },
         openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),
+        /**
+         * Opens the picker with nothing selected; a Session row's menu is the entry that preselects one Session.
+         */
+        openCommanderHandover: () => openCommanderHandover(),
         // eslint-disable-next-line no-void -- floating-promise discard: seeding never rejects
         openProjectSearch: () => void openSeededProjectSearch(),
         openPathBrowser: () => {

@@ -7,6 +7,7 @@ export const preview = {
     'preview.externalClosed.action': 'Open File…',
 
     // Switching between a document's source and preview.
+    'preview.revealInFinder': 'Reveal in Finder',
     'preview.openSource': 'Open Source',
     'preview.openPreviewToSide': 'Open Preview to the Side',
 

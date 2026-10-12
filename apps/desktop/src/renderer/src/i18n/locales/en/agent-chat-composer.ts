@@ -23,7 +23,7 @@ export const agentChatComposer = {
     'agentChat.attachments.dropPaths': 'Drop to insert paths',
 
     'agentChat.images.resizedNote': 'Resized to fit the {{size}} MB limit',
-    'agentChat.images.resizedLabel': '{{name}} (resized to fit the {{size}} mb limit)',
+    'agentChat.images.resizedLabel': '{{name}} (resized to fit the {{size}} MB limit)',
     'agentChat.images.namedRejection': '{{message}}: {{names}}',
     'agentChat.images.tooMany': 'A message can include up to {{count}} images',
     'agentChat.images.tooLarge': 'Images must be {{size}} MB or smaller',
@@ -37,6 +37,7 @@ export const agentChatComposer = {
 
     'agentChat.slash.label': 'Commands and skills',
     'agentChat.slash.noMatches': 'No matching command or skill',
+    'agentChat.slash.confirmSendAsText': 'No such command. Press Enter again to send as text.',
     'agentChat.slash.commands': 'Commands',
     'agentChat.slash.skills': 'Skills',
     'agentChat.slash.skillsNeedAgent': 'Skills appear once the Agent is running',
@@ -56,7 +57,10 @@ export const agentChatComposer = {
     'agentChat.queue.label': 'Queued messages',
     'agentChat.queue.queued': 'Queued',
     'agentChat.queue.queuedAfterTurn': 'Queued · sends after this turn',
+    'agentChat.queue.queuedTogetherAfterTurn': 'Queued · sends together after this turn',
     'agentChat.queue.paused': 'Queue paused · sends nothing until you resume',
+    'agentChat.queue.pausedDeliveryUnknown': 'Queue paused · the last send may not have arrived',
+    'agentChat.queue.sendFailed': "Couldn't send queued messages",
     'agentChat.queue.resume': 'Resume',
     'agentChat.queue.editMessage': 'Edit queued message',
     'agentChat.queue.deleteMessage': 'Delete queued message',
@@ -161,6 +165,9 @@ export const agentChatComposer = {
     'agentChat.context.pressureText': 'Context {{tokens}} / {{window}} · consider compacting',
     'agentChat.context.pressureDetail':
         'The conversation fills {{percent}}% of the window the Agent compacts at. Compacting now keeps answers sharp.',
+    'agentChat.context.cacheExpiringAnnouncement': 'Prompt cache expires soon',
+    'agentChat.context.cacheExpiredAnnouncement': 'Prompt cache expired',
+    'agentChat.context.pressureAnnouncement': 'Context nearly full, consider compacting',
     'agentChat.context.title': 'Context',
     'agentChat.context.autoCompacts': 'Auto-compacts at {{window}} of the {{modelWindow}} window',
     'agentChat.context.meterLabel': '{{percent}}% of context used, {{tokens}} / {{window}} tokens',
