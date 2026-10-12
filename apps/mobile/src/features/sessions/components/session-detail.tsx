@@ -176,6 +176,7 @@ export const SessionDetail = ({
                     onComposerFocused={onComposerFocused}
                     onDraftChange={onDraftChange}
                     provider={chat.provider}
+                    providerId={chat.providerId}
                     sessionId={session.id}
                     supportsImages={chat.supportsImages}
                     theme={theme}

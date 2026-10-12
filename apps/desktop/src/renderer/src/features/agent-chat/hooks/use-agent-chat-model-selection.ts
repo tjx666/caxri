@@ -1,10 +1,13 @@
 import { useState } from 'react';
 
-import type { AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
+import type {
+    AgentChatModelRequest,
+    AgentChatPendingSelection,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
+import { agentChatSelectionView, isAgentChatSelectionSettled } from '@caxri/protocol';
 
 import { didConfigureAgentChat } from '../agent-chat-commands';
-import type { AgentChatPendingSelection } from '../agent-chat-model-selection';
-import { agentChatSelectionView, isAgentChatSelectionSettled } from '../agent-chat-model-selection';
 
 type ReportedSelection = Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'ultracode'>;
 

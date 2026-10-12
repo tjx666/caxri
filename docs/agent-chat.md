@@ -802,13 +802,27 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   model menu (`agentChatModelLabel` in `packages/protocol`). Tapping it opens a sheet with the
   `Model` and `Reasoning effort` lists; a choice applies on tap through
   `mobile.agentChat.configure`, which forwards `agentChat.configure` and therefore the same
-  validation against `models`. A new Chat can be configured before its first message. During a
-  turn the sheet says the change applies from the next turn. A Claude Code Chat that has not named
+  validation against `models`. Like the Desktop menu, the sheet shows a choice at once
+  (`agentChatSelectionView` in `packages/protocol`), so a new model's efforts list before the next
+  snapshot arrives, and a failed switch reverts with an error in the sheet that clears once the
+  Chat's choice or the connection changes (`agentChatConfigureScope`). While the snapshot reports
+  `ultracode`, the sheet adds the Desktop menu's `Ultracode` switch below the efforts, and the
+  trigger reads `Ultracode` after the effort while it is on. A new Chat can be
+  configured before its first message. During a turn the sheet says the change applies from the
+  next turn. A Claude Code Chat that has not named
   its model yet asks for a model before it lists efforts. A provider without a model list, a
   `view` device, or a stale connection shows the model as plain text; an open sheet stays open with
   its lists disabled and the composer's reason.
-- Roles: `view` reads; `reply` also sends, deletes, steers with, or resumes queued messages, switches the model and effort, and retries a failed Chat; `control` also answers
-  approvals and questions and stops a turn. Mutations resolve the Terminal through the device's
+- Beside the model, the composer shows the permission level with the Desktop picker's names
+  (`agentChatPermissionModeLabel`, so Codex reads `Default`; `Custom` while launch settings match no
+  level), `Plan` while plan mode is on, and Full access in the warning tone with its shield. Tapping
+  it opens a `Permissions` sheet listing the provider's levels with their descriptions and, except
+  for Grok Build, a `Plan mode` switch; both go through `mobile.agentChat.configure { permissionMode,
+planMode }`. A Codex switch during a turn says it applies to the next turn. "Use as Project
+  default" stays on Desktop. Without `control` access, or offline, the level is a plain label; the
+  saved copy keeps it so it still shows offline.
+- Roles: `view` reads; `reply` also sends, deletes, steers with, or resumes queued messages, switches the model, effort, and ultracode, and retries a failed Chat; `control` also answers
+  approvals and questions, switches the permission level and plan mode, and stops a turn. Mutations resolve the Terminal through the device's
   granted Projects, refuse a non-Chat Terminal with `CONFLICT`, and go through Core's mutation
   admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
   `mode: 'resume'`).

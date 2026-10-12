@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { AgentChatRequest, AgentChatResponse, AgentChatSnapshot } from '@caxri/protocol';
+import type {
+    AgentChatModelRequest,
+    AgentChatPermissionRequest,
+    AgentChatRequest,
+    AgentChatResponse,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useReadCache } from '../read-cache/read-cache-context';
@@ -186,8 +192,12 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * Switches the model, effort, ultracode, permission level, or plan mode the next turn uses; Core validates the
+     * change against what the provider offers, and the gateway refuses a permission change from a `reply` device.
+     */
     const configure = useCallback(
-        async (change: { model?: string; effort?: string }): Promise<void> => {
+        async (change: AgentChatModelRequest & AgentChatPermissionRequest): Promise<void> => {
             if (terminalId === null) return;
             await request('mobile.agentChat.configure', { terminalId, ...change });
         },
