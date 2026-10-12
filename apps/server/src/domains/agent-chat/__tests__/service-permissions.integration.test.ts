@@ -85,6 +85,36 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
         });
     });
 
+    it("keeps config.toml's workspace-write extras when a switch rides on turn/start", async () => {
+        const { fakeLog, service, setCodexWorkspaceWriteConfig, terminal, until } = await fixture();
+        await setCodexWorkspaceWriteConfig({
+            writable_roots: ['/extra/root', 'relative/root'],
+            network_access: true,
+            exclude_slash_tmp: true,
+        });
+        await until((snapshot) => snapshot.models !== undefined);
+        await service.setPermission(terminal.id, { permissionMode: 'readOnly' });
+        await service.send(terminal.id, { text: 'first' });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        await service.setPermission(terminal.id, { permissionMode: 'auto' });
+        await service.send(terminal.id, { text: 'second' });
+        await until(
+            (snapshot) =>
+                snapshot.turns.length === 2 && snapshot.turns.at(-1)?.status === 'completed',
+        );
+        const starts = await fakeLog('codex', 'turn-starts.jsonl');
+        expect(starts.map((start) => start.sandboxPolicy)).toEqual([
+            { type: 'readOnly' },
+            // A relative root is dropped: the policy takes absolute paths only.
+            {
+                type: 'workspaceWrite',
+                writableRoots: ['/extra/root'],
+                networkAccess: true,
+                excludeSlashTmp: true,
+            },
+        ]);
+    });
+
     it('keeps following the launch settings when only plan mode changes', async () => {
         const { database, service, terminal, until } = await fixture();
         await until((snapshot) => snapshot.models !== undefined);
