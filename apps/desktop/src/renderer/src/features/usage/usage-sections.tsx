@@ -6,7 +6,11 @@ import { Progress } from '../../components/ui/progress';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useRelativeTime } from '../../hooks/use-relative-time';
 import { useTranslation } from '../../i18n';
-import { localizedDuration, localizedLimitWindowName } from '../../lib/usage-format';
+import {
+    localizedDuration,
+    localizedLimitWindowName,
+    remainingLimitPercent,
+} from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { ProviderLabel } from './provider-label';
 import { ShareBar } from './share-bar';
@@ -204,7 +208,9 @@ function LimitWindowRow({
                     </span>
                 ) : (
                     <span className="tabular-nums">
-                        {t('usage.limits.used', { percent: Math.round(window.usedPercent) })}
+                        {t('usage.limits.left', {
+                            percent: remainingLimitPercent(window.usedPercent),
+                        })}
                         {state.resetLabel && (
                             <span className="text-muted"> · {state.resetLabel}</span>
                         )}
@@ -214,11 +220,11 @@ function LimitWindowRow({
             {/* A reset window's last percentage belongs to the window that ended, so its bar is dimmed, not dropped. */}
             <Progress
                 variant={limitBarTone(window.usedPercent) === 'warning' ? 'meterWarning' : 'meter'}
-                aria-label={t(isReset ? 'usage.limits.resetLabel' : 'usage.limits.usedLabel', {
+                aria-label={t(isReset ? 'usage.limits.resetLabel' : 'usage.limits.leftLabel', {
                     name,
                 })}
                 className={cn(isReset && 'opacity-40')}
-                value={window.usedPercent}
+                value={remainingLimitPercent(window.usedPercent)}
             />
         </div>
     );

@@ -1,25 +1,36 @@
-import type { AgentThroughput } from '@caxri/protocol';
+import type { AgentThroughput, AgentThroughputVariant } from '@caxri/protocol';
 import { RefreshCw } from 'lucide-react';
 
 import { ReportCard, StatTile } from '../../components/report-card';
+import {
+    cellClass,
+    numericCellClass,
+    numericHeadClass,
+    tableHeadClass,
+} from '../../components/report-table-classes';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useRelativeTime } from '../../hooks/use-relative-time';
+import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import {
     agentThroughputMethodNote,
     describeThroughputAggregate,
     describeThroughputSample,
+    describeThroughputVariant,
     formatThroughputDuration,
     formatThroughputRate,
     recentAverageLabel,
     throughputRate,
+    throughputSpeedLabel,
 } from '../status-bar/agent-throughput-label';
 import type { AgentThroughputViewState } from './agent-throughput-state';
 import { AGENT_THROUGHPUT_STATE_MESSAGE_KEYS } from './agent-throughput-state';
 
 const CHART_HEIGHT = 128;
 const clockTime = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' });
+const groupedCount = new Intl.NumberFormat();
 
 function rateValue(rate: number | undefined): string | undefined {
     return rate === undefined ? undefined : formatThroughputRate(rate);
@@ -59,6 +70,7 @@ function ThroughputChart({
                 >
                     {samples.map((sample, index) => {
                         const description = t('agentStatus.throughput.barDescription', {
+                            variant: describeThroughputVariant(sample, t),
                             sample: describeThroughputSample(sample, t),
                             time: clockTime.format(sample.completedAt),
                         });
@@ -99,6 +111,100 @@ function ThroughputChart({
                 )}
             </div>
         </div>
+    );
+}
+
+interface ByModelColumn {
+    key: 'model' | 'mode' | 'rate' | 'responses' | 'tokens';
+    isNumeric?: boolean;
+    width?: string;
+    cellClassName: (variant: AgentThroughputVariant) => string;
+    value: (variant: AgentThroughputVariant, t: Translate) => string;
+}
+
+const BY_MODEL_COLUMNS: readonly ByModelColumn[] = [
+    {
+        key: 'model',
+        cellClassName: () => cn(cellClass, 'font-mono text-[11px]'),
+        value: (variant, t) => variant.model ?? t('statusBar.throughput.unknownModel'),
+    },
+    {
+        key: 'mode',
+        width: 'w-36',
+        cellClassName: (variant) => cn(cellClass, variant.speed ? '' : 'text-muted'),
+        value: (variant, t) => throughputSpeedLabel(variant.speed, t),
+    },
+    {
+        key: 'rate',
+        isNumeric: true,
+        width: 'w-24',
+        cellClassName: () => numericCellClass,
+        value: (variant) => {
+            const rate = throughputRate(variant);
+            return rate === undefined ? '—' : formatThroughputRate(rate);
+        },
+    },
+    {
+        key: 'responses',
+        isNumeric: true,
+        width: 'w-24',
+        cellClassName: () => numericCellClass,
+        value: (variant) => groupedCount.format(variant.responseCount),
+    },
+    {
+        key: 'tokens',
+        isNumeric: true,
+        width: 'w-28',
+        cellClassName: () => numericCellClass,
+        value: (variant) => groupedCount.format(variant.outputTokens),
+    },
+];
+
+/**
+ * The Agent Session's responses split by model and mode, so a model switch or Fast mode can be compared at a glance
+ * instead of being averaged into one figure. The note explains rows without a mode only when one is listed.
+ */
+function ThroughputByModel({ variants }: { variants: readonly AgentThroughputVariant[] }) {
+    const { t } = useTranslation();
+    return (
+        <ReportCard
+            title={t('agentStatus.throughput.byModel')}
+            caption={t('agentStatus.throughput.byModelCaption')}
+        >
+            <table className="w-full table-fixed border-collapse">
+                <thead>
+                    <tr>
+                        {BY_MODEL_COLUMNS.map((column) => (
+                            <th
+                                key={column.key}
+                                className={cn(
+                                    column.isNumeric ? numericHeadClass : tableHeadClass,
+                                    column.width,
+                                )}
+                            >
+                                {t(`agentStatus.throughput.byModel.${column.key}`)}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {variants.map((variant) => (
+                        <tr key={`${variant.model ?? ''}:${variant.speed ?? ''}`}>
+                            {BY_MODEL_COLUMNS.map((column) => (
+                                <td key={column.key} className={column.cellClassName(variant)}>
+                                    {column.value(variant, t)}
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            {variants.some((variant) => variant.speed === undefined) && (
+                <p className="mt-3 mb-0 text-[11px] leading-snug text-muted">
+                    {t('agentStatus.throughput.byModel.unknownNote')}
+                </p>
+            )}
+        </ReportCard>
     );
 }
 
@@ -210,6 +316,7 @@ export function AgentThroughputSection({
                     {agentThroughputMethodNote(t)}
                 </p>
             </ReportCard>
+            {throughput.byModel.length > 0 && <ThroughputByModel variants={throughput.byModel} />}
         </>
     );
 }

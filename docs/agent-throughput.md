@@ -30,7 +30,15 @@ Clicking the chip, or running `Show Agent Status` (`terminal.showAgentStatus`, a
 the active tab is an Agent Terminal), opens an Agent status tab (`caxri-agent-status://<terminalId>`)
 for that Terminal: the same figures as tiles, led by a `Recent average` tile carrying the chip's own
 number and its `Average of the last N responses` caption, a larger per-response chart with the
-recent average drawn as a dashed line, and the provider's API status below.
+recent average drawn as a dashed line, a `By model` table, and the provider's API status below.
+
+The `By model` table splits the Agent Session's responses by model and speed mode (`Standard`,
+`Fast`, `Flex`), so a Fast-mode turn and a model switch read as separate rows instead of moving one
+average. Claude Code records both on every message (`message.model`, `usage.speed`). Codex names the
+model on each `turn_context` but writes the thread's `service_tier` (`priority` or `fast` is Fast
+mode) only in a `thread_settings_applied` event when the setting changes, so responses before the
+first change show `Mode not recorded` rather than a guessed tier. The Server keeps at most 32
+model/mode rows per transcript.
 
 Without a measured response the tab names which of three cases it is in, so they never collapse into
 one "nothing measured" sentence (`agent-throughput-state.ts`): a failed transcript read says so in
@@ -74,7 +82,11 @@ timestamps.
 The hover card and the status tab also show the provider's public service status, so a slow Agent
 can be told apart from a provider incident. Only the components an Agent depends on are read:
 Claude's `Claude API` and `Claude Code` components from its Statuspage summary, and OpenAI's
-`Codex` group from its incident.io page. Grok has no public status page, so its status row is
+`Codex API` component from its incident.io page. For incident.io, Main also reads the page's
+90-day component history (`component_impacts`) and the status tab draws it the way
+status.openai.com does: the page's own uptime percentage and one bar per local day, colored by the
+worst impact that day, with a tooltip naming the day and status. A failed history read leaves the
+current status in place and drops only the bars. Grok has no public status page, so its status row is
 omitted. Unresolved incidents touching those components are listed with their phase and latest
 update; incidents on other components (such as claude.ai) are left out.
 
@@ -94,5 +106,6 @@ and concurrent reads share one request. A failure is reported to the UI with a c
 (`network`, `http`, `invalidResponse`) plus a link to the page; the log records
 `external_status.provider_status_failed` once per reason change and
 `external_status.provider_status_recovered` when the page reads again. Under `CAXRI_E2E=1` Main
-never touches the network: it reads `<hostname>.json` fixtures from
-`CAXRI_E2E_PROVIDER_STATUS_DIR`, and reports `network` without one.
+never touches the network: it reads fixtures from `CAXRI_E2E_PROVIDER_STATUS_DIR`, preferring
+`<hostname>.<last path segment>.json` (such as `status.openai.com.component_impacts.json`) and
+falling back to `<hostname>.json`, and reports `network` without one.
