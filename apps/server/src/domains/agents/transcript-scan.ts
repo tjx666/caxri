@@ -31,6 +31,12 @@ export interface TranscriptScanOptions {
      * state derived from bytes that no longer exist before the rescan from byte zero starts.
      */
     onReset?: () => void;
+    /**
+     * Stops {@link scanTranscriptToEnd} before its next pass once aborted, so a cancelled request does not finish a read
+     * of up to 64 MiB. The cursor stays where the last completed pass left it, and the scan returns rather than throws:
+     * whatever it delivered is partial, so a caller that passes a signal checks it after the scan.
+     */
+    signal?: AbortSignal;
 }
 
 /**
@@ -119,7 +125,8 @@ export async function scanTranscriptLines(
 /**
  * Catches an existing transcript up to its size at the start of this read, with a 64 MiB total read budget. Yielding
  * between 4 MiB passes keeps a long first visit from monopolizing Server Core. Waiting for the next UI poll after each
- * pass would make a report near the end of a long conversation appear minutes late.
+ * pass would make a report near the end of a long conversation appear minutes late. An aborted `options.signal` ends
+ * the read at the next pass boundary.
  */
 export async function scanTranscriptToEnd(
     location: AgentTranscriptLocation,
@@ -129,6 +136,7 @@ export async function scanTranscriptToEnd(
 ): Promise<void> {
     let targetSize: number | undefined;
     for (let pass = 0; pass < MAX_TRANSCRIPT_CATCHUP_PASSES; pass++) {
+        if (options.signal?.aborted) return;
         const previousOffset = cursor.offset;
         // eslint-disable-next-line no-await-in-loop -- each pass resumes at the cursor advanced by the previous pass
         const size = await scanTranscriptLines(location, cursor, scanLine, options);

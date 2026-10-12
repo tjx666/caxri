@@ -204,6 +204,8 @@ export class SessionConversationReferenceService {
             onFailure: (reason) => {
                 scanFailure = reason;
             },
+            // A cancelled request stops the scan at its next pass instead of reading up to 48 MiB nobody waits for.
+            signal,
         });
         signal?.throwIfAborted();
         if (conversation.messages.length === 0)

@@ -1,11 +1,7 @@
 import type { KeyboardEvent, RefObject } from 'react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
-import {
-    mentionAtCaret,
-    suggestionMenuKeyAction,
-    suggestionOptionId,
-} from '../../../lib/suggestion-options';
+import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
 import { useProjects, useSessions } from '../../../stores/selectors';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
 import { searchSessionReferences } from '../../session/session-reference';
@@ -17,6 +13,7 @@ import {
     agentChatSessionSuggestion,
     agentChatSessionSuggestions,
 } from '../agent-chat-suggestions';
+import { useAgentChatPlacedCaret } from './use-agent-chat-placed-caret';
 
 /**
  * The `@` Sessions list: typing `@` at the start of a word offers the other Sessions with an Agent conversation,
@@ -26,13 +23,15 @@ import {
  * whose conversation it is; meanwhile the list shows a progress row naming the Session (`preparing`), and Enter waits
  * rather than sending the half-typed `@word`. Keys match the slash-command list: arrows move, Enter or Tab chooses,
  * Escape dismisses until the next edit. The list shows only while the input has focus, so it never covers another
- * surface.
+ * surface, and waits for the user to edit the draft or move the caret, so showing a Chat whose restored draft ends in
+ * `@word` does not open it.
  */
 export function useAgentChatSessionMenu({
     currentSessionId,
     draft,
     inputReference,
     isInputFocused,
+    isShown,
     isSuppressed,
     setDraft,
 }: {
@@ -41,17 +40,21 @@ export function useAgentChatSessionMenu({
     inputReference: RefObject<HTMLTextAreaElement | null>;
     isInputFocused: boolean;
     /**
+     * Whether the Chat is on screen in the active pane. A Chat stays mounted while its Session is hidden, so hiding it
+     * is what ends the caret the user placed.
+     */
+    isShown: boolean;
+    /**
      * The slash-command list is open; it owns the keys and the space above the input.
      */
     isSuppressed: boolean;
     setDraft: (update: (current: string) => string) => void;
 }) {
     const listId = useId();
-    // The list follows the word at the caret rather than the whole draft.
-    const [caret, setCaret] = useState(draft.length);
+    // The list follows the word at the caret rather than the whole draft, and only a caret the user placed.
+    const { mention, setCaret, ...caretTracking } = useAgentChatPlacedCaret(draft, isShown);
     const sessions = useSessions();
     const projects = useProjects();
-    const mention = mentionAtCaret(draft, caret);
     const [dismissedDraft, setDismissedDraft] = useState<string>();
     /**
      * The title of the Session whose reference is being written, or `undefined` when none is.
@@ -132,10 +135,7 @@ export function useAgentChatSessionMenu({
                   'aria-controls': listId,
               }
             : undefined,
-        /**
-         * Call from the input's change and select events so the list follows the caret.
-         */
-        trackCaret: (element: HTMLTextAreaElement) => setCaret(element.selectionStart),
+        ...caretTracking,
         highlight: (index: number) => setActive({ query: mention?.query, index }),
         chooseAt: (index: number) => {
             const candidate = candidates.at(index);

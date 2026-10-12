@@ -61,6 +61,10 @@ interface AgentChatComposerProperties {
     isBusy: boolean;
     isQueuePaused: boolean;
     /**
+     * Whether the Chat is on screen in the active pane (see `AgentChatPane`).
+     */
+    isShown: boolean;
+    /**
      * Runs after Server Core accepted a message from this composer (sent, queued, or steered) or a slash command it
      * ran; never after a failed or refused send. The pane uses it to scroll the timeline to the latest entry.
      */
@@ -128,6 +132,7 @@ export function AgentChatComposer({
     inputReference,
     isBusy,
     isQueuePaused,
+    isShown,
     onSent,
     providerName,
     queue,
@@ -160,6 +165,7 @@ export function AgentChatComposer({
         draft,
         inputReference,
         isInputFocused,
+        isShown,
         isSuppressed: menu.isOpen,
         setDraft,
     });
@@ -309,8 +315,11 @@ export function AgentChatComposer({
                         }}
                         onBlur={() => setInputFocused(false)}
                         onFocus={() => setInputFocused(true)}
-                        onSelect={(event) => sessionMenu.trackCaret(event.currentTarget)}
+                        onClick={(event) => sessionMenu.trackCaret(event.currentTarget)}
+                        onKeyUp={sessionMenu.trackCaretKey}
+                        onSelect={(event) => sessionMenu.followSelection(event.currentTarget)}
                         onKeyDown={(event) => {
+                            sessionMenu.notePressedKey(event);
                             if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen))
                                 return;
                             if (menu.didHandleKey(event, { choose, complete })) return;
