@@ -169,7 +169,8 @@ evidence rather than automated test or Acceptance evidence.
   enough to write a partial receipt with `abortReason` (`SIGINT` | `SIGTERM`) instead of losing
   whatever already failed, distinguishing specs that finished, the invocation the signal actually
   killed (`abortedInvocations`), and specs that never ran at all (folded into `missingSpecs`); see
-  issue #1446.
+  issue #1446. The killed invocation's settled verdicts survive through the reporter's
+  `<receipt>.progress.jsonl` journal (issue #1847).
 - An interrupted local pool leaves Electron and Playwright processes behind. Clear them with
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop`, never with a name match:
   `pkill -f "Caxri.app"` also matches the installed `/Applications/Caxri.app` and has already

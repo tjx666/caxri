@@ -1,13 +1,14 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import type { FullConfig, Suite, TestCase, TestResult } from '@playwright/test/reporter';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { DesktopExclusiveReason } from '../../e2e/support/pools';
 import { createE2EPoolPlan, desktopExclusiveSpecs } from '../../e2e/support/pools';
 import type { E2ETestReceipt } from '../reporters/e2e-receipt-reporter';
-import {
+import E2EReceiptReporter, {
     assertE2EPoolReceipt,
     createE2EPoolReceipt,
     stableErrorIdentity,
@@ -422,6 +423,98 @@ describe('E2E pools', () => {
             expect(outcome.receipt.missingSpecs).toHaveLength(2);
             expect(outcome.receipt.tests.map(({ id }) => id)).toEqual(['safe']);
             expect(() => assertE2EPoolReceipt(outcome.receipt)).not.toThrow();
+        });
+
+        it('keeps verdicts the signal-killed invocation settled before onEnd (issue #1847)', async () => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-receipt-killed-'));
+            const receiptPath = join(directory, 'parallel-safe-0.json');
+            vi.stubEnv('CAXRI_E2E_POOL', 'parallel-safe');
+            vi.stubEnv('CAXRI_E2E_RECEIPT_PATH', receiptPath);
+            try {
+                const testCase = (id: string, spec: string, line: number): TestCase =>
+                    ({
+                        id,
+                        expectedStatus: 'passed',
+                        location: { file: resolve(`e2e/${spec}.e2e.ts`), line, column: 1 },
+                        titlePath: () => ['', spec, id],
+                    }) as TestCase;
+                const passing = testCase('passing', 'settled', 1);
+                const failing = testCase('failing', 'settled', 9);
+                const inFlight = testCase('in-flight', 'partial', 1);
+                const partialDone = testCase('partial-done', 'partial', 9);
+                const neverStarted = testCase('never-started', 'unstarted', 1);
+                const reporter = new E2EReceiptReporter();
+                reporter.onBegin(
+                    {} as FullConfig,
+                    {
+                        allTests: () => [passing, failing, inFlight, partialDone, neverStarted],
+                    } as Suite,
+                );
+                const result = (status: string, attachments: Array<{ path?: string }> = []) =>
+                    ({
+                        status,
+                        duration: 250,
+                        attachments,
+                        errors: status === 'failed' ? [{ message: 'expected visible' }] : [],
+                    }) as unknown as TestResult;
+                reporter.onTestEnd(passing, result('passed'));
+                reporter.onTestEnd(
+                    failing,
+                    result('failed', [{ path: resolve('test-results/failing/trace.zip') }]),
+                );
+                reporter.onTestEnd(partialDone, result('passed'));
+                // The SIGTERM lands here: Playwright exits before `onEnd`, so no receipt file is written. Simulate the
+                // torn final write a kill can leave behind as well.
+                await appendFile(`${receiptPath}.progress.jsonl`, '{"type":"end","te');
+
+                const killed = await readInvocationReceipt(receiptPath, 'parallel-safe');
+                const outcome = finalizeAbortedPool(
+                    combinePoolReceipts('parallel-safe', [killed]),
+                    [
+                        {
+                            specs: [
+                                'e2e/partial.e2e.ts',
+                                'e2e/settled.e2e.ts',
+                                'e2e/unstarted.e2e.ts',
+                            ],
+                        },
+                    ],
+                    [143],
+                    ['e2e/never-run.e2e.ts'],
+                    'SIGTERM',
+                );
+
+                expect(outcome.receipt).toMatchObject({
+                    abortReason: 'SIGTERM',
+                    abortedInvocations: [{ exitCode: 143 }],
+                    failed: 1,
+                    passed: 2,
+                    status: 'failed',
+                    unknown: 1,
+                });
+                expect(
+                    Object.fromEntries(
+                        outcome.receipt.tests.map((test) => [test.id, test.verdict]),
+                    ),
+                ).toEqual({
+                    'failing': 'fail',
+                    'in-flight': 'unknown',
+                    'partial-done': 'pass',
+                    'passing': 'pass',
+                });
+                expect(outcome.receipt.tests.find(({ id }) => id === 'failing')).toMatchObject({
+                    artifacts: ['test-results/failing/trace.zip'],
+                    errorIdentity: stableErrorIdentity('expected visible'),
+                });
+                expect(
+                    outcome.receipt.missingSpecs?.toSorted((left, right) =>
+                        left.localeCompare(right),
+                    ),
+                ).toEqual(['e2e/never-run.e2e.ts', 'e2e/unstarted.e2e.ts']);
+            } finally {
+                vi.unstubAllEnvs();
+                await rm(directory, { recursive: true, force: true });
+            }
         });
 
         it('marks every planned spec never-run when the signal lands before any invocation starts', () => {

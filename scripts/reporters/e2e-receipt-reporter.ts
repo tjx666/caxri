@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import process from 'node:process';
 
@@ -277,11 +278,76 @@ export function assertE2EPoolCensusComplete(receipt: E2EPoolReceipt): void {
 }
 
 /**
+ * Sidecar journal the reporter appends to as each test settles, beside the invocation receipt. `onEnd` never runs when
+ * `ci-concurrent-validation.ts` signals the Playwright process group mid-invocation, so without this journal the killed
+ * invocation's receipt is missing and every verdict it already settled, failures included, is lost (issue #1847).
+ */
+export function e2eProgressJournalPath(receiptPath: string): string {
+    return `${receiptPath}.progress.jsonl`;
+}
+
+type E2EProgressEntry =
+    | { startedAt: string; tests: E2ETestReceipt[]; type: 'begin' }
+    | { test: E2ETestReceipt; type: 'end' };
+
+/**
+ * Rebuilds a partial invocation receipt from a progress journal whose invocation died before `onEnd`. Only specs with
+ * at least one settled test are kept, so a spec the invocation never reached stays absent and the pool runner still
+ * reports it in `missingSpecs`; a test still running in a reached spec stays `unknown`. A torn trailing line (the kill
+ * landed mid-append) is ignored. Returns `undefined` when the journal never recorded `onBegin`.
+ */
+export function receiptFromProgressJournal(
+    journal: string,
+    pool: string,
+    finishedAt: string,
+): E2EPoolReceipt | undefined {
+    const entries: E2EProgressEntry[] = [];
+    const lines = journal.split('\n').filter((line) => line.trim() !== '');
+    for (const [index, line] of lines.entries()) {
+        try {
+            entries.push(JSON.parse(line) as E2EProgressEntry);
+        } catch (error) {
+            if (index === lines.length - 1) break;
+            throw error;
+        }
+    }
+    const begin = entries.find((entry) => entry.type === 'begin');
+    if (!begin) return undefined;
+    const tests = new Map(begin.tests.map((test) => [test.id, test]));
+    const reachedSpecs = new Set<string>();
+    for (const entry of entries) {
+        if (entry.type !== 'end' || !tests.has(entry.test.id)) continue;
+        tests.set(entry.test.id, entry.test);
+        reachedSpecs.add(specPath(entry.test.location));
+    }
+    return createE2EPoolReceipt({
+        finishedAt,
+        pool,
+        startedAt: begin.startedAt,
+        tests: tests
+            .values()
+            .filter(({ location }) => reachedSpecs.has(specPath(location)))
+            .toArray(),
+    });
+}
+
+/**
  * Records one logical pool from the same invocation that executes its tests.
  */
 class E2EReceiptReporter implements Reporter {
     private planned = new Map<string, E2ETestReceipt>();
+    private progressPath: string | undefined;
     private startedAt = '';
+
+    /**
+     * Synchronous on purpose: the kernel keeps an appended line even if the process is `SIGKILL`ed right after, while
+     * an async write still queued in the event loop would be lost with it.
+     */
+    private appendProgress(entry: E2EProgressEntry): void {
+        if (!this.progressPath) return;
+        // oxlint-disable-next-line node/no-sync -- must reach the kernel before a signal can kill this process; see JSDoc
+        appendFileSync(this.progressPath, `${JSON.stringify(entry)}\n`, 'utf8');
+    }
 
     onBegin(_config: FullConfig, suite: Suite): void {
         this.startedAt = new Date().toISOString();
@@ -299,6 +365,19 @@ class E2EReceiptReporter implements Reporter {
                 },
             ]),
         );
+        const destination = process.env.CAXRI_E2E_RECEIPT_PATH;
+        if (!destination) return;
+        this.progressPath = e2eProgressJournalPath(resolve(destination));
+        // Playwright calls `onBegin` synchronously, and the journal must exist before the first `onTestEnd` appends.
+        // oxlint-disable-next-line node/no-sync -- see the comment above
+        mkdirSync(dirname(this.progressPath), { recursive: true });
+        // oxlint-disable-next-line node/no-sync -- see the comment above
+        writeFileSync(this.progressPath, '', 'utf8');
+        this.appendProgress({
+            startedAt: this.startedAt,
+            tests: this.planned.values().toArray(),
+            type: 'begin',
+        });
     }
 
     onTestEnd(test: TestCase, result: TestResult): void {
@@ -317,6 +396,7 @@ class E2EReceiptReporter implements Reporter {
         if (result.status === 'interrupted') {
             planned.errorIdentity = null;
             planned.verdict = 'unknown';
+            this.appendProgress({ test: planned, type: 'end' });
             return;
         }
         planned.errorIdentity = error ? stableErrorIdentity(error) : null;
@@ -330,6 +410,7 @@ class E2EReceiptReporter implements Reporter {
                         ? 'skipped'
                         : 'unknown'
                     : 'fail';
+        this.appendProgress({ test: planned, type: 'end' });
     }
 
     async onEnd(): Promise<void> {
@@ -351,6 +432,8 @@ class E2EReceiptReporter implements Reporter {
         const temporary = `${output}.${process.pid}.tmp`;
         await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
         await rename(temporary, output);
+        // The complete receipt supersedes the journal; removing it keeps a stale journal from ever being read.
+        await rm(e2eProgressJournalPath(output), { force: true });
     }
 }
 

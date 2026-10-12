@@ -413,7 +413,10 @@ wall time alone hides it.
   appear in the receipt, and records any breach as `abortedInvocations` or `missingSpecs` on the
   receipt with `status: failed`. `scripts/run-e2e-pools.ts` also survives the `SIGTERM` a failed
   sibling component (or the shared deadline below) sends it, long enough to write a partial receipt
-  with `abortReason` instead of losing whatever already failed before the signal arrived.
+  with `abortReason` instead of losing whatever already failed before the signal arrived. The
+  reporter also appends each settled test to a `<receipt>.progress.jsonl` journal, so the
+  invocation the signal killed before `onEnd` still contributes its finished verdicts and failure
+  artifacts; only specs it never reached land in `missingSpecs`.
 - Every required output is checked before every launch. Each Playwright worker performs one full
   recursive build-input scan, then reuses it until a filesystem event or mtime snapshot invalidates
   the cache; watcher failure falls back to scanning.
