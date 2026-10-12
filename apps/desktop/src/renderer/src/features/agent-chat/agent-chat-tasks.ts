@@ -40,6 +40,17 @@ export function agentChatTasksByItem(
 }
 
 /**
+ * Whether a work row's subagent or background shell still runs, which keeps the row out of a `Ran N commands` summary
+ * even after its own tool call returned.
+ */
+export function isAgentChatTaskItemRunning(
+    tasksByItem: ReadonlyMap<string, AgentChatTask> | undefined,
+    item: AgentChatItem,
+): boolean {
+    return tasksByItem?.get(item.id)?.status === 'running';
+}
+
+/**
  * What a timeline row opens: the task it started, or, for a subagent row the task list no longer knows, the row's own
  * id as the task key.
  */
@@ -64,7 +75,15 @@ export function agentChatTaskLinkForItem(
  */
 export interface AgentChatTurnSubagent {
     taskId: string;
+    /**
+     * The timeline row that started the subagent, which the turn's row reveals where it cannot open the task.
+     */
+    itemId: string;
     title: string | undefined;
+    /**
+     * Whether the subagent still runs after its turn ended, so the turn's row can say so without being expanded.
+     */
+    isRunning: boolean;
 }
 
 /**
@@ -82,7 +101,9 @@ export function agentChatTurnSubagents(
         const title = link.task?.title;
         subagents.set(link.taskId, {
             taskId: link.taskId,
+            itemId: item.id,
             title: title === '' ? undefined : title,
+            isRunning: link.task?.status === 'running',
         });
     }
     return subagents.values().toArray();

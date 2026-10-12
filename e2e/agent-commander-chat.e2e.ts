@@ -87,6 +87,30 @@ if (process.argv.includes('app-server')) {
         ).toBeVisible();
         await commander.screenshot({ path: testInfo.outputPath('commander-chat-task-strip.png') });
 
+        // The parent turn ended and folded at once; its row still names the subagent it started without being
+        // expanded, and reveals that subagent's row in place instead of opening a tab (issue caxri#1952).
+        const fold = commander.getByRole('button', { name: /^Worked(?: for |$)/u }).first();
+        await expect(fold).toHaveAttribute('aria-expanded', 'false');
+        const reveal = commander.getByRole('button', {
+            name: 'Show subagent Inspect the fixtures in this turn',
+        });
+        await expect(reveal).toBeVisible();
+        await expect(
+            commander.getByRole('button', { name: /^Open subagent Inspect the fixtures/u }),
+        ).toHaveCount(0);
+        await commander.screenshot({
+            path: testInfo.outputPath('commander-fold-subagent-running.png'),
+        });
+        await reveal.click();
+        await expect(fold).toHaveAttribute('aria-expanded', 'true');
+        const subagentRow = commander.locator('[data-agent-chat-work-item]').filter({
+            hasText: 'Inspect the fixtures',
+        });
+        await expect(subagentRow).toBeInViewport();
+        await commander.screenshot({
+            path: testInfo.outputPath('commander-fold-subagent-revealed.png'),
+        });
+
         // Clicking the row opens nothing, and the Commander Session's stored layout never gains a task tab.
         await strip.getByText('Inspect the fixtures').click();
         const { identity, workbench } = await pageRequest<CommanderSnapshot>(
@@ -97,6 +121,15 @@ if (process.argv.includes('app-server')) {
             ({ sessionId }) => sessionId === identity.sessionId,
         );
         expect(JSON.stringify(state ?? {})).not.toContain('caxri-agent-task://');
+
+        // Once the subagent ends and the strip moves on, the folded row still names it.
+        await strip.getByRole('button', { name: /^Stop Inspect the fixtures/u }).click();
+        await fold.click();
+        await expect(fold).toHaveAttribute('aria-expanded', 'false');
+        await expect(reveal).toBeVisible();
+        await commander.screenshot({
+            path: testInfo.outputPath('commander-fold-subagent-done.png'),
+        });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

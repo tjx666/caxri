@@ -18,6 +18,7 @@ import {
     canStopAgentChatTask,
     findAgentChatTask,
     isAgentChatSubagentItem,
+    isAgentChatTaskItemRunning,
     isAgentChatTaskTitleCommand,
 } from '../agent-chat-tasks';
 
@@ -116,9 +117,40 @@ describe('agentChatTurnSubagents', () => {
                 byItem,
             ),
         ).toEqual([
-            { taskId: 'agent-1', title: 'Survey the project' },
-            { taskId: 'toolu-9', title: undefined },
+            {
+                taskId: 'agent-1',
+                itemId: 'toolu-1',
+                title: 'Survey the project',
+                isRunning: false,
+            },
+            { taskId: 'toolu-9', itemId: 'toolu-9', title: undefined, isRunning: false },
         ]);
+    });
+
+    it('marks a subagent that still runs after its turn ended', () => {
+        const byItem = agentChatTasksByItem([
+            task({ id: 'agent-1', itemId: 'spawn-1', title: 'Inspect the fixtures' }),
+        ]);
+        expect(agentChatTurnSubagents([toolCall('spawn-1', 'spawnAgent')], byItem)).toEqual([
+            {
+                taskId: 'agent-1',
+                itemId: 'spawn-1',
+                title: 'Inspect the fixtures',
+                isRunning: true,
+            },
+        ]);
+    });
+});
+
+describe('isAgentChatTaskItemRunning', () => {
+    it('holds only for a row whose task is still running', () => {
+        const byItem = agentChatTasksByItem([
+            task({ id: 'a', itemId: 'running' }),
+            task({ id: 'b', itemId: 'done', status: 'completed' }),
+        ]);
+        expect(isAgentChatTaskItemRunning(byItem, toolCall('running', 'Task'))).toBe(true);
+        expect(isAgentChatTaskItemRunning(byItem, toolCall('done', 'Task'))).toBe(false);
+        expect(isAgentChatTaskItemRunning(undefined, toolCall('running', 'Task'))).toBe(false);
     });
 });
 

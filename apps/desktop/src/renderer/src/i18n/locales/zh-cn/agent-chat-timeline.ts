@@ -117,6 +117,7 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.fold.startedAt': '开始于 {{time}}',
     'agentChat.fold.subagent': '子 Agent',
     'agentChat.fold.openSubagent': '打开子 Agent {{name}}',
+    'agentChat.fold.showSubagent': '在本轮中定位子 Agent {{name}}',
     'agentChat.questions.askingOne': '正在询问问题',
     'agentChat.questions.askingOther': '正在询问 {{count}} 个问题',
     'agentChat.questions.askedOne': '已询问 1 个问题',

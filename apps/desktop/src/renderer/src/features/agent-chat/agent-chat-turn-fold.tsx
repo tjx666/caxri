@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { use, useId, useMemo, useState } from 'react';
+import { use, useId, useMemo, useRef, useState } from 'react';
 
 import { Bot, ChevronRight, CircleStop, CircleX } from 'lucide-react';
 
@@ -9,17 +9,24 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
-import { agentChatTurnExpansionKey, agentChatTurnWorkItems } from './agent-chat-expansion';
+import {
+    agentChatRevealItemKeys,
+    agentChatTurnExpansionKey,
+    agentChatTurnWorkItems,
+} from './agent-chat-expansion';
 import { AgentChatFindQueryContext, isAgentChatTurnFoldMatch } from './agent-chat-find';
 import type { AgentChatTurnSubagent } from './agent-chat-tasks';
-import { agentChatTurnSubagents } from './agent-chat-tasks';
+import { agentChatTurnSubagents, isAgentChatTaskItemRunning } from './agent-chat-tasks';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import {
     agentChatTurnLabel,
     agentChatTurnTimeTooltip,
     agentChatTurnTone,
 } from './agent-chat-timeline';
-import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
+import {
+    useAgentChatExpansion,
+    useAgentChatRevealWorkItem,
+} from './hooks/use-agent-chat-expansion';
 import { AgentChatTaskLinksContext } from './hooks/use-agent-chat-task-link';
 
 type TurnEntry = Extract<AgentChatTimelineEntry, { kind: 'turn' }>;
@@ -32,41 +39,72 @@ function* turnItems(entry: TurnEntry) {
 }
 
 /**
- * Reopens one of the turn's subagents beside the Chat, named by the subagent's own title.
+ * One of the turn's subagents, named by its own title, with the activity sweep while it still runs. Where the host can
+ * open a tab beside the Chat it reopens the subagent there; elsewhere (the Agent Commander window) it expands the fold
+ * and scrolls to the subagent's row instead, and says so, since nothing opens (issue caxri#1952). With neither it is a
+ * plain label rather than a button.
  */
 function TurnSubagentButton({
     onOpen,
+    onReveal,
     subagent,
 }: {
-    onOpen: (taskId: string) => void;
+    onOpen: ((taskId: string) => void) | undefined;
+    onReveal: ((itemId: string, element: HTMLElement) => void) | undefined;
     subagent: AgentChatTurnSubagent;
 }) {
     const { t } = useTranslation();
     const title = subagent.title ?? t('agentChat.fold.subagent');
+    const content = (
+        <>
+            <Bot aria-hidden="true" className="size-3.5 shrink-0" />
+            <span className={cn('min-w-0 truncate', subagent.isRunning && 'activity-shimmer')}>
+                {title}
+            </span>
+        </>
+    );
+    const className = 'min-h-6 max-w-48 min-w-0 shrink gap-1 px-1.5 text-muted';
+    if (onOpen) {
+        return (
+            <Tooltip content={t('agentChat.timeline.openNamed', { name: title })}>
+                <Button
+                    aria-label={t('agentChat.fold.openSubagent', { name: title })}
+                    className={className}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onOpen(subagent.taskId)}
+                >
+                    {content}
+                </Button>
+            </Tooltip>
+        );
+    }
+    if (!onReveal) return <span className={cn('flex items-center', className)}>{content}</span>;
+    const label = t('agentChat.fold.showSubagent', { name: title });
     return (
-        <Tooltip content={t('agentChat.timeline.openNamed', { name: title })}>
+        <Tooltip content={label}>
             <Button
-                aria-label={t('agentChat.fold.openSubagent', { name: title })}
-                className="min-h-6 max-w-48 min-w-0 shrink gap-1 px-1.5 text-muted"
+                aria-label={label}
+                className={className}
                 size="sm"
                 variant="ghost"
-                onClick={() => onOpen(subagent.taskId)}
+                onClick={(event) => onReveal(subagent.itemId, event.currentTarget)}
             >
-                <Bot aria-hidden="true" className="size-3.5 shrink-0" />
-                <span className="min-w-0 truncate">{title}</span>
+                {content}
             </Button>
         </Tooltip>
     );
 }
 
 /**
- * The fold's `Worked for 2m 1s` toggle, with a button per subagent the turn started.
+ * The fold's `Worked for 2m 1s` toggle, with an entry per subagent the turn started.
  */
 function TurnFoldHeader({
     detailId,
     isExpanded,
     label,
     onOpenSubagent,
+    onRevealSubagent,
     onToggle,
     status,
     subagents,
@@ -76,6 +114,7 @@ function TurnFoldHeader({
     isExpanded: boolean;
     label: string;
     onOpenSubagent: ((taskId: string) => void) | undefined;
+    onRevealSubagent: ((itemId: string, element: HTMLElement) => void) | undefined;
     onToggle: (element: HTMLElement) => void;
     status: TurnEntry['status'];
     subagents: readonly AgentChatTurnSubagent[];
@@ -122,14 +161,14 @@ function TurnFoldHeader({
             ) : (
                 toggleButton
             )}
-            {onOpenSubagent &&
-                subagents.map((subagent) => (
-                    <TurnSubagentButton
-                        key={subagent.taskId}
-                        subagent={subagent}
-                        onOpen={onOpenSubagent}
-                    />
-                ))}
+            {subagents.map((subagent) => (
+                <TurnSubagentButton
+                    key={subagent.taskId}
+                    subagent={subagent}
+                    onOpen={onOpenSubagent}
+                    onReveal={onRevealSubagent}
+                />
+            ))}
         </div>
     );
 }
@@ -162,9 +201,10 @@ function useTurnFoldFindExpansion(entry: TurnEntry, isExpandedByUser: boolean) {
  * A finished turn's work and commentary behind one `Worked for 2m 1s` row with a hairline, so the prompt and the final
  * reply read as one exchange. A failed or stopped turn carries its tone in the glyph and the words, so a turn that did
  * not finish is not read as one that did. Expanded, it renders the folded entries exactly as they looked while the turn
- * ran. A subagent the turn started stays one click away on the row itself, since it has left the Background work strip
- * by the time the turn folds. A row the user opened while the turn ran keeps the fold open when the turn ends, so
- * finishing never hides what they were reading; hovering the row says when the turn finished.
+ * ran. A subagent the turn started stays named on the row itself, one click from its tab or its row, since it may have
+ * left the Background work strip by the time the turn folds. A row the user opened while the turn ran keeps the fold
+ * open when the turn ends, so finishing never hides what they were reading; hovering the row says when the turn
+ * finished.
  */
 export function AgentChatTurnFold({
     entry,
@@ -182,12 +222,14 @@ export function AgentChatTurnFold({
     const detailId = useId();
     const links = use(AgentChatTaskLinksContext);
     const { t } = useTranslation();
+    const reveal = useAgentChatRevealWorkItem();
+    const container = useRef<HTMLDivElement>(null);
     const subagents = useMemo(
         () => (links ? agentChatTurnSubagents(turnItems(entry), links.tasksByItem) : []),
         [entry, links],
     );
     return (
-        <div className="text-[12px] leading-5">
+        <div className="text-[12px] leading-5" ref={container}>
             <TurnFoldHeader
                 detailId={detailId}
                 isExpanded={isExpanded}
@@ -196,6 +238,20 @@ export function AgentChatTurnFold({
                 subagents={subagents}
                 timeTooltip={agentChatTurnTimeTooltip(entry, t)}
                 onOpenSubagent={links?.openTask}
+                onRevealSubagent={
+                    reveal &&
+                    ((itemId, element) => {
+                        find.release();
+                        reveal({
+                            container: container.current,
+                            element,
+                            itemId,
+                            keys: agentChatRevealItemKeys(entry, itemId, (item) =>
+                                isAgentChatTaskItemRunning(links?.tasksByItem, item),
+                            ),
+                        });
+                    })
+                }
                 onToggle={(element) => {
                     expansion.toggle(element, !isExpanded);
                     find.release();

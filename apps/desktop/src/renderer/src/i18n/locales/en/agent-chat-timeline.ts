@@ -120,6 +120,7 @@ export const agentChatTimeline = {
     'agentChat.fold.startedAt': 'Started {{time}}',
     'agentChat.fold.subagent': 'Subagent',
     'agentChat.fold.openSubagent': 'Open subagent {{name}}',
+    'agentChat.fold.showSubagent': 'Show subagent {{name}} in this turn',
     'agentChat.questions.askingOne': 'Asking a question',
     'agentChat.questions.askingOther': 'Asking {{count}} questions',
     'agentChat.questions.askedOne': 'Asked a question',
