@@ -6,6 +6,7 @@ import { ArrowUp, CornerDownLeft, Paperclip, Square } from 'lucide-react-native'
 
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
+import { classifyMobileWriteFailure } from '../connection/mobile-write-failure';
 import { ImageSourceSheet } from '../sessions/components/image-source-sheet';
 import { SessionComposerAttachments } from '../sessions/components/session-composer-extras';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
@@ -13,9 +14,11 @@ import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
 import {
     agentChatComposerAvailability,
     agentChatComposerButton,
+    agentChatComposerHint,
     agentChatComposerSubmission,
     agentChatDisabledReason,
     agentChatImagesUnsupportedReason,
+    agentChatSendFailureMessage,
     isAgentChatStopping,
 } from './agent-chat-model';
 import { AgentChatModelButton } from './agent-chat-model-sheet';
@@ -71,8 +74,8 @@ const useComposerAction = ({
             await chat.send(draft.trim(), images.readyChatImages, delivery);
             onDraftChange('');
             images.clear();
-        } catch {
-            setError('Your message was not sent. Try again.');
+        } catch (sendError) {
+            setError(agentChatSendFailureMessage(classifyMobileWriteFailure(sendError)));
         } finally {
             setSending(false);
         }
@@ -217,16 +220,21 @@ const AgentChatComposerButton = ({
 };
 
 /**
- * The lines under the input: why the composer is disabled, a pending Stop, and a failed send or Stop.
+ * The lines under the input: why the composer is disabled, a pending Stop, the steer hint, and a failed send or Stop.
  */
 const AgentChatComposerStatus = ({
     error,
+    hint,
     isStopping,
     provider,
     reason,
     theme,
 }: {
     error: string | null;
+    /**
+     * From `agentChatComposerHint`: how to steer, shown only while no failure or Stop owns the line.
+     */
+    hint: string | undefined;
     isStopping: boolean;
     provider: string;
     reason: string | undefined;
@@ -251,6 +259,14 @@ const AgentChatComposerStatus = ({
                 testID="agent-chat-composer-stopping"
             >
                 {`Stopping ${provider}…`}
+            </Text>
+        ) : null}
+        {hint ? (
+            <Text
+                style={[styles.sendState, { color: theme.muted }]}
+                testID="agent-chat-composer-hint"
+            >
+                {hint}
             </Text>
         ) : null}
         {error ? (
@@ -414,6 +430,7 @@ export const AgentChatComposer = ({
             </View>
             <AgentChatComposerStatus
                 error={error}
+                hint={agentChatComposerHint({ canSteer, hasError: error !== null, isStopping })}
                 isStopping={isStopping}
                 provider={provider}
                 reason={availability.reason ?? images.waitReason ?? undefined}

@@ -152,7 +152,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flexDirection: 'row',
         gap: 8,
-        minHeight: 44,
+        // The header is the card's expand toggle; 48dp is the mobile minimum touch target.
+        minHeight: 48,
         paddingHorizontal: 12,
     },
     label: { fontSize: 13, fontWeight: '600' },

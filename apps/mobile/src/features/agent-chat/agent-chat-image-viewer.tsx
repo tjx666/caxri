@@ -166,7 +166,10 @@ const ViewerContent = ({
     const content = agentChatViewerContent(original, thumbnail.uri);
     const position = `image ${target.index + 1} of this message`;
     return (
-        <GestureHandlerRootView style={styles.backdrop} testID="agent-chat-image-viewer">
+        <GestureHandlerRootView
+            style={[styles.backdrop, { backgroundColor: theme.scrim }]}
+            testID="agent-chat-image-viewer"
+        >
             {content.placeholderUri ? (
                 <Image
                     accessibilityIgnoresInvertColors
@@ -187,7 +190,7 @@ const ViewerContent = ({
             ) : null}
             {content.isPreview ? (
                 <Text
-                    style={[styles.note, { bottom: insets.bottom + 24 }]}
+                    style={[styles.note, { bottom: insets.bottom + 24, color: theme.onScrimMuted }]}
                     testID="agent-chat-image-viewer-preview-note"
                 >
                     Showing a preview. The full-size image is not available.
@@ -195,13 +198,15 @@ const ViewerContent = ({
             ) : null}
             {original.isLoading ? (
                 <View style={styles.center}>
-                    <ActivityIndicator color="#fff" size="large" />
-                    <Text style={styles.status}>{Math.round(original.progress * 100)}%</Text>
+                    <ActivityIndicator color={theme.onScrim} size="large" />
+                    <Text style={[styles.status, { color: theme.onScrim }]}>
+                        {Math.round(original.progress * 100)}%
+                    </Text>
                 </View>
             ) : null}
             {content.message ? (
                 <View style={styles.center} testID="agent-chat-image-viewer-error">
-                    <Text style={styles.status}>{content.message}</Text>
+                    <Text style={[styles.status, { color: theme.onScrim }]}>{content.message}</Text>
                     {original.isError ? (
                         <Pressable
                             accessibilityHint="Loads the full-size image again."
@@ -221,17 +226,20 @@ const ViewerContent = ({
                 accessibilityRole="button"
                 hitSlop={12}
                 onPress={onClose}
-                style={[styles.close, { top: insets.top + 12 }]}
+                style={[
+                    styles.close,
+                    { backgroundColor: theme.scrimControl, top: insets.top + 12 },
+                ]}
                 testID="agent-chat-image-viewer-close"
             >
-                <X color="#fff" size={22} strokeWidth={2.5} />
+                <X color={theme.onScrim} size={22} strokeWidth={2.5} />
             </Pressable>
         </GestureHandlerRootView>
     );
 };
 
 const styles = StyleSheet.create({
-    backdrop: { backgroundColor: 'rgba(0, 0, 0, 0.94)', flex: 1 },
+    backdrop: { flex: 1 },
     fill: { flex: 1, height: '100%', width: '100%' },
     /**
      * The thumbnail is a fraction of the original's resolution, so it is dimmed while it stands in for it.
@@ -244,14 +252,13 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFill,
     },
     note: {
-        color: 'rgba(255, 255, 255, 0.8)',
         fontSize: 13,
         left: 24,
         position: 'absolute',
         right: 24,
         textAlign: 'center',
     },
-    status: { color: '#fff', fontSize: 15, fontVariant: ['tabular-nums'], textAlign: 'center' },
+    status: { fontSize: 15, fontVariant: ['tabular-nums'], textAlign: 'center' },
     retry: {
         borderRadius: 10,
         justifyContent: 'center',
@@ -261,7 +268,6 @@ const styles = StyleSheet.create({
     retryText: { fontSize: 15, fontWeight: '600' },
     close: {
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.16)',
         borderRadius: 20,
         height: 40,
         justifyContent: 'center',

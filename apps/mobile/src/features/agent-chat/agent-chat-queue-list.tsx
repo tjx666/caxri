@@ -22,6 +22,7 @@ import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatQueueActions } from './use-agent-chat-queue-actions';
 
 const MONOSPACE = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
+const STEER_HIT_SLOP = { bottom: 8, left: 8, right: 4, top: 8 } as const;
 
 /**
  * About four rows; a longer queue scrolls inside the card so the Chat above keeps its room.
@@ -64,7 +65,6 @@ const QueueHeader = ({
                 accessibilityRole="button"
                 accessibilityState={{ busy: isResuming, disabled: isResuming }}
                 disabled={isResuming}
-                hitSlop={4}
                 onPress={onResume}
                 style={({ pressed }) => [styles.resume, { opacity: pressed ? 0.6 : 1 }]}
                 testID="agent-chat-queue-resume"
@@ -161,7 +161,9 @@ const QueueRow = ({
                             accessibilityRole="button"
                             accessibilityState={{ disabled: !canSendNow }}
                             disabled={!canSendNow}
-                            hitSlop={6}
+                            // 32dp pill plus 8dp above and below is the 48dp target; the 52dp row holds the slop, which
+                            // Android clips to the parent's bounds.
+                            hitSlop={STEER_HIT_SLOP}
                             onPress={() => {
                                 // eslint-disable-next-line no-void -- The queue card reports a failed send itself.
                                 void onSendNow(entry.id);
@@ -295,11 +297,12 @@ const styles = StyleSheet.create({
     count: { borderRadius: 8, minWidth: 20, paddingHorizontal: 6, paddingVertical: 1 },
     countText: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
     detail: { flex: 1, fontSize: 12 },
+    // A full 48dp box rather than hit slop: the header is shorter than 48dp, and Android clips slop to the parent.
     resume: {
         alignItems: 'center',
         flexDirection: 'row',
         gap: 4,
-        minHeight: 36,
+        minHeight: 48,
         paddingHorizontal: 8,
     },
     resumeText: { fontSize: 13, fontWeight: '700' },
