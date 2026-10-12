@@ -22,7 +22,17 @@ export interface ImageAttachment {
      */
     thumbnail?: { id: string; base64?: string };
     error?: string;
+    /**
+     * When a `ready` image finished uploading, so the strip can stop offering one the Server has already deleted.
+     */
+    uploadedAt?: number;
 }
+
+/**
+ * How long an uploaded image stays sendable: the Server deletes an unsent upload after 60 minutes (`IMAGE_LIFETIME_MS`
+ * in `apps/server/src/domains/mobile/image-store.ts`), less a margin for a send in flight.
+ */
+export const IMAGE_ATTACHMENT_REUSE_MS = 55 * 60_000;
 
 const EMPTY: readonly ImageAttachment[] = [];
 
@@ -97,6 +107,7 @@ export const patchImageAttachment = (
 export const completeImageAttachment = (
     attachments: readonly ImageAttachment[],
     id: string,
+    now: number,
 ): readonly ImageAttachment[] =>
     attachments.some((item) => item.id === id)
         ? attachments.map((item) =>
@@ -106,7 +117,37 @@ export const completeImageAttachment = (
                         uri: item.uri,
                         progress: 1,
                         state: 'ready' as const,
+                        uploadedAt: now,
                         ...(item.thumbnail && { thumbnail: { id: item.thumbnail.id } }),
+                    }
+                  : item,
+          )
+        : attachments;
+
+/**
+ * Turns a ready image the Server has likely deleted into a failed one, so Send waits on the strip instead of
+ * referencing a missing upload. Its bytes are gone, so its error asks for the image again.
+ */
+export const expireImageAttachments = (
+    attachments: readonly ImageAttachment[],
+    now: number,
+): readonly ImageAttachment[] =>
+    attachments.some(
+        (item) =>
+            item.state === 'ready' &&
+            item.uploadedAt !== undefined &&
+            now - item.uploadedAt > IMAGE_ATTACHMENT_REUSE_MS,
+    )
+        ? attachments.map((item) =>
+              item.state === 'ready' &&
+              item.uploadedAt !== undefined &&
+              now - item.uploadedAt > IMAGE_ATTACHMENT_REUSE_MS
+                  ? {
+                        id: item.id,
+                        uri: item.uri,
+                        progress: 0,
+                        state: 'failed' as const,
+                        error: 'This image expired on your computer. Remove it and attach it again.',
                     }
                   : item,
           )

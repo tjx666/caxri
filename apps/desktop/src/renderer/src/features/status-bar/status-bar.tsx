@@ -220,7 +220,7 @@ export function StatusBar() {
     const serverStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
     const degraded = serverStatus ? DEGRADED_STATES[serverStatus] : undefined;
     const containerReference = useRef<HTMLElement>(null);
-    const chipVisibility = useChipVisibility(containerReference);
+    const chipVisibility = useChipVisibility(containerReference, sessionId);
     return (
         /**
          * `data-runtime-status` is the stable readiness signal: it is present in every visual state, including the

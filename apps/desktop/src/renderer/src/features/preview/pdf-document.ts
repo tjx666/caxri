@@ -161,9 +161,13 @@ export async function createPdfViewerSession({
         /**
          * The offset is exact when the zoom and pane width match what produced it, which is the tab-switch case; a page
          * that the restored offset does not land on means the layout changed (another pane width, a shorter document),
-         * and the page is the better promise.
+         * and the page is the better promise. pdf.js only re-reads the visible page on its next animation frame, so
+         * `update()` refreshes `currentPageNumber` from the restored offset before the comparison.
          */
-        if (restored?.scrollTop !== undefined) container.scrollTop = restored.scrollTop;
+        if (restored?.scrollTop !== undefined) {
+            container.scrollTop = restored.scrollTop;
+            viewer.update();
+        }
         if (restored?.pageNumber !== undefined && viewer.currentPageNumber !== restored.pageNumber)
             viewer.currentPageNumber = clampPdfPageNumber(
                 restored.pageNumber,

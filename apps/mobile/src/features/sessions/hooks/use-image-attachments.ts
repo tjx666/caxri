@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { Alert } from 'react-native';
 
 import { encodeHex } from '@caxri/mobile-transport';
@@ -17,6 +17,7 @@ import {
 import type { ImageAttachment } from '../image-attachment-store';
 import {
     completeImageAttachment,
+    expireImageAttachments,
     imageAttachmentKey,
     imageAttachmentStore,
     imageAttachmentWaitReason,
@@ -91,6 +92,10 @@ export const useImageAttachments = (
     const attachments = useSyncExternalStore(subscribe, snapshot, snapshot);
     const update = (change: (current: readonly ImageAttachment[]) => readonly ImageAttachment[]) =>
         imageAttachmentStore.update(key, change);
+    // Pending images outlive the composer; one the Server has deleted since must not look ready on return.
+    useEffect(() => {
+        imageAttachmentStore.update(key, (current) => expireImageAttachments(current, Date.now()));
+    }, [key]);
 
     const upload = async (item: ImageAttachment) => {
         try {
@@ -129,7 +134,7 @@ export const useImageAttachments = (
                 if (!completed) return;
                 sent += part.chunks.length;
             }
-            update((current) => completeImageAttachment(current, item.id));
+            update((current) => completeImageAttachment(current, item.id, Date.now()));
         } catch (error) {
             update((current) =>
                 patchImageAttachment(current, item.id, {
