@@ -2,7 +2,8 @@ import type { AgentChatImageInput } from '@caxri/protocol';
 import { debounce } from 'es-toolkit';
 
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
-import { retainAgentChatEdits } from './agent-chat-edit';
+import type { AgentChatEdit } from './agent-chat-edit';
+import { readAgentChatEdit, retainAgentChatEdits, writeAgentChatEdit } from './agent-chat-edit';
 import { AGENT_CHAT_IMAGE_RESIZED_NOTE } from './agent-chat-images';
 
 /**
@@ -157,12 +158,32 @@ export function draftWithParagraph(draft: string, text: string): string {
 
 /**
  * Adds `text` to the end of a Chat's draft without sending it: into the composer on screen when it is mounted,
- * otherwise into the stored draft it opens with.
+ * otherwise into the stored draft it opens with. During "Edit from here" the draft is the edited message, which Cancel
+ * discards, so the edit also records `text` for Cancel to put back (`draftAfterEditCancel`).
  */
 export function appendToAgentChatDraft(terminalId: string, text: string): void {
+    const edit = readAgentChatEdit(terminalId);
+    if (edit)
+        writeAgentChatEdit(terminalId, {
+            ...edit,
+            appendedDraft: draftWithParagraph(edit.appendedDraft, text),
+        });
     const listener = appendListeners.get(terminalId);
     if (listener) listener(text);
     else writeAgentChatDraft(terminalId, draftWithParagraph(readAgentChatDraft(terminalId), text));
+}
+
+/**
+ * The draft an "Edit from here" leaves behind when its edited message is discarded unsent (Cancel, or editing another
+ * message instead): the draft set aside when it began, followed by anything appended to the Chat's message meanwhile,
+ * such as a turn review comment, which would otherwise be lost with the edited text.
+ */
+export function draftAfterEditCancel(
+    edit: Pick<AgentChatEdit, 'appendedDraft' | 'previousDraft'>,
+): string {
+    return edit.appendedDraft
+        ? draftWithParagraph(edit.previousDraft, edit.appendedDraft)
+        : edit.previousDraft;
 }
 
 export function readAgentChatAttachments(terminalId: string): AgentChatAttachment[] {
