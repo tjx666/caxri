@@ -808,7 +808,7 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   granted Projects, refuse a non-Chat Terminal with `CONFLICT`, and go through Core's mutation
   admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
   `mode: 'resume'`).
-- Images. A `reply` or `control` phone attaches up to 4 images from the library, camera, or
+- Images. A `reply` or `control` phone attaches up to 20 images (20 MB together) from the library, camera, or
   clipboard when the provider has `capabilities.chatImages`; Grok Build's composer has no attach
   button. The phone compresses each to a JPEG (at most 3 MB) and also makes the thumbnail Desktop
   would (fitted to 384 px, at most 48 KB), and uploads both through the Terminal composer's chunked
@@ -828,7 +828,7 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   writes an opened original only to its cache directory for display.
 - Follow-up queue: `mobile.agentChat.send` forwards the phone's `delivery`, so a message sent during
   a turn joins the queue by default, like Desktop's Enter; holding Send on the phone sends
-  `delivery: 'steer'`, the stand-in for Cmd+Enter. The snapshot and `state` patches carry the queue
+  `delivery: 'steer'`, the stand-in for Cmd+Enter, and so does the `Steer` button shown beside Send during a turn. The snapshot and `state` patches carry the queue
   as a bounded preview (`clipAgentChatQueueForMobile`: the first 10 entries, each text and command
   argument cut to 200 characters behind `…`) plus `queuePaused` and `queueLength`, the real count
   the header shows when the queue outgrows the preview; each entry keeps its real id. The phone shows it as a card docked above its composer with Desktop's header words (`Queued · sends
@@ -841,6 +841,13 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   `agentChatQueueEntry`, which Desktop shares. Editing a queued message stays on Desktop, since the phone holds only a
   preview. While a turn runs the Send button wears the queue glyph and the placeholder reads
   `Queue a follow-up`.
+- Optimistic sends. Desktop and the phone share the placement and settlement rules in
+  `packages/protocol/src/agent/agent-chat-pending.ts`: a sent message shows at once where it lands
+  (the timeline when it starts or steers a turn, the queue otherwise) until the projection shows a
+  new user message or queue entry containing its text, bounded by a 30 second TTL after the send is
+  accepted. The phone also settles on the bounded copies it receives, matching the part a clipped
+  text kept. A pending queue row on the phone offers no actions until Core has queued it. Slash
+  commands, edits, and rewinds on Desktop still wait for Core, since Core can refuse them.
 
 ## Images and slash commands
 

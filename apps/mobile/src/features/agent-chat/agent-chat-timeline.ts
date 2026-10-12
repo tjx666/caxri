@@ -41,7 +41,17 @@ export type AgentChatTimelineEntry =
           rows: readonly AgentChatWorkItem[];
       }
     | { kind: 'artifacts'; id: string; artifacts: AgentChatTurnArtifacts }
-    | { kind: 'turn'; id: string; label: string; status: AgentChatTurn['status'] };
+    | { kind: 'turn'; id: string; label: string; status: AgentChatTurn['status'] }
+    | {
+          /**
+           * A message on its way that starts or steers a turn (`agent-chat-pending.ts`), drawn like the user message it
+           * becomes but faded and captioned `Sending…`.
+           */
+          kind: 'pending';
+          id: string;
+          text: string;
+          imageUris: readonly string[];
+      };
 
 const WORK_TYPES: ReadonlySet<AgentChatItem['type']> = new Set([
     'command',
@@ -205,4 +215,32 @@ export function agentChatChangeColor(
             return 'gitModified';
         }
     }
+}
+
+/**
+ * The timeline ahead of the projection, as Desktop's pending timeline ends it: answers whose record has not arrived,
+ * then messages on their way that start or steer a turn. Each gives way to the real row once the snapshot shows it.
+ */
+export function withAgentChatPendingEntries(
+    entries: readonly AgentChatTimelineEntry[],
+    pending: {
+        notices: readonly AgentChatItem[];
+        timeline: ReadonlyArray<{ id: string; text: string; imageUris: readonly string[] }>;
+    },
+): readonly AgentChatTimelineEntry[] {
+    if (pending.notices.length === 0 && pending.timeline.length === 0) return entries;
+    return [
+        ...entries,
+        ...pending.notices.flatMap((notice): AgentChatTimelineEntry[] =>
+            notice.type === 'notice'
+                ? [{ kind: 'message', id: `pending:${notice.id}`, message: toMessage(notice) }]
+                : [],
+        ),
+        ...pending.timeline.map((message): AgentChatTimelineEntry => ({
+            kind: 'pending',
+            id: `pending:${message.id}`,
+            text: message.text,
+            imageUris: message.imageUris,
+        })),
+    ];
 }

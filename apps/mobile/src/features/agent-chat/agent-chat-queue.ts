@@ -4,19 +4,37 @@ import { agentChatQueueEntry } from '@caxri/protocol';
 type AgentChatQueue = NonNullable<AgentChatSnapshot['queue']>;
 
 /**
+ * One row of the phone's queue card: a shared queue row, or a message still on its way to Server Core
+ * (`agent-chat-pending.ts`), shown at the end of the queue it will join with every action held until Server Core lists
+ * it, as Desktop's card shows one.
+ */
+export type AgentChatQueueRow = AgentChatQueueEntry & { isPending?: true };
+
+/**
  * The follow-up queue as the card above the phone's composer, in send order, each row named the way Desktop names it
  * (`agentChatQueueEntry`). Editing is Desktop-only: the phone holds a bounded preview, not the message. The Server
  * already cut each message to a preview (`clipAgentChatQueueForMobile`) without changing its id, so every row's actions
- * reach the real entry. Entries in `pendingIds` are hidden while the phone waits for their delete or steer to land.
+ * reach the real entry. Entries in `pendingIds` are hidden while the phone waits for their delete or steer to land;
+ * `sending` are the messages this phone is still sending into the queue.
  */
 export const agentChatQueueEntries = (
     queue: AgentChatQueue | undefined,
     isTurnRunning: boolean,
     pendingIds: ReadonlySet<string> = new Set(),
-): AgentChatQueueEntry[] =>
-    (queue ?? [])
+    sending: ReadonlyArray<{ id: string; text: string; imageUris: readonly string[] }> = [],
+): AgentChatQueueRow[] => [
+    ...(queue ?? [])
         .filter((message) => !pendingIds.has(message.id))
-        .map((message) => agentChatQueueEntry(message, isTurnRunning));
+        .map((message) => agentChatQueueEntry(message, isTurnRunning)),
+    ...sending.map((message) => ({
+        ...agentChatQueueEntry(
+            { id: message.id, text: message.text, imageCount: message.imageUris.length },
+            isTurnRunning,
+        ),
+        canSendNow: false,
+        isPending: true as const,
+    })),
+];
 
 export interface AgentChatQueueHeader {
     title: 'Queued' | 'Queue paused';
