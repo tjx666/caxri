@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { builtinModules } from 'node:module';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -24,6 +25,46 @@ async function resolveGitCommit(): Promise<string> {
     } catch {
         return 'unknown';
     }
+}
+
+/**
+ * Package names Bun reports as builtins (it ships its own `ws` and `undici`) although Node does not. Vite externalizes
+ * every builtin of the runtime it runs on, so a build started under Bun would leave a bare `import "ws"` that only
+ * resolves while the checkout's `node_modules` happens to sit above the bundle; a packaged or SSH Host Server crashes.
+ */
+const runtimeOnlyBuiltins = new Set(['undici', 'ws']);
+/**
+ * Node's builtins, independent of the runtime that runs the build: the Server always runs on Node.
+ */
+const nodeBuiltins = [
+    /^node:/,
+    ...builtinModules.filter((id) => !id.includes(':') && !runtimeOnlyBuiltins.has(id)),
+];
+
+/**
+ * Fails the build when a chunk imports a bare package the artifact does not ship: everything is bundled except Node
+ * builtins and the native packages rewritten to `../native`.
+ */
+function selfContainedBundles(): Plugin {
+    return {
+        name: 'caxri-self-contained-bundles',
+        generateBundle(_options, bundle) {
+            for (const chunk of Object.values(bundle)) {
+                if (chunk.type !== 'chunk') continue;
+                const leaked = chunk.imports.find(
+                    (id) =>
+                        !(id in bundle) &&
+                        !id.startsWith('node:') &&
+                        !Object.values(nativeModulePaths).includes(id) &&
+                        (runtimeOnlyBuiltins.has(id) || !builtinModules.includes(id)),
+                );
+                if (leaked)
+                    throw new Error(
+                        `${chunk.fileName} imports "${leaked}" without bundling it; the Server artifact ships no node_modules`,
+                    );
+            }
+        },
+    };
 }
 
 /**
@@ -117,7 +158,8 @@ export default defineConfig(async () => {
             __CAXRI_COMMIT__: JSON.stringify(await resolveGitCommit()),
             __CAXRI_VERSION__: JSON.stringify(workspaceManifest.version),
         },
-        plugins: [asciiOnlyBundles()],
+        plugins: [asciiOnlyBundles(), selfContainedBundles()],
+        resolve: { builtins: nodeBuiltins },
         ssr: {
             external: Object.keys(nativeModulePaths),
             noExternal: true as const,
