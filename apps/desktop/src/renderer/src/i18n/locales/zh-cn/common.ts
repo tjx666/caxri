@@ -1,5 +1,6 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+
 import type { common as source } from '../en/common';
-import type { TranslatedNamespace } from '../types';
 
 export const common: TranslatedNamespace<typeof source> = {
     'common.add': '添加',

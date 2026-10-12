@@ -1,5 +1,7 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+import { commands } from '@desktop-shared/i18n/zh-cn/commands';
+
 import type { enResources } from '../en';
-import type { TranslatedNamespace } from '../types';
 import { agentActions } from './agent-actions';
 import { agentActivity } from './agent-activity';
 import { agentChat } from './agent-chat';
@@ -7,7 +9,6 @@ import { agentCommander } from './agent-commander';
 import { agentInbox } from './agent-inbox';
 import { agentStatus } from './agent-status';
 import { bugReport } from './bug-report';
-import { commands } from './commands';
 import { common } from './common';
 import { confirmations } from './confirmations';
 import { core } from './core';

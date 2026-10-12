@@ -1,4 +1,5 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+
 import type { shellCommand as source } from '../en/shell-command';
-import type { TranslatedNamespace } from '../types';
 
 export const shellCommand: TranslatedNamespace<typeof source> = {};
