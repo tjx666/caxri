@@ -230,7 +230,7 @@ function SessionMruSwitcherPanel() {
                     total: candidates.length,
                 })}
             </p>
-            <div className="session-mru-switcher motion-safe:animate-in fade-in-0 zoom-in-95 pointer-events-auto relative flex w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)] duration-(--motion-overlay-enter)">
+            <div className="session-mru-switcher motion-safe:animate-in fade-in-0 zoom-in-95 pointer-events-auto relative flex w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)] duration-(--motion-overlay-enter) ease-(--motion-ease-enter)">
                 <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
                     <span className="text-[11px] font-bold tracking-[0.04em] text-foreground uppercase">
                         {t('session.mru.title')}

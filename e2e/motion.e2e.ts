@@ -348,6 +348,48 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
     }
 });
 
+test('Tooltips travel from their trigger on a fresh open and appear without animation between neighbors', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-motion-tooltip-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await running.page.emulateMedia({ reducedMotion: 'no-preference' });
+        const enterMs = await motionTokenMs(running.page, '--motion-overlay-enter');
+        const tooltip = running.page.locator('.tooltip-popup[data-open]');
+
+        // A fresh open (no tooltip shown within the provider's timeout) plays the enter keyframe and starts 2px
+        // toward the trigger, so the tooltip reads as coming from the tab it describes.
+        await running.page.getByRole('tab', { name: 'Files' }).hover();
+        await expect(tooltip).toContainText('Files');
+        await expect(tooltip).toHaveAttribute('data-side', 'bottom');
+        await expect(tooltip).not.toHaveAttribute('data-instant');
+        expect(await animationNameOf(tooltip)).toBe('enter');
+        expect(await animationDurationMs(tooltip)).toBe(enterMs);
+        expect(
+            await tooltip.evaluate((element) =>
+                getComputedStyle(element).getPropertyValue('--tw-enter-translate-y'),
+            ),
+        ).not.toBe('0');
+
+        // Sweeping to the neighbor inside that timeout is Base UI's instant phase: the next tooltip must not replay
+        // the enter keyframe, or a pass along the tab strip flickers once per tab.
+        await running.page.getByRole('tab', { name: 'Git' }).hover();
+        await expect(tooltip).toContainText('Git');
+        await expect(tooltip).toHaveAttribute('data-instant');
+        expect(await animationNameOf(tooltip)).toBe('none');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('prefers-reduced-motion completes disclosure and work-tab motion instantly', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-motion-reduced-e2e-'));
     const userData = join(testDirectory, 'user-data');

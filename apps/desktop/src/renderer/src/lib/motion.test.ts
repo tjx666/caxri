@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { motionDurationMs, motionSettleTimeoutMs } from './motion';
+import { motionDurationMs, motionEasing, motionSettleTimeoutMs } from './motion';
 
 /**
  * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), so `document`/`getComputedStyle`
@@ -62,5 +62,26 @@ describe('motionSettleTimeoutMs', () => {
 
     it('adds the safety margin to the 200ms fallback when the token is missing', () => {
         expect(motionSettleTimeoutMs('--motion-does-not-exist')).toBe(250);
+    });
+});
+
+describe('motionEasing', () => {
+    it('parses a cubic-bezier token into control points', () => {
+        tokenValuesState.current['--motion-ease-enter'] = ' cubic-bezier(0.23, 1, 0.32, 1) ';
+        expect(motionEasing('--motion-ease-enter')).toEqual([0.23, 1, 0.32, 1]);
+    });
+
+    it('resolves a CSS easing keyword to its control points', () => {
+        tokenValuesState.current['--motion-ease-exit'] = 'ease-in';
+        expect(motionEasing('--motion-ease-exit')).toEqual([0.42, 0, 1, 1]);
+    });
+
+    it('falls back to the CSS ease curve when the token is missing', () => {
+        expect(motionEasing('--motion-does-not-exist')).toEqual([0.25, 0.1, 0.25, 1]);
+    });
+
+    it('falls back to the CSS ease curve for a malformed cubic-bezier', () => {
+        tokenValuesState.current['--motion-broken'] = 'cubic-bezier(0.2, nope, 0.3)';
+        expect(motionEasing('--motion-broken')).toEqual([0.25, 0.1, 0.25, 1]);
     });
 });
