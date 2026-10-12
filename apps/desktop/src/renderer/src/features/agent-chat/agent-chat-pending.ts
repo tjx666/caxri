@@ -123,32 +123,57 @@ function projectedEntries(snapshot: AgentChatSnapshot): ProjectedEntry[] {
 }
 
 /**
- * Where `message` lands in `entry` past what earlier messages took, as the claim after it, or `undefined` when the
- * entry does not carry it. Text is matched on its leading characters (a provider clips a long message) at or after the
- * claimed offset, so each entry pairs with the messages it carries in order, at most once each: the queue joins
- * consecutive messages into one, but an earlier message that merely contains this one's text cannot also stand for it.
- * An image-only message pairs on its image count instead of matching an empty string. A message cut by the timeline's
- * text bound pairs on the part that survived, and one joined wholly past the cut pairs with the clipped entry, since
- * nothing else of it can ever show.
+ * Where `message` landed in an entry, and whether it ran past the timeline's text bound there.
+ */
+interface AgentChatPendingPairing {
+    entryId: string;
+    claim: AgentChatPendingClaim;
+    /**
+     * The message's text runs past the clipped entry's end, so a message joined right after it is wholly cut off.
+     */
+    isPastCut: boolean;
+}
+
+/**
+ * Where `message` lands in `entry` past what earlier messages took, or `undefined` when the entry does not carry it.
+ * Text is matched on its leading characters (a provider clips a long message) at or after the claimed offset, so each
+ * entry pairs with the messages it carries in order, at most once each: the queue joins consecutive messages into one,
+ * but an earlier message that merely contains this one's text cannot also stand for it. An image-only message pairs on
+ * its image count instead of matching an empty string. A message cut by the timeline's text bound pairs on the part
+ * that survived.
+ *
+ * A message joined wholly past the cut leaves no text to match, so it pairs with the clipped entry only when
+ * `isCutTail` says the message sent right before it ran past that entry's cut and both were queued; an empty surviving
+ * fragment alone is no evidence, or every later message would settle against the clipped entry (issue #1894).
  */
 function claimInEntry(
     message: AgentChatPendingMessage,
     entry: ProjectedEntry,
     claim: AgentChatPendingClaim,
-): AgentChatPendingClaim | undefined {
+    isCutTail: boolean,
+): Omit<AgentChatPendingPairing, 'entryId'> | undefined {
     const imagesLeft = entry.images - claim.images;
     const images = claim.images + Math.min(message.images.length, Math.max(imagesLeft, 0));
     const full = matchableText(message.text);
     if (!full) {
         if (message.images.length === 0 || imagesLeft < message.images.length) return undefined;
-        return { offset: claim.offset, images };
+        return { claim: { offset: claim.offset, images }, isPastCut: false };
     }
     const wanted = full.slice(0, MATCHED_PREFIX_LENGTH);
     const index = entry.text.indexOf(wanted, claim.offset);
-    if (index !== -1) return { offset: Math.min(index + full.length, entry.text.length), images };
+    if (index !== -1) {
+        const end = index + full.length;
+        return {
+            claim: { offset: Math.min(end, entry.text.length), images },
+            isPastCut: entry.isClipped && end > entry.text.length,
+        };
+    }
+    if (!entry.isClipped) return undefined;
     const rest = entry.text.slice(claim.offset).trim();
-    if (entry.isClipped && wanted.startsWith(rest)) return { offset: entry.text.length, images };
-    return undefined;
+    const isCarried = rest ? wanted.startsWith(rest) : isCutTail && message.placement === 'queue';
+    return isCarried
+        ? { claim: { offset: entry.text.length, images }, isPastCut: true }
+        : undefined;
 }
 
 /**
@@ -170,19 +195,33 @@ function carriedClaims(
 }
 
 /**
- * Pairs `message` with the first entry that carries it and records the claim; returns whether it paired.
+ * Pairs `message` with the first entry that carries it and records the claim. An entry its text shows in wins over the
+ * cut tail of a clipped entry (`cutTailId`, see {@link claimInEntry}), since a message shown on its own was not joined.
  */
-function didPairMessage(
+function pairMessage(
     message: AgentChatPendingMessage,
     entries: readonly ProjectedEntry[],
     claims: Map<string, AgentChatPendingClaim>,
-): boolean {
-    return entries.some((entry) => {
-        if (message.knownIds.has(entry.id)) return false;
-        const next = claimInEntry(message, entry, claims.get(entry.id) ?? { offset: 0, images: 0 });
-        if (next) claims.set(entry.id, next);
-        return next !== undefined;
-    });
+    cutTailId: string | undefined,
+): AgentChatPendingPairing | undefined {
+    const candidates = entries.filter((entry) => !message.knownIds.has(entry.id));
+    const pairIn = (entry: ProjectedEntry, isCutTail: boolean) => {
+        const found = claimInEntry(
+            message,
+            entry,
+            claims.get(entry.id) ?? { offset: 0, images: 0 },
+            isCutTail,
+        );
+        return found && { entryId: entry.id, ...found };
+    };
+    const pairing =
+        candidates.map((entry) => pairIn(entry, false)).find((found) => found !== undefined) ??
+        candidates
+            .filter((entry) => entry.id === cutTailId)
+            .map((entry) => pairIn(entry, true))
+            .find((found) => found !== undefined);
+    if (pairing) claims.set(pairing.entryId, pairing.claim);
+    return pairing;
 }
 
 /**
@@ -197,9 +236,17 @@ function pairAgentChatPendingMessages(
     const claims = carriedClaims(messages);
     if (!snapshot) return { settled: new Set(), claims };
     const entries = projectedEntries(snapshot);
-    const settled = new Set(
-        messages.filter((message) => didPairMessage(message, entries, claims)).map(({ id }) => id),
-    );
+    const settled = new Set<string>();
+    /**
+     * The clipped entry the previous queued message ran past the cut of, which a joined follower can only be in.
+     */
+    let cutTailId: string | undefined;
+    for (const message of messages) {
+        const pairing = pairMessage(message, entries, claims, cutTailId);
+        if (pairing) settled.add(message.id);
+        cutTailId =
+            pairing?.isPastCut && message.placement === 'queue' ? pairing.entryId : undefined;
+    }
     return { settled, claims };
 }
 
