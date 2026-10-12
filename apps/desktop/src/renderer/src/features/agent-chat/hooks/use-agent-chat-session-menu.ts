@@ -1,6 +1,7 @@
 import type { KeyboardEvent, RefObject } from 'react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
+import { isImeComposing } from '../../../lib/ime';
 import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
 import { useProjects, useSessions } from '../../../stores/selectors';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
@@ -147,7 +148,7 @@ export function useAgentChatSessionMenu({
          * half-typed `@word`).
          */
         didHandleKey: (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-            if (event.nativeEvent.isComposing) return false;
+            if (isImeComposing(event)) return false;
             // While the chosen Session's reference is written, Enter would send the half-typed `@word` and the
             // reference would then land in the next message.
             if (isPreparing && event.key === 'Enter' && !event.shiftKey) {

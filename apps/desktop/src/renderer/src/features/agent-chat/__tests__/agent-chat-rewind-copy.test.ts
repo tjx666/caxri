@@ -9,7 +9,7 @@ import {
 describe('agentChatReplaceTurnsConfirm', () => {
     it('asks before replacing more than one turn and points at Fork', () => {
         expect(agentChatReplaceTurnsConfirm({ removedTurns: 3, restoreFiles: false })).toEqual({
-            title: 'Replace 3 later turns?',
+            title: 'Replace 3 turns?',
             message:
                 "Sending this edit removes this message's turn and the 2 after it from the conversation. To keep them, cancel and use Fork from Here instead.",
             confirmLabel: 'Replace Turns',

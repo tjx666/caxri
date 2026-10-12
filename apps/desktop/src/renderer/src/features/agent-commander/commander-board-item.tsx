@@ -31,6 +31,7 @@ import { cn } from '../../lib/utilities';
 import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
 import { RunningArc } from '../primary-sidebar/session-status-indicator';
+import { sessionTitleForDisplay } from '../session/session-title';
 import type {
     CommanderChecksIconId,
     CommanderProcessIconId,
@@ -140,7 +141,7 @@ export function CommanderBoardItem({
                         className="commander-board-reveal min-w-0 cursor-pointer truncate text-left outline-none after:absolute after:inset-0 after:rounded-md"
                         onClick={() => revealCommanderSession(row.sessionId)}
                     >
-                        {row.sessionTitle}
+                        {sessionTitleForDisplay(row.sessionTitle, t)}
                     </button>
                     {row.commanderSession &&
                         (task !== undefined || handover !== undefined || showsOwnership) && (

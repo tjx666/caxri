@@ -139,7 +139,7 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                             agentSkillHealth={controller.agentSkillHealth}
                             argvConfig={controller.argvConfig}
                             gitExclusionsFocusRequestId={controller.gitExclusionsFocusRequestId}
-                            argvRowFocusRequest={controller.argvRowFocusRequest}
+                            rowFocusRequest={controller.rowFocusRequest}
                             searchFocusRequestId={controller.searchFocusRequestId}
                             settings={state.settings.value}
                             trustedDomainsFocusRequestId={controller.trustedDomainsFocusRequestId}

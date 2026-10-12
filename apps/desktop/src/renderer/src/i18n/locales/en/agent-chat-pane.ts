@@ -6,7 +6,7 @@ export const agentChatPane = {
         '{{provider}} cannot restore files; only the conversation rewinds',
     'agentChat.dock.openAsTerminal': 'Open as Terminal',
     'agentChat.dock.resume': 'Resume',
-    'agentChat.activity.enterHint': 'to queue ·',
+    'agentChat.activity.enterHint': 'to queue',
     'agentChat.activity.steerHint': 'to steer',
     'agentChat.activity.stopHint': 'to stop',
     'agentChat.commands.sendFailed': 'Message could not be sent',

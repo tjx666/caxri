@@ -8,6 +8,7 @@ import {
     executeViewCatalogShortcut,
     getCachedViewCatalogCommandAllowedInEditable,
 } from '../features/view-containers/view-container-commands';
+import { isImeComposing } from '../lib/ime';
 import {
     buildShortcutMap,
     isEditableEventTarget,
@@ -93,7 +94,7 @@ export function dispatchGlobalKeydown(
     /**
      * An IME composition keystroke (e.g. picking a Pinyin candidate) is not a shortcut.
      */
-    if (event.isComposing) return;
+    if (isImeComposing(event)) return;
     if (isKeybindingRecordingEventTarget(event.target)) {
         state.pending = undefined;
         return;

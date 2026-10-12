@@ -101,7 +101,7 @@ test('Agent Commander hand-over picker hands Sessions and an outside conversatio
 
         await dialog.locator('.commander-handover-submit').click();
         await expect(dialog).toBeHidden();
-        await expect(commander.getByText('Handed 3 to Agent Commander')).toBeVisible();
+        await expect(commander.getByText('Handed 3 Sessions to Agent Commander')).toBeVisible();
 
         const after = await pageRequest<{ sessions: Array<{ id: string; displayTitle: string }> }>(
             running.page,

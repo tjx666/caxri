@@ -162,5 +162,32 @@ describe('ChatFollowUpQueue dispatch', () => {
         expect(sent).toEqual([]);
         expect(queuedTexts()).toEqual(['first', 'second', '/compact']);
         expect(state.snapshot.queuePaused).toBe(true);
+        expect(state.snapshot.queuePauseReason).toBe('sendFailed');
+    });
+
+    it('says why the queue paused and clears the reason once it resumes', async () => {
+        const { endTurn, hold, queue, state } = queueFixture();
+        hold();
+        queue.add(message('first'));
+        queue.pause();
+        expect(state.snapshot).toMatchObject({ queuePaused: true, queuePauseReason: 'stopped' });
+
+        queue.resume();
+        expect(state.snapshot).toMatchObject({ queuePaused: false, queuePauseReason: null });
+
+        state.failNext = true;
+        await endTurn();
+        expect(state.snapshot.queuePauseReason).toBe('sendFailed');
+        // A Stop after a failure keeps the failure as the reason the user has to act on.
+        queue.pause();
+        expect(state.snapshot.queuePauseReason).toBe('sendFailed');
+
+        queue.resume();
+        await endTurn();
+        expect(state.snapshot).toMatchObject({
+            queue: [],
+            queuePaused: false,
+            queuePauseReason: null,
+        });
     });
 });

@@ -213,6 +213,7 @@ describe('Agent Chat reducer: tasks, queue, and operation state', () => {
                 ],
                 queue: [{ id: 'q-1', text: 'next' }],
                 queuePaused: true,
+                queuePauseReason: 'sendFailed',
             },
         });
         expect(agentChatSnapshotSchema.parse(snapshot)).toMatchObject({
@@ -224,7 +225,13 @@ describe('Agent Chat reducer: tasks, queue, and operation state', () => {
         snapshot = applyAgentChatOperation(snapshot, { op: 'reset' });
         expect(snapshot.queue).toEqual([{ id: 'q-1', text: 'next' }]);
         expect(snapshot.queuePaused).toBe(true);
+        expect(snapshot.queuePauseReason).toBe('sendFailed');
         expect(snapshot.tasks).toBeUndefined();
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'state',
+            state: { queuePaused: false, queuePauseReason: null },
+        });
+        expect(snapshot).not.toHaveProperty('queuePauseReason');
     });
 
     it('keeps the models a provider offers across a conversation reset', () => {

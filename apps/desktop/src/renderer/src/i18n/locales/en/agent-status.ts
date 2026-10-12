@@ -21,6 +21,7 @@ export const agentStatus = {
     'agentStatus.summary.readFailed': 'Could not read the status page',
     'agentStatus.summary.checking': 'Checking…',
     // Agent status tab
+    'agentStatus.page.agentFallback': 'Agent',
     'agentStatus.page.terminalClosed': 'This Terminal is no longer open; figures stop updating.',
     // Output speed section
     'agentStatus.throughput.title': 'Output speed',
@@ -38,7 +39,7 @@ export const agentStatus = {
     'agentStatus.throughput.firstToken': 'First token',
     'agentStatus.throughput.firstTokenNotReported': 'Not reported for the last finished turn',
     'agentStatus.throughput.firstTokenLastTurn': 'In the last finished turn',
-    'agentStatus.throughput.agentSession': 'Agent Session',
+    'agentStatus.throughput.agentSession': 'Conversation',
     'agentStatus.throughput.chartCaption':
         'Last {{count}} responses, oldest first; the dashed line is the recent average',
     'agentStatus.throughput.chartPending': 'The chart appears after a second measured response.',

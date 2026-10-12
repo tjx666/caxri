@@ -7,6 +7,7 @@ import {
     settlePinnedSessionReveal,
     usePinnedSessionRevealStore,
 } from '../../session/pinned-session-reveal';
+import { sessionTitleForDisplay } from '../../session/session-title';
 import { primarySidebarPinnedRowId } from '../primary-sidebar-tree';
 import { scrollPrimarySidebarRowIntoView } from '../scroll-primary-sidebar-row';
 
@@ -32,7 +33,9 @@ export function usePinnedSessionReveal({
         const session = pinnedSessions.find((candidate) => candidate.id === request.sessionId);
         if (!session) return;
         settlePinnedSessionReveal(
-            translate('primarySidebar.pinned.pinnedAnnouncement', { title: session.displayTitle }),
+            translate('primarySidebar.pinned.pinnedAnnouncement', {
+                title: sessionTitleForDisplay(session.displayTitle, translate),
+            }),
         );
         expandPinned();
         revealSession(session.id);

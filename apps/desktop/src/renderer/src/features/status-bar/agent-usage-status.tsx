@@ -9,8 +9,14 @@ import { StructuredTooltip } from '../../components/structured-tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
+import { cn } from '../../lib/utilities';
 import { openEditorTab } from '../editor/document-commands';
-import { agentUsageCostLabel, agentUsageLabel, currentLimitWindows } from './agent-usage-label';
+import {
+    agentUsageCostLabel,
+    agentUsageLabel,
+    agentUsageLimitTone,
+    currentLimitWindows,
+} from './agent-usage-label';
 import { StatusItem } from './status-item';
 
 /**
@@ -55,10 +61,11 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const { tokens } = readout;
     const cost = agentUsageCostLabel(readout);
     const limitWindows = currentLimitWindows(readout.limit, now);
+    const limitTone = agentUsageLimitTone(readout, now);
     return (
         <StatusItem
             ariaLabel={t('statusBar.usage.ariaLabel', { agent: agentName, label })}
-            className="statusbar-agent-usage"
+            className={cn('statusbar-agent-usage', limitTone === 'warning' && 'text-warning')}
             icon={<ChartColumn />}
             onClick={() => openEditorTab(usageTabPath())}
             title={

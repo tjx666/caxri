@@ -12,7 +12,6 @@ import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
-import type { SettingsView } from '../../stores/dialogs';
 import { useDialogStore } from '../../stores/dialogs';
 import {
     describeFailure,
@@ -48,40 +47,12 @@ import {
 } from './settings-client';
 import type { ConfigAction, ConfigSourceError } from './settings-drafts';
 import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
+import { rowFocusRequest, scrolledSettingsViews } from './settings-focus-requests';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
 import type { ThemeImportResult } from './theme-import-error';
 import { describeThemeImportFailure } from './theme-import-error';
 import { resetThemeImportWarningDismissals } from './theme-import-warnings';
-
-/**
- * Requests that land on the ordinary settings list and are then answered by a `scrollToIndex` effect in
- * `settings-page.tsx`, rather than by switching to a dedicated tab or view.
- */
-const scrolledSettingsViews: ReadonlySet<SettingsView> = new Set([
-    'hardware-acceleration',
-    'remote-debugging',
-    'notifications',
-    'git-exclusions',
-]);
-
-/**
- * Both `argv.jsonc` boot flags are reached by scrolling their own row into view, so one request carries the row id
- * rather than one prop per flag. `settingTitleForArgvKey` (`argv-restart-notice.ts`) already ties a boot flag to its
- * row through the binding type; this is the same convention on the navigation side.
- */
-const ARGV_ROW_IDS: Partial<Record<SettingsView, string>> = {
-    'hardware-acceleration': 'terminal.hardwareAcceleration',
-    'remote-debugging': 'security.remoteDebugging',
-};
-
-function argvRowFocusRequest(request: {
-    id: number;
-    view: SettingsView;
-}): { id: number; rowId: string } | undefined {
-    const rowId = ARGV_ROW_IDS[request.view];
-    return rowId ? { id: request.id, rowId } : undefined;
-}
 
 const onApplied = (): void => {
     // Fire-and-forget: `refreshWorkbench` reports failures through its own request pipeline, so
@@ -641,7 +612,7 @@ export function useSettingsPageController() {
         changeTab,
         commitSource,
         gitExclusionsFocusRequestId: request.view === 'git-exclusions' ? request.id : undefined,
-        argvRowFocusRequest: argvRowFocusRequest(request),
+        rowFocusRequest: rowFocusRequest(request),
         /**
          * Only an untargeted open claims the caret. Every other view either scrolls to a row or hands focus to the
          * editor it opened, and a search field that grabbed focus over those would undo the request the user made.

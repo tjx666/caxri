@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 
 interface FilesExcludeEditorProperties {
     label: string;
@@ -85,7 +86,7 @@ export function FilesExcludeEditor({
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     onKeyDown={(event) => {
-                        if (event.key === 'Enter') addPattern();
+                        if (event.key === 'Enter' && !isImeComposing(event)) addPattern();
                     }}
                 />
                 <Button

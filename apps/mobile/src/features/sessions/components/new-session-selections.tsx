@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import type { TerminalKind } from '@caxri/protocol';
-import { Folder, FolderPlus, MessageSquare, Search, SquareTerminal } from 'lucide-react-native';
+import { Folder, FolderPlus, MessagesSquare, Search, SquareTerminal } from 'lucide-react-native';
 
 import { AgentGlyph } from '../../../components/agent-icon';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -67,7 +67,7 @@ const NewSessionSurfaceGroup = ({
                     detail={newSessionSurfaceDescription('chat', state.defaultSurface)}
                     isCompact
                     label="Chat"
-                    leading={<MessageSquare color={theme.muted} size={18} />}
+                    leading={<MessagesSquare color={theme.muted} size={18} />}
                     onPress={() => state.setNewSessionSurface('chat')}
                     selected={state.selectedSurface === 'chat'}
                     testID="new-session-surface-chat"

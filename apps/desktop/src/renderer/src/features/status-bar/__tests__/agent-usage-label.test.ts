@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     agentUsageCostLabel,
     agentUsageLabel,
+    agentUsageLimitTone,
     currentLimitWindows,
     shortWindowName,
 } from '../agent-usage-label';
@@ -88,5 +89,38 @@ describe('agent usage chip label', () => {
         expect(shortWindowName(300)).toBe('5h');
         expect(shortWindowName(10_080)).toBe('7d');
         expect(shortWindowName(90)).toBe('90m');
+    });
+});
+
+describe('agent usage limit tone', () => {
+    function withShortest(usedPercent: number, resetsAt = NOW + 3_600_000) {
+        return readout({
+            limit: {
+                provider: 'codex',
+                observedAt: NOW,
+                windows: [
+                    { windowMinutes: 10_080, usedPercent: 99, resetsAt: NOW + 86_400_000 },
+                    { windowMinutes: 300, usedPercent, resetsAt },
+                ],
+            },
+        });
+    }
+
+    it('follows the displayed shortest window across the Usage page warning threshold', () => {
+        expect(agentUsageLimitTone(withShortest(89.4), NOW)).toBeUndefined();
+        expect(agentUsageLimitTone(withShortest(89.6), NOW)).toBe('warning');
+        expect(agentUsageLimitTone(withShortest(100), NOW)).toBe('warning');
+    });
+
+    it('has no tone without a live window', () => {
+        expect(agentUsageLimitTone(readout(), NOW)).toBeUndefined();
+        const reset = readout({
+            limit: {
+                provider: 'codex',
+                observedAt: NOW,
+                windows: [{ windowMinutes: 300, usedPercent: 99, resetsAt: NOW - 1 }],
+            },
+        });
+        expect(agentUsageLimitTone(reset, NOW)).toBeUndefined();
     });
 });

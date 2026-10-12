@@ -35,7 +35,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.exit.failure.agentSessionUnavailable':
         '无法恢复原 Agent 会话，请检查提供方状态或重新开始',
     'terminal.exit.suspendedDetail':
-        'Caxri 会挂起后台 Agent 以节省内存，并在你回来时恢复它们。可在“设置 > Agents”中更改触发时机。',
+        'Caxri 会挂起后台 Agent 以节省内存，并在你回来时恢复它们。可在“{{settingsPath}}”中更改触发时机。',
     'terminal.exit.stopped': '进程已正常退出',
     'terminal.exit.failed': '终端启动失败',
     'terminal.exit.dead': '终端意外停止',
@@ -47,6 +47,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.recovery.restartAgent': '重启 Agent',
     'terminal.recovery.restartTerminal': '重启终端',
     'terminal.recovery.openSettings': '打开设置',
+    'terminal.recovery.openSuspensionSettings': '打开 Agent 挂起设置',
     'terminal.recovery.restart': '重启',
     'terminal.recovery.startNewConversation': '开始新对话',
     'terminal.recovery.newConversation': '新对话',

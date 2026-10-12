@@ -1,9 +1,9 @@
 import type { AgentProviderStatus, AgentProviderStatusIncident } from '@caxri/protocol';
 import { ExternalLink } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { ReportCard } from '../../components/report-card';
 import { Button } from '../../components/ui/button';
-import { Spinner } from '../../components/ui/spinner';
 import { useRelativeTime } from '../../hooks/use-relative-time';
 import { useTranslation } from '../../i18n';
 import { openExternalUrl } from '../../lib/external-link';
@@ -100,10 +100,13 @@ export function AgentProviderStatusSection({
     if (!status)
         return (
             <ReportCard title={t('agentStatus.provider.title')}>
-                <p className="m-0 flex items-center gap-2 text-[12px] text-muted">
-                    <Spinner aria-hidden="true" />
-                    {t('agentStatus.provider.checking')}
-                </p>
+                {/* Shaped like the component rows that arrive, per DESIGN.md principle 9. */}
+                <LoadingSkeleton
+                    variant="list"
+                    rows={3}
+                    indent={0}
+                    label={t('agentStatus.provider.checking')}
+                />
             </ReportCard>
         );
     const openPage = (

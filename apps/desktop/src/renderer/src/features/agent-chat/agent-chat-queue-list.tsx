@@ -1,5 +1,16 @@
-import type { AgentChatQueuedMessage } from '@caxri/protocol';
-import { CornerDownLeft, CornerDownRight, Pause, Pencil, Play, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+
+import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
+import {
+    CircleAlert,
+    CornerDownLeft,
+    CornerDownRight,
+    Pause,
+    Pencil,
+    Play,
+    RotateCw,
+    Trash2,
+} from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -13,9 +24,61 @@ import {
 } from './agent-chat-commands';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { AgentChatQueueEntryView } from './agent-chat-queue';
-import { agentChatQueueEntries } from './agent-chat-queue';
+import {
+    agentChatQueueCardLabels,
+    agentChatQueueEntries,
+    agentChatQueueHeader,
+} from './agent-chat-queue';
 
-const ACTION_CLASS_NAME = 'size-6 text-muted hover:text-foreground';
+/**
+ * The card actions use `aria-disabled` rather than `disabled`, like the composer's Send: a natively disabled button
+ * gets no pointer events in Chromium, so the tooltip that says why the action is unavailable would never open. Each
+ * click handler refuses an unavailable action itself.
+ */
+const ACTION_CLASS_NAME = 'text-muted not-aria-disabled:hover:text-foreground';
+
+/**
+ * One card action behind its tooltip. An unavailable action stays focusable and pointable (`ACTION_CLASS_NAME`), and
+ * its click does nothing; an available one runs, then reports through `onAction`.
+ */
+function QueueCardAction({
+    ariaLabel,
+    children,
+    className,
+    isDisabled,
+    onAction,
+    onRun,
+    size,
+    tooltip,
+}: {
+    ariaLabel: string;
+    children: ReactNode;
+    className: string;
+    isDisabled: boolean;
+    onAction: () => void;
+    onRun: () => void;
+    size: 'icon' | 'sm';
+    tooltip: string;
+}) {
+    return (
+        <Tooltip content={tooltip}>
+            <Button
+                aria-disabled={isDisabled || undefined}
+                aria-label={ariaLabel}
+                className={cn(ACTION_CLASS_NAME, className)}
+                size={size}
+                variant="ghost"
+                onClick={() => {
+                    if (isDisabled) return;
+                    onRun();
+                    onAction();
+                }}
+            >
+                {children}
+            </Button>
+        </Tooltip>
+    );
+}
 
 function QueueCard({
     entry,
@@ -29,8 +92,8 @@ function QueueCard({
     terminalId: string;
 }) {
     const { t } = useTranslation();
-    const isSteer = entry.sendNowLabel === 'Steer';
     const isPending = entry.isPending === true;
+    const labels = agentChatQueueCardLabels(entry, t);
     return (
         <li
             aria-busy={isPending}
@@ -51,68 +114,46 @@ function QueueCard({
                     <span className="shrink-0 text-[11px] text-muted">{entry.imageLabel}</span>
                 )}
             </span>
-            <Tooltip
-                content={
-                    isPending
-                        ? t('agentChat.message.sending')
-                        : t(entry.canEdit ? 'common.edit' : 'agentChat.edit.imagesUnsupported')
-                }
+            <QueueCardAction
+                ariaLabel={t('agentChat.queue.editMessage')}
+                className="size-6"
+                isDisabled={!entry.canEdit}
+                size="icon"
+                tooltip={labels.editTooltip}
+                onAction={onAction}
+                onRun={() => {
+                    // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
+                    void editAgentChatQueued(terminalId, entry, onEdit);
+                }}
             >
-                <Button
-                    aria-label={t('agentChat.queue.editMessage')}
-                    className={ACTION_CLASS_NAME}
-                    disabled={!entry.canEdit}
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                        // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
-                        void editAgentChatQueued(terminalId, entry, onEdit);
-                        onAction();
-                    }}
-                >
-                    <Pencil className="size-3.5" />
-                </Button>
-            </Tooltip>
-            <Tooltip content={t(isPending ? 'agentChat.message.sending' : 'common.delete')}>
-                <Button
-                    aria-label={t('agentChat.queue.deleteMessage')}
-                    className={ACTION_CLASS_NAME}
-                    disabled={isPending}
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                        // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
-                        void didRemoveAgentChatQueued(terminalId, entry.id);
-                        onAction();
-                    }}
-                >
-                    <Trash2 className="size-3.5" />
-                </Button>
-            </Tooltip>
-            <Tooltip
-                content={
-                    isPending
-                        ? t('agentChat.message.sending')
-                        : entry.canSendNow
-                          ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')
-                          : t('agentChat.queue.commandWaits')
-                }
+                <Pencil className="size-3.5" />
+            </QueueCardAction>
+            <QueueCardAction
+                ariaLabel={t('agentChat.queue.deleteMessage')}
+                className="size-6"
+                isDisabled={isPending}
+                size="icon"
+                tooltip={labels.deleteTooltip}
+                onAction={onAction}
+                onRun={() => {
+                    // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
+                    void didRemoveAgentChatQueued(terminalId, entry.id);
+                }}
             >
-                <Button
-                    aria-label={t(isSteer ? 'agentChat.queue.steerNow' : 'agentChat.queue.sendNow')}
-                    className="min-h-6 shrink-0 gap-1 px-1.5 text-muted hover:text-foreground"
-                    disabled={!entry.canSendNow}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                        sendAgentChatQueuedNow(terminalId, entry.id);
-                        onAction();
-                    }}
-                >
-                    <CornerDownLeft className="size-3.5" />
-                    {t(isSteer ? 'agentChat.queue.steer' : 'agentChat.queue.sendNow')}
-                </Button>
-            </Tooltip>
+                <Trash2 className="size-3.5" />
+            </QueueCardAction>
+            <QueueCardAction
+                ariaLabel={labels.sendAriaLabel}
+                className="min-h-6 shrink-0 gap-1 px-1.5"
+                isDisabled={!entry.canSendNow}
+                size="sm"
+                tooltip={labels.sendTooltip}
+                onAction={onAction}
+                onRun={() => sendAgentChatQueuedNow(terminalId, entry.id)}
+            >
+                <CornerDownLeft className="size-3.5" />
+                {labels.sendText}
+            </QueueCardAction>
         </li>
     );
 }
@@ -120,19 +161,19 @@ function QueueCard({
 /**
  * Follow-ups waiting for the running turn, in the order Server Core will send them, as one list just above the
  * composer. Each can be taken back into the composer, deleted, or sent now (steering the running turn). After the user
- * stops a turn the queue pauses instead of firing the next message by surprise, and says so with a Resume action.
+ * stops a turn the queue pauses instead of firing the next message by surprise, and says so with a Resume action; a
+ * pause caused by a failed send says that in `--danger` and offers Retry instead (`agentChatQueueHeader`).
  */
 export function AgentChatQueueList({
     isTurnRunning,
-    isPaused,
     onAction,
     onEdit,
     pending,
     queue,
+    snapshot,
     terminalId,
 }: {
     isTurnRunning: boolean;
-    isPaused: boolean;
     /**
      * Runs after any queue action. Each one removes the control that was clicked (the card leaves the queue, or the
      * paused header goes away), so the caller moves focus back to the message input instead of losing it to the body.
@@ -147,22 +188,35 @@ export function AgentChatQueueList({
      */
     pending: readonly AgentChatPendingMessage[];
     queue: readonly AgentChatQueuedMessage[] | undefined;
+    /**
+     * Whether the queue is paused and why (`queuePauseReason`).
+     */
+    snapshot: Pick<AgentChatSnapshot, 'queuePauseReason' | 'queuePaused'> | undefined;
     terminalId: string;
 }) {
     const { t } = useTranslation();
     const entries = agentChatQueueEntries(queue, isTurnRunning, pending);
     if (entries.length === 0) return null;
+    const header = agentChatQueueHeader(snapshot, isTurnRunning, entries, t);
+    const isFailed = header.tone === 'failed';
     return (
         <section
             aria-label={t('agentChat.queue.label')}
             className="mb-2 rounded-md border border-border bg-surface p-1"
         >
             <h3 className="m-0 flex min-h-6 items-center gap-2 pr-0.5 pl-2 text-[11px] font-normal text-muted">
-                {isPaused ? (
+                {header.resumeLabel ? (
                     <>
-                        <Pause aria-hidden="true" className="size-3 shrink-0 text-warning" />
-                        <span className="min-w-0 flex-1 truncate">
-                            {t('agentChat.queue.paused')}
+                        {isFailed ? (
+                            <CircleAlert
+                                aria-hidden="true"
+                                className="size-3 shrink-0 text-danger"
+                            />
+                        ) : (
+                            <Pause aria-hidden="true" className="size-3 shrink-0 text-warning" />
+                        )}
+                        <span className={cn('min-w-0 flex-1 truncate', isFailed && 'text-danger')}>
+                            {header.text}
                         </span>
                         <Button
                             className="min-h-5 shrink-0 gap-1 px-1.5 text-[11px]"
@@ -173,18 +227,16 @@ export function AgentChatQueueList({
                                 onAction();
                             }}
                         >
-                            <Play className="size-3" />
-                            {t('agentChat.queue.resume')}
+                            {isFailed ? (
+                                <RotateCw className="size-3" />
+                            ) : (
+                                <Play className="size-3" />
+                            )}
+                            {header.resumeLabel}
                         </Button>
                     </>
                 ) : (
-                    <span className="min-w-0 flex-1 truncate">
-                        {t(
-                            isTurnRunning
-                                ? 'agentChat.queue.queuedAfterTurn'
-                                : 'agentChat.queue.queued',
-                        )}
-                    </span>
+                    <span className="min-w-0 flex-1 truncate">{header.text}</span>
                 )}
             </h3>
             <ol className="m-0 flex max-h-40 list-none flex-col overflow-y-auto p-0">

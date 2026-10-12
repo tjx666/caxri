@@ -9,6 +9,7 @@ import {
     markUncertainSessionsChecked,
     NEW_SESSION_AGENT_ORDER,
     newSessionAgentReason,
+    newSessionCreateFailure,
     newSessionDefaultSurface,
     newSessionSurface,
     newSessionSurfaceDescription,
@@ -172,5 +173,33 @@ describe('New Session surface descriptions', () => {
         );
         expect(newSessionSurfaceDescription('pty', 'chat')).toBe("The Agent's own terminal screen");
         expect(newSessionSurfaceDescription('pty', null)).toBe("The Agent's own terminal screen");
+    });
+});
+
+describe('newSessionCreateFailure', () => {
+    it('words an explicit refusal by code instead of echoing the Server message', () => {
+        const state = newSessionCreateFailure({ kind: 'rejected', code: 'NOT_FOUND' });
+        expect(state).toEqual({
+            kind: 'failed',
+            message: 'This Project is no longer available on your computer. Pick another Project.',
+        });
+        expect(newSessionCreateFailure({ kind: 'rejected', code: 'SOMETHING_NEW' })).toEqual({
+            kind: 'failed',
+            message: "Caxri couldn't create the Session. Try again.",
+        });
+    });
+
+    it('asks to reconnect when the request never left the phone', () => {
+        expect(newSessionCreateFailure({ kind: 'offline' })).toEqual({
+            kind: 'failed',
+            message: 'Reconnect to Caxri before creating a Session.',
+        });
+    });
+
+    it('keeps an unconfirmed create uncertain', () => {
+        expect(newSessionCreateFailure({ kind: 'unknown' })).toMatchObject({
+            kind: 'uncertain',
+            checkedSessions: false,
+        });
     });
 });

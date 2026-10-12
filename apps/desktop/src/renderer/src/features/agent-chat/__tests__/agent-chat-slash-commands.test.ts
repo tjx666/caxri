@@ -2,6 +2,7 @@ import type { AgentAction } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentChatDraftMatches,
     agentChatLeadingInvocation,
     agentChatMenuActions,
     agentChatMenuGroupHeading,
@@ -68,6 +69,20 @@ describe('Agent Chat slash commands', () => {
         ).toEqual(['$commit', '/compact']);
         expect(filterAgentChatActions(actions, '')).toHaveLength(4);
         expect(filterAgentChatActions(actions, 'zzz')).toEqual([]);
+    });
+
+    it('matches only a bare invocation, led by the group its sigil names', () => {
+        const actions = agentChatMenuActions(commands, [skill('$commit', 'Review and commit')]);
+        expect(agentChatDraftMatches(actions, '/com').map((action) => action.invocation)).toEqual([
+            '/compact',
+            '$commit',
+        ]);
+        expect(agentChatDraftMatches(actions, '$com').map((action) => action.invocation)).toEqual([
+            '$commit',
+            '/compact',
+        ]);
+        expect(agentChatDraftMatches(actions, '/com and more')).toEqual([]);
+        expect(agentChatDraftMatches(actions, 'plain text')).toEqual([]);
     });
 
     it('heads each group once, where it starts', () => {

@@ -2,6 +2,7 @@ import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
 
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
+import { settingCategoryPath } from '../settings/setting-spec-text';
 
 export interface TerminalExitPresentation {
     /**
@@ -35,7 +36,9 @@ export const FAILURE_REASON_LABEL_KEYS: Record<TerminalFailureReason, Translatio
  * sentence describes the automatic rule without claiming it caused this particular park.
  */
 export function suspendedDetail(): string {
-    return translate('terminal.exit.suspendedDetail');
+    return translate('terminal.exit.suspendedDetail', {
+        settingsPath: settingCategoryPath(translate, 'terminal.idleSuspension.enabled'),
+    });
 }
 
 export function getTerminalExitPresentation(

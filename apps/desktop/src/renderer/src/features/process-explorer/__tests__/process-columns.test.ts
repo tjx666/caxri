@@ -8,7 +8,7 @@ import {
     processColumnWidthStyle,
     resolveProcessColumnWidths,
     serializeProcessTableState,
-} from './process-columns';
+} from '../process-columns';
 
 describe('resolveProcessColumnWidths', () => {
     it('stretches an untouched name column to fill the measured row', () => {

@@ -13,6 +13,7 @@ function input(
         fork: null,
         restore: null,
         isForking: false,
+        isRestoring: false,
         onCopy: vi.fn(),
         onEdit: vi.fn(),
         onFork: vi.fn(),
@@ -69,6 +70,14 @@ describe('agentChatUserMessageMenu', () => {
                 disabledReason: 'A fork from this message is already opening',
             },
         ]);
+    });
+
+    it('disables Restore Code to Here while one from this message is running', () => {
+        const menuInput = input({ isRestoring: true });
+        expect(visible(agentChatUserMessageMenu(menuInput)).at(-1)).toEqual({
+            label: 'Restore Code to Here',
+            disabledReason: 'Restoring code…',
+        });
     });
 
     it('offers no Copy for a message of images alone', () => {

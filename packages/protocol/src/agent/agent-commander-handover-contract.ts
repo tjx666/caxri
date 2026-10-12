@@ -156,7 +156,45 @@ export const commanderHandoverResultSchema = z.strictObject({
     outcomes: z.array(handoverOutcomeSchema).max(MAX_COMMANDER_HANDOVER_BATCH),
 });
 
+/**
+ * How many recent human-input take-backs `commander.managedSessions` reports. Far above how many a user can cause
+ * between two reads, so a reader that refreshes on `state.changed` never misses one.
+ */
+export const MAX_COMMANDER_INPUT_TAKE_BACKS = 16;
+
+const commanderInputTakeBackSchema = z.strictObject({
+    id: z.string().min(1).max(64),
+    sessionId: identifierSchema,
+    at: z.number(),
+});
+
+/**
+ * The Workbench's view of Commander ownership.
+ *
+ * `inputTakeBacks` reports the take-backs typing caused, so the Workbench can say that a keystroke just ended the
+ * Commander's management. It rides on this read rather than on its own Server event on purpose: every take-back already
+ * announces a full `state.changed`, after which the Workbench must re-read this set anyway to update the Session row
+ * marker, so the notice arrives with the same read and needs no second event in the registry, the durable journal, the
+ * mobile subscriptions, and the companion-window policy. The list lives in Server Core's memory only: a notice is worth
+ * showing while it is fresh, and a reader that starts later treats every entry it first sees as already shown.
+ */
+export const commanderManagedSessionsSchema = z.strictObject({
+    sessionIds: z.array(identifierSchema).max(1_000),
+    /**
+     * The subset of `sessionIds` whose hand-over continues an Agent conversation, where typing into that Agent takes
+     * the Session back. Sessions the Commander created, and ownership-only hand-overs, are not in it.
+     */
+    inputTakeBackSessionIds: z.array(identifierSchema).max(1_000),
+    /**
+     * The most recent take-backs caused by the user typing into a handed-over Agent, oldest first. `id` stays unique
+     * across Server Core restarts, `at` is the take-back time.
+     */
+    inputTakeBacks: z.array(commanderInputTakeBackSchema).max(MAX_COMMANDER_INPUT_TAKE_BACKS),
+});
+
 export type CommanderHandover = z.infer<typeof commanderHandoverSchema>;
+export type CommanderManagedSessions = z.infer<typeof commanderManagedSessionsSchema>;
+export type CommanderInputTakeBack = z.infer<typeof commanderInputTakeBackSchema>;
 export type CommanderHandoverTarget = z.infer<typeof commanderHandoverTargetSchema>;
 export type CommanderHandoverOwnershipReason = z.infer<
     typeof commanderHandoverOwnershipReasonSchema
@@ -196,12 +234,13 @@ export const commanderHandoverMethods = {
         }),
     },
     /**
-     * The Sessions the Commander manages, for the Workbench's Commander marker and menu. IDs only.
+     * The Sessions the Commander manages, for the Workbench's Commander marker and menu, with the recent take-backs
+     * typing caused. IDs and timestamps only.
      */
     'commander.managedSessions': {
         ...commandPolicy('server', 'read', ['agents.read']),
         params: z.object({}).default({}),
-        result: z.strictObject({ sessionIds: z.array(identifierSchema).max(1_000) }),
+        result: commanderManagedSessionsSchema,
     },
     /**
      * Agent conversations found in the providers' own history that no Caxri Terminal is bound to, newest first.
