@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 
+import { MAX_COMMANDER_HANDOVER_BATCH } from '@caxri/protocol';
+
 import { useTranslation } from '../../../i18n';
 import { useCaxriQuery } from '../../../queries/client';
 import type { HandoverCandidateGroup, HandoverSummary } from '../commander-handover';
@@ -89,8 +91,12 @@ export function useCommanderHandoverPicker({
         setTab(next);
         if (next === 'conversations') setOpenedConversations(true);
     };
+    /**
+     * How many entries past the Server's per-request cap are selected; submitting is blocked until it is zero.
+     */
+    const overLimitCount = Math.max(0, selected.length - MAX_COMMANDER_HANDOVER_BATCH);
     const submit = async (): Promise<void> => {
-        if (isSubmitting || selected.length === 0) return;
+        if (isSubmitting || selected.length === 0 || overLimitCount > 0) return;
         setSubmitting(true);
         let summary: HandoverSummary | undefined;
         try {
@@ -116,6 +122,7 @@ export function useCommanderHandoverPicker({
         groups: tab === 'sessions' ? sessionGroups : conversationGroups,
         isSubmitting,
         note,
+        overLimitCount,
         query,
         refused,
         selectedCount: selected.length,

@@ -161,10 +161,10 @@ export async function createDomainServices(
         },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
-        onInput: (terminalId, data) => {
+        onInput: (terminalId, data, origin) => {
             compactionReadiness.input(terminalId, data);
             suspensionState.service?.observeInput(terminalId, data);
-            commanderHooks.input(terminalId, data);
+            if (origin === 'human') commanderHooks.input(terminalId, data);
             delegationState.service?.interruptTerminal(terminalId, true);
         },
         onAgentStateChanged: (terminalId, state, cause) =>

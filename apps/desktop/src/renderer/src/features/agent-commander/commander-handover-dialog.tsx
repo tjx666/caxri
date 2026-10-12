@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react';
 
-import { formatShortcut } from '@caxri/protocol';
+import { formatShortcut, MAX_COMMANDER_HANDOVER_BATCH } from '@caxri/protocol';
 import { Search } from 'lucide-react';
 
 import { Alert } from '../../components/ui/alert';
@@ -139,6 +139,14 @@ function HandoverDialogBody({
                             .join('\n')}
                     </Alert>
                 )}
+                {picker.overLimitCount > 0 && (
+                    <Alert variant="warning" className="commander-handover-over-limit">
+                        {t('agentCommander.handover.tooMany', {
+                            max: MAX_COMMANDER_HANDOVER_BATCH,
+                            excess: picker.overLimitCount,
+                        })}
+                    </Alert>
+                )}
                 {picker.selectedMayBeOpenCount > 0 && (
                     <Alert variant="warning">{t('agentCommander.handover.mayBeOpenWarning')}</Alert>
                 )}
@@ -165,7 +173,11 @@ function HandoverDialogBody({
                     </Button>
                     <Button
                         className="commander-handover-submit"
-                        disabled={picker.selectedCount === 0 || picker.isSubmitting}
+                        disabled={
+                            picker.selectedCount === 0 ||
+                            picker.overLimitCount > 0 ||
+                            picker.isSubmitting
+                        }
                         onClick={() => {
                             // eslint-disable-next-line no-void -- the submission reports its own failures through a toast
                             void picker.submit();

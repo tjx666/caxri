@@ -235,7 +235,7 @@ export const COMMANDER_COMMANDS: RemoteCommandDefinition[] = [
         path: ['commander', 'session', 'archive'],
         method: 'commander.session.archive',
         summary:
-            'Archive a Session the Agent Commander created; the user can restore it from Archived Sessions.',
+            'Archive a Session the Agent Commander manages; the user can restore it from Archived Sessions.',
         usage: '<session-id>',
         ownerConfirmation: 'Archive this Agent Commander Session?',
         parseParams: sessionArchiveParameters,

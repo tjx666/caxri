@@ -438,7 +438,8 @@ export class CommanderHandoverService {
 
     /**
      * Removes a Session from the Commander's management. Its Agents keep running; tasks the Commander already started
-     * there keep their receipts, but the Commander can no longer start or continue one.
+     * there keep their receipts, but the Commander can no longer start or continue one, and the hand-over's own task is
+     * dropped while it is still pending.
      */
     takeBack(
         sessionId: string,
@@ -462,6 +463,11 @@ export class CommanderHandoverService {
                 database,
                 commanderHandovers(database).filter((entry) => entry.sessionId !== sessionId),
             );
+        // A hand-over the Commander never continued leaves a `pending` task that would otherwise hold a ledger slot and
+        // reappear as a duplicate if the user hands the Session over again.
+        const task = handover?.taskId ? database.commanderTasks.get(handover.taskId) : undefined;
+        if (task?.status === 'pending')
+            database.commanderTasks.update(task.id, { status: 'dropped' }, this.now());
         this.refreshTargets();
         this.options.logger?.write('info', logEventCatalog.agentCommander.sessionTakenBack, {
             fields: {

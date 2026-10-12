@@ -178,6 +178,7 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.handover.mayBeOpen': '可能在别处打开',
     'agentCommander.handover.mayBeOpenWarning':
         '你选中的某段对话在几分钟内仍有活动。如果它还在另一个终端里打开，两边会各自继续，形成分叉。',
+    'agentCommander.handover.tooMany': '一次最多转交 {{max}} 个，请取消选择 {{excess}} 个后继续。',
     'agentCommander.handover.untitledConversation': '未命名对话',
     'agentCommander.handover.refusedLine': '未转交（{{count}}）：{{reason}}',
     'agentCommander.handover.noteLabel': '给 Commander 的备注',

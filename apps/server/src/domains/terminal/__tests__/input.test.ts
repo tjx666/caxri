@@ -72,7 +72,7 @@ describe('Agent-exact Terminal input', () => {
             undefined,
         );
         expect(observeUserInput).toHaveBeenCalledTimes(2);
-        expect(observeUserInput).toHaveBeenLastCalledWith('terminal-1', 'safe');
+        expect(observeUserInput).toHaveBeenLastCalledWith('terminal-1', 'safe', 'human');
 
         observeUserInput.mockClear();
         expect(
