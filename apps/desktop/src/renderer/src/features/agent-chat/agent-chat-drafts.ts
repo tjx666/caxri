@@ -224,6 +224,33 @@ export function draftAfterSend(current: string, sent: string): string {
 }
 
 /**
+ * Delivers what the composer sends besides a plain message (a slash command, an "Edit from here") with the feedback a
+ * message gets: it leaves the composer as soon as it is on its way, and comes back if delivery fails, whose reason the
+ * delivery reports itself (`tryCommand`). `deliver` calls `clear` once the user can no longer decline, after any
+ * confirmation, so a declined confirmation leaves the composer as it was and has nothing to put back. Resolves whether
+ * it was delivered.
+ */
+export async function didDeliverAgentChatComposerInput({
+    clear,
+    deliver,
+    restore,
+}: {
+    clear: () => void;
+    deliver: (clear: () => void) => Promise<boolean>;
+    restore: () => void;
+}): Promise<boolean> {
+    // An object rather than a `let`: control-flow analysis cannot see the callback set it, and reads it as always false.
+    const progress = { isCleared: false };
+    const isDelivered = await deliver(() => {
+        if (progress.isCleared) return;
+        progress.isCleared = true;
+        clear();
+    });
+    if (!isDelivered && progress.isCleared) restore();
+    return isDelivered;
+}
+
+/**
  * The attachments left after a send was acknowledged: the ones sent are removed, any added since stay.
  */
 export function attachmentsAfterSend(

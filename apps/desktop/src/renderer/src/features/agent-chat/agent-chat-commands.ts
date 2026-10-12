@@ -75,7 +75,9 @@ export function saveAgentChatLongPaste(
  * "Edit from here": rewinds the Chat to before message `itemId` and sends `message` in its place. Reverting files first
  * asks for confirmation in a native dialog, since it can discard the user's own edits; replacing more than one turn
  * without reverting files asks in the in-app confirmation (see {@link agentChatReplaceTurnsConfirm}). Declining either
- * sends nothing and keeps the draft. Resolves `true` once Server Core rewound the Chat and accepted the message.
+ * sends nothing and keeps the draft. `onConfirmed` runs once the user can no longer decline, right before the request,
+ * so the composer clears only for an edit that is actually sent. Resolves `true` once Server Core rewound the Chat and
+ * accepted the message.
  */
 export async function didRewindAgentChat(
     terminalId: string,
@@ -86,6 +88,7 @@ export async function didRewindAgentChat(
         providerName: string;
         removedTurns: number;
     },
+    onConfirmed: () => void,
 ): Promise<boolean> {
     let isSent = false;
     await tryCommand(translate('agentChat.commands.editFailed'), async () => {
@@ -98,6 +101,7 @@ export async function didRewindAgentChat(
             });
             if (!confirmed) return;
         }
+        onConfirmed();
         await caxri.request('agentChat.rewind', {
             terminalId,
             itemId: request.itemId,
