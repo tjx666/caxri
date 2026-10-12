@@ -173,7 +173,7 @@ describe('session.delete Acceptance confirmation', () => {
         return requestMock({
             'app.bootstrap': () => Promise.resolve(bootstrap),
             'session.delete': () => Promise.resolve({ deleted: true }),
-            'terminal.runningCount': () => Promise.resolve(0),
+            'terminal.runningCount': () => Promise.resolve({ terminals: 0, chats: 0 }),
         });
     }
 
@@ -190,7 +190,7 @@ describe('session.delete Acceptance confirmation', () => {
         ).resolves.toEqual({ deleted: true });
         expect(confirm).toHaveBeenCalledWith(
             'session-1',
-            deleteSessionPrompt('Fixture naming hold', 0),
+            deleteSessionPrompt('Fixture naming hold', { terminals: 0, chats: 0 }),
         );
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
 
@@ -208,7 +208,7 @@ describe('session.delete Acceptance confirmation', () => {
     it('leaves bulk and Project deletion on the real native confirmation', async () => {
         const request = requestMock({
             'app.bootstrap': () => Promise.resolve(bootstrap),
-            'terminal.runningCount': () => Promise.resolve(0),
+            'terminal.runningCount': () => Promise.resolve({ terminals: 0, chats: 0 }),
         });
         const handle = createMainMethodHandler({
             ...options({ request }),

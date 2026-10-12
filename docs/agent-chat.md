@@ -183,9 +183,14 @@ off on your computer`, refuses input, and offers no Resume, matching its detache
   Core shutdown stamps `interrupted` through the shared shutdown path, not completion.
 - **Running count.** Live Chat children count toward `activePtyCount` and `terminal.runningCount`
   (whole app or one Session), so Server Core idle exit, `server.stop`, the window-close
-  confirmation, and Session or Project deletion prompts treat them like live PTYs. Choosing
-  Terminate and Close stops the Chat provider process with the PTYs and records it `stopped`;
-  the Chat service keeps running, so the next read on the same Server Core starts it again.
+  confirmation, the Quit dialog, and Session or Project deletion prompts treat them like live PTYs.
+  `terminal.runningCount` reports `{ terminals, chats }` separately, and those confirmations name
+  each kind with its own plural and leave out a kind with nothing running, for example
+  `Close this window while 1 Terminal and 2 Chats are running?` or
+  `Delete 'X' and terminate 1 running Chat?`.
+  Choosing Terminate and Close stops the Chat
+  provider process with the PTYs and records it `stopped`; the Chat service keeps running, so the
+  next read on the same Server Core starts it again.
 
 ## Launch settings
 

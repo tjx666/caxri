@@ -9,13 +9,13 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
-    pageRequest,
     selectedSessionId,
     sessionCard,
     typeTerminal,
     VISIBLE_SESSION,
     VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
+import { runningWork } from './support/running-work.ts';
 import { removeE2ETemporaryDirectory } from './support/worker-isolation.ts';
 
 test('Session switches preserve a cursor-addressed Terminal screen and its live PTY', async () => {
@@ -120,7 +120,7 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
         await input.pressSequentially(String.raw`printf 'SESSION_SWITCH_INTERACTIVE\n'`);
         await input.press('Enter');
         await expect(screen).toContainText('SESSION_SWITCH_INTERACTIVE');
-        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(2);
+        await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 2, chats: 0 });
     } finally {
         try {
             await running.app.close();

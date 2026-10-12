@@ -9,15 +9,23 @@ import type { TerminalSuspensionService } from './suspension';
 
 interface TerminalHandlerOptions {
     /**
-     * Counts every running Terminal, PTY and Chat alike. `terminal.runningCount` feeds the window-close and deletion
-     * confirmations, so a Chat-only Session must not read as idle while its provider process keeps running.
+     * Live Chats, whose provider processes `terminals` does not see. `terminal.runningCount` feeds the window-close and
+     * deletion confirmations, so a Chat-only Session must not read as idle while its provider keeps running, and the
+     * prompt names Terminals and Chats separately so the user can tell a shell from an Agent still working.
      */
-    countRunning: (sessionId?: string) => number;
+    countLiveChats: (sessionId?: string) => number;
     database: Pick<CaxriDatabase, 'getTerminal'>;
     resourceMonitor: Pick<TerminalResourceMonitor, 'processes' | 'readingOverride'>;
     terminals: Pick<
         TerminalManager,
-        'attach' | 'detachAllViews' | 'detachView' | 'preview' | 'resize' | 'resources' | 'snapshot'
+        | 'attach'
+        | 'detachAllViews'
+        | 'detachView'
+        | 'preview'
+        | 'resize'
+        | 'resources'
+        | 'runningCount'
+        | 'snapshot'
     >;
     terminalSuspension: Pick<TerminalSuspensionService, 'suspendOnRequest'>;
 }
@@ -28,7 +36,7 @@ interface TerminalHandlerOptions {
  * do.
  */
 export function createTerminalHandlers({
-    countRunning,
+    countLiveChats,
     database,
     resourceMonitor,
     terminals,
@@ -66,7 +74,10 @@ export function createTerminalHandlers({
         },
         'terminal.snapshot': ({ terminalId }) => terminals.snapshot(terminalId),
         'terminal.preview': ({ terminalId }) => terminals.preview(terminalId),
-        'terminal.runningCount': ({ sessionId }) => countRunning(sessionId),
+        'terminal.runningCount': ({ sessionId }) => ({
+            terminals: terminals.runningCount(sessionId),
+            chats: countLiveChats(sessionId),
+        }),
         /**
          * Applies the monitor's E2E-only reading injection so the chip and the resource alert see one value; a no-op
          * outside an explicit E2E launch.

@@ -42,6 +42,7 @@ import {
     revertAgentChatFilesPrompt,
     revokeMobileDevicePrompt,
     shellCommandElevationPrompt,
+    sumRunningWork,
     trashPrompt,
     unsavedChangesChoice,
     unsavedChangesPrompt,
@@ -305,7 +306,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 const { projectId } = request.params;
                 const state = await supervisor.request('app.bootstrap');
                 /**
-                 * The Terminal count is taken over the same set Server Core deletes (this Project plus the worktree
+                 * The running count is taken over the same set Server Core deletes (this Project plus the worktree
                  * Projects registered on its behalf), so the number the user consents to is defined by the cascade
                  * rather than by a second rule maintained here. The worktree half contributes nothing today: the Server
                  * refuses to create a Session inside an auto-registered Project at all. Taking the union is what keeps
@@ -326,7 +327,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                         supervisor.request('terminal.runningCount', { sessionId: session.id }),
                     ),
                 );
-                const count = counts.reduce((sum, value) => sum + value, 0);
+                const running = sumRunningWork(counts);
                 const projectTitle =
                     state.projects.find((project) => project.id === projectId)?.displayTitle ??
                     'this Project';
@@ -334,7 +335,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     mainWindow!,
                     deleteProjectPrompt(
                         projectTitle,
-                        count,
+                        running,
                         worktreeProjects.map((project) => project.displayTitle),
                     ),
                 );
@@ -343,12 +344,12 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             }
             case 'session.delete': {
                 const { sessionId } = request.params;
-                const count = await supervisor.request('terminal.runningCount', { sessionId });
+                const running = await supervisor.request('terminal.runningCount', { sessionId });
                 const bootstrap = await supervisor.request('app.bootstrap');
                 const sessionTitle =
                     bootstrap.sessions.find((session) => session.id === sessionId)?.displayTitle ??
                     'this Session';
-                const sessionPrompt = deleteSessionPrompt(sessionTitle, count);
+                const sessionPrompt = deleteSessionPrompt(sessionTitle, running);
                 const result = sessionDeleteFixture
                     ? await sessionDeleteFixture.confirm(sessionId, sessionPrompt)
                     : await dialog.showMessageBox(mainWindow!, sessionPrompt);
@@ -362,7 +363,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                         supervisor.request('terminal.runningCount', { sessionId }),
                     ),
                 );
-                const count = counts.reduce((sum, value) => sum + value, 0);
+                const running = sumRunningWork(counts);
                 const result = await dialog.showMessageBox(
                     mainWindow!,
                     sessionIds.length === 1
@@ -370,9 +371,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                               (await supervisor.request('app.bootstrap')).sessions.find(
                                   (session) => session.id === sessionIds[0],
                               )?.displayTitle ?? 'this Session',
-                              count,
+                              running,
                           )
-                        : deleteSessionsPrompt(sessionIds.length, count),
+                        : deleteSessionsPrompt(sessionIds.length, running),
                 );
                 if (result.response !== 0) return { canceled: true };
                 return supervisor.request('session.deleteMany', { sessionIds });

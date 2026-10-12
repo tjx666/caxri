@@ -16,6 +16,7 @@ import {
     waitForNewTerminalId,
 } from './support/helpers.ts';
 import { pollUntil } from './support/polling.ts';
+import { runningWork } from './support/running-work.ts';
 import {
     createTerminalGlyphFixture,
     terminalEdgeGlyphEvidence,
@@ -177,7 +178,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
             name: /Resize .* split/,
         });
         await expect(terminalSplitter).toHaveCount(1);
-        const runningBeforeMove = await pageRequest<number>(running.page, 'terminal.runningCount');
+        const runningBeforeMove = await runningWork(running.page);
 
         const splitterBox = await terminalSplitter.boundingBox();
         expect(splitterBox).not.toBeNull();
@@ -243,9 +244,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
             ),
         ).toContainText('CAXRI_SPLIT_MOVED_alive_END');
-        await expect
-            .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
-            .toBe(runningBeforeMove);
+        await expect.poll(() => runningWork(running.page)).toEqual(runningBeforeMove);
 
         await terminalSplitter.focus();
         await running.page.keyboard.press('ArrowRight');

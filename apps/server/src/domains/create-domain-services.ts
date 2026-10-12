@@ -573,7 +573,7 @@ export async function createDomainServices(
             }),
         ...createRelaunchHandlers({ ...restorerOptions, agentChat, mobileTerminalMutations }),
         ...createTerminalHandlers({
-            countRunning,
+            countLiveChats: (sessionId) => agentChat.liveCount(sessionId),
             database,
             resourceMonitor: terminalResourceMonitor,
             terminals,

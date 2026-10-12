@@ -6,11 +6,14 @@ const electronMock = vi.hoisted(() => ({
 }));
 vi.mock('electron', () => ({ dialog: electronMock.dialog, shell: electronMock.shell }));
 
+import type { RunningWork } from '../confirmations';
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 import type { DesktopServerConnection } from '../server-connection';
 import type { UpdateService } from '../updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
+
+const NOTHING_RUNNING: RunningWork = { terminals: 0, chats: 0 };
 
 const authorizedItem = {
     kind: 'file' as const,
@@ -124,9 +127,12 @@ const bootstrapWith = (
 });
 
 describe('project.delete', () => {
-    it('deletes only after the user confirms and sums running Terminals across the Project Sessions', async () => {
+    it('deletes only after the user confirms and sums running Terminals and Chats across the Project Sessions', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
-        const runningCounts: Record<string, number> = { 'session-1': 2, 'session-2': 1 };
+        const runningCounts: Record<string, RunningWork> = {
+            'session-1': { terminals: 2, chats: 0 },
+            'session-2': { terminals: 0, chats: 1 },
+        };
         const request = vi.fn((method: string, parameters?: unknown) => {
             if (method === 'app.bootstrap')
                 return Promise.resolve(
@@ -141,7 +147,8 @@ describe('project.delete', () => {
                 );
             if (method === 'terminal.runningCount')
                 return Promise.resolve(
-                    runningCounts[(parameters as { sessionId: string }).sessionId] ?? 0,
+                    runningCounts[(parameters as { sessionId: string }).sessionId] ??
+                        NOTHING_RUNNING,
                 );
             if (method === 'project.delete') return Promise.resolve({ ok: true });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
@@ -154,7 +161,7 @@ describe('project.delete', () => {
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
-                message: "Delete 'Caxri' and terminate 3 running Terminals?",
+                message: "Delete 'Caxri' and terminate 2 running Terminals and 1 running Chat?",
             }),
         );
         expect(request).toHaveBeenCalledWith('project.delete', { projectId: 'project-1' });
@@ -167,7 +174,7 @@ describe('project.delete', () => {
                 return Promise.resolve(
                     bootstrapWith([{ id: 'project-1', displayTitle: 'Caxri' }], []),
                 );
-            if (method === 'terminal.runningCount') return Promise.resolve(0);
+            if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const handle = handler(request);
@@ -182,7 +189,7 @@ describe('project.delete', () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
         const request = vi.fn((method: string) => {
             if (method === 'app.bootstrap') return Promise.resolve(bootstrapWith([], []));
-            if (method === 'terminal.runningCount') return Promise.resolve(0);
+            if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
             if (method === 'project.delete') return Promise.resolve({ ok: true });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
@@ -197,12 +204,12 @@ describe('project.delete', () => {
 });
 
 describe('session.delete', () => {
-    it('deletes only after confirmation and names the running Terminal count', async () => {
+    it('deletes only after confirmation and names the running Terminals and Chats', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
         const request = vi.fn((method: string, parameters?: unknown) => {
             if (method === 'terminal.runningCount') {
                 expect(parameters).toEqual({ sessionId: 'session-1' });
-                return Promise.resolve(1);
+                return Promise.resolve({ terminals: 1, chats: 2 });
             }
             if (method === 'app.bootstrap')
                 return Promise.resolve(
@@ -222,7 +229,8 @@ describe('session.delete', () => {
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
-                message: "Delete 'Feature work' and terminate 1 running Terminal?",
+                message:
+                    "Delete 'Feature work' and terminate 1 running Terminal and 2 running Chats?",
             }),
         );
         expect(request).toHaveBeenCalledWith('session.delete', { sessionId: 'session-1' });
@@ -231,7 +239,7 @@ describe('session.delete', () => {
     it('cancels without deleting when the user dismisses the confirmation', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
         const request = vi.fn((method: string) => {
-            if (method === 'terminal.runningCount') return Promise.resolve(0);
+            if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
             if (method === 'app.bootstrap') return Promise.resolve(bootstrapWith([], []));
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
@@ -246,7 +254,7 @@ describe('session.delete', () => {
     it('falls back to a generic title when the Session is missing from bootstrap state', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
         const request = vi.fn((method: string) => {
-            if (method === 'terminal.runningCount') return Promise.resolve(0);
+            if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
             if (method === 'app.bootstrap') return Promise.resolve(bootstrapWith([], []));
             if (method === 'session.delete') return Promise.resolve({ ok: true });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
@@ -262,12 +270,14 @@ describe('session.delete', () => {
 });
 
 describe('session.deleteMany', () => {
-    it('asks once for the whole batch, summing running Terminals across Sessions', async () => {
+    it('asks once for the whole batch, summing running Terminals and Chats across Sessions', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
         const request = vi.fn((method: string, parameters?: unknown) => {
             if (method === 'terminal.runningCount')
                 return Promise.resolve(
-                    (parameters as { sessionId: string }).sessionId === 'session-1' ? 2 : 1,
+                    (parameters as { sessionId: string }).sessionId === 'session-1'
+                        ? { terminals: 2, chats: 0 }
+                        : { terminals: 0, chats: 1 },
                 );
             if (method === 'session.deleteMany') return Promise.resolve({ ok: true });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
@@ -284,7 +294,7 @@ describe('session.deleteMany', () => {
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
-                message: 'Delete 2 Sessions and terminate 3 running Terminals?',
+                message: 'Delete 2 Sessions and terminate 2 running Terminals and 1 running Chat?',
             }),
         );
         expect(request).toHaveBeenCalledWith('session.deleteMany', {
@@ -295,7 +305,7 @@ describe('session.deleteMany', () => {
     it('names the Session when the batch holds exactly one', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
         const request = vi.fn((method: string) => {
-            if (method === 'terminal.runningCount') return Promise.resolve(0);
+            if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
             if (method === 'app.bootstrap')
                 return Promise.resolve(
                     bootstrapWith(
@@ -318,7 +328,7 @@ describe('session.deleteMany', () => {
     it('cancels the whole batch when the user dismisses the confirmation', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
         const request = vi.fn((method: string) => {
-            if (method === 'terminal.runningCount') return Promise.resolve(0);
+            if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const handle = handler(request);

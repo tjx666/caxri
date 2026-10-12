@@ -274,7 +274,7 @@ describe('domain-service composition root', () => {
                 id: created.terminal!.id,
                 processId: 4242,
             });
-            expect(await handlers['terminal.runningCount']({})).toBe(1);
+            expect(await handlers['terminal.runningCount']({})).toEqual({ terminals: 1, chats: 0 });
             expect(
                 await handlers['app.records']({
                     sessionIds: [created.session.id],
@@ -294,7 +294,7 @@ describe('domain-service composition root', () => {
                 terminals: [],
                 projects: [{ id: project.id, rootPath: project.rootPath }],
             });
-            expect(await handlers['terminal.runningCount']({})).toBe(0);
+            expect(await handlers['terminal.runningCount']({})).toEqual({ terminals: 0, chats: 0 });
 
             expect(
                 events

@@ -99,7 +99,10 @@ describe('terminal.moveToNewSession', () => {
                 (entry) => entry.id === terminalId,
             );
             expect(live).toMatchObject({ id: terminalId, sessionId: moved.session.id });
-            expect(await runtime.handlers['terminal.runningCount']({})).toBe(1);
+            expect(await runtime.handlers['terminal.runningCount']({})).toEqual({
+                terminals: 1,
+                chats: 0,
+            });
         } finally {
             await runtime.close();
         }

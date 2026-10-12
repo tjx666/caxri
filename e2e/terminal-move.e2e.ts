@@ -23,6 +23,7 @@ import {
     dismissContextMenu,
     isContextMenuItemEnabled,
 } from './support/native-context-menu.ts';
+import { runningWork } from './support/running-work.ts';
 
 /**
  * `:not([inert])` because Move to New Session leaves the source Session's tab behind as an exit-animation ghost with
@@ -153,7 +154,7 @@ test('Move to New Session keeps the live Terminal and disables the only-tab acti
             String.raw`printf 'AFTER_MOVE_%s\n' "$CAXRI_MOVE_SENTINEL"`,
         );
         await expect(movedRows).toContainText('AFTER_MOVE_preserved');
-        expect(await pageRequest(running.page, 'terminal.runningCount')).toBe(2);
+        expect(await runningWork(running.page)).toEqual({ terminals: 2, chats: 0 });
 
         expect(await isMoveActionEnabled(running.app, running.page, movedTerminalId)).toBe(false);
         await dismissContextMenu(running.app);
