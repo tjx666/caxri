@@ -455,6 +455,11 @@ export const logEventCatalog = {
          * `ServerIdleExitReason`, the idle duration, and how many prior checks deferred during this idle window.
          */
         idleExitTriggered: 'server_core.idle_exit_triggered',
+        /**
+         * Another account on a shared Linux machine held this profile's lock names; `outcome` is the closed result
+         * (`acquired` past them or `exhausted`), `squattedNames` how many were skipped. See `linux-profile-lock.ts`.
+         */
+        profileLockSquatted: 'server_core.profile_lock_squatted',
         ready: 'server_core.ready',
         recoveryReady: 'server_core.recovery_ready',
         socketTerminated: 'server_core.socket_terminated',

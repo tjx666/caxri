@@ -84,10 +84,15 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     // Fired before any `await` so the login-shell PATH probe overlaps startup instead of blocking the first command.
     warmServerExecutablePath();
     const lease = await acquireServerProfile({
+        logger,
         startedAt,
         userDataPath: options.userDataPath,
         version: options.version,
     });
+    const releaseStartup = async () => {
+        eventLoopMonitor.stop();
+        await lease.release();
+    };
     // Fed by `ControlServer` and `MobileGateway` below into one aggregate for `docs/adr/0010-server-core-idle-exit.md`.
     const idleExitConnections = createIdleExitConnectionTracker();
     const mobileAccess = await openMobileAccessController({
@@ -97,16 +102,10 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         onConnectionCountChanged: (count) => idleExitConnections.updateMobileCount(count),
         registryPath: lease.paths.mobileDevices,
         ...(options.mobileUpdateDirectory && { updateDirectory: options.mobileUpdateDirectory }),
-        onOpenError: async () => {
-            eventLoopMonitor.stop();
-            await lease.release();
-        },
+        onOpenError: releaseStartup,
     });
     logger.updateBaseContext({ bootId: lease.identity.processIdentity, buildId: options.buildId });
-    const delegationAccess = await openDelegationAccess(lease.paths.directory, async () => {
-        eventLoopMonitor.stop();
-        await lease.release();
-    });
+    const delegationAccess = await openDelegationAccess(lease.paths.directory, releaseStartup);
     const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity, { logger });
     let server: ControlServer | undefined;
     const { providerMessaging, agentInbox } = createAgentMessaging(agentEndpoints, () => server);
