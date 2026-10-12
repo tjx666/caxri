@@ -93,9 +93,15 @@ chrome and the gap between pages follow the Caxri theme, the way every PDF reade
 A damaged or non-PDF file, a password-protected one, and one over 32 MiB each show a readable cause
 with **Open with Default App**; a read failure keeps **Retry**. When the file is rewritten on disk
 (a save from another app, an Agent regenerating it), the view reads it again after the burst of
-watcher events settles and returns to the same page and zoom. A watcher batch that overflowed its
-per-file list does not trigger a re-read, because re-reading every open PDF on a large checkout
-costs more than the rare stale view; reopening the tab reads the file again.
+watcher events settles and returns to the same page and zoom. The old copy stays on screen until
+the new one parses, so the reader never sees the view blank out. A reload whose read fails,
+usually because it caught a half-written file or a delete-then-rename replacement midway, keeps the
+old copy and reads once more a second later; only a second failure replaces the view with the
+failure and **Retry**. **Retry** itself always starts over from the loading state. The decisions
+live in [`pdf-reload.ts`](../apps/desktop/src/renderer/src/features/preview/pdf-reload.ts). A
+watcher batch that overflowed its per-file list does not trigger a re-read, because re-reading
+every open PDF on a large checkout costs more than the rare stale view; reopening the tab reads
+the file again.
 
 Electron's built-in Chromium viewer was the other option. It needs `plugins: true` plus an
 `object-src` / `frame-src` CSP opening, renders inside its own frame where the theme cannot reach,

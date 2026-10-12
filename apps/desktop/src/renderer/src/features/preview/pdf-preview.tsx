@@ -138,7 +138,8 @@ function ZoomMenu({
  * scroll container's children, so React renders only the empty element pdf.js fills.
  *
  * The page, zoom, and scroll offset are remembered under `viewStateKey`, so switching tabs or reloading after the file
- * changed on disk returns to the same place.
+ * changed on disk returns to the same place. A reload passes the new `document` to the same view, which keeps showing
+ * the old copy until then (see `usePdfDocument`).
  */
 function PdfDocumentView({
     document,
@@ -164,7 +165,10 @@ function PdfDocumentView({
         scaleValue: 'page-width',
     });
     const [announcement, setAnnouncement] = useState('');
-    const [viewerFailed, setViewerFailed] = useState(false);
+    /**
+     * Tied to the document that failed to mount, so a reloaded document gets its own attempt without a reset effect.
+     */
+    const [failedDocument, setFailedDocument] = useState<PDFDocumentProxy>();
 
     useEffect(() => {
         const container = containerReference.current;
@@ -194,7 +198,7 @@ function PdfDocumentView({
                 else sessionReference.current = session;
             })
             .catch(() => {
-                if (!isDisposed) setViewerFailed(true);
+                if (!isDisposed) setFailedDocument(document);
             });
         return () => {
             isDisposed = true;
@@ -203,7 +207,7 @@ function PdfDocumentView({
         };
     }, [document, viewStateKey]);
 
-    if (viewerFailed)
+    if (failedDocument === document)
         return (
             <EditorLoadFailure
                 actionLabel="Retry"
@@ -268,7 +272,8 @@ function PdfDocumentView({
 
 /**
  * The PDF reading view. It reads the whole file through `files.readAsset`, then pdf.js renders only the pages in view.
- * When the file is rewritten on disk it reads it again and returns to the same page and zoom.
+ * When the file is rewritten on disk it reads it again and swaps the new copy in at the same page and zoom, keeping the
+ * old copy on screen until the new one parses (see `usePdfDocument`).
  */
 export function PdfPreview({
     path,
