@@ -339,6 +339,30 @@ describe('mobile Agent Chat projection', () => {
         expect(read(MAX_AGENT_CHAT_IMAGES * 2 + 1).success).toBe(false);
     });
 
+    it('runs a slash command with arguments a phone may send', () => {
+        const parameters = mobileAgentChatMethods['mobile.agentChat.runCommand'].params;
+        expect(parameters.safeParse({ terminalId: 'terminal-1', name: 'compact' }).success).toBe(
+            true,
+        );
+        expect(
+            parameters.safeParse({
+                terminalId: 'terminal-1',
+                name: 'compact',
+                arguments: 'keep it',
+            }).success,
+        ).toBe(true);
+        expect(
+            parameters.safeParse({
+                terminalId: 'terminal-1',
+                name: 'compact',
+                arguments: 'x'.repeat(17_000),
+            }).success,
+        ).toBe(false);
+        expect(parameters.safeParse({ terminalId: 'terminal-1', name: 'rm -rf' }).success).toBe(
+            false,
+        );
+    });
+
     it('returns a taken queued message only when the phone could send it again', () => {
         const result = mobileAgentChatMethods['mobile.agentChat.takeQueued'].result;
         expect(result.safeParse({ text: 'x'.repeat(5_000) }).success).toBe(true);

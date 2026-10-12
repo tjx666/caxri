@@ -16,23 +16,18 @@ import {
 import type { ServerDomainService } from '../domain-service';
 import { terminalForPrincipal } from './action-requests';
 
+/**
+ * Every phone Chat method. The access controller routes the whole namespace here, so a new `mobile.agentChat.*` method
+ * only needs its case in `invokeMobileAgentChatRequest`.
+ */
 export type MobileAgentChatRequest = Extract<
     ServerRequest,
-    {
-        method:
-            | 'mobile.agentChat.read'
-            | 'mobile.agentChat.readImage'
-            | 'mobile.agentChat.send'
-            | 'mobile.agentChat.interrupt'
-            | 'mobile.agentChat.respond'
-            | 'mobile.agentChat.retry'
-            | 'mobile.agentChat.configure'
-            | 'mobile.agentChat.removeQueued'
-            | 'mobile.agentChat.sendQueuedNow'
-            | 'mobile.agentChat.resumeQueue'
-            | 'mobile.agentChat.takeQueued';
-    }
+    { method: `mobile.agentChat.${string}` }
 >;
+
+export const isMobileAgentChatRequest = (
+    request: ServerRequest,
+): request is MobileAgentChatRequest => request.method.startsWith('mobile.agentChat.');
 
 /**
  * A read needs no mutation authority; the access controller invokes it without serializing behind a revoke.
@@ -310,6 +305,19 @@ export async function invokeMobileAgentChatRequest(
                 await forward({ method: 'agentChat.takeQueued', params: { terminalId, id } }),
             );
             return { text: taken.text };
+        }
+        case 'mobile.agentChat.runCommand': {
+            // Core checks the name against the Chat's listed commands, so a phone's stale list cannot run another.
+            const { name, arguments: arguments_ } = request.params;
+            await forward({
+                method: 'agentChat.runCommand',
+                params: {
+                    terminalId,
+                    name,
+                    ...(arguments_ !== undefined && { arguments: arguments_ }),
+                },
+            });
+            return null;
         }
         case 'mobile.agentChat.retry': {
             /**

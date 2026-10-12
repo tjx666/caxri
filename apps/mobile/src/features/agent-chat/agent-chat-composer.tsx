@@ -15,6 +15,7 @@ import {
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
+    parseAgentChatCommand,
     sentenceStartProvider,
 } from '@caxri/protocol';
 import * as Crypto from 'expo-crypto';
@@ -27,6 +28,7 @@ import { SessionComposerAttachments } from '../sessions/components/session-compo
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
 import { imageAttachmentBudgetNote } from '../sessions/image-attachment-store';
+import { AgentChatCommandList } from './agent-chat-command-list';
 import {
     agentChatComposerAvailability,
     agentChatComposerButton,
@@ -40,6 +42,7 @@ import { sendAgentChatMessageOptimistically } from './agent-chat-pending';
 import { AgentChatPermissionButton } from './agent-chat-permission-sheet';
 import { sheetStyles } from './agent-chat-sheet-styles';
 import type { AgentChatController } from './use-agent-chat';
+import { useAgentChatCommandRun } from './use-agent-chat-command-run';
 
 /**
  * A Chat message's images, as many and as large in total as the protocol takes. The strip scrolls sideways, and an
@@ -60,7 +63,8 @@ const CHAT_IMAGE_LIMITS = {
  * leaves the composer at once and shows as `Sending…` where it lands, as on Desktop (`agent-chat-pending.ts`); a failed
  * send puts its text and images back ahead of anything typed since. Stop stays pending, keyed by the turn it stopped,
  * until that turn ends, like the Desktop composer and the Terminal composer's "Stopping Agent…" state; the interrupt
- * request returning only means the provider was asked.
+ * request returning only means the provider was asked. A draft naming a listed slash command runs it instead of sending
+ * (`useAgentChatCommandRun`).
  */
 const useComposerAction = ({
     activeTurnId,
@@ -89,6 +93,7 @@ const useComposerAction = ({
     useEffect(() => {
         latestDraft.current = draft;
     }, [draft]);
+    const commands = useAgentChatCommandRun({ chat, onDraftChange, reportError: setError });
     const run = async (delivery?: 'steer'): Promise<void> => {
         setError(null);
         if (isStopAction) {
@@ -100,6 +105,11 @@ const useComposerAction = ({
                 setStoppingTurnId(undefined);
                 setError(`${sentenceStartProvider(provider)} could not be stopped. Try again.`);
             }
+            return;
+        }
+        const command = parseAgentChatCommand(draft, chat.snapshot?.commands);
+        if (command) {
+            await commands.run(command);
             return;
         }
         if (chat.pendingKey === null) return;
@@ -128,7 +138,13 @@ const useComposerAction = ({
             snapshot: chat.snapshot,
         });
     };
-    return { error, isStopping, run };
+    return {
+        chooseCommand: commands.choose,
+        error,
+        isRunningCommand: commands.isRunning,
+        isStopping,
+        run,
+    };
 };
 
 /**
@@ -412,7 +428,7 @@ export const AgentChatComposer = ({
     const hasDraft = draft.trim().length > 0 || images.attachments.length > 0;
     const canStop = isRunning && deviceRole === 'control';
     const isStopAction = canStop && !hasDraft;
-    const { error, isStopping, run } = useComposerAction({
+    const { chooseCommand, error, isRunningCommand, isStopping, run } = useComposerAction({
         activeTurnId,
         chat,
         draft,
@@ -421,7 +437,7 @@ export const AgentChatComposer = ({
         onDraftChange,
         provider,
     });
-    const isEditable = availability.isEnabled;
+    const isEditable = availability.isEnabled && !isRunningCommand;
     const inputReference = useFocusRequest({
         focusComposer,
         isEditable,
@@ -462,6 +478,13 @@ export const AgentChatComposer = ({
                 />
             </View>
             <SessionComposerAttachments images={images} theme={theme} />
+            <AgentChatCommandList
+                commands={availability.isEnabled ? chat.snapshot?.commands : undefined}
+                draft={draft}
+                isEnabled={isEditable}
+                onChoose={chooseCommand}
+                theme={theme}
+            />
             <View style={styles.composerRow}>
                 {canAttach ? (
                     <AttachButton
@@ -507,7 +530,7 @@ export const AgentChatComposer = ({
                 <AgentChatComposerButton
                     canSteer={canSteer}
                     canSubmit={canSubmit}
-                    isBusy={isStopping}
+                    isBusy={isStopping || isRunningCommand}
                     isRunning={isRunning}
                     isStopAction={isStopAction}
                     isStopping={isStopping}
