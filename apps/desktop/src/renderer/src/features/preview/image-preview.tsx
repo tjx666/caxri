@@ -5,9 +5,9 @@ import { useTranslation } from '../../i18n';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { documentLoadRecoveryAction, documentReadRecovery } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
+import { usePreviewSourceRevision } from './hooks/use-preview-source-revision';
 import { readAssetObjectUrl } from './preview-asset-client';
 import { PREVIEW_LOADING_LABEL_KEY } from './preview-registry';
-import { usePreviewSourceRevision } from './use-preview-source-revision';
 
 type ImageState =
     | { status: 'failed'; error: unknown }

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
+import { FindBar } from '../../components/find-bar';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -20,8 +21,11 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { documentLoadRecoveryAction } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
+import { usePdfDocument } from './hooks/use-pdf-document';
+import { usePdfFind } from './hooks/use-pdf-find';
 import type { PdfViewerSession, PdfViewState } from './pdf-document';
 import { createPdfViewerSession } from './pdf-document';
+import { isPdfFindMiss, isPdfFindShortcut, pdfFindCountLabel } from './pdf-find';
 import type { PdfZoomChoice } from './pdf-toolbar-model';
 import {
     describePdfView,
@@ -31,7 +35,6 @@ import {
 } from './pdf-toolbar-model';
 import { PREVIEW_LOADING_LABEL_KEY } from './preview-registry';
 import { readPreviewViewState, rememberPreviewViewState } from './preview-view-state';
-import { usePdfDocument } from './use-pdf-document';
 
 function ToolbarButton({
     label,
@@ -180,6 +183,8 @@ function PdfDocumentView({
      * Tied to the document that failed to mount, so a reloaded document gets its own attempt without a reset effect.
      */
     const [failedDocument, setFailedDocument] = useState<PDFDocumentProxy>();
+    const find = usePdfFind(sessionReference, () => containerReference.current?.focus());
+    const { attach: attachFind, report: reportFind } = find;
 
     useEffect(() => {
         const container = containerReference.current;
@@ -193,6 +198,7 @@ function PdfDocumentView({
             viewerElement,
             document,
             restored: remembered,
+            onFindChange: reportFind,
             onViewChange: (next) => {
                 setView(next);
                 rememberPreviewViewState(viewStateKey, {
@@ -206,7 +212,10 @@ function PdfDocumentView({
         })
             .then((session) => {
                 if (isDisposed) session.dispose();
-                else sessionReference.current = session;
+                else {
+                    sessionReference.current = session;
+                    attachFind(session);
+                }
             })
             .catch(() => {
                 if (!isDisposed) setFailedDocument(document);
@@ -216,7 +225,7 @@ function PdfDocumentView({
             sessionReference.current?.dispose();
             sessionReference.current = undefined;
         };
-    }, [document, viewStateKey]);
+    }, [attachFind, document, reportFind, viewStateKey]);
 
     if (failedDocument === document)
         return (
@@ -234,7 +243,14 @@ function PdfDocumentView({
     };
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-background">
+        <div
+            className="flex h-full min-h-0 flex-col bg-background"
+            onKeyDown={(event) => {
+                if (!isPdfFindShortcut(event)) return;
+                event.preventDefault();
+                find.open();
+            }}
+        >
             <div className="flex h-8 flex-none items-center gap-1 bg-surface px-2 text-[12px] text-muted tabular-nums">
                 <PageField
                     key={view.pageNumber}
@@ -263,13 +279,31 @@ function PdfDocumentView({
                     onClick={() => act((session) => session.zoomIn())}
                 />
             </div>
+            {find.isOpen && (
+                <FindBar
+                    ariaLabel={t('preview.pdf.find')}
+                    countLabel={pdfFindCountLabel(find.query, find.result, t)}
+                    focusRevision={find.focusRevision}
+                    hasMatches={find.result.total > 0}
+                    inputLabel={t('preview.pdf.find')}
+                    isDocked
+                    isNoMatch={isPdfFindMiss(find.query, find.result)}
+                    query={find.query}
+                    onClose={find.close}
+                    onNext={find.next}
+                    onPrevious={find.previous}
+                    onQueryChange={find.changeQuery}
+                />
+            )}
             <div className="relative min-h-0 flex-1">
                 <div
                     ref={containerReference}
                     aria-label={t('preview.pdf.label')}
-                    className="caxri-pdf-preview absolute inset-0 overflow-auto"
+                    className="caxri-pdf-preview absolute inset-0 overflow-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent"
                     data-testid="pdf-preview"
                     role="document"
+                    // Focusable so a click on a page puts `Cmd+F` and the arrow keys inside the preview.
+                    tabIndex={0}
                     onScroll={(event) =>
                         rememberPreviewViewState(viewStateKey, {
                             scrollTop: event.currentTarget.scrollTop,

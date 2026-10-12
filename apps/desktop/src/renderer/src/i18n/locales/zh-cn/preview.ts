@@ -30,6 +30,8 @@ export const preview: TranslatedNamespace<typeof source> = {
     'preview.pdf.fitWidth': '适合宽度',
     'preview.pdf.fitPage': '适合页面',
     'preview.pdf.viewAnnouncement': '第 {{page}} 页，共 {{count}} 页，{{percent}}%',
+    'preview.pdf.find': '在 PDF 中查找',
+    'preview.pdf.findNoResults': '无结果',
 
     'preview.table.label': '表格预览',
     'preview.table.noRows': '此文件没有任何行。',

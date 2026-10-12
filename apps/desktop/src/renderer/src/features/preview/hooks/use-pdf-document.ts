@@ -3,12 +3,12 @@ import { useEffect, useState } from 'react';
 import { delay } from 'es-toolkit';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
 
-import { loadPdfDocument } from './pdf-document';
-import type { PdfFailure } from './pdf-failure';
-import { describePdfFailure } from './pdf-failure';
-import type { PdfReadCause, PdfSettledRead } from './pdf-reload';
-import { PDF_FAILURE_CONFIRM_MS, pdfReadFailureAction, shownPdfRead } from './pdf-reload';
-import { readAssetBytes } from './preview-asset-client';
+import { loadPdfDocument } from '../pdf-document';
+import type { PdfFailure } from '../pdf-failure';
+import { describePdfFailure } from '../pdf-failure';
+import type { PdfReadCause, PdfSettledRead } from '../pdf-reload';
+import { PDF_FAILURE_CONFIRM_MS, pdfReadFailureAction, shownPdfRead } from '../pdf-reload';
+import { readAssetBytes } from '../preview-asset-client';
 import { usePreviewSourceRevision } from './use-preview-source-revision';
 
 export type PdfDocumentState =

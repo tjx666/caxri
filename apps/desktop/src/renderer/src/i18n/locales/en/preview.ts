@@ -32,6 +32,8 @@ export const preview = {
     'preview.pdf.fitWidth': 'Fit Width',
     'preview.pdf.fitPage': 'Fit Page',
     'preview.pdf.viewAnnouncement': 'Page {{page}} of {{count}}, {{percent}}%',
+    'preview.pdf.find': 'Find in PDF',
+    'preview.pdf.findNoResults': 'No results',
 
     // CSV and TSV table.
     'preview.table.label': 'Table preview',
