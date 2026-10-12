@@ -1090,9 +1090,9 @@ list in place: a `Choose model` caption, one row per model with a trailing check
 and each model's description in a tooltip to its right (Claude Code's `default` alias keeps its
 description inline). Choosing a model returns to the effort panel when the model has efforts or
 modes, and closes the popover otherwise; a model with neither opens straight on the list. The
-permission picker shows a shield, the level's name, a `--warning` shield for full access, and, for a
-provider that applies a switch only from the next turn (Codex), a `from next turn` caption while a
-turn runs. Its menu leads every level with a glyph (an eye for read only, a hand for ask, a pen for
+permission picker shows a shield and the level's name with no disclosure chevron; full access tints
+both shield and name `--warning`, as the Codex app does. For a provider that applies a switch only
+from the next turn (Codex), it adds a `from next turn` caption while a turn runs. Its menu leads every level with a glyph (an eye for read only, a hand for ask, a pen for
 accept edits, a bot for auto, the `--warning` shield for full access) and trails the current level
 with a check; a chosen Full access row reads in `--warning`, as the Codex app tints it. Every
 checkable menu row in the app trails its check, as macOS menus do. The primary action slot is a 28px `--foreground`
