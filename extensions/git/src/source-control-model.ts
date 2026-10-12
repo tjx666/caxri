@@ -13,6 +13,7 @@ import type {
 } from 'caxri';
 import { isGlobMatch, ProjectStatusSummaryErrorMessage } from 'caxri';
 
+import { branchSync } from './branch-sync';
 import { commitFilesToStatuses } from './commit-file-statuses';
 import { formatRepoCountLabel, repoBranchRow as repoBranchRow } from './repo-row-labels';
 import { emptyStateForMode } from './source-control-empty-state';
@@ -424,6 +425,7 @@ export function buildSourceControlViewModel({
              */
             const uncommittedCount = mode === 'working' ? 0 : workingCount;
             const branchRow = repoBranchRow(repo);
+            const sync = branchSync(mode, repo, branchRow, registerAction);
             /**
              * Omitted when both are zero: `0 ahead, 0 behind` is the steady state and told the hover's reader nothing.
              */
@@ -518,6 +520,7 @@ export function buildSourceControlViewModel({
                 description: branchRow.description,
                 descriptionKind: branchRow.kind,
                 ...(branchRow.badge && { descriptionBadge: branchRow.badge }),
+                ...(sync.badgeActionId && { descriptionBadgeActionId: sync.badgeActionId }),
                 descriptionAccessibilityLabel,
                 descriptionTooltip,
                 ...(pullRequest && {
@@ -544,22 +547,7 @@ export function buildSourceControlViewModel({
                     },
                 }),
                 expandedByDefault: true,
-                actions:
-                    mode === 'working'
-                        ? [
-                              registerAction({
-                                  command: {
-                                      id: 'caxri.git.sync',
-                                      arguments: [repo.id, repo.ahead, repo.behind],
-                                  },
-                                  icon: themeIcon('sync'),
-                                  label: `Sync Changes in ${repo.name}`,
-                                  progressLabel: `Syncing ${repo.name}`,
-                                  errorMessage: 'Sync failed',
-                                  tooltip: 'Sync Changes (Pull, then Push)',
-                              }),
-                          ]
-                        : [],
+                actions: sync.action ? [sync.action] : [],
                 groups: [
                     {
                         id: `${repo.id}:changes`,
