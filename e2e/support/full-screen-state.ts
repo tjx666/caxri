@@ -13,7 +13,7 @@ export async function publishFullScreenState(app: E2EApp, isFullScreen: boolean)
         if (!window) throw new Error('Caxri window is unavailable');
         window.webContents.send('caxri:event', {
             event: 'window.fullScreen',
-            payload: { isFullScreen: nextFullScreen },
+            payload: { window: 'workbench', isFullScreen: nextFullScreen },
         });
     }, isFullScreen);
 }

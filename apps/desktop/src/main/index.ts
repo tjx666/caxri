@@ -75,6 +75,7 @@ import { UpdateService, updateStateLogFields } from './updates';
 import {
     createWindowZoomController,
     mainWindowChromeOptions,
+    publishFullScreenState,
     zoomFactorForLevel,
 } from './window-chrome';
 import { confirmWindowClose, createWindowCloseHandler } from './window-close';
@@ -294,27 +295,11 @@ if (ownsProfileInstance) {
         window.on('resize', scheduleWindowState);
         window.on('maximize', scheduleWindowState);
         window.on('unmaximize', scheduleWindowState);
-        const sendFullScreenState = (): void => {
-            sendEvent({
-                event: 'window.fullScreen',
-                payload: { isFullScreen: window.isFullScreen() },
-            });
-        };
-        window.on('enter-full-screen', () => {
-            scheduleWindowState();
-            sendFullScreenState();
-        });
-        window.on('leave-full-screen', () => {
-            scheduleWindowState();
-            sendFullScreenState();
-        });
-        /**
-         * `did-finish-load` covers the Renderer loading (or reloading/crash-recovering) while already fullscreen, so it
-         * observes the current state instead of missing the one-shot `enter-full-screen` of a restored placement.
-         */
+        window.on('enter-full-screen', scheduleWindowState);
+        window.on('leave-full-screen', scheduleWindowState);
+        publishFullScreenState(window, 'workbench', sendEvent);
         startupProfile.mark('windowCreated');
         mainLogger?.write('info', logEventCatalog.window.created);
-        window.webContents.on('did-finish-load', sendFullScreenState);
         window.once('ready-to-show', () => {
             startupProfile.mark('readyToShow');
             mainLogger?.write('info', logEventCatalog.window.readyToShow, {
@@ -665,6 +650,7 @@ if (ownsProfileInstance) {
                 currentDirectory,
                 logger: mainLogger,
                 mainWindow: () => mainWindow,
+                sendEvent,
                 supervisor,
                 windowMode: e2eWindowMode,
                 zoomLevel: () => windowZoom.level(),

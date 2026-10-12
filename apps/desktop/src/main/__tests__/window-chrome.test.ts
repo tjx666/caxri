@@ -1,9 +1,11 @@
+import type { ServerEvent } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
     createWindowZoomController,
     mainWindowChromeOptions,
+    publishFullScreenState,
     trafficLightPositionForZoom,
     zoomFactorForLevel,
 } from '../window-chrome';
@@ -90,5 +92,30 @@ describe('createWindowZoomController', () => {
         });
 
         await expect(controller.load()).resolves.toBe(0);
+    });
+});
+
+describe('publishFullScreenState', () => {
+    it('names the window whose fullscreen state changed, on every transition and load', () => {
+        let isFullScreen = false;
+        const listeners = new Map<string, () => void>();
+        const on = (name: string, listener: () => void) => listeners.set(name, listener);
+        const window = { isFullScreen: () => isFullScreen, on, webContents: { on } };
+        const emit = (name: string) => listeners.get(name)?.();
+        const sendEvent = vi.fn<(event: ServerEvent) => void>();
+        publishFullScreenState(window as unknown as BrowserWindow, 'agentCommander', sendEvent);
+
+        isFullScreen = true;
+        emit('enter-full-screen');
+        emit('did-finish-load');
+        isFullScreen = false;
+        emit('leave-full-screen');
+
+        expect(sendEvent.mock.calls.map(([event]) => event)).toEqual(
+            [true, true, false].map((value) => ({
+                event: 'window.fullScreen',
+                payload: { window: 'agentCommander', isFullScreen: value },
+            })),
+        );
     });
 });

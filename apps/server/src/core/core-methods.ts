@@ -41,6 +41,7 @@ export const coreForwardedMethods = [
     'commander.inbox.reply',
     'commander.inbox.resolve',
     'commander.inbox.show',
+    'commander.session.archive',
     'commander.session.create',
     'commander.snapshot',
     'commander.status',

@@ -318,7 +318,15 @@ export const serverEventPayloads = {
         }),
         z.object({ status: z.literal('replaced') }),
     ]),
-    'window.fullScreen': z.object({ isFullScreen: z.boolean() }),
+    /**
+     * One native window entered or left macOS fullscreen. Durable delivery reaches every Renderer, so `window` names
+     * the window whose state this is: each Renderer applies only its own, since the Workbench and the Agent Commander
+     * window go fullscreen independently.
+     */
+    'window.fullScreen': z.object({
+        window: z.enum(['workbench', 'agentCommander']),
+        isFullScreen: z.boolean(),
+    }),
     /**
      * Main saw another app change an external document the Workbench has open (see `externalDocument.watch`). The
      * Renderer reads it again through `externalDocument.read` and applies the same disk-wins rule as a Project file.

@@ -23,6 +23,7 @@ import { useProjectCollapse } from './hooks/use-project-collapse';
 import { useProjectOrder } from './hooks/use-project-order';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
 import { useProjectSessionWindows } from './hooks/use-project-session-windows';
+import { useSelectedSessionReveal } from './hooks/use-selected-session-reveal';
 import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionPullRequestPoll } from './hooks/use-session-pull-request';
 import { useSessionRename } from './hooks/use-session-rename';
@@ -123,6 +124,7 @@ export function PrimarySidebarProjectTree() {
         [pinnedCollapse, projectCollapse],
     );
     const sessionRename = useSessionRename(sessions, revealSessionRow);
+    useSelectedSessionReveal({ revealSessionRow, selectedSessionId, sessions });
 
     const isProjectExpanded = projectCollapse.isProjectExpanded;
 

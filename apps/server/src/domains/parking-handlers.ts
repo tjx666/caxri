@@ -2,6 +2,7 @@ import type { FullStateChangeReason, SessionRestorePlacement } from '@caxri/prot
 import { CaxriError } from '@caxri/protocol';
 
 import type { AgentChatService } from './agent-chat';
+import { requireCommanderSession } from './commander';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
 import type { MobileTerminalMutationQueue } from './mobile';
@@ -61,7 +62,11 @@ export function createSessionParkingHandlers(
     options: SessionParkingOptions,
 ): Pick<
     DomainHandlers,
-    'session.archive' | 'session.detach' | 'session.unarchive' | 'session.unarchiveMany'
+    | 'commander.session.archive'
+    | 'session.archive'
+    | 'session.detach'
+    | 'session.unarchive'
+    | 'session.unarchiveMany'
 > {
     const { agentChat, database, mobileTerminalMutations, terminalRestores, terminalSuspension } =
         options;
@@ -73,13 +78,23 @@ export function createSessionParkingHandlers(
         options.sendFullStateChange('session.unarchive');
         return restored;
     };
+    const archiveSession = (sessionId: string) =>
+        mobileTerminalMutations.runSessions([sessionId], async () => {
+            const session = database.archiveSession(sessionId);
+            await parkSessions(options, [sessionId], 'session.archive');
+            return session;
+        });
     return {
-        'session.archive': ({ sessionId }) =>
-            mobileTerminalMutations.runSessions([sessionId], async () => {
-                const session = database.archiveSession(sessionId);
-                await parkSessions(options, [sessionId], 'session.archive');
-                return session;
-            }),
+        /**
+         * The sidebar's archive, admitted only for a Session the Agent Commander created; see
+         * `requireCommanderSession`.
+         */
+        'commander.session.archive': async ({ sessionId }) => {
+            requireCommanderSession(database, sessionId);
+            await archiveSession(sessionId);
+            return { sessionId };
+        },
+        'session.archive': ({ sessionId }) => archiveSession(sessionId),
         'session.detach': ({ sessionId }) =>
             mobileTerminalMutations.runSessions([sessionId], async () => {
                 if (!database.getSession(sessionId))

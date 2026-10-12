@@ -6,13 +6,10 @@ import { openExternalUrl } from '../../lib/external-link';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/invalidation';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
+import { registerSessionCommandConvergence } from '../../stores/session-command-convergence';
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
-import {
-    refreshWorkbench,
-    registerSessionCommandConvergence,
-    showSessionTitle,
-} from '../../stores/workbench';
+import { refreshWorkbench, showSessionTitle } from '../../stores/workbench';
 import {
     beginPendingSessionTitle,
     settlePendingSessionTitle,
