@@ -801,7 +801,9 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   validation against `models`. Like the Desktop menu, the sheet shows a choice at once
   (`agentChatSelectionView` in `packages/protocol`), so a new model's efforts list before the next
   snapshot arrives, and a failed switch reverts with an error in the sheet that clears once the
-  Chat's choice or the connection changes (`agentChatConfigureScope`). A new Chat can be
+  Chat's choice or the connection changes (`agentChatConfigureScope`). While the snapshot reports
+  `ultracode`, the sheet adds the Desktop menu's `Ultracode` switch below the efforts, and the
+  trigger reads `Ultracode` after the effort while it is on. A new Chat can be
   configured before its first message. During a turn the sheet says the change applies from the
   next turn. A Claude Code Chat that has not named
   its model yet asks for a model before it lists efforts. A provider without a model list, a
