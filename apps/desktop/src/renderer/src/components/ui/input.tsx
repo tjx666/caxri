@@ -7,21 +7,22 @@ import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utilities';
 
 const inputVariants = cva(
-    'block w-full min-w-0 appearance-none border text-inherit transition-[border-color,box-shadow,background-color] duration-150 ease-out outline-none placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger aria-invalid:focus-visible:border-danger [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+    'block w-full min-w-0 appearance-none border text-inherit transition-[border-color,box-shadow,background-color] outline-none placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger aria-invalid:focus-visible:border-danger [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
     {
         variants: {
             appearance: {
                 default:
-                    'rounded border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)]',
-                workbench: 'rounded border-border bg-background',
-                inline: 'rounded border-border bg-surface',
+                    'rounded-lg border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)]',
+                workbench: 'rounded-lg border-border bg-background',
+                inline: 'rounded-lg border-border bg-surface',
                 embedded:
                     'h-full rounded-none border-0 bg-transparent p-0 focus-visible:border-transparent focus-visible:shadow-none',
             },
             size: {
                 standard: 'h-9 px-2 text-[13px]',
                 dense: 'h-7 px-2 text-[12px]',
-                compact: 'h-6 px-1 text-[12px]',
+                // 8px would turn a 24px field into a pill; keep the same height-to-radius ratio instead.
+                compact: 'h-6 rounded-md px-1 text-[12px]',
                 palette: 'h-11 px-2 text-[13px]',
             },
         },
@@ -30,12 +31,12 @@ const inputVariants = cva(
 );
 
 const inputGroupVariants = cva(
-    'flex w-full min-w-0 items-center border border-border transition-[border-color,box-shadow,background-color] duration-150 ease-out focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]',
+    'flex w-full min-w-0 items-center border border-border transition-[border-color,box-shadow,background-color] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]',
     {
         variants: {
             appearance: {
-                default: 'rounded bg-[color-mix(in_srgb,var(--border)_30%,transparent)]',
-                workbench: 'rounded bg-background',
+                default: 'rounded-lg bg-[color-mix(in_srgb,var(--border)_30%,transparent)]',
+                workbench: 'rounded-lg bg-background',
                 toolbar:
                     'rounded-none border-x-0 border-t-0 bg-background focus-within:shadow-none',
             },

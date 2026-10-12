@@ -12,6 +12,7 @@ import {
     isExternalEditorTabPath,
     isSettingsTabPath,
     isUsageTabPath,
+    parseAgentContextTab,
     parseAgentStatusTab,
     parseAgentTaskTab,
     parseAgentTranscriptTab,
@@ -72,6 +73,11 @@ const AgentChatTurnReviewTab = lazy(async () => {
 const AgentStatusPage = lazy(async () => {
     const module = await import('../agent-status/agent-status-page');
     return { default: module.AgentStatusPage };
+});
+
+const AgentContextPage = lazy(async () => {
+    const module = await import('../agent-chat/context/agent-context-page');
+    return { default: module.AgentContextPage };
 });
 
 /**
@@ -290,6 +296,17 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
                 }
             >
                 <AgentStatusPage key={path} terminalId={agentStatusTab.terminalId} />
+            </Suspense>
+        );
+    const agentContextTab = parseAgentContextTab(path);
+    if (agentContextTab)
+        return (
+            <Suspense
+                fallback={
+                    <LoadingSkeleton variant="page" label={t('editor.load.loadingAgentContext')} />
+                }
+            >
+                <AgentContextPage key={path} terminalId={agentContextTab.terminalId} />
             </Suspense>
         );
     const previewTab = parseFilePreviewTab(path);

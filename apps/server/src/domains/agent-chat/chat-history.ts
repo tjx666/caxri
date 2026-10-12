@@ -1,8 +1,10 @@
 import type { AgentChatHistoryPage, AgentChatItem, AgentChatTurn } from '@caxri/protocol';
+import { agentChatHistoryPageSchema } from '@caxri/protocol';
 
 import { chatHistoryPageStart, chatHistoryTurns } from './chat-history-archive';
 import { readChatTranscript, requireChatTerminal } from './chat-launch';
 import type { ChatProjection } from './chat-projection';
+import type { ChatStates } from './chat-states';
 import { claudeHistoryItems } from './claude-history';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -132,4 +134,22 @@ export async function readChatHistoryPage(
         historyId,
         ...(await readRecordPage(options, snapshot.terminalId, historyId, beforeItemId)),
     };
+}
+
+/**
+ * One Chat Terminal's page of history before `beforeItemId`, with the projection's pending items archived first.
+ * Reading history never starts a provider process.
+ */
+export async function readChatTerminalHistory(
+    options: Pick<AgentChatServiceOptions, 'agentEnvironment' | 'database'>,
+    states: ChatStates,
+    terminalId: string,
+    beforeItemId: string,
+): Promise<AgentChatHistoryPage> {
+    requireChatTerminal(options.database, terminalId);
+    const state = states.open(terminalId);
+    state.projection.flush();
+    return agentChatHistoryPageSchema.parse(
+        await readChatHistoryPage(options, state.projection, beforeItemId),
+    );
 }

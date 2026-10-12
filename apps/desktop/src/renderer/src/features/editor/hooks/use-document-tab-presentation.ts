@@ -1,6 +1,7 @@
 import {
     agentProviderCatalog,
     isExternalEditorTabPath,
+    parseAgentContextTab,
     parseAgentStatusTab,
     parseAgentTranscriptTab,
     parseFilePreviewTab,
@@ -17,8 +18,8 @@ import { documentTabPresentation } from '../document-tab-presentation';
 const noDisplayPaths: readonly string[] = [];
 
 /**
- * `documentTabPresentation` fed with the live records a virtual tab names: an Agent transcript or status tab's
- * Terminal, an Agent Chat task tab's cached task, and, for files outside every Project, the display paths of the
+ * `documentTabPresentation` fed with the live records a virtual tab names: an Agent transcript, status, or context
+ * tab's Terminal, an Agent Chat task tab's cached task, and, for files outside every Project, the display paths of the
  * Session's other external documents in the pane's Session. Tab identity is the Terminal or task ID alone; the label
  * follows its stable semantic title, never a PTY window title.
  */
@@ -29,7 +30,9 @@ export function useDocumentTabPresentation(path: string, displayPath: string | u
         ? sessionViewScope(session.id, session.workbenchProjectId)
         : undefined;
     const transcriptTerminal = useTerminal(parseAgentTranscriptTab(path)?.terminalId ?? '');
-    const statusTerminal = useTerminal(parseAgentStatusTab(path)?.terminalId ?? '');
+    const agentTerminal = useTerminal(
+        (parseAgentStatusTab(path) ?? parseAgentContextTab(path))?.terminalId ?? '',
+    );
     const task = useCachedAgentChatTask(path);
     const previewSourcePath = parseFilePreviewTab(path)?.path;
     const previewSourceDisplayPath = useSessionViewStore((state) =>
@@ -54,10 +57,10 @@ export function useDocumentTabPresentation(path: string, displayPath: string | u
     return documentTabPresentation(
         path,
         {
-            agentName: statusTerminal?.provider
-                ? agentProviderCatalog[statusTerminal.provider].displayName
+            agentName: agentTerminal?.provider
+                ? agentProviderCatalog[agentTerminal.provider].displayName
                 : undefined,
-            agentTerminalTitle: statusTerminal?.title,
+            agentTerminalTitle: agentTerminal?.title,
             displayPath,
             externalDisplayPaths,
             previewSourceDisplayPath,

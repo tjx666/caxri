@@ -55,6 +55,10 @@ interface AgentChatComposerProperties {
      */
     activity: AgentChatActivity | undefined;
     /**
+     * Whether the context meter offers Details (`AgentChatHostCapabilities`).
+     */
+    canOpenContext: boolean;
+    /**
      * Whether the permission menu offers "Use as Project default" (`AgentChatHostCapabilities`).
      */
     canSaveProjectDefault: boolean;
@@ -146,6 +150,7 @@ interface AgentChatComposerProperties {
 export function AgentChatComposer({
     activeTurnId,
     activity,
+    canOpenContext,
     canSaveProjectDefault,
     commands,
     dropHandlersReference,
@@ -321,7 +326,7 @@ export function AgentChatComposer({
                 </div>
                 <form
                     className={cn(
-                        'flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) focus-within:border-muted',
+                        'flex flex-col rounded-lg border border-border bg-surface transition-[border-color] focus-within:border-muted',
                         fileInput.isDragOver && 'border-accent focus-within:border-accent',
                     )}
                     onSubmit={(event) => {
@@ -386,6 +391,7 @@ export function AgentChatComposer({
                     />
                     <AgentChatComposerActions
                         canAttachImages={supportsImages}
+                        canOpenContext={canOpenContext}
                         canSaveProjectDefault={canSaveProjectDefault}
                         isAttaching={isAttaching || sessionMenu.isPreparing}
                         isQueueing={!edit.isEditing && (isTurnRunning || isBusy)}

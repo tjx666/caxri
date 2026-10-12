@@ -1,5 +1,6 @@
 import { agentChatChanges } from './agent-chat-changes';
 import { agentChatComposer } from './agent-chat-composer';
+import { agentChatContext } from './agent-chat-context';
 import { agentChatPane } from './agent-chat-pane';
 import { agentChatRequests } from './agent-chat-requests';
 import { agentChatTimeline } from './agent-chat-timeline';
@@ -13,4 +14,5 @@ export const agentChat = {
     ...agentChatChanges,
     ...agentChatPane,
     ...agentChatRequests,
+    ...agentChatContext,
 } as const;

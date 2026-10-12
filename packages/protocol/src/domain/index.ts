@@ -1,3 +1,4 @@
+export * from './agent-context-tab.js';
 export * from './agent-status-tab.js';
 export * from './agent-task-tab.js';
 export * from './agent-transcript.js';

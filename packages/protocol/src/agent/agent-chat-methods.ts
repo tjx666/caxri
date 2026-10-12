@@ -8,6 +8,7 @@ import {
     savedLongPasteSchema,
 } from '../domain/terminal-long-paste.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { agentChatContextReportSchema } from './agent-chat-context.js';
 import {
     agentChatCommandSchema,
     agentChatEffortSchema,
@@ -246,6 +247,17 @@ export const agentChatMethods = {
                 .max(MAX_AGENT_CHAT_IMAGES - 1),
         }),
         result: agentChatImageInputSchema.omit({ thumbnail: true }).nullable(),
+    },
+    /**
+     * Returns what fills the Chat's context item by item and how the prompt cache held up request by request, for the
+     * Context tab. The composition comes from the running provider and is absent while none runs; reading never starts
+     * one. The requests come from the provider's own record. Only Claude Code reports either; another provider fails
+     * with `VALIDATION`.
+     */
+    'agentChat.readContext': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject(terminalTarget),
+        result: agentChatContextReportSchema,
     },
     /**
      * Stops one running task without ending the turn or the Chat.

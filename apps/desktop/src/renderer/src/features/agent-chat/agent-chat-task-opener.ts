@@ -1,4 +1,4 @@
-import { agentTaskTabPath, agentTurnReviewTabPath } from '@caxri/protocol';
+import { agentContextTabPath, agentTaskTabPath, agentTurnReviewTabPath } from '@caxri/protocol';
 
 import { openEditorTab } from '../editor/document-commands';
 import { focusTerminalById } from '../terminal/terminal-pane-handlers';
@@ -24,6 +24,13 @@ export function openAgentChatTaskTab(terminalId: string, taskId: string): void {
  */
 export function openAgentChatTurnReview(terminalId: string, turnId: string): void {
     openBesideAgentChat(terminalId, agentTurnReviewTabPath(terminalId, turnId));
+}
+
+/**
+ * Opens a Chat's Context tab beside it, from the context meter's card, so the conversation stays in view.
+ */
+export function openAgentChatContext(terminalId: string): void {
+    openBesideAgentChat(terminalId, agentContextTabPath(terminalId));
 }
 
 function openBesideAgentChat(terminalId: string, tabPath: string): void {

@@ -33,7 +33,7 @@ export function AgentChatInvocationChip({ invocation }: { invocation: string }) 
         <Popover open={isOpen} onOpenChange={setIsOpen}>
             <PopoverTrigger
                 aria-label={t('agentChat.slash.showInvocation', { invocation })}
-                className={`${CHIP_CLASS_NAME} cursor-pointer border-0 text-[13px] leading-5 transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-accent/25 focus-visible:outline focus-visible:outline-accent data-popup-open:bg-accent/25`}
+                className={`${CHIP_CLASS_NAME} cursor-pointer border-0 text-[13px] leading-5 transition-colors hover:bg-accent/25 focus-visible:outline focus-visible:outline-accent data-popup-open:bg-accent/25`}
             >
                 {label}
             </PopoverTrigger>

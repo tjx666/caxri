@@ -210,7 +210,9 @@ may use unitless `1.45` or `1.5` line height; compact uppercase headings may use
   different axis.
 - Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
   Settings fields/buttons, and 44px palette/path input.
-- Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. `rounded-full` is
+- Radius: 8px controls (buttons, selects, toggles, text fields), matching the Codex app's roughly
+  quarter-height rounding; a 24px compact field takes 6px so it does not read as a pill. 6px
+  cards/list selection, 8px dialogs and palette. `rounded-full` is
   reserved for intrinsically circular shapes: activity dots, the drag insertion line's leading
   cap, and the Switch track/thumb. The Agent Chat composer is the one other sanctioned exception,
   copying the Codex app's composer: its `+`, its Plan chip, its model picker pill, its 28px primary
@@ -354,6 +356,12 @@ program read every window and act as the user must be disclosed where the user c
 going looking. It is a mode the build or the user chose, not a degradation, so it stays `--muted`; it
 reports what the process is actually doing rather than what `argv.jsonc` now says, because turning the
 switch off leaves the channel open until the next launch (principle 9). Clicking it opens its setting.
+
+A standing mode in its normal state is icon-only: the debugging disclosure, Screencast Mode, and
+`Always Allow` show a glyph and keep their words on the accessible name and hover card. Visible
+words on the bar are reserved for a value (a count, a metric, a branch, a delivery id) and for an
+abnormal state (degraded, failed, waiting on the user), and even then stay a word or two; a mode
+name such as `Debug port` is neither and only spends rail width.
 
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips. Clickable `StatusItem` and read-only `StatusInfo` both set
@@ -734,9 +742,15 @@ content. An external file gets no last-change annotation: blame needs a Project-
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
 layer:
 
-1. **shadcn overlay layer** (`tw-animate-css` + animation classes in `components/ui/*`): every
-   overlay: dialogs, selects, dropdown menus, tooltips, preview cards, and future shadcn
-   components. Fade plus ~95% zoom on enter/exit, gated by Base UI popup state attributes. We
+1. **shadcn overlay layer** (`tw-animate-css` classes from `components/ui/overlay-motion.ts`, the
+   one source every `components/ui/*` popup composes): dialogs, selects, dropdown menus, popovers,
+   tooltips, preview cards, and future shadcn components. Anchored popups fade, zoom from ~95%
+   at `--transform-origin`, and travel 4px away from their trigger along Base UI's `data-side`;
+   tooltips fade and travel 2px without zooming, since a zoom blurs one line of small text;
+   dialogs fade and zoom from the center. Exits only fade and shrink. Base UI's instant phase
+   (`data-instant`: sweeping between adjacent tooltips, a keyboard-opened trigger, an Escape dismissal) shows and
+   hides without animation so a toolbar sweep never flickers. All of it is gated by Base UI popup
+   state attributes. We
    deliberately do not import `shadcn/tailwind.css`: its custom `data-open`/`data-closed` variants
    exist to bridge Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute
    variants are equivalent (see upstream debate in shadcn-ui/ui#10267).
@@ -752,22 +766,32 @@ layer:
    renderer entries enable StrictMode. Until it lands, simple lists stay instant.
 4. **Motion** (`motion/react` via `LazyMotion strict` + `motion/react-m`, `domAnimation` features
    only): fine presence/timing control and future layout math: the work tab strip's enter/exit
-   (opacity plus width), future drag reorder and shared-element transitions.
+   (opacity plus width), future drag reorder and shared-element transitions. Its easing comes
+   from the same tokens through `motionEasing` in `lib/motion.ts`, never a library preset.
 
 Timing lives in the `--motion-*` tokens in `styles.css` (`:root`): the single source for CSS
 transitions, tw-animate durations, Motion transitions, JS presence-cleanup fallbacks, and tests:
 disclosures expand `--motion-expand` (180ms, `--motion-ease-emphasized`
-`cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, ease-in); work tabs
-enter `--motion-tab-enter` (140ms, ease-out) and exit `--motion-tab-exit` (110ms, ease-in); the
+`cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, exit curve); work tabs
+enter `--motion-tab-enter` (140ms, enter curve) and exit `--motion-tab-exit` (110ms, exit curve); the
 shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 `--motion-ease-emphasized`); overlays enter `--motion-overlay-enter` (150ms) and exit
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
 ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
-literal.
+literal. The enter curve `--motion-ease-enter` is easeOutQuint `cubic-bezier(0.23, 1, 0.32, 1)`,
+which answers the pointer in the first frames instead of the keyword `ease-out`'s slow start;
+exits use the accelerating `--motion-ease-exit` `cubic-bezier(0.4, 0, 1, 1)`. State feedback
+(hover color, hover-revealed row actions, focus rings, switch and checkbox) runs on
+`--motion-feedback` (120ms, enter curve) through Tailwind's `--default-transition-*` variables,
+so a bare `transition-*` utility is already on-token: never add a literal `duration-<n>` or
+`ease-in`/`ease-out` utility. The Terminal and Agent Chat find bars fade in (the floating
+Terminal bar also drops 4px) and close instantly; the pane split drop preview fades in once and
+then glides between zones on `--motion-chrome-switch` so the target split stays legible.
 
 Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
-state transitions, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
+state transitions, sidebar and Panel visibility (animating their width would reflow every
+xterm on each frame), Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
 disclosures in Files, Source Control, and extension-contributed trees. Do not stagger rows or neighboring tabs.
 The Process Explorer window is out of scope (separate style layer, diagnostics; see `docs/process-explorer.md`).
 
@@ -1068,9 +1092,9 @@ list in place: a `Choose model` caption, one row per model with a trailing check
 and each model's description in a tooltip to its right (Claude Code's `default` alias keeps its
 description inline). Choosing a model returns to the effort panel when the model has efforts or
 modes, and closes the popover otherwise; a model with neither opens straight on the list. The
-permission picker shows a shield, the level's name, a `--warning` shield for full access, and, for a
-provider that applies a switch only from the next turn (Codex), a `from next turn` caption while a
-turn runs. Its menu leads every level with a glyph (an eye for read only, a hand for ask, a pen for
+permission picker shows a shield and the level's name with no disclosure chevron; full access tints
+both shield and name `--warning`, as the Codex app does. For a provider that applies a switch only
+from the next turn (Codex), it adds a `from next turn` caption while a turn runs. Its menu leads every level with a glyph (an eye for read only, a hand for ask, a pen for
 accept edits, a bot for auto, the `--warning` shield for full access) and trails the current level
 with a check; a chosen Full access row reads in `--warning`, as the Codex app tints it. Every
 checkable menu row in the app trails its check, as macOS menus do. The primary action slot is a 28px `--foreground`
