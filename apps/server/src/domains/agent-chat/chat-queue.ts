@@ -267,7 +267,7 @@ export class ChatFollowUpQueue {
         /**
          * Set inside the delivery callback; held in an object because narrowing cannot see that assignment.
          */
-        const outcome = { isDelivered: false };
+        const outcome = { isMessageDelivered: false };
         try {
             await this.host.enqueue(async (session) => {
                 this.isDispatching = false;
@@ -279,7 +279,7 @@ export class ChatFollowUpQueue {
                 try {
                     await deliverQueuedInput(session, mergeBatch(batch), 'queued');
                     this.log('dispatched', batch.length);
-                    outcome.isDelivered = true;
+                    outcome.isMessageDelivered = batch[0].kind === 'message';
                 } catch (error) {
                     if (this.isRetired) return;
                     // Keep the inputs and stop the queue, so a failure the user has not seen never drops or repeats them.
@@ -299,8 +299,10 @@ export class ChatFollowUpQueue {
         // and its completion read from one stdout chunk). That projection change was dropped by `isDispatching`, and
         // nothing else would advance the queue, so check again. `dispatch` re-reads `isIdle`, so a running turn still
         // holds the next entry back. Only after a confirmed delivery: a failure paused the queue, and a Chat whose
-        // provider could not start must not retry in a loop.
-        if (outcome.isDelivered) this.dispatch();
+        // provider could not start must not retry in a loop. Only after a message: a command such as Codex `/compact`
+        // resolves before the provider reports the turn it starts, so the Chat would read idle and the next entry
+        // would go out into that compaction. Its turn notifications advance the queue instead.
+        if (outcome.isMessageDelivered) this.dispatch();
     }
 
     /**
