@@ -1,11 +1,9 @@
 import type { RefObject } from 'react';
 import { useState } from 'react';
 
-import {
-    draftWithReturnedMessage,
-    readAgentChatDraft,
-    writeAgentChatDraft,
-} from '../agent-chat-drafts';
+import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
+
+import { readAgentChatDraft, writeAgentChatDraft } from '../agent-chat-drafts';
 import { useAgentChatDraftAppends } from './use-agent-chat-draft-appends';
 
 /**
@@ -37,7 +35,7 @@ export function useAgentChatDraft({
         setDraftState('');
     };
     const restoreQueued = (text: string): void => {
-        setDraft((current) => draftWithReturnedMessage(current, text));
+        setDraft((current) => agentChatDraftWithReturnedMessage(current, text));
         inputReference.current?.focus();
     };
     return { clearDraft, draft, restoreQueued, setDraft };

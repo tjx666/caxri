@@ -12,12 +12,11 @@ import {
 } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
-import type { AgentChatQueueEntry } from '@caxri/protocol';
 import { CornerDownLeft, Image as ImageIcon, Pause, Play, Trash2 } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
-import type { AgentChatQueueHeader } from './agent-chat-queue';
+import type { AgentChatQueueHeader, AgentChatQueueRow } from './agent-chat-queue';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatQueueActions } from './use-agent-chat-queue-actions';
 
@@ -86,14 +85,14 @@ const QueueHeader = ({
  * who do not swipe and for the screen reader.
  */
 const QueueRow = ({
-    canAct,
+    canAct: canActOnQueue,
     entry,
     onRemove,
     onSendNow,
     theme,
 }: {
     canAct: boolean;
-    entry: AgentChatQueueEntry;
+    entry: AgentChatQueueRow;
     onRemove: (id: string) => Promise<boolean>;
     onSendNow: (id: string) => Promise<boolean>;
     theme: MobileTheme;
@@ -111,6 +110,9 @@ const QueueRow = ({
         [theme],
     );
     const isSteer = entry.sendNowLabel === 'Steer';
+    const isPending = entry.isPending === true;
+    // A message still on its way holds every action until Server Core lists it, as on Desktop.
+    const canAct = canActOnQueue && !isPending;
     const canSendNow = canAct && entry.canSendNow;
     return (
         <ReanimatedSwipeable
@@ -122,7 +124,11 @@ const QueueRow = ({
             renderRightActions={renderRightActions}
             rightThreshold={64}
         >
-            <View style={styles.row} testID="agent-chat-queue-item">
+            <View
+                accessibilityState={{ busy: isPending }}
+                style={[styles.row, isPending && styles.pending]}
+                testID={isPending ? 'agent-chat-queue-item-pending' : 'agent-chat-queue-item'}
+            >
                 <View style={styles.rowText}>
                     <Text numberOfLines={2} style={[styles.preview, { color: theme.text }]}>
                         {entry.commandLabel ? (
@@ -146,16 +152,21 @@ const QueueRow = ({
                             </Text>
                         </View>
                     ) : null}
+                    {isPending ? (
+                        <Text style={[styles.imagesText, { color: theme.muted }]}>Sending…</Text>
+                    ) : null}
                 </View>
-                {canAct ? (
+                {canActOnQueue ? (
                     <>
                         <Pressable
                             accessibilityHint={
-                                entry.canSendNow
-                                    ? isSteer
-                                        ? 'Adds this message to the running turn now.'
-                                        : undefined
-                                    : 'A command waits for the running turn to end.'
+                                isPending
+                                    ? 'Available once the message is queued.'
+                                    : entry.canSendNow
+                                      ? isSteer
+                                          ? 'Adds this message to the running turn now.'
+                                          : undefined
+                                      : 'A command waits for the running turn to end.'
                             }
                             accessibilityLabel={isSteer ? 'Steer now' : 'Send now'}
                             accessibilityRole="button"
@@ -187,6 +198,7 @@ const QueueRow = ({
                         <IconButton
                             accessibilityLabel="Delete queued message"
                             color={theme.muted}
+                            disabled={isPending}
                             icon={Trash2}
                             onPress={remove}
                             size={18}
@@ -221,7 +233,7 @@ export const AgentChatQueueList = ({
     const { entries, error, header, isResuming, remove, resume, sendNow } =
         useAgentChatQueueActions(chat);
     const renderRow = useCallback(
-        ({ item }: ListRenderItemInfo<AgentChatQueueEntry>) => (
+        ({ item }: ListRenderItemInfo<AgentChatQueueRow>) => (
             <QueueRow
                 canAct={canAct}
                 entry={item}
@@ -313,6 +325,7 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
     },
     rowText: { flex: 1, gap: 2, minWidth: 0 },
+    pending: { opacity: 0.6 },
     preview: { fontSize: 14, lineHeight: 19 },
     command: { fontFamily: MONOSPACE, fontSize: 13 },
     images: { alignItems: 'center', flexDirection: 'row', gap: 4 },
