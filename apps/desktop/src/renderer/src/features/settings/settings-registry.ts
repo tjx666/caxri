@@ -240,6 +240,7 @@ const categoryTitles = Object.fromEntries(
 ) as Record<SettingCategoryId, string>;
 
 const rows: SettingRowSource[] = [
+    specRow('workbench.language'),
     specRow('session.defaultAgent'),
     specRow('session.openAgentsInChat'),
     specRow('primarySidebar.autoCollapseProjects'),

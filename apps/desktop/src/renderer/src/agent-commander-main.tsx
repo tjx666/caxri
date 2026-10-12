@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 import { ErrorBoundary } from './components/error-boundary';
+import { WorkbenchI18nProvider } from './components/workbench-i18n-provider';
 import { AgentCommanderApp } from './features/agent-commander/agent-commander-app';
 import { readAgentCommanderWorkbench } from './features/agent-commander/commander-client';
 import { configureCommanderTerminalHost } from './features/agent-commander/commander-commands';
@@ -29,15 +30,17 @@ configureCommanderTerminalHost();
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>
-        <QueryClientProvider client={queryClient}>
-            <ErrorBoundary
-                title="Agent Commander stopped rendering"
-                description="Reload Agent Commander to reconnect to its Terminal. The Commander keeps running meanwhile."
-                reloadLabel="Reload Agent Commander"
-                logScope="Agent Commander"
-            >
-                <AgentCommanderApp />
-            </ErrorBoundary>
-        </QueryClientProvider>
+        <WorkbenchI18nProvider>
+            <QueryClientProvider client={queryClient}>
+                <ErrorBoundary
+                    title="Agent Commander stopped rendering"
+                    description="Reload Agent Commander to reconnect to its Terminal. The Commander keeps running meanwhile."
+                    reloadLabel="Reload Agent Commander"
+                    logScope="Agent Commander"
+                >
+                    <AgentCommanderApp />
+                </ErrorBoundary>
+            </QueryClientProvider>
+        </WorkbenchI18nProvider>
     </StrictMode>,
 );

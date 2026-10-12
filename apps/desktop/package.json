@@ -19,6 +19,7 @@
         "@caxri/system": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@lobehub/icons-static-svg": "^1.95.0",
+        "@lobehub/ui": "^5.57.3",
         "@monaco-editor/react": "^4.7.0",
         "@tanstack/react-query": "^5.103.1",
         "@tanstack/react-virtual": "^3.14.13",
