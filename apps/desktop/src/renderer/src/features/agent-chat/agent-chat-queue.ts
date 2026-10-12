@@ -85,6 +85,50 @@ function queueEntryView(
 }
 
 /**
+ * The words on a queue card's actions. A message still on its way to Server Core says so on every action, since all of
+ * them are held until Server Core lists it; otherwise each tooltip names the action or why it is unavailable (a message
+ * carrying images cannot be edited, and a command waits for the running turn instead of steering it).
+ */
+export interface AgentChatQueueCardLabels {
+    editTooltip: string;
+    deleteTooltip: string;
+    sendTooltip: string;
+    /**
+     * The send button's visible text: `Steer` while a turn runs, `Send now` otherwise.
+     */
+    sendText: string;
+    sendAriaLabel: string;
+}
+
+export function agentChatQueueCardLabels(
+    entry: Pick<AgentChatQueueEntryView, 'canEdit' | 'canSendNow' | 'isPending' | 'sendNowLabel'>,
+    t: Translate = translate,
+): AgentChatQueueCardLabels {
+    const isSteer = entry.sendNowLabel === 'Steer';
+    const sendLabels = {
+        sendText: t(isSteer ? 'agentChat.queue.steer' : 'agentChat.queue.sendNow'),
+        sendAriaLabel: t(isSteer ? 'agentChat.queue.steerNow' : 'agentChat.queue.sendNow'),
+    };
+    if (entry.isPending) {
+        const sending = t('agentChat.message.sending');
+        return {
+            editTooltip: sending,
+            deleteTooltip: sending,
+            sendTooltip: sending,
+            ...sendLabels,
+        };
+    }
+    return {
+        editTooltip: t(entry.canEdit ? 'common.edit' : 'agentChat.edit.imagesUnsupported'),
+        deleteTooltip: t('common.delete'),
+        sendTooltip: entry.canSendNow
+            ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')
+            : t('agentChat.queue.commandWaits'),
+        ...sendLabels,
+    };
+}
+
+/**
  * The queue card's header line. `tone` picks the glyph and color: `failed` (`--danger`) when Server Core could not send
  * the queued messages it took, `paused` (`--warning`) after the user's Stop or a send whose delivery is unknown, and
  * `normal` while the queue simply waits. `resumeLabel` is the header's action, present only while paused: `Retry` after

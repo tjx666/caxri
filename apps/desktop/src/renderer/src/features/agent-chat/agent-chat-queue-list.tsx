@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
 import {
     CircleAlert,
@@ -22,7 +24,11 @@ import {
 } from './agent-chat-commands';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { AgentChatQueueEntryView } from './agent-chat-queue';
-import { agentChatQueueEntries, agentChatQueueHeader } from './agent-chat-queue';
+import {
+    agentChatQueueCardLabels,
+    agentChatQueueEntries,
+    agentChatQueueHeader,
+} from './agent-chat-queue';
 
 /**
  * The card actions use `aria-disabled` rather than `disabled`, like the composer's Send: a natively disabled button
@@ -30,6 +36,49 @@ import { agentChatQueueEntries, agentChatQueueHeader } from './agent-chat-queue'
  * click handler refuses an unavailable action itself.
  */
 const ACTION_CLASS_NAME = 'text-muted not-aria-disabled:hover:text-foreground';
+
+/**
+ * One card action behind its tooltip. An unavailable action stays focusable and pointable (`ACTION_CLASS_NAME`), and
+ * its click does nothing; an available one runs, then reports through `onAction`.
+ */
+function QueueCardAction({
+    ariaLabel,
+    children,
+    className,
+    isDisabled,
+    onAction,
+    onRun,
+    size,
+    tooltip,
+}: {
+    ariaLabel: string;
+    children: ReactNode;
+    className: string;
+    isDisabled: boolean;
+    onAction: () => void;
+    onRun: () => void;
+    size: 'icon' | 'sm';
+    tooltip: string;
+}) {
+    return (
+        <Tooltip content={tooltip}>
+            <Button
+                aria-disabled={isDisabled || undefined}
+                aria-label={ariaLabel}
+                className={cn(ACTION_CLASS_NAME, className)}
+                size={size}
+                variant="ghost"
+                onClick={() => {
+                    if (isDisabled) return;
+                    onRun();
+                    onAction();
+                }}
+            >
+                {children}
+            </Button>
+        </Tooltip>
+    );
+}
 
 function QueueCard({
     entry,
@@ -43,9 +92,8 @@ function QueueCard({
     terminalId: string;
 }) {
     const { t } = useTranslation();
-    const isSteer = entry.sendNowLabel === 'Steer';
     const isPending = entry.isPending === true;
-    const canDelete = !isPending;
+    const labels = agentChatQueueCardLabels(entry, t);
     return (
         <li
             aria-busy={isPending}
@@ -66,71 +114,46 @@ function QueueCard({
                     <span className="shrink-0 text-[11px] text-muted">{entry.imageLabel}</span>
                 )}
             </span>
-            <Tooltip
-                content={
-                    isPending
-                        ? t('agentChat.message.sending')
-                        : t(entry.canEdit ? 'common.edit' : 'agentChat.edit.imagesUnsupported')
-                }
+            <QueueCardAction
+                ariaLabel={t('agentChat.queue.editMessage')}
+                className="size-6"
+                isDisabled={!entry.canEdit}
+                size="icon"
+                tooltip={labels.editTooltip}
+                onAction={onAction}
+                onRun={() => {
+                    // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
+                    void editAgentChatQueued(terminalId, entry, onEdit);
+                }}
             >
-                <Button
-                    aria-disabled={!entry.canEdit || undefined}
-                    aria-label={t('agentChat.queue.editMessage')}
-                    className={cn(ACTION_CLASS_NAME, 'size-6')}
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                        if (!entry.canEdit) return;
-                        // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
-                        void editAgentChatQueued(terminalId, entry, onEdit);
-                        onAction();
-                    }}
-                >
-                    <Pencil className="size-3.5" />
-                </Button>
-            </Tooltip>
-            <Tooltip content={t(isPending ? 'agentChat.message.sending' : 'common.delete')}>
-                <Button
-                    aria-disabled={!canDelete || undefined}
-                    aria-label={t('agentChat.queue.deleteMessage')}
-                    className={cn(ACTION_CLASS_NAME, 'size-6')}
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                        if (!canDelete) return;
-                        // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
-                        void didRemoveAgentChatQueued(terminalId, entry.id);
-                        onAction();
-                    }}
-                >
-                    <Trash2 className="size-3.5" />
-                </Button>
-            </Tooltip>
-            <Tooltip
-                content={
-                    isPending
-                        ? t('agentChat.message.sending')
-                        : entry.canSendNow
-                          ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')
-                          : t('agentChat.queue.commandWaits')
-                }
+                <Pencil className="size-3.5" />
+            </QueueCardAction>
+            <QueueCardAction
+                ariaLabel={t('agentChat.queue.deleteMessage')}
+                className="size-6"
+                isDisabled={isPending}
+                size="icon"
+                tooltip={labels.deleteTooltip}
+                onAction={onAction}
+                onRun={() => {
+                    // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
+                    void didRemoveAgentChatQueued(terminalId, entry.id);
+                }}
             >
-                <Button
-                    aria-disabled={!entry.canSendNow || undefined}
-                    aria-label={t(isSteer ? 'agentChat.queue.steerNow' : 'agentChat.queue.sendNow')}
-                    className={cn(ACTION_CLASS_NAME, 'min-h-6 shrink-0 gap-1 px-1.5')}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                        if (!entry.canSendNow) return;
-                        sendAgentChatQueuedNow(terminalId, entry.id);
-                        onAction();
-                    }}
-                >
-                    <CornerDownLeft className="size-3.5" />
-                    {t(isSteer ? 'agentChat.queue.steer' : 'agentChat.queue.sendNow')}
-                </Button>
-            </Tooltip>
+                <Trash2 className="size-3.5" />
+            </QueueCardAction>
+            <QueueCardAction
+                ariaLabel={labels.sendAriaLabel}
+                className="min-h-6 shrink-0 gap-1 px-1.5"
+                isDisabled={!entry.canSendNow}
+                size="sm"
+                tooltip={labels.sendTooltip}
+                onAction={onAction}
+                onRun={() => sendAgentChatQueuedNow(terminalId, entry.id)}
+            >
+                <CornerDownLeft className="size-3.5" />
+                {labels.sendText}
+            </QueueCardAction>
         </li>
     );
 }
