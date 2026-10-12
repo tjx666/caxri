@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -6,37 +6,66 @@ import { TriangleAlert } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useContextMenu } from '../../hooks/use-context-menu';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { tryCommand } from '../../stores/toasts';
+import type { ColumnWidthOverrides } from './csv-column-width';
+import {
+    clampColumnWidth,
+    columnPixels,
+    effectiveColumnWidths,
+    fitColumnWidth,
+    tableGridTemplate,
+} from './csv-column-width';
 import type { TableSort } from './csv-row-view';
 import { nextTableSort, tableRowSearchText, tableRowView } from './csv-row-view';
-import type { DelimitedTable } from './csv-table';
 import {
     describeTableIssues,
     describeTableLimits,
     describeTableSize,
     parseDelimitedTable,
-    rowNumberGutterWidth,
 } from './csv-table';
 import { CsvTableFilter } from './csv-table-filter';
 import { CsvTableHeader } from './csv-table-header';
 import { CsvTableRow } from './csv-table-row';
+import type { TableCellPosition, TableSelection } from './csv-table-selection';
+import {
+    isCellInBounds,
+    nextTableRowSelection,
+    nextTableSelection,
+    serializeTsv,
+    tableSelectionBounds,
+    tableSelectionText,
+} from './csv-table-selection';
 import { openPreviewSource } from './preview-commands';
 import { readPreviewViewState, rememberPreviewViewState } from './preview-view-state';
 
 const ROW_HEIGHT = 24;
 
 /**
- * One grid template for the header and every row, so columns line up without measuring the DOM: the row-number gutter
- * sized to the largest row number, then each column at its estimated width plus the cell's horizontal padding. The
- * sorted column also makes room for its direction arrow (12px plus a 4px gap), so the arrow never truncates the label.
- * Every row is its own grid, so no track may depend on that row's content.
+ * Width of one `ch` before the table's font is measured, close to the UI font at 12px.
  */
-function gridTemplate(table: DelimitedTable, sortedColumn: number | undefined): CSSProperties {
-    const columns = table.columnWidths
-        .map((width, column) => `calc(${width}ch + ${column === sortedColumn ? 32 : 16}px)`)
-        .join(' ');
-    return { gridTemplateColumns: `${rowNumberGutterWidth(table.rows.length)} ${columns}` };
+const DEFAULT_CH_WIDTH = 7;
+
+/**
+ * The table cell an event happened in: its view row and its column, or `column: undefined` for the row-number gutter.
+ */
+function tableCellAt(target: EventTarget): (TableCellPosition & { isGutter: boolean }) | undefined {
+    if (!(target instanceof Element)) return undefined;
+    const cell = target.closest<HTMLElement>('[role="cell"], [role="rowheader"]');
+    const row = cell?.closest<HTMLElement>('[data-position]');
+    if (!cell || !row) return undefined;
+    const isGutter = cell.getAttribute('role') === 'rowheader';
+    return {
+        row: Number(row.dataset.position),
+        column: isGutter ? 0 : Number(cell.dataset.column),
+        isGutter,
+    };
+}
+
+async function copyTableText(text: string, t: Translate): Promise<void> {
+    await tryCommand(t('preview.table.copyFailed'), () => navigator.clipboard.writeText(text));
 }
 
 /**
@@ -102,7 +131,6 @@ export function CsvPreview({
     const [sort, setSort] = useState<TableSort | undefined>(
         () => readPreviewViewState(viewStateKey)?.tableSort ?? undefined,
     );
-    const template = useMemo(() => gridTemplate(table, sort?.column), [sort?.column, table]);
     const [filter, setFilter] = useState(
         () => readPreviewViewState(viewStateKey)?.tableFilter ?? '',
     );
@@ -117,6 +145,73 @@ export function CsvPreview({
         () => tableRowView(table, searchText, deferredSort, deferredFilter),
         [deferredFilter, deferredSort, searchText, table],
     );
+    const [columnWidths, setColumnWidths] = useState<ColumnWidthOverrides>(
+        () => readPreviewViewState(viewStateKey)?.columnWidths ?? {},
+    );
+    const chProbeReference = useRef<HTMLSpanElement>(null);
+    const [chWidth, setChWidth] = useState(DEFAULT_CH_WIDTH);
+    const template = useMemo(
+        () => tableGridTemplate(table, sort?.column, columnWidths),
+        [columnWidths, sort?.column, table],
+    );
+    const clipWidths = useMemo(
+        () => effectiveColumnWidths(table.columnWidths, columnWidths, chWidth),
+        [chWidth, columnWidths, table.columnWidths],
+    );
+    const columnPixelWidths = table.columnWidths.map(
+        (width, column) =>
+            columnWidths[column] ?? columnPixels(width, chWidth, column === sort?.column),
+    );
+    /**
+     * Writes one column's width; `isFinal` also remembers it for this pane, which a drag does once on release rather
+     * than on every pointer move.
+     */
+    const resizeColumn = (column: number, width: number, isFinal: boolean) => {
+        const next = { ...columnWidths, [column]: clampColumnWidth(width) };
+        setColumnWidths(next);
+        if (isFinal) rememberPreviewViewState(viewStateKey, { columnWidths: next });
+    };
+    /**
+     * The selection is held with the row order it was made in: positions index into that order, so once a sort, filter,
+     * or source edit produces a new order the old selection no longer names the same cells and is dropped.
+     */
+    const [selectionState, setSelectionState] = useState<{
+        rowOrder: readonly number[];
+        selection: TableSelection;
+    }>();
+    const selection = selectionState?.rowOrder === rowOrder ? selectionState.selection : undefined;
+    const selectionBounds = selection ? tableSelectionBounds(selection) : undefined;
+    const select = (next: TableSelection) => setSelectionState({ rowOrder, selection: next });
+    const selectAt = (position: ReturnType<typeof tableCellAt>, isExtending: boolean) => {
+        if (!position) return;
+        select(
+            position.isGutter
+                ? nextTableRowSelection(selection, position.row, table.header.length, isExtending)
+                : nextTableSelection(selection, position, isExtending),
+        );
+    };
+    const contextCell = useRef<TableCellPosition>(undefined);
+    const openCellMenu = useContextMenu(() => {
+        const cell = contextCell.current;
+        const row = cell && table.rows[rowOrder[cell.row]];
+        if (!cell || !row) return [];
+        return [
+            selection && {
+                label: t('preview.table.copy'),
+                shortcut: 'cmd+c',
+                onSelect: () =>
+                    copyTableText(tableSelectionText(table.rows, rowOrder, selection), t),
+            },
+            {
+                label: t('preview.table.copyCell'),
+                onSelect: () => copyTableText(row[cell.column] ?? '', t),
+            },
+            {
+                label: t('preview.table.copyRow'),
+                onSelect: () => copyTableText(serializeTsv([row]), t),
+            },
+        ];
+    });
     const warnings = [describeTableIssues(table, t), describeTableLimits(table, t)].filter(
         (message): message is string => message !== undefined,
     );
@@ -147,6 +242,12 @@ export function CsvPreview({
      * its first render already mounts the rows that position shows.
      */
     useLayoutEffect(() => {
+        const probe = chProbeReference.current;
+        // The probe is 100ch wide, so one `ch` keeps its fractional part.
+        if (probe && probe.offsetWidth > 0) setChWidth(probe.offsetWidth / 100);
+    }, []);
+
+    useLayoutEffect(() => {
         const element = scrollReference.current;
         const remembered = readPreviewViewState(viewStateKey);
         if (!element || !remembered) return;
@@ -157,7 +258,7 @@ export function CsvPreview({
     return (
         // The filter takes Cmd+F from anywhere in the table, the way a find field does in an editor.
         <div
-            className="flex h-full min-h-0 flex-col bg-background text-[12px] text-foreground"
+            className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background text-[12px] text-foreground"
             onKeyDown={(event) => {
                 if (!event.metaKey || event.key.toLowerCase() !== 'f') return;
                 event.preventDefault();
@@ -165,6 +266,12 @@ export function CsvPreview({
                 filterReference.current?.select();
             }}
         >
+            {/* Measures one `ch` of the table font, so a column fitted or resized in pixels matches its `ch` estimate. */}
+            <span
+                ref={chProbeReference}
+                aria-hidden="true"
+                className="pointer-events-none invisible absolute top-0 left-0 h-0 w-[100ch]"
+            />
             {warnings.length > 0 && <TableWarnings messages={warnings} path={path} t={t} />}
             {table.header.length === 0 ? (
                 <div className="empty-work flex min-h-0 flex-1 items-center justify-center text-muted">
@@ -185,8 +292,24 @@ export function CsvPreview({
                         aria-colcount={table.header.length + 1}
                         aria-label={t('preview.table.label')}
                         aria-rowcount={rowOrder.length + 1}
-                        className="relative min-h-0 flex-1 overflow-auto"
+                        className="group/table relative min-h-0 flex-1 overflow-auto outline-none"
                         role="table"
+                        // Focusable so Cmd+C reaches the selection; the selection's own color shows the focus.
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                            if (!selection || event.target !== event.currentTarget) return;
+                            if (event.key === 'Escape') {
+                                setSelectionState(undefined);
+                                return;
+                            }
+                            if (!event.metaKey || event.key.toLowerCase() !== 'c') return;
+                            event.preventDefault();
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard; tryCommand reports a failure itself
+                            void copyTableText(
+                                tableSelectionText(table.rows, rowOrder, selection),
+                                t,
+                            );
+                        }}
                         onScroll={(event) =>
                             rememberPreviewViewState(viewStateKey, {
                                 scrollTop: event.currentTarget.scrollTop,
@@ -198,10 +321,26 @@ export function CsvPreview({
                         <div className="w-max min-w-full" role="none">
                             <div className="sticky top-0 z-10" role="rowgroup">
                                 <CsvTableHeader
+                                    columnPixelWidths={columnPixelWidths}
                                     header={table.header}
                                     numericColumns={table.numericColumns}
                                     sort={sort}
                                     style={template}
+                                    onAutoFit={(column) =>
+                                        resizeColumn(
+                                            column,
+                                            columnPixels(
+                                                fitColumnWidth(table, column),
+                                                chWidth,
+                                                column === sort?.column,
+                                            ),
+                                            true,
+                                        )
+                                    }
+                                    onResize={(column, width) => resizeColumn(column, width, false)}
+                                    onResizeCommit={(column, width) =>
+                                        resizeColumn(column, width, true)
+                                    }
                                     onSort={(column) =>
                                         changeView({
                                             tableSort: nextTableSort(sort, column) ?? null,
@@ -209,18 +348,45 @@ export function CsvPreview({
                                     }
                                 />
                             </div>
+                            {/* One delegated listener selects for every row; cells carry their position as data. */}
                             <div
-                                className="relative"
+                                className="relative select-none"
                                 role="rowgroup"
                                 style={{ height: virtualizer.getTotalSize() }}
+                                onContextMenu={(event) => {
+                                    const position = tableCellAt(event.target);
+                                    if (!position) return;
+                                    contextCell.current = position;
+                                    // A right click outside the selection selects the cell under it first.
+                                    if (
+                                        !isCellInBounds(
+                                            selectionBounds,
+                                            position.row,
+                                            position.column,
+                                        )
+                                    )
+                                        selectAt(position, false);
+                                    openCellMenu(event);
+                                }}
+                                onPointerDown={(event: ReactPointerEvent) => {
+                                    if (event.button !== 0) return;
+                                    selectAt(tableCellAt(event.target), event.shiftKey);
+                                }}
                             >
                                 {virtualizer.getVirtualItems().map((item) => (
                                     <CsvTableRow
                                         key={item.key}
                                         cells={table.rows[rowOrder[item.index]]}
-                                        columnWidths={table.columnWidths}
+                                        columnWidths={clipWidths}
                                         numericColumns={table.numericColumns}
                                         position={item.index}
+                                        selectedColumns={
+                                            selectionBounds &&
+                                            item.index >= selectionBounds.top &&
+                                            item.index <= selectionBounds.bottom
+                                                ? selectionBounds
+                                                : undefined
+                                        }
                                         sourceIndex={rowOrder[item.index]}
                                         style={{
                                             ...template,

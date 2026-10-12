@@ -1,8 +1,9 @@
+import type { ColumnWidthOverrides } from './csv-column-width';
 import type { TableSort } from './csv-row-view';
 
 /**
  * Where a reader left a preview: the scroll offset every view has, plus the PDF view's page and zoom and the table
- * view's sort and filter.
+ * view's sort, filter, and column widths.
  */
 export interface PreviewViewState {
     scrollTop?: number;
@@ -24,6 +25,10 @@ export interface PreviewViewState {
      * Table only: the row filter text.
      */
     tableFilter?: string;
+    /**
+     * Table only: the widths, in CSS pixels, of the columns the reader resized.
+     */
+    columnWidths?: ColumnWidthOverrides;
 }
 
 /**
