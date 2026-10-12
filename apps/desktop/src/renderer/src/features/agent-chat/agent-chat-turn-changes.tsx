@@ -21,13 +21,12 @@ import { cn } from '../../lib/utilities';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { agentChatLocalizedEditedFilesTitle } from './agent-chat-diff-labels';
 import { AgentChatDiff } from './agent-chat-file-changes';
-import { openAgentChatTurnReview } from './agent-chat-task-opener';
 import {
     agentChatUndoKey,
     undoAgentChatTurn,
     useAgentChatUndoStore,
 } from './agent-chat-undo-commands';
-import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
+import { useAgentChatTurnReviewOpener } from './hooks/use-agent-chat-task-link';
 
 /**
  * One file's diff across the turn, under a header naming it with its counts. The hover preview and an expanded row
@@ -121,7 +120,7 @@ export function AgentChatTurnChanges({
 }) {
     const { t } = useTranslation();
     const session = usePaneViewSession();
-    const terminalId = useAgentChatTerminal();
+    const openTurnReview = useAgentChatTurnReviewOpener();
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
     const detailId = useId();
     const undoStatus = useAgentChatUndoStore((state) =>
@@ -257,13 +256,13 @@ export function AgentChatTurnChanges({
                             </Button>
                         </Tooltip>
                     ))}
-                {terminalId !== undefined && (
+                {openTurnReview && (
                     <Tooltip content={t('agentChat.review.tooltip')}>
                         <Button
                             className="shrink-0 gap-1 text-[12px]"
                             size="sm"
                             variant="secondary"
-                            onClick={() => openAgentChatTurnReview(terminalId, turnId)}
+                            onClick={() => openTurnReview(turnId)}
                         >
                             <MessageSquareDiff aria-hidden="true" className="size-3.5" />
                             {t('agentChat.review.button')}
