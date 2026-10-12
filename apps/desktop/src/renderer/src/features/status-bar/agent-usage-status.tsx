@@ -1,5 +1,5 @@
 import type { AgentUsageReadout } from '@caxri/protocol';
-import { agentProviderCatalog, formatTokens, formatUsd, usageTabPath } from '@caxri/protocol';
+import { agentProviderCatalog, formatTokens, formatUsd } from '@caxri/protocol';
 import { ChartColumn } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
@@ -9,7 +9,7 @@ import { StructuredTooltip } from '../../components/structured-tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
-import { openEditorTab } from '../editor/document-commands';
+import { openUsagePageForTerminal } from '../usage/usage-page-request';
 import { agentUsageCostLabel, agentUsageLabel, currentLimitWindows } from './agent-usage-label';
 import { StatusItem } from './status-item';
 
@@ -36,8 +36,9 @@ function describeTokens(tokens: AgentUsageReadout['tokens'], t: Translate): stri
 
 /**
  * Running tokens and estimated cost of the conversation in the active Agent Terminal, plus the newest account-wide
- * rate-limit window. Clicking opens the Usage page. Renders nothing for a Shell or before the conversation records any
- * usage, so it never holds a slot to say "none".
+ * rate-limit window. Clicking opens the Usage page narrowed to this Terminal's Session, the closest unit the report
+ * attributes usage to; a Terminal outside any Session opens the whole report. Renders nothing for a Shell or before the
+ * conversation records any usage, so it never holds a slot to say "none".
  */
 export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const { t } = useTranslation();
@@ -60,7 +61,7 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
             ariaLabel={t('statusBar.usage.ariaLabel', { agent: agentName, label })}
             className="statusbar-agent-usage"
             icon={<ChartColumn />}
-            onClick={() => openEditorTab(usageTabPath())}
+            onClick={() => openUsagePageForTerminal(terminalId)}
             title={
                 <StructuredTooltip
                     eyebrow={t('statusBar.usage.eyebrow', { agent: agentName })}

@@ -1,21 +1,12 @@
 import './definitions';
 
 import type { CommandId } from '@caxri/protocol';
-import {
-    errorMessage,
-    listPaneTerminalIds,
-    paneSplitBlockedReason,
-    usageTabPath,
-} from '@caxri/protocol';
+import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
-import {
-    closeDocumentTabs,
-    openEditorTab,
-    saveActiveEditor,
-} from '../features/editor/document-commands';
+import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
 import {
     addGitReviewComment,
     canAddGitReviewComment,
@@ -104,6 +95,7 @@ import {
     switchTerminalToOtherSurface,
 } from '../features/terminal/terminal-surface-commands';
 import { checkForUpdates } from '../features/updates/update-commands';
+import { openUsagePage } from '../features/usage/usage-page-request';
 import {
     executeEditableViewCatalogShortcut,
     executeViewCatalogShortcut,
@@ -399,7 +391,7 @@ const commandContext: CommandContext = {
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
         openUsage: () => {
             // Usage is a Session pane tab; before the first Project exists there is no pane to open it into.
-            if (getSelectedSession()) openEditorTab(usageTabPath());
+            if (getSelectedSession()) openUsagePage();
             else pushToast('info', translate('core.commands.usageNeedsProject'));
         },
         openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),

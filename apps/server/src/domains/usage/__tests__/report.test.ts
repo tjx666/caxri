@@ -189,6 +189,37 @@ describe('buildUsageReport', () => {
         expect(codex.providers.map((item) => item.provider)).toEqual(['codex']);
     });
 
+    it('narrows the report to one Session and leaves out conversations run outside Caxri', () => {
+        const other = { ...session, id: 'session-2', archivedAt: undefined } as SessionRecord;
+        const result = report({
+            sessions: [session, other],
+            entries: [
+                { row: row({}), record: usage(NOW, 10) },
+                {
+                    row: row({ sessionId: 'session-2', agentSessionId: 'agent-2' }),
+                    record: usage(NOW, 20),
+                },
+            ],
+            outside: {
+                pendingScans: 0,
+                entries: [{ row: outsideRow({}), record: usage(NOW, 40) }],
+            },
+            params: { scope: 'all', sessionId: 'session-2' },
+        });
+
+        expect(usageReportSchema.parse(result)).toEqual(result);
+        expect(result.sessionId).toBe('session-2');
+        expect(result.totals.tokens.total).toBe(20);
+        expect(result.totals).toMatchObject({
+            sessionsCreated: 1,
+            sessionsArchived: 0,
+            sessionsWithUsage: 1,
+            outsideSessionsWithUsage: 0,
+        });
+        expect(result.sessions.map((item) => item.sessionId)).toEqual(['session-2']);
+        expect(result.coverage.agentSessions).toBe(1);
+    });
+
     it('counts merged pull requests once and leaves unfetched ones pending', () => {
         const outcome: PullRequestOutcomeRow = {
             url: PR_URL,
