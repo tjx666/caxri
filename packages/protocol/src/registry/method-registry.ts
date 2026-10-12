@@ -73,10 +73,7 @@ import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { gitReviewMethods } from '../domain/git-review-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import { projectFolderBrowseMethods } from '../domain/project-folder-browse-contract.js';
-import {
-    projectStatusOverviewSchema,
-    projectStatusSummarySchema,
-} from '../domain/project-status.js';
+import { projectStatusMethods } from '../domain/project-status-contract.js';
 import { sessionMethods } from '../domain/session-contract.js';
 import { sessionPullRequestMethods } from '../domain/session-pull-request.js';
 import {
@@ -479,22 +476,7 @@ export const methods = {
     ...fileMethods,
     ...gitMethods,
     ...gitReviewMethods,
-    'projectStatus.summary': {
-        ...serverRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            /**
-             * Unique token makes an explicit UI refresh bypass the settled cache exactly once.
-             */
-            refreshToken: identifierSchema.optional(),
-        }),
-        result: projectStatusSummarySchema,
-    },
-    'projectStatus.overview': {
-        ...serverRead,
-        params: z.object({ sessionId: identifierSchema }),
-        result: projectStatusOverviewSchema,
-    },
+    ...projectStatusMethods,
     ...sessionPullRequestMethods,
     'settings.get': { ...serverRead, params: noParameters, result: settingsResult },
     'agentHooks.get': { ...serverRead, params: noParameters, result: agentHookHealthMapSchema },

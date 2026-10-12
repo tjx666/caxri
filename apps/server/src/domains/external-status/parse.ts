@@ -38,6 +38,7 @@ const linearIssueStateSchema = z.object({
 const linearIssueSchema = z.object({
     identifier: z.string().optional(),
     title: z.string().optional(),
+    description: z.string().nullish(),
     url: z.string().optional(),
     state: linearIssueStateSchema.optional(),
 });
@@ -47,7 +48,7 @@ export const linearIssueResponseSchema = z.object({
 });
 
 export const LINEAR_ISSUE_QUERY = `query IssueStatus($id:String!){
-  issue(id:$id){identifier title url state{name type color}}
+  issue(id:$id){identifier title description url state{name type color}}
 }`;
 
 const LINEAR_STATE_TYPES = new Set<ProjectStatusLinearIssue['stateType']>([
@@ -79,6 +80,40 @@ export function linearStateColor(value: string | undefined): string | undefined 
  * Projects one Linear GraphQL response onto the wire shape. `fallbackIdentifier` keeps the row addressable when the
  * response omits the issue, which is what a permission-scoped workspace returns for an issue the token cannot read.
  */
+/**
+ * Long enough to fill the hover card's three clamped lines; the rest of a long description never crosses the wire.
+ */
+const MAX_DESCRIPTION_EXCERPT_LENGTH = 280;
+/**
+ * Only the opening can reach the excerpt, and the link patterns below scan to the end of the input for every unmatched
+ * `[`, so a long pasted log would otherwise cost the Server seconds on every refresh of every issue that carries it.
+ */
+const MAX_DESCRIPTION_SCAN_LENGTH = 4_096;
+
+/**
+ * The opening of an issue's Markdown description as plain prose for a preview. Linear stores Markdown with escaped
+ * punctuation (`\##`, ```), so escapes are undone before headings, emphasis, code ticks, images, and link targets are
+ * dropped; whitespace collapses so line breaks do not leave gaps in a clamped paragraph.
+ */
+export function linearDescriptionExcerpt(markdown: string | null | undefined): string | undefined {
+    if (!markdown) return undefined;
+    const text = markdown
+        .slice(0, MAX_DESCRIPTION_SCAN_LENGTH)
+        .replaceAll(/\\([\\`*_{}[\]()#+\-.!<>~|])/gu, '$1')
+        .replaceAll(/!\[[^\]]*\]\([^)]*\)/gu, '')
+        .replaceAll(/\[([^\]]*)\]\([^)]*\)/gu, '$1')
+        .replaceAll(/^\s{0,3}```\S*\s*$/gmu, '')
+        .replaceAll(/^\s{0,3}(?:#{1,6}|[>\-*+]|\d+\.)\s+/gmu, '')
+        .replaceAll(/\*\*|__|~~|`/gu, '')
+        .replaceAll(/(^|[^\p{L}\p{N}])[*_]([^*_\n]+)[*_](?![\p{L}\p{N}])/gmu, '$1$2')
+        .replaceAll(/\s+/gu, ' ')
+        .trim();
+    if (!text) return undefined;
+    return text.length > MAX_DESCRIPTION_EXCERPT_LENGTH
+        ? `${text.slice(0, MAX_DESCRIPTION_EXCERPT_LENGTH).trimEnd()}…`
+        : text;
+}
+
 export function mapLinearIssue(
     response: z.infer<typeof linearIssueResponseSchema>,
     fallbackIdentifier: string,
@@ -87,6 +122,7 @@ export function mapLinearIssue(
     return {
         identifier: issue?.identifier ?? fallbackIdentifier,
         title: issue?.title,
+        excerpt: linearDescriptionExcerpt(issue?.description),
         url: issue?.url,
         state: issue?.state?.name,
         stateType: linearStateType(issue?.state?.type),
