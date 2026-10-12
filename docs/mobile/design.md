@@ -485,7 +485,11 @@ paused until Caxri reconnects.` instead of repeating `Showing the last known sta
 - Entries are files in the app's private document directory, each tagged with the pairing scope
   (host, device, generation) that read it. An entry from another scope or an older format reads as
   a miss. Forgetting the computer, a revoked device, and a new pairing delete the whole cache, and a
-  write still pending at that moment is dropped.
+  write still pending at that moment is dropped. A start that finds no stored pairing also deletes
+  it, for an app the system ended between losing its credential and clearing the cache.
+- A copy is written only under the pairing it was read under, and only while that pairing is
+  current: a read that outlives a pairing change, or a write still pending at that moment, is
+  dropped rather than saved under either pairing.
 - Writes trail the live view by one second and flush when the app goes to the background. Every
   read or write failure counts as a miss, so a broken file never blocks the live view.
 
