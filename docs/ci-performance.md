@@ -211,8 +211,10 @@ The audit that inverted the default read all 92 exclusive specs. It moved 45 of 
 416s of one-worker time measured on run 38197586711, leaving 48 exclusive specs (about 545s). Two
 specs moved only after a repair: `project-status.e2e.ts` widened its fake CLI's 0.4s busy window to
 2s, and `agent-commander.e2e.ts` moved its two Workbench hand-off tests into
-`agent-commander-workbench-handoff.e2e.ts`, because `focusMainWindow()` shows the Workbench and steals
-OS focus even in a hidden launch. Rejections worth not repeating: `agent-chat-selection` and
+`agent-commander-workbench-handoff.e2e.ts`, because `focusMainWindow()` then showed the Workbench and
+stole OS focus even in a hidden launch. Once a hidden launch's `focusMainWindow()` only focused the
+Workbench web contents (`bringWindowForward` in `apps/desktop/src/main/window-mode.ts`), that spec
+joined `parallel-safe` too. Rejections worth not repeating: `agent-chat-selection` and
 `session-compaction` must observe a 4s toast before it dismisses itself, `session-rename-pending`
 races a fake Agent's real 4s timer, `editor-fold-on-open` drives a Monaco `cmd+k` chord,
 `session-title-scroll` samples marquee speed with `performance.now()`, and `agent-chat` asserts an
