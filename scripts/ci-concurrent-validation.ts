@@ -6,7 +6,8 @@ import { appendFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/prom
 import { resolve } from 'node:path';
 import process from 'node:process';
 
-import { prepareChecksWorktree, sanitizedChildEnvironment } from './ci-checks-worktree';
+import { prepareChecksWorktree } from './ci-checks-worktree';
+import { sanitizedChildEnvironment } from './ci-child-environment';
 import { waitForChildExit } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -530,15 +531,12 @@ export function isVerificationPassed(
 async function execute(): Promise<void> {
     const provenance = concurrentValidationProvenance(process.env);
     await rm(receiptPath, { force: true });
-    /**
-     * Keep the command-scoped checkout token out of every E2E and repository validation child.
-     */
     const safeEnvironment = sanitizedChildEnvironment(process.env);
     const processes = new ConcurrentValidationProcesses();
     const deadline = scheduleConcurrentValidationDeadline(processes);
     const checksPromise = (async (): Promise<number> => {
         try {
-            const { baseRevision, worktree } = await prepareChecksWorktree(process.env, {
+            const { checksEnvironment, worktree } = await prepareChecksWorktree(process.env, {
                 execFile: (command, arguments_, options) =>
                     processes.capture(command, arguments_, options),
                 runChildProcess: async (command, arguments_, options) =>
@@ -551,7 +549,7 @@ async function execute(): Promise<void> {
                     ['run', 'scripts/ci-platform-checks.ts', '--skip-node-pty-preparation'],
                     {
                         cwd: worktree,
-                        environment: { ...safeEnvironment, CAXRI_REACT_DOCTOR_BASE: baseRevision },
+                        environment: checksEnvironment,
                         label: 'Full platform checks',
                     },
                 )) ?? 1
