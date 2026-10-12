@@ -90,9 +90,10 @@ export class AgentCommanderWindowController {
      * itself; the Commander PTY keeps running and the next window re-attaches with a snapshot. A close cannot await
      * Server I/O, and a failed detach only leaves a view the next attach replaces, so it is fire-and-forget.
      */
-    private releaseTerminal(): void {
+    private releaseTerminal(isClosed: boolean): void {
         const terminalId = this.policy.viewedTerminalId();
-        this.policy.reset();
+        if (isClosed) this.policy.reset();
+        else this.policy.releaseView();
         // eslint-disable-next-line unicorn/prefer-await -- see JSDoc above
         if (terminalId) this.options.detachTerminal(terminalId).catch(() => {});
     }
@@ -158,7 +159,7 @@ export class AgentCommanderWindowController {
         window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
             if (!isMainFrame || isInPlace) return;
             this.isEventsReady = false;
-            this.releaseTerminal();
+            this.releaseTerminal(false);
         });
         trackAuxiliaryWindowBounds(window, (bounds) => this.boundsMemory.remember(bounds));
         publishFullScreenState(window, 'agentCommander', this.options.sendEvent);
@@ -167,7 +168,7 @@ export class AgentCommanderWindowController {
             this.window = undefined;
             this.isEventsReady = false;
             this.isInboxRequested = false;
-            this.releaseTerminal();
+            this.releaseTerminal(true);
         });
     }
 
