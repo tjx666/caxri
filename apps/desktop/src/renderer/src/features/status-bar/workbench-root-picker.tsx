@@ -119,6 +119,69 @@ function WorktreeOptions({
 }
 
 /**
+ * The menu's rows: the conversation's worktrees first, then the compact or full list of the rest.
+ */
+function WorktreeList({
+    roots,
+    currentProjectId,
+    picker,
+}: {
+    roots: WorkbenchRootOption[];
+    currentProjectId: string;
+    picker: ReturnType<typeof useWorkbenchRootPicker>;
+}) {
+    const { t } = useTranslation();
+    // Typing searches every root: the compact list exists to keep the closed menu short, not to
+    // hide worktrees from a query the user already typed.
+    const isSearching = picker.search.trim().length > 0;
+    // The recommendations are a shortcut for the closed menu. Once the user types, the flat list of matches is the
+    // better answer, so the group folds back into the ordinary list rather than splitting the results in two.
+    const recommended = isSearching ? [] : conversationWorkbenchRoots(roots);
+    const visible = visibleWorkbenchRoots(
+        roots,
+        currentProjectId,
+        picker.all || isSearching,
+        new Set(recommended.map((root) => root.worktreeId)),
+    );
+    return (
+        <>
+            {recommended.length > 0 && (
+                <>
+                    <CommandGroup heading={t('statusBar.source.conversation')}>
+                        <WorktreeOptions
+                            options={recommended}
+                            roots={roots}
+                            currentProjectId={currentProjectId}
+                            picker={picker}
+                        />
+                    </CommandGroup>
+                    <Separator className="my-1" />
+                </>
+            )}
+            <WorktreeOptions
+                options={visible}
+                roots={roots}
+                currentProjectId={currentProjectId}
+                picker={picker}
+            />
+            {!picker.all && !isSearching && visible.length + recommended.length < roots.length && (
+                <>
+                    <Separator className="my-1" />
+                    <CommandItem
+                        value="show-all-worktrees"
+                        className="text-[13px]"
+                        onSelect={() => picker.setAll(true)}
+                    >
+                        {t('statusBar.workbenchRoot.showAll')}
+                        <span className="text-muted">{roots.length}</span>
+                    </CommandItem>
+                </>
+            )}
+        </>
+    );
+}
+
+/**
  * `FolderGit2` with an accent dot in its top-right corner while the conversation points at another worktree. The dot is
  * drawn into the glyph, as the throughput chip's provider dot is, so the chip keeps its width as it comes and goes.
  * Lucide drops its default `aria-hidden` once an icon has children, so it is restored here: the accessible name says
@@ -262,18 +325,6 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
     if (!session || !workbenchProject) return null;
     const roots = picker.rootsQuery.data ?? [];
     const current = roots.find((root) => root.projectId === session.workbenchProjectId);
-    // Typing searches every root: the compact list exists to keep the closed menu short, not to
-    // hide worktrees from a query the user already typed.
-    const isSearching = picker.search.trim().length > 0;
-    // The recommendations are a shortcut for the closed menu. Once the user types, the flat list of matches is the
-    // better answer, so the group folds back into the ordinary list rather than splitting the results in two.
-    const recommended = isSearching ? [] : conversationWorkbenchRoots(roots);
-    const visible = visibleWorkbenchRoots(
-        roots,
-        session.workbenchProjectId,
-        picker.all || isSearching,
-        new Set(recommended.map((root) => root.worktreeId)),
-    );
     return (
         <Popover open={picker.open} onOpenChange={picker.changeOpen}>
             <WorkbenchRootTrigger
@@ -309,40 +360,11 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                     />
                     <CommandList className="max-h-[min(360px,var(--available-height))]">
                         <PickerQueryStatus noun="worktrees" query={picker.rootsQuery} />
-                        {recommended.length > 0 && (
-                            <>
-                                <CommandGroup heading={t('statusBar.source.conversation')}>
-                                    <WorktreeOptions
-                                        options={recommended}
-                                        roots={roots}
-                                        currentProjectId={session.workbenchProjectId}
-                                        picker={picker}
-                                    />
-                                </CommandGroup>
-                                <Separator className="my-1" />
-                            </>
-                        )}
-                        <WorktreeOptions
-                            options={visible}
+                        <WorktreeList
                             roots={roots}
                             currentProjectId={session.workbenchProjectId}
                             picker={picker}
                         />
-                        {!picker.all &&
-                            !isSearching &&
-                            visible.length + recommended.length < roots.length && (
-                                <>
-                                    <Separator className="my-1" />
-                                    <CommandItem
-                                        value="show-all-worktrees"
-                                        className="text-[13px]"
-                                        onSelect={() => picker.setAll(true)}
-                                    >
-                                        {t('statusBar.workbenchRoot.showAll')}
-                                        <span className="text-muted">{roots.length}</span>
-                                    </CommandItem>
-                                </>
-                            )}
                     </CommandList>
                 </Command>
             </PopoverContent>
