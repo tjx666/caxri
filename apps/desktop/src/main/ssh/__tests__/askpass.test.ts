@@ -88,6 +88,50 @@ describe('askpass', () => {
             expect(requests[0]?.requestId).toMatch(/^[0-9a-f-]{36}$/u);
         });
 
+        it('marks a repeated secret prompt as a retry until the next attempt', async () => {
+            const requests: RemoteAskpassRequest[] = [];
+            const created = await createBridge((request) => {
+                requests.push(request);
+                return Promise.resolve(request.kind === 'confirm' ? 'yes' : 'wrong');
+            });
+            const passphrase = "Enter passphrase for key '/lab/key': ";
+            const hostKey = 'Are you sure you want to continue connecting (yes/no/[fingerprint])? ';
+            await runHelper(created.helperPath, hostKey);
+            await runHelper(created.helperPath, passphrase);
+            await runHelper(created.helperPath, passphrase);
+            await runHelper(created.helperPath, "dev@lab's password: ");
+            await runHelper(created.helperPath, passphrase);
+            created.beginAttempt();
+            await runHelper(created.helperPath, passphrase);
+            expect(requests.map((request) => request.retry)).toEqual([
+                undefined,
+                undefined,
+                1,
+                undefined,
+                2,
+                undefined,
+            ]);
+        });
+
+        it('refuses the rest of an attempt unseen once the user cancels', async () => {
+            const requests: RemoteAskpassRequest[] = [];
+            const created = await createBridge((request) => {
+                requests.push(request);
+                return Promise.resolve(requests.length === 1 ? null : 'pass');
+            });
+            expect((await runHelper(created.helperPath, 'Password: ')).code).toBe(1);
+            expect((await runHelper(created.helperPath, 'Password: ')).code).toBe(1);
+            expect(requests).toHaveLength(1);
+
+            created.beginAttempt();
+            expect(await runHelper(created.helperPath, 'Password: ')).toEqual({
+                code: 0,
+                stdout: 'pass\n',
+            });
+            // The cancelled prompt was never answered, so the new attempt's first ask is not a retry.
+            expect(requests.map((request) => request.retry)).toEqual([undefined, undefined]);
+        });
+
         it('exits non-zero when the user cancels or the handler throws', async () => {
             let call = 0;
             const created = await createBridge(() => {

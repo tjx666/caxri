@@ -65,6 +65,7 @@ export const sshHost = {
     'sshHost.askpass.verifyTitle': 'Verify {{destination}}',
     'sshHost.askpass.inputLabel': 'Answer',
     'sshHost.askpass.privacy': 'Caxri hands this answer to OpenSSH and never stores it.',
+    'sshHost.askpass.retry': 'OpenSSH rejected the previous answer. Try again (retry {{count}}).',
     'sshHost.askpass.failed': 'Unable to answer the SSH Host',
 
     // Stop Server on SSH Host
