@@ -25,9 +25,20 @@ The Session pull request is owned by `SessionPullRequestService`; the status bar
 panel follow its answer instead of asking by branch (see
 [External delivery-status queries](external-status-quota.md#which-pull-request-a-session-delivers)).
 
-Neither surface added a query or a poll. The picker's query already ran only while the menu was
-open, and the status bar overview already refreshed on a fixed 60s interval; the conversation read
-rides along with both.
+The status bar overview already refreshed on its own cadence, and the conversation read rides along
+with it. The picker's `session.workbenchRoots` read is the one poll the conversation added: while a
+Session is still on its own Project root, the closed picker re-reads it once a minute so its trigger
+can mark the top-ranked conversation worktree with an accent dot and name it in its tooltip
+(`This conversation worked in <branch>`). The read is a local `git worktree list` plus the shared
+incremental transcript pass; a Session already on a linked worktree polls nothing, because the
+Server ranks nothing for it.
+
+The status bar's pull request chip also says when the conversation is why it is there: its hover
+card names the pull request's own head branch, `From this conversation` when the Session's Agent
+opened or linked it, and the checked-out branch when the two differ. The Status panel's pull request
+row names the head branch in its tooltip under the same condition. Without this, `main  #2018` read
+as main's own pull request while the Agent had delivered it from a worktree the Workbench never
+checked out.
 
 ## What the scanner takes, and what it refuses
 

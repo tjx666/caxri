@@ -21,6 +21,7 @@ function recordFor(arguments_: readonly string[]): string {
         title: `PR ${number}`,
         url: `https://github.com/${slug}/pull/${number}`,
         body: '',
+        headRefName: 'feat/delivery',
     });
 }
 
@@ -65,6 +66,8 @@ describe('Session pull request in Project Status', () => {
             number: 19,
             title: 'PR 19',
             url: 'https://github.com/example/child/pull/19',
+            headBranch: 'feat/delivery',
+            source: 'conversation',
         });
         expect(views()).toHaveLength(1);
         expect(views()[0]?.[1]).toEqual(
@@ -97,7 +100,7 @@ describe('Session pull request in Project Status', () => {
 
         const overview = await status.overview('session-1');
 
-        expect(overview.repository?.pullRequest?.number).toBe(7);
+        expect(overview.repository?.pullRequest).toMatchObject({ number: 7, source: 'branch' });
         expect(views()[0]?.[1]).toEqual(expect.arrayContaining(['view', 'feature/status']));
     });
 
@@ -110,7 +113,10 @@ describe('Session pull request in Project Status', () => {
         await refreshed;
         const summary = await status.summary('session-1');
 
-        expect(summary.repositories[0]?.pullRequest).toMatchObject({ number: 23 });
+        expect(summary.repositories[0]?.pullRequest).toMatchObject({
+            number: 23,
+            headBranch: 'feat/delivery',
+        });
         expect(views().every(([, arguments_]) => arguments_[2] === '23')).toBe(true);
     });
 });

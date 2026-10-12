@@ -371,6 +371,11 @@ a `Main worktree` marker. `Show all worktrees…` expands the same popover into 
 Unknown creation times sort last, deterministically. An `Authorize` label distinguishes discovered
 but unapproved roots; selecting one opens the shared in-app confirmation with its full destination
 and `Authorize and switch`. Cancel grants nothing. Approved roots switch directly without Finder.
+While the Session is still on its own root and its conversation worked in a linked worktree, the
+picker's glyph carries an `--accent` dot in its top-right corner (drawn into the glyph, so the chip
+keeps its width) and its tooltip names that worktree. It is a passive hint: clicking opens the same
+picker, whose leading `From this conversation` group already offers the worktree. It never opens a
+prompt or takes focus.
 
 The Workbench Root and branch pickers both open on a focused search field, because a checkout with
 dozens of worktrees or hundreds of branches cannot be scrolled faster than it can be typed. Typing
