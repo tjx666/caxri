@@ -143,6 +143,28 @@ describe('planAgentChatFileUndo', () => {
         ]);
         expect(planAgentChatFileUndo(cut, 'b')).toMatchObject({ ok: false, reason: 'truncated' });
     });
+
+    it('names a rename as the reason instead of blaming a missing or changed file', () => {
+        const moved = (diff: string) =>
+            edited([
+                {
+                    path: '/project/a.ts',
+                    kind: 'update',
+                    diff: `${diff}\n\nMoved to: /project/b.ts`,
+                },
+            ]);
+        // The old path no longer exists after the rename.
+        expect(planAgentChatFileUndo(moved('@@ -1 +1 @@\n-a\n+b'), undefined)).toEqual({
+            ok: false,
+            path: '/project/a.ts',
+            reason: 'renamed',
+        });
+        // A pure rename carries no hunk at all.
+        expect(planAgentChatFileUndo(moved(''), undefined)).toMatchObject({ reason: 'renamed' });
+        expect(agentChatUndoFailureMessage('src/a.ts', 'renamed')).toBe(
+            'Nothing was undone: src/a.ts cannot be restored because the Agent renamed it, and undoing a rename is not supported yet.',
+        );
+    });
 });
 
 describe('planAgentChatFileUndo on a turn already undone', () => {
