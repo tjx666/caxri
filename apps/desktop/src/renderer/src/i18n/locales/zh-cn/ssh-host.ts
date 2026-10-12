@@ -21,6 +21,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.connect.noMatch': '没有匹配的 SSH Host。输入完整的 user@host 即可连接。',
     'sshHost.connect.loadFailed': '无法读取 ~/.ssh/config。仍可直接输入目标。',
     'sshHost.connect.failed': '无法打开 SSH Host 窗口',
+    'sshHost.connect.reused': '此窗口已连接到同一 SSH Host（{{destination}}）',
 
     // 连接遮罩
     'sshHost.phase.connecting': '正在连接…',

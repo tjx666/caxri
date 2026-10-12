@@ -87,9 +87,10 @@ export interface RemoteEnvironmentsOptions {
         remember(destination: string): Promise<void>;
     };
     /**
-     * Identifies two spellings of one SSH Host (`dev@box` and `dev@box:22`) so a second connect focuses its window.
+     * Identifies two spellings of one SSH Host (`dev@box` and `dev@box:22`, or two `~/.ssh/config` aliases for the same
+     * account) so a second connect focuses its window. Rejects an invalid destination.
      */
-    keyOf(destination: string): string;
+    keyOf(destination: string): Promise<string> | string;
 }
 
 interface PendingPrompt {
@@ -341,10 +342,17 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
     }
 
     async function connect(destination: string): Promise<void> {
-        const key = options.keyOf(destination);
+        const key = await options.keyOf(destination);
+        // Nothing below awaits until the new environment is registered, so concurrent connects cannot both miss.
         const existing = environments.get(key);
         if (existing) {
             focus(existing);
+            // Another spelling or alias of the same SSH Host: say why this window came forward instead of a new one.
+            if (existing.destination !== destination)
+                existing.sendEvent({
+                    event: 'environment.connectionReused',
+                    payload: { destination },
+                });
             if (existing.state().phase === 'failed') await existing.reconnect();
             return;
         }
