@@ -22,11 +22,15 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency, unixSocketPath } from '@caxri/system';
 
 import { atomicWrite, atomicWriteUserConfig } from '../../atomic-file';
-import { readBoundedRegularFileText } from '../../bounded-file-reader';
 import { WatchHub } from '../../watch-hub';
 import type { AgentEnvironment } from '../contract';
 import { agentProviders } from '../providers';
 import { stageAgentHookBridge } from './bridge';
+import {
+    isFileSystemError,
+    readConfigDocuments,
+    ReconciledConfigDocuments,
+} from './config-documents';
 import { AgentHookConfigWatchers } from './config-watchers';
 import type {
     AgentHookAdapter,
@@ -92,34 +96,6 @@ interface AgentHookManagerOptions {
     watchHub?: WatchHub;
 }
 
-function isFileSystemError(error: unknown, code: string): boolean {
-    return (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        Reflect.get(error, 'code') === code
-    );
-}
-
-async function readTargets(targets: readonly AgentHookConfigTarget[]): Promise<AgentHookDocuments> {
-    const entries = await Promise.all(
-        targets.map(async (target) => {
-            try {
-                return [
-                    target.id,
-                    await readBoundedRegularFileText(target.path, MAX_AGENT_HOOK_CONFIG_BYTES, {
-                        capacityMessage: `Agent hook configuration exceeds the ${MAX_AGENT_HOOK_CONFIG_BYTES} byte safety limit`,
-                    }),
-                ] as const;
-            } catch (error) {
-                if (isFileSystemError(error, 'ENOENT')) return [target.id, undefined] as const;
-                throw error;
-            }
-        }),
-    );
-    return new Map(entries);
-}
-
 /**
  * Generic lifecycle-hook owner. Provider adapters define config syntax only; this class owns the cross-process lock,
  * atomic filesystem changes, bridge/server lifecycle, health, and PTY tokens.
@@ -146,6 +122,9 @@ export class AgentHookManager {
      */
     private readonly nonConvergentProviders = new Set<AgentProvider>();
     private readonly profileId: string;
+    private readonly reconciledDocuments = new ReconciledConfigDocuments(
+        MAX_AGENT_HOOK_CONFIG_BYTES,
+    );
     private readonly schemaVersions: Record<AgentProvider, number>;
 
     constructor(private readonly options: AgentHookManagerOptions) {
@@ -237,11 +216,14 @@ export class AgentHookManager {
                     ),
                 );
             });
-            await this.configWatchers.refresh(this.configPaths(settings));
+            const watchesNewTargets = await this.configWatchers.refresh(this.configPaths(settings));
             if (this.requestedSettings === requested) {
                 this.settings = settings;
                 this.launchSettings = settings;
             }
+            // An edit can land on a newly watched file between the reads above and its watcher going live.
+            if (watchesNewTargets && (await this.reconciledDocuments.changed()))
+                this.scheduleConfigReconcile();
         } catch (error) {
             if (this.requestedSettings !== requested) return;
             const message = errorMessage(error, 'Lifecycle hook reconciliation failed');
@@ -276,10 +258,11 @@ export class AgentHookManager {
             this.setHealth(provider, { kind: 'unsupported', message: support.reason });
             return;
         }
+        this.reconciledDocuments.forget(provider);
         try {
             const targets = adapter.configTargets(this.options.environment);
             const targetById = new Map(targets.map((target) => [target.id, target]));
-            let documents = await readTargets(targets);
+            let documents = await readConfigDocuments(targets, MAX_AGENT_HOOK_CONFIG_BYTES);
             let status = adapter.inspect(documents, this.desired(provider)).status;
             if (!isGloballyEnabled) {
                 this.loseAuthority(provider);
@@ -292,7 +275,7 @@ export class AgentHookManager {
                         'remove',
                         status.kind,
                     );
-                    documents = await readTargets(targets);
+                    documents = await readConfigDocuments(targets, MAX_AGENT_HOOK_CONFIG_BYTES);
                     status = adapter.inspect(documents, this.desired(provider)).status;
                 }
                 const health = hookHealthFor(status, false, this.schemaVersions[provider]);
@@ -315,11 +298,16 @@ export class AgentHookManager {
                 });
                 return;
             }
+            /**
+             * What this reconcile left in the files: its own writes rather than the re-read below, so an edit that
+             * lands between the write and that re-read still reads as a change to the post-refresh check.
+             */
+            let reconciled = documents;
             if (['absent', 'stale', 'drifted'].includes(status.kind)) {
                 this.loseAuthority(provider);
                 const fromStatus = status.kind;
                 const action = fromStatus === 'absent' ? 'install' : 'repair';
-                const written = await this.writeEdits(
+                const { contents, written } = await this.writeEdits(
                     adapter.render(documents, this.desired(provider)),
                     documents,
                     targetById,
@@ -327,10 +315,12 @@ export class AgentHookManager {
                     action,
                     fromStatus,
                 );
-                documents = await readTargets(targets);
+                reconciled = contents;
+                documents = await readConfigDocuments(targets, MAX_AGENT_HOOK_CONFIG_BYTES);
                 status = adapter.inspect(documents, this.desired(provider)).status;
                 this.recordConvergence(provider, action, fromStatus, status.kind, written);
             } else if (status.kind === 'current') this.nonConvergentProviders.delete(provider);
+            this.reconciledDocuments.remember(provider, targets, reconciled);
             if (status.kind !== 'current' && status.kind !== 'newer') this.loseAuthority(provider);
             this.setHealth(
                 provider,
@@ -444,7 +434,7 @@ export class AgentHookManager {
         provider: AgentProvider,
         action: 'install' | 'remove' | 'repair',
         fromStatus: AgentHookEntryStatus['kind'],
-    ): Promise<number> {
+    ): Promise<{ contents: AgentHookDocuments; written: number }> {
         const contents = new Map(documents);
         let written = 0;
         /**
@@ -477,7 +467,7 @@ export class AgentHookManager {
                 },
             });
         }
-        return written;
+        return { contents, written };
     }
 
     /**

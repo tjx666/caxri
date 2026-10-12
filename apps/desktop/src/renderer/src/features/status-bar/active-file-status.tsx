@@ -10,27 +10,25 @@ import {
     editorStatusKey,
     useEditorStatusStore,
 } from '../editor/editor-status';
+import type { ActiveFileStatusTier } from './active-file-status-target';
 import { StatusInfo } from './status-info';
 
 export function ActiveFileStatus({
     sessionId,
     path,
+    tier,
     workbenchProjectId,
 }: {
     sessionId: string;
     path: string;
+    tier: Exclude<ActiveFileStatusTier, 'hidden'>;
     workbenchProjectId: string;
 }) {
     const key = editorStatusKey(sessionViewScope(sessionId, workbenchProjectId), path);
     const editorStatus = useEditorStatusStore((state) => state.statuses[key]);
-    const line = useDebouncedValue(editorStatus?.line ?? 1, 150);
-    const blameQuery = useCaxriQuery(
-        'git.blame',
-        { sessionId, path, line },
-        { staleTime: 60_000, retry: false },
-    );
-    const blame = blameQuery.data;
-    const authored = useRelativeTime(blame?.authoredAt);
+    // An external document shows only what its own editor published. A tab whose editor never reported (its file is
+    // gone or unreadable) shows nothing rather than a made-up `Ln 1, Col 1` in Plain Text.
+    if (tier === 'cursorOnly' && !editorStatus) return null;
     const language = editorLanguageLabel(editorStatus?.languageId ?? 'plaintext');
     const cursor = editorStatus
         ? `Ln ${editorStatus.line}, Col ${editorStatus.column}`
@@ -38,44 +36,12 @@ export function ActiveFileStatus({
     const selection = editorStatus?.selectedCharacters ?? 0;
     return (
         <>
-            {/* The existing 420px cap becomes a shrinkable slot so loading and changing blame text cannot move
-                the selection and language chips beside it.
-
-                While the query is pending the slot renders empty, and that costs nothing: `w-full` resolves against
-                `.statusbar-actions`, which is itself content-sized, so an empty slot measures 0px rather than
-                reserving 420. Measured over CDP at the 960px minimum window width; Workbench Root and branch keep
-                740px either way, and the only pending-to-settled shift is the language chip's own text. Do not
-                "fix" this by giving the slot a fixed width. See issue #894. */}
-            {(Boolean(blame) || blameQuery.isPending) && (
-                <div className="statusbar-blame-slot flex w-full max-w-[420px] min-w-0 shrink items-center">
-                    {blame && (
-                        <StatusInfo
-                            ariaLabel={
-                                blame.uncommitted
-                                    ? `Git blame: uncommitted changes on line ${line}`
-                                    : `Git blame: ${blame.author}, ${authored}, ${blame.subject}`
-                            }
-                            className="statusbar-blame w-full"
-                            icon={<GitCommitHorizontal />}
-                            title={
-                                blame.uncommitted ? (
-                                    `Uncommitted changes · line ${line}`
-                                ) : (
-                                    // The tooltip primitive doesn't collapse `\n` like a native `title`
-                                    // attribute would, so the three-line author/sha/subject summary needs
-                                    // an explicit `whitespace-pre-line` wrapper to keep its line breaks.
-                                    <span className="whitespace-pre-line">
-                                        {`${blame.author} · ${new Date(blame.authoredAt).toLocaleString()}\n${blame.sha}\n${blame.subject}`}
-                                    </span>
-                                )
-                            }
-                        >
-                            {blame.uncommitted
-                                ? 'Uncommitted changes'
-                                : `${blame.author}, ${authored} · ${blame.subject}`}
-                        </StatusInfo>
-                    )}
-                </div>
+            {tier === 'full' && (
+                <ActiveFileBlame
+                    cursorLine={editorStatus?.line ?? 1}
+                    path={path}
+                    sessionId={sessionId}
+                />
             )}
             <StatusInfo
                 ariaLabel={`Editor position: ${cursor}${selection > 0 ? `, ${selection} characters selected` : ''}`}
@@ -94,5 +60,70 @@ export function ActiveFileStatus({
                 {language}
             </StatusInfo>
         </>
+    );
+}
+
+/**
+ * Current-line blame. A component of its own so that a tab without blame never mounts the query at all, and so the
+ * debounced line re-renders only this slot rather than the cursor and language chips beside it.
+ */
+function ActiveFileBlame({
+    cursorLine,
+    path,
+    sessionId,
+}: {
+    cursorLine: number;
+    path: string;
+    sessionId: string;
+}) {
+    const line = useDebouncedValue(cursorLine, 150);
+    const blameQuery = useCaxriQuery(
+        'git.blame',
+        { sessionId, path, line },
+        { staleTime: 60_000, retry: false },
+    );
+    const blame = blameQuery.data;
+    const authored = useRelativeTime(blame?.authoredAt);
+    /*
+     * The existing 420px cap becomes a shrinkable slot so loading and changing blame text cannot move the selection and
+     * language chips beside it.
+     *
+     * While the query is pending the slot renders empty, and that costs nothing: `w-full` resolves against
+     * `.statusbar-actions`, which is itself content-sized, so an empty slot measures 0px rather than reserving 420.
+     * Measured over CDP at the 960px minimum window width; Workbench Root and branch keep 740px either way, and the only
+     * pending-to-settled shift is the language chip's own text. Do not "fix" this by giving the slot a fixed width. See
+     * issue #894.
+     */
+    if (!blame && !blameQuery.isPending) return null;
+    return (
+        <div className="statusbar-blame-slot flex w-full max-w-[420px] min-w-0 shrink items-center">
+            {blame && (
+                <StatusInfo
+                    ariaLabel={
+                        blame.uncommitted
+                            ? `Git blame: uncommitted changes on line ${line}`
+                            : `Git blame: ${blame.author}, ${authored}, ${blame.subject}`
+                    }
+                    className="statusbar-blame w-full"
+                    icon={<GitCommitHorizontal />}
+                    title={
+                        blame.uncommitted ? (
+                            `Uncommitted changes · line ${line}`
+                        ) : (
+                            // The tooltip primitive doesn't collapse `\n` like a native `title`
+                            // attribute would, so the three-line author/sha/subject summary needs
+                            // an explicit `whitespace-pre-line` wrapper to keep its line breaks.
+                            <span className="whitespace-pre-line">
+                                {`${blame.author} · ${new Date(blame.authoredAt).toLocaleString()}\n${blame.sha}\n${blame.subject}`}
+                            </span>
+                        )
+                    }
+                >
+                    {blame.uncommitted
+                        ? 'Uncommitted changes'
+                        : `${blame.author}, ${authored} · ${blame.subject}`}
+                </StatusInfo>
+            )}
+        </div>
     );
 }

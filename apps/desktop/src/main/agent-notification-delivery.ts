@@ -9,7 +9,11 @@ import type { AgentSystemNotification, AgentSystemNotificationHandle } from './a
 import type { AlerterNotificationDriver } from './alerter-notification';
 import { createAlerterNotificationDriver } from './alerter-notification';
 
-interface AgentNotificationDelivery {
+/**
+ * One per Main process. Creating it probes the running app's code signature and logs the unsigned-build fallback, so
+ * every notification family shares the instance `createDesktopNotifications` creates rather than probing on its own.
+ */
+export interface AgentNotificationDelivery {
     show(notification: AgentSystemNotification, onClick: () => void): AgentSystemNotificationHandle;
 }
 

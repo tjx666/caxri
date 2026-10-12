@@ -126,7 +126,10 @@ describe('archiving a Session while one of its Terminals is still launching', ()
             await vi.waitFor(async () =>
                 expect((await record(launchingId))?.lastProcessState).toBe('suspended'),
             );
-            expect(await domains.handlers['terminal.runningCount']({})).toBe(0);
+            expect(await domains.handlers['terminal.runningCount']({})).toEqual({
+                terminals: 0,
+                chats: 0,
+            });
             expect(kills).toHaveLength(2);
             expect(kills[1]).toHaveBeenCalled();
         } finally {
@@ -169,7 +172,10 @@ describe('archiving a Session while one of its Terminals is still launching', ()
             await vi.waitFor(async () =>
                 expect((await record(terminalId))?.lastProcessState).toBe('suspended'),
             );
-            expect(await domains.handlers['terminal.runningCount']({})).toBe(0);
+            expect(await domains.handlers['terminal.runningCount']({})).toEqual({
+                terminals: 0,
+                chats: 0,
+            });
             expect(kills).toHaveLength(2);
             for (const kill of kills) expect(kill).toHaveBeenCalled();
         } finally {
@@ -205,7 +211,10 @@ describe('detaching a Session while one of its Agents is still launching', () =>
             await detaching;
 
             expect((await record(terminalId))?.lastProcessState).toBe('detached');
-            expect(await domains.handlers['terminal.runningCount']({})).toBe(0);
+            expect(await domains.handlers['terminal.runningCount']({})).toEqual({
+                terminals: 0,
+                chats: 0,
+            });
             expect(kills).toHaveLength(2);
             for (const kill of kills) expect(kill).toHaveBeenCalled();
         } finally {
@@ -252,7 +261,10 @@ describe('detaching a Session while one of its Agents is still launching', () =>
                     expect((await record(launchingId))?.lastProcessState).toBe('detached'),
                 );
                 expect((await record(launchingId))?.lastAgentProcessState).toBe('detached');
-                expect(await domains.handlers['terminal.runningCount']({})).toBe(0);
+                expect(await domains.handlers['terminal.runningCount']({})).toEqual({
+                    terminals: 0,
+                    chats: 0,
+                });
                 expect(kills.at(-1)).toHaveBeenCalled();
             } finally {
                 execution.gate?.resolve();
@@ -296,7 +308,10 @@ describe('resuming a Session while its detach is still running', () => {
             await vi.waitFor(async () =>
                 expect(await agentStates()).toEqual(['running', 'running']),
             );
-            expect(await domains.handlers['terminal.runningCount']({})).toBe(2);
+            expect(await domains.handlers['terminal.runningCount']({})).toEqual({
+                terminals: 2,
+                chats: 0,
+            });
         } finally {
             execution.stopGate?.resolve();
             execution.gate?.resolve();

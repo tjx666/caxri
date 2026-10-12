@@ -2,10 +2,13 @@ import { errorMessage, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow, Dialog } from 'electron';
 
+import type { RunningWork } from './confirmations';
+import { runningWorkPhrase, runningWorkTotal } from './confirmations';
+
 interface WindowCloseOptions {
     close: () => void;
-    confirm: (runningCount: number) => Promise<'cancel' | 'close' | 'terminate'>;
-    countRunning: () => Promise<number>;
+    confirm: (running: RunningWork) => Promise<'cancel' | 'close' | 'terminate'>;
+    countRunning: () => Promise<RunningWork>;
     /**
      * Closing the window destroys the Renderer and its unsaved Editor buffers, so they are decided first, exactly as on
      * quit (issue caxri#1631).
@@ -31,11 +34,11 @@ export interface WindowClosePrompt {
 
 /**
  * The close-window confirmation. It asks the question the window's close button just posed and names the running work
- * with glossary nouns. The Server reports one combined count of live Terminals and Chats (`terminal.runningCount`), so
- * the message names both kinds rather than guessing which one is running. It names the outcome rather than the Server
- * process that keeps them alive, and keeps the three buttons the Quit dialog's wording relies on.
+ * with glossary nouns, Terminals and Chats counted separately (`terminal.runningCount`) so the user can tell a plain
+ * shell from an Agent still working. It names the outcome rather than the Server process that keeps them alive, and
+ * keeps the three buttons the Quit dialog's wording relies on.
  */
-export function windowClosePrompt(runningCount: number): WindowClosePrompt {
+export function windowClosePrompt(running: RunningWork): WindowClosePrompt {
     return {
         type: 'warning',
         title: 'Close this window?',
@@ -43,10 +46,9 @@ export function windowClosePrompt(runningCount: number): WindowClosePrompt {
          * The question lives in `message` because macOS sheets do not show `title`; the title is only for platforms
          * that draw one.
          */
-        message:
-            runningCount === 1
-                ? 'Close this window while 1 Terminal or Chat is running?'
-                : `Close this window while ${runningCount} Terminals or Chats are running?`,
+        message: `Close this window while ${runningWorkPhrase(running)} ${
+            runningWorkTotal(running) === 1 ? 'is' : 'are'
+        } running?`,
         detail: 'Keep Running closes this window and keeps them running in the background. To exit the app, use Quit Caxri and choose whether they should stop.',
         buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
         defaultId: 2,
@@ -57,13 +59,13 @@ export function windowClosePrompt(runningCount: number): WindowClosePrompt {
 export async function confirmWindowClose(
     dialog: Dialog,
     window: BrowserWindow,
-    runningCount: number,
+    running: RunningWork,
     logger: StructuredLogger | undefined,
 ): Promise<'cancel' | 'close' | 'terminate'> {
     logger?.write('info', logEventCatalog.window.closeConfirmation, {
-        fields: { runningTerminals: runningCount },
+        fields: { runningChats: running.chats, runningTerminals: running.terminals },
     });
-    const result = await dialog.showMessageBox(window, windowClosePrompt(runningCount));
+    const result = await dialog.showMessageBox(window, windowClosePrompt(running));
     logger?.write('info', logEventCatalog.window.closeDecision, {
         fields: { response: result.response },
     });
@@ -77,9 +79,9 @@ export async function confirmWindowClose(
 export async function resolveWindowClose(options: WindowCloseOptions): Promise<void> {
     try {
         if ((await options.decideUnsavedEditors()) === 'cancel') return;
-        const runningCount = await options.countRunning();
-        if (runningCount > 0) {
-            const decision = await options.confirm(runningCount);
+        const running = await options.countRunning();
+        if (runningWorkTotal(running) > 0) {
+            const decision = await options.confirm(running);
             if (decision === 'cancel') return;
             if (decision === 'terminate') await options.terminateAll();
             else await options.detachAll();

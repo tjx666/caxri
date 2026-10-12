@@ -113,6 +113,18 @@ export class CodexBackgroundTerminals {
 
     private reconciling: Promise<void> | undefined;
 
+    /**
+     * Counts {@link reconcile} calls. A call made while a read is in flight may need a newer answer than that read gives
+     * (a terminal Codex reaped during the turn that just ended), so a changed count means one more read.
+     */
+    private reconcileRequests = 0;
+
+    /**
+     * Commands that completed while the current list read was in flight. The answer may still list them, since Codex
+     * answered before it completed them; adopting one would list a finished terminal as running again.
+     */
+    private endedDuringRead: Set<string> | undefined;
+
     constructor(
         private readonly host: Pick<AgentChatSessionHost, 'applyTask' | 'read'>,
         private readonly list: ChatTaskList,
@@ -156,9 +168,14 @@ export class CodexBackgroundTerminals {
         ]);
     }
 
-    private async reconcileOnce(): Promise<void> {
+    private async reconcileUntilCurrent(): Promise<void> {
         try {
-            await this.readAndReconcile();
+            let answered: number;
+            do {
+                answered = this.reconcileRequests;
+                // eslint-disable-next-line no-await-in-loop -- each read must see the result of the one before it
+                await this.readAndReconcile();
+            } while (answered !== this.reconcileRequests);
         } finally {
             this.reconciling = undefined;
         }
@@ -175,7 +192,14 @@ export class CodexBackgroundTerminals {
                 .filter((state) => state.isBackground)
                 .map((state) => state.itemId),
         );
-        const listed = await listTerminals(this.options.request, threadId);
+        const ended = new Set<string>();
+        this.endedDuringRead = ended;
+        let listed: Awaited<ReturnType<typeof listTerminals>>;
+        try {
+            listed = await listTerminals(this.options.request, threadId);
+        } finally {
+            this.endedDuringRead = undefined;
+        }
         if (!listed) return;
         const gone = this.commands
             .values()
@@ -189,7 +213,7 @@ export class CodexBackgroundTerminals {
         const { activeTurnId, items } = this.host.read();
         const turnOf = new Map(items.map((item) => [item.id, item.turnId]));
         for (const [itemId, terminal] of listed) {
-            if (this.commands.has(itemId)) continue;
+            if (this.commands.has(itemId) || ended.has(itemId)) continue;
             if (activeTurnId && turnOf.get(itemId) === activeTurnId) continue;
             this.adopt(itemId, terminal.processId, terminal.command);
         }
@@ -224,6 +248,7 @@ export class CodexBackgroundTerminals {
         }
         if (!state) return;
         this.commands.delete(id);
+        this.endedDuringRead?.add(id);
         if (!state.isBackground) return;
         const output = typeof raw.aggregatedOutput === 'string' ? raw.aggregatedOutput : undefined;
         if (output)
@@ -323,10 +348,13 @@ export class CodexBackgroundTerminals {
      * notifications alone, so a missed completion would leave a terminal running forever and a terminal Caxri never saw
      * end its turn would stay invisible. A terminal Codex no longer lists is stopped; one Codex lists that Caxri does
      * not track is added, unless it belongs to the turn still running (it becomes a background terminal when that turn
-     * ends). Concurrent calls share one read; an unreadable list changes nothing.
+     * ends). A call while a read is in flight is answered by one more read after it (#1722): the read in flight may
+     * predate what the caller saw end, and joining it alone would leave a reaped terminal running. Every call made
+     * during one read shares that next read; an unreadable list changes nothing.
      */
     reconcile(): Promise<void> {
-        this.reconciling ??= this.reconcileOnce();
+        this.reconcileRequests += 1;
+        this.reconciling ??= this.reconcileUntilCurrent();
         return this.reconciling;
     }
 

@@ -1,8 +1,12 @@
+import process from 'node:process';
+
 import type { MainRequest, ServerEvent } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 
+import { createAgentNotificationDelivery } from './agent-notification-delivery';
 import { createDesktopAgentNotifications } from './agent-notification-runtime';
+import { createAlerterNotificationDriver } from './alerter-notification';
 import { resolveNotificationAppIconPath } from './app-icon';
 import { createDesktopDeliveryNotifications } from './delivery-notification-runtime';
 import type { DesktopServerConnection } from './server-connection';
@@ -31,8 +35,9 @@ export interface DesktopNotifications {
 
 /**
  * Both families of system notification Caxri raises, behind one handle: Agent attention (a Session wants you back) and
- * delivery failures (CI or a Vercel deployment just broke). They share the icon resolution and the native/alerter
- * delivery choice, and the composition root should not have to remember to fan `observe` and `dispose` out to each.
+ * delivery failures (CI or a Vercel deployment just broke). They share one delivery, so the native/alerter choice is
+ * probed (a `codesign` child process) and its fallback logged once per launch rather than once per family, and the
+ * composition root should not have to remember to fan `observe` and `dispose` out to each.
  */
 export function createDesktopNotifications({
     currentDirectory,
@@ -50,16 +55,21 @@ export function createDesktopNotifications({
         isPackaged,
         resourcesPath,
     });
+    const systemNotifications = createAgentNotificationDelivery({
+        alerter: createAlerterNotificationDriver({ appIconPath }),
+        forceNative: process.env.CAXRI_E2E === '1',
+        logger,
+    });
     const agents = createDesktopAgentNotifications({
         sendEvent,
-        appIconPath,
+        delivery: systemNotifications,
         focusMainWindow,
         getWindow,
         logger,
         supervisor,
     });
     const delivery = createDesktopDeliveryNotifications({
-        appIconPath,
+        delivery: systemNotifications,
         focusMainWindow,
         handleMainMethod,
         logger,

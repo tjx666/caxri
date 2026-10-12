@@ -28,7 +28,7 @@ import { createAcceptanceUpdateFixture } from './acceptance-update';
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
-import { createAppQuitHandler, createAppQuitPromptOptions } from './app-quit';
+import { createAppQuitHandler, createAppQuitPromptOptions, readAppQuitStatus } from './app-quit';
 import { installBeforeQuitTrigger, installSignalQuitTriggers } from './app-quit-triggers';
 import { updateArgvConfig } from './argv-config';
 import {
@@ -237,7 +237,7 @@ if (ownsProfileInstance) {
         },
         quitIntent: () => quitIntent,
         readPendingReviewComments: () => supervisor.request('gitReview.pending', {}),
-        readStatus: () => supervisor.request('host.status'),
+        readStatus: () => readAppQuitStatus(supervisor),
         stopServer: () => supervisor.stopServer(),
     });
     const quitTriggers = {
@@ -362,7 +362,7 @@ if (ownsProfileInstance) {
                 window.close();
                 isForceWindowClose = false;
             },
-            confirm: (count) => confirmWindowClose(dialog, window, count, mainLogger),
+            confirm: (running) => confirmWindowClose(dialog, window, running, mainLogger),
             countRunning: () => supervisor.request('terminal.runningCount'),
             decideUnsavedEditors: () => unsavedEditors.decide('close'),
             detachAll: () => supervisor.request('terminal.detachAll'),

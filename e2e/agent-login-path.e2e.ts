@@ -6,6 +6,7 @@ import process from 'node:process';
 import { realCodexSmokeArguments } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, openAddProjectDialog, pageRequest } from './support/helpers.ts';
+import { runningWork } from './support/running-work.ts';
 
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 
@@ -103,7 +104,7 @@ exec /bin/zsh "$@"
             running.page.locator('.terminal-surface[data-terminal-attached="true"]'),
         ).toBeVisible();
         await expect(running.page.locator('.xterm-rows')).toContainText('Codex login PATH ready');
-        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+        await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
         await expect
             .poll(async () => {
                 const records = (await readFile(probeLog, 'utf8'))

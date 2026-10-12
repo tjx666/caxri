@@ -1,175 +1,7 @@
-import type { AppSettings, ServerEvent, SessionRecord, TerminalRecord } from '@caxri/protocol';
-import { defaultAppSettings } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { PollerRegistrationOptions } from '../../watch-hub';
-import { TerminalSuspensionService } from '../suspension';
 import { UNTOUCHED_SUSPENSION_DELAY_MS } from '../suspension-policy';
-
-const START = 10_000_000;
-
-const idleAfterThirtyMinutes = {
-    'terminal.idleSuspension.afterMinutes': 30,
-    'terminal.idleSuspension.enabled': true,
-} as const;
-
-type ParkedState = 'detached' | 'stopped' | 'suspended';
-
-function terminal(id: string, sessionId: string, overrides: Partial<TerminalRecord> = {}) {
-    return {
-        id,
-        sessionId,
-        kind: 'claude',
-        provider: 'claude',
-        cwd: '/tmp/project',
-        title: 'claude',
-        icon: 'claude',
-        orderIndex: 0,
-        lastProcessState: 'running',
-        lastAgentProcessState: 'running',
-        createdAt: START,
-        updatedAt: START,
-        ...overrides,
-    } as TerminalRecord;
-}
-
-function session(id: string, primaryAgentTerminalId: string) {
-    return {
-        id,
-        projectId: 'project-1',
-        title: id,
-        lastActivityState: 'completed',
-        primaryAgentTerminalId,
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
-        hasUnread: false,
-        createdAt: START,
-        updatedAt: START,
-    } as unknown as SessionRecord;
-}
-
-function createHarness(
-    options: {
-        commanderSessionId?: string;
-        /**
-         * When set, every `terminals.suspend` call pauses instead of resolving immediately, standing in for the real
-         * PTY-kill-and-snapshot teardown that `TerminalManager#suspend` awaits. A test drains the queue explicitly with
-         * `releaseSuspend()` to control exactly what happens while that await is outstanding.
-         */
-        controlledSuspend?: boolean;
-        onSuspendedSessionReselected?: (sessionId: string) => void;
-        selected?: string;
-        settings?: Partial<AppSettings>;
-    } = {},
-) {
-    let now = START;
-    let selected = options.selected ?? 'session-b';
-    const sessions = new Map([
-        ['session-a', session('session-a', 'terminal-a')],
-        ['session-b', session('session-b', 'terminal-b')],
-    ]);
-    const terminals = new Map([
-        ['terminal-a', terminal('terminal-a', 'session-a')],
-        ['terminal-b', terminal('terminal-b', 'session-b')],
-    ]);
-    const live = new Set(terminals.keys());
-    const observedRemotely = new Set<string>();
-    const conversationWatched = new Set<string>();
-    const logs: Array<{ event: string; fields: Record<string, unknown> }> = [];
-    const events: ServerEvent[] = [];
-    let poller: PollerRegistrationOptions | undefined;
-    const pendingSuspends: Array<() => void> = [];
-    const suspend = vi.fn((terminalId: string, state: ParkedState = 'suspended') => {
-        if (!live.has(terminalId)) return Promise.resolve(undefined);
-        const finish = () => {
-            live.delete(terminalId);
-            const record = terminals.get(terminalId)!;
-            const suspended = {
-                ...record,
-                lastAgentProcessState: state,
-                lastProcessState: state,
-            };
-            terminals.set(terminalId, suspended);
-            return suspended;
-        };
-        if (!options.controlledSuspend) return Promise.resolve(finish());
-        return new Promise<TerminalRecord>((resolve) => {
-            pendingSuspends.push(() => resolve(finish()));
-        });
-    });
-    const service = new TerminalSuspensionService({
-        database: {
-            getAppState: () =>
-                options.commanderSessionId && {
-                    projectId: 'project-1',
-                    sessionId: options.commanderSessionId,
-                    sessionIds: [],
-                },
-            getProject: () => ({ hiddenAt: undefined }),
-            getSession: (id: string) => sessions.get(id),
-            getTerminal: (id: string) => terminals.get(id),
-            listSessions: () => sessions.values().toArray(),
-            listTerminals: (sessionId?: string) =>
-                terminals
-                    .values()
-                    .filter((record) => sessionId === undefined || record.sessionId === sessionId)
-                    .toArray(),
-        } as never,
-        logger: {
-            write: (_level: string, event: string, entry?: { fields?: Record<string, unknown> }) =>
-                logs.push({ event, fields: entry?.fields ?? {} }),
-        } as never,
-        now: () => now,
-        onSuspendedSessionReselected: options.onSuspendedSessionReselected,
-        selectedSessionId: () => selected,
-        send: (event) => events.push(event),
-        settings: () => ({ ...defaultAppSettings, ...options.settings }),
-        remoteObservers: [
-            { isObservedRemotely: (terminalId: string) => observedRemotely.has(terminalId) },
-            { isObservedRemotely: (terminalId: string) => conversationWatched.has(terminalId) },
-        ],
-        terminals: {
-            processId: (terminalId: string) => (live.has(terminalId) ? 4242 : undefined),
-            settleLaunches: () => Promise.resolve(),
-            suspend,
-        },
-        watchHub: {
-            registerPoller: (registration) => {
-                poller = registration;
-                return { dispose: vi.fn(async () => {}), label: registration.label } as never;
-            },
-        },
-    });
-    return {
-        advance: (ms: number) => {
-            now += ms;
-        },
-        set selected(sessionId: string) {
-            selected = sessionId;
-        },
-        conversationWatched,
-        events,
-        live,
-        logs,
-        observedRemotely,
-        poller: () => poller,
-        /**
-         * Resolves the oldest still-pending `terminals.suspend` call created while `controlledSuspend` is set.
-         */
-        releaseSuspend: () => {
-            const next = pendingSuspends.shift();
-            if (!next) throw new Error('no pending suspend to release');
-            next();
-        },
-        select: (sessionId: string) => {
-            selected = sessionId;
-            service.observeSelection();
-        },
-        service,
-        suspend,
-        terminals,
-    };
-}
+import { createHarness, idleAfterThirtyMinutes, terminal } from './suspension.fixture';
 
 describe('TerminalSuspensionService', () => {
     it('does not suspend a starting Agent before lifecycle activation on an old Server', async () => {
@@ -361,6 +193,49 @@ describe('TerminalSuspensionService', () => {
         ).toEqual(['terminal-a']);
     });
 
+    it('logs the resume of an Agent an earlier Server Core parked, whose park time is unknown (#1784)', () => {
+        const harness = createHarness({ selected: 'session-b' });
+        const parked = {
+            lastAgentProcessState: 'suspended',
+            lastProcessState: 'suspended',
+        } as const;
+        harness.terminals.set('terminal-a', terminal('terminal-a', 'session-a', parked));
+        // A detached Agent comes back through `session.resume` instead of selection, and counts the same way.
+        harness.terminals.set(
+            'terminal-c',
+            terminal('terminal-c', 'session-a', {
+                lastAgentProcessState: 'detached',
+                lastProcessState: 'detached',
+            }),
+        );
+        harness.terminals.set(
+            'shell-a',
+            terminal('shell-a', 'session-a', { ...parked, kind: 'shell', provider: undefined }),
+        );
+        harness.live.delete('terminal-a');
+        harness.service.start();
+        harness.service.observeLaunch('shell-a');
+        harness.service.observeLaunch('terminal-b');
+        harness.service.observeLaunch('terminal-a');
+        harness.service.observeLaunch('terminal-c');
+        // A later ordinary launch is not another resume.
+        harness.service.observeLaunch('terminal-a');
+        const resumed = (terminalId: string) => ({
+            event: 'terminal.resumed',
+            fields: {
+                provider: 'claude',
+                reason: 'beforeRestart',
+                sessionId: 'session-a',
+                suspendedForMs: null,
+                terminalId,
+            },
+        });
+        expect(harness.logs.filter(({ event }) => event === 'terminal.resumed')).toEqual([
+            resumed('terminal-a'),
+            resumed('terminal-c'),
+        ]);
+    });
+
     it('notices a selection change made outside the select handler at the next sweep', async () => {
         const harness = createHarness({ selected: 'session-a' });
         harness.service.start();
@@ -515,6 +390,38 @@ describe('TerminalSuspensionService: idle suspension', () => {
         harness.service.observeLifecycle({ phase: 'attentionRequested', terminalId: 'terminal-a' });
         // Claude sends no Stop for an interrupted turn, so the Escape is the only end the turn gets.
         harness.service.observeInput('terminal-a', '\u{1B}');
+        harness.advance(60_000);
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+    });
+
+    it('keeps an Agent mid-turn once a tool signal follows an Escape that did not interrupt it (#1785)', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.service.observeLifecycle({ phase: 'turnStarted', terminalId: 'terminal-a' });
+        // The Escape only closed a completion menu; the long Bash command it started keeps running silently.
+        harness.service.observeInput('terminal-a', '\u{1B}');
+        harness.service.observeLifecycle({ phase: 'shellToolStarted', terminalId: 'terminal-a' });
+        harness.advance(60 * 60_000);
+        expect(await harness.service.sweep()).toEqual([]);
+        finishTurn(harness);
+        harness.advance(60_000);
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+    });
+
+    it('still parks an Agent the Escape really interrupted, even after a subagent signal', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.service.observeLifecycle({ phase: 'turnStarted', terminalId: 'terminal-a' });
+        harness.service.observeLifecycle({ phase: 'toolBatchFinished', terminalId: 'terminal-a' });
+        harness.service.observeInput('terminal-a', '\u{1B}');
+        // A subagent's tool proves nothing about the main turn the user interrupted.
+        harness.service.observeLifecycle({
+            agentId: 'subagent-1',
+            phase: 'shellToolFinished',
+            terminalId: 'terminal-a',
+        });
         harness.advance(60_000);
         expect(await harness.service.sweep()).toEqual(['terminal-a']);
     });

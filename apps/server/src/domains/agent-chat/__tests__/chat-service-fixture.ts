@@ -118,10 +118,24 @@ export async function fixture(
         }
         return mirror;
     }
+    /**
+     * Waits for the mirrored snapshot to reach a state. A timeout names the Chat, turn, and task states it last saw, so
+     * a flaky wait says what it was stuck on instead of only "expected false to be true".
+     */
     async function until(isReached: (snapshot: AgentChatSnapshot) => boolean) {
         await vi.waitFor(
             () => {
-                expect(isReached(client())).toBe(true);
+                const snapshot = client();
+                const { status, activeTurnId, turns, tasks } = snapshot;
+                expect(
+                    isReached(snapshot),
+                    `last snapshot: ${JSON.stringify({
+                        status,
+                        activeTurnId,
+                        turns: turns.map((turn) => turn.status),
+                        tasks: tasks?.map(({ kind, status: taskStatus }) => ({ kind, taskStatus })),
+                    })}`,
+                ).toBe(true);
             },
             { timeout: 5_000, interval: 10 },
         );
@@ -138,6 +152,13 @@ export async function fixture(
     const holdCodexThreadWriter = async (threadId: string) => {
         await mkdir(stateDirectory, { recursive: true });
         await writeFile(join(stateDirectory, `${threadId}.writer-held`), '');
+    };
+    /**
+     * Makes the fake Codex answer `thread/unsubscribe` with an error.
+     */
+    const failCodexUnsubscribe = async () => {
+        await mkdir(stateDirectory, { recursive: true });
+        await writeFile(join(stateDirectory, 'unsubscribe-fails'), '');
     };
     const sessionOpens = async () =>
         (await readFile(join(grokStateDirectory, 'session-opens.jsonl'), 'utf8'))
@@ -182,6 +203,7 @@ export async function fixture(
         until,
         threadOpens,
         holdCodexThreadWriter,
+        failCodexUnsubscribe,
         sessionOpens,
     };
 }

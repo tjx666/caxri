@@ -1,7 +1,7 @@
 import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AppQuitOptions } from '../app-quit';
+import type { AppQuitOptions, AppQuitStatus } from '../app-quit';
 import {
     appQuitPrompt,
     confirmAppQuit,
@@ -10,6 +10,7 @@ import {
     createAppQuitPromptOptions,
     notifyAppQuitStopFailure,
     pendingReviewCommentsPrompt,
+    readAppQuitStatus,
     resolveAppQuit,
 } from '../app-quit';
 
@@ -27,7 +28,9 @@ function options(overrides: Partial<AppQuitOptions> = {}): AppQuitOptions {
         notifyStopFailure: vi.fn().mockResolvedValue(undefined),
         persistWindowState: vi.fn().mockResolvedValue(undefined),
         readPendingReviewComments: vi.fn().mockResolvedValue({ count: 0, groups: [] }),
-        readStatus: vi.fn().mockResolvedValue({ activePtyCount: 0, clientCount: 1 }),
+        readStatus: vi
+            .fn()
+            .mockResolvedValue({ running: { terminals: 0, chats: 0 }, clientCount: 1 }),
         stopServer: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -37,7 +40,9 @@ describe('resolveAppQuit', () => {
     it('cancels before any other prompt when unsaved Editor buffers are kept', async () => {
         const target = options({
             decideUnsavedEditors: vi.fn().mockResolvedValue('cancel'),
-            readStatus: vi.fn().mockResolvedValue({ activePtyCount: 2, clientCount: 1 }),
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 2, chats: 0 }, clientCount: 1 }),
         });
 
         await expect(resolveAppQuit(target)).resolves.toBe('cancelled');
@@ -50,7 +55,9 @@ describe('resolveAppQuit', () => {
 
     it('continues into the existing quit flow once unsaved buffers are resolved', async () => {
         const target = options({
-            readStatus: vi.fn().mockResolvedValue({ activePtyCount: 1, clientCount: 1 }),
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 1, chats: 0 }, clientCount: 1 }),
         });
 
         await expect(resolveAppQuit(target)).resolves.toBe('kept-running');
@@ -96,7 +103,9 @@ describe('resolveAppQuit', () => {
 
     it('keeps an idle Server for another connected client without prompting', async () => {
         const target = options({
-            readStatus: vi.fn().mockResolvedValue({ activePtyCount: 0, clientCount: 2 }),
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 0, chats: 0 }, clientCount: 2 }),
         });
 
         await expect(resolveAppQuit(target)).resolves.toBe('kept-running');
@@ -117,13 +126,15 @@ describe('resolveAppQuit', () => {
         async (decision, outcome, shouldDetach, shouldStop, shouldExit) => {
             const target = options({
                 confirm: vi.fn().mockResolvedValue(decision),
-                readStatus: vi.fn().mockResolvedValue({ activePtyCount: 3, clientCount: 4 }),
+                readStatus: vi
+                    .fn()
+                    .mockResolvedValue({ running: { terminals: 3, chats: 0 }, clientCount: 4 }),
             });
 
             await expect(resolveAppQuit(target)).resolves.toBe(outcome);
 
             expect(target.confirm).toHaveBeenCalledWith({
-                activePtyCount: 3,
+                running: { terminals: 3, chats: 0 },
                 otherClientCount: 3,
             });
             expect(target.detachAll).toHaveBeenCalledTimes(shouldDetach ? 1 : 0);
@@ -155,7 +166,9 @@ describe('resolveAppQuit', () => {
         async (intent) => {
             const target = options({
                 quitIntent: () => intent,
-                readStatus: vi.fn().mockResolvedValue({ activePtyCount: 2, clientCount: 1 }),
+                readStatus: vi
+                    .fn()
+                    .mockResolvedValue({ running: { terminals: 2, chats: 0 }, clientCount: 1 }),
             });
 
             await expect(resolveAppQuit(target)).resolves.toBe('kept-running');
@@ -274,11 +287,11 @@ describe('resolveAppQuit', () => {
 
 describe('createAppQuitHandler', () => {
     it('coalesces repeated quit requests and permits another request after cancellation', async () => {
-        const status = Promise.withResolvers<{ activePtyCount: number; clientCount: number }>();
+        const status = Promise.withResolvers<AppQuitStatus>();
         const readStatus = vi
             .fn()
             .mockReturnValueOnce(status.promise)
-            .mockResolvedValueOnce({ activePtyCount: 1, clientCount: 1 });
+            .mockResolvedValueOnce({ running: { terminals: 1, chats: 0 }, clientCount: 1 });
         const confirm = vi.fn().mockResolvedValue('cancel');
         const requestQuit = createAppQuitHandler(options({ confirm, readStatus }));
 
@@ -288,7 +301,7 @@ describe('createAppQuitHandler', () => {
         // `decidePendingReviewComments` now awaits its own Server round-trip before `readStatus` runs, adding a
         // microtask hop ahead of it; wait for that hop to settle instead of asserting immediately after the call.
         await vi.waitFor(() => expect(readStatus).toHaveBeenCalledOnce());
-        status.resolve({ activePtyCount: 1, clientCount: 1 });
+        status.resolve({ running: { terminals: 1, chats: 0 }, clientCount: 1 });
         await first;
 
         await requestQuit();
@@ -300,7 +313,9 @@ describe('createAppQuitHandler', () => {
         const prompt = Promise.withResolvers<'stop'>();
         const target = options({
             confirm: vi.fn().mockReturnValue(prompt.promise),
-            readStatus: vi.fn().mockResolvedValue({ activePtyCount: 2, clientCount: 1 }),
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 2, chats: 0 }, clientCount: 1 }),
         });
         const requestQuit = createAppQuitHandler(target);
 
@@ -324,7 +339,9 @@ describe('createAppQuitHandler', () => {
         const stopping = Promise.withResolvers<void>();
         const target = options({
             confirm: vi.fn().mockResolvedValue('stop'),
-            readStatus: vi.fn().mockResolvedValue({ activePtyCount: 2, clientCount: 1 }),
+            readStatus: vi
+                .fn()
+                .mockResolvedValue({ running: { terminals: 2, chats: 0 }, clientCount: 1 }),
             stopServer: vi.fn().mockReturnValue(stopping.promise),
         });
         const requestQuit = createAppQuitHandler(target);
@@ -342,22 +359,52 @@ describe('createAppQuitHandler', () => {
     });
 });
 
+describe('readAppQuitStatus', () => {
+    it('reads connected clients and running work by kind together', async () => {
+        const request = vi.fn((method: string) =>
+            Promise.resolve(
+                method === 'host.status'
+                    ? { activePtyCount: 3, clientCount: 2 }
+                    : { terminals: 1, chats: 2 },
+            ),
+        );
+
+        await expect(readAppQuitStatus({ request } as never)).resolves.toEqual({
+            clientCount: 2,
+            running: { terminals: 1, chats: 2 },
+        });
+        expect(request).toHaveBeenCalledWith('host.status');
+        expect(request).toHaveBeenCalledWith('terminal.runningCount');
+    });
+});
+
 describe('appQuitPrompt', () => {
     it('explains session portability and other-client impact without defaulting to destruction', () => {
-        expect(appQuitPrompt({ activePtyCount: 2, otherClientCount: 1 })).toEqual({
-            buttons: ['Quit and Stop Tasks', 'Quit and Keep Tasks Running', 'Cancel'],
-            cancelId: 2,
-            defaultId: 1,
-            detail: 'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent sessions so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.\n\n1 other client is connected to Caxri Server. Stopping will disconnect it.',
-            message: 'Quit Caxri while 2 tasks are running?',
-            title: 'Quit Caxri?',
-            type: 'warning',
-        });
+        expect(appQuitPrompt({ running: { terminals: 2, chats: 0 }, otherClientCount: 1 })).toEqual(
+            {
+                buttons: ['Quit and Stop Tasks', 'Quit and Keep Tasks Running', 'Cancel'],
+                cancelId: 2,
+                defaultId: 1,
+                detail: 'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent sessions so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.\n\n1 other client is connected to Caxri Server. Stopping will disconnect it.',
+                message: 'Quit Caxri while 2 Terminals are running?',
+                title: 'Quit Caxri?',
+                type: 'warning',
+            },
+        );
+    });
+
+    it('names running Terminals and Chats separately, like the window-close confirmation', () => {
+        expect(
+            appQuitPrompt({ running: { terminals: 1, chats: 2 }, otherClientCount: 0 }).message,
+        ).toBe('Quit Caxri while 1 Terminal and 2 Chats are running?');
+        expect(
+            appQuitPrompt({ running: { terminals: 0, chats: 1 }, otherClientCount: 0 }).message,
+        ).toBe('Quit Caxri while 1 Chat is running?');
     });
 
     it('shows the native prompt without a parent when no window remains', async () => {
         const showMessageBox = vi.fn().mockResolvedValue({ response: 1 });
-        const impact = { activePtyCount: 1, otherClientCount: 0 };
+        const impact = { running: { terminals: 1, chats: 0 }, otherClientCount: 0 };
 
         await expect(confirmAppQuit({ showMessageBox } as never, undefined, impact)).resolves.toBe(
             'keep-running',
@@ -428,7 +475,7 @@ describe('appQuitPrompt', () => {
                 },
             ],
         };
-        const impact = { activePtyCount: 1, otherClientCount: 0 };
+        const impact = { running: { terminals: 1, chats: 0 }, otherClientCount: 0 };
         const mainWindow = { isDestroyed: () => false };
         const getWindow = vi.fn((): typeof mainWindow | undefined => undefined);
         const prompts = createAppQuitPromptOptions({ showMessageBox } as never, getWindow as never);

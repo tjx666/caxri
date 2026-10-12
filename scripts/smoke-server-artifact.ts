@@ -168,11 +168,11 @@ try {
         throw new Error('Standalone Terminal Host did not preserve the requested grid');
     const resources = await desktop.request('terminal.resources', { terminalId });
     if (!resources) throw new Error('Standalone Terminal Host did not expose PTY resources');
-    if ((await desktop.request('terminal.runningCount', {})) !== 1)
+    if ((await desktop.request('terminal.runningCount', {})).terminals !== 1)
         throw new Error('Standalone Terminal Host running count is inconsistent');
     const observationManifests = await waitForObservationManifests(profile);
     await desktop.request('terminal.close', { terminalId });
-    if ((await desktop.request('terminal.runningCount', {})) !== 0)
+    if ((await desktop.request('terminal.runningCount', {})).terminals !== 0)
         throw new Error('Standalone Terminal Host did not retire the closed PTY');
     desktop.close();
     desktop = undefined;

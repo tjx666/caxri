@@ -3,6 +3,7 @@ import { useImperativeHandle, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
+import { draftAfterEditCancel } from '../agent-chat-drafts';
 import type { AgentChatEdit } from '../agent-chat-edit';
 import {
     agentChatEditRemovedTurns,
@@ -74,6 +75,13 @@ export function useAgentChatComposerEdit({
         setEditState(next);
         options.onEditingChange(next?.itemId);
     };
+    /**
+     * The edit as stored now. A turn review comment added to the Chat during the edit extends the stored edit's
+     * `appendedDraft` (`appendToAgentChatDraft`) without re-rendering this composer, so Cancel and every rewrite of the
+     * edit start from the stored one rather than from this hook's state.
+     */
+    const storedEdit = (current: AgentChatEdit): AgentChatEdit =>
+        readAgentChatEdit(terminalId) ?? current;
     const removedTurns = edit && snapshot ? agentChatEditRemovedTurns(snapshot, edit) : undefined;
     const active = edit && removedTurns !== undefined ? { ...edit, removedTurns } : undefined;
     const startEdit = (itemId: string, text: string): void => {
@@ -81,8 +89,10 @@ export function useAgentChatComposerEdit({
         setEdit({
             itemId,
             restoreFiles: active?.restoreFiles ?? false,
-            // Switching to another message keeps the draft from before the first edit.
-            previousDraft: active ? active.previousDraft : draft,
+            // Switching to another message keeps the draft from before the first edit, plus anything appended to the
+            // message being left, since the new message's text replaces it unsent.
+            previousDraft: active ? draftAfterEditCancel(storedEdit(active)) : draft,
+            appendedDraft: '',
         });
         requestAnimationFrame(() => {
             const textarea = inputReference.current;
@@ -93,7 +103,7 @@ export function useAgentChatComposerEdit({
     useImperativeHandle(options.handleReference, () => ({ startEdit }));
     const cancel = (): void => {
         if (!active) return;
-        setDraft(() => active.previousDraft);
+        setDraft(() => draftAfterEditCancel(storedEdit(active)));
         setEdit(undefined);
         focusInput();
     };
@@ -109,7 +119,8 @@ export function useAgentChatComposerEdit({
         shouldRestoreFiles: active.restoreFiles,
         onCancel: cancel,
         onRestoreFilesChange: (restoreFiles) => {
-            setEdit({ itemId: active.itemId, previousDraft: active.previousDraft, restoreFiles });
+            const { itemId, previousDraft, appendedDraft } = storedEdit(active);
+            setEdit({ itemId, previousDraft, appendedDraft, restoreFiles });
             focusInput();
         },
     };
@@ -134,7 +145,8 @@ export function useAgentChatComposerEdit({
          */
         canSend: canSend && !(active && isTurnRunning),
         /**
-         * Puts the draft from before the edit back and ends it.
+         * Puts the draft from before the edit back, with anything appended to the Chat's message meanwhile, and ends
+         * it.
          */
         cancel,
         /**

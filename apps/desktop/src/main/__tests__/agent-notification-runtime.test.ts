@@ -51,6 +51,7 @@ describe('Agent notification activation', () => {
         const test = harness([]);
         const coordinator = createDesktopAgentNotifications({
             ...test.options,
+            delivery: { show: vi.fn() },
             getWindow: () => {},
             sendEvent,
         });

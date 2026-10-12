@@ -1,4 +1,4 @@
-import type { FileEntry } from '@caxri/protocol';
+import type { FileEntry, PaneTab } from '@caxri/protocol';
 import { collectTreeSubtree, pathBasename } from '@caxri/utils';
 
 import { isDirectoryEntry } from '../../../lib/file-entry';
@@ -199,4 +199,11 @@ export function fileTreeRowDescription(
  */
 export function fileTreeRootCaption(rootPath: string): string {
     return /^[\\/]*$/.test(rootPath) ? '' : pathBasename(rootPath);
+}
+
+/**
+ * The file a work tab shows, when it shows a file at all: the path the Files tree follows.
+ */
+export function paneTabFilePath(tab: PaneTab | undefined): string | undefined {
+    return tab?.resource.kind === 'file' ? tab.resource.path : undefined;
 }

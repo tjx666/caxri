@@ -101,4 +101,14 @@ describe('readTranscriptConversation', () => {
         expect(whole.isTailOnly).toBe(false);
         expect(whole.messages).toHaveLength(8);
     });
+
+    it('hands its signal to the scan, which reads nothing once it has aborted', async () => {
+        await writeFile(location.path, `${codexMessage('user', 'first')}\n`);
+        const controller = new AbortController();
+        controller.abort();
+        const conversation = await readTranscriptConversation(location, 10_000, {
+            signal: controller.signal,
+        });
+        expect(conversation.messages).toEqual([]);
+    });
 });

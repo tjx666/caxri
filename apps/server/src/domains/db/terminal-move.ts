@@ -40,7 +40,11 @@ export function moveTerminalToNewSession(
         const succession = choosePrimaryAgentSuccessor(remaining, sourceSession);
         database.sessions.setPrimaryAgent(sourceSession.id, succession);
     }
-    database.sessions.removeTerminalFromAllRootStates(sourceSession.id, terminalId);
+    database.sessions.removeTerminalFromAllRootStates(
+        sourceSession.id,
+        terminalId,
+        'terminalMovedAway',
+    );
 
     // New Session state, mirroring `createSession`.
     const assignment = choosePrimaryAgentForNewTerminal(newSession, movedTerminal);

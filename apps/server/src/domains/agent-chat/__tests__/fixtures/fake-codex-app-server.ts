@@ -35,7 +35,8 @@
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
  * the configuration Caxri asked for (`fake-codex-threads.ts`). A `<threadId>.writer-held` file there makes resuming
- * that thread fail as Codex does when another client still holds the thread's writer.
+ * that thread fail as Codex does when another client still holds the thread's writer, and an `unsubscribe-fails` file
+ * makes `thread/unsubscribe` answer with an error.
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -52,7 +53,7 @@ import {
 } from './fake-codex-history.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
-import { forkThread, revertThread } from './fake-codex-rewind.ts';
+import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import {
     didHandleTaskRequest,
     dropTerminalsSilently,
@@ -470,7 +471,7 @@ function handle(message: RpcMessage) {
             return;
         }
         case 'thread/unsubscribe': {
-            send({ id, result: { status: 'unsubscribed' } });
+            send({ id, ...unsubscribeThread(fakeCodexStateDirectory()) });
             return;
         }
         case 'model/list': {

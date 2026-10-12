@@ -17,7 +17,7 @@ describe('resolveWindowClose', () => {
             await resolveWindowClose({
                 close,
                 confirm: vi.fn().mockResolvedValue(decision),
-                countRunning: vi.fn().mockResolvedValue(1),
+                countRunning: vi.fn().mockResolvedValue({ terminals: 0, chats: 1 }),
                 decideUnsavedEditors: vi.fn().mockResolvedValue('continue'),
                 detachAll,
                 logFailure: vi.fn(),
@@ -55,7 +55,7 @@ describe('resolveWindowClose', () => {
         const requestClose = createWindowCloseHandler({
             close,
             confirm: vi.fn(),
-            countRunning: vi.fn().mockResolvedValue(0),
+            countRunning: vi.fn().mockResolvedValue({ terminals: 0, chats: 0 }),
             decideUnsavedEditors,
             detachAll: vi.fn(),
             logFailure: vi.fn(),
@@ -73,24 +73,35 @@ describe('resolveWindowClose', () => {
 
 describe('windowClosePrompt', () => {
     it('asks to close the window and names the running Terminals and Chats, not the Server', () => {
-        expect(windowClosePrompt(1)).toMatchObject({
+        expect(windowClosePrompt({ terminals: 1, chats: 0 })).toMatchObject({
             title: 'Close this window?',
-            message: 'Close this window while 1 Terminal or Chat is running?',
+            message: 'Close this window while 1 Terminal is running?',
             buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
             cancelId: 2,
             defaultId: 2,
         });
-        const prompt = windowClosePrompt(3);
-        expect(prompt.message).toBe('Close this window while 3 Terminals or Chats are running?');
+        const prompt = windowClosePrompt({ terminals: 1, chats: 2 });
+        expect(prompt.message).toBe('Close this window while 1 Terminal and 2 Chats are running?');
         expect(prompt.detail).toContain('keeps them running in the background');
         expect(prompt.detail).not.toContain('Server');
     });
+
+    it.each([
+        [{ terminals: 0, chats: 1 }, 'Close this window while 1 Chat is running?'],
+        [{ terminals: 3, chats: 0 }, 'Close this window while 3 Terminals are running?'],
+        [{ terminals: 1, chats: 1 }, 'Close this window while 1 Terminal and 1 Chat are running?'],
+    ])(
+        'leaves out a kind with nothing running and agrees with the total (%o)',
+        (running, message) => {
+            expect(windowClosePrompt(running).message).toBe(message);
+        },
+    );
 });
 
 describe('resolveWindowClose unsaved Editor buffers', () => {
     it('keeps the window open without asking about tasks when unsaved buffers are cancelled', async () => {
         const close = vi.fn();
-        const countRunning = vi.fn().mockResolvedValue(1);
+        const countRunning = vi.fn().mockResolvedValue({ terminals: 1, chats: 0 });
 
         await resolveWindowClose({
             close,
@@ -114,7 +125,7 @@ describe('resolveWindowClose unsaved Editor buffers', () => {
             confirm: vi.fn(),
             countRunning: () => {
                 calls.push('count');
-                return Promise.resolve(0);
+                return Promise.resolve({ terminals: 0, chats: 0 });
             },
             decideUnsavedEditors: () => {
                 calls.push('unsaved');

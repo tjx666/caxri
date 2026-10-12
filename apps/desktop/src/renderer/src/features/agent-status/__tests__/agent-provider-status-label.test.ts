@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import {
     describeProviderStatus,
     incidentPhaseLabel,
-    isProviderStatusDisrupted,
+    providerStatusAlert,
+    providerStatusDotClassName,
     providerStatusFailureLabel,
     providerStatusView,
     summarizeIncidents,
@@ -56,6 +57,56 @@ describe('describeProviderStatus', () => {
     });
 });
 
+describe('providerStatusAlert', () => {
+    it('raises no dot while the provider is operational', () => {
+        expect(providerStatusAlert(available([], 'operational'))).toBeUndefined();
+    });
+
+    it('warns for maintenance and degraded performance', () => {
+        expect(providerStatusAlert(available([], 'maintenance'))).toEqual({
+            label: 'API status: Under maintenance',
+            tone: 'warning',
+        });
+        expect(providerStatusAlert(available([], 'degraded'))).toEqual({
+            label: 'API status: Degraded performance',
+            tone: 'warning',
+        });
+    });
+
+    it('flags a partial or major outage as danger', () => {
+        expect(providerStatusAlert(available([], 'partialOutage'))).toEqual({
+            label: 'API status: Partial outage',
+            tone: 'danger',
+        });
+        expect(providerStatusAlert(available([], 'majorOutage'))).toEqual({
+            label: 'API status: Major outage',
+            tone: 'danger',
+        });
+    });
+
+    it('stays quiet when there is no reading to trust', () => {
+        // Pending first read, no public status page, and an unreadable page: none of them is evidence of an incident.
+        expect(providerStatusAlert(undefined)).toBeUndefined();
+        expect(providerStatusAlert(null)).toBeUndefined();
+        expect(
+            providerStatusAlert({
+                provider: 'codex',
+                pageName: 'OpenAI',
+                pageUrl: 'https://status.example.test',
+                checkedAt: 0,
+                state: 'unavailable',
+                reason: 'network',
+            }),
+        ).toBeUndefined();
+    });
+
+    it('shares its tone with the Agent status tab dots', () => {
+        expect(providerStatusDotClassName('operational')).toBe('bg-success');
+        expect(providerStatusDotClassName('degraded')).toBe('bg-warning');
+        expect(providerStatusDotClassName('majorOutage')).toBe('bg-danger');
+    });
+});
+
 describe('providerStatusFailureLabel', () => {
     it('says why the status is missing', () => {
         expect(providerStatusFailureLabel('network')).toBe(
@@ -73,25 +124,6 @@ describe('incident lines', () => {
         expect(summarizeIncidents([])).toEqual({ first: undefined, moreLabel: undefined });
         expect(summarizeIncidents(['a'])).toEqual({ first: 'a', moreLabel: undefined });
         expect(summarizeIncidents(['a', 'b', 'c'])).toEqual({ first: 'a', moreLabel: '+2 more' });
-    });
-});
-
-describe('isProviderStatusDisrupted', () => {
-    it('is true only for a readable status page reporting a problem', () => {
-        expect(isProviderStatusDisrupted(available([], 'degraded'))).toBe(true);
-        expect(isProviderStatusDisrupted(available([], 'operational'))).toBe(false);
-        expect(isProviderStatusDisrupted(undefined)).toBe(false);
-        expect(isProviderStatusDisrupted(null)).toBe(false);
-        expect(
-            isProviderStatusDisrupted({
-                provider: 'codex',
-                pageName: 'OpenAI',
-                pageUrl: 'https://status.example.test',
-                checkedAt: 0,
-                state: 'unavailable',
-                reason: 'network',
-            }),
-        ).toBe(false);
     });
 });
 

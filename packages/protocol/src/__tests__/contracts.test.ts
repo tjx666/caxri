@@ -190,13 +190,12 @@ describe('method table', () => {
     });
 
     it('rejects invalid Desktop and Server results as internal contract failures', () => {
-        expect(() => parseCaxriResult('terminal.runningCount', '2')).toThrow(
+        expect(() => parseCaxriResult('terminal.runningCount', 2)).toThrow(
             expect.objectContaining({ code: 'INTERNAL' }) as Error,
         );
         expect(() => parseServerOperationResult('app.health', { ready: true })).toThrow(
             expect.objectContaining({ code: 'INTERNAL' }) as Error,
         );
-        expect(parseServerOperationResult('terminal.runningCount', 2)).toBe(2);
     });
 });
 
@@ -304,6 +303,7 @@ describe('Renderer client', () => {
         /**
          * A stub cannot satisfy the per-method result union, so the shape is asserted once here.
          */
+        const running = { terminals: 2, chats: 0 };
         const client = createCaxriClient({
             request: (method: CaxriMethod) =>
                 Promise.resolve(
@@ -312,7 +312,7 @@ describe('Renderer client', () => {
                               protocolVersion: CAXRI_PROTOCOL_VERSION,
                               id: 'request-1',
                               ok: true,
-                              result: 2,
+                              result: running,
                           }
                         : {
                               protocolVersion: CAXRI_PROTOCOL_VERSION,
@@ -324,7 +324,7 @@ describe('Renderer client', () => {
             onEvent: () => () => {},
         } as unknown as CaxriBridge);
 
-        await expect(client.request('terminal.runningCount')).resolves.toBe(2);
+        await expect(client.request('terminal.runningCount')).resolves.toEqual(running);
         await expect(
             client.request('files.read', { sessionId: 'session-1', path: '/etc/passwd' }),
         ).rejects.toThrow(

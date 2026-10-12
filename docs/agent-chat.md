@@ -183,9 +183,14 @@ off on your computer`, refuses input, and offers no Resume, matching its detache
   Core shutdown stamps `interrupted` through the shared shutdown path, not completion.
 - **Running count.** Live Chat children count toward `activePtyCount` and `terminal.runningCount`
   (whole app or one Session), so Server Core idle exit, `server.stop`, the window-close
-  confirmation, and Session or Project deletion prompts treat them like live PTYs. Choosing
-  Terminate and Close stops the Chat provider process with the PTYs and records it `stopped`;
-  the Chat service keeps running, so the next read on the same Server Core starts it again.
+  confirmation, the Quit dialog, and Session or Project deletion prompts treat them like live PTYs.
+  `terminal.runningCount` reports `{ terminals, chats }` separately, and those confirmations name
+  each kind with its own plural and leave out a kind with nothing running, for example
+  `Close this window while 1 Terminal and 2 Chats are running?` or
+  `Delete 'X' and terminate 1 running Chat?`.
+  Choosing Terminate and Close stops the Chat
+  provider process with the PTYs and records it `stopped`; the Chat service keeps running, so the
+  next read on the same Server Core starts it again.
 
 ## Launch settings
 
@@ -318,8 +323,9 @@ record is the source of truth.
 
 ## Background work
 
-Subagents and background shells are tasks: the snapshot's `tasks` lists each one (kind, title,
-status, agent type, model, usage, the timeline item that started it, and whether it can be stopped),
+Subagents, Claude Code workflows, and background shells are tasks: the snapshot's `tasks` lists
+each one (kind, title, status, agent type, model, usage, the timeline item that started it, and
+whether it can be stopped),
 and each task has its own projection (`AgentChatTaskSnapshot`) with its own revisions, patched by the
 transient `agentChat.taskPatch` event exactly like the parent projection. A task projection holds a
 subagent's conversation (500 items, 512 KiB of text) or a shell's output tail, so a chatty subagent
@@ -338,7 +344,11 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   `perTaskStopAffordance` keeps background subagents alive across an interrupt; a background shell
   outlives an interrupt either way, with no task event (verified with Claude Code 2.1.296). `stopTask`
   maps to the SDK's `stop_task`. History is rebuilt from
-  `<session>/subagents/agent-<id>.meta.json` (matched by `toolUseId`) and its `.jsonl`.
+  `<session>/subagents/agent-<id>.meta.json` (matched by `toolUseId`) and its `.jsonl`. A workflow
+  (the `Workflow` tool's `local_workflow` task, which runs in the background) is listed as a
+  stoppable background `agent` task keyed by its tool use id and titled by its script's
+  `workflow_name`, or `Workflow` without one; the agents inside it are not listed. Its frames follow
+  the SDK's types and have not yet been captured from a real CLI.
 - **Codex.** A subagent is a child thread; its task id is the child thread id and its row is the
   `collabAgentToolCall` (or `subAgentActivity`) item. App-server sends no `thread/started` for a
   spawned child, so notifications from an unknown thread are held briefly (8 threads, 500 each) until
@@ -349,6 +359,10 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   thread lists each command its history still shows running in a finished turn as a stopped shell
   task ("Ended: Caxri restarted and can no longer track it"), since the app-server that ran it is
   gone; one `thread/backgroundTerminals/list` still reports is taken back running and stoppable.
+  That list is read at start, after each turn, and when a running shell's tab opens, one read at a
+  time: a request made during a read gets one more read after it, shared with every other request
+  made meanwhile, so a turn end never settles for an answer from before Codex reaped a terminal. A
+  terminal that completed while a read was in flight is not taken back running from that answer.
 - **Grok Build.** No tasks are projected yet: its background task updates are ignored, `stopTask`
   answers `CONFLICT`, and `readTaskHistory` knows no task.
 - **Pane.** A subagent or background row opens its task in a Workbench tab
@@ -407,8 +421,12 @@ reason when it cannot run and left out when the message does not offer it
 message's text into the composer (any draft is set aside) and opens the edit bar above the input:
 how many turns sending replaces, an "Also revert file changes" checkbox, and Cancel (Escape), which
 brings the set-aside draft back (Cancel's tooltip names Escape only while Escape cancels; during a
-running turn Escape stops the turn). The edited message keeps a quiet `--muted` outline, leaving the
-accent to the edit bar. Sending calls
+running turn Escape stops the turn). A turn review comment added to the Chat during the edit lands in
+the edited message and is also recorded on the edit (`appendedDraft` in `agent-chat-edit.ts`):
+Cancel, or editing another message instead, puts it back after the set-aside draft rather than
+dropping it with the edited text, while a sent edit already carries it and brings back only the
+set-aside draft. The edited message keeps a quiet `--muted` outline, leaving the accent to the edit
+bar. Sending calls
 `agentChat.rewind`, which rewinds the provider's own record to just before the message and sends
 the draft in its place as one request; a later resume shows the same shorter conversation. The edit
 survives switching tabs and restarting Caxri, like a draft: the edit (message id, the revert choice,
@@ -480,6 +498,10 @@ draft first and then selects it, so the new composer mounts with the text.
 - The new Chat keeps the source Chat's stored permission level and plan mode, so a fork of a Chat
   narrowed to Ask for approval or Read only, or running in plan mode, never starts broader. A source that stored
   no choice leaves the fork on the Project default, like any new Chat.
+- A fork whose new Session cannot be created after the provider already forked leaves that record
+  in the provider's store with no Session to open it; Caxri does not delete it, and logs the failure
+  as `orphaned`. A Codex fork whose `thread/unsubscribe` fails still opens, and the failure is
+  logged with its reason.
 
 | Provider    | Fork                                                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -604,9 +626,12 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   two blocks. The bar counts `i/N`; Enter and Shift+Enter step with wraparound and scroll the
   current match to a third of the view, which stops following new output. A new query starts at
   the first match on screen rather than the top of the conversation. Matches are recomputed as a
-  reply streams without moving the view. A finished turn folded behind `Worked for` opens when one
-  of its messages mentions a query of three or more characters, since folded content is not in the
-  DOM, and folds back when a refined query stops matching. Escape closes the
+  reply streams without moving the view: each recompute walks the whole conversation, so the first
+  DOM change after a quiet spell repaints at once and a streaming reply repaints at most every
+  250 ms plus once after its last change (`createAgentChatFindRepaintScheduler` in
+  `agent-chat-find.ts`); typing and stepping repaint immediately. A finished turn folded behind
+  `Worked for` opens when one of its messages mentions a query of three or more characters, since
+  folded content is not in the DOM, and folds back when a refined query stops matching. Escape closes the
   bar, clears the highlights, leaves opened turns open, and returns focus to the composer. Times in
   a message's hover row are not searched, since they are invisible until hovered. Find does not read tool output
   inside a collapsed work row, earlier messages the window has truncated, or regular expressions.
@@ -972,10 +997,13 @@ or `resendFailed` when the record was rewound but the restart or the edited mess
 closed reason `capability`, `turnRunning`, `notTurnStart`, or `unknownMessage`; the error code;
 provider, whether files were reverted, turns removed, duration through the restart and send),
 `agent_chat.files_restored` (closed outcome `restored`, `refused`, or `failed`, the same closed
-reason, the error code, provider, turns whose file changes were undone, duration), and
+reason, the error code, provider, turns whose file changes were undone, duration),
 `agent_chat.forked` (closed outcome `forked`, `refused`, or `failed`, the error code when it did not
-fork, provider, turns kept, malformed transcript lines skipped (Claude Code only), duration). A refusal names its reason; a driver that lacks file restore
-although its catalog entry offers it logs `failed` with reason `capability`. None of them carries
+fork, provider, turns kept, malformed transcript lines skipped (Claude Code only), whether a failure
+left the provider's forked record `orphaned`, duration), and `agent_chat.fork_release_failed` (debug
+level, closed reason `rejected`, `timedOut`, or `stopped` when Codex could not unsubscribe from a
+fork it loaded). A refusal names its reason; a driver that lacks file restore although its catalog
+entry offers it logs `failed` with reason `capability`. None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
@@ -983,7 +1011,7 @@ message text, command output, provider stderr, or protocol bodies.
 `apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` and
 `fake-claude-cli.ts`, and `fake-grok-acp.ts` are deterministic stand-ins for each provider, selected by keywords in the
 user's message (approval, file-change approval, edit, oversized diff, question, plan approval,
-table, slow stream, subagent, background shell, failure, crash). The Claude fake speaks the stream-json control protocol the
+table, slow stream, subagent, background shell, Claude workflow, failure, crash). The Claude fake speaks the stream-json control protocol the
 SDK drives and writes a real transcript, so resume is exercised end to end. Both answer a message
 with images by counting them and implement compaction, so the E2E covers paste, file pick, and the
 slash list for each provider. The Grok fake persists its frames so `session/load` replays them,

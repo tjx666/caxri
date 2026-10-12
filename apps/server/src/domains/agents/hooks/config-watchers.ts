@@ -46,8 +46,18 @@ export class AgentHookConfigWatchers {
 
     constructor(private readonly options: AgentHookConfigWatchersOptions) {}
 
-    async refresh(configPaths: readonly string[]): Promise<void> {
+    /**
+     * Moves the watches onto the current link chains of `configPaths`.
+     *
+     * @returns Whether a file no registration covered before is now watched. The caller read and rewrote that file
+     *   before this call, and a native subscription reports only what happens after it is live, so an edit landing in
+     *   between (a repoint followed by a quick edit to the new target) produces no event at all. The caller must read
+     *   such a file once more. Only a file new to every registration counts, so the answer is `false` on the next
+     *   refresh of the same chains and the extra read cannot repeat itself.
+     */
+    async refresh(configPaths: readonly string[]): Promise<boolean> {
         const desired = await watchTargetsByDirectory(configPaths);
+        const watched = new Set(this.watchers.values().flatMap((watcher) => watcher.targets));
         const obsoleteHandles: WatchHandle[] = [];
         for (const [directory, watcher] of this.watchers) {
             const nextTargets = desired.get(directory);
@@ -100,6 +110,9 @@ export class AgentHookConfigWatchers {
                 this.watchers.set(directory, { handle, targets });
             }),
         );
+        return desired
+            .values()
+            .some((targets) => targets.values().some((target) => !watched.has(target)));
     }
 
     async close(): Promise<void> {
