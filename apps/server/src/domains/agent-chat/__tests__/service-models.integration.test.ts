@@ -40,6 +40,38 @@ describe('Agent Chat model and effort with a fake Codex app-server', () => {
         });
     });
 
+    it('turns Fast mode on through the next turn, keeps it on the thread, and turns it off for a model without it', async () => {
+        const { fakeLog, service, terminal, until } = await fixture();
+        const ready = await until((snapshot) => snapshot.models !== undefined);
+        expect(ready).toMatchObject({ fast: false });
+        expect(ready.models?.[0]?.fast).toEqual({ description: '1.5x speed, increased usage' });
+        expect(ready.models?.[1]?.fast).toBeUndefined();
+
+        await service.configure(terminal.id, { fast: true });
+        await until((snapshot) => snapshot.fast === true);
+        await service.send(terminal.id, { text: 'hello' });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        // Codex saved the tier on the thread, so the resumed thread still runs Fast.
+        await service.restart(terminal.id);
+        expect(service.read(terminal.id)).toMatchObject({ fast: true });
+
+        await service.configure(terminal.id, { model: 'fake-codex-mini' });
+        await until((snapshot) => snapshot.model === 'fake-codex-mini' && snapshot.fast === false);
+        await expect(service.configure(terminal.id, { fast: true })).rejects.toMatchObject({
+            code: 'VALIDATION',
+        });
+        await service.send(terminal.id, { text: 'again' });
+        await until(
+            (snapshot) =>
+                snapshot.turns.length === 2 && snapshot.turns.at(-1)?.status === 'completed',
+        );
+        // `default` asks for standard speed; clearing the tier would fall back to the user's config instead.
+        const tiers = (await fakeLog('codex', 'turn-starts.jsonl')).map(
+            (entry) => (entry as { serviceTier?: string }).serviceTier,
+        );
+        expect(tiers).toEqual(['priority', 'default']);
+    });
+
     it('rejects a model or effort the provider did not list', async () => {
         const { service, terminal, until } = await fixture();
         await until((snapshot) => snapshot.models !== undefined);
@@ -113,6 +145,26 @@ describe('Agent Chat model and effort with a fake Claude Code CLI', () => {
         await expect(service.configure(terminal.id, { ultracode: true })).rejects.toMatchObject({
             code: 'VALIDATION',
         });
+    });
+
+    it('turns Fast mode on through the flag settings and off for a model without it', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        // Under the Agent SDK Claude Code reports Fast mode off until the host opts in, which the toggle does.
+        const ready = await until((snapshot) => snapshot.models !== undefined);
+        expect(ready).toMatchObject({ fast: false });
+        expect(ready.models?.map((model) => model.fast)).toEqual([{}, {}, undefined]);
+
+        await service.configure(terminal.id, { fast: true });
+        await until((snapshot) => snapshot.fast === true);
+        // The turn's init message and result report what the CLI now runs.
+        await service.send(terminal.id, { text: 'hello' });
+        const ran = await until((current) => current.turns.at(-1)?.status === 'completed');
+        expect(ran.fast).toBe(true);
+
+        await service.configure(terminal.id, { model: 'fake-claude-haiku' });
+        await until(
+            (snapshot) => snapshot.model === 'fake-claude-haiku' && snapshot.fast === false,
+        );
     });
 
     it('rejects a model change the CLI refuses and keeps the model it runs', async () => {

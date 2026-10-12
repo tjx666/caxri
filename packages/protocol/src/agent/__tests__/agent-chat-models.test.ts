@@ -13,6 +13,7 @@ const SOL: AgentChatModel = {
     displayName: 'Sol',
     efforts: ['low', 'medium', 'high', 'xhigh'],
     defaultEffort: 'medium',
+    fast: { description: '1.5x speed' },
 };
 const MINI: AgentChatModel = {
     id: 'mini',
@@ -95,6 +96,30 @@ describe('resolveAgentChatModelChange', () => {
         expect(() =>
             resolveAgentChatModelChange(snapshot, { model: 'plain', effort: 'low' }),
         ).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
+    });
+
+    it('turns Fast mode on only for a model that offers it', () => {
+        const fastSnapshot = { ...snapshot, fast: false };
+        expect(resolveAgentChatModelChange(fastSnapshot, { fast: true })).toEqual({ fast: true });
+        expect(resolveAgentChatModelChange(fastSnapshot, { fast: false })).toEqual({
+            fast: false,
+        });
+        expect(() =>
+            resolveAgentChatModelChange(fastSnapshot, { model: 'mini', fast: true }),
+        ).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
+        // A provider that reports no Fast mode for this Chat cannot turn it on, whatever the model lists.
+        expect(() => resolveAgentChatModelChange(snapshot, { fast: true })).toThrow(
+            expect.objectContaining({ code: 'VALIDATION' }),
+        );
+    });
+
+    it('turns Fast mode off when switching to a model without it', () => {
+        expect(resolveAgentChatModelChange({ ...snapshot, fast: true }, { model: 'mini' })).toEqual(
+            { model: MINI, effort: 'low', fast: false },
+        );
+        expect(
+            resolveAgentChatModelChange({ ...snapshot, fast: false }, { model: 'mini' }),
+        ).toEqual({ model: MINI, effort: 'low' });
     });
 });
 

@@ -89,6 +89,9 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.model.triggerEffort': '，{{effort}}推理强度',
     'agentChat.model.triggerUltracode': '，Ultracode 已开启',
     'agentChat.model.ultracodeDescription': '任意推理强度下均可使用多 Agent 工作流',
+    'agentChat.model.triggerFast': '，Fast 模式已开启',
+    'agentChat.model.fast': 'Fast',
+    'agentChat.model.fastDescription': '响应更快，用量更高',
     'agentChat.model.effort.none': '无',
     'agentChat.model.effort.minimal': '最低',
     'agentChat.model.effort.low': '低',
@@ -100,6 +103,8 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.model.switchEffortFailed': '无法切换推理强度',
     'agentChat.model.ultracodeOnFailed': '无法开启 Ultracode',
     'agentChat.model.ultracodeOffFailed': '无法关闭 Ultracode',
+    'agentChat.model.fastOnFailed': '无法开启 Fast 模式',
+    'agentChat.model.fastOffFailed': '无法关闭 Fast 模式',
 
     'agentChat.permission.permissions': '权限',
     'agentChat.permission.triggerLabel': '权限：{{label}}',
