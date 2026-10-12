@@ -67,6 +67,12 @@ test('a finished Codex turn shows its edited files with Undo and the pull reques
             name: 'Created issue: Document the greeting, ENG-12. Open in browser',
         });
         await expect(pull).toBeVisible();
+        // A body rewritten through `gh api -X PATCH` names its pull request in the endpoint alone.
+        await expect(
+            chat.getByRole('button', {
+                name: 'Updated pull request: acme/widgets#40, acme/widgets#40. Open in browser',
+            }),
+        ).toBeVisible();
         await expect(issue).toContainText('Explain how greet formats a name.');
         const acceptance = chat.getByRole('button', {
             name: 'Created acceptance report: Greeting ends with punctuation, Round 1. Open in browser',

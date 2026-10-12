@@ -712,8 +712,9 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   Created files go to the Trash behind its usual confirmation; edits and deletions are reversed
   through `files.write`/`files.create`, so Session path authorization applies and a file outside
   the Project cannot be undone. Pull requests and issues the turn created or edited follow as
-  cards opening the page, each with a trailing external arrow: a completed `gh pr|issue create|edit` whose output printed the URL, or
-  a GitHub or Linear MCP create/update/save call. Collection lives in `agent-chat-turn-artifacts.ts`
+  cards opening the page, each with a trailing external arrow: a completed `gh pr|issue create|edit` whose output printed the URL, a
+  `gh api` POST to `repos/o/r/pulls|issues` or PATCH to `repos/o/r/pulls|issues/N` (how an Agent
+  rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. Collection lives in `agent-chat-turn-artifacts.ts`
   and `agent-chat-trackers.ts`, Undo in `agent-chat-undo.ts`. Desktop only; the phone shows the
   plain timeline.
 - Review on that card opens the turn as one diff in a `Turn changes` tab beside the Chat, in the
@@ -864,7 +865,7 @@ as of the latest model response. Besides the total and the model window it can c
   none.
 - `compactWindow`: the window Claude Code compacts against (`rawMaxTokens`) when it is smaller
   than the model's, as with `CLAUDE_CODE_AUTO_COMPACT_WINDOW` or the 200K boundary on a 1M model.
-  The meter's percentage and color measure against it: `--warning` from 50%, `--danger` from 70%.
+  The meter's percentage and color measure against it: `--warning` from 60%, `--danger` from 85%.
 - `cacheTtlMinutes` and `lastResponseAt`: how long the prompt cache survives an idle Chat, counted
   from the latest response. Claude Code's lifetime comes from the response's cache-write split (any
   one-hour write means 60 minutes, otherwise five-minute writes mean 5) and defaults to 60. Codex
@@ -875,9 +876,12 @@ as of the latest model response. Besides the total and the model window it can c
   subscription spends allowance instead, so this is an estimate of weight, not an invoice.
 
 While no turn runs, the composer shows these as one row in the activity bar's place, judged on a
-minute clock: once the Chat has idled past the cache lifetime, a `--warning` notice says the next
-message rewrites the context and what that costs; from 70% of the compaction window, a `--danger`
-notice suggests `/compact`. Both can show at once, cache first.
+minute clock. In the last 10 minutes of the cache lifetime (the second half of a lifetime shorter
+than 20 minutes, so a five-minute cache does not warn the moment a reply lands), a `--warning`
+countdown says when the cache expires and that replying now avoids rewriting the context. Once the
+Chat has idled past the lifetime, a `--muted` notice says the next message rewrites the context and
+what that costs. From 85% of the compaction window, a `--danger` notice suggests `/compact`. A cache
+notice and the compaction notice can show at once, cache first.
 
 The expired-cache notice also offers **Continue in new Chat**, the cheaper way out of a large cold
 context. It opens a new Chat of the same Agent in the same Session and sends it a handoff prompt
