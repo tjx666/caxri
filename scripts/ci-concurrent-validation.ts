@@ -415,11 +415,11 @@ async function runE2E(
         },
     );
     /**
-     * The exclusive pool runs first on purpose. Both pools always run: {@link runReceiptedE2E} never aborts a sibling,
-     * so their order only decides which one shares the runner with the platform-checks branch. That branch (ESLint plus
-     * Vitest) is the CPU-heavy half and finishes well before E2E does, and the single-worker pool is the half that
-     * barely competes for cores. Running it while the checks are still going, and the three-worker pool afterwards on a
-     * machine the checks have already left, spends the contended window on the pool that does not need the cores.
+     * The single-worker work runs first on purpose. Both pools always run: {@link runReceiptedE2E} never aborts a
+     * sibling, so order only decides what shares the runner with the CPU-heavy platform-checks branch (ESLint plus
+     * Vitest). The exclusive pool and dispatch-only CI parity barely compete for cores, so they fill that window and
+     * the three-worker pool mostly follows it. Parity used to run last, where its ~200s pushed every manual full run
+     * past the shared deadline (issue #1846).
      */
     const desktopExclusive = await runReceiptedE2E(
         processes,
@@ -431,18 +431,6 @@ async function runE2E(
             'desktop-exclusive',
         ]),
         { environment, label: 'Desktop-exclusive E2E pool' },
-    );
-    const parallelWorkers = process.env.CAXRI_E2E_PARALLEL_WORKERS ?? '3';
-    const parallelSafe = await runReceiptedE2E(
-        processes,
-        'bun',
-        measured(`Playwright parallel-safe workers=${parallelWorkers}`, 'bun', [
-            'run',
-            'scripts/run-e2e-pools.ts',
-            '--pool',
-            'parallel-safe',
-        ]),
-        { environment, label: 'Parallel-safe E2E pool' },
     );
     const ciParity =
         process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
@@ -456,6 +444,18 @@ async function runE2E(
                   { environment, label: 'Deterministic CI-parity cases' },
               )
             : 0;
+    const parallelWorkers = process.env.CAXRI_E2E_PARALLEL_WORKERS ?? '3';
+    const parallelSafe = await runReceiptedE2E(
+        processes,
+        'bun',
+        measured(`Playwright parallel-safe workers=${parallelWorkers}`, 'bun', [
+            'run',
+            'scripts/run-e2e-pools.ts',
+            '--pool',
+            'parallel-safe',
+        ]),
+        { environment, label: 'Parallel-safe E2E pool' },
+    );
     const manifest = await runReceiptedE2E(
         processes,
         'bun',

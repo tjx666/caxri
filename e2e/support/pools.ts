@@ -10,174 +10,275 @@ export interface E2EPoolPlan {
 }
 
 /**
- * Specs that request the protected clipboard capability. They remain desktop-exclusive, while the launch helper also
- * rejects the capability at runtime if a parallel-safe worker ever reaches one through a future classification edit.
+ * Why a spec cannot share the runner with the three-worker `parallel-safe` pool. The set is closed so a reason has to
+ * name a concrete property of the spec, not a general unease; `scripts/__tests__/e2e-pools.test.ts` derives the first
+ * three from the spec sources and fails when an entry and its source disagree in either direction.
  *
- * `scripts/__tests__/e2e-pools.test.ts` derives the same set from the specs themselves and fails when the two disagree.
- * That guard exists because this list silently fell three specs behind the source: a stale entry here does not fail
- * anything on its own, it just stops protecting the spec it forgot.
+ * - `clipboard`: requests the machine-global pasteboard (`clipboard: true`).
+ * - `visible-window`: launches with `windowMode: 'visible'`, which takes real OS focus from sibling workers.
+ * - `gpu`: launches with `gpuMode: 'enabled'`.
+ * - `window-focus`: depends on this window holding OS focus, such as a two-keystroke chord a sibling window's focus
+ *   cancels, or Session attention that `document.hasFocus()` acknowledges.
+ * - `wall-clock`: asserts real elapsed time, races a production timer, or must observe a self-dismissing surface inside
+ *   its real-time lifetime.
+ * - `load-sensitive`: a lifecycle or recovery workflow that a prior audit found unreliable on a saturated runner.
+ * - `machine-process`: enumerates machine processes or drives a Server Core outside the launch helper's ownership.
+ * - `native-menu`: reads the installed native application menu as the OS presents it.
+ * - `screen-capture`: uses a system capture surface.
+ * - `benchmark`: a performance measurement that needs an otherwise idle machine.
+ * - `opt-in-only`: skipped in both pools; a dedicated script or manual workflow runs it.
  */
-export const clipboardCapabilitySpecs = [
-    'e2e/agent-chat-surface-switch.e2e.ts',
-    'e2e/bug-report.e2e.ts',
-    'e2e/clipboard-restoration.e2e.ts',
-    'e2e/editor-git-actions.e2e.ts',
-    'e2e/file-operations.e2e.ts',
-    'e2e/file-preview.e2e.ts',
-    'e2e/path-browser.e2e.ts',
-    'e2e/process-explorer-recovery.e2e.ts',
-    'e2e/project-path-actions.e2e.ts',
-    'e2e/settings.e2e.ts',
-    'e2e/terminal-kitty-keyboard.e2e.ts',
-    'e2e/terminal-long-paste.e2e.ts',
-    'e2e/terminal-osc52-clipboard.e2e.ts',
-    'e2e/terminal-search.e2e.ts',
-    'e2e/terminal-selection.e2e.ts',
-    'e2e/terminal-shortcuts.e2e.ts',
-] as const;
+export type DesktopExclusiveReason =
+    | 'benchmark'
+    | 'clipboard'
+    | 'gpu'
+    | 'load-sensitive'
+    | 'machine-process'
+    | 'native-menu'
+    | 'opt-in-only'
+    | 'screen-capture'
+    | 'visible-window'
+    | 'wall-clock'
+    | 'window-focus';
+
+export interface DesktopExclusiveClassification {
+    reasons: readonly [DesktopExclusiveReason, ...DesktopExclusiveReason[]];
+    /**
+     * The concrete evidence, specific enough that the next audit can check it against the spec without repeating it.
+     */
+    why: string;
+}
 
 /**
- * Specs in this allowlist use only per-launch profiles, roots, logs, PTYs, and fake/blocked Agents. Everything else
- * remains `@desktop-exclusive` by default, especially native focus, clipboard, Process Explorer, Screencast,
- * performance, updater, real-Agent coverage, and lifecycle-refresh assertions that are timing-sensitive while the
- * complete platform suite is saturating the same runner.
+ * Every spec not listed here runs in the three-worker `parallel-safe` pool. Before issue #1846 the default was the
+ * opposite: an unlisted spec silently joined the one-worker pool, which grew from 137 to 155 tests in a few days and
+ * pushed the full run past its 25-minute deadline. A new spec now earns the exclusive pool by naming its reason.
  *
- * Admitting a spec here is an individual audit, not a default. It must hold every condition below, because a
- * three-worker pool gives it neither an idle machine nor a private desktop:
+ * The parallel pool gives a spec neither an idle machine nor a private desktop: three Electron workers share the
+ * runner, each with its own launch `userDataDir`, Project root, logs, and PTYs, and any sibling window can take OS
+ * focus at any moment. A spec belongs here when it holds machine-global state, needs OS focus or a visible window,
+ * asserts wall-clock time (virtual time through `page.clock` does not count), enumerates machine processes, or reads a
+ * system surface. The launch helper also rejects the mechanical cases at runtime inside the parallel pool (`clipboard:
+ * true`, `windowMode: 'visible'`, `gpuMode: 'enabled'`), so a forgotten entry fails on its first run instead of
+ * flaking.
  *
- * - No machine-global state: only the launch's own `userDataDir`, Project root, logs, and PTYs.
- * - No `clipboard` capability, `windowMode: 'visible'`, `gpuMode: 'enabled'`, `agentMode: { mode: 'real' }`, or packaged
- *   `executablePath`.
- * - No wall-clock assertion: a fixed delay window under test, a self-dismissing transient overlay, or a subprocess whose
- *   timeout has little headroom all lose their margin once three Electron workers share the runner. Virtual time
- *   through `page.clock` does not count as one.
- * - No machine-level process enumeration, native application menu, or system capture surface.
- *
- * Three specs pass a mechanical screen of those conditions and are still deliberately excluded, recorded here so the
- * audit is not repeated: `logs-panel.e2e.ts` asserts the panel's own query cadence in real milliseconds,
- * `menu-keybinding-recovery.e2e.ts` reads the installed native application menu, and `editor-find.e2e.ts` drives a
- * `cmd+k cmd+s` chord: a sibling worker's window taking real OS focus between the two keystrokes fires a genuine
- * `window` `blur` on this one, and `use-command-shortcuts.ts` deliberately cancels a pending chord on any blur (the
- * same class of contention `clickTerminalLink`'s JSDoc documents for Terminal link modifiers, issue caxri#697).
- * Confirmed by injecting a synthetic `blur` between the chord's two keystrokes locally: it reproduces the exact CI
- * signature (`Search keyboard shortcuts` never becoming visible within 15s) deterministically (issue caxri#1418).
- * `scripts/__tests__/e2e-pools.test.ts` holds a second, independent list of specs that must never be admitted; an audit
- * that reaches the opposite conclusion about one of them is a product decision, not a reclassification.
- *
- * `agent-delegation.e2e.ts` was previously rejected for the third condition and is now admitted, because the margin it
- * lacked was a defect rather than a property: its synthetic CLI allowed a `spawnSync` only 5 seconds beyond the
- * 20-second wait it was invoking. The rule excludes a timeout with little headroom: the right response is to give the
- * subprocess enough, not to keep the spec on one worker forever.
+ * Some audits are worth keeping because their conclusion is not visible in the source: `editor-find.e2e.ts` drives a
+ * `cmd+k cmd+s` chord that `use-command-shortcuts.ts` deliberately cancels on any window `blur`, and injecting a
+ * synthetic blur between the keystrokes reproduces its CI signature deterministically (issue caxri#1418). Specs that
+ * use `clickTerminalLink` stay admissible: that helper re-arms the Cmd modifier a sibling's focus dropped (issue
+ * caxri#697). `scripts/__tests__/e2e-pools.test.ts` pins specs that must stay here; reaching the opposite conclusion
+ * about one of them is a product decision, not a reclassification.
  */
-export const parallelSafeSpecs = [
-    'e2e/agent-actions.e2e.ts',
-    'e2e/agent-activity.e2e.ts',
-    'e2e/agent-commands.e2e.ts',
-    'e2e/agent-delegation.e2e.ts',
-    'e2e/agent-endpoint.e2e.ts',
-    'e2e/agent-icons.e2e.ts',
-    'e2e/agent-inbox.e2e.ts',
-    'e2e/agent-login-path.e2e.ts',
-    'e2e/agent-mode.e2e.ts',
-    'e2e/agent-output-recovery.e2e.ts',
-    'e2e/agent-skill.e2e.ts',
-    'e2e/agent-terminal-title.e2e.ts',
-    'e2e/agent-transcript-follow.e2e.ts',
-    'e2e/caxri.e2e.ts',
-    'e2e/chrome-tabs.e2e.ts',
-    'e2e/codex-manual-resume.e2e.ts',
-    'e2e/editor-action-slot.e2e.ts',
-    'e2e/editor-breadcrumbs.e2e.ts',
-    'e2e/editor-colors.e2e.ts',
-    'e2e/editor-dotfiles.e2e.ts',
-    'e2e/editor-split.e2e.ts',
-    'e2e/editor-tabs.e2e.ts',
-    'e2e/error-gate.e2e.ts',
-    'e2e/error-toast-recovery.e2e.ts',
-    'e2e/file-auto-reveal.e2e.ts',
-    'e2e/file-icons.e2e.ts',
-    'e2e/file-terminal-drag.e2e.ts',
-    'e2e/file-tree-git-ignore.e2e.ts',
-    'e2e/file-tree-sticky.e2e.ts',
-    'e2e/git-commits.e2e.ts',
-    'e2e/git-decoration-names.e2e.ts',
-    'e2e/git-diff-excludes.e2e.ts',
-    'e2e/git-diff-tabs.e2e.ts',
-    'e2e/git-pr.e2e.ts',
-    'e2e/git-submodule-refresh.e2e.ts',
-    'e2e/grok-agent.e2e.ts',
-    'e2e/hook-installation-authority.e2e.ts',
-    'e2e/hook-turn-recovery.e2e.ts',
-    'e2e/motion.e2e.ts',
-    'e2e/pane-mixed-kind.e2e.ts',
-    'e2e/picker-focus.e2e.ts',
-    'e2e/pr-unknown.e2e.ts',
-    'e2e/primary-sidebar-chrome.e2e.ts',
-    'e2e/primary-sidebar-scroll.e2e.ts',
-    'e2e/project-collapse.e2e.ts',
-    'e2e/project-icons.e2e.ts',
-    'e2e/project-order.e2e.ts',
-    'e2e/project-search.e2e.ts',
-    'e2e/session-archive.e2e.ts',
-    'e2e/session-auto-naming.e2e.ts',
-    'e2e/session-create-menu.e2e.ts',
-    'e2e/session-external-editor.e2e.ts',
-    'e2e/session-list-window.e2e.ts',
-    'e2e/session-mru-switcher.e2e.ts',
-    'e2e/session-navigation.e2e.ts',
-    'e2e/session-order.e2e.ts',
-    'e2e/session-pinning.e2e.ts',
-    'e2e/session-pull-request.e2e.ts',
-    'e2e/session-rename.e2e.ts',
-    'e2e/session-restore-order.e2e.ts',
-    'e2e/session-title.e2e.ts',
-    'e2e/settings-parallel-safe.e2e.ts',
-    'e2e/smoke.e2e.ts',
-    'e2e/source-control-disclosure.e2e.ts',
-    'e2e/source-control-keyboard-tree.e2e.ts',
-    'e2e/source-control-row-tooltip.e2e.ts',
-    'e2e/spinner-reduced-motion.e2e.ts',
-    'e2e/status-external-fallback.e2e.ts',
-    'e2e/status-shortcut.e2e.ts',
-    'e2e/statusbar-stable-width.e2e.ts',
-    'e2e/statusbar-width-parity.e2e.ts',
-    'e2e/statusbar.e2e.ts',
-    'e2e/terminal-codex-hard-wrap.e2e.ts',
-    'e2e/terminal-color-query.e2e.ts',
-    'e2e/terminal-commands.e2e.ts',
-    'e2e/terminal-images.e2e.ts',
-    'e2e/terminal-layout.e2e.ts',
-    'e2e/terminal-link-hover.e2e.ts',
-    'e2e/terminal-links.e2e.ts',
-    'e2e/terminal-move.e2e.ts',
-    'e2e/terminal-progress.e2e.ts',
-    'e2e/terminal-prompt-isolation.e2e.ts',
-    'e2e/terminal-recovery.e2e.ts',
-    'e2e/terminal-reference-preview.e2e.ts',
-    'e2e/terminal-session-switch.e2e.ts',
-    'e2e/terminal-title.e2e.ts',
-    'e2e/theme-presets.e2e.ts',
-    'e2e/toasts.e2e.ts',
-    'e2e/trusted-domains.e2e.ts',
-    'e2e/view-badges.e2e.ts',
-    'e2e/work-tab-sizing.e2e.ts',
-    'e2e/workbench-terminal-lifetime.e2e.ts',
-] as const;
+export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClassification>> = {
+    'e2e/agent-commander-workbench-handoff.e2e.ts': {
+        reasons: ['window-focus'],
+        why: 'Both hand-offs reach focusMainWindow(), which shows the Workbench and calls app.focus({ steal: true }) even when hidden.',
+    },
+    'e2e/agent-chat.e2e.ts': {
+        reasons: ['wall-clock'],
+        why: 'Asserts an approved command row shows no duration, i.e. the approval round trip stays under one real second.',
+    },
+    'e2e/agent-chat-selection.e2e.ts': {
+        reasons: ['wall-clock'],
+        why: 'Asserts the "Selection copied" toast before its real 4s auto-dismissal.',
+    },
+    'e2e/agent-chat-surface-switch.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/agent-notifications.e2e.ts': {
+        reasons: ['visible-window', 'window-focus', 'wall-clock'],
+        why: 'A notification click calls app.focus({ steal: true }); the hidden case waits 2.5s against a 2s Server refresh.',
+    },
+    'e2e/bug-report.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/clipboard-restoration.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/codex-compaction.e2e.ts': {
+        reasons: ['load-sensitive'],
+        why: 'Compaction lifecycle refresh; pinned by a prior audit.',
+    },
+    'e2e/codex-running-watchdog.e2e.ts': {
+        reasons: ['visible-window', 'window-focus'],
+        why: 'Expects the selected Session to acknowledge attention, which needs a visible, focused document.',
+    },
+    'e2e/desktop-server.e2e.ts': {
+        reasons: ['visible-window', 'machine-process'],
+        why: 'Kills and reconnects Server Core across Desktop generations and asserts window focus.',
+    },
+    'e2e/editor-find.e2e.ts': {
+        reasons: ['window-focus'],
+        why: 'A cmd+k cmd+s chord that any window blur cancels (issue caxri#1418).',
+    },
+    'e2e/editor-fold-on-open.e2e.ts': {
+        reasons: ['window-focus', 'wall-clock'],
+        why: 'A Monaco cmd+k cmd+j chord, then asserts no refold happens within a real 2s window.',
+    },
+    'e2e/editor-git-actions.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/editor.performance.e2e.ts': {
+        reasons: ['benchmark', 'opt-in-only'],
+        why: 'Editor performance benchmark; skipped outside its benchmark command.',
+    },
+    'e2e/extensions.e2e.ts': {
+        reasons: ['load-sensitive'],
+        why: 'Extension Host crash and restore recovery; pinned by a prior audit.',
+    },
+    'e2e/failure-isolation.e2e.ts': {
+        reasons: ['opt-in-only'],
+        why: 'Runs only through scripts/run-e2e-failure-isolation.ts.',
+    },
+    'e2e/file-operations.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/file-preview.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/logs-panel.e2e.ts': {
+        reasons: ['wall-clock'],
+        why: "Asserts the panel's own query cadence in real milliseconds.",
+    },
+    'e2e/menu-keybinding-recovery.e2e.ts': {
+        reasons: ['native-menu'],
+        why: 'Reads accelerators from the installed native application menu.',
+    },
+    'e2e/mobile-acceptance-scenarios.e2e.ts': {
+        reasons: ['opt-in-only'],
+        why: 'Mobile Acceptance fixture; skipped outside its Acceptance workflow.',
+    },
+    'e2e/mobile-dashboard-parity.e2e.ts': {
+        reasons: ['opt-in-only'],
+        why: 'Mobile parity fixture; skipped outside its Acceptance workflow.',
+    },
+    'e2e/mobile-pairing-desktop-acceptance.e2e.ts': {
+        reasons: ['opt-in-only'],
+        why: 'Mobile pairing fixture; skipped outside its Acceptance workflow.',
+    },
+    'e2e/path-browser.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/process-explorer-recovery.e2e.ts': {
+        reasons: ['clipboard', 'machine-process'],
+        why: 'Process Explorer lists machine processes and copies details through the pasteboard.',
+    },
+    'e2e/process-explorer.e2e.ts': {
+        reasons: ['visible-window', 'machine-process'],
+        why: 'Process Explorer lists machine processes in its own visible window.',
+    },
+    'e2e/project-path-actions.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/real-agent-smoke.e2e.ts': {
+        reasons: ['opt-in-only'],
+        why: 'Manual real Codex smoke; skipped unless bun run test:e2e:real-agent enables it.',
+    },
+    'e2e/renderer.performance.e2e.ts': {
+        reasons: ['benchmark', 'visible-window', 'opt-in-only'],
+        why: 'Renderer performance gate; skipped outside its benchmark step.',
+    },
+    'e2e/screencast.e2e.ts': {
+        reasons: ['screen-capture'],
+        why: 'Drives the Screencast capture surface.',
+    },
+    'e2e/server-platform.e2e.ts': {
+        reasons: ['machine-process'],
+        why: 'Starts and restarts an app-managed Server Core outside the launch helper; pinned by a prior audit.',
+    },
+    'e2e/session-attention.e2e.ts': {
+        reasons: ['visible-window', 'window-focus', 'machine-process'],
+        why: 'Attention acknowledgement needs a visible, focused document; also inspects Process Explorer.',
+    },
+    'e2e/session-compaction.e2e.ts': {
+        reasons: ['wall-clock'],
+        why: 'Three assertions on the batch-compaction result toast before its real 4s auto-dismissal.',
+    },
+    'e2e/session-rename-pending.e2e.ts': {
+        reasons: ['wall-clock'],
+        why: "1s assertions and a not-yet-renamed check race the fake Agent's real 4s timer.",
+    },
+    'e2e/session-title-scroll.e2e.ts': {
+        reasons: ['wall-clock'],
+        why: 'Samples marquee speed with performance.now() and asserts motion windows of 500ms to 2.5s.',
+    },
+    'e2e/settings.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/startup.performance.e2e.ts': {
+        reasons: ['benchmark', 'opt-in-only'],
+        why: 'Startup benchmark; skipped outside its benchmark command.',
+    },
+    'e2e/terminal-kitty-keyboard.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/terminal-long-paste.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/terminal-osc52-clipboard.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/terminal-search.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/terminal-selection.e2e.ts': {
+        reasons: ['clipboard', 'visible-window'],
+        why: 'Copies Terminal selections through the pasteboard in a visible window.',
+    },
+    'e2e/terminal-shortcuts.e2e.ts': {
+        reasons: ['clipboard'],
+        why: 'Requests the system pasteboard (clipboard: true).',
+    },
+    'e2e/terminal-webgl.e2e.ts': {
+        reasons: ['gpu'],
+        why: 'Exercises the WebGL renderer with the GPU enabled.',
+    },
+    'e2e/updates.e2e.ts': {
+        reasons: ['load-sensitive'],
+        why: 'Packaged-only update workflow; pinned by a prior audit.',
+    },
+    'e2e/window-mode.e2e.ts': {
+        reasons: ['visible-window'],
+        why: 'Asserts the hidden and visible window modes themselves.',
+    },
+    'e2e/workbench-recovery.e2e.ts': {
+        reasons: ['load-sensitive'],
+        why: 'Complete workbench recovery and persistence workflow; pinned by a prior audit.',
+    },
+    'e2e/workbench-root.e2e.ts': {
+        reasons: ['load-sensitive'],
+        why: 'Hook attribution and worktree lifecycle refresh that failed on a saturated runner; pinned by a prior audit.',
+    },
+};
 
 export function createE2EPoolPlan(
     allSpecs: readonly string[],
-    safeSpecs: readonly string[] = parallelSafeSpecs,
+    exclusiveSpecs: readonly string[] = Object.keys(desktopExclusiveSpecs),
 ): E2EPoolPlan {
     const all = new Set(allSpecs);
-    const safe = new Set<string>();
-    for (const path of safeSpecs) {
-        if (safe.has(path)) throw new Error(`Duplicate parallel-safe E2E spec: ${path}`);
-        if (!all.has(path)) throw new Error(`Unknown parallel-safe E2E spec: ${path}`);
-        safe.add(path);
+    const exclusive = new Set<string>();
+    for (const path of exclusiveSpecs) {
+        if (exclusive.has(path)) throw new Error(`Duplicate desktop-exclusive E2E spec: ${path}`);
+        // A stale entry would otherwise outlive its spec and hide that the classification list drifted.
+        if (!all.has(path)) throw new Error(`Unknown desktop-exclusive E2E spec: ${path}`);
+        exclusive.add(path);
     }
-    const parallelSafe = [...safe].toSorted((a, b) => a.localeCompare(b));
-    const desktopExclusive = [...all]
-        .filter((path) => !safe.has(path))
+    const desktopExclusive = [...exclusive].toSorted((a, b) => a.localeCompare(b));
+    const parallelSafe = [...all]
+        .filter((path) => !exclusive.has(path))
         .toSorted((a, b) => a.localeCompare(b));
 
     return {

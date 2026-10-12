@@ -75,12 +75,14 @@ there, matching the standalone checks job. Total CPU work is unchanged: a one-wo
 the same work across a longer window, and the window is what reaches into the fragile pool. The
 extra worker lands during `desktop-exclusive`, which has the headroom for it.
 
-Treat this as a standing constraint whenever a pool gets faster: **the checks branch should finish
-before `parallel-safe` starts.** Shorten the checks branch to restore it; never slow E2E back down.
-A manual `workflow_dispatch` defaults `vitest_max_workers` to the same two workers: a one-worker
-default once stretched the checks branch about 6 minutes into `parallel-safe` and pushed the run past
-the 25-minute concurrent-validation deadline
-([issue #1842](https://github.com/tjx666/caxri/issues/1842)).
+Treat this as a preference whenever a pool gets faster: **as little of `parallel-safe` as possible
+should overlap the checks branch.** Shorten the checks branch to reduce the overlap; never slow E2E
+back down. It is no longer a hard rule: once the exclusive pool shrank below the checks branch
+([Default to the parallel pool](#default-to-the-parallel-pool)), keeping zero overlap would have meant
+idling the runner, and the deadline below cannot afford that. A manual `workflow_dispatch` defaults
+`vitest_max_workers` to the same two workers: a one-worker default once stretched the checks branch
+about 6 minutes into `parallel-safe` and pushed the run past the 25-minute concurrent-validation
+deadline ([issue #1842](https://github.com/tjx666/caxri/issues/1842)).
 
 ### Per-spec attribution
 
@@ -133,7 +135,7 @@ remaining lever is moving work out of it rather than making individual tests fas
 
 ### Auditing the exclusive pool for admission
 
-Screening the same run's 65 exclusive specs against the `parallelSafeSpecs` conditions left 26 with
+Screening the same run's 65 exclusive specs against the admission conditions of the then-current allowlist left 26 with
 no mechanical disqualifier; reading those individually admitted 17, worth about 146s of one-worker
 time, and moved the split from 71/65 to 88/48. The rejections are the useful part of the record:
 
@@ -156,12 +158,12 @@ and flagged several specs for "clipboard" that only mention the word. Re-screeni
 declared capability instead of the source text recovered roughly 100s of specs that were never
 actually disqualified: worth remembering the next time a screen is mistaken for a verdict.
 
-That re-screen also surfaced a real defect. `clipboardCapabilitySpecs` is the list that keeps a
+That re-screen also surfaced a real defect. A separate hand-maintained list was what kept a
 clipboard-requesting spec out of the parallel pool, and it had fallen three entries behind the specs
 themselves (`editor-git-actions`, `file-preview`, `project-path-actions` all pass `clipboard: true`
 while unlisted). A stale entry there fails nothing on its own; it just silently stops protecting the
 spec it forgot. `scripts/__tests__/e2e-pools.test.ts` now derives the set from the spec sources and
-fails when the list disagrees.
+fails when `desktopExclusiveSpecs` disagrees.
 
 `agent-delegation.e2e.ts` was readmitted on the same principle. The condition excludes a subprocess
 timeout with little headroom, and its synthetic CLI allowed `spawnSync` only 5 seconds beyond the
@@ -169,6 +171,56 @@ timeout with little headroom, and its synthetic CLI allowed `spawnSync` only 5 s
 it tests, so the fix is to give the subprocess enough (45s) rather than to keep the largest spec in
 the pool on one worker forever. Under three workers it passes alongside `work-tab-sizing` and
 `terminal-recovery`: 24 tests in 1.3m.
+
+### The 25-minute concurrent-validation budget
+
+`scheduleConcurrentValidationDeadline` in `scripts/ci-concurrent-validation.ts` aborts the whole
+window 25 minutes after `execute()` starts, so the clock includes the checks worktree install, the
+Electron build, native verification, interruption recovery, and the failure census before either
+pool runs (about 45s on `m2-24`). On the E2E branch the window then holds `desktop-exclusive`, the
+dispatch-only CI parity cases (about 200s, one worker), `parallel-safe`, and the manifest. The
+target is 85% of the deadline (21m15s), which leaves room for one slow pool without a red run.
+
+The window's floor is set by the checks branch, not by E2E alone. ESLint, oxlint, Vitest, and the
+bundle budget finished about 15 minutes in on
+[run 38197586711](https://github.com/tjx666/caxri/actions/runs/38197586711), and the three-worker
+pool cannot run at full speed until they do. Once `desktop-exclusive` is shorter than that branch,
+moving more specs out of it saves only about 40% of each moved second, because the moved work lands
+in the contended part of the three-worker pool.
+
+### Default to the parallel pool
+
+Before [issue #1846](https://github.com/tjx666/caxri/issues/1846), `e2e/support/pools.ts` admitted a
+spec to `parallel-safe` only through an audited allowlist, so every new spec joined the one-worker
+pool. It grew from 137 to 155 tests within a few days; a dispatch run then needed about 27m50s and
+the nightly about 24.5 minutes. The default is now inverted: `desktopExclusiveSpecs` lists every
+spec that keeps the exclusive pool, each with a closed reason (`clipboard`, `visible-window`, `gpu`,
+`window-focus`, `wall-clock`, `load-sensitive`, `machine-process`, `native-menu`,
+`screen-capture`, `benchmark`, `opt-in-only`) and the concrete evidence, and every unlisted spec runs
+on three workers. Two guards keep the default from admitting a spec that cannot share the runner:
+
+- `scripts/__tests__/e2e-pools.test.ts` derives `clipboard: true`, `windowMode: 'visible'`, and
+  `gpuMode: 'enabled'` from the spec sources and requires the list to match in both directions, so
+  neither a missing entry nor a stale reason survives. It also pins specs that a prior audit
+  rejected.
+- The launch helper refuses `clipboard`, a visible window, and an enabled GPU inside the parallel
+  pool (`e2e/support/worker-isolation.ts`), so a forgotten entry fails on its first run rather than
+  as an intermittent failure.
+
+The audit that inverted the default read all 92 exclusive specs. It moved 45 of them, 68 tests and
+416s of one-worker time measured on run 38197586711, leaving 48 exclusive specs (about 545s). Two
+specs moved only after a repair: `project-status.e2e.ts` widened its fake CLI's 0.4s busy window to
+2s, and `agent-commander.e2e.ts` moved its two Workbench hand-off tests into
+`agent-commander-workbench-handoff.e2e.ts`, because `focusMainWindow()` shows the Workbench and steals
+OS focus even in a hidden launch. Rejections worth not repeating: `agent-chat-selection` and
+`session-compaction` must observe a 4s toast before it dismisses itself, `session-rename-pending`
+races a fake Agent's real 4s timer, `editor-fold-on-open` drives a Monaco `cmd+k` chord,
+`session-title-scroll` samples marquee speed with `performance.now()`, and `agent-chat` asserts an
+approval round trip finishes within one second. Specs that use `clickTerminalLink` remain admissible
+because that helper re-arms a modifier a sibling window's focus dropped.
+
+CI parity also moved: it now runs between the two pools instead of after `parallel-safe`, so its
+one-worker cost lands in the window the checks branch already occupies.
 
 ## Adopted optimization evidence
 
@@ -309,8 +361,8 @@ Ordinary pushes to `main` stay skipped at the workflow level; only `release: vâ€
   stale and fails closed with all SHAs; rerunning the job reuses the same frozen payload, so the
   only remedy is to rebase and force-push.
 - Exact-head E2E verifies native modules and builds once. It then runs `desktop-exclusive` with one
-  worker followed by `parallel-safe` with three namespaced workers on the same `m2-24`; a failed
-  first pool does not suppress the second pool. That order is a scheduling decision, not a
+  worker, the dispatch-only CI parity cases, and `parallel-safe` with three namespaced workers on the
+  same `m2-24`; a failed first pool does not suppress the second pool. That order is a scheduling decision, not a
   dependency: the platform-checks branch is the CPU-heavy half and finishes before E2E does, so the
   one-worker pool is the one that should share the runner with it and the multi-worker pool runs
   after the checks have released their cores. The `workflow_dispatch` worker input stays bounded
@@ -347,9 +399,9 @@ wall time alone hides it.
   [`docs/renderer-performance.md`](renderer-performance.md), and uploads its machine-readable receipt.
   `CI gate` requires the step output to be `success`; changing the gate, benchmark command, or
   performance spec is protected retry configuration and therefore requires a full validation path.
-- Individually audited tests may move into a dedicated spec in the `parallelSafeSpecs` allowlist.
-  Every unclassified spec remains desktop-exclusive, so each logical pool needs only one
-  Playwright invocation. `e2e/support/pools.ts` owns the admission conditions, and
+- Every spec runs in `parallel-safe` unless `desktopExclusiveSpecs` names it with a reason; tests
+  that need the exclusive pool move into a dedicated spec, so each logical pool needs only one
+  Playwright invocation. `e2e/support/pools.ts` owns the reasons and admission conditions, and
   `scripts/__tests__/e2e-pools.test.ts` pins the specs that stay desktop-exclusive regardless of how
   their launch options later read. Adding a spec to that guard list is the way to record an audit
   that rejected it; removing one requires its own evidence.
@@ -372,8 +424,8 @@ wall time alone hides it.
 - Focused checks, one-worker controls, retry-only runs, and non-full profiles keep their standalone
   paths. Only a full optimized run can replace the standalone checks job with the concurrent path.
 - Vitest defaults to the audited `optimized` partition and two workers on both the standalone and
-  the concurrent full path, so the checks branch clears the runner before `parallel-safe` starts
-  rather than spreading the same work into it. The `legacy` partition and worker caps 1-4 remain
+  the concurrent full path, so the checks branch finishes early and overlaps as little of
+  `parallel-safe` as it can instead of spreading the same work into it. The `legacy` partition and worker caps 1-4 remain
   workflow-dispatch controls for same-head measurement; real watcher, process-global, bridge, and
   Git suites stay in `serial-native`.
 

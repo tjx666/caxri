@@ -34,7 +34,7 @@ import type { E2EApp } from './electron-app.ts';
 import { flushE2EErrorToasts, registerE2ELaunch } from './error-gate.ts';
 import { releaseE2EHost } from './host-shutdown.ts';
 import { stageDevelopmentTestExtension } from './test-extension.ts';
-import { resolveE2EClipboardPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
+import { resolveE2ELaunchPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
 const agentEnvironmentKeys = e2eAgentEnvironmentKeys();
@@ -198,7 +198,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
     const closeDecision = quitDecisionOnClose ?? (preserveHostOnClose ? 'keep-running' : 'stop');
     if (!executablePath) await stageDevelopmentTestExtension(projectRoot, userDataDir);
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
-    const clipboardPolicy = resolveE2EClipboardPolicy(process.env, clipboard);
+    const clipboardPolicy = resolveE2ELaunchPolicy(process.env, { clipboard, gpuMode, windowMode });
     if (clipboardFixture && !clipboard) {
         throw new Error('clipboardFixture requires clipboard access');
     }
