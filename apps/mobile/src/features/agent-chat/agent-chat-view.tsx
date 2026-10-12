@@ -6,6 +6,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 
 import type { AgentChatRequest } from '@caxri/protocol';
 
+import { NoticeBanner } from '../../components/notice-banner';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
 import { ConversationView } from '../conversation/conversation-view';
@@ -28,53 +29,6 @@ import { AgentChatRequestCard } from './agent-chat-request-card';
 import type { AgentChatController } from './use-agent-chat';
 
 const noOlderPage = async (): Promise<void> => {};
-
-const Banner = ({
-    actionLabel,
-    isBusy,
-    message,
-    onAction,
-    testID,
-    theme,
-    tone,
-}: {
-    actionLabel?: string;
-    isBusy?: boolean;
-    message: string;
-    onAction?: () => void;
-    testID: string;
-    theme: MobileTheme;
-    tone: 'danger' | 'muted';
-}) => (
-    <View
-        accessibilityRole="alert"
-        style={[styles.banner, { borderColor: theme.border }]}
-        testID={testID}
-    >
-        <Text
-            style={[styles.bannerText, { color: tone === 'danger' ? theme.danger : theme.muted }]}
-        >
-            {message}
-        </Text>
-        {actionLabel && onAction ? (
-            <Pressable
-                accessibilityRole="button"
-                disabled={isBusy}
-                onPress={onAction}
-                style={[styles.bannerButton, { backgroundColor: theme.surface }]}
-                testID={`${testID}-action`}
-            >
-                {isBusy ? (
-                    <ActivityIndicator color={theme.text} />
-                ) : (
-                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>
-                        {actionLabel}
-                    </Text>
-                )}
-            </Pressable>
-        ) : null}
-    </View>
-);
 
 const AgentChatBody = ({
     canSend,
@@ -315,7 +269,7 @@ export const AgentChatView = ({
     return (
         <View style={styles.root} testID="agent-chat">
             {failure ? (
-                <Banner
+                <NoticeBanner
                     actionLabel={canRetryFailure ? 'Retry' : undefined}
                     isBusy={isRestarting}
                     message={
@@ -331,7 +285,7 @@ export const AgentChatView = ({
                 />
             ) : null}
             {isHandedOff ? (
-                <Banner
+                <NoticeBanner
                     message={AGENT_CHAT_HANDED_OFF_BANNER}
                     testID="agent-chat-handed-off"
                     theme={theme}
@@ -339,7 +293,7 @@ export const AgentChatView = ({
                 />
             ) : null}
             {isConnected && chat.status === 'stale' ? (
-                <Banner
+                <NoticeBanner
                     actionLabel="Retry"
                     message="This Chat could not be updated. Showing the last loaded messages."
                     onAction={chat.refresh}
@@ -348,6 +302,8 @@ export const AgentChatView = ({
                     tone="muted"
                 />
             ) : null}
+            {/* Saved-copy and state notices share the top of the segment, as on the Conversation. */}
+            <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
             <View style={styles.body}>
                 <AgentChatBody
                     canSend={canRetry}
@@ -365,7 +321,6 @@ export const AgentChatView = ({
                 provider={provider}
                 theme={theme}
             />
-            <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
             <AgentChatActivity chat={chat} provider={provider} theme={theme} />
             <AgentChatQueueList snapshot={snapshot} theme={theme} />
         </View>
@@ -375,20 +330,11 @@ export const AgentChatView = ({
 const styles = StyleSheet.create({
     root: { flex: 1 },
     body: { flex: 1 },
-    banner: {
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        flexDirection: 'row',
-        gap: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-    },
-    bannerText: { flex: 1, fontSize: 13, lineHeight: 18 },
     bannerButton: {
         alignItems: 'center',
         borderRadius: 10,
         justifyContent: 'center',
-        minHeight: 44,
+        minHeight: 48,
         minWidth: 72,
         paddingHorizontal: 14,
     },

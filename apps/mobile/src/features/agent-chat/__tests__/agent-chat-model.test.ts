@@ -16,6 +16,7 @@ import {
     agentChatEmptyMessage,
     agentChatFailureMessage,
     agentChatImageCounts,
+    agentChatImagesUnsupportedReason,
     agentChatProviderName,
     agentChatQuestionAnswers,
     agentChatRequestBlockedReason,
@@ -273,6 +274,9 @@ describe('Agent Chat model', () => {
     it('starts a sentence with a capital when the provider falls back to the Agent', () => {
         expect(sentenceStartProvider('the Agent')).toBe('The Agent');
         expect(sentenceStartProvider('Codex')).toBe('Codex');
+        expect(agentChatImagesUnsupportedReason('Grok Build')).toBe(
+            "Grok Build can't read images in a Chat.",
+        );
         expect(agentChatFailureMessage('spawn_failed', 'the Agent')).toBe(
             'The Agent could not be started on your computer.',
         );

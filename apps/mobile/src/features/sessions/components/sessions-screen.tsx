@@ -12,6 +12,7 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
 import { MobileUpdateBanner } from '../../update/mobile-update-banner';
+import { isConnectionBannerShown } from '../session-notices';
 import { ConnectionBanner } from './connection-banner';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionHome } from './session-home';
@@ -28,17 +29,20 @@ const styles = StyleSheet.create({
  */
 const SessionsScreenStatus = ({
     fresh,
+    isSavedCopyLabeled,
     onRetry,
     status,
     theme,
 }: {
     fresh: boolean;
+    isSavedCopyLabeled: boolean;
     onRetry: () => void;
     status: MobileConnectionStatus;
     theme: ReturnType<typeof useMobileTheme>;
 }) =>
-    !fresh && status !== 'version-mismatch' ? (
+    isConnectionBannerShown(fresh, status) ? (
         <ConnectionBanner
+            isSavedCopyLabeled={isSavedCopyLabeled}
             onRetry={onRetry}
             status={status === 'unverified' ? 'unverified' : 'stale'}
             theme={theme}
@@ -47,6 +51,7 @@ const SessionsScreenStatus = ({
 
 const SessionsScreenLayout = ({
     detail,
+    isConnectionNoticeShown,
     layout,
     now,
     onNewSession,
@@ -55,6 +60,7 @@ const SessionsScreenLayout = ({
     theme,
 }: {
     detail: ReactNode;
+    isConnectionNoticeShown: boolean;
     layout: MobileLayoutMode;
     now: number;
     onNewSession: () => void;
@@ -64,6 +70,7 @@ const SessionsScreenLayout = ({
 }) => {
     const home = (
         <SessionHome
+            isConnectionNoticeShown={isConnectionNoticeShown}
             layout={layout}
             now={now}
             onNewSession={onNewSession}
@@ -141,6 +148,7 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
         >
             <SessionsScreenStatus
                 fresh={fresh}
+                isSavedCopyLabeled={sessions.savedAt !== null}
                 onRetry={retryConnection}
                 status={status}
                 theme={theme}
@@ -148,6 +156,7 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
             <MobileUpdateBanner theme={theme} />
             <SessionsScreenLayout
                 detail={detail}
+                isConnectionNoticeShown={isConnectionBannerShown(fresh, status)}
                 layout={layout}
                 now={now}
                 onNewSession={openNewSession}
