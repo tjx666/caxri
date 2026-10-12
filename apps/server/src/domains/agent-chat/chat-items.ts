@@ -2,7 +2,6 @@ import type {
     AgentChatItem,
     AgentChatModel,
     AgentChatPatchOperation,
-    AgentChatRequest,
     AgentChatResponse,
     AgentChatSnapshot,
 } from '@caxri/protocol';
@@ -151,32 +150,6 @@ export function questionAnswers(response: AgentChatResponse): Record<string, str
     if (response.kind === 'answers') return response.answers;
     if (response.decision === 'cancel') return {};
     throw new CaxriError('VALIDATION', 'A question needs answers');
-}
-
-/**
- * Timeline record of the answers given to a question request. The request card disappears once answered, and without
- * this record the conversation would show the Agent acting on a choice the transcript never mentions.
- */
-export function answeredNotice(
-    request: AgentChatRequest | undefined,
-    turnId: string | undefined,
-    answers: Readonly<Record<string, readonly string[]>>,
-): AgentChatItem | undefined {
-    if (request?.kind !== 'question') return undefined;
-    const lines = request.questions.flatMap((question) => {
-        if (!Object.hasOwn(answers, question.id)) return [];
-        const chosen = answers[question.id];
-        if (chosen.length === 0) return [];
-        return [`${question.header || question.question}: ${chosen.join(', ')}`];
-    });
-    if (lines.length === 0) return undefined;
-    return {
-        id: clip(`answer:${request.id}`, 200),
-        ...(turnId && { turnId }),
-        type: 'notice',
-        kind: 'answered',
-        message: clip(lines.join('\n'), 2_000),
-    };
 }
 
 /**

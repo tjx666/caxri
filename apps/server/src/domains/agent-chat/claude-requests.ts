@@ -5,9 +5,9 @@ import type {
     PermissionUpdate,
 } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { agentChatAnsweredNotice, CaxriError } from '@caxri/protocol';
 
-import { answeredNotice, clip, questionAnswers } from './chat-items';
+import { clip, questionAnswers } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { claudeQuestionAnswers, mapClaudeApproval, mapClaudeQuestion } from './claude-items';
 import { CLAUDE_DECLINED_MESSAGE } from './claude-tool-results';
@@ -197,7 +197,7 @@ export class ClaudeRequestBroker {
                     updatedInput: { ...pending.input, answers: mapped },
                 });
             const { host } = this.owner;
-            const answered = answeredNotice(
+            const answered = agentChatAnsweredNotice(
                 host.read().requests.find((request) => request.id === requestId),
                 pending.turnId,
                 answers,

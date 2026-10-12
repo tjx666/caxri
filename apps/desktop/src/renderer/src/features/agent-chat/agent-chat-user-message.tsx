@@ -79,7 +79,11 @@ export function AgentChatUserMessage({
                 />
             )}
             {text && (
-                <UserMessageBubble isEditing={isEditing} text={text} onOpenFile={onOpenFile} />
+                <AgentChatUserMessageBubble
+                    isEditing={isEditing}
+                    text={text}
+                    onOpenFile={onOpenFile}
+                />
             )}
             {caption && <span className="-mt-0.5 text-[11px] leading-4 text-muted">{caption}</span>}
             {hasActions && (
@@ -108,10 +112,11 @@ export function AgentChatUserMessage({
 }
 
 /**
- * The message bubble. A long message clamps to twelve lines with Show more; the message being edited keeps a `--muted`
- * outline, which marks it without competing with the edit banner's accent for attention.
+ * The message bubble, shared with a message still on its way (`AgentChatPendingTimeline`). A long message clamps to
+ * twelve lines with Show more; the message being edited keeps a `--muted` outline, which marks it without competing
+ * with the edit banner's accent for attention.
  */
-function UserMessageBubble({
+export function AgentChatUserMessageBubble({
     isEditing,
     text,
     onOpenFile,
