@@ -14,29 +14,29 @@ allowBuilds:
 
 catalog:
   '@ronradtke/react-native-markdown-display': ^9.0.3
-  '@tanstack/react-query': ^5.103.1
+  '@tanstack/react-query': ^5.104.1
   '@types/semver': ^7.8.0
-  '@types/ws': ^8.18.1
+  '@types/ws': ^8.18.2
   '@yutengjing/eslint-config-typescript': ^4.0.0
   '@yutengjing/prettier-config': ^2.0.0
   eslint-plugin-import-x: ^4.17.1
   expo-file-system: ~57.0.7
-  expo-image-manipulator: ~57.0.19
-  expo-image-picker: ~57.0.19
+  expo-image-manipulator: ~57.0.21
+  expo-image-picker: ~57.0.20
   expo-intent-launcher: ~57.0.1
-  lucide-react-native: ^1.48.0
+  lucide-react-native: ^1.55.0
   markdownlint: ^0.41.1
   markdownlint-cli2: ^0.23.3
-  oxlint: ^1.83.0
-  oxlint-tsgolint: ^7.0.2002
+  oxlint: ^1.87.0
+  oxlint-tsgolint: ^7.0.2004
   prettier-plugin-tailwindcss: ^0.8.1
   prism-react-renderer: ^2.4.1
   react-qr-code: ^2.2.0
   react-scan: ^0.5.7
   semver: ^7.8.5
   sonda: ^0.14.0
-  ws: ^8.21.3
-  zod: ^4.6.5
+  ws: ^8.22.0
+  zod: ^4.6.6
 
 # CI's pnpm applies its default one-day release-age floor. Declaring it here keeps a contributor's user-level
 # `minimumReleaseAge` override from resolving a lockfile that CI's frozen install then rejects.
@@ -51,18 +51,29 @@ minimumReleaseAgeExclude:
   - knip@6.33.0
   - lucide-react@1.37.0
   - zod@4.5.2
-  - '@expo/cli@57.0.23'
+  - '@expo/cli@57.0.29'
   - '@expo/metro-file-map@57.0.3'
-  - '@expo/ui@57.0.17'
-  - babel-preset-expo@57.0.11
+  - '@expo/ui@57.0.23'
+  - babel-preset-expo@57.0.15
   - expo-glass-effect@57.0.2
-  - expo-modules-core@57.0.17
-  - expo-modules-jsi@57.1.0
-  - expo-router@57.0.20
-  - expo@57.0.21
-  # Electron alphas publish continuously, so the release-age floor would permanently block whichever
-  # one we pin. Caxri tracks the 45 alpha line on purpose (Chromium 155) and pins it exactly.
-  - electron@45.0.0-alpha.10
+  - expo-modules-core@57.0.22
+  - expo-modules-jsi@57.1.2
+  - expo-router@57.0.26
+  - expo@57.0.28
+  - '@expo/fingerprint@0.20.14'
+  - '@expo/inline-modules@0.1.8'
+  - '@expo/local-build-cache-provider@57.0.9'
+  - '@expo/prebuild-config@57.0.18'
+  - expo-crypto@57.0.4
+  - expo-dev-client@57.0.20
+  - expo-dev-launcher@57.0.21
+  - expo-dev-menu@57.0.20
+  - expo-modules-autolinking@57.0.15
+  - expo-splash-screen@57.0.10
+  - dompurify@3.4.17
+  # Electron prereleases publish continuously, so the release-age floor would permanently block whichever
+  # one we pin. Caxri tracks the 45 prerelease line on purpose (Chromium 155) and pins it exactly.
+  - electron@45.0.0-beta.1
 
 overrides:
   # Security floor for DOMPurify, not a compatibility pin. It is both monaco-editor's transitive dependency and, since
@@ -71,13 +82,13 @@ overrides:
   # Exact (not ^) per stack-baseline override policy; 3.4.8–3.4.14 closed
   # GHSA-vxr8-fq34-vvx9, GHSA-cmwh-pvxp-8882, GHSA-c2j3-45gr-mqc4, and GHSA-55q2-fjhq-7xh7.
   # https://github.com/advisories/GHSA-55q2-fjhq-7xh7
-  dompurify: 3.4.15
+  dompurify: 3.4.17
   # Vitest still pins a tinybench release whose declarations require DOM types in Node projects, so
   # `packages/agent-skills` fails to typecheck on `DOMHighResTimeStamp`.
   # Deliberately keyed on `vitest` with no version: the previous `vitest@5.0.0>tinybench` key stopped
   # matching the moment Vitest went to 5.0.1, silently letting the broken declarations back in.
   # https://github.com/tinylibs/tinybench/releases/tag/v6.1.6
-  'vitest>tinybench': 6.2.0
+  'vitest>tinybench': 6.2.2
   # Security floor for mermaid's chevrotain packages, which still resolve lodash-es 4.17.23 (high: `_.template` code
   # injection and `_.unset` prototype pollution). 4.18.1 is the same major and drop-in for chevrotain's imports.
   # https://github.com/advisories/GHSA-r5fr-rjxr-66jc
