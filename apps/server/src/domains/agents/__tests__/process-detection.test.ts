@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentProcessIdsFromProcessList,
     foregroundAgentProcessIdsFromProcessList,
     foregroundAgentProviderFromProcessList,
     openFilesFromLsofOutput,
@@ -77,6 +78,21 @@ describe('Shell foreground Agent detection', () => {
                 'codex',
             ),
         ).toEqual([200]);
+    });
+
+    it('lists every process of one provider across Terminals and process groups', () => {
+        expect(
+            agentProcessIdsFromProcessList(
+                [
+                    '100 1 100 200 /bin/zsh -l',
+                    '200 100 200 200 /opt/tools/codex',
+                    '300 1 300 -1 node /opt/pnpm/@openai/codex/bin/codex.js resume',
+                    '400 1 400 400 /opt/tools/claude',
+                    '500 1 500 500 node /srv/app/server.js',
+                ].join('\n'),
+                'codex',
+            ),
+        ).toEqual([200, 300]);
     });
 
     it('parses lsof access fields and resets them for each descriptor', () => {

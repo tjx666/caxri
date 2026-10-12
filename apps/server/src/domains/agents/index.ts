@@ -43,6 +43,7 @@ export { reconcilePrimaryTurnFailure } from './primary-turn-failure';
 export { agentProviders } from './providers';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { claudeTranscriptRoot, resolveClaudeConfigDirectory } from './providers/claude/paths';
+export { probeOpenCodexSessionIds } from './providers/codex/open-sessions';
 export { resolveCodexHome } from './providers/codex/paths';
 export { parseCodexRolloutName } from './providers/codex/rollouts';
 export { locateEarlierCodexRollouts } from './providers/codex/transcript';
