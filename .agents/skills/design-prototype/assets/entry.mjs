@@ -35,6 +35,7 @@ import * as Popover from '@/components/ui/popover';
 import * as Progress from '@/components/ui/progress';
 import * as Select from '@/components/ui/select';
 import * as Separator from '@/components/ui/separator';
+import * as Skeleton from '@/components/ui/skeleton';
 import * as Spinner from '@/components/ui/spinner';
 import * as SplitButton from '@/components/ui/split-button';
 import * as Switch from '@/components/ui/switch';
@@ -95,6 +96,7 @@ export default {
     '@/components/ui/progress': Progress,
     '@/components/ui/select': Select,
     '@/components/ui/separator': Separator,
+    '@/components/ui/skeleton': Skeleton,
     '@/components/ui/spinner': Spinner,
     '@/components/ui/split-button': SplitButton,
     '@/components/ui/switch': Switch,
