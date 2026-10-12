@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { AGENT_CHAT_APPROVE_SHORTCUT, AGENT_CHAT_DENY_SHORTCUT } from './agent-chat-approval-keys';
-import { didAnswerAgentChatRequest } from './agent-chat-commands';
+import { answerAgentChatRequest } from './agent-chat-commands';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMessage } from './agent-chat-message';
 import { agentChatCommandCwd } from './agent-chat-presentation';
@@ -50,9 +50,10 @@ function ApprovalToolSummary({ name, summary }: { name: string; summary: string 
 
 /**
  * A pending approval or question. It sits above the composer rather than in the timeline so the turn that waits on it
- * can never scroll it out of view. Its controls stay disabled while an answer is in flight, so a double click cannot
- * answer twice, and come back only when the answer failed. The first approval in the pane also answers to the keyboard
- * (Cmd+Enter accepts, Cmd+Backspace denies) while the composer is empty, and its buttons' tooltips say so.
+ * can never scroll it out of view. Answering takes it away at once (`answerAgentChatRequest`), and a failed answer
+ * brings it back; its controls go inert on the first answer, so a double click cannot answer twice. The first approval
+ * in the pane also answers to the keyboard (Cmd+Enter accepts, Cmd+Backspace denies) while the composer is empty, and
+ * its buttons' tooltips say so.
  */
 export function AgentChatRequestCard({
     linkedItem,
@@ -67,8 +68,8 @@ export function AgentChatRequestCard({
      */
     linkedItem: AgentChatItem | undefined;
     /**
-     * Runs once the answer lands and this card is about to leave, so a keyboard user who answered from the card is not
-     * dropped onto the document body when its focused button unmounts.
+     * Runs as an answer takes this card away, so a keyboard user who answered from the card is not dropped onto the
+     * document body when its focused button unmounts.
      */
     onAnswered: () => void;
     projectRoot: string | undefined;
@@ -86,15 +87,10 @@ export function AgentChatRequestCard({
         if (isAnswering) return;
         setAnswering(true);
         // eslint-disable-next-line no-void -- the command reports its own failure through tryCommand
-        void didAnswerAgentChatRequest(terminalId, request.id, response).then((isAnswered) => {
-            if (!isAnswered) {
-                setAnswering(false);
-                return;
-            }
-            // Focus that already moved elsewhere while the answer was in flight stays where the user put it.
-            const focused = document.activeElement;
-            if (focused === document.body || cardReference.current?.contains(focused)) onAnswered();
-        });
+        void answerAgentChatRequest(terminalId, request, response);
+        // The card leaves with this click; focus inside it moves on rather than dropping to the document body.
+        const focused = document.activeElement;
+        if (focused === document.body || cardReference.current?.contains(focused)) onAnswered();
     };
     const choices =
         request.kind === 'question' ? [] : agentChatLocalizedApprovalChoices(request, t);
