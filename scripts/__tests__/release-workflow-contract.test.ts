@@ -113,6 +113,7 @@ describe('Release workflow contract', () => {
                 Record<
                     string,
                     {
+                        'if'?: string;
                         'needs'?: string;
                         'permissions'?: Record<string, string>;
                         'runs-on'?: string;
@@ -129,6 +130,12 @@ describe('Release workflow contract', () => {
             { target: 'linux-arm64', runner: 'ubuntu-24.04-arm' },
         ]);
         expect(JSON.stringify(natives)).not.toContain('secrets.');
+        // A manual run rehearses only the natives build on main; packaging and publishing stay release-only.
+        expect(natives?.if).toContain("github.event_name == 'workflow_dispatch'");
+        expect(parsed.jobs.release?.if).not.toContain('workflow_dispatch');
+        expect(parsed.jobs.release?.if).toContain(
+            "startsWith(github.event.workflow_run.display_title, 'release: v')",
+        );
         expect(parsed.jobs.release?.needs).toBe('linux-natives');
         const packaging = parsed.jobs.release?.steps?.find(
             (step) => step.name === 'Package unsigned Apple Silicon DMG',
