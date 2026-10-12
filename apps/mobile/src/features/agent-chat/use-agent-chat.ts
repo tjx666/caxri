@@ -179,7 +179,41 @@ export const useAgentChat = ({
         setRetry((value) => value + 1);
     }, [request, terminalId]);
 
-    return { ...state, configure, interrupt, refresh, respond, restart, send };
+    /**
+     * The queue card's actions, forwarded to Server Core's queue like Desktop's. Core refuses a message that already
+     * left the queue, and a command steering a running turn.
+     */
+    const removeQueued = useCallback(
+        async (id: string): Promise<void> => {
+            if (terminalId === null) return;
+            await request('mobile.agentChat.removeQueued', { terminalId, id });
+        },
+        [request, terminalId],
+    );
+    const sendQueuedNow = useCallback(
+        async (id: string): Promise<void> => {
+            if (terminalId === null) return;
+            await request('mobile.agentChat.sendQueuedNow', { terminalId, id });
+        },
+        [request, terminalId],
+    );
+    const resumeQueue = useCallback(async (): Promise<void> => {
+        if (terminalId === null) return;
+        await request('mobile.agentChat.resumeQueue', { terminalId });
+    }, [request, terminalId]);
+
+    return {
+        ...state,
+        configure,
+        interrupt,
+        refresh,
+        removeQueued,
+        respond,
+        restart,
+        resumeQueue,
+        send,
+        sendQueuedNow,
+    };
 };
 
 export type AgentChatController = ReturnType<typeof useAgentChat>;

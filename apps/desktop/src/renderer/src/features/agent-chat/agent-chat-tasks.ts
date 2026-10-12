@@ -4,7 +4,7 @@ import type {
     AgentChatTask,
     AgentChatTaskSnapshot,
 } from '@caxri/protocol';
-import { formatShortDuration, formatTokens } from '@caxri/protocol';
+import { formatTokens } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
@@ -114,14 +114,6 @@ export function agentChatTaskElapsedMs(
     if (task.startedAt === undefined) return undefined;
     const end = task.status === 'running' ? now : (task.endedAt ?? now);
     return Math.max(0, end - task.startedAt);
-}
-
-/**
- * `12s`, or nothing below a second, which would read `<1s` and jump straight to `1s`.
- */
-export function formatAgentChatTaskElapsed(elapsedMs: number | undefined): string | undefined {
-    if (elapsedMs === undefined || elapsedMs < 1000) return undefined;
-    return formatShortDuration(elapsedMs) ?? undefined;
 }
 
 /**

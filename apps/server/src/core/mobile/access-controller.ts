@@ -10,7 +10,11 @@ import type { ExtensionService } from '../extensions/service';
 import type { MobileAccessController } from './access-controller-contract';
 import { createMobileAccessPersistence } from './access-persistence';
 import { listMobileAgentActions, terminalForPrincipal } from './action-requests';
-import { invokeMobileAgentChatRequest, isMobileAgentChatRead } from './agent-chat-requests';
+import {
+    agentChatTerminalProjectRoot,
+    invokeMobileAgentChatRequest,
+    isMobileAgentChatRead,
+} from './agent-chat-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { invokeMobileCommanderInboxRequest } from './commander-inbox-requests';
 import { readMobileDashboard, showMobileSession } from './dashboard-requests';
@@ -171,6 +175,12 @@ export const openMobileAccessController = async (options: {
                 },
                 authorizeSubscription: (principal, resource) =>
                     authorizeSubscription(principal, resource, domainService),
+                agentChatProjectRoot: (principal, terminalId) =>
+                    agentChatTerminalProjectRoot(
+                        domainService,
+                        currentPairedPrincipal(principal, 'mobile.agentChat.read'),
+                        terminalId,
+                    ),
                 beginConversationSubscription: async (principal, sessionId) => {
                     const current = currentPairedPrincipal(principal, 'mobile.timeline.read');
                     await sessionForPrincipal(domainService, current, sessionId);
@@ -458,7 +468,10 @@ export const openMobileAccessController = async (options: {
                 case 'mobile.agentChat.interrupt':
                 case 'mobile.agentChat.respond':
                 case 'mobile.agentChat.retry':
-                case 'mobile.agentChat.configure': {
+                case 'mobile.agentChat.configure':
+                case 'mobile.agentChat.removeQueued':
+                case 'mobile.agentChat.sendQueuedNow':
+                case 'mobile.agentChat.resumeQueue': {
                     const invoke = async () => {
                         assertOpen();
                         const principal = currentPairedPrincipal(context.principal, request.method);

@@ -17,7 +17,7 @@ import {
     MAX_AGENT_CHAT_TEXT_LENGTH,
 } from '@caxri/protocol';
 
-import { clip, isRecord, tail } from './chat-items';
+import { clip, isRecord, readableToolInputSummary, tail } from './chat-items';
 import { withCacheRewriteEstimate } from './chat-usage';
 import { codexDelivery } from './codex-input';
 
@@ -265,13 +265,20 @@ export function mapCodexItem(
             };
         }
         case 'dynamicToolCall': {
-            const summary = summarizeJson(raw.arguments);
+            // Unlike MCP arguments, which tracker detection parses, a dynamic tool's arguments only title its row, so
+            // the title is a readable digest and the JSON stays in `input` for the expanded row.
+            const arguments_ = raw.arguments;
+            const summary = isRecord(arguments_)
+                ? readableToolInputSummary(arguments_, 1_000)
+                : summarizeJson(arguments_);
+            const input = isRecord(arguments_) ? summarizeJson(arguments_) : undefined;
             return {
                 ...base,
                 type: 'toolCall',
                 name: clip(text(raw.tool) || 'tool', 200),
                 status: itemStatus(raw.status),
                 ...(summary && { summary }),
+                ...(input && input !== '{}' && { input }),
                 ...(duration(raw.durationMs) !== undefined && {
                     durationMs: duration(raw.durationMs),
                 }),

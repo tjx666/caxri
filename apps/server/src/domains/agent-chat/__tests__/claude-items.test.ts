@@ -149,6 +149,73 @@ describe('Claude item mapping', () => {
         ).toMatchObject({ background: true });
     });
 
+    it('summarizes an unmapped tool by a readable field instead of its raw JSON input', () => {
+        const summary = (name: string, input: Record<string, unknown>) => {
+            const item = mapClaudeToolUse({ id: 't', name, input }, 'turn');
+            return item?.type === 'toolCall' ? item.summary : undefined;
+        };
+        expect(
+            summary('SendMessage', {
+                to: 'researcher',
+                message: 'Check the parser tests\nThen report back.',
+            }),
+        ).toBe('to researcher: Check the parser tests');
+        expect(summary('SendMessage', { to: 'a9a7d94661c07d', summary: 'Status check' })).toBe(
+            'to a9a7d94661c07d: Status check',
+        );
+        expect(summary('SendMessage', { to: 'lead' })).toBe('to lead');
+        expect(summary('TeamCreate', { team_name: 'docs', title: 'Docs team' })).toBe('Docs team');
+        expect(summary('Monitor', { pid: 42, verbose: true })).toBe('pid: 42');
+        expect(summary('Monitor', { options: { a: 1 } })).toBeUndefined();
+        expect(summary('Monitor', {})).toBeUndefined();
+        // MCP arguments stay JSON: tracker detection reads a GitHub or Linear call's title and body from them.
+        expect(summary('mcp__github__create_issue', { owner: 'o', repo: 'r', title: 'Bug' })).toBe(
+            '{"owner":"o","repo":"r","title":"Bug"}',
+        );
+    });
+
+    it('keeps the JSON arguments of a readably summarized tool for its expanded row', () => {
+        expect(
+            mapClaudeToolUse(
+                { id: 't', name: 'SendMessage', input: { to: 'lead', message: 'Done\nMore' } },
+                'turn',
+            ),
+        ).toMatchObject({
+            summary: 'to lead: Done',
+            input: String.raw`{"to":"lead","message":"Done\nMore"}`,
+        });
+        expect(
+            mapClaudeToolUse({ id: 't', name: 'Monitor', input: { options: { a: 1 } } }, 'turn'),
+        ).toMatchObject({ input: '{"options":{"a":1}}' });
+        // A subject field or an MCP call's JSON summary already is the arguments preview.
+        expect(
+            mapClaudeToolUse(
+                { id: 't', name: 'WebFetch', input: { url: 'https://a.test' } },
+                'turn',
+            ),
+        ).not.toHaveProperty('input');
+        expect(
+            mapClaudeToolUse({ id: 't', name: 'mcp__github__get_me', input: { a: 1 } }, 'turn'),
+        ).not.toHaveProperty('input');
+    });
+
+    it('shows an approval the JSON arguments, never a readable digest of them', () => {
+        const approval = (name: string, input: Record<string, unknown>) =>
+            mapClaudeApproval('t9', name, input, { canRemember: false });
+        expect(
+            approval('SendMessage', { to: 'lead', message: 'Done\nThen ship it' }),
+        ).toMatchObject({
+            kind: 'tool',
+            summary: String.raw`{"to":"lead","message":"Done\nThen ship it"}`,
+        });
+        expect(approval('KillShell', { shell_id: 'bash_1' })).toMatchObject({
+            summary: '{"shell_id":"bash_1"}',
+        });
+        expect(approval('WebFetch', { url: 'https://a.test' })).toMatchObject({
+            summary: 'https://a.test',
+        });
+    });
+
     it('offers "for this Chat" only when Claude Code suggests a rule to remember', () => {
         expect(
             mapClaudeApproval(

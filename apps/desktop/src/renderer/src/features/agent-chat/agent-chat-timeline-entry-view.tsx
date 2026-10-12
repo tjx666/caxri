@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import { memo } from 'react';
 
+import type { AgentChatTurnArtifacts } from '@caxri/protocol';
+
 import { AgentChatNotice, AgentChatReply } from './agent-chat-message';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
-import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { AgentChatTurnFold } from './agent-chat-turn-fold';
 import { AgentChatUserMessage } from './agent-chat-user-message';
 import { AgentChatWorkGroup } from './agent-chat-work-group';

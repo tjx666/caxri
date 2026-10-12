@@ -17,6 +17,7 @@ import { shouldCancelDelayedPairing } from './acceptance-pairing-delay';
 import type { MobileGatewayDiagnostics, MobileGatewayFailureReason } from './diagnostics';
 import type { MobileAppOptions } from './frame-router';
 import { MobileGatewayFrameRouter } from './frame-router';
+import type { MobileGatewayOptions } from './gateway-options';
 import type { GatewaySession } from './gateway-session';
 
 export interface AuthenticateConnectionDependencies {
@@ -29,7 +30,10 @@ export interface AuthenticateConnectionDependencies {
     now: () => number;
     options: Pick<
         MobileAppOptions,
-        'authorizeMethod' | 'authorizeSubscription' | 'beginConversationSubscription'
+        | 'agentChatProjectRoot'
+        | 'authorizeMethod'
+        | 'authorizeSubscription'
+        | 'beginConversationSubscription'
     > & {
         logger?: Pick<StructuredLogger, 'write'>;
         matchesSubscriptionEvent: MobileAppOptions['matchesSubscriptionEvent'];
@@ -44,6 +48,22 @@ export interface AuthenticateConnectionDependencies {
         onSent?: (error?: Error) => void,
     ) => void;
 }
+
+/**
+ * The gateway options each authenticated connection's frame router uses.
+ */
+export const connectionOptions = (
+    options: MobileGatewayOptions,
+): AuthenticateConnectionDependencies['options'] => ({
+    authorizeMethod: options.authorizePairedDeviceMethod,
+    authorizeSubscription: options.authorizeSubscription,
+    beginConversationSubscription: options.beginConversationSubscription,
+    agentChatProjectRoot: options.agentChatProjectRoot,
+    logger: options.logger,
+    matchesSubscriptionEvent: options.matchesSubscriptionEvent,
+    registry: options.registry,
+    terminalExecution: options.terminalExecution,
+});
 
 /**
  * Verifies the client's handshake confirmation, commits a pending pairing or marks a returning device connected, and
@@ -105,6 +125,7 @@ export async function authenticateConnection(
         authorizeMethod: dependencies.options.authorizeMethod,
         authorizeSubscription: dependencies.options.authorizeSubscription,
         beginConversationSubscription: dependencies.options.beginConversationSubscription,
+        agentChatProjectRoot: dependencies.options.agentChatProjectRoot,
         context: () => dependencies.context(session),
         dispatch: dependencies.dispatch,
         isActive: () => isAcceptingMessages() && !session.revoking && socket.readyState === 1,

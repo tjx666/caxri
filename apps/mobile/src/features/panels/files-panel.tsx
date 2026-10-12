@@ -5,6 +5,7 @@ import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'r
 import type { FileEntry } from '@caxri/protocol';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
+import { HighlightedCode } from '../../components/highlighted-code';
 import { IconButton } from '../../components/icon-button';
 import { formatByteSize } from '../../lib/format-size';
 import type { MobileTheme } from '../../theme/tokens';
@@ -13,7 +14,6 @@ import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
 import { fileLanguage } from './file-language';
 import { FileTypeIcon } from './file-type-icon';
 import { FilesBreadcrumb } from './files-breadcrumb';
-import { HighlightedCode } from './highlighted-code';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
 import { useFileRead, useFilesList } from './use-panels';

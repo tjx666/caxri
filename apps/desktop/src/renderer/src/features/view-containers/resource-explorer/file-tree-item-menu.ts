@@ -1,4 +1,5 @@
 import type { FileEntry } from '@caxri/protocol';
+import { projectRelativePath } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import type { ContextMenuEntries } from '../../../lib/context-menu';
@@ -9,7 +10,6 @@ import {
     openFileWithDefaultApp,
     revealFile,
 } from '../../../lib/desktop-file-actions';
-import { projectRelativePath } from '../../../lib/file-path';
 import { useDialogStore } from '../../../stores/dialogs';
 import { openFilePreview } from '../../preview/preview-commands';
 import { canPreviewPath } from '../../preview/preview-registry';

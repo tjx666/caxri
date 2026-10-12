@@ -10,8 +10,7 @@ import { CaxriError } from '@caxri/protocol';
 import { answeredNotice, clip, questionAnswers } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { claudeQuestionAnswers, mapClaudeApproval, mapClaudeQuestion } from './claude-items';
-
-const DECLINED_MESSAGE = 'The user declined this action.';
+import { CLAUDE_DECLINED_MESSAGE } from './claude-tool-results';
 
 const STOPPED: PermissionResult = {
     behavior: 'deny',
@@ -224,7 +223,7 @@ export class ClaudeRequestBroker {
                 }
                 case 'decline': {
                     this.declined.add(requestId);
-                    pending.resolve({ behavior: 'deny', message: DECLINED_MESSAGE });
+                    pending.resolve({ behavior: 'deny', message: CLAUDE_DECLINED_MESSAGE });
                     break;
                 }
                 case 'cancel': {
@@ -232,7 +231,7 @@ export class ClaudeRequestBroker {
                     this.owner.onInterruptRequested();
                     pending.resolve({
                         behavior: 'deny',
-                        message: DECLINED_MESSAGE,
+                        message: CLAUDE_DECLINED_MESSAGE,
                         interrupt: true,
                     });
                     break;

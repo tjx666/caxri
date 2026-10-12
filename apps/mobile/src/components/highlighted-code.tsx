@@ -1,3 +1,5 @@
+import './prism-grammars';
+
 import { Fragment, memo } from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
 import { Text } from 'react-native';
@@ -5,8 +7,8 @@ import { Text } from 'react-native';
 import { Highlight, themes } from 'prism-react-renderer';
 
 /**
- * Syntax-colored spans for a file's text, using Dracula to match Desktop's default editor theme. The spans are bare
- * `Text` children so both a selectable preview and an editable `TextInput` can host them.
+ * Syntax-colored spans for a file's text or an Agent's command output, using Dracula to match Desktop's default editor
+ * theme. The spans are bare `Text` children so both a selectable preview and an editable `TextInput` can host them.
  */
 export const HighlightedCode = memo(
     ({ code, language }: { code: string; language: string | null }) => (

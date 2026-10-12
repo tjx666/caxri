@@ -1,5 +1,6 @@
+import { isPathAtOrBelow } from '@caxri/protocol';
+
 import { translate } from '../../../i18n';
-import { isPathAtOrBelow } from '../../../lib/file-path';
 import { createStore } from '../../../lib/store';
 
 export interface PendingFileOperation {

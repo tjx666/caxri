@@ -109,13 +109,39 @@ export const newSessionSurfaceDescription = (
     return surface === defaultSurface ? `${description} · Default` : description;
 };
 
+/**
+ * The Project a new Session goes to: a pick made on the New Session screen, else the Project the Session list is
+ * filtered to (`activeProjectFilter`), else the most recently active one. Without the filter step, + under a Project
+ * chip created the Session somewhere the filtered list then hid.
+ */
 export const selectedNewSessionProject = (
     preferred: string | null,
     projects: NewSessionProject[],
-): string | null =>
-    preferred && projects.some((project) => project.id === preferred)
-        ? preferred
-        : (projects[0]?.id ?? null);
+    filterProjectId: string | null,
+): string | null => {
+    const isGranted = (id: string | null): id is string =>
+        id !== null && projects.some((project) => project.id === id);
+    if (isGranted(preferred)) return preferred;
+    if (isGranted(filterProjectId)) return filterProjectId;
+    return projects[0]?.id ?? null;
+};
+
+/**
+ * The New Session choices after the reader picks another Project chip: the earlier Project pick is forgotten, so the
+ * next New Session starts in the chip's Project rather than one the reader has since filtered away from. Returns the
+ * same object when there was no pick.
+ */
+export const forgetNewSessionProject = (selection: NewSessionSelection): NewSessionSelection =>
+    selection.projectId === null ? selection : { ...selection, projectId: null };
+
+/**
+ * The Session list's Project chip after a Session was created in `createdProjectId`: All stays All, and a chip for
+ * another Project follows the new Session, so going back to the list shows it instead of filtering it out.
+ */
+export const projectFilterAfterCreate = (
+    activeFilterProjectId: string | null,
+    createdProjectId: string,
+): string | null => (activeFilterProjectId === null ? null : createdProjectId);
 
 export const canCreateNewSession = ({
     agent,

@@ -1,4 +1,6 @@
-import { isPathAtOrBelow, remapPath } from '../../lib/file-path';
+import { isPathAtOrBelow } from '@caxri/protocol';
+
+import { remapPath } from '../../lib/file-path';
 import { getBootstrap } from '../../stores/selectors';
 
 export interface PendingDocumentOperation {

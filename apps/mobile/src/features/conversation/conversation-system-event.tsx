@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
+import { useRecyclingState } from '@shopify/flash-list';
 import type { LucideProps } from 'lucide-react-native';
 import {
     Bell,
@@ -61,7 +62,9 @@ export const ConversationSystemEvent = ({
     event: SystemEvent;
     theme: MobileTheme;
 }) => {
-    const [isExpanded, setExpanded] = useState(false);
+    // The Conversation's FlashList recycles this row for another event, which starts folded. `isTruncated` is measured
+    // from the text itself, so it follows the new text without a reset.
+    const [isExpanded, setExpanded] = useRecyclingState(false, [event.id]);
     const [isTruncated, setTruncated] = useState(false);
     const { Icon, color } = eventIcon(event, theme);
     const hasDetail = event.detail !== undefined;

@@ -32,6 +32,49 @@ export function clip(value: string, limit: number): string {
     return value.length <= limit ? value : value.slice(0, limit);
 }
 
+/**
+ * Input fields a person would name an unmapped tool's call by, in precedence order.
+ */
+const READABLE_INPUT_FIELDS = [
+    'description',
+    'summary',
+    'title',
+    'name',
+    'message',
+    'query',
+    'path',
+    'file_path',
+    'url',
+    'command',
+] as const;
+
+function firstLine(value: string): string {
+    return value.trim().split('\n', 1)[0]?.trim() ?? '';
+}
+
+/**
+ * A one-line summary of a tool input no provider table maps: the first line of a field that names the call, else `key:
+ * value` for the first scalar field, else nothing. A raw JSON dump (`SendMessage {"to":"a9a7…`) is what a row title
+ * must never show.
+ */
+export function readableToolInputSummary(input: Json, limit: number): string | undefined {
+    for (const key of READABLE_INPUT_FIELDS) {
+        const value = input[key];
+        const line = typeof value === 'string' ? firstLine(value) : '';
+        if (line) return clip(line, limit);
+    }
+    for (const [key, value] of Object.entries(input)) {
+        const scalar =
+            typeof value === 'string'
+                ? firstLine(value)
+                : typeof value === 'number' || typeof value === 'boolean'
+                  ? String(value)
+                  : '';
+        if (scalar) return clip(`${key}: ${scalar}`, limit);
+    }
+    return undefined;
+}
+
 export function tail(value: string, limit: number): string {
     return value.length <= limit ? value : value.slice(value.length - limit);
 }

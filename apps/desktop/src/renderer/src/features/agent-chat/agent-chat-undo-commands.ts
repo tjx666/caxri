@@ -1,3 +1,4 @@
+import type { AgentChatEditedFile } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
@@ -6,7 +7,6 @@ import { caxri } from '../../lib/caxri';
 import { parentDirectoryPath } from '../../lib/file-path';
 import { createStore } from '../../lib/store';
 import { pushToast, tryCommand } from '../../stores/toasts';
-import type { AgentChatEditedFile } from './agent-chat-turn-artifacts';
 import type { AgentChatUndoStep } from './agent-chat-undo';
 import {
     agentChatUndoFailureMessage,

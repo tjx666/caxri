@@ -2,8 +2,6 @@ import type {
     AgentChatItem,
     AgentChatPatchOperation,
     AgentChatSnapshot,
-    AgentChatTaskPatchOperation,
-    AgentChatTaskSnapshot,
 } from './agent-chat-contract.js';
 import {
     MAX_AGENT_CHAT_ITEMS,
@@ -13,6 +11,10 @@ import {
     MAX_AGENT_CHAT_TEXT_LENGTH,
     MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH,
 } from './agent-chat-contract.js';
+import type {
+    AgentChatTaskPatchOperation,
+    AgentChatTaskSnapshot,
+} from './agent-chat-task-contract.js';
 
 /**
  * Empty projection for a Chat whose provider has not reported anything yet.
@@ -57,7 +59,9 @@ export function agentChatItemTextLength(item: AgentChatItem): number {
             );
         }
         case 'toolCall': {
-            return (item.summary?.length ?? 0) + (item.output?.length ?? 0);
+            return (
+                (item.summary?.length ?? 0) + (item.input?.length ?? 0) + (item.output?.length ?? 0)
+            );
         }
         case 'notice': {
             return item.message?.length ?? 0;
@@ -185,6 +189,7 @@ export function applyAgentChatOperation(
                 ...(snapshot.commands && { commands: snapshot.commands }),
                 ...(snapshot.models && { models: snapshot.models }),
                 ...(snapshot.queue && { queue: snapshot.queue }),
+                ...(snapshot.queueLength !== undefined && { queueLength: snapshot.queueLength }),
                 ...(snapshot.queuePaused !== undefined && { queuePaused: snapshot.queuePaused }),
             };
         }
@@ -227,6 +232,7 @@ export function applyAgentChatOperation(
             if (state.operation !== undefined) next.operation = state.operation ?? undefined;
             if (state.tasks !== undefined) next.tasks = state.tasks;
             if (state.queue !== undefined) next.queue = state.queue;
+            if (state.queueLength !== undefined) next.queueLength = state.queueLength;
             if (state.queuePaused !== undefined) next.queuePaused = state.queuePaused;
             for (const key of [
                 'failure',

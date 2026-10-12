@@ -5,12 +5,14 @@ import {
     acknowledgeCheckedUncertainCreate,
     availableNewSessionAgent,
     canCreateNewSession,
+    forgetNewSessionProject,
     markUncertainSessionsChecked,
     NEW_SESSION_AGENT_ORDER,
     newSessionAgentReason,
     newSessionDefaultSurface,
     newSessionSurface,
     newSessionSurfaceDescription,
+    projectFilterAfterCreate,
     selectedNewSessionProject,
     sortNewSessionProjects,
 } from '../new-session-model';
@@ -42,9 +44,34 @@ describe('New Session choices', () => {
 
     it('keeps a remembered granted Project and rejects a removed grant', () => {
         const projects = [{ id: 'granted', displayTitle: 'Granted' }];
-        expect(selectedNewSessionProject('granted', projects)).toBe('granted');
-        expect(selectedNewSessionProject('removed', projects)).toBe('granted');
-        expect(selectedNewSessionProject(null, [])).toBeNull();
+        expect(selectedNewSessionProject('granted', projects, null)).toBe('granted');
+        expect(selectedNewSessionProject('removed', projects, null)).toBe('granted');
+        expect(selectedNewSessionProject(null, [], null)).toBeNull();
+    });
+
+    it('starts in the Project chip the Session list is filtered to, unless a Project was picked', () => {
+        // Sorted most recent first: without the chip, + under `caxri` created the Session in `recent`.
+        const projects = [
+            { id: 'recent', displayTitle: 'Recent', lastActivityAt: 200 },
+            { id: 'caxri', displayTitle: 'caxri', lastActivityAt: 100 },
+        ];
+        expect(selectedNewSessionProject(null, projects, 'caxri')).toBe('caxri');
+        expect(selectedNewSessionProject('recent', projects, 'caxri')).toBe('recent');
+        expect(selectedNewSessionProject(null, projects, 'removed')).toBe('recent');
+        expect(selectedNewSessionProject(null, projects, null)).toBe('recent');
+    });
+
+    it('moves a Project chip to the created Session so the list does not hide it', () => {
+        expect(projectFilterAfterCreate('caxri', 'recent')).toBe('recent');
+        expect(projectFilterAfterCreate('caxri', 'caxri')).toBe('caxri');
+        expect(projectFilterAfterCreate(null, 'recent')).toBeNull();
+    });
+
+    it('forgets the earlier Project pick when another chip is chosen', () => {
+        const picked = { agent: 'claude' as const, projectId: 'recent', surface: null };
+        expect(forgetNewSessionProject(picked)).toEqual({ ...picked, projectId: null });
+        const unpicked = { ...picked, projectId: null };
+        expect(forgetNewSessionProject(unpicked)).toBe(unpicked);
     });
 
     it('does not select an unavailable Agent, even when remembered', () => {

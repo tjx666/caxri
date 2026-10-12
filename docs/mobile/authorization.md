@@ -15,7 +15,7 @@ dispatcher also grants only the capabilities for that role.
 | Role      | Additional methods beyond the preceding role                                                                                                                                                                            |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, and `mobile.agentChat.readImage`         |
-| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, and `mobile.agentChat.retry`                                                                   |
+| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, and `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`      |
 | `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, and `mobile.commanderInbox.{list,reply}` |
 
 The method set is explicit. A role grant alone never authorizes a resource: dashboard, Session, and
@@ -26,6 +26,11 @@ identity for different input. Mobile
 Session creation checks both the device's Project grant and the current Project record before its
 durable write. Git mutations and unrestricted `session.create` are outside the gateway
 method set.
+
+A Project root path never reaches the phone. The gateway reads a Chat Session's root through the
+internal `mobile.session.projectRootInternal`, which checks the Session against the device's grant
+like any Session read, only to name changed files Project-relative before the projection leaves the
+Server.
 
 `mobile.update.check` and `mobile.update.prepare` are granted to every role: they expose only the
 update bundle Desktop ships and a short-lived download token for the requesting device; see

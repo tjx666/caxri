@@ -13,6 +13,7 @@ import {
 } from '../agent/agent-chat-contract.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { identifierSchema } from '../domain/domain.js';
+import { projectDisplayPath } from '../domain/project-path.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { mobileAttachmentIdSchema } from './mobile-image-contract.js';
@@ -59,10 +60,29 @@ const keepHead = (text: string, limit = MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH): str
     text.length <= limit ? text : `${text.slice(0, limit)}\n${MOBILE_AGENT_CHAT_CLIP_MARKER}`;
 
 /**
- * Shortens one item to what a phone can carry. Deterministic, so the snapshot window and later `upsertItem` patches
- * agree on the same item.
+ * A file change's paths as Desktop names them, Project-relative inside the Session's Project. The Server relativizes
+ * them because a paired device is never told a Project's root path (`scopedProjectSchema`).
  */
-export function clipAgentChatItemForMobile(item: AgentChatItem): AgentChatItem {
+function withProjectPaths(item: AgentChatItem, projectRoot: string | undefined): AgentChatItem {
+    if (projectRoot === undefined || item.type !== 'fileChange') return item;
+    const changes = item.changes.map((change) => {
+        const path = projectDisplayPath(change.path, projectRoot);
+        return path === change.path ? change : { ...change, path };
+    });
+    return changes.some((change, index) => change !== item.changes[index])
+        ? { ...item, changes }
+        : item;
+}
+
+/**
+ * Shortens one item to what a phone can carry, naming changed files relative to `projectRoot`, the Session's Project
+ * root. Deterministic, so the snapshot window and later `upsertItem` patches agree on the same item.
+ */
+export function clipAgentChatItemForMobile(
+    original: AgentChatItem,
+    projectRoot?: string,
+): AgentChatItem {
+    const item = withProjectPaths(original, projectRoot);
     switch (item.type) {
         case 'userMessage': {
             const text =
@@ -129,9 +149,12 @@ const byteLength = (value: unknown): number =>
  * The newest part of a Chat projection that fits one mobile frame. Older items are dropped first and `truncated` is
  * set, the same signal the Desktop projection uses for history it no longer holds.
  */
-export function windowAgentChatSnapshotForMobile(full: AgentChatSnapshot): AgentChatSnapshot {
+export function windowAgentChatSnapshotForMobile(
+    full: AgentChatSnapshot,
+    projectRoot?: string,
+): AgentChatSnapshot {
     const snapshot = withoutDesktopOnlyState(full);
-    const items = snapshot.items.map((item) => clipAgentChatItemForMobile(item));
+    const items = snapshot.items.map((item) => clipAgentChatItemForMobile(item, projectRoot));
     const activeTurnIds = (kept: readonly AgentChatItem[]) =>
         new Set([
             ...kept.map((item) => item.turnId).filter(Boolean),
@@ -191,26 +214,35 @@ export function clipAgentChatQueueForMobile(queue: AgentChatQueue): AgentChatQue
 
 /**
  * Background tasks are a Desktop surface the phone does not render yet, so they stay on the computer. The follow-up
- * queue travels as a bounded preview (see {@link clipAgentChatQueueForMobile}) with its paused flag.
+ * queue travels as a bounded preview (see {@link clipAgentChatQueueForMobile}) with its paused flag and its real length,
+ * which the preview alone cannot tell once the queue outgrows it.
  */
-function withoutDesktopOnlyState(snapshot: AgentChatSnapshot): AgentChatSnapshot {
-    if (!snapshot.tasks && !snapshot.queue) return snapshot;
-    const rest = { ...snapshot };
+function withoutDesktopOnlyState<
+    State extends Pick<Partial<AgentChatSnapshot>, 'queue' | 'queueLength' | 'tasks'>,
+>(state: State): State {
+    if (!state.tasks && !state.queue) return state;
+    const rest = { ...state };
     delete rest.tasks;
-    if (rest.queue) rest.queue = clipAgentChatQueueForMobile(rest.queue);
+    if (rest.queue) {
+        rest.queueLength = rest.queue.length;
+        rest.queue = clipAgentChatQueueForMobile(rest.queue);
+    }
     return rest;
 }
 
-function clipOperation(operation: AgentChatPatchOperation): AgentChatPatchOperation {
+function clipOperation(
+    operation: AgentChatPatchOperation,
+    projectRoot: string | undefined,
+): AgentChatPatchOperation {
     switch (operation.op) {
         case 'upsertItem': {
-            return { op: 'upsertItem', item: clipAgentChatItemForMobile(operation.item) };
+            return {
+                op: 'upsertItem',
+                item: clipAgentChatItemForMobile(operation.item, projectRoot),
+            };
         }
         case 'state': {
-            const state = { ...operation.state };
-            delete state.tasks;
-            if (state.queue) state.queue = clipAgentChatQueueForMobile(state.queue);
-            return { op: 'state', state };
+            return { op: 'state', state: withoutDesktopOnlyState(operation.state) };
         }
         default: {
             return operation;
@@ -222,10 +254,13 @@ function clipOperation(operation: AgentChatPatchOperation): AgentChatPatchOperat
  * The patch a phone receives, or `undefined` when even the shortened patch would not fit one frame. The gateway then
  * sends a content-free change notice and the phone re-reads its window instead.
  */
-export function clipAgentChatPatchForMobile(patch: AgentChatPatch): AgentChatPatch | undefined {
+export function clipAgentChatPatchForMobile(
+    patch: AgentChatPatch,
+    projectRoot?: string,
+): AgentChatPatch | undefined {
     const clipped: AgentChatPatch = {
         ...patch,
-        operations: patch.operations.map((operation) => clipOperation(operation)),
+        operations: patch.operations.map((operation) => clipOperation(operation, projectRoot)),
     };
     return byteLength(clipped) <= MOBILE_AGENT_CHAT_MAX_BYTES ? clipped : undefined;
 }
@@ -330,6 +365,33 @@ export const mobileAgentChatMethods = {
     'mobile.agentChat.retry': {
         ...commandPolicy('server', 'control', ['terminals.steer']),
         params: z.strictObject(terminalTarget),
+        result: z.null(),
+    },
+    /**
+     * Deletes a queued follow-up, the phone's equivalent of the Desktop queue card's Delete. The id comes from the
+     * snapshot's bounded queue preview, which keeps every entry's real id. A message that already left the queue fails
+     * with `CONFLICT`.
+     */
+    'mobile.agentChat.removeQueued': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: agentChatMethods['agentChat.removeQueued'].params,
+        result: z.null(),
+    },
+    /**
+     * Sends a queued follow-up ahead of the rest: it steers the running turn, or starts a turn when the Chat is idle.
+     * The Desktop queue card's Steer (or Send now).
+     */
+    'mobile.agentChat.sendQueuedNow': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: agentChatMethods['agentChat.sendQueuedNow'].params,
+        result: z.null(),
+    },
+    /**
+     * Resumes a queue that Stop paused, the Desktop queue header's Resume.
+     */
+    'mobile.agentChat.resumeQueue': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: agentChatMethods['agentChat.resumeQueue'].params,
         result: z.null(),
     },
 } as const satisfies Record<string, MethodSpec>;

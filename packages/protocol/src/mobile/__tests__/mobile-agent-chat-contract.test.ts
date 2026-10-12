@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatItem, AgentChatSnapshot } from '../../agent/agent-chat-contract.js';
-import { agentChatSnapshotSchema } from '../../agent/agent-chat-contract.js';
+import { agentChatPatchSchema, agentChatSnapshotSchema } from '../../agent/agent-chat-contract.js';
 import { applyAgentChatPatch } from '../../agent/agent-chat-reducer.js';
 import {
     clipAgentChatItemForMobile,
@@ -164,6 +164,37 @@ describe('mobile Agent Chat projection', () => {
         expect(next?.revision).toBe(8);
     });
 
+    it('names changed files Project-relative in the window and in patches, as Desktop does', () => {
+        const change: AgentChatItem = {
+            id: 'change-1',
+            turnId: 'turn-1',
+            type: 'fileChange',
+            status: 'completed',
+            changes: [
+                { path: '/work/demo/src/greeting.ts', kind: 'update', diff: '' },
+                { path: '/elsewhere/notes.md', kind: 'add', diff: '' },
+            ],
+        };
+        const paths = (item: AgentChatItem | undefined) =>
+            item?.type === 'fileChange' ? item.changes.map((entry) => entry.path) : [];
+        const expected = ['src/greeting.ts', '/elsewhere/notes.md'];
+        const windowed = windowAgentChatSnapshotForMobile(snapshot([change]), '/work/demo');
+        expect(paths(windowed.items[0])).toEqual(expected);
+        const patch = clipAgentChatPatchForMobile(
+            {
+                terminalId: 'terminal-1',
+                baseRevision: 7,
+                revision: 8,
+                operations: [{ op: 'upsertItem', item: change }],
+            },
+            '/work/demo',
+        );
+        const operation = patch?.operations[0];
+        expect(paths(operation?.op === 'upsertItem' ? operation.item : undefined)).toEqual(
+            expected,
+        );
+    });
+
     it('keeps Desktop-only tasks out of the phone projection but sends the queue', () => {
         const desktopOnly = {
             tasks: [
@@ -197,7 +228,12 @@ describe('mobile Agent Chat projection', () => {
         expect(patch?.operations).toEqual([
             {
                 op: 'state',
-                state: { queue: [{ id: 'q-1', text: 'next' }], queuePaused: true, status: 'ready' },
+                state: {
+                    queue: [{ id: 'q-1', text: 'next' }],
+                    queueLength: 1,
+                    queuePaused: true,
+                    status: 'ready',
+                },
             },
         ]);
     });
@@ -227,11 +263,31 @@ describe('mobile Agent Chat projection', () => {
             queue,
         });
         expect(windowed.queue).toHaveLength(MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS);
+        expect(windowed.queueLength).toBe(20);
         expect(bytes(windowed)).toBeLessThan(MOBILE_AGENT_CHAT_MAX_BYTES);
         expect(agentChatSnapshotSchema.safeParse(windowed).success).toBe(true);
         expect(clipAgentChatQueueForMobile([{ id: 'short', text: 'hi' }])).toEqual([
             { id: 'short', text: 'hi' },
         ]);
+    });
+
+    it('tells the phone the real length of a queue its preview cuts short', () => {
+        const queue = Array.from({ length: 20 }, (_, index) => ({
+            id: `q-${index}`,
+            text: 'next',
+        }));
+        const patch = clipAgentChatPatchForMobile({
+            terminalId: 'terminal-1',
+            baseRevision: 7,
+            revision: 8,
+            operations: [{ op: 'state', state: { queue } }],
+        });
+        const operation = patch?.operations[0];
+        const state = operation?.op === 'state' ? operation.state : undefined;
+        expect(state?.queue).toHaveLength(MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS);
+        expect(state?.queueLength).toBe(20);
+        expect(agentChatPatchSchema.safeParse(patch).success).toBe(true);
+        expect(patch && applyAgentChatPatch(snapshot([]), patch)?.queueLength).toBe(20);
     });
 
     it('refuses a patch that cannot fit one frame', () => {

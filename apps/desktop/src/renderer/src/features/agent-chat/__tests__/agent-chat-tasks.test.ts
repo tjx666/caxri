@@ -17,7 +17,6 @@ import {
     agentChatTurnSubagents,
     canStopAgentChatTask,
     findAgentChatTask,
-    formatAgentChatTaskElapsed,
     isAgentChatSubagentItem,
     isAgentChatTaskTitleCommand,
 } from '../agent-chat-tasks';
@@ -153,12 +152,6 @@ describe('task timing and usage', () => {
             ),
         ).toBe(2500);
         expect(agentChatTaskElapsedMs(task({ id: 'a' }), 9000)).toBeUndefined();
-    });
-
-    it('hides elapsed time below a second', () => {
-        expect(formatAgentChatTaskElapsed(400)).toBeUndefined();
-        expect(formatAgentChatTaskElapsed(undefined)).toBeUndefined();
-        expect(formatAgentChatTaskElapsed(65_000)).toBe('1m 5s');
     });
 
     it('summarizes reported usage', () => {

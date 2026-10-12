@@ -1,8 +1,20 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { memo, useContext, useId, useMemo, useRef } from 'react';
 
-import type { AgentChatTask, AgentToolKind } from '@caxri/protocol';
-import { unwrapShellCommand } from '@caxri/protocol';
+import type { AgentChatTask, AgentChatWorkItem, AgentToolKind } from '@caxri/protocol';
+import {
+    agentChatFileChangesStat,
+    agentChatOutputLanguage,
+    agentChatReasoningTitle,
+    agentChatToolCallArguments,
+    agentChatWorkDuration,
+    agentChatWorkGroupFailure,
+    agentChatWorkKind,
+    isAgentChatWorkRunning,
+    splitAgentChatWork,
+    stripLineNumberGutter,
+    unwrapShellCommand,
+} from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     Bot,
@@ -35,7 +47,6 @@ import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { useTranslation } from '../../i18n';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
-import { agentChatFileChangesStat } from './agent-chat-diff';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
 import { agentChatItemExpansionKey, agentChatSummaryExpansionKey } from './agent-chat-expansion';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
@@ -43,19 +54,7 @@ import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
 import { agentChatTaskActivity, agentChatTaskGlyphStatus } from './agent-chat-tasks';
-import type { AgentChatWorkItem } from './agent-chat-timeline';
-import {
-    agentChatOutputLanguage,
-    agentChatReasoningTitle,
-    agentChatWorkDuration,
-    agentChatWorkGroupFailure,
-    agentChatWorkKind,
-    describeAgentChatWork,
-    isAgentChatWorkRunning,
-    splitAgentChatWork,
-    stripLineNumberGutter,
-    summarizeAgentChatWork,
-} from './agent-chat-timeline';
+import { describeAgentChatWork, summarizeAgentChatWork } from './agent-chat-timeline';
 import { agentChatToolActiveLabel } from './agent-chat-tool-labels';
 import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-agent-chat-task-link';
@@ -292,11 +291,12 @@ function WorkDetail({
         case 'toolCall': {
             const language = agentChatOutputLanguage(item);
             const output = item.output ?? '';
+            const argumentsText = agentChatToolCallArguments(item);
             return (
                 <>
-                    {item.summary && (
+                    {argumentsText && (
                         <p className="m-0 font-mono text-[11px] wrap-anywhere whitespace-pre-wrap text-muted select-text">
-                            {item.summary}
+                            {argumentsText}
                         </p>
                     )}
                     <OutputView

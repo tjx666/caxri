@@ -4,6 +4,7 @@ import {
     agentToolActiveLabel,
     agentToolOutcomeLabel,
     describeAgentTool,
+    formatNoticeableDuration,
     formatShortDuration,
     summarizeAgentToolGroup,
     unwrapShellCommand,
@@ -177,6 +178,16 @@ describe('formatShortDuration', () => {
         expect(formatShortDuration(45_000)).toBe('45s');
         expect(formatShortDuration(120_000)).toBe('2m');
         expect(formatShortDuration(121_000)).toBe('2m 1s');
+    });
+});
+
+describe('formatNoticeableDuration', () => {
+    it('hides a missing or sub-second duration and formats anything longer', () => {
+        expect(formatNoticeableDuration(undefined)).toBeNull();
+        expect(formatNoticeableDuration(0)).toBeNull();
+        expect(formatNoticeableDuration(999)).toBeNull();
+        expect(formatNoticeableDuration(1000)).toBe('1s');
+        expect(formatNoticeableDuration(65_000)).toBe('1m 5s');
     });
 });
 

@@ -28,6 +28,7 @@ export * from './pane-layout.js';
 export * from './pane-layout-reducer.js';
 export * from './preview-asset.js';
 export * from './project-customization.js';
+export * from './project-path.js';
 export * from './project-status.js';
 export * from './session.js';
 export * from './session-compaction.js';

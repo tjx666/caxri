@@ -17,7 +17,6 @@ import {
     agentChatQueuedMessageSchema,
     agentChatSnapshotSchema,
     agentChatTaskSchema,
-    agentChatTaskSnapshotSchema,
     agentChatThumbnailSchema,
     MAX_AGENT_CHAT_IMAGE_BYTES,
     MAX_AGENT_CHAT_IMAGES,
@@ -26,6 +25,7 @@ import {
 } from './agent-chat-contract.js';
 import { agentChatDefaultSchema, agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatDecisionSchema } from './agent-chat-requests.js';
+import { agentChatTaskSnapshotSchema } from './agent-chat-task-contract.js';
 
 export type AgentChatImageInput = z.infer<typeof agentChatImageInputSchema>;
 export type AgentChatMessageInput = Omit<

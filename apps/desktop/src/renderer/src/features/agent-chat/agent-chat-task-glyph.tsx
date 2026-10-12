@@ -1,8 +1,9 @@
 import type { AgentChatTask } from '@caxri/protocol';
+import { formatNoticeableDuration } from '@caxri/protocol';
 import { Bot, SquareTerminal } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';
-import { agentChatTaskElapsedMs, formatAgentChatTaskElapsed } from './agent-chat-tasks';
+import { agentChatTaskElapsedMs } from './agent-chat-tasks';
 import { useClockTick } from './hooks/use-clock-tick';
 
 /**
@@ -21,7 +22,7 @@ export function AgentChatTaskGlyph({
 }
 
 function TickingElapsed({ task }: { task: AgentChatTask }) {
-    const label = formatAgentChatTaskElapsed(agentChatTaskElapsedMs(task, useClockTick('second')));
+    const label = formatNoticeableDuration(agentChatTaskElapsedMs(task, useClockTick('second')));
     return label ? <span className="shrink-0 tabular-nums">{label}</span> : null;
 }
 
@@ -31,6 +32,6 @@ function TickingElapsed({ task }: { task: AgentChatTask }) {
  */
 export function AgentChatTaskElapsed({ task }: { task: AgentChatTask }) {
     if (task.status === 'running') return <TickingElapsed task={task} />;
-    const label = formatAgentChatTaskElapsed(agentChatTaskElapsedMs(task, task.endedAt ?? 0));
+    const label = formatNoticeableDuration(agentChatTaskElapsedMs(task, task.endedAt ?? 0));
     return label ? <span className="shrink-0 tabular-nums">{label}</span> : null;
 }
