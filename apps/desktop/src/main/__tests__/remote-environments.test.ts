@@ -197,6 +197,29 @@ describe('SSH Host environments', () => {
         expect(attempts).toBe(1);
     });
 
+    it('reports a lease another Desktop took over and takes it back only on Use Here', async () => {
+        const { environments, harnesses } = setup();
+        await environments.connect('dev@build-box');
+        const harness = harnesses[0];
+        await vi.waitFor(() => expect(lastState(harness).phase).toBe('connected'));
+        const onEvent = (harness.connection as unknown as { onEvent: ReturnType<typeof vi.fn> })
+            .onEvent;
+        const emit = onEvent.mock.calls[0]?.[0] as (event: ServerEvent) => void;
+
+        emit({ event: 'host.connectionChanged', payload: { status: 'replaced' } });
+        expect(lastState(harness)).toMatchObject({
+            phase: 'disconnected',
+            needsUserAction: false,
+            failure: { reason: 'takenOver' },
+        });
+        expect(harness.connection.resume).not.toHaveBeenCalled();
+
+        await environments.methodsFor(harness.window.webContents as never).reconnect();
+        expect(harness.connection.resume).toHaveBeenCalledOnce();
+        expect(lastState(harness)).toMatchObject({ phase: 'connected', needsUserAction: false });
+        expect(lastState(harness).failure).toBeUndefined();
+    });
+
     it('does not ask for an answer when a failure has nothing to answer', async () => {
         const { environments, harnesses } = setup((started) => {
             // A terminal failure: automatic reconnection stops, yet there is no prompt to answer.
