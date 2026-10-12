@@ -5,10 +5,11 @@ import { isAgentChatMessageRailShown } from './agent-chat-rail-marks';
 
 /**
  * A quiet column of ticks at the Chat's left edge, one per user message, modeled on the Codex app's conversation rail.
- * The tick for the message being read is longer and brighter; hovering one previews its message and clicking scrolls
- * there. A conversation with one message has nowhere to jump, so the rail appears from the second; the transcript then
- * widens its left padding past the rail so a narrow Chat's content never runs under the ticks. Ticks shrink together
- * when a long conversation would overflow the view, so every message keeps a tick without the rail scrolling.
+ * Ticks stay translucent so the rail recedes behind the transcript; the tick for the message being read is longer and
+ * brighter. Hovering one previews its message and clicking scrolls there. A conversation with one message has nowhere
+ * to jump, so the rail appears from the second; the transcript then widens its left padding past the rail so a narrow
+ * Chat's content never runs under the ticks. Ticks shrink together when a long conversation would overflow the view, so
+ * every message keeps a tick without the rail scrolling.
  */
 export function AgentChatMessageRail({
     activeIndex,
@@ -50,8 +51,8 @@ export function AgentChatMessageRail({
                                 className={cn(
                                     'block h-0.5 rounded-full transition-[width,background-color] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-reduce:transition-none',
                                     isActive
-                                        ? 'w-3 bg-foreground'
-                                        : 'w-2 bg-muted group-hover/tick:w-3 group-hover/tick:bg-foreground',
+                                        ? 'w-3 bg-foreground/70'
+                                        : 'w-2 bg-muted/35 group-hover/tick:w-3 group-hover/tick:bg-foreground/70',
                                 )}
                             />
                         </button>
