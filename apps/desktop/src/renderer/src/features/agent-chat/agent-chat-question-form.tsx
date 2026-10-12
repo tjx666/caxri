@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, RefObject } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
@@ -16,7 +16,11 @@ import { Input, InputGroup } from '../../components/ui/input';
 import { Kbd } from '../../components/ui/kbd';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { agentChatQuestionResponse, questionOptionIndexForKey } from './agent-chat-question-flow';
+import {
+    agentChatQuestionResponse,
+    questionOptionIndexForArrow,
+    questionOptionIndexForKey,
+} from './agent-chat-question-flow';
 
 type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
 type QuestionOption = QuestionRequest['questions'][number]['options'][number];
@@ -113,6 +117,162 @@ function QuestionOptionRow({
 }
 
 /**
+ * The `Q1 Q2 Q3` tab strip over several questions. A tab's check marks a question that already has an answer, and its
+ * accessible name carries the full question so a screen reader does not hear only `Q2`.
+ */
+function QuestionTabStrip({
+    answers,
+    idPrefix,
+    index,
+    onIndexChange,
+    request,
+}: {
+    answers: Readonly<Record<string, string[]>>;
+    idPrefix: string;
+    index: number;
+    onIndexChange: (index: number) => void;
+    request: QuestionRequest;
+}) {
+    const { t } = useTranslation();
+    return (
+        <ChromeTabs
+            ariaLabel={t('agentChat.request.questions')}
+            className="-mx-1 flex"
+            idPrefix={idPrefix}
+            items={request.questions.map((item, itemIndex) => {
+                const isItemAnswered = Object.hasOwn(answers, item.id);
+                return {
+                    value: String(itemIndex),
+                    label: t('agentChat.request.questionTabLabel', {
+                        index: itemIndex + 1,
+                        count: request.questions.length,
+                        question: item.header || item.question,
+                    }),
+                    description: t(
+                        isItemAnswered
+                            ? 'agentChat.request.answered'
+                            : 'agentChat.request.unanswered',
+                    ),
+                    content: (
+                        <>
+                            {t('agentChat.request.questionTab', { index: itemIndex + 1 })}
+                            <Check
+                                aria-hidden
+                                className={cn(
+                                    'size-3 text-success',
+                                    !isItemAnswered && 'invisible',
+                                )}
+                            />
+                        </>
+                    ),
+                };
+            })}
+            tabClassName="h-7 px-2 text-[11px]"
+            value={String(index)}
+            onValueChange={(value) => onIndexChange(Number(value))}
+        />
+    );
+}
+
+/**
+ * The free-text answer, numbered after the options so its digit focuses it the way an option's digit answers.
+ */
+function TypedAnswerRow({
+    inputReference,
+    isAnswering,
+    onChange,
+    optionCount,
+    providerName,
+    question,
+    value,
+}: {
+    inputReference: RefObject<HTMLInputElement | null>;
+    isAnswering: boolean;
+    onChange: (value: string) => void;
+    optionCount: number;
+    providerName: string;
+    question: string;
+    value: string;
+}) {
+    const { t } = useTranslation();
+    return (
+        <div className="-mx-2 flex items-center gap-2.5 px-2">
+            {optionCount > 0 && (
+                <Kbd aria-hidden className="shrink-0 bg-transparent text-muted" size="compact">
+                    {optionCount + 1}
+                </Kbd>
+            )}
+            <InputGroup appearance="workbench" className="flex-1" size="dense">
+                <Input
+                    ref={inputReference}
+                    appearance="embedded"
+                    aria-keyshortcuts={
+                        optionCount > 0 && optionCount < 9 ? String(optionCount + 1) : undefined
+                    }
+                    aria-label={t('agentChat.request.otherAnswerFor', { question })}
+                    disabled={isAnswering}
+                    placeholder={t('agentChat.request.otherAnswerPlaceholder', {
+                        provider: providerName,
+                    })}
+                    size="dense"
+                    value={value}
+                    onChange={(event) => onChange(event.target.value)}
+                />
+            </InputGroup>
+        </div>
+    );
+}
+
+/**
+ * Skip dismisses the whole request; Submit sends whatever is answered and shows the Enter hint only when Enter would
+ * send rather than move to the next question.
+ */
+function QuestionFormFooter({
+    canSubmit,
+    isAnswering,
+    isEnterSends,
+    onSkip,
+    onSubmit,
+}: {
+    canSubmit: boolean;
+    isAnswering: boolean;
+    isEnterSends: boolean;
+    onSkip: () => void;
+    onSubmit: () => void;
+}) {
+    const { t } = useTranslation();
+    return (
+        <div className="flex items-center justify-end gap-2">
+            <Button
+                aria-keyshortcuts="Escape"
+                disabled={isAnswering}
+                size="sm"
+                variant="ghost"
+                onClick={onSkip}
+            >
+                {t('agentChat.request.skip')}
+                <Kbd aria-hidden className="bg-transparent text-muted" size="compact">
+                    Esc
+                </Kbd>
+            </Button>
+            <Button
+                aria-keyshortcuts={isEnterSends ? 'Enter' : undefined}
+                disabled={!canSubmit || isAnswering}
+                size="sm"
+                onClick={onSubmit}
+            >
+                {t('agentChat.request.submit')}
+                {isEnterSends && (
+                    <Kbd aria-hidden className="border-current bg-transparent" size="compact">
+                        ↵
+                    </Kbd>
+                )}
+            </Button>
+        </div>
+    );
+}
+
+/**
  * A pending question. Several questions sit behind `Q1 Q2 Q3` tabs, one question at a time, so the card stays the
  * height of one question however many are asked and every question stays one click away: a tab carries a check once its
  * question has an answer. Options are numbered rows and a free-text answer, when allowed, is the last numbered row.
@@ -133,7 +293,6 @@ export function AgentChatQuestionForm({
     respond: (response: AgentChatResponse) => void;
     title: string;
 }) {
-    const { t } = useTranslation();
     const idPrefix = useId();
     const [index, setIndex] = useState(0);
     const [selected, setSelected] = useState(() => agentChatQuestionDefaults(request));
@@ -209,11 +368,9 @@ export function AgentChatQuestionForm({
             else if (allowsTyping) inputReference.current?.focus();
             return;
         }
-        if (options.length === 0 || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
+        const next = questionOptionIndexForArrow(event.key, selectedIndex, options.length);
+        if (next === undefined) return;
         event.preventDefault();
-        const step = event.key === 'ArrowDown' ? 1 : -1;
-        const from = selectedIndex === -1 ? (step === 1 ? -1 : 0) : selectedIndex;
-        const next = (from + step + options.length) % options.length;
         const option = options.at(next);
         if (option) selectOption(option.label);
         optionReferences.current[next]?.focus();
@@ -252,43 +409,17 @@ export function AgentChatQuestionForm({
             </div>
             {options.length > 0 && optionList}
             {allowsTyping && (
-                <div className="-mx-2 flex items-center gap-2.5 px-2">
-                    {options.length > 0 && (
-                        <Kbd
-                            aria-hidden
-                            className="shrink-0 bg-transparent text-muted"
-                            size="compact"
-                        >
-                            {options.length + 1}
-                        </Kbd>
-                    )}
-                    <InputGroup appearance="workbench" className="flex-1" size="dense">
-                        <Input
-                            ref={inputReference}
-                            appearance="embedded"
-                            aria-keyshortcuts={
-                                options.length > 0 && options.length < 9
-                                    ? String(options.length + 1)
-                                    : undefined
-                            }
-                            aria-label={t('agentChat.request.otherAnswerFor', {
-                                question: question.question,
-                            })}
-                            disabled={isAnswering}
-                            placeholder={t('agentChat.request.otherAnswerPlaceholder', {
-                                provider: providerName,
-                            })}
-                            size="dense"
-                            value={typed[question.id] ?? ''}
-                            onChange={(event) =>
-                                setTyped((current) => ({
-                                    ...current,
-                                    [question.id]: event.target.value,
-                                }))
-                            }
-                        />
-                    </InputGroup>
-                </div>
+                <TypedAnswerRow
+                    inputReference={inputReference}
+                    isAnswering={isAnswering}
+                    optionCount={options.length}
+                    providerName={providerName}
+                    question={question.question}
+                    value={typed[question.id] ?? ''}
+                    onChange={(value) =>
+                        setTyped((current) => ({ ...current, [question.id]: value }))
+                    }
+                />
             )}
         </div>
     );
@@ -310,43 +441,12 @@ export function AgentChatQuestionForm({
             <h3 className="m-0 truncate text-[11px] font-normal text-muted">{title}</h3>
             {request.questions.length > 1 ? (
                 <>
-                    <ChromeTabs
-                        ariaLabel={t('agentChat.request.questions')}
-                        className="-mx-1 flex"
+                    <QuestionTabStrip
+                        answers={answers}
                         idPrefix={idPrefix}
-                        items={request.questions.map((item, itemIndex) => {
-                            const isItemAnswered = Object.hasOwn(answers, item.id);
-                            return {
-                                value: String(itemIndex),
-                                label: t('agentChat.request.questionTabLabel', {
-                                    index: itemIndex + 1,
-                                    count: request.questions.length,
-                                    question: item.header || item.question,
-                                }),
-                                description: t(
-                                    isItemAnswered
-                                        ? 'agentChat.request.answered'
-                                        : 'agentChat.request.unanswered',
-                                ),
-                                content: (
-                                    <>
-                                        {t('agentChat.request.questionTab', {
-                                            index: itemIndex + 1,
-                                        })}
-                                        <Check
-                                            aria-hidden
-                                            className={cn(
-                                                'size-3 text-success',
-                                                !isItemAnswered && 'invisible',
-                                            )}
-                                        />
-                                    </>
-                                ),
-                            };
-                        })}
-                        tabClassName="h-7 px-2 text-[11px]"
-                        value={String(index)}
-                        onValueChange={(value) => setIndex(Number(value))}
+                        index={index}
+                        request={request}
+                        onIndexChange={setIndex}
                     />
                     <ChromeTabPanel active idPrefix={idPrefix} value={String(index)}>
                         {questionBody}
@@ -355,33 +455,13 @@ export function AgentChatQuestionForm({
             ) : (
                 questionBody
             )}
-            <div className="flex items-center justify-end gap-2">
-                <Button
-                    aria-keyshortcuts="Escape"
-                    disabled={isAnswering}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => respond({ kind: 'decision', decision: 'cancel' })}
-                >
-                    {t('agentChat.request.skip')}
-                    <Kbd aria-hidden className="bg-transparent text-muted" size="compact">
-                        Esc
-                    </Kbd>
-                </Button>
-                <Button
-                    aria-keyshortcuts={isEnterSends ? 'Enter' : undefined}
-                    disabled={Object.keys(answers).length === 0 || isAnswering}
-                    size="sm"
-                    onClick={() => respond(agentChatQuestionResponse(answers))}
-                >
-                    {t('agentChat.request.submit')}
-                    {isEnterSends && (
-                        <Kbd aria-hidden className="border-current bg-transparent" size="compact">
-                            ↵
-                        </Kbd>
-                    )}
-                </Button>
-            </div>
+            <QuestionFormFooter
+                canSubmit={Object.keys(answers).length > 0}
+                isAnswering={isAnswering}
+                isEnterSends={isEnterSends}
+                onSkip={() => respond({ kind: 'decision', decision: 'cancel' })}
+                onSubmit={() => respond(agentChatQuestionResponse(answers))}
+            />
         </form>
     );
 }

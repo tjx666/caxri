@@ -1,5 +1,3 @@
-import type { AgentChatRequest } from '@caxri/protocol';
-
 import { useTranslation } from '../../i18n';
 import { AgentChatAskingQuestions } from './agent-chat-answered-questions';
 import { AgentChatMessageImages } from './agent-chat-message-images';
@@ -50,20 +48,15 @@ function AgentChatPendingUserMessage({
  */
 export function AgentChatPendingTimeline({
     pending,
-    requests,
     onOpenFile,
 }: {
-    pending: Pick<
-        ReturnType<typeof useAgentChatPending>,
-        'answeredRequestIds' | 'notices' | 'timeline'
-    >;
-    requests: readonly AgentChatRequest[] | undefined;
+    pending: Pick<ReturnType<typeof useAgentChatPending>, 'asking' | 'notices' | 'timeline'>;
     onOpenFile: (target: string) => void;
 }) {
     return (
         <>
-            {requests?.map((request) =>
-                request.kind === 'question' && !pending.answeredRequestIds.has(request.id) ? (
+            {pending.asking.map((request) =>
+                request.kind === 'question' ? (
                     <AgentChatAskingQuestions count={request.questions.length} key={request.id} />
                 ) : null,
             )}

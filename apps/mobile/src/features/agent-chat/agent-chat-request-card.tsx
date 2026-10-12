@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -302,10 +303,167 @@ const QuestionBody = ({
 );
 
 /**
- * One pending Chat request: an approval with the decisions the provider offers (worded by the shared protocol module,
- * so the phone reads like the Desktop Chat), or questions with their options. Only a connected control device answers.
- * A device without control access sees the request and how to get access, with no buttons it could never press; an
- * offline control device keeps the buttons disabled until it reconnects.
+ * The buttons and answer state a request body shares with its card: whether answering is possible, which button is in
+ * flight, and how to send.
+ */
+interface RequestActions {
+    isDisabled: boolean;
+    isShowsActions: boolean;
+    pendingAction: string | null;
+    respond: (action: string, response: AgentChatResponse) => Promise<void>;
+}
+
+/**
+ * Questions with their tabs, the current question, and Skip / Submit. `notice` (why answering is blocked) sits between
+ * the question and the buttons.
+ */
+const QuestionContent = ({
+    actions,
+    notice,
+    request,
+    theme,
+}: {
+    actions: RequestActions;
+    notice: ReactNode;
+    request: QuestionRequest;
+    theme: MobileTheme;
+}) => {
+    const [selected, setSelected] = useState(() => agentChatQuestionDefaults(request));
+    const [other, setOther] = useState<Record<string, string>>({});
+    const [questionIndex, setQuestionIndex] = useState(0);
+    const { answers } = agentChatQuestionAnswers(request, selected, other);
+    const question = request.questions.at(questionIndex);
+    const answer = (id: string, value: string): void => {
+        const nextSelected = { ...selected, [id]: value };
+        setSelected(nextSelected);
+        /*
+         * A tap answers and moves on to the next unanswered question, as the Codex app does. Sending stays with Submit,
+         * so a stray tap on a phone never sends the card.
+         */
+        const next = agentChatNextUnansweredQuestion(
+            request,
+            agentChatQuestionAnswers(request, nextSelected, other).answers,
+            questionIndex,
+        );
+        if (next !== undefined) setQuestionIndex(next);
+    };
+    return (
+        <>
+            {request.questions.length > 1 ? (
+                <QuestionTabs
+                    answers={answers}
+                    index={questionIndex}
+                    request={request}
+                    setIndex={setQuestionIndex}
+                    theme={theme}
+                />
+            ) : null}
+            {question ? (
+                <QuestionBody
+                    other={other}
+                    question={question}
+                    questionIndex={questionIndex}
+                    selected={selected}
+                    setOther={(id, value) => setOther((current) => ({ ...current, [id]: value }))}
+                    setSelected={answer}
+                    theme={theme}
+                />
+            ) : null}
+            {notice}
+            {actions.isShowsActions ? (
+                <View style={styles.actions}>
+                    <ActionButton
+                        disabled={actions.isDisabled}
+                        isPending={actions.pendingAction === 'agent-chat-question-skip'}
+                        label="Skip"
+                        onPress={() => {
+                            // eslint-disable-next-line no-void -- The card reports a failed answer itself.
+                            void actions.respond('agent-chat-question-skip', {
+                                kind: 'decision',
+                                decision: 'cancel',
+                            });
+                        }}
+                        testID="agent-chat-question-skip"
+                        theme={theme}
+                        tone="plain"
+                    />
+                    <ActionButton
+                        disabled={actions.isDisabled || Object.keys(answers).length === 0}
+                        isPending={actions.pendingAction === 'agent-chat-question-submit'}
+                        label="Submit"
+                        onPress={() => {
+                            // eslint-disable-next-line no-void -- The card reports a failed answer itself.
+                            void actions.respond('agent-chat-question-submit', {
+                                kind: 'answers',
+                                answers,
+                            });
+                        }}
+                        testID="agent-chat-question-submit"
+                        theme={theme}
+                        tone="primary"
+                    />
+                </View>
+            ) : null}
+        </>
+    );
+};
+
+/**
+ * An approval with the decisions the provider offers, worded by the shared protocol module so the phone reads like the
+ * Desktop Chat.
+ */
+const ApprovalContent = ({
+    actions,
+    items,
+    notice,
+    request,
+    theme,
+}: {
+    actions: RequestActions;
+    items: readonly AgentChatItem[];
+    notice: ReactNode;
+    request: ApprovalRequest;
+    theme: MobileTheme;
+}) => (
+    <>
+        <ApprovalBody items={items} request={request} theme={theme} />
+        {notice}
+        {actions.isShowsActions ? (
+            <View style={styles.choices}>
+                {agentChatApprovalRows(agentChatApprovalChoices(request)).map((row) => (
+                    <View key={row[0].decision} style={styles.actions}>
+                        {row.map((choice) => {
+                            const testID = `agent-chat-approval-${choice.decision.toLowerCase()}`;
+                            return (
+                                <ActionButton
+                                    key={choice.decision}
+                                    disabled={actions.isDisabled}
+                                    isPending={actions.pendingAction === testID}
+                                    label={choice.label}
+                                    onPress={() => {
+                                        // eslint-disable-next-line no-void -- The card reports a failed answer itself.
+                                        void actions.respond(testID, {
+                                            kind: 'decision',
+                                            decision: choice.decision,
+                                        });
+                                    }}
+                                    testID={testID}
+                                    theme={theme}
+                                    tone={choice.decision === 'accept' ? 'primary' : 'plain'}
+                                />
+                            );
+                        })}
+                    </View>
+                ))}
+            </View>
+        ) : null}
+    </>
+);
+
+/**
+ * One pending Chat request: an approval or questions. Only a connected control device answers. A device without control
+ * access sees the request and how to get access, with no buttons it could never press; an offline control device keeps
+ * the buttons disabled until it reconnects.
  */
 export const AgentChatRequestCard = ({
     blockedReason,
@@ -322,32 +480,32 @@ export const AgentChatRequestCard = ({
     request: AgentChatRequest;
     theme: MobileTheme;
 }) => {
-    const [selected, setSelected] = useState<Record<string, string>>(() =>
-        request.kind === 'question' ? agentChatQuestionDefaults(request) : {},
-    );
-    const [other, setOther] = useState<Record<string, string>>({});
-    const [questionIndex, setQuestionIndex] = useState(0);
     /**
      * The test id of the button whose answer is in flight, so only that button shows a spinner.
      */
     const [pendingAction, setPendingAction] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const respond = async (action: string, response: AgentChatResponse): Promise<void> => {
-        setPendingAction(action);
-        setError(null);
-        try {
-            await onRespond(request, response);
-        } catch {
-            setError('Your answer was not delivered. Try again.');
-        } finally {
-            setPendingAction(null);
-        }
+    const actions: RequestActions = {
+        isDisabled: blockedReason !== undefined || pendingAction !== null,
+        isShowsActions: blockedReason?.kind !== 'access',
+        pendingAction,
+        respond: async (action, response) => {
+            setPendingAction(action);
+            setError(null);
+            try {
+                await onRespond(request, response);
+            } catch {
+                setError('Your answer was not delivered. Try again.');
+            } finally {
+                setPendingAction(null);
+            }
+        },
     };
-    const isDisabled = blockedReason !== undefined || pendingAction !== null;
-    const isShowsActions = blockedReason?.kind !== 'access';
-    const answers =
-        request.kind === 'question' ? agentChatQuestionAnswers(request, selected, other) : null;
-    const question = request.kind === 'question' ? request.questions.at(questionIndex) : undefined;
+    const notice = blockedReason ? (
+        <Text style={[styles.meta, { color: theme.muted }]} testID="agent-chat-request-blocked">
+            {blockedReason.message}
+        </Text>
+    ) : null;
     return (
         <View
             style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -357,119 +515,20 @@ export const AgentChatRequestCard = ({
                 {agentChatRequestTitle(request, sentenceStartProvider(provider))}
             </Text>
             {request.kind === 'question' ? (
-                answers && (
-                    <>
-                        {request.questions.length > 1 ? (
-                            <QuestionTabs
-                                answers={answers.answers}
-                                index={questionIndex}
-                                request={request}
-                                setIndex={setQuestionIndex}
-                                theme={theme}
-                            />
-                        ) : null}
-                        {question ? (
-                            <QuestionBody
-                                other={other}
-                                question={question}
-                                questionIndex={questionIndex}
-                                selected={selected}
-                                setOther={(id, value) =>
-                                    setOther((current) => ({ ...current, [id]: value }))
-                                }
-                                setSelected={(id, value) => {
-                                    const nextSelected = { ...selected, [id]: value };
-                                    setSelected(nextSelected);
-                                    /*
-                                     * A tap answers and moves on to the next unanswered question, as the Codex app does.
-                                     * Sending stays with Submit, so a stray tap on a phone never sends the card.
-                                     */
-                                    const next = agentChatNextUnansweredQuestion(
-                                        request,
-                                        agentChatQuestionAnswers(request, nextSelected, other)
-                                            .answers,
-                                        questionIndex,
-                                    );
-                                    if (next !== undefined) setQuestionIndex(next);
-                                }}
-                                theme={theme}
-                            />
-                        ) : null}
-                    </>
-                )
+                <QuestionContent
+                    actions={actions}
+                    notice={notice}
+                    request={request}
+                    theme={theme}
+                />
             ) : (
-                <ApprovalBody items={items} request={request} theme={theme} />
-            )}
-            {blockedReason ? (
-                <Text
-                    style={[styles.meta, { color: theme.muted }]}
-                    testID="agent-chat-request-blocked"
-                >
-                    {blockedReason.message}
-                </Text>
-            ) : null}
-            {!isShowsActions ? null : request.kind === 'question' ? (
-                <View style={styles.actions}>
-                    <ActionButton
-                        disabled={isDisabled}
-                        isPending={pendingAction === 'agent-chat-question-skip'}
-                        label="Skip"
-                        onPress={() => {
-                            // eslint-disable-next-line no-void -- The card reports a failed answer itself.
-                            void respond('agent-chat-question-skip', {
-                                kind: 'decision',
-                                decision: 'cancel',
-                            });
-                        }}
-                        testID="agent-chat-question-skip"
-                        theme={theme}
-                        tone="plain"
-                    />
-                    <ActionButton
-                        disabled={isDisabled || Object.keys(answers?.answers ?? {}).length === 0}
-                        isPending={pendingAction === 'agent-chat-question-submit'}
-                        label="Submit"
-                        onPress={() => {
-                            if (!answers) return;
-                            // eslint-disable-next-line no-void -- The card reports a failed answer itself.
-                            void respond('agent-chat-question-submit', {
-                                kind: 'answers',
-                                answers: answers.answers,
-                            });
-                        }}
-                        testID="agent-chat-question-submit"
-                        theme={theme}
-                        tone="primary"
-                    />
-                </View>
-            ) : (
-                <View style={styles.choices}>
-                    {agentChatApprovalRows(agentChatApprovalChoices(request)).map((row) => (
-                        <View key={row[0].decision} style={styles.actions}>
-                            {row.map((choice) => {
-                                const testID = `agent-chat-approval-${choice.decision.toLowerCase()}`;
-                                return (
-                                    <ActionButton
-                                        key={choice.decision}
-                                        disabled={isDisabled}
-                                        isPending={pendingAction === testID}
-                                        label={choice.label}
-                                        onPress={() => {
-                                            // eslint-disable-next-line no-void -- The card reports a failed answer itself.
-                                            void respond(testID, {
-                                                kind: 'decision',
-                                                decision: choice.decision,
-                                            });
-                                        }}
-                                        testID={testID}
-                                        theme={theme}
-                                        tone={choice.decision === 'accept' ? 'primary' : 'plain'}
-                                    />
-                                );
-                            })}
-                        </View>
-                    ))}
-                </View>
+                <ApprovalContent
+                    actions={actions}
+                    items={items}
+                    notice={notice}
+                    request={request}
+                    theme={theme}
+                />
             )}
             {error ? (
                 <Text accessibilityRole="alert" style={[styles.meta, { color: theme.danger }]}>
