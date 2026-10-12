@@ -22,10 +22,25 @@ export interface CdpConnection {
 }
 
 /**
+ * Whether a page is the main window of an unpackaged dev launch: the Vite dev-server root or its `index.html`.
+ * Secondary windows load sibling entries (`agent-commander.html`, `process-explorer.html`) from the same server.
+ */
+function isDevelopmentMainPage(url: string): boolean {
+    try {
+        const { pathname, protocol } = new URL(url);
+        return (
+            (protocol === 'http:' || protocol === 'https:') && /\/(?:index\.html)?$/.test(pathname)
+        );
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Picks the single main-window Renderer target. A packaged or built launch exposes `<app>/out/renderer/index.html` next
- * to secondary windows such as the Process Explorer; an unpackaged dev launch exposes only the Vite dev-server page,
- * which the final fallback returns. DevTools windows are never candidates: attaching to one silently inspects the
- * inspector.
+ * to secondary windows such as the Process Explorer; an unpackaged dev launch exposes the Vite dev-server root next to
+ * the same secondary entries served by Vite. Without a built page the dev root wins, and only a launch with neither
+ * falls back to every page. DevTools windows are never candidates: attaching to one silently inspects the inspector.
  */
 export function selectRendererTarget(targets: CdpTarget[], urlContains?: string): CdpTarget {
     const pages = targets.filter(
@@ -38,13 +53,12 @@ export function selectRendererTarget(targets: CdpTarget[], urlContains?: string)
         /\/out\/renderer\/index\.html(?:[?#]|$)/.test(target.url),
     );
     const rendererPages = pages.filter((target) => target.url.includes('/out/renderer/'));
+    const developmentMainPages = pages.filter((target) => isDevelopmentMainPage(target.url));
     const candidates = urlContains
         ? pages.filter((target) => target.url.includes(urlContains))
-        : mainRendererPages.length > 0
-          ? mainRendererPages
-          : rendererPages.length > 0
-            ? rendererPages
-            : pages;
+        : ([mainRendererPages, rendererPages, developmentMainPages].find(
+              (group) => group.length > 0,
+          ) ?? pages);
     if (candidates.length !== 1) {
         const urls = pages.map((target) => target.url).join(', ') || 'none';
         const selector = urlContains ? ` matching "${urlContains}"` : '';
