@@ -48,6 +48,7 @@ Renderer hides the matching commands through the `localMachine` command conditio
 | --------------------------------------------------------- | ------------------------------------- |
 | Native folder picker when adding a Project                | Folder browser served by the SSH Host |
 | Move to Trash                                             | The SSH Host's freedesktop.org Trash  |
+| Open File by Path outside the Project, or `~`             | Paths inside the remote Project only  |
 | Reveal in Finder, open with default app                   | None yet                              |
 | Open in external editor                                   | None yet                              |
 | Theme import, diagnostics export, bug report, OS settings | Use the local window                  |
@@ -58,6 +59,12 @@ confirmation. After it, the remote Server moves the entry into the SSH Host's ho
 --restore` or a desktop file manager on that machine can recover it. The Server rechecks the
 device and inode the user approved, so a path replaced after the dialog is refused. A Project on
 another filesystem than the home directory is copied into the Trash and then removed.
+
+Open File by Path (Cmd+P) browses, searches, and opens files inside the Session's remote Project. It
+identifies each directory through the remote Server's `files.authorizeOpen` instead of this Mac's
+`lstat`, so an absolute path typed into it stays a Project path: one inside the Project opens, one
+outside it is refused. Free browsing outside the Project, `~`, and the Backspace gesture that
+detaches from the Project are not offered, because they would list this Mac's disk.
 
 ## Requirements on the SSH Host
 

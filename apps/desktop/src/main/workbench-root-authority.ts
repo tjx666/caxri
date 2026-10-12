@@ -10,6 +10,7 @@ import { readExternalFileSnapshot } from './external-file-snapshot';
 import { translateMain } from './locale';
 import type { PathBrowserOpenTarget } from './path-browser-authority';
 import { createPathBrowserAuthority } from './path-browser-authority';
+import { remotePathBrowserDirectories } from './path-browser-directories';
 import type { PathBrowserLogger } from './path-browser-log';
 import type { ProjectRootGrants } from './root-grants';
 import type { DesktopServerConnection } from './server-connection';
@@ -344,6 +345,9 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
     }
 
     const pathBrowser = createPathBrowserAuthority({
+        ...(isRemote && {
+            directories: remotePathBrowserDirectories(() => options.getServer()),
+        }),
         getServer: () => options.getServer(),
         logger: () => options.logger(),
         openFile: openPathBrowserFile,

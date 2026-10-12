@@ -10,6 +10,7 @@ import { translate, useTranslation } from '../../i18n';
 import { isDirectoryEntry } from '../../lib/file-entry';
 import { isImeComposing } from '../../lib/ime';
 import { setPathBrowserOpen } from '../../stores/dialogs';
+import { isRemote } from '../../stores/environment';
 import { describeFailure } from '../../stores/toasts';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import { createItem } from '../view-containers/resource-explorer/file-actions';
@@ -357,7 +358,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         completedInputWithoutBrowse.current = null;
         inputRevision.current += 1;
         setError(undefined);
-        setInputState((current) => pathBrowserInputTransition(current, input));
+        setInputState((current) => pathBrowserInputTransition(current, input, !isRemote()));
         setSelectedIndex(0);
     };
 
@@ -516,6 +517,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
         const intent = pathBrowserKeyIntent({
+            canBrowseFree: !isRemote(),
             entryCount: rows.length,
             input: inputState.input,
             isComposing: isImeComposing(event),

@@ -293,7 +293,6 @@ describe('executeCommand', () => {
             'agentCommander.takeBack',
             'developer.reportBug',
             'diagnostics.export',
-            'pathBrowser.open',
             'processExplorer.open',
             'project.openInEditor',
             'shellCommand.install',
@@ -305,14 +304,24 @@ describe('executeCommand', () => {
         const remote = recordingContext();
         remote.context.remote.isLocalOnlyAvailable = () => false;
 
-        for (const id of [...localOnly, ...sshHostOnly, 'remote.connect'] as const) {
+        for (const id of [
+            ...localOnly,
+            ...sshHostOnly,
+            'remote.connect',
+            'pathBrowser.open',
+        ] as const) {
             executeCommand(id, undefined, local.context);
             executeCommand(id, undefined, remote.context);
         }
 
-        expect(local.calls).toHaveLength(localOnly.length + 1);
+        expect(local.calls).toHaveLength(localOnly.length + 2);
         expect(local.calls).not.toContain('remote.reconnect');
-        expect(remote.calls).toEqual(['remote.reconnect', 'remote.stopServer', 'remote.connect']);
+        expect(remote.calls).toEqual([
+            'remote.reconnect',
+            'remote.stopServer',
+            'remote.connect',
+            'dialogs.openPathBrowser',
+        ]);
         // Each of these palette predicates holds only in a local window; see `commanderPaletteWhenContext`.
         const localWindowPredicates = [
             'localMachine',
