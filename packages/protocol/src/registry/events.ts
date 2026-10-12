@@ -24,6 +24,7 @@ import {
     runtimeStatusSchema,
 } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
+import { fileWatchLimitAlertSchema } from '../domain/file-watch.js';
 import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
 import { settingsTargetSchema } from '../domain/settings-target.js';
 import { terminalResourceAlertSchema } from '../domain/terminal-resources.js';
@@ -174,6 +175,10 @@ export const serverEventPayloads = {
         exitCode: z.number(),
         signal: z.number().optional(),
     }),
+    /**
+     * A native file watch on the Server's machine fell back to polling because of a kernel limit, or no longer does.
+     */
+    'files.watchLimitAlert': fileWatchLimitAlertSchema,
     'files.changed': z.object({
         sessionId: identifierSchema,
         /**

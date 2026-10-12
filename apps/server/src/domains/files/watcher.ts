@@ -481,10 +481,10 @@ export class WatcherService {
     }
 
     /**
-     * Reacts to a native "must rescan" advisory (see `isMustRescanAdvisory` in `watch-hub.ts`) by asking every Files
-     * consumer to refetch this scope, without disturbing the still-live native subscription or Session validation. No
-     * `onRootUnavailable` call here: the root is not unavailable, the advisory just means the incremental change list
-     * the native backend was about to hand us cannot be trusted for one batch.
+     * Reacts to a native "must rescan" advisory (see `isMustRescanAdvisory` in `watch-failures.ts`) by asking every
+     * Files consumer to refetch this scope, without disturbing the still-live native subscription or Session
+     * validation. No `onRootUnavailable` call here: the root is not unavailable, the advisory just means the
+     * incremental change list the native backend was about to hand us cannot be trusted for one batch.
      */
     private triggerRescan(scope: WatchScope): void {
         this.preparePendingBatch(scope);

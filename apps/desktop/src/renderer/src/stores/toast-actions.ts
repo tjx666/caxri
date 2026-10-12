@@ -24,6 +24,10 @@ export interface ToastActionParameters {
      * Raises the Agent Commander window, for a notice about work just handed to it.
      */
     'agentCommander.open': undefined;
+    /**
+     * Copies a shell command the notice asks the user to run elsewhere, such as raising a limit on an SSH Host.
+     */
+    'clipboard.copyCommand': { text: string };
     'diagnostics.copyFailure': { text: string };
     /**
      * Re-applies unsaved buffers a newer disk state replaced. Carries only the documents' identity: the discarded text
@@ -112,6 +116,7 @@ export type ToastAction = {
 export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'agentChat.redoUndo': 'toasts.action.redo',
     'agentCommander.open': 'toasts.action.openAgentCommander',
+    'clipboard.copyCommand': 'toasts.action.copyCommand',
     'diagnostics.copyFailure': 'toasts.action.copyDetails',
     'editor.restoreDiscardedChanges': 'toasts.action.restoreDiscardedChanges',
     'editor.retrySave': 'common.retry',

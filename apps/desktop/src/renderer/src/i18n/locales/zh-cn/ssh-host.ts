@@ -97,4 +97,8 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.folderPicker.invalidPath':
         '请输入绝对路径（如 /srv/app），或主文件夹中的路径（如 ~/app）。',
     'sshHost.folderPicker.open': '打开',
+    'sshHost.watchLimit.watches':
+        'SSH Host 的文件监听数已用尽（fs.inotify.max_user_watches），文件树和 Git 状态可能要过几秒才会更新。请让管理员调高该上限，Caxri 会自动恢复实时更新。',
+    'sshHost.watchLimit.instances':
+        'SSH Host 的文件监听器数量已用尽（fs.inotify.max_user_instances），文件树和 Git 状态可能要过几秒才会更新。请让管理员调高该上限，Caxri 会自动恢复实时更新。',
 };

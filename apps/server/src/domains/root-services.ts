@@ -116,7 +116,10 @@ export async function createRootServices({
      * One Server-wide watch registry: every filesystem watcher and intentional poller registers here so listener count,
      * polling degradations, and event rates stay centrally gated and observable (`DiagnosticsService`).
      */
-    const watchHub = new WatchHub({ logger });
+    const watchHub = new WatchHub({
+        logger,
+        onLimitAlert: (payload) => send({ event: 'files.watchLimitAlert', payload }),
+    });
     const timeline = new AgentTimelineService(
         database,
         agentEnvironment ?? defaultAgentEnvironment(),

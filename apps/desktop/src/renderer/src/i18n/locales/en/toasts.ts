@@ -31,6 +31,7 @@ export const toasts = {
 
     // stores/toast-actions.ts: follow-up buttons
     'toasts.action.copyDetails': 'Copy details',
+    'toasts.action.copyCommand': 'Copy command',
     'toasts.action.restoreDiscardedChanges': 'Restore My Changes',
     'toasts.action.openOnGitHub': 'Open on GitHub',
     'toasts.action.viewDetails': 'View details',
@@ -47,6 +48,7 @@ export const toasts = {
     'toasts.actionUnavailable.missingSession': 'That Session no longer exists.',
     'toasts.actionUnavailable.sessionMovedOn': 'This Session has moved on from that switch.',
     'toasts.copyDetailsFailed': 'Copy details failed',
+    'toasts.copyCommandFailed': 'Copy command failed',
 
     // stores/notifications.ts: mutable notification types
     'toasts.type.worktreeFallback': 'Worktree fallback',
