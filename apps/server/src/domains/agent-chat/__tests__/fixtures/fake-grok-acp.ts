@@ -197,7 +197,12 @@ async function wasShellCallApproved(
             result.outcome?.optionId !== 'allow-once' &&
             result.outcome?.optionId !== 'always-allow'
         ) {
-            update({ sessionUpdate: 'tool_call_update', toolCallId, status: 'failed' });
+            update({
+                sessionUpdate: 'tool_call_update',
+                toolCallId,
+                status: 'failed',
+                content: rejectedContent('run_terminal_command'),
+            });
             return false;
         }
     }
@@ -209,6 +214,20 @@ async function wasShellCallApproved(
         content: [{ type: 'content', content: { type: 'text', text: `${command}: ok` } }],
     });
     return true;
+}
+
+/**
+ * The content Grok Build reports for a tool call the user rejected, live and again in its `session/load` replay, where
+ * the call's status is `failed` like a call that broke. Verified against Grok Build 1.0.50 for `run_terminal_command`;
+ * the file-edit tool's name is this fixture's stand-in.
+ */
+function rejectedContent(tool: string): unknown[] {
+    return [
+        {
+            type: 'content',
+            content: { type: 'text', text: `User rejected the execution for tool \`${tool}\`` },
+        },
+    ];
 }
 
 async function wasPatchApproved(): Promise<boolean> {
@@ -248,6 +267,7 @@ async function wasPatchApproved(): Promise<boolean> {
         sessionUpdate: 'tool_call_update',
         toolCallId,
         status: isAccepted ? 'completed' : 'failed',
+        ...(!isAccepted && { content: rejectedContent('search_replace') }),
     });
     return isAccepted;
 }
