@@ -114,9 +114,14 @@ function EditedFileRow({
  */
 export function AgentChatTurnChanges({
     files,
+    isPartial,
     turnId,
 }: {
     files: readonly AgentChatEditedFile[];
+    /**
+     * The Chat dropped the start of this turn, so `files` is incomplete and Undo is withheld.
+     */
+    isPartial: boolean;
     turnId: string;
 }) {
     const { t } = useTranslation();
@@ -146,7 +151,11 @@ export function AgentChatTurnChanges({
             if (!next.delete(path)) next.add(path);
             return next;
         });
-    const isTruncated = files.some((file) => file.truncated);
+    const undoBlocker = isPartial
+        ? 'agentChat.undo.partialTurnTooltip'
+        : files.some((file) => file.truncated)
+          ? 'agentChat.undo.truncatedTooltip'
+          : undefined;
     const only = files.at(0);
     const sessionId = session?.id;
     return (
@@ -222,20 +231,17 @@ export function AgentChatTurnChanges({
                             {t('agentChat.undo.undone')}
                         </span>
                     ) : (
-                        <Tooltip
-                            content={t(
-                                isTruncated
-                                    ? 'agentChat.undo.truncatedTooltip'
-                                    : 'agentChat.undo.tooltip',
-                            )}
-                        >
+                        <Tooltip content={t(undoBlocker ?? 'agentChat.undo.tooltip')}>
                             <Button
-                                aria-disabled={isTruncated || undoStatus === 'undoing'}
+                                aria-disabled={
+                                    undoBlocker !== undefined || undoStatus === 'undoing'
+                                }
                                 className="shrink-0 gap-1 text-[12px] text-muted enabled:not-aria-disabled:hover:text-foreground"
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => {
-                                    if (isTruncated || undoStatus === 'undoing') return;
+                                    if (undoBlocker !== undefined || undoStatus === 'undoing')
+                                        return;
                                     // eslint-disable-next-line no-void -- undoAgentChatTurn reports failures through tryCommand
                                     void undoAgentChatTurn({
                                         sessionId,
