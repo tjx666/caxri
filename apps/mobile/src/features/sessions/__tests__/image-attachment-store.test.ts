@@ -6,8 +6,11 @@ import {
     expireImageAttachments,
     IMAGE_ATTACHMENT_REUSE_MS,
     imageAttachmentAccessibilityLabel,
+    imageAttachmentBudgetNote,
     imageAttachmentKey,
+    imageAttachmentsBase64Length,
     ImageAttachmentStore,
+    imageAttachmentsWithReturned,
     imageAttachmentWaitReason,
     patchImageAttachment,
     removeImageAttachment,
@@ -109,5 +112,51 @@ describe('composer image attachment copy', () => {
         expect(imageAttachmentAccessibilityLabel(attachment({ state: 'failed' }), 0, 1)).toBe(
             'Image 1 of 1, upload failed',
         );
+    });
+});
+
+describe("a Chat message's combined image size", () => {
+    const MB = 1_024 * 1_024;
+    const max = Math.ceil((20 * MB) / 3) * 4;
+
+    it("keeps an image's size after its bytes are dropped on upload", () => {
+        const [ready] = completeImageAttachment([attachment({ base64Length: 400 })], 'image_a', 1);
+        expect(ready.base64).toBeUndefined();
+        expect(ready.base64Length).toBe(400);
+    });
+
+    it('adds up the strip, leaving out the image being judged', () => {
+        const strip = [
+            attachment({ id: 'a', base64Length: 100 }),
+            attachment({ id: 'b', base64Length: 50 }),
+            attachment({ id: 'c', state: 'preparing' }),
+        ];
+        expect(imageAttachmentsBase64Length(strip)).toBe(150);
+        expect(imageAttachmentsBase64Length(strip, 'a')).toBe(50);
+    });
+
+    it('notes the size only once the images use most of the limit', () => {
+        expect(
+            imageAttachmentBudgetNote([attachment({ base64Length: max / 2 })], max, 20 * MB),
+        ).toBe(null);
+        expect(
+            imageAttachmentBudgetNote([attachment({ base64Length: max * 0.81 })], max, 20 * MB),
+        ).toBe('Images use 16.2 of 20 MB.');
+        expect(imageAttachmentBudgetNote([attachment({ base64Length: max })], max, 20 * MB)).toBe(
+            'Images use 20 of 20 MB.',
+        );
+    });
+});
+
+describe('returning the images of a failed send', () => {
+    it('puts them back ahead of images attached since, without duplicates', () => {
+        const sent = [attachment({ id: 'sent' }), attachment({ id: 'kept' })];
+        const current = [attachment({ id: 'later' }), attachment({ id: 'kept' })];
+        expect(imageAttachmentsWithReturned(current, sent).map(({ id }) => id)).toEqual([
+            'sent',
+            'later',
+            'kept',
+        ]);
+        expect(imageAttachmentsWithReturned(current, [attachment({ id: 'kept' })])).toBe(current);
     });
 });

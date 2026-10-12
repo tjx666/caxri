@@ -19,7 +19,9 @@ import {
     completeImageAttachment,
     expireImageAttachments,
     imageAttachmentKey,
+    imageAttachmentsBase64Length,
     imageAttachmentStore,
+    imageAttachmentsWithReturned,
     imageAttachmentWaitReason,
     patchImageAttachment,
     removeImageAttachment,
@@ -68,10 +70,16 @@ export const useImageAttachments = (
     sessionId: string,
     {
         maxAttachments = MAX_ATTACHMENTS,
+        maxTotal,
         surface = 'terminal',
         withThumbnail = false,
     }: {
         maxAttachments?: number;
+        /**
+         * The combined base64 length one message's images may reach, and what the refusal says. An image that would
+         * pass it is refused once prepared, before any of it uploads, since the Server would refuse the whole message.
+         */
+        maxTotal?: { base64Length: number; message: string };
         /**
          * Which composer owns the strip; a Chat and a Terminal composer never share pending images.
          */
@@ -220,9 +228,26 @@ export const useImageAttachments = (
             ]);
             const prepared = await prepare(picked);
             if (imageAttachmentStore.isCancelled(id)) return;
-            const item: ImageAttachment = { id, progress: 0, state: 'uploading', ...prepared };
+            const base64Length = prepared.base64?.length ?? 0;
+            if (
+                maxTotal &&
+                imageAttachmentsBase64Length(imageAttachmentStore.get(key), id) + base64Length >
+                    maxTotal.base64Length
+            )
+                throw new Error(maxTotal.message);
+            const item: ImageAttachment = {
+                id,
+                progress: 0,
+                state: 'uploading',
+                base64Length,
+                ...prepared,
+            };
             update((current) =>
-                patchImageAttachment(current, id, { ...prepared, state: 'uploading' }),
+                patchImageAttachment(current, id, {
+                    ...prepared,
+                    base64Length,
+                    state: 'uploading',
+                }),
             );
             await upload(item);
         } catch (error) {
@@ -246,6 +271,7 @@ export const useImageAttachments = (
             id: newAttachmentId(),
             uri: item.uri,
             ...(item.base64 !== undefined && { base64: item.base64 }),
+            ...(item.base64Length !== undefined && { base64Length: item.base64Length }),
             ...(item.thumbnail && {
                 thumbnail: { ...item.thumbnail, id: newAttachmentId() },
             }),
@@ -297,5 +323,11 @@ export const useImageAttachments = (
             ]);
         },
         clear: () => update(() => []),
+        /**
+         * Puts back images whose message failed to send, ahead of any attached since; one still attached is not added
+         * twice. Their uploads are still on the Server, so they are ready to send again.
+         */
+        restore: (returned: readonly ImageAttachment[]) =>
+            update((current) => imageAttachmentsWithReturned(current, returned)),
     };
 };
