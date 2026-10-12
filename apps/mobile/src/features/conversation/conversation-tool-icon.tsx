@@ -1,12 +1,16 @@
 import type { ComponentType } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 
-import type { AgentToolKind } from '@caxri/protocol';
+import type { AgentChatItemStatus, AgentToolKind } from '@caxri/protocol';
+import { agentChatItemStatusLabel, agentChatItemStatusTone } from '@caxri/protocol';
 import type { LucideProps } from 'lucide-react-native';
 import {
     Bot,
     Brain,
+    Circle,
+    CircleSlash,
     CircleStop,
+    CircleX,
     FilePenLine,
     FilePlus,
     FileText,
@@ -46,33 +50,53 @@ const TOOL_ICONS: Record<AgentToolKind, ComponentType<LucideProps>> = {
 };
 
 /**
- * A tile carrying the tool's kind. A running tool swaps the glyph for a spinner so progress sits where the eye lands
- * first; a failed one keeps its glyph in the danger color, so the kind stays recognizable.
+ * A tile carrying the tool's kind, matching Desktop's work glyphs. Running work keeps its glyph and sweeps a highlight
+ * across its title instead, so a column of rows does not flicker as each one starts and ends; how a settled tool ended
+ * is the trailing {@link ConversationStatusGlyph}'s job.
  */
 export const ConversationToolIcon = ({
     kind,
-    status,
     theme,
 }: {
     /**
      * `null` marks a group mixing several kinds.
      */
     kind: AgentToolKind | null;
-    status: 'failed' | 'running' | 'succeeded';
     theme: MobileTheme;
 }) => {
     const Icon = kind ? TOOL_ICONS[kind] : Layers;
     return (
         <View style={[styles.toolIcon, { backgroundColor: theme.elevated }]}>
-            {status === 'running' ? (
-                <ActivityIndicator color={theme.muted} size={12} />
-            ) : (
-                <Icon
-                    color={status === 'failed' ? theme.danger : theme.muted}
-                    size={14}
-                    strokeWidth={2}
-                />
-            )}
+            <Icon color={theme.muted} size={14} strokeWidth={2} />
         </View>
+    );
+};
+
+const STATUS_ICONS: Partial<Record<AgentChatItemStatus, ComponentType<LucideProps>>> = {
+    declined: CircleSlash,
+    failed: CircleX,
+    interrupted: Circle,
+};
+
+/**
+ * How a tool that did not complete ended, with Desktop's glyph, tone, and accessible name: failed (`danger`), declined,
+ * or interrupted (`warning`). Running and completed work draw nothing here.
+ */
+export const ConversationStatusGlyph = ({
+    status,
+    theme,
+}: {
+    status: AgentChatItemStatus;
+    theme: MobileTheme;
+}) => {
+    const Icon = STATUS_ICONS[status];
+    if (!Icon) return null;
+    const tone = agentChatItemStatusTone(status);
+    return (
+        <Icon
+            accessibilityLabel={agentChatItemStatusLabel(status)}
+            color={tone === 'danger' ? theme.danger : theme.warning}
+            size={15}
+        />
     );
 };

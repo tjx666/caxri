@@ -2,10 +2,11 @@ import type { KeyboardEvent, RefObject } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
+import { projectRelativePath } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import { resolveEntryKind } from '../../../lib/file-entry';
-import { parentDirectoryPath, projectRelativePath } from '../../../lib/file-path';
+import { parentDirectoryPath } from '../../../lib/file-path';
 import { useCaxriQuery } from '../../../queries/client';
 import { tryCommand } from '../../../stores/toasts';
 import type { EditorBreadcrumbSegment } from '../editor-breadcrumbs-model';

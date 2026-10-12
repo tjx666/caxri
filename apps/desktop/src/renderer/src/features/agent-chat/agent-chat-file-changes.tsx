@@ -1,7 +1,14 @@
 import type { ReactNode } from 'react';
 import { Fragment, useId, useMemo, useState } from 'react';
 
-import type { AgentChatItemStatus } from '@caxri/protocol';
+import type { AgentChatDiffLine, AgentChatFileChange, AgentChatItemStatus } from '@caxri/protocol';
+import {
+    agentChatChangeDecoration,
+    agentChatDiffLines,
+    agentChatDiffLinesStat,
+    canOpenAgentChatChange,
+    projectDisplayPath,
+} from '@caxri/protocol';
 import { ChevronRight, FileDiff, Plus } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
@@ -10,20 +17,12 @@ import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { diffStatLabel } from '../../lib/diff-stat-label';
-import { projectRelativePath } from '../../lib/file-path';
 import { gitDecorationClassName } from '../../lib/git-decorations';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { didOpenEditorTabForSession, openFileForSession } from '../editor/document-commands';
 import { usePaneViewSession } from '../workbench/pane-view-session';
-import type { AgentChatDiffLine, AgentChatFileChange } from './agent-chat-diff';
-import {
-    agentChatChangeDecoration,
-    agentChatChangeKindLabel,
-    agentChatDiffLines,
-    agentChatDiffLinesStat,
-    canOpenAgentChatChange,
-} from './agent-chat-diff';
+import { agentChatLocalizedChangeKindLabel } from './agent-chat-diff-labels';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
 import {
     agentChatChangeDiffTabPath,
@@ -212,8 +211,7 @@ function FileChangeBlock({
     const lines = useMemo(() => agentChatDiffLines(change), [change]);
     const stat = useMemo(() => agentChatDiffLinesStat(lines), [lines]);
     const decoration = agentChatChangeDecoration(change.kind);
-    const displayPath =
-        (session?.rootPath && projectRelativePath(change.path, session.rootPath)) ?? change.path;
+    const displayPath = projectDisplayPath(change.path, session?.rootPath);
     const sessionId = session?.id;
     const canOpen = sessionId !== undefined && canOpenAgentChatChange(change.kind, status);
     const summary = useCaxriQuery(
@@ -259,7 +257,7 @@ function FileChangeBlock({
                     />
                     <GitFileStatusLetter className="text-[11px]" decoration={decoration} />
                 </button>
-                <span className="sr-only">{agentChatChangeKindLabel(change.kind, t)}</span>
+                <span className="sr-only">{agentChatLocalizedChangeKindLabel(change.kind, t)}</span>
                 {canOpen ? (
                     <Tooltip content={t('agentChat.changes.openInEditor')}>
                         <button

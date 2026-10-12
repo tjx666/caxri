@@ -1,14 +1,13 @@
 import type {
     AgentChatItem,
     AgentChatItemStatus,
-    AgentChatPlan,
     AgentChatSnapshot,
     ProcessState,
 } from '@caxri/protocol';
+import { projectRelativePath } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
-import { projectRelativePath } from '../../lib/file-path';
 import { getTerminalExitPresentation } from '../terminal/terminal-exit-presentation';
 import {
     agentChatLocalizedFailureMessage,
@@ -190,7 +189,7 @@ const WORKING_VERBS: readonly TranslationKey[] = [
 /**
  * One verb per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
  */
-export function agentChatWorkingVerb(turnId: string, t: Translate = translate): string {
+function agentChatWorkingVerb(turnId: string, t: Translate = translate): string {
     let hash = 0;
     for (const character of turnId) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) >>> 0;
     return t(WORKING_VERBS[hash % WORKING_VERBS.length] ?? 'agentChat.timeline.working.working');
@@ -242,29 +241,6 @@ export function agentChatActivity(
     };
 }
 
-export interface AgentChatPlanProgress {
-    completed: number;
-    total: number;
-    /**
-     * The step the Agent is on: the one in progress, else the first still pending; absent once every step is done.
-     */
-    current: string | undefined;
-}
-
-/**
- * How far the Agent is through its plan, for the collapsed plan row above the composer.
- */
-export function agentChatPlanProgress(plan: Pick<AgentChatPlan, 'steps'>): AgentChatPlanProgress {
-    const current =
-        plan.steps.find((step) => step.status === 'inProgress') ??
-        plan.steps.find((step) => step.status === 'pending');
-    return {
-        completed: plan.steps.filter((step) => step.status === 'completed').length,
-        total: plan.steps.length,
-        current: current?.step,
-    };
-}
-
 /**
  * Whether a message sent now would wait in the queue rather than start a turn: a turn is running, the context is
  * compacting, or earlier messages are still queued and not paused (Server Core keeps the queue in order).
@@ -279,10 +255,6 @@ export function isAgentChatBusy(
         snapshot.operation === 'compacting' ||
         ((snapshot.queue?.length ?? 0) > 0 && !snapshot.queuePaused)
     );
-}
-
-export function isAgentChatTurnRunning(snapshot: AgentChatSnapshot | undefined): boolean {
-    return Boolean(snapshot?.activeTurnId);
 }
 
 /**
@@ -416,26 +388,6 @@ export function agentChatEscapeAction(
     if (!isAgentChatInterruptKey(event)) return undefined;
     if (state.isTurnRunning) return 'stop';
     return state.isEditing ? 'cancelEdit' : undefined;
-}
-
-export type AgentChatStatusTone = 'danger' | 'muted' | 'running' | 'success' | 'warning';
-
-export function agentChatItemStatusTone(status: AgentChatItemStatus): AgentChatStatusTone {
-    switch (status) {
-        case 'running': {
-            return 'running';
-        }
-        case 'completed': {
-            return 'success';
-        }
-        case 'failed': {
-            return 'danger';
-        }
-        case 'declined':
-        case 'interrupted': {
-            return 'warning';
-        }
-    }
 }
 
 export function agentChatItemStatusLabel(

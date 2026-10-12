@@ -1,3 +1,4 @@
+import type { AgentChatTrackerArtifact } from '@caxri/protocol';
 import { ArrowUpRight, CircleDot, ClipboardCheck, GitPullRequest, ListChecks } from 'lucide-react';
 
 import type { Translate, TranslationKey } from '../../i18n';
@@ -6,8 +7,7 @@ import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
 import { LinearLogoIcon } from '../../icons/brands/linear-logo-icon';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
-import type { AgentChatTrackerArtifact } from './agent-chat-trackers';
-import { trackerExcerptText, trackerReferenceText } from './agent-chat-trackers';
+import { trackerExcerptText, trackerReferenceText } from './agent-chat-tracker-labels';
 
 const ACTION_LABEL_KEYS: Record<
     AgentChatTrackerArtifact['action'],

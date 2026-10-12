@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { agentChatPatchSchema, agentChatTaskPatchSchema } from '../agent/agent-chat-contract.js';
+import { agentChatPatchSchema } from '../agent/agent-chat-contract.js';
+import { agentChatTaskPatchSchema } from '../agent/agent-chat-task-contract.js';
 import { agentDispatchReceiptSchema } from '../agent/agent-dispatch-contract.js';
 import { agentEndpointSummarySchema } from '../agent/agent-endpoint-contract.js';
 import {

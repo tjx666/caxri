@@ -29,6 +29,12 @@ const chatSnapshot = (status: AgentChatSnapshot['status']): AgentChatSnapshot =>
             text: 'x'.repeat(20_000),
             streaming: false,
         },
+        {
+            id: 'item-2',
+            type: 'fileChange',
+            status: 'completed',
+            changes: [{ path: '/work/demo/src/greeting.ts', kind: 'update', diff: '' }],
+        },
     ],
     turns: [],
     requests: [],
@@ -59,6 +65,7 @@ function domainFixture(options: {
                               ],
                 };
             if (method === 'agentChat.read') return options.snapshot ?? chatSnapshot('ready');
+            if (method === 'mobile.session.projectRootInternal') return { rootPath: '/work/demo' };
             if (method === 'mobile.image.readInternal') return ['T1JJRw==', 'VEhVTUI='];
             if (method === 'agentChat.readImage')
                 return options.original === undefined
@@ -109,6 +116,8 @@ describe('mobile Agent Chat requests', () => {
         expect(result.revision).toBe(3);
         const item = result.items[0] as { text: string };
         expect(item.text.length).toBeLessThan(20_000);
+        // The phone never learns the Project root, so the Server names files relative to it.
+        expect(result.items[1]).toMatchObject({ changes: [{ path: 'src/greeting.ts' }] });
     });
 
     it('forwards send, respond, and interrupt through Core admission', async () => {
@@ -290,6 +299,69 @@ describe('mobile Agent Chat requests', () => {
         ]);
     });
 
+    it('forwards the queue card actions through Core admission with only the queued id', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        const domain = domainFixture({ surface: 'chat' });
+        await invoke(
+            {
+                method: 'mobile.agentChat.removeQueued',
+                params: { terminalId: 'terminal-1', id: 'queued-1' },
+            },
+            domain,
+            forward,
+        );
+        await invoke(
+            {
+                method: 'mobile.agentChat.sendQueuedNow',
+                params: { terminalId: 'terminal-1', id: 'queued-2' },
+            },
+            domain,
+            forward,
+        );
+        await invoke(
+            { method: 'mobile.agentChat.resumeQueue', params: { terminalId: 'terminal-1' } },
+            domain,
+            forward,
+        );
+        expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
+            {
+                method: 'agentChat.removeQueued',
+                params: { terminalId: 'terminal-1', id: 'queued-1' },
+            },
+            {
+                method: 'agentChat.sendQueuedNow',
+                params: { terminalId: 'terminal-1', id: 'queued-2' },
+            },
+            { method: 'agentChat.resumeQueue', params: { terminalId: 'terminal-1' } },
+        ]);
+    });
+
+    it('refuses queue actions on a Terminal outside the grant or one that is not a Chat', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        const requests: MobileAgentChatRequest[] = [
+            {
+                method: 'mobile.agentChat.removeQueued',
+                params: { terminalId: 'terminal-1', id: 'queued-1' },
+            },
+            {
+                method: 'mobile.agentChat.sendQueuedNow',
+                params: { terminalId: 'terminal-1', id: 'queued-1' },
+            },
+            { method: 'mobile.agentChat.resumeQueue', params: { terminalId: 'terminal-1' } },
+        ];
+        await Promise.all(
+            requests.flatMap((request) => [
+                expect(
+                    invoke(request, domainFixture({ surface: 'chat', terminals: 0 }), forward),
+                ).rejects.toMatchObject({ code: 'NOT_FOUND' }),
+                expect(invoke(request, domainFixture({}), forward)).rejects.toMatchObject({
+                    code: 'CONFLICT',
+                }),
+            ]),
+        );
+        expect(forward).not.toHaveBeenCalled();
+    });
+
     it('restarts only a failed Chat on Retry', async () => {
         const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
         await invoke(
@@ -339,5 +411,17 @@ describe('mobile Agent Chat requests', () => {
         expect(isMobileGatewayMethodAllowedForRole('control', 'mobile.agentChat.interrupt')).toBe(
             true,
         );
+    });
+
+    it('grants the queue card actions with sending: reply and control devices, never view', () => {
+        for (const method of [
+            'mobile.agentChat.removeQueued',
+            'mobile.agentChat.sendQueuedNow',
+            'mobile.agentChat.resumeQueue',
+        ]) {
+            expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(false);
+            expect(isMobileGatewayMethodAllowedForRole('reply', method)).toBe(true);
+            expect(isMobileGatewayMethodAllowedForRole('control', method)).toBe(true);
+        }
     });
 });

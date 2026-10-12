@@ -1,7 +1,5 @@
-import type { AgentChatItem, AgentChatItemStatus } from '@caxri/protocol';
-
-import type { Translate } from '../../i18n';
-import type { GitDecoration } from '../../lib/git-decorations';
+import type { GitFileStatus } from '../domain/git.js';
+import type { AgentChatItem, AgentChatItemStatus } from './agent-chat-contract.js';
 
 export type AgentChatFileChange = Extract<AgentChatItem, { type: 'fileChange' }>['changes'][number];
 
@@ -206,10 +204,22 @@ export function agentChatFilesChangedLabel(count: number): string {
 }
 
 /**
- * The Git decoration a change kind reads as, so a Chat file header wears the same letter and `--git-*` color as that
- * file's row in Files and Source Control.
+ * The Git status a change kind reads as: the `GitFileStatus` kind and its single status letter. Desktop paints it with
+ * the same letter and `--git-*` color as that file's row in Files and Source Control; it is structurally a Desktop
+ * `GitDecoration`.
  */
-export function agentChatChangeDecoration(kind: AgentChatFileChange['kind']): GitDecoration {
+export interface AgentChatChangeDecoration {
+    kind: GitFileStatus['kind'];
+    letter: string;
+}
+
+/**
+ * The Git decoration a change kind reads as, so a Chat file header wears the same letter and color as that file's row
+ * in Files and Source Control.
+ */
+export function agentChatChangeDecoration(
+    kind: AgentChatFileChange['kind'],
+): AgentChatChangeDecoration {
     switch (kind) {
         case 'add': {
             return { kind: 'added', letter: 'A' };
@@ -223,11 +233,18 @@ export function agentChatChangeDecoration(kind: AgentChatFileChange['kind']): Gi
     }
 }
 
+const CHANGE_KIND_LABEL: Record<AgentChatFileChange['kind'], string> = {
+    add: 'Added',
+    delete: 'Deleted',
+    update: 'Modified',
+};
+
 /**
- * The change kind in words, for the accessible name the status letter alone does not give.
+ * The change kind in words, for the accessible name the status letter alone does not give. English, for the phone;
+ * Desktop translates it.
  */
-export function agentChatChangeKindLabel(kind: AgentChatFileChange['kind'], t: Translate): string {
-    return t(`agentChat.diff.kind.${kind}`);
+export function agentChatChangeKindLabel(kind: AgentChatFileChange['kind']): string {
+    return CHANGE_KIND_LABEL[kind];
 }
 
 /**

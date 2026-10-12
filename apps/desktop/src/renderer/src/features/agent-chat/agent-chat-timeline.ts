@@ -1,10 +1,18 @@
 import type {
     AgentChatItem,
     AgentChatTurn,
-    AgentToolKind,
+    AgentChatTurnArtifacts,
+    AgentChatWorkItem,
     AgentToolPresentation,
 } from '@caxri/protocol';
-import { describeAgentTool, formatShortDuration, unwrapShellCommand } from '@caxri/protocol';
+import {
+    agentChatWorkSummaryTools,
+    collectAgentChatTurnArtifacts,
+    describeAgentChatWorkAction,
+    formatNoticeableDuration,
+    isAgentChatItemVisible,
+    isAgentChatWorkUnsuccessful,
+} from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
 import type { Translate } from '../../i18n';
@@ -15,16 +23,6 @@ import {
     agentChatToolLabel,
     agentChatToolOutcomeLabel,
 } from './agent-chat-tool-labels';
-import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
-import { collectAgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
-
-/**
- * What the Agent did between replies: reasoning, commands, file changes, and other tool calls.
- */
-export type AgentChatWorkItem = Extract<
-    AgentChatItem,
-    { type: 'command' | 'fileChange' | 'reasoning' | 'toolCall' }
->;
 
 /**
  * One rendered row of the Chat timeline. Consecutive work collapses into one `work` entry, and a finished turn folds
@@ -90,17 +88,6 @@ const WORK_ITEM_TYPES: ReadonlySet<AgentChatItem['type']> = new Set([
 const isWorkItem = (item: AgentChatItem): item is AgentChatWorkItem =>
     WORK_ITEM_TYPES.has(item.type);
 
-/**
- * Empty reasoning carries nothing to read (a redacted or not-yet-streamed thought), so it never becomes a row. Nor does
- * a reply that ended empty, such as one a stop cut off before its first word: it would render a Copy action with
- * nothing to copy. A reply still streaming stays, because its first words are on the way.
- */
-const isVisible = (item: AgentChatItem): boolean => {
-    if (item.type === 'reasoning') return item.text !== '';
-    if (item.type === 'agentMessage') return item.streaming || item.text.trim() !== '';
-    return true;
-};
-
 function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): FlatEntry[] {
     const entries: FlatEntry[] = [];
     let work: AgentChatWorkItem[] = [];
@@ -110,7 +97,7 @@ function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): Flat
         work = [];
     };
     for (const item of items) {
-        if (!isVisible(item)) continue;
+        if (!isAgentChatItemVisible(item)) continue;
         if (isWorkItem(item)) {
             work.push(item);
             continue;
@@ -127,15 +114,15 @@ function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): Flat
 }
 
 /**
- * `Worked for 2m 1s`, or how a turn that did not complete ended. A turn under a second reads as plain `Worked`, as a
- * work row drops its sub-second duration: `<1s` is noise.
+ * `Worked for 2m 1s`, or how a turn that did not complete ended, in the active language; the phone reads the English
+ * `agentChatTurnLabel` in `@caxri/protocol`. A turn under a second reads as plain `Worked`, as a work row drops its
+ * sub-second duration: `<1s` is noise.
  */
 export function agentChatTurnLabel(
     turn: Pick<AgentChatTurn, 'durationMs' | 'status'>,
     t: Translate = translate,
 ): string {
-    const duration =
-        (turn.durationMs ?? 0) >= 1000 ? formatShortDuration(turn.durationMs) : undefined;
+    const duration = formatNoticeableDuration(turn.durationMs);
     if (duration)
         return t(
             turn.status === 'interrupted'
@@ -189,7 +176,7 @@ function foldTurn(
     turn: AgentChatTurn,
     finalReplyId: string | undefined,
 ): AgentChatTimelineEntry[] {
-    const visible = items.filter((item) => isVisible(item));
+    const visible = items.filter((item) => isAgentChatItemVisible(item));
     const replyIndex = visible.findIndex((item) => item.id === finalReplyId);
     const isKept = (item: AgentChatItem, index: number): boolean =>
         item.type === 'userMessage' ||
@@ -302,7 +289,9 @@ export function buildAgentChatTimeline(
         const finalReplyId =
             turnId !== undefined && running.has(turnId)
                 ? undefined
-                : segment.findLast((item) => item.type === 'agentMessage' && isVisible(item))?.id;
+                : segment.findLast(
+                      (item) => item.type === 'agentMessage' && isAgentChatItemVisible(item),
+                  )?.id;
         entries.push(
             ...(turn
                 ? withTurnArtifacts(
@@ -330,171 +319,45 @@ export function agentChatTimelineEntryKey(entry: AgentChatTimelineEntry): string
     return entry.kind === 'item' ? entry.item.id : entry.id;
 }
 
-const REASONING_TITLE = /^\*\*([^*\n]+)\*\*[ \t]*$/gmu;
-
 /**
- * Codex opens each reasoning summary part with a bold title line (`**Planning the fix**`). The row shows the latest
- * title, which is what the Agent is thinking about now, as the Codex app does. A summary with a single leading title
- * drops it from the expanded text so it is not read twice; several titles stay as the text's own section headings.
- */
-export function agentChatReasoningTitle(text: string): { title?: string; body: string } {
-    const titles = text.matchAll(REASONING_TITLE).toArray();
-    const last = titles.at(-1);
-    if (!last?.[1]) return { body: text };
-    const title = last[1].trim();
-    return titles.length === 1 && last.index === 0
-        ? { title, body: text.slice(last[0].length).trimStart() }
-        : { title, body: text };
-}
-
-/**
- * The kind, verb, and subject a work row shows. Commands and file changes are first-class items rather than named
- * tools, so they are described here; every other tool goes through the shared provider tool table. A settled item that
- * did not complete names its outcome in the verb (`Failed to edit`), so the title tells the truth on its own.
+ * The kind, verb, and subject a work row shows, in the active language. The rules live in `@caxri/protocol`
+ * (`describeAgentChatWorkAction`), shared with the phone; this translates the English verb and the file count. A
+ * settled item that did not complete names its outcome in the verb (`Failed to edit`), so the title tells the truth on
+ * its own.
  */
 export function describeAgentChatWork(
     item: AgentChatWorkItem,
     t: Translate = translate,
 ): AgentToolPresentation {
-    const action = describeAgentChatWorkAction(item, t);
-    const presentation = { ...action, label: agentChatToolLabel(action.label, t) };
+    const action = describeAgentChatWorkAction(item);
+    const first = item.type === 'fileChange' ? item.changes.at(0) : undefined;
+    const presentation = {
+        ...action,
+        label: agentChatToolLabel(action.label, t),
+        ...(item.type === 'fileChange' &&
+            first &&
+            item.changes.length > 1 && {
+                subject: t('agentChat.tool.moreFiles', {
+                    name: pathBasename(first.path),
+                    count: item.changes.length - 1,
+                }),
+            }),
+    };
     if (item.type === 'reasoning' || item.status === 'running') return presentation;
     return { ...presentation, label: agentChatToolOutcomeLabel(presentation, item.status, t) };
 }
 
 /**
- * The work row's presentation with the protocol's English label; `describeAgentChatWork` translates it.
- */
-function describeAgentChatWorkAction(item: AgentChatWorkItem, t: Translate): AgentToolPresentation {
-    switch (item.type) {
-        case 'reasoning': {
-            const { title } = agentChatReasoningTitle(item.text);
-            return {
-                kind: 'thought',
-                label: item.streaming ? 'Thinking' : 'Thought',
-                ...(title && { subject: title }),
-                isCodeSubject: false,
-            };
-        }
-        case 'command': {
-            const presentation = describeAgentTool({ name: 'shell', summary: item.command });
-            // The Agent's own words for the command read better than the command line, which the row still shows
-            // expanded. A read, search, or listing already names what it looked at, so it keeps that.
-            return item.description && presentation.kind === 'command'
-                ? { ...presentation, subject: item.description, isCodeSubject: false }
-                : presentation;
-        }
-        case 'toolCall': {
-            return describeAgentTool(item);
-        }
-        case 'fileChange': {
-            const first = item.changes.at(0);
-            const isCreate = item.changes.every((change) => change.kind === 'add');
-            const name = first && pathBasename(first.path);
-            return {
-                kind: isCreate ? 'write' : 'edit',
-                label: isCreate ? 'Created' : 'Edited',
-                ...(name && {
-                    subject:
-                        item.changes.length > 1
-                            ? t('agentChat.tool.moreFiles', {
-                                  name,
-                                  count: item.changes.length - 1,
-                              })
-                            : name,
-                }),
-                isCodeSubject: true,
-                ...(first && item.changes.length === 1 && { path: first.path }),
-            };
-        }
-    }
-}
-
-/**
- * The duration a work row shows: only once it is noticeable. A row of `<1s` labels says nothing a reader can act on.
- */
-export function agentChatWorkDuration(item: AgentChatWorkItem): string | null {
-    if ((item.type === 'command' || item.type === 'toolCall') && (item.durationMs ?? 0) >= 1000)
-        return formatShortDuration(item.durationMs);
-    return null;
-}
-
-export const isAgentChatWorkRunning = (item: AgentChatWorkItem): boolean =>
-    item.type === 'reasoning' ? item.streaming : item.status === 'running';
-
-/**
- * How a run of work renders: settled work collapses into one summary row once it holds at least two tool calls
- * (reasoning alone never earns a summary, which would hide the thought's title), and work still running stays out of
- * the summary as its own live rows, so the step in progress is always readable. `isLive` marks more work as running,
- * such as a tool call that returned while the background task it started keeps going.
- */
-export function splitAgentChatWork(
-    items: readonly AgentChatWorkItem[],
-    isLive: (item: AgentChatWorkItem) => boolean = () => false,
-): {
-    summarized: readonly AgentChatWorkItem[];
-    rows: readonly AgentChatWorkItem[];
-} {
-    const isRunning = (item: AgentChatWorkItem): boolean =>
-        isAgentChatWorkRunning(item) || isLive(item);
-    const settled = items.filter((item) => !isRunning(item));
-    const live = items.filter((item) => isRunning(item));
-    const toolCount = settled.filter((item) => item.type !== 'reasoning').length;
-    return toolCount >= 2
-        ? { summarized: settled, rows: live }
-        : { summarized: [], rows: [...settled, ...live] };
-}
-
-/**
- * Work items that did not do what they set out to: failed, or declined by the user or a policy.
- */
-const isAgentChatWorkUnsuccessful = (item: AgentChatWorkItem): boolean =>
-    item.type !== 'reasoning' && (item.status === 'failed' || item.status === 'declined');
-
-/**
- * The status glyph a summary row shows: `failed` when any item failed, else `declined` when any was declined, else
- * none.
- */
-export function agentChatWorkGroupFailure(
-    items: readonly AgentChatWorkItem[],
-): 'declined' | 'failed' | undefined {
-    const unsuccessful = items.filter((item) => isAgentChatWorkUnsuccessful(item));
-    if (unsuccessful.some((item) => item.type !== 'reasoning' && item.status === 'failed'))
-        return 'failed';
-    return unsuccessful.length > 0 ? 'declined' : undefined;
-}
-
-/**
- * `Ran 3 commands, read 2 files` for a group, counting each changed file as one edit. Reasoning only names the group
- * when it is all the group holds. Items that failed or were declined are counted at the end (`, 1 failed`), so a
- * collapsed group never reads as a clean run.
+ * `Ran 3 commands, read 2 files` for a group in the active language, counting each changed file as one edit; the phone
+ * reads the English `summarizeAgentChatWork` in `@caxri/protocol`. Reasoning only names the group when it is all the
+ * group holds. Items that failed or were declined are counted at the end (`, 1 failed`), so a collapsed group never
+ * reads as a clean run.
  */
 export function summarizeAgentChatWork(
     items: readonly AgentChatWorkItem[],
     t: Translate = translate,
 ): string {
-    const tools = items.flatMap((item): Array<{ name: string; summary?: string }> => {
-        switch (item.type) {
-            case 'reasoning': {
-                return [];
-            }
-            case 'command': {
-                return [{ name: 'shell', summary: item.command }];
-            }
-            case 'fileChange': {
-                const name = item.changes.every((change) => change.kind === 'add')
-                    ? 'write'
-                    : 'edit';
-                return item.changes.map((change) => ({ name, summary: change.path }));
-            }
-            case 'toolCall': {
-                return [item];
-            }
-            default: {
-                return [];
-            }
-        }
-    });
+    const tools = agentChatWorkSummaryTools(items);
     if (tools.length === 0)
         return t(
             items.some((item) => item.type === 'reasoning' && item.streaming)
@@ -504,93 +367,4 @@ export function summarizeAgentChatWork(
     const failed = items.filter((item) => isAgentChatWorkUnsuccessful(item)).length;
     const summary = agentChatToolGroupSummary(tools, t);
     return failed > 0 ? t('agentChat.workGroup.withFailures', { summary, count: failed }) : summary;
-}
-
-/**
- * The one kind a group shares, or `undefined` when it mixes kinds and shows a generic glyph.
- */
-export function agentChatWorkKind(items: readonly AgentChatWorkItem[]): AgentToolKind | undefined {
-    const kinds = new Set(
-        items
-            .filter((item) => item.type !== 'reasoning')
-            .map((item) => describeAgentChatWork(item).kind),
-    );
-    if (kinds.size === 0) return 'thought';
-    return kinds.size === 1 ? [...kinds][0] : undefined;
-}
-
-/**
- * The last path-like token's extension, such as `md` in `sed -n '1,40p' docs/SKILL.md`.
- */
-function trailingFileExtension(text: string): string | undefined {
-    const matches = text
-        .matchAll(/[\w@~./-]*\w\.([A-Za-z][\w-]{0,9})(?=$|[\s'"`;|&)])/gu)
-        .toArray();
-    return matches.at(-1)?.[1]?.toLowerCase();
-}
-
-function isJsonText(text: string): boolean {
-    const trimmed = text.trim();
-    if (!/^[[{]/u.test(trimmed)) return false;
-    try {
-        JSON.parse(trimmed);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-const FILE_TOOL_KINDS: ReadonlySet<AgentToolKind> = new Set(['read', 'write', 'edit']);
-
-/**
- * Commands whose output is the content of the file they name, so the file's extension is the output's language.
- */
-const FILE_PRINTING_COMMAND = /^\s*(?:cat|sed|head|tail|nl|bat|less|more)\s/u;
-
-/**
- * The language to paint a command's or tool's output with, inferred from what produced it: a Git diff, a printed or
- * read file's extension, or JSON. Any other command output is painted as shell, the terminal it came from, so its
- * strings, numbers, flags, and paths still separate from the prose around them; another tool's output stays plain.
- */
-export function agentChatOutputLanguage(
-    item: Extract<AgentChatWorkItem, { type: 'command' | 'toolCall' }>,
-): string | undefined {
-    const output = item.output ?? '';
-    if (item.type === 'command') {
-        const command = unwrapShellCommand(item.command);
-        // Only the last pipeline stage and chained command decide what was printed.
-        const lastStage = command.split(/\|\||&&|;|\|/u).at(-1) ?? command;
-        if (
-            /\bgit\s(?:.*\s)?(?:diff|show)\b/u.test(lastStage) &&
-            !/--(?:stat|name-only|name-status|oneline)\b/u.test(lastStage)
-        )
-            return 'diff';
-        if (FILE_PRINTING_COMMAND.test(lastStage)) {
-            const extension = trailingFileExtension(lastStage);
-            if (extension) return extension;
-        }
-    } else {
-        const { kind } = describeAgentTool(item);
-        if (FILE_TOOL_KINDS.has(kind) && item.summary) {
-            const extension = trailingFileExtension(item.summary);
-            if (extension) return extension;
-        }
-    }
-    if (isJsonText(output)) return 'json';
-    return item.type === 'command' ? 'shell' : undefined;
-}
-
-/**
- * Claude Code's Read result numbers every line (` 12→const a = 1`). The numbers are not part of the file and would
- * break its highlighting, so they are dropped when every non-empty line carries one.
- */
-export function stripLineNumberGutter(text: string): string {
-    const lines = text.split('\n');
-    const gutter = /^\s*\d+(?:→|\t)/u;
-    if (
-        lines.every((line) => line === '') ||
-        lines.some((line) => !(line === '' || gutter.test(line)))
-    )
-        return text;
-    return lines.map((line) => line.replace(gutter, '')).join('\n');
 }

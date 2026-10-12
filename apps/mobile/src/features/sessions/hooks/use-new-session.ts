@@ -14,10 +14,12 @@ import {
     markUncertainSessionsChecked,
     newSessionDefaultSurface,
     newSessionSurface,
+    projectFilterAfterCreate,
     selectedNewSessionProject,
     sortNewSessionProjects,
 } from '../new-session-model';
 import { waitForCreatedConversation } from '../new-session-readiness';
+import { activeProjectFilter } from '../project-filter';
 
 export const useNewSession = () => {
     const router = useRouter();
@@ -32,11 +34,18 @@ export const useNewSession = () => {
         setNewSessionCreateState,
         setNewSessionProjectId,
         setNewSessionSurface,
+        setProjectId,
         setSegment,
+        ui,
     } = useHostSessions();
     const creatingReference = useRef(false);
     const projects = useMemo(() => sortNewSessionProjects(sessions.projects), [sessions.projects]);
-    const selectedProjectId = selectedNewSessionProject(newSessionSelection.projectId, projects);
+    const filterProjectId = activeProjectFilter(ui.projectId, projects);
+    const selectedProjectId = selectedNewSessionProject(
+        newSessionSelection.projectId,
+        projects,
+        filterProjectId,
+    );
     const availability = useQuery({
         enabled:
             selectedProjectId !== null &&
@@ -128,6 +137,12 @@ export const useNewSession = () => {
                 );
                 return;
             }
+            // A Session exists from here on, even when its Terminal failed to start, so the list must not hide it.
+            const nextFilterProjectId = projectFilterAfterCreate(
+                filterProjectId,
+                selectedProjectId,
+            );
+            if (nextFilterProjectId !== filterProjectId) setProjectId(nextFilterProjectId);
             if (result.launchError) {
                 setNewSessionCreateState({
                     kind: 'partial',
@@ -150,6 +165,7 @@ export const useNewSession = () => {
         }
     }, [
         canCreate,
+        filterProjectId,
         openCreatedSession,
         request,
         selectedAgent,
@@ -158,6 +174,7 @@ export const useNewSession = () => {
         setNewSessionAgent,
         setNewSessionCreateState,
         setNewSessionProjectId,
+        setProjectId,
         setSegment,
     ]);
 

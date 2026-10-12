@@ -1,4 +1,6 @@
-import { isPathAtOrBelow, parentDirectoryPath } from '../../../lib/file-path';
+import { isPathAtOrBelow } from '@caxri/protocol';
+
+import { parentDirectoryPath } from '../../../lib/file-path';
 import { createStore } from '../../../lib/store';
 import { queryClient } from '../../../queries/client';
 import { useWorkbenchStore } from '../../../stores/workbench';

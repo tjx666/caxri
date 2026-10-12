@@ -1,6 +1,5 @@
-import { formatLineCount } from '@caxri/protocol';
+import { formatLineCount, visibleDiffStatParts } from '@caxri/protocol';
 
-import { visibleDiffStatParts } from '../lib/diff-stat-label';
 import { cn } from '../lib/utilities';
 
 /**

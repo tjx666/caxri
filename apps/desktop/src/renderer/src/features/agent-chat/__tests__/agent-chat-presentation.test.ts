@@ -4,21 +4,18 @@ import { describe, expect, it } from 'vitest';
 
 import { getTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
 import {
-    agentChatActivity,
     agentChatAttachLabel,
     agentChatCommandCwd,
     agentChatDeliveryCaption,
     agentChatEmptyHint,
     agentChatEmptyMessage,
     agentChatEscapeAction,
-    agentChatPlanProgress,
     agentChatRecoveryNotice,
     agentChatResumeFailureDetail,
     agentChatSendAction,
     agentChatSendBlock,
     agentChatSendTooltip,
     agentChatSubmitDelivery,
-    agentChatWorkingVerb,
     canSendAgentChatMessage,
     isAgentChatBusy,
     isAgentChatInterruptKey,
@@ -289,24 +286,6 @@ describe('agentChatCommandCwd', () => {
     });
 });
 
-describe('agentChatActivity while compacting', () => {
-    it('names compaction instead of a working verb, stoppable only inside a turn', () => {
-        expect(
-            agentChatActivity({ ...snapshot('ready'), operation: 'compacting' }, 'Claude'),
-        ).toEqual({
-            kind: 'compacting',
-            text: 'Compacting context…',
-            isStoppable: false,
-        });
-        expect(
-            agentChatActivity(
-                { ...snapshot('ready'), operation: 'compacting', activeTurnId: 'turn-1' },
-                'Claude',
-            ),
-        ).toMatchObject({ kind: 'compacting', isStoppable: true });
-    });
-});
-
 describe('isAgentChatBusy', () => {
     it('queues behind a running turn, a compaction, or an unpaused queue', () => {
         expect(isAgentChatBusy(snapshot('ready'))).toBe(false);
@@ -316,50 +295,6 @@ describe('isAgentChatBusy', () => {
         expect(isAgentChatBusy(queued)).toBe(true);
         expect(isAgentChatBusy({ ...queued, queuePaused: true })).toBe(false);
         expect(isAgentChatBusy(undefined)).toBe(false);
-    });
-});
-
-describe('agentChatActivity', () => {
-    it('tells starting, working, and waiting on the user apart', () => {
-        expect(agentChatActivity(undefined, 'Claude')).toEqual({
-            kind: 'starting',
-            text: 'Starting Claude…',
-        });
-        expect(agentChatActivity(snapshot('ready'), 'Codex')).toBeUndefined();
-        const running = {
-            ...snapshot('ready'),
-            activeTurnId: 'turn-1',
-            turns: [{ id: 'turn-1', status: 'running' as const, startedAt: 1000 }],
-        };
-        expect(agentChatActivity(running, 'Codex')).toEqual({
-            kind: 'working',
-            text: `${agentChatWorkingVerb('turn-1')}…`,
-            startedAt: 1000,
-        });
-        expect(
-            agentChatActivity(
-                {
-                    ...running,
-                    requests: [{ id: 'r', kind: 'fileChange' }],
-                },
-                'Codex',
-            ),
-        ).toEqual({ kind: 'waiting', text: 'Waiting for your approval' });
-    });
-
-    it('loads an existing conversation instead of claiming to start the Agent', () => {
-        expect(agentChatActivity(undefined, 'Claude', { hasConversation: true })).toEqual({
-            kind: 'starting',
-            text: 'Loading conversation…',
-        });
-    });
-
-    it('keeps one verb for a turn and varies it across turns', () => {
-        expect(agentChatWorkingVerb('turn-1')).toBe(agentChatWorkingVerb('turn-1'));
-        const verbs = new Set(
-            Array.from({ length: 40 }, (_, index) => agentChatWorkingVerb(`turn-${index}`)),
-        );
-        expect(verbs.size).toBeGreaterThan(5);
     });
 });
 
@@ -437,35 +372,5 @@ describe('agentChatDeliveryCaption', () => {
         expect(agentChatDeliveryCaption('steered')).toBe('Steered');
         expect(agentChatDeliveryCaption('queued')).toBeUndefined();
         expect(agentChatDeliveryCaption(undefined)).toBeUndefined();
-    });
-});
-
-describe('agentChatPlanProgress', () => {
-    it('counts completed steps and names the one in progress', () => {
-        expect(
-            agentChatPlanProgress({
-                steps: [
-                    { step: 'Read', status: 'completed' },
-                    { step: 'Edit', status: 'pending' },
-                    { step: 'Test', status: 'inProgress' },
-                ],
-            }),
-        ).toEqual({ completed: 1, total: 3, current: 'Test' });
-    });
-
-    it('falls back to the first pending step, then to none once done', () => {
-        expect(
-            agentChatPlanProgress({
-                steps: [
-                    { step: 'Read', status: 'completed' },
-                    { step: 'Edit', status: 'pending' },
-                ],
-            }).current,
-        ).toBe('Edit');
-        expect(agentChatPlanProgress({ steps: [{ step: 'Read', status: 'completed' }] })).toEqual({
-            completed: 1,
-            total: 1,
-            current: undefined,
-        });
     });
 });

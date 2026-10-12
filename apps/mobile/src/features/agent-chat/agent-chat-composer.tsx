@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
 
 import { sentenceStartProvider } from '@caxri/protocol';
-import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
+import { ArrowUp, CornerDownLeft, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
@@ -152,8 +152,10 @@ const AttachButton = ({
 };
 
 /**
- * The composer's one button: Send (or Queue during a turn), or Stop on an empty draft during a turn. Holding it, or the
- * screen reader's long-press action, steers the running turn when there is a draft to steer with.
+ * The composer's one button: Send, Queue during a turn, or Stop on an empty draft during a turn. Queue wears Desktop's
+ * queue glyph (`CornerDownLeft`) instead of the send arrow, so a tap visibly does something different mid-turn. Holding
+ * it, or the screen reader's long-press action, steers the running turn when there is a draft to steer with; a queued
+ * message's Steer button in the queue card is the visible route to the same result.
  */
 const AgentChatComposerButton = ({
     canSteer,
@@ -179,7 +181,7 @@ const AgentChatComposerButton = ({
     theme: MobileTheme;
 }) => {
     const action = agentChatComposerButton({ isRunning, isStopAction, isStopping, provider });
-    const Icon = action.kind === 'stop' ? Square : ArrowUp;
+    const Icon = action.kind === 'stop' ? Square : isRunning ? CornerDownLeft : ArrowUp;
     return (
         <Pressable
             accessibilityActions={canSteer ? [{ name: 'longpress', label: 'Steer now' }] : []}
@@ -380,9 +382,8 @@ export const AgentChatComposer = ({
                         if (focusComposer) onComposerFocused?.();
                     }}
                     ref={inputReference}
-                    placeholder={
-                        isRunning ? 'Queue a follow-up (hold Send to steer)' : `Message ${provider}`
-                    }
+                    // Desktop's wording without its ⌘Enter hint, kept to one line so the input does not grow mid-turn.
+                    placeholder={isRunning ? 'Queue a follow-up' : `Message ${provider}`}
                     placeholderTextColor={theme.muted}
                     scrollEnabled
                     submitBehavior="newline"

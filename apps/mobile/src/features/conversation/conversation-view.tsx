@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Platform, Pressable, Text, View } from 'react-native';
@@ -12,7 +13,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { PANEL_ENTER_MS, segmentEnterOffset } from '../sessions/hooks/use-segment-entering';
 import { ConversationEntry } from './conversation-entry';
-import type { ConversationEntry as Entry } from './conversation-model';
+import type { ConversationEntry as GroupedEntry } from './conversation-model';
 import {
     CONVERSATION_FOLLOW_THRESHOLD,
     groupConversationItems,
@@ -143,16 +144,24 @@ const ConversationStatus = ({
  * when it is revealed. Only the wrapper's opacity and transform animate; the list's own layout and measurement are
  * untouched.
  */
-const ConversationList = ({
+export const ConversationList = <Entry extends { id: string }>({
+    entries,
     enterFrom,
     isConnected,
     onRetry,
+    renderEntry,
     theme,
     timeline,
 }: {
+    /**
+     * The rows to draw, already grouped by the caller: a terminal Agent's grouped tool calls, or an Agent Chat's
+     * timeline entries.
+     */
+    entries: readonly Entry[];
     enterFrom: -1 | 0 | 1 | null;
     isConnected: boolean;
     onRetry: () => void;
+    renderEntry: (entry: Entry) => ReactNode;
     theme: MobileTheme;
     timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
 }) => {
@@ -167,7 +176,6 @@ const ConversationList = ({
         opacity: revealProgress.get(),
         transform: [{ translateX: (1 - revealProgress.get()) * enterOffset }],
     }));
-    const entries = useMemo(() => groupConversationItems(timeline.items), [timeline.items]);
     const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
         // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
         if (!isPositionedReference.current) return;
@@ -206,11 +214,9 @@ const ConversationList = ({
     }, [enterFrom, revealProgress]);
     const renderItem = useCallback(
         ({ item }: ListRenderItemInfo<Entry>) => (
-            <View style={styles.entry}>
-                <ConversationEntry entry={item} theme={theme} />
-            </View>
+            <View style={styles.entry}>{renderEntry(item)}</View>
         ),
-        [theme],
+        [renderEntry],
     );
     const jumpToLatest = useCallback((): void => {
         list.current?.scrollToEnd({ animated: true });
@@ -323,6 +329,11 @@ export const ConversationView = ({
     theme: MobileTheme;
     timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
 }) => {
+    const entries = useMemo(() => groupConversationItems(timeline.items), [timeline.items]);
+    const renderEntry = useCallback(
+        (entry: GroupedEntry) => <ConversationEntry entry={entry} theme={theme} />,
+        [theme],
+    );
     if (timeline.items.length === 0) {
         const status = timeline.status === 'available' ? 'empty' : timeline.status;
         return (
@@ -337,9 +348,11 @@ export const ConversationView = ({
     }
     return (
         <ConversationList
+            entries={entries}
             enterFrom={enterFrom}
             isConnected={isConnected}
             onRetry={onRetry}
+            renderEntry={renderEntry}
             theme={theme}
             timeline={timeline}
         />

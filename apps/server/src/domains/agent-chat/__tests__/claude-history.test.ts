@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { claudeHistoryOperations, claudeRewindPoint } from '../claude-history';
+import { CLAUDE_DECLINED_MESSAGE } from '../claude-tool-results';
 
 function jsonl(records: unknown[]): string {
     return records.map((record) => JSON.stringify(record)).join('\n');
@@ -188,6 +189,56 @@ describe('Claude transcript history', () => {
                 activeTurnId: null,
             },
         });
+    });
+
+    it('restores a tool call the user declined as declined, as the live Chat showed it', () => {
+        const operations = claudeHistoryOperations(
+            jsonl([
+                { type: 'user', uuid: 'u1', message: { role: 'user', content: 'approve' } },
+                {
+                    type: 'assistant',
+                    uuid: 'a1',
+                    message: {
+                        id: 'm1',
+                        content: [
+                            { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } },
+                            { type: 'tool_use', id: 't2', name: 'Bash', input: { command: 'pwd' } },
+                        ],
+                    },
+                },
+                {
+                    type: 'user',
+                    uuid: 'r1',
+                    message: {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'tool_result',
+                                tool_use_id: 't1',
+                                content: CLAUDE_DECLINED_MESSAGE,
+                                is_error: true,
+                            },
+                            {
+                                type: 'tool_result',
+                                tool_use_id: 't2',
+                                content: 'Exit code 1\nno such directory',
+                                is_error: true,
+                            },
+                        ],
+                    },
+                },
+            ]),
+            false,
+        );
+        const statuses = operations.flatMap((operation) =>
+            operation.op === 'upsertItem' && operation.item.type === 'command'
+                ? [[operation.item.id, operation.item.status]]
+                : [],
+        );
+        expect(statuses).toEqual([
+            ['t1', 'declined'],
+            ['t2', 'failed'],
+        ]);
     });
 
     it('marks a cut-off transcript as truncated', () => {

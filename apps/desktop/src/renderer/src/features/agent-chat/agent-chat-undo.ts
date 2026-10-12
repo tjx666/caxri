@@ -1,7 +1,7 @@
+import type { AgentChatDiffLine, AgentChatEditedFile, AgentChatFileChange } from '@caxri/protocol';
+import { agentChatDiffLines, agentChatHunkNewStart } from '@caxri/protocol';
+
 import { translate } from '../../i18n';
-import type { AgentChatDiffLine, AgentChatFileChange } from './agent-chat-diff';
-import { agentChatDiffLines, agentChatHunkNewStart } from './agent-chat-diff';
-import type { AgentChatEditedFile } from './agent-chat-turn-artifacts';
 
 /**
  * Why a turn's change to a file cannot be undone:

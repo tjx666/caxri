@@ -2,7 +2,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 
 import type { MarkdownBlockOptions } from '@caxri/markdown';
 import { createStreamingMarkdownParser, createStreamingMarkdownRepair } from '@caxri/markdown';
-import type { AgentChatItem } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatTurnArtifacts } from '@caxri/protocol';
 import { CircleAlert } from 'lucide-react';
 
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
@@ -14,7 +14,6 @@ import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { agentChatNoticeMessage } from './agent-chat-presentation';
 import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
-import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };

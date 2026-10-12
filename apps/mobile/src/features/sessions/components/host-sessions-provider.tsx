@@ -7,7 +7,7 @@ import { usePathname } from 'expo-router';
 import { isDashboardRouteVisible } from '../dashboard-query';
 import { useSessionPolling } from '../hooks/use-session-polling';
 import type { NewSessionCreateState, NewSessionSelection } from '../new-session-model';
-import { emptyNewSessionSelection } from '../new-session-model';
+import { emptyNewSessionSelection, forgetNewSessionProject } from '../new-session-model';
 import type { HostSessionUiState, SessionSegment } from '../session-ui-state';
 import {
     emptyHostSessionUiState,
@@ -74,6 +74,7 @@ export const HostSessionsProvider = ({
     const setProjectId = useCallback((projectId: string | null): void => {
         listScrollOffsetReference.current = 0;
         setUi((current) => selectSessionProject(current, projectId));
+        setNewSessionSelection(forgetNewSessionProject);
     }, []);
     const setSegment = useCallback(
         (sessionId: string, segment: SessionSegment, previous?: SessionSegment): void => {

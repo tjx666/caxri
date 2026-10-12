@@ -1,6 +1,11 @@
 import { useMemo } from 'react';
 
 import type { AgentTurnReviewTab } from '@caxri/protocol';
+import {
+    agentChatChangeDecoration,
+    agentChatEditedFilesStat,
+    projectDisplayPath,
+} from '@caxri/protocol';
 import { ArrowLeft } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
@@ -8,17 +13,15 @@ import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
-import { projectRelativePath } from '../../lib/file-path';
 import { useCaxriQuery } from '../../queries/client';
 import { usePaneViewSession } from '../workbench/pane-view-session';
-import { agentChatChangeDecoration, agentChatChangeKindLabel } from './agent-chat-diff';
+import { agentChatLocalizedChangeKindLabel } from './agent-chat-diff-labels';
 import { AgentChatDiff } from './agent-chat-file-changes';
 import {
     AgentChatReviewCommentCard,
     AgentChatReviewCommentNote,
 } from './agent-chat-review-comment-card';
 import { revealAgentChat } from './agent-chat-task-opener';
-import { agentChatEditedFilesStat } from './agent-chat-turn-artifacts';
 import { collectAgentChatTurnReview } from './agent-chat-turn-review';
 import { useAgentChatReviewComments } from './hooks/use-agent-chat-review-comments';
 
@@ -54,8 +57,7 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
                 </Button>
             </div>
         );
-    const displayPath = (path: string): string =>
-        (projectRoot && projectRelativePath(path, projectRoot)) ?? path;
+    const displayPath = (path: string): string => projectDisplayPath(path, projectRoot);
     const stat = agentChatEditedFilesStat(files.map(({ file }) => file));
     return (
         <div className="flex h-full min-h-0 flex-col bg-background" data-agent-chat-turn-review="">
@@ -98,7 +100,7 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
                                     decoration={agentChatChangeDecoration(file.kind)}
                                 />
                                 <span className="sr-only">
-                                    {agentChatChangeKindLabel(file.kind, t)}
+                                    {agentChatLocalizedChangeKindLabel(file.kind, t)}
                                 </span>
                                 <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
                                     {path}

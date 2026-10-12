@@ -1,7 +1,9 @@
+import '../../../components/prism-grammars';
+
 import { Prism } from 'prism-react-renderer';
 import { describe, expect, it } from 'vitest';
 
-import { fileLanguage } from '../file-language';
+import { codeLanguage, fileLanguage } from '../file-language';
 
 describe('fileLanguage', () => {
     it('maps common source files to a bundled Prism grammar', () => {
@@ -40,7 +42,18 @@ describe('fileLanguage', () => {
             'a.ts',
             'a.tsx',
             'a.yaml',
+            'a.sh',
+            'a.diff',
         ])
             expect(Prism.languages[fileLanguage(name) ?? '']).toBeDefined();
+    });
+
+    it('maps the language Agent Chat infers for output, painting anything unknown as plain text', () => {
+        expect(codeLanguage('shell')).toBe('bash');
+        expect(codeLanguage('diff')).toBe('diff');
+        expect(codeLanguage('json')).toBe('json');
+        expect(codeLanguage('TS')).toBe('typescript');
+        expect(codeLanguage('unknownext')).toBeNull();
+        expect(codeLanguage(undefined)).toBeNull();
     });
 });

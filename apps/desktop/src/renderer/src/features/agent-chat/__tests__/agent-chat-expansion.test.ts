@@ -1,3 +1,4 @@
+import type { AgentChatWorkItem } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -7,7 +8,7 @@ import {
     agentChatTurnWorkItems,
     isAgentChatExpanded,
 } from '../agent-chat-expansion';
-import type { AgentChatTimelineEntry, AgentChatWorkItem } from '../agent-chat-timeline';
+import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 
 const command = (id: string): AgentChatWorkItem => ({
     id,

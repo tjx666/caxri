@@ -2,7 +2,7 @@ import { use, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
-import { formatShortDuration } from '@caxri/protocol';
+import { agentChatTurnLabel } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from './conversation-markdown';
@@ -16,21 +16,39 @@ import { ConversationUserAttachments } from './conversation-user-attachments';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 
+/**
+ * The caption that ends a turn (`Worked for 2m 1s`), a small centered pill like a chat app's time stamp. A failed or
+ * stopped turn carries its tone in the text color, as Desktop's fold row does.
+ */
+export const ConversationTurnDivider = ({
+    label,
+    testID,
+    theme,
+    tone = 'muted',
+}: {
+    label: string;
+    testID: string;
+    theme: MobileTheme;
+    tone?: 'danger' | 'muted' | 'warning';
+}) => (
+    <View style={[styles.message, styles.turnDivider]} testID={testID}>
+        <View style={[styles.turnPill, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.turnText, { color: theme[tone] }]}>{label}</Text>
+        </View>
+    </View>
+);
+
 export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: MobileTheme }) => {
     const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
     const renderUserAttachments = use(ConversationUserAttachments);
     if (entry.type === 'turnBoundary')
         return (
-            <View
-                style={[styles.message, styles.turnDivider]}
+            // A terminal Agent's record says only how long the turn took, so it reads as completed work.
+            <ConversationTurnDivider
+                label={agentChatTurnLabel({ durationMs: entry.durationMs, status: 'completed' })}
                 testID={`conversation-turn-${entry.id}`}
-            >
-                <View style={[styles.turnPill, { backgroundColor: theme.surface }]}>
-                    <Text style={[styles.turnText, { color: theme.muted }]}>
-                        {formatShortDuration(entry.durationMs) ?? 'Turn complete'}
-                    </Text>
-                </View>
-            </View>
+                theme={theme}
+            />
         );
     if (entry.type === 'userMessage')
         return (

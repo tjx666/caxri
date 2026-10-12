@@ -54,6 +54,11 @@ export interface MobileAppOptions {
         principal: Principal,
         sessionId: string,
     ) => Promise<() => void>;
+    /**
+     * The Project root an Agent Chat subscription relativizes changed-file paths against; see
+     * `clipAgentChatPatchForMobile`.
+     */
+    agentChatProjectRoot?: (principal: Principal, terminalId: string) => Promise<string>;
     context: () => CommandExecutionContext;
     dispatch: CommandDispatcher;
     isActive: () => boolean;
@@ -93,6 +98,7 @@ export class MobileGatewayFrameRouter {
         this.#subscriptions = new MobileGatewaySubscriptions({
             authorize: options.authorizeSubscription,
             beginConversation: options.beginConversationSubscription,
+            agentChatProjectRoot: options.agentChatProjectRoot,
             currentPrincipal: () => options.context().principal,
             matches: options.matchesSubscriptionEvent,
             randomId: options.randomSubscriptionId,

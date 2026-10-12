@@ -13,13 +13,6 @@ export interface ConversationHistoryState {
     truncated: boolean;
 }
 
-/**
- * How many images a message carries, as `1 image` or `3 images`; the queue preview names a queued message's images this
- * way.
- */
-export const imageCountLabel = (count: number): string =>
-    count === 1 ? '1 image' : `${count} images`;
-
 export type ConversationEntry =
     | AgentTimelineItem
     | { id: string; type: 'toolGroup'; tools: ToolCall[]; summary: string; durationMs?: number };
@@ -38,11 +31,18 @@ const toolGroup = (tools: ToolCall[]): ConversationEntry => {
     };
 };
 
+/**
+ * Collapses each run of consecutive tool calls into one group row. A tool still running stays out of the group as its
+ * own row after it, as Desktop's Agent Chat keeps live work out of its summaries, so the step in progress stays
+ * readable.
+ */
 export const groupConversationItems = (items: AgentTimelineItem[]): ConversationEntry[] => {
     const entries: ConversationEntry[] = [];
     let tools: ToolCall[] = [];
     const flushTools = (): void => {
-        if (tools.length > 0) entries.push(toolGroup(tools));
+        const settled = tools.filter((tool) => tool.status !== 'running');
+        if (settled.length > 0) entries.push(toolGroup(settled));
+        entries.push(...tools.filter((tool) => tool.status === 'running'));
         tools = [];
     };
     for (const item of items) {
