@@ -371,7 +371,11 @@ The cut-off turn comes from an `interrupted_turn` row the notifier writes when a
 Commander turn starts and deletes when that turn finishes or fails. A row still present at launch
 means Caxri or Codex went away mid-turn, so the prompt tells the Commander to continue that work.
 `commander.stop` deletes it first: a deliberate stop must not resume on the next launch, though the
-delegation updates it missed are still owed.
+delegation updates it missed are still owed. A standalone Escape typed into the Commander deletes it
+too, because Codex ends an interrupted turn without a `Stop` hook and the user abandoned that work.
+The Escape is taken at face value, like the coordinator's own interrupt handling; when it only
+closed a picker, the turn's next main-thread tool or attention signal writes the row again, so a
+turn that is really still running is still resumed after a restart.
 
 A follow-up or resume refused at admission (`target_busy`, `target_not_ready`, and the other
 rejections that fail a task straight out of `requested`) raises no notice: the refusal happens inside

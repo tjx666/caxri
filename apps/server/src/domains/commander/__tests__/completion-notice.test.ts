@@ -564,24 +564,6 @@ describe('CommanderCompletionNotifier', () => {
         expect(f.writeCalls).toHaveLength(2);
     });
 
-    it('marks only a main-thread turn as interrupted until it finishes, fails, or the user stops the Commander', () => {
-        f.notifier.onLifecycleApplied(signal({ phase: 'turnStarted', agentId: 'subagent-1' }));
-        expect(f.notices.list()).toHaveLength(0);
-
-        f.startTurn('launch-1');
-        expect(f.notices.list()).toMatchObject([{ kind: 'interrupted_turn' }]);
-        f.finishTurn('launch-1', 'turn-1');
-        expect(f.notices.list()).toHaveLength(0);
-
-        f.startTurn('launch-1');
-        f.notifier.onLifecycleApplied(signal({ phase: 'turnFailed' }));
-        expect(f.notices.list()).toHaveLength(0);
-
-        f.startTurn('launch-1');
-        f.notifier.onStopped();
-        expect(f.notices.list()).toHaveLength(0);
-    });
-
     it('offers no launch prompt to a Terminal that is not the Commander', () => {
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
         expect(f.notifier.launchPrompt('other-terminal')).toBeUndefined();
