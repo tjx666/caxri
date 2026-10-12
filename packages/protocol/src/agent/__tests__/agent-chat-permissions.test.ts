@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { methods } from '../../registry/method-registry.js';
+import type { AgentChatPendingPermission } from '../agent-chat-permissions.js';
 import {
     agentChatPermissionModeLabel,
     agentChatPermissionModes,
+    agentChatPermissionSelectionView,
     canAgentChatPlan,
     initialAgentChatPermission,
     isAgentChatPermissionNextTurnOnly,
+    isAgentChatPermissionSettled,
     resolveAgentChatPermissionChange,
 } from '../agent-chat-permissions.js';
 
@@ -89,5 +92,49 @@ describe('Agent Chat permission levels', () => {
         expect(parse({ ...valid, provider: 'shell' })).toBe(false);
         expect(parse({ ...valid, chatDefault: { permissionMode: 'yolo' } })).toBe(false);
         expect(parse({ ...valid, chatDefault: { sandbox: 'read-only' } })).toBe(false);
+    });
+});
+
+describe('Agent Chat permission switch in flight', () => {
+    const pending: AgentChatPendingPermission = {
+        change: { permissionMode: 'readOnly' },
+        baseline: { permissionMode: 'fullAccess', planMode: false },
+        isAccepted: false,
+    };
+
+    it('shows the requested choice until the snapshot reports it', () => {
+        const reported = { permissionMode: 'fullAccess' as const, planMode: false };
+        expect(agentChatPermissionSelectionView(reported, pending)).toEqual({
+            permissionMode: 'readOnly',
+            planMode: false,
+        });
+        expect(agentChatPermissionSelectionView(reported, undefined)).toBe(reported);
+        expect(isAgentChatPermissionSettled(pending, reported)).toBe(false);
+        expect(isAgentChatPermissionSettled(pending, { permissionMode: 'readOnly' })).toBe(true);
+    });
+
+    it('settles an accepted switch on any reported change, even one the provider adjusted', () => {
+        const accepted = { ...pending, isAccepted: true };
+        expect(isAgentChatPermissionSettled(accepted, { permissionMode: 'auto' })).toBe(true);
+        expect(
+            isAgentChatPermissionSettled(accepted, {
+                permissionMode: 'fullAccess',
+                planMode: false,
+            }),
+        ).toBe(false);
+    });
+
+    it('settles a plan mode switch once the snapshot reports it', () => {
+        const plan: AgentChatPendingPermission = {
+            change: { planMode: true },
+            baseline: { permissionMode: 'auto', planMode: false },
+            isAccepted: false,
+        };
+        expect(
+            isAgentChatPermissionSettled(plan, { permissionMode: 'auto', planMode: false }),
+        ).toBe(false);
+        expect(isAgentChatPermissionSettled(plan, { permissionMode: 'auto', planMode: true })).toBe(
+            true,
+        );
     });
 });

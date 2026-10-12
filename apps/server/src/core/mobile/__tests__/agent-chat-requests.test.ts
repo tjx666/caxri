@@ -243,7 +243,7 @@ describe('mobile Agent Chat requests', () => {
         await expect(read('original', 1, 2)).rejects.toMatchObject({ code: 'VALIDATION' });
     });
 
-    it('forwards a model or effort switch through Core admission without inventing the other field', async () => {
+    it('forwards a model, effort, or ultracode switch through Core admission without inventing the other fields', async () => {
         const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
         const domain = domainFixture({ surface: 'chat' });
         await invoke(
@@ -262,9 +262,70 @@ describe('mobile Agent Chat requests', () => {
             domain,
             forward,
         );
+        await invoke(
+            {
+                method: 'mobile.agentChat.configure',
+                params: { terminalId: 'terminal-1', ultracode: true },
+            },
+            domain,
+            forward,
+        );
         expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
             { method: 'agentChat.configure', params: { terminalId: 'terminal-1', model: 'opus' } },
             { method: 'agentChat.configure', params: { terminalId: 'terminal-1', effort: 'high' } },
+            {
+                method: 'agentChat.configure',
+                params: { terminalId: 'terminal-1', ultracode: true },
+            },
+        ]);
+    });
+
+    it('lets only a control device switch the permission level or plan mode', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        const domain = domainFixture({ surface: 'chat' });
+        await invoke(
+            {
+                method: 'mobile.agentChat.configure',
+                params: { terminalId: 'terminal-1', permissionMode: 'fullAccess', planMode: false },
+            },
+            domain,
+            forward,
+        );
+        expect(forward).toHaveBeenCalledWith({
+            method: 'agentChat.configure',
+            params: { terminalId: 'terminal-1', permissionMode: 'fullAccess', planMode: false },
+        });
+        forward.mockClear();
+        const reply = { ...principal, role: 'reply' as const };
+        await Promise.all(
+            [{ permissionMode: 'fullAccess' as const }, { planMode: true }].map((change) =>
+                expect(
+                    invokeMobileAgentChatRequest(
+                        {
+                            method: 'mobile.agentChat.configure',
+                            params: { terminalId: 'terminal-1', ...change },
+                        },
+                        reply,
+                        domain.domainService,
+                        forward,
+                        () => {},
+                    ),
+                ).rejects.toMatchObject({ code: 'FORBIDDEN' }),
+            ),
+        );
+        // The model stays a reply device's choice.
+        await invokeMobileAgentChatRequest(
+            {
+                method: 'mobile.agentChat.configure',
+                params: { terminalId: 'terminal-1', model: 'opus' },
+            },
+            reply,
+            domain.domainService,
+            forward,
+            () => {},
+        );
+        expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
+            { method: 'agentChat.configure', params: { terminalId: 'terminal-1', model: 'opus' } },
         ]);
     });
 

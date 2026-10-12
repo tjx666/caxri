@@ -108,6 +108,21 @@ describe('read cache model', () => {
         expect(cachedChatSchema.safeParse(trimmed).success).toBe(true);
     });
 
+    it('keeps ultracode, the permission level, and plan mode for the offline composer', () => {
+        const trimmed = trimChatSnapshot({
+            ...chat([]),
+            ultracode: true,
+            permissionMode: 'fullAccess',
+            planMode: false,
+        });
+        expect(trimmed).toMatchObject({
+            ultracode: true,
+            permissionMode: 'fullAccess',
+            planMode: false,
+        });
+        expect(trimChatSnapshot(chat([]))).not.toHaveProperty('permissionMode');
+    });
+
     it('keeps the newest messages of a long Chat and says the rest were cut', () => {
         const items = Array.from({ length: READ_CACHE_MAX_ITEMS + 5 }, (_, index) => ({
             id: `a${index}`,
