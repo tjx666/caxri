@@ -589,8 +589,11 @@ several callbacks can share one item, so the transport id is never the key.
 - The composer keeps an unsent draft per Chat across tab and Session switches and across a full
   restart, clears only the text that was actually sent, and treats Escape as Stop while a turn
   runs. The draft text is device-local Renderer state in `localStorage` (bounded to the 50 most
-  recently edited Chats), never sent to Server Core; attached images stay in memory only, because
-  a few encoded images would exhaust the storage quota. ArrowUp on an empty composer recalls the
+  recently edited Chats), never sent to Server Core. Attached images survive a restart too, in
+  device-local IndexedDB instead, because a few encoded images would exhaust the `localStorage`
+  quota (`agent-chat-attachment-persistence.ts`): at most 128 MB of encoded images across all
+  Chats, dropping the Chats whose images changed least recently first, deleted once the message
+  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer recalls the
   prompts this Chat sent, newest first, and ArrowDown walks forward and back to an empty input,
   like a shell. The history is read from the user messages in the Chat's projection, so it needs
   no storage of its own and reaches only as far back as the projection keeps (see
