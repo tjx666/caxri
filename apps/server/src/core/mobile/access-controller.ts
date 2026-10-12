@@ -471,7 +471,8 @@ export const openMobileAccessController = async (options: {
                 case 'mobile.agentChat.configure':
                 case 'mobile.agentChat.removeQueued':
                 case 'mobile.agentChat.sendQueuedNow':
-                case 'mobile.agentChat.resumeQueue': {
+                case 'mobile.agentChat.resumeQueue':
+                case 'mobile.agentChat.takeQueued': {
                     const invoke = async () => {
                         assertOpen();
                         const principal = currentPairedPrincipal(context.principal, request.method);

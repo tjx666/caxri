@@ -276,6 +276,17 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * Takes a queued message back for editing and resolves its full text; the snapshot holds only a preview.
+     */
+    const takeQueued = useCallback(
+        async (id: string): Promise<string> => {
+            if (terminalId === null) throw new Error('No Chat is open');
+            const { text } = await request('mobile.agentChat.takeQueued', { terminalId, id });
+            return text;
+        },
+        [request, terminalId],
+    );
     const resumeQueue = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
         await request('mobile.agentChat.resumeQueue', { terminalId });
@@ -294,6 +305,7 @@ export const useAgentChat = ({
         resumeQueue,
         send,
         sendQueuedNow,
+        takeQueued,
     };
 };
 

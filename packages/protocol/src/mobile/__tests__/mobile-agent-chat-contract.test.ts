@@ -338,4 +338,10 @@ describe('mobile Agent Chat projection', () => {
         expect(read(MAX_AGENT_CHAT_IMAGES * 2).error).toBeUndefined();
         expect(read(MAX_AGENT_CHAT_IMAGES * 2 + 1).success).toBe(false);
     });
+
+    it('returns a taken queued message only when the phone could send it again', () => {
+        const result = mobileAgentChatMethods['mobile.agentChat.takeQueued'].result;
+        expect(result.safeParse({ text: 'x'.repeat(5_000) }).success).toBe(true);
+        expect(result.safeParse({ text: 'x'.repeat(17_000) }).success).toBe(false);
+    });
 });

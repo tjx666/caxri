@@ -26,6 +26,7 @@ export const coreForwardedMethods = [
     'agentChat.send',
     'agentChat.sendQueuedNow',
     'agentChat.stopTask',
+    'agentChat.takeQueued',
     'agentHooks.get',
     'agentSkills.get',
     'usage.report',

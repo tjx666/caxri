@@ -410,8 +410,13 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
 - `agentChat.interrupt` pauses a non-empty queue (`queuePaused`) so stopping a turn never fires the
   next message by surprise; `agentChat.resumeQueue` continues it. `agentChat.removeQueued` drops an
   entry and `agentChat.sendQueuedNow` sends one ahead of the rest (steering a running turn; a
-  command cannot steer). A failed dispatch puts every joined entry back in order and pauses the
-  queue.
+  command cannot steer). `agentChat.takeQueued` backs Edit on every Client: it removes an entry
+  and returns its full text (a command as `/name arguments`) in one step, so an entry the queue
+  sends meanwhile fails with `CONFLICT` instead of being both sent and back in the composer. An
+  entry carrying images stays queued and fails with `VALIDATION`, since images never return to a
+  composer; the queue card disables its Edit. The returned text goes ahead of any draft
+  (`agentChatDraftWithReturnedMessage`). A failed dispatch puts every joined entry back in order and pauses
+  the queue.
 - A Codex `turn/start` or `turn/steer` that times out may still have started the turn, so Codex
   Chat checks before failing: the user message's `clientId` echo, or `thread/turns/list` over the
   newest turns. A recorded message counts as delivered. One it cannot confirm fails as delivery
@@ -857,13 +862,17 @@ planMode }`. A Codex switch during a turn says it applies to the next turn. "Use
   argument cut to 200 characters behind `…`) plus `queuePaused` and `queueLength`, the real count
   the header shows when the queue outgrows the preview; each entry keeps its real id. The phone shows it as a card docked above its composer with Desktop's header words (`Queued · sends
 after this turn`, or `Queue paused · sends nothing until you resume` with Resume). Each row offers
-  Steer (`Send now` on an idle Chat; disabled for a command during a turn) and Delete, and a swipe
-  left deletes too; these call `mobile.agentChat.sendQueuedNow`, `mobile.agentChat.removeQueued`,
-  and `mobile.agentChat.resumeQueue`, which forward the matching `agentChat.*` method after the
+  Steer (`Send now` on an idle Chat; disabled for a command during a turn), Edit, and Delete, and a
+  swipe left deletes too; these call `mobile.agentChat.sendQueuedNow`, `mobile.agentChat.takeQueued`,
+  `mobile.agentChat.removeQueued`, and `mobile.agentChat.resumeQueue`, which forward the matching
+  `agentChat.*` method after the
   same Terminal and grant checks as `send`. The row hides at once and returns with an inline error
   when Core refuses; that error clears once its row or the whole queue is gone. Rows are named by
-  `agentChatQueueEntry`, which Desktop shares. Editing a queued message stays on Desktop, since the phone holds only a
-  preview. While a turn runs the Send button wears the queue glyph and the placeholder reads
+  `agentChatQueueEntry`, which Desktop shares. Edit gets the full text the preview cut from
+  `agentChat.takeQueued`, puts it ahead of the draft, and focuses the composer. The gateway first
+  checks the text against the 16 KiB a phone may send, so a longer message stays queued for the
+  computer; that refusal, and an entry that left the queue first, show as an alert, because the
+  row is already gone from the card. While a turn runs the Send button wears the queue glyph and the placeholder reads
   `Queue a follow-up`.
 - Optimistic sends. Desktop and the phone share the placement and settlement rules in
   `packages/protocol/src/agent/agent-chat-pending.ts`: a sent message shows at once where it lands
@@ -1167,5 +1176,5 @@ Claude Code's agent picker (its `initialize` response already lists the agents).
 plan mode, reasoning effort picker, and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
 Chat shows no plan or context usage yet, cannot run slash commands, does not show background tasks,
-cannot edit a queued message, cannot edit or fork from an earlier message, older history beyond the window stays on
+cannot edit or fork from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

@@ -6,8 +6,8 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import {
-    didRemoveAgentChatQueued,
     editAgentChatQueued,
+    removeAgentChatQueued,
     resumeAgentChatQueue,
     sendAgentChatQueuedNow,
 } from './agent-chat-commands';
@@ -66,7 +66,7 @@ function QueueCard({
                     variant="ghost"
                     onClick={() => {
                         // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
-                        void editAgentChatQueued(terminalId, entry, onEdit);
+                        void editAgentChatQueued(terminalId, entry.id, onEdit);
                         onAction();
                     }}
                 >
@@ -81,8 +81,7 @@ function QueueCard({
                     size="icon"
                     variant="ghost"
                     onClick={() => {
-                        // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
-                        void didRemoveAgentChatQueued(terminalId, entry.id);
+                        removeAgentChatQueued(terminalId, entry.id);
                         onAction();
                     }}
                 >
