@@ -14,11 +14,6 @@ import { mapCodexItem } from './codex-items';
 
 type Json = Record<string, unknown>;
 
-/**
- * History loaded on resume is capped by turns; the shared reducer also enforces the item and byte budgets.
- */
-const MAX_RESUMED_TURNS = 100;
-
 function turnStatus(value: unknown): AgentChatTurn['status'] {
     switch (value) {
         case 'completed': {
@@ -94,8 +89,9 @@ export function itemTimeOperations(
 }
 
 /**
- * Operations that replace the projection with a resumed thread's history. A turn still in progress stays open; every
- * other turn's dangling items are closed.
+ * Operations that replace the projection with a resumed thread's whole history; what the projection's budget evicts
+ * stays in Server Core's history archive. A turn still in progress stays open; every other turn's dangling items are
+ * closed.
  */
 export function historyOperations(
     thread: Json,
@@ -105,9 +101,7 @@ export function historyOperations(
     const turns: AgentChatTurn[] = [];
     const items: AgentChatItem[] = [];
     let activeTurnId: string | undefined;
-    const isTruncated = rawTurns.length > MAX_RESUMED_TURNS;
-    const resumedTurns = rawTurns.slice(-MAX_RESUMED_TURNS);
-    for (const rawTurn of resumedTurns) {
+    for (const rawTurn of rawTurns) {
         if (!isRecord(rawTurn)) continue;
         const turnId = stringField(rawTurn.id);
         if (!turnId) continue;
@@ -127,11 +121,6 @@ export function historyOperations(
         op: 'state',
         state: {
             turns,
-            /**
-             * Only ever raised here: `reset` already cleared it, and the upserts above may have set it while evicting
-             * items past the budget, which a plain `false` would hide.
-             */
-            ...(isTruncated && { truncated: true }),
             activeTurnId: activeTurnId ?? null,
             ...(model && { model: clip(model, 200) }),
         },

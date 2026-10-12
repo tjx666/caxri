@@ -5,6 +5,8 @@ import {
     agentChatRailMarks,
     agentChatRailPreview,
     isAgentChatMessageRailShown,
+    MAX_AGENT_CHAT_RAIL_MARKS,
+    sampleAgentChatRailMarks,
 } from '../agent-chat-rail-marks';
 
 describe('agentChatRailMarks', () => {
@@ -54,5 +56,23 @@ describe('isAgentChatMessageRailShown', () => {
                 { id: 'b', preview: 'two' },
             ]),
         ).toBe(true);
+    });
+});
+
+describe('sampleAgentChatRailMarks', () => {
+    const marks = (count: number) =>
+        Array.from({ length: count }, (_, index) => ({ id: `u${index}`, preview: `${index}` }));
+
+    it('keeps every mark of a conversation the rail can space apart', () => {
+        const all = marks(MAX_AGENT_CHAT_RAIL_MARKS);
+        expect(sampleAgentChatRailMarks(all)).toBe(all);
+    });
+
+    it('spreads a long conversation over the rail from its first message to its last', () => {
+        const sampled = sampleAgentChatRailMarks(marks(4000));
+        expect(sampled).toHaveLength(MAX_AGENT_CHAT_RAIL_MARKS);
+        expect(sampled[0].id).toBe('u0');
+        expect(sampled.at(-1)?.id).toBe('u3999');
+        expect(new Set(sampled.map((mark) => mark.id)).size).toBe(MAX_AGENT_CHAT_RAIL_MARKS);
     });
 });

@@ -120,12 +120,14 @@ export async function prepareChatLaunch(
 export async function readChatTranscript(
     options: Pick<AgentChatServiceOptions, 'agentEnvironment' | 'database'>,
     terminalId: string,
+    maxBytes?: number,
 ): Promise<AgentChatTranscript | undefined> {
     const transcript = await readAgentTranscript(
         options.database,
         terminalId,
         true,
         options.agentEnvironment,
+        maxBytes,
     );
     return transcript?.content === undefined
         ? undefined

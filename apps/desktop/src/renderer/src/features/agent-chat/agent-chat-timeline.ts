@@ -259,12 +259,14 @@ function withTurnArtifacts(
  * run of items sharing a `turnId` is one turn. A turn still running (or with no recorded end) stays expanded. Every
  * turn not running ends on its last reply, which is the only one marked `isFinalReply`; a running turn's latest reply
  * may still be followed by more work, so it is not marked until the turn ends. The last turn's final reply is also
- * `isLatestReply`; while the last turn still runs, no reply is.
+ * `isLatestReply`; while the last turn still runs, no reply is. History read back from before the live projection is
+ * built with `hasLatestReply` off, since the latest reply is always in the live part.
  */
 export function buildAgentChatTimeline(
     items: readonly AgentChatItem[],
     turns: readonly AgentChatTurn[],
     activeTurnId: string | undefined,
+    hasLatestReply = true,
 ): AgentChatTimelineEntry[] {
     const finished = new Map(
         turns
@@ -299,13 +301,20 @@ export function buildAgentChatTimeline(
         latestReplyId = finalReplyId;
         start = end;
     }
-    return latestReplyId === undefined
+    return latestReplyId === undefined || !hasLatestReply
         ? entries
         : entries.map((entry) =>
               entry.kind === 'item' && entry.item.id === latestReplyId
                   ? { ...entry, isLatestReply: true }
                   : entry,
           );
+}
+
+/**
+ * The stable React key of one timeline entry.
+ */
+export function agentChatTimelineEntryKey(entry: AgentChatTimelineEntry): string {
+    return entry.kind === 'item' ? entry.item.id : entry.id;
 }
 
 const REASONING_TITLE = /^\*\*([^*\n]+)\*\*[ \t]*$/gmu;

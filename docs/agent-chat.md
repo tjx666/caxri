@@ -303,8 +303,18 @@ record is the source of truth.
   holding the old snapshot sees a gap and re-reads instead of discarding new patches.
 - Bounds: 1,000 items, 64 KiB per message, 16 KiB of command output (the tail is kept), 64 KiB per
   diff, 1 MiB of diffs per file-change item, and a 4 MiB aggregate text budget. The budget also holds
-  while a reply streams. Older items are dropped first and `truncated` is set. A diff cut by either
-  diff bound carries its own `truncated` flag, so the pane marks where it stops.
+  while a reply streams. Older items leave the projection first and `truncated` is set. A diff cut
+  by either diff bound carries its own `truncated` flag, so the pane marks where it stops.
+- Items that leave the projection are not lost. Server Core moves them, with their turns, into a
+  per-Chat history archive (`apps/server/src/domains/agent-chat/chat-history-archive.ts`, bounded
+  at 20,000 items and 32 MiB of text). `agentChat.readHistory` pages back through it, at most 200
+  items or 2 MiB per page, by the id of the oldest item a Client holds. Past the archive, a Claude
+  Code Chat reads the rest from its transcript (up to 128 MiB, parsed once and cached for a minute
+  while the reader pages back); other providers already replay their whole history into the
+  archive on resume, so their history ends there. A resumed history is applied in one batch, so a
+  Client receives only the items the projection keeps, never the evicted ones. The snapshot's
+  `historyId` changes on every replaced history (a resume, a rewind, a reset), so a page read for
+  an earlier history is discarded rather than stitched onto the new one.
 - A Client that receives a patch while its own read is still in flight holds the patch (up to 200)
   and replays it once the read lands, instead of dropping it and re-reading again.
 - The stdio connection frames Codex output by bytes, rejects an oversized frame before parsing
@@ -611,10 +621,23 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   its time and Copy message; the row keeps its height, so revealing it never shifts the transcript.
   Every time carries a tooltip with the full date. Formatting and day grouping live in
   `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-time.ts`.
+- Scrolling back reads the whole conversation, not only the projection. Near the top, the pane
+  loads the previous page (`agentChat.readHistory`) 1,600 px before the reader reaches it and keeps
+  the entry at the top of the view where it was, so the page appears above without moving the
+  text. While a page loads the top says `Loading earlier messages…`, a failed read offers Retry,
+  and when Chat cannot show the rest (a provider without a readable record, or history past the
+  archive and transcript bounds) it says so and offers Open as Terminal. History read back is
+  rendered apart from the live projection, in chunks split at turn starts chosen by item id
+  (`agent-chat-settled-chunks.ts`), so a streamed patch skips it and a new page renders only its
+  own chunks; each entry uses `content-visibility: auto`, so offscreen entries cost no layout or
+  paint. Items the live projection evicts while the reader is scrolled back are kept below the
+  pages read, so nothing goes missing between them. Earlier messages are read-only: they offer
+  no Edit, Fork, or Restore, because those act on the projection.
 - From the second user message, a message rail sits at the pane's left edge: one tick per user
   message, the one being read longer and brighter. Hovering a tick previews its message, and
   clicking it stops following new output and jumps there. Ticks shrink together rather than scroll
-  when a long conversation would overflow the view
+  when a long conversation would overflow the view; past 120 messages each tick stands for an even
+  stretch of the conversation, so ticks stay apart
   (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-rail-marks.ts`).
 - Cmd+F in a Chat opens a find bar at the conversation's top right, clear of the message rail and
   Jump to latest. It takes its own strip above the conversation rather than floating over it, so it
@@ -634,7 +657,7 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   folded content is not in the DOM, and folds back when a refined query stops matching. Escape closes the
   bar, clears the highlights, leaves opened turns open, and returns focus to the composer. Times in
   a message's hover row are not searched, since they are invisible until hovered. Find does not read tool output
-  inside a collapsed work row, earlier messages the window has truncated, or regular expressions.
+  inside a collapsed work row, earlier messages not yet loaded by scrolling back, or regular expressions.
   Logic lives in `agent-chat-find.ts` and `hooks/use-agent-chat-find.ts`.
 - A web link in a reply or pasted into a user message shows the site's favicon and opens a hover
   card naming the host with an Open action. For HTTPS links, the card previews the page's share

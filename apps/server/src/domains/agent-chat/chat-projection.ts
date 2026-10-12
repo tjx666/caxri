@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type {
     AgentChatPatchOperation,
     AgentChatSnapshot,
@@ -8,11 +10,13 @@ import type {
 import {
     applyAgentChatOperation,
     emptyAgentChatSnapshot,
+    MAX_AGENT_CHAT_ITEMS,
     MAX_AGENT_CHAT_PATCH_OPERATIONS,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import { ChatHistoryArchive } from './chat-history-archive';
 import { ChatTaskProjections } from './chat-task-projections';
 
 /**
@@ -77,11 +81,16 @@ export class ChatProjection {
      * Subagent conversations and background shell output, each with its own revisions.
      */
     readonly tasks: ChatTaskProjections;
+    /**
+     * Items the projection's budget evicted, which `agentChat.readHistory` pages through.
+     */
+    readonly history = new ChatHistoryArchive();
 
     constructor(private readonly options: ChatProjectionOptions) {
         this.snapshot = {
             ...emptyAgentChatSnapshot(options.terminalId),
             revision: options.revision,
+            historyId: randomUUID(),
         };
         this.tasks = new ChatTaskProjections(
             options.terminalId,
@@ -125,14 +134,99 @@ export class ChatProjection {
         }
     }
 
+    /**
+     * A provider reports every turn it knows, including turns whose items now live only in the archive. Those stay out
+     * of the projection, which keeps only the turns its own items belong to. Nor may a provider clear `truncated` while
+     * the archive holds history.
+     */
+    private withoutArchivedTurns(operation: AgentChatPatchOperation): AgentChatPatchOperation {
+        if (operation.op !== 'state') return operation;
+        // The archive holds older history, whatever the provider believes it loaded.
+        if (operation.state.truncated === false && this.history.size > 0)
+            return this.withoutArchivedTurns({
+                op: 'state',
+                state: { ...operation.state, truncated: true },
+            });
+        if (!operation.state.turns) return operation;
+        const { turns } = operation.state;
+        let kept = turns;
+        if (this.history.size > 0) {
+            this.history.recordTurns(turns);
+            const live = new Set(this.snapshot.items.map((item) => item.turnId));
+            const activeTurnId =
+                operation.state.activeTurnId === undefined
+                    ? this.snapshot.activeTurnId
+                    : operation.state.activeTurnId;
+            kept = turns.filter(
+                (turn) =>
+                    !this.history.hasTurn(turn.id) || live.has(turn.id) || turn.id === activeTurnId,
+            );
+        }
+        // A resumed history reports every turn; the projection's schema bounds them like its items.
+        if (kept.length > MAX_AGENT_CHAT_ITEMS) kept = kept.slice(-MAX_AGENT_CHAT_ITEMS);
+        return kept.length === turns.length
+            ? operation
+            : { op: 'state', state: { ...operation.state, turns: kept } };
+    }
+
+    /**
+     * Drops the operations for items a replacement batch evicted again before any Client saw them. A Client applying
+     * the rest never reaches the budget that evicted them, so the patch states the truncation the Server-side
+     * projection reached.
+     */
+    private withoutEvictedItems(
+        operations: readonly AgentChatPatchOperation[],
+        evicted: ReadonlySet<string>,
+    ): readonly AgentChatPatchOperation[] {
+        if (evicted.size === 0) return operations;
+        const live = new Set(this.snapshot.items.map((item) => item.id));
+        const kept = operations.filter((operation) => {
+            const id =
+                operation.op === 'upsertItem'
+                    ? operation.item.id
+                    : operation.op === 'appendText'
+                      ? operation.itemId
+                      : undefined;
+            return id === undefined || !evicted.has(id) || live.has(id);
+        });
+        return [...kept, { op: 'state', state: { truncated: this.snapshot.truncated } }];
+    }
+
     apply(operations: readonly AgentChatPatchOperation[]): void {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
         const stamped = stampNewItems(this.snapshot, operations, Date.now());
-        for (const operation of stamped)
-            this.snapshot = applyAgentChatOperation(this.snapshot, operation);
+        const isReplacement = stamped.some((operation) => operation.op === 'reset');
+        const applied: AgentChatPatchOperation[] = [];
+        /**
+         * Items a replacement upserted and then evicted within the same batch. Clients never need them in their
+         * projection, so they are left out of the patch: a resumed history of thousands of items reaches Clients as
+         * only the part the projection keeps, and the rest waits in the archive for `agentChat.readHistory`.
+         */
+        const evictedInBatch = new Set<string>();
+        for (const original of stamped) {
+            const operation = this.withoutArchivedTurns(original);
+            const before = this.snapshot;
+            this.snapshot = applyAgentChatOperation(before, operation);
+            applied.push(operation);
+            if (operation.op === 'reset') {
+                this.history.clear();
+                const historyId = randomUUID();
+                this.snapshot = applyAgentChatOperation(this.snapshot, {
+                    op: 'state',
+                    state: { historyId },
+                });
+                applied.push({ op: 'state', state: { historyId } });
+                continue;
+            }
+            for (const item of this.history.recordEviction(before, this.snapshot))
+                if (isReplacement) evictedInBatch.add(item.id);
+            // The provider loaded only part of its history; the rest is in its own record.
+            if (original.op === 'state' && original.state.truncated === true)
+                this.history.isIncomplete = true;
+        }
         if (this.snapshot.tasks !== previousTasks) this.logFinishedTasks(previousTasks ?? []);
-        this.queued.push(...stamped);
+        this.queued.push(...this.withoutEvictedItems(applied, evictedInBatch));
         this.scheduleFlush();
         this.options.onChange();
     }

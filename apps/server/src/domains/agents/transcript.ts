@@ -181,13 +181,14 @@ export async function locateAgentTranscript(
 
 async function readTranscriptTail(
     location: AgentTranscriptLocation,
+    maxBytes: number,
 ): Promise<{ content: string; truncated: boolean } | undefined> {
     const opened = await openSafeAgentTranscript(location);
     if (!opened) return;
     const { handle, stats } = opened;
     try {
-        const isTruncated = stats.size > MAX_AGENT_TRANSCRIPT_BYTES;
-        const readBytes = isTruncated ? MAX_AGENT_TRANSCRIPT_BYTES : stats.size;
+        const isTruncated = stats.size > maxBytes;
+        const readBytes = isTruncated ? maxBytes : stats.size;
         const offset = stats.size - readBytes;
         const buffer = Buffer.allocUnsafe(readBytes);
         let bytesRead = 0;
@@ -229,6 +230,10 @@ export async function readAgentTranscript(
     terminalId: string,
     shouldIncludeContent: boolean,
     environment: AgentEnvironment = defaultAgentEnvironment(),
+    /**
+     * How much of the transcript's tail to read; Agent Chat reads far more when paging back through a long history.
+     */
+    maxBytes = MAX_AGENT_TRANSCRIPT_BYTES,
 ): Promise<AgentTranscript | null> {
     const location = await locateAgentTranscript(database, terminalId, environment);
     if (!location) return null;
@@ -245,7 +250,7 @@ export async function readAgentTranscript(
         return { path: location.path, exists: safe.exists, truncated: false };
     }
     if (!safe.exists) return { path: location.path, exists: false, truncated: false };
-    const tail = await readTranscriptTail(location);
+    const tail = await readTranscriptTail(location, maxBytes);
     if (!tail) return { path: location.path, exists: false, truncated: false };
     return { path: location.path, exists: true, content: tail.content, truncated: tail.truncated };
 }
