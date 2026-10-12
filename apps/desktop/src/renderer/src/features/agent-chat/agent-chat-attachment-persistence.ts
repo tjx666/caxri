@@ -41,7 +41,7 @@ export interface AgentChatAttachmentBackend {
 /**
  * Encoded characters (image data plus thumbnail) kept across all Chats: a few Chats at the per-message image limit.
  */
-export const MAX_PERSISTED_AGENT_CHAT_ATTACHMENT_CHARACTERS = 128 * 1024 * 1024;
+const MAX_PERSISTED_AGENT_CHAT_ATTACHMENT_CHARACTERS = 128 * 1024 * 1024;
 
 /**
  * Reads a stored attachment list. Anything malformed is dropped attachment by attachment rather than trusted: the store
