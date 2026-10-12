@@ -134,7 +134,7 @@ describe('Agent Commander Inbox request delivery', () => {
         expect(inboxDeliveries(lastWindow())).toBe(0);
     });
 
-    it('drops the request when the window closes before its Renderer subscribes', () => {
+    it('never carries a request to the next window after closing before its Renderer subscribes', () => {
         const { controller, eventsReady } = createController();
 
         controller.open('inbox');
@@ -160,7 +160,7 @@ describe('Agent Commander Inbox request delivery', () => {
         expect(inboxDeliveries(window)).toBe(1);
     });
 
-    it('clears the request when no logger is available to open the window', () => {
+    it('never carries a request to a later window when no logger was available to open one', () => {
         const logger: { current?: StructuredLogger } = {};
         const { controller, eventsReady } = createController(() => logger.current);
 
