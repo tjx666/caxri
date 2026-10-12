@@ -1,3 +1,5 @@
+import type { AgentThroughputSpeed } from '@caxri/protocol';
+
 import type { ThroughputLineScanner, ThroughputSink } from '../../throughput';
 import {
     parseThroughputLine,
@@ -37,10 +39,16 @@ const REQUEST_INPUT_ITEMS = new Set([
  * after the response began generating are tool results from parallel calls that finished mid-stream, so they do not
  * restart the clock. A response with no recorded start (a resumed rollout, a compaction request) is skipped rather than
  * estimated.
+ *
+ * Each `turn_context` names the turn's model. The speed tier is known only from the thread's first
+ * `thread_settings_applied` on: Codex writes that event when the thread's settings change (`/fast`), not for the
+ * configured tier a thread starts with, so earlier responses carry no tier rather than a guessed one.
  */
 export function createCodexThroughputScanner(): ThroughputLineScanner {
     let requestStartedAt: number | undefined;
     let lastOutputAt: number | undefined;
+    let model: string | undefined;
+    let speed: AgentThroughputSpeed | undefined;
     const resetRequest = () => {
         requestStartedAt = undefined;
         lastOutputAt = undefined;
@@ -68,6 +76,21 @@ export function createCodexThroughputScanner(): ThroughputLineScanner {
 
                             break;
                         }
+                        case 'thread_settings_applied': {
+                            const settings = throughputRecord(payload.thread_settings);
+                            if (typeof settings.model === 'string' && settings.model)
+                                model = settings.model;
+                            const tier = settings.service_tier;
+                            if (typeof tier === 'string')
+                                speed =
+                                    tier === 'priority' || tier === 'fast'
+                                        ? 'fast'
+                                        : tier === 'flex'
+                                          ? 'flex'
+                                          : 'standard';
+
+                            break;
+                        }
                         case 'task_complete': {
                             const firstToken = payload.time_to_first_token_ms;
                             if (typeof firstToken === 'number' && firstToken >= 0)
@@ -81,6 +104,10 @@ export function createCodexThroughputScanner(): ThroughputLineScanner {
                 }
                 case 'compacted': {
                     resetRequest();
+                    return;
+                }
+                case 'turn_context': {
+                    if (typeof payload.model === 'string' && payload.model) model = payload.model;
                     return;
                 }
                 case 'response_item': {
@@ -113,6 +140,8 @@ export function createCodexThroughputScanner(): ThroughputLineScanner {
                             durationMs: lastOutputAt - requestStartedAt,
                             key,
                             outputTokens,
+                            ...(model !== undefined && { model }),
+                            ...(speed !== undefined && { speed }),
                         });
                     resetRequest();
                     return;

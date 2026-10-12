@@ -12,6 +12,7 @@ import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
+import { isImeComposing } from '../../../lib/ime';
 import { cn } from '../../../lib/utilities';
 import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
 import { describeFailure } from '../../../stores/toasts';
@@ -136,7 +137,7 @@ function InlineFileName({
                     onChange={(event) => setValue(event.target.value)}
                     onKeyDown={(event) => {
                         event.stopPropagation();
-                        if (event.key === 'Escape') {
+                        if (event.key === 'Escape' && !isImeComposing(event)) {
                             event.preventDefault();
                             onCancel();
                         }

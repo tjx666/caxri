@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from 'react';
 import type { CommanderInboxItem } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
+import { isImeComposing } from '../../../lib/ime';
 import {
     mentionAtCaret,
     suggestionMenuKeyAction,
@@ -13,6 +14,7 @@ import {
     inboxMentionCandidates,
     inboxMentionSuggestion,
     inboxReplyTarget,
+    insertInboxMentionTrigger,
     removeInboxMention,
 } from '../commander-inbox';
 import { replyToCommanderInboxItem } from '../commander-inbox-commands';
@@ -22,10 +24,16 @@ import {
 } from '../commander-inbox-store';
 
 /**
+ * How long the "Type @" hint stays emphasized after Enter could not send for want of an item to answer.
+ */
+const HINT_FLASH_MS = 1_200;
+
+/**
  * The Inbox reply box: free text, an `@` picker that chooses which item the reply answers, and Enter to send
- * (Shift+Enter for a new line). The picker lives here rather than in the Commander Terminal because Codex's own
- * composer already claims `@` for file search. It shares the Chat composer's `@` parsing, keys, and list: focus stays
- * in the textarea, which names the active row through `aria-activedescendant`.
+ * (Shift+Enter for a new line). Enter with nothing to answer opens the picker rather than doing nothing; with no open
+ * item to pick it emphasizes the hint instead. The picker lives here rather than in the Commander Terminal because
+ * Codex's own composer already claims `@` for file search. It shares the Chat composer's `@` parsing, keys, and list:
+ * focus stays in the textarea, which names the active row through `aria-activedescendant`.
  */
 export function useCommanderInboxComposer(
     items: readonly CommanderInboxItem[],
@@ -41,6 +49,8 @@ export function useCommanderInboxComposer(
      * The `@` whose picker Escape closed; typing on keeps it closed until another `@` starts a new mention.
      */
     const [dismissedMentionStart, setDismissedMentionStart] = useState<number>();
+    const [hintFlashEpoch, setHintFlashEpoch] = useState(0);
+    const [isHintFlashing, setHintFlashing] = useState(false);
     const targetId = useCommanderInboxUiStore((state) => state.targetId);
     const focusEpoch = useCommanderInboxUiStore((state) => state.focusEpoch);
     const target = inboxReplyTarget(items, targetId);
@@ -67,6 +77,37 @@ export function useCommanderInboxComposer(
     useEffect(() => {
         if (focusEpoch > 0) textareaReference.current?.focus();
     }, [focusEpoch, textareaReference]);
+
+    useEffect(() => {
+        if (hintFlashEpoch === 0) return;
+        const timer = setTimeout(() => setHintFlashing(false), HINT_FLASH_MS);
+        return () => clearTimeout(timer);
+    }, [hintFlashEpoch]);
+
+    /**
+     * Enter without a reply target: reopen a picker Escape dismissed, start a new `@` mention when there is an item to
+     * pick, or point at the hint when there is none.
+     */
+    function promptForTarget(): void {
+        if (mention && candidates.length > 0) {
+            setDismissedMentionStart(undefined);
+            return;
+        }
+        if (mention || inboxMentionCandidates(items, '', t).length === 0) {
+            setHintFlashing(true);
+            // A new epoch restarts the timer, so a second Enter keeps the hint emphasized for the full span.
+            setHintFlashEpoch((current) => current + 1);
+            return;
+        }
+        const next = insertInboxMentionTrigger(draft, caret);
+        setDraft(next.text);
+        setCaret(next.caret);
+        setHighlight(0);
+        setDismissedMentionStart(undefined);
+        requestAnimationFrame(() =>
+            textareaReference.current?.setSelectionRange(next.caret, next.caret),
+        );
+    }
 
     function choose(item: CommanderInboxItem): void {
         if (!mention) return;
@@ -96,7 +137,7 @@ export function useCommanderInboxComposer(
     }
 
     function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
-        if (event.nativeEvent.isComposing) return;
+        if (isImeComposing(event)) return;
         const action = activeItem ? suggestionMenuKeyAction(event) : undefined;
         if (activeItem && mention && action) {
             event.preventDefault();
@@ -110,6 +151,10 @@ export function useCommanderInboxComposer(
         }
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
+            if (!target) {
+                promptForTarget();
+                return;
+            }
             // Fire-and-forget: the reply command reports its own failure through a toast.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void send();
@@ -143,6 +188,7 @@ export function useCommanderInboxComposer(
                   'aria-expanded': true,
               }
             : { 'aria-expanded': false },
+        isHintFlashing,
         isSending,
         listId,
         onChange,

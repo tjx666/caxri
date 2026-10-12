@@ -296,7 +296,8 @@ export const commanderMethods = {
     /**
      * Archives one Session the Commander created, the same reversible `session.archive` the sidebar runs: its Terminals
      * and Chats are parked and it leaves the Session list until the user restores it. Any other Session, including the
-     * user's own, is refused as `NOT_FOUND`: the Commander has no control authority over Sessions it did not create.
+     * user's own and one the user handed over, is refused as `NOT_FOUND`: the Commander has no control authority over
+     * Sessions it did not create.
      */
     'commander.session.archive': {
         ...commandPolicy('server', 'control', ['commander']),

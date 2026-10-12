@@ -47,6 +47,10 @@ const SURFACE_COPY: Record<
  * Toggle paints hover and pressed identically (`bg-elevated` + `text-foreground`), which in a two-segment switch made
  * the hovered other segment look already selected.
  *
+ * Each segment is 24px wide and its hit area reaches 24px tall through an invisible `::after` that overflows the 20px
+ * visual into the group's padding, so the 13px icons and the rail's height stay as they were while the target meets the
+ * 24px minimum.
+ *
  * The Server answers only after the provider restarted, which takes seconds. While that switch is pending (from any
  * entry point) both segments read as disabled and the target segment shows a spinner, so the press visibly registered.
  * They are `aria-disabled` rather than `disabled`, like the Chat's Stop button: Chromium evicts focus from a natively
@@ -85,7 +89,7 @@ export function AgentSurfaceToggle({ terminal }: { terminal: TerminalRecord }) {
                             aria-busy={isPending}
                             aria-disabled={isSwitching || undefined}
                             aria-label={label}
-                            className="h-5 min-w-5 px-1 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-pressed:border-border data-pressed:text-[var(--agent-surface-toggle-pressed,var(--foreground))]"
+                            className="relative h-5 min-w-6 px-1 after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-pressed:border-border data-pressed:text-[var(--agent-surface-toggle-pressed,var(--foreground))]"
                             value={surface}
                         >
                             {isPending ? (

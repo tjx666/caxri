@@ -27,6 +27,7 @@ import {
     selectProject,
     SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
 } from '../session/session-commands';
+import { sessionTitleForDisplay } from '../session/session-title';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
 import {
     getDynamicCommandPaletteValue,
@@ -190,14 +191,14 @@ function CommandPaletteBody() {
                                     // sessions sharing a title and project (e.g. two "Untitled" sessions
                                     // in one worktree) would both render as selected. The id keeps every
                                     // value unique without changing what the search matches on.
-                                    value={`Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`}
+                                    value={`Session ${sessionTitleForDisplay(session.displayTitle, t)} ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`}
                                     onSelect={() => {
                                         onOpenChange(false);
                                         // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
                                         void didSelectSession(session.id);
                                     }}
                                 >
-                                    <span>{session.displayTitle}</span>
+                                    <span>{sessionTitleForDisplay(session.displayTitle, t)}</span>
                                     <small className={commandItemMetaClassName}>
                                         {project?.displayTitle ?? t('palette.source.session')}
                                     </small>

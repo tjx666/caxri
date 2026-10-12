@@ -119,7 +119,7 @@ describe('Agent Chat image attachments', () => {
 
     it('notes a resized image in its alt text', () => {
         expect(agentChatAttachmentLabel({ name: 'shot.png', isResized: true }, 0)).toBe(
-            'shot.png (resized to fit the 5 mb limit)',
+            'shot.png (resized to fit the 5 MB limit)',
         );
         expect(agentChatAttachmentLabel({ name: '' }, 1)).toBe('Attachment 2');
     });

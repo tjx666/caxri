@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import type { CommanderHandoverRejection } from '@caxri/protocol';
 import { MAX_COMMANDER_HANDOVER_BATCH } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
@@ -16,19 +17,28 @@ import type { ToggleCandidates } from '../commander-handover-list';
 export type HandoverTab = 'sessions' | 'conversations';
 
 const NO_GROUPS: HandoverCandidateGroup[] = [];
+const NO_REFUSALS: ReadonlyMap<string, CommanderHandoverRejection> = new Map();
 
 /**
  * State behind the hand-over picker: the two candidate lists, one selection across both tabs, the shared note, and the
  * submission. Search narrows what the list shows, never what stays selected, so switching tabs or clearing the search
  * keeps every pick.
+ *
+ * A partly refused request leaves the refused entries selected where they were, each with its reason, so the user can
+ * fix or deselect them and submit again; accepted ones leave the list once the board refreshes.
  */
 export function useCommanderHandoverPicker({
     isFromWorkbench,
     initialSessionIds,
+    isOpen,
     onDone,
 }: {
     isFromWorkbench: boolean;
     initialSessionIds: readonly string[];
+    /**
+     * Whether the dialog that owns this picker is still open, asked when an answer arrives.
+     */
+    isOpen: () => boolean;
     onDone: () => void;
 }) {
     const { t } = useTranslation();
@@ -39,7 +49,10 @@ export function useCommanderHandoverPicker({
         () => new Set(initialSessionIds),
     );
     const [isSubmitting, setSubmitting] = useState(false);
-    const [refused, setRefused] = useState<HandoverSummary['rejected']>([]);
+    const [outcome, setOutcome] = useState<
+        Pick<HandoverSummary, 'accepted' | 'rejected' | 'rejectedByKey'> | undefined
+    >();
+    const refusedByKey = outcome?.rejectedByKey ?? NO_REFUSALS;
     const board = useCaxriQuery('commander.board', undefined);
     /**
      * Discovery reads the Agent CLIs' own history folders, so it waits until the user opens its tab.
@@ -53,9 +66,10 @@ export function useCommanderHandoverPicker({
     const rows = board.data?.rows;
     const projects = board.data?.projects;
     const conversationList = conversations.data?.conversations;
+    const refusedKeys = useMemo(() => new Set(refusedByKey.keys()), [refusedByKey]);
     const sessionGroups = useMemo(
-        () => (rows ? handoverSessionGroups(rows, query) : NO_GROUPS),
-        [query, rows],
+        () => (rows ? handoverSessionGroups(rows, query, refusedKeys) : NO_GROUPS),
+        [query, refusedKeys, rows],
     );
     const conversationGroups = useMemo(
         () =>
@@ -70,12 +84,12 @@ export function useCommanderHandoverPicker({
     const allCandidates = useMemo(
         () =>
             [
-                ...(rows ? handoverSessionGroups(rows, '') : NO_GROUPS),
+                ...(rows ? handoverSessionGroups(rows, '', refusedKeys) : NO_GROUPS),
                 ...(conversationList && projects
                     ? handoverConversationGroups(conversationList, projects, '', untitled)
                     : NO_GROUPS),
             ].flatMap((group) => group.candidates),
-        [conversationList, projects, rows, untitled],
+        [conversationList, projects, refusedKeys, rows, untitled],
     );
     const selected = allCandidates.filter((candidate) => selection.has(candidate.key));
     const toggle: ToggleCandidates = (keys, isChecked) => {
@@ -102,7 +116,7 @@ export function useCommanderHandoverPicker({
         try {
             summary = await handOverToCommander(
                 { ...handoverRequestEntries(selection, allCandidates), note },
-                { isFromWorkbench },
+                { isFromWorkbench, isReportedInPlace: isOpen },
             );
         } finally {
             setSubmitting(false);
@@ -112,9 +126,9 @@ export function useCommanderHandoverPicker({
             onDone();
             return;
         }
-        // Accepted entries leave the lists once the board refreshes; what stays is what the Commander refused.
-        setRefused(summary.rejected);
-        setSelection(new Set());
+        // Accepted entries leave the lists once the board refreshes; what stays selected is what the Commander refused.
+        setOutcome(summary);
+        setSelection(new Set(summary.rejectedByKey.keys()));
     };
     return {
         board,
@@ -123,8 +137,9 @@ export function useCommanderHandoverPicker({
         isSubmitting,
         note,
         overLimitCount,
+        outcome,
         query,
-        refused,
+        refusedByKey,
         selectedCount: selected.length,
         selectedMayBeOpenCount: selected.filter((candidate) => candidate.mayBeOpen).length,
         selection,

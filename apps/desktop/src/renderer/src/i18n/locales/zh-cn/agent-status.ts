@@ -25,6 +25,7 @@ export const agentStatus: TranslatedNamespace<typeof source> = {
     'agentStatus.summary.readFailed': '无法读取状态页',
     'agentStatus.summary.checking': '正在检查…',
     // Agent status tab
+    'agentStatus.page.agentFallback': 'Agent',
     'agentStatus.page.terminalClosed': '此终端已关闭，数据不再更新。',
     // Output speed section
     'agentStatus.throughput.title': '输出速度',
@@ -33,7 +34,16 @@ export const agentStatus: TranslatedNamespace<typeof source> = {
     'agentStatus.throughput.closed': '此终端关闭前未测得任何数据。',
     'agentStatus.throughput.notMeasured': '尚未测得任何响应。Agent 完成首次响应后将显示速度。',
     'agentStatus.throughput.chartLabel': '最近 {{count}} 次响应的输出速度',
-    'agentStatus.throughput.barDescription': '{{sample}}，完成于 {{time}}',
+    'agentStatus.throughput.barDescription': '{{variant}}：{{sample}}，完成于 {{time}}',
+    'agentStatus.throughput.byModel': '按模型',
+    'agentStatus.throughput.byModelCaption': '本 Agent Session 中所有已测量的响应',
+    'agentStatus.throughput.byModel.model': '模型',
+    'agentStatus.throughput.byModel.mode': '模式',
+    'agentStatus.throughput.byModel.rate': '速度',
+    'agentStatus.throughput.byModel.responses': '响应数',
+    'agentStatus.throughput.byModel.tokens': '输出 Token',
+    'agentStatus.throughput.byModel.unknownNote':
+        '部分响应的对话记录中没有模式信息：Codex 只在对话中切换模式后才写入。',
     'agentStatus.throughput.recentAverage': '近期平均',
     'agentStatus.throughput.lastResponse': '上次响应',
     'agentStatus.throughput.thisTurn': '本轮',
@@ -41,7 +51,7 @@ export const agentStatus: TranslatedNamespace<typeof source> = {
     'agentStatus.throughput.firstToken': '首个 Token',
     'agentStatus.throughput.firstTokenNotReported': '最近完成的一轮未报告',
     'agentStatus.throughput.firstTokenLastTurn': '最近完成的一轮',
-    'agentStatus.throughput.agentSession': 'Agent 会话',
+    'agentStatus.throughput.agentSession': '对话',
     'agentStatus.throughput.chartCaption': '最近 {{count}} 次响应，从旧到新；虚线为近期平均值',
     'agentStatus.throughput.chartPending': '测得第二次响应后将显示图表。',
     // API status section
@@ -54,6 +64,12 @@ export const agentStatus: TranslatedNamespace<typeof source> = {
     'agentStatus.provider.checkedAgo': '检查于 {{time}}',
     'agentStatus.provider.updatedAgo': '更新于 {{time}}',
     'agentStatus.provider.unavailable': '{{reason}}。Caxri 每分钟会重试一次。',
+    'agentStatus.provider.uptime': '可用率 {{percent}}%',
+    'agentStatus.provider.uptimeChartLabel': '{{component}} 最近 {{count}} 天每天的状态',
+    'agentStatus.provider.uptimeDay': '{{date}}：{{status}}',
+    'agentStatus.provider.uptimeNoData': '无数据',
+    'agentStatus.provider.uptimeStart': '{{count}} 天前',
+    'agentStatus.provider.uptimeEnd': '今天',
     'agentStatus.provider.activeIncidents': '进行中的事件',
     'agentStatus.provider.noIncidents': '没有影响这些组件的未解决事件。',
 };

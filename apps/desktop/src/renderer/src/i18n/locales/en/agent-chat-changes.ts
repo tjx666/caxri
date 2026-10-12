@@ -72,12 +72,23 @@ export const agentChatChanges = {
         'Undo the later turn that edited it first, or use Restore Code to Here on the message that started this turn.',
     'agentChat.undo.successOne': 'Undid the changes to 1 file',
     'agentChat.undo.successOther': 'Undid the changes to {{count}} files',
+    'agentChat.redo.failedTitle': 'Unable to redo the Agent changes',
+    'agentChat.redo.partial':
+        'Redo stopped partway: some files already have the Agent changes again.',
+    'agentChat.redo.failure': 'Nothing was redone: {{path}} cannot be restored because {{reason}}.',
+    'agentChat.redo.failureReason.changed': 'it changed after the Undo',
+    'agentChat.redo.failureReason.missing': 'it no longer exists',
+    'agentChat.redo.failureReason.exists': 'it was created again after the Undo',
+    'agentChat.redo.successOne': 'Redid the changes to 1 file',
+    'agentChat.redo.successOther': 'Redid the changes to {{count}} files',
+    'agentChat.redo.unavailable': 'This Undo can no longer be redone.',
 
     // Edit, restore, and fork from a message
-    'agentChat.undo.replaceTurnsTitle': 'Replace {{count}} later turns?',
+    'agentChat.undo.replaceTurnsTitle': 'Replace {{count}} turns?',
     'agentChat.undo.replaceTurnsMessage':
         "Sending this edit removes this message's turn and the {{count}} after it from the conversation. To keep them, cancel and use Fork from Here instead.",
     'agentChat.undo.replaceTurnsConfirm': 'Replace Turns',
+    'agentChat.undo.restoringCode': 'Restoring code…',
     'agentChat.undo.restoreSuccessOne': 'Restored the code changed in 1 turn',
     'agentChat.undo.restoreSuccessOther': 'Restored the code changed in {{count}} turns',
     'agentChat.undo.forkSuccess': 'Forked into a new Session',
@@ -92,6 +103,7 @@ export const agentChatChanges = {
     'agentChat.tasks.subagent': 'Subagent',
     'agentChat.tasks.openTask': 'Open {{title}}',
     'agentChat.tasks.stop': 'Stop',
+    'agentChat.tasks.stopping': 'Stopping…',
     'agentChat.tasks.stopTask': 'Stop {{title}}',
     'agentChat.tasks.backgroundWork': 'Background work',
     'agentChat.tasks.runningCount': '{{count}} running',

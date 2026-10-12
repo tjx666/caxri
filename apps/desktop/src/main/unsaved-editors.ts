@@ -5,6 +5,8 @@ import { CaxriError, errorMessage, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow, Dialog, MessageBoxOptions } from 'electron';
 
+import { translateMain } from './locale';
+
 type UnsavedEditorsRequest = Extract<ServerEvent, { event: 'editor.unsavedRequest' }>['payload'];
 type UnsavedEditorsReplyParameters = Extract<
     DesktopRequest,
@@ -107,24 +109,42 @@ export function createUnsavedEditorsBridge(options: UnsavedEditorsBridgeOptions)
     };
 }
 
+/**
+ * Builds the native quit/close prompt in the `workbench.language` locale through {@link translateMain}, so the dialog
+ * matches the window it guards.
+ */
 export function unsavedEditorsPrompt(
     summary: UnsavedEditorsSummary,
     purpose: UnsavedEditorsPurpose,
 ): MessageBoxOptions {
-    const action = purpose === 'quit' ? 'quitting' : 'closing the window';
     const isSingle = summary.count === 1 && summary.names.length === 1;
+    const hidden = summary.count - summary.names.length;
     const listed =
         isSingle || summary.names.length === 0
             ? ''
-            : `${summary.names.join('\n')}${summary.count > summary.names.length ? `\nand ${summary.count - summary.names.length} more` : ''}\n\n`;
+            : `${summary.names.join('\n')}${hidden > 0 ? `\n${translateMain('desktop.unsaved.more', { count: hidden })}` : ''}\n\n`;
+    let message: string;
+    if (isSingle) {
+        message = translateMain(
+            purpose === 'quit' ? 'desktop.unsaved.quitOne' : 'desktop.unsaved.closeOne',
+            { name: summary.names[0] ?? '' },
+        );
+    } else {
+        message = translateMain(
+            purpose === 'quit' ? 'desktop.unsaved.quitOther' : 'desktop.unsaved.closeOther',
+            { count: summary.count },
+        );
+    }
     return {
         type: 'warning',
-        title: 'Unsaved Changes',
-        message: isSingle
-            ? `Save changes to '${summary.names[0]}' before ${action}?`
-            : `Save changes to ${summary.count} files before ${action}?`,
-        detail: `${listed}Your changes will be lost if you don't save them.`,
-        buttons: [isSingle ? 'Save' : 'Save All', "Don't Save", 'Cancel'],
+        title: translateMain('desktop.unsaved.title'),
+        message,
+        detail: `${listed}${translateMain('desktop.unsaved.detail')}`,
+        buttons: [
+            translateMain(isSingle ? 'desktop.unsaved.save' : 'desktop.unsaved.saveAll'),
+            translateMain('desktop.unsaved.dontSave'),
+            translateMain('desktop.dialog.cancel'),
+        ],
         /**
          * Same convention as the per-tab `unsavedChangesPrompt`: Enter saves, Escape cancels, never the destructive
          * choice.

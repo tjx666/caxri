@@ -1,6 +1,6 @@
 import type { AgentChatActivity } from '@caxri/protocol';
 import { formatNoticeableDuration } from '@caxri/protocol';
-import { MessageCircleQuestionMark } from 'lucide-react';
+import { Info, MessageCircleQuestionMark } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
@@ -19,14 +19,21 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
  * live region stays mounted so transitions between starting, working, and waiting are announced, while the ticking time
  * never is. The Esc hint is also clickable, so pointing at it gives feedback instead of reading as dead text. While a
  * turn runs and the user has typed something, the row also says what Enter and Cmd+Enter will do with it, because the
- * difference between queueing and steering is otherwise invisible until the message lands.
+ * difference between queueing and steering is otherwise invisible until the message lands. A `notice` (why Enter did
+ * not send, or that a second Enter sends an unmatched `/` draft as text) takes the live region while it lasts and shows
+ * as its own row, so a refused Enter is never silent.
  */
 export function AgentChatActivityBar({
     activity,
+    notice,
     onStop,
     showsDeliveryHint,
 }: {
     activity: AgentChatActivity | undefined;
+    /**
+     * A short-lived composer message (`useAgentChatComposerNotice`), or a hint that lasts while its draft does.
+     */
+    notice: string | undefined;
     onStop: () => void;
     /**
      * A turn is running and the draft has content, so Enter queues and Cmd+Enter steers.
@@ -37,7 +44,7 @@ export function AgentChatActivityBar({
     return (
         <>
             <span aria-live="polite" className="sr-only" role="status">
-                {activity?.text}
+                {notice ?? activity?.text}
             </span>
             {activity && (
                 <div
@@ -63,7 +70,7 @@ export function AgentChatActivityBar({
                     {showsDeliveryHint && (
                         <span className="ml-auto shrink-0 text-[11px] whitespace-nowrap">
                             <kbd className="font-sans">Enter</kbd>{' '}
-                            {t('agentChat.activity.enterHint')}{' '}
+                            {t('agentChat.activity.enterHint')} ·{' '}
                             <kbd className="font-sans">⌘Enter</kbd>{' '}
                             {t('agentChat.activity.steerHint')}
                         </span>
@@ -86,6 +93,16 @@ export function AgentChatActivityBar({
                             <kbd className="font-sans">Esc</kbd> {t('agentChat.activity.stopHint')}
                         </button>
                     )}
+                </div>
+            )}
+            {notice && (
+                <div
+                    aria-hidden="true"
+                    className="flex h-8 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
+                    data-agent-chat-composer-strip-row=""
+                >
+                    <Info className="size-3.5 shrink-0" />
+                    <span className="min-w-0 truncate">{notice}</span>
                 </div>
             )}
         </>

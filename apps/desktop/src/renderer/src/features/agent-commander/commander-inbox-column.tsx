@@ -1,6 +1,8 @@
+import type { KeyboardEvent } from 'react';
 import { useEffect } from 'react';
 
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 import { cn } from '../../lib/utilities';
 import { PanelDivider } from '../workbench/panel-divider';
 import { useCommanderBoardUiStore } from './commander-board-store';
@@ -8,6 +10,7 @@ import {
     COMMANDER_INBOX_DEFAULT_WIDTH,
     COMMANDER_INBOX_MAX_WIDTH,
     COMMANDER_INBOX_MIN_WIDTH,
+    setCommanderInboxVisible,
     setCommanderInboxWidth,
     useCommanderInboxUiStore,
 } from './commander-inbox-store';
@@ -21,11 +24,13 @@ import { CommanderInboxView } from './commander-inbox-view';
 const INBOX_DRAWER_CLASS_NAMES = {
     withBoard: {
         edge: 'max-[1080px]:hidden',
-        column: 'max-[1080px]:absolute max-[1080px]:inset-y-0 max-[1080px]:right-0 max-[1080px]:z-20 max-[1080px]:max-w-[calc(100%-48px)] max-[1080px]:border-l max-[1080px]:border-border max-[1080px]:shadow-xl',
+        column: 'max-[1080px]:absolute max-[1080px]:inset-y-0 max-[1080px]:right-0 max-[1080px]:z-20 max-[1080px]:max-w-[calc(100%-48px)] max-[1080px]:border-l max-[1080px]:border-border max-[1080px]:shadow-[0_8px_24px_var(--shadow)]',
+        query: '(max-width: 1080px)',
     },
     withoutBoard: {
         edge: 'max-[720px]:hidden',
-        column: 'max-[720px]:absolute max-[720px]:inset-y-0 max-[720px]:right-0 max-[720px]:z-20 max-[720px]:max-w-[calc(100%-48px)] max-[720px]:border-l max-[720px]:border-border max-[720px]:shadow-xl',
+        column: 'max-[720px]:absolute max-[720px]:inset-y-0 max-[720px]:right-0 max-[720px]:z-20 max-[720px]:max-w-[calc(100%-48px)] max-[720px]:border-l max-[720px]:border-border max-[720px]:shadow-[0_8px_24px_var(--shadow)]',
+        query: '(max-width: 720px)',
     },
 } as const;
 
@@ -43,6 +48,17 @@ export function CommanderInboxColumn() {
     }, [width]);
     if (!isVisible) return null;
     const drawer = INBOX_DRAWER_CLASS_NAMES[isBoardVisible ? 'withBoard' : 'withoutBoard'];
+    /**
+     * As a drawer the column covers the Terminal, so Escape inside it closes it, as it closes any overlay. Beside the
+     * Terminal it is a column the user arranged, and Escape leaves it alone. A key the reply box already handled (its
+     * `@` picker's own Escape) is not a request to close.
+     */
+    const closeDrawerOnEscape = (event: KeyboardEvent<HTMLElement>): void => {
+        if (event.key !== 'Escape' || event.defaultPrevented || isImeComposing(event)) return;
+        if (!matchMedia(drawer.query).matches) return;
+        event.preventDefault();
+        setCommanderInboxVisible(false);
+    };
     return (
         <>
             <div className={cn('flex flex-none', drawer.edge)}>
@@ -64,6 +80,7 @@ export function CommanderInboxColumn() {
                     'agent-commander-inbox flex w-[var(--commander-inbox-width,352px)] flex-none flex-col bg-surface',
                     drawer.column,
                 )}
+                onKeyDown={closeDrawerOnEscape}
             >
                 <CommanderInboxView />
             </aside>

@@ -86,7 +86,7 @@ function QuestionOptionRow({
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className={cn(isRecommended && 'font-semibold')}>{text}</span>
                     {isRecommended && (
-                        <span className="rounded-full bg-accent px-1.5 text-[10px] leading-4 font-semibold text-accent-foreground">
+                        <span className="rounded bg-elevated px-1.5 text-[10px] leading-4 font-semibold text-foreground">
                             {t('agentChat.request.recommended')}
                         </span>
                     )}

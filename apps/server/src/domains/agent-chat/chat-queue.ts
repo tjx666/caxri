@@ -27,6 +27,8 @@ export type QueuedInput =
     | { id: string; kind: 'message'; message: Omit<AgentChatMessageInput, 'delivery'> }
     | { id: string; kind: 'command'; name: string; arguments?: string };
 
+type QueuePauseReason = NonNullable<AgentChatSnapshot['queuePauseReason']>;
+
 /**
  * Closed reasons for the `agent_chat.queue_changed` log.
  */
@@ -183,7 +185,11 @@ async function deliverQueuedInput(
  */
 export class ChatFollowUpQueue {
     private entries: QueuedInput[] = [];
-    private isPaused = false;
+    /**
+     * Why the queue is paused, or `undefined` while it runs. Published as `queuePaused` plus `queuePauseReason`, so a
+     * Client can tell a failed send (which wants Retry) from the user's own Stop.
+     */
+    private pauseReason: QueuePauseReason | undefined;
     /**
      * A queued input is on its way to the provider; the next one waits for the turn it starts to end.
      */
@@ -199,7 +205,14 @@ export class ChatFollowUpQueue {
     private publish(): void {
         if (this.isRetired) return;
         this.host.apply([
-            { op: 'state', state: { queue: queueView(this.entries), queuePaused: this.isPaused } },
+            {
+                op: 'state',
+                state: {
+                    queue: queueView(this.entries),
+                    queuePaused: this.pauseReason !== undefined,
+                    queuePauseReason: this.pauseReason ?? null,
+                },
+            },
         ]);
     }
 
@@ -226,7 +239,7 @@ export class ChatFollowUpQueue {
      * the entry stays for the user to send again or remove, but nothing sends it again on its own.
      */
     private holdUnconfirmed(entry: QueuedInput, error: unknown): void {
-        this.isPaused = true;
+        this.pauseReason = 'deliveryUnknown';
         this.host.apply([
             {
                 op: 'upsertItem',
@@ -245,7 +258,7 @@ export class ChatFollowUpQueue {
         const snapshot = this.host.read();
         return (
             this.entries.length > 0 &&
-            !this.isPaused &&
+            this.pauseReason === undefined &&
             !this.isDispatching &&
             snapshot.status === 'ready' &&
             !snapshot.activeTurnId &&
@@ -260,7 +273,7 @@ export class ChatFollowUpQueue {
     private take(batch: readonly QueuedInput[]): void {
         const taken = new Set(batch);
         this.entries = this.entries.filter((entry) => !taken.has(entry));
-        if (this.entries.length === 0) this.isPaused = false;
+        if (this.entries.length === 0) this.pauseReason = undefined;
         this.publish();
     }
 
@@ -280,9 +293,11 @@ export class ChatFollowUpQueue {
                     if (this.isRetired) return;
                     // Keep the inputs and stop the queue, so a failure the user has not seen never drops or repeats them.
                     this.entries.unshift(...batch);
-                    this.isPaused = true;
                     if (isDeliveryUnknown(error)) this.holdUnconfirmed(batch[0], error);
-                    else this.log('dispatchFailed', batch.length);
+                    else {
+                        this.pauseReason = 'sendFailed';
+                        this.log('dispatchFailed', batch.length);
+                    }
                     this.publish();
                 }
             });
@@ -301,7 +316,7 @@ export class ChatFollowUpQueue {
         return (
             Boolean(snapshot.activeTurnId) ||
             snapshot.operation === 'compacting' ||
-            (this.entries.length > 0 && !this.isPaused)
+            (this.entries.length > 0 && this.pauseReason === undefined)
         );
     }
 
@@ -326,7 +341,7 @@ export class ChatFollowUpQueue {
     remove(id: string, reason?: QueueChange): void {
         this.entry(id);
         this.entries = this.entries.filter((entry) => entry.id !== id);
-        if (this.entries.length === 0) this.isPaused = false;
+        if (this.entries.length === 0) this.pauseReason = undefined;
         this.publish();
         if (reason) this.log(reason);
     }
@@ -377,16 +392,20 @@ export class ChatFollowUpQueue {
         this.log('steered');
     }
 
+    /**
+     * Pauses the queue after the user stopped a turn. A queue a failure already paused keeps that reason: the failure
+     * is still what the user has to act on.
+     */
     pause(): void {
-        if (this.entries.length === 0 || this.isPaused) return;
-        this.isPaused = true;
+        if (this.entries.length === 0 || this.pauseReason !== undefined) return;
+        this.pauseReason = 'stopped';
         this.publish();
         this.log('paused');
     }
 
     resume(): void {
-        if (!this.isPaused) return;
-        this.isPaused = false;
+        if (this.pauseReason === undefined) return;
+        this.pauseReason = undefined;
         this.publish();
         this.log('resumed');
         this.dispatch();
@@ -399,7 +418,7 @@ export class ChatFollowUpQueue {
         previous.isRetired = true;
         if (previous.entries.length === 0) return;
         this.entries = [...previous.entries];
-        this.isPaused = previous.isPaused;
+        this.pauseReason = previous.pauseReason;
         this.publish();
     }
 

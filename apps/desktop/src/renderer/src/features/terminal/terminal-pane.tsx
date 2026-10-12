@@ -24,6 +24,7 @@ import { readCommandShortcut, useCommandShortcut } from '../../lib/keybindings';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
+import { openSettings } from '../../stores/dialogs';
 import { useSessionById, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { resumeSession } from '../session/session-agent-commands';
@@ -102,7 +103,25 @@ function TerminalRecoveryActions({
     const { t } = useTranslation();
     const restartShortcut = useCommandShortcut('terminal.restart');
     // Automatic restore owns the Terminal until it settles into a state requiring user action.
-    if (processState === 'interrupted' || processState === 'suspended') return null;
+    if (processState === 'interrupted') return null;
+    /**
+     * A suspended Agent resumes on its own, so the only action is the one its tooltip names: where automatic suspension
+     * is configured. The request scrolls Settings to that row rather than leaving the user to find it.
+     */
+    if (processState === 'suspended')
+        return (
+            <Tooltip content={t('terminal.recovery.openSuspensionSettings')}>
+                <Button
+                    aria-label={t('terminal.recovery.openSuspensionSettings')}
+                    className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => openSettings('agent-suspension')}
+                >
+                    <Settings2 size={12} /> {t('terminal.recovery.openSettings')}
+                </Button>
+            </Tooltip>
+        );
     /**
      * A detached row says "resume when you are done elsewhere", so its action is Resume, the same `session.resume`
      * request as the Session row menu's Resume Agent: it brings back every Agent the Detach parked, not just this one.

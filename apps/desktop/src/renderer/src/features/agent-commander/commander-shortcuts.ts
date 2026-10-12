@@ -5,6 +5,7 @@ import { shortcutLeadingChord } from '@caxri/protocol';
 
 import type { PendingChord } from '../../commands/keystroke-resolution';
 import { resolveKeystroke } from '../../commands/keystroke-resolution';
+import { isImeComposing } from '../../lib/ime';
 import {
     buildShortcutMap,
     isEditableEventTarget,
@@ -75,7 +76,7 @@ export function dispatchCommanderKeydown(
     event: KeyboardEvent,
     terminalId: string | undefined,
 ): void {
-    if (!terminalId || event.isComposing || isModifierKey(event.key)) return;
+    if (!terminalId || isImeComposing(event) || isModifierKey(event.key)) return;
     const keybindings = useWorkbenchStore.getState().bootstrap?.keybindings;
     if (!keybindings) return;
     if (keybindings !== state.keybindings) {

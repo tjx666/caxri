@@ -1,21 +1,30 @@
-import type { AgentProviderStatus, AgentProviderStatusIncident } from '@caxri/protocol';
+import type {
+    AgentProviderStatus,
+    AgentProviderStatusComponent,
+    AgentProviderStatusIncident,
+} from '@caxri/protocol';
 import { ExternalLink } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { ReportCard } from '../../components/report-card';
 import { Button } from '../../components/ui/button';
-import { Spinner } from '../../components/ui/spinner';
+import { Tooltip } from '../../components/ui/tooltip';
 import { useRelativeTime } from '../../hooks/use-relative-time';
 import { useTranslation } from '../../i18n';
 import { openExternalUrl } from '../../lib/external-link';
+import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
 import {
     describeProviderStatus,
+    describeUptimeDay,
     incidentPhaseLabel,
     providerServiceStatusLabel,
     providerStatusFailureLabel,
     providerStatusView,
+    providerUptimeBarClassName,
 } from './agent-provider-status-label';
 import { ProviderStatusDot } from './provider-status-summary';
+import { formatUptimePercent, providerUptimeDays } from './provider-uptime';
 
 function openUrl(url: string) {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
@@ -52,6 +61,69 @@ function IncidentItem({ incident }: { incident: AgentProviderStatusIncident }) {
                 <p className="mt-1.5 mb-0 text-[12px] leading-snug whitespace-pre-wrap">
                     {incident.latestUpdate}
                 </p>
+            )}
+        </li>
+    );
+}
+
+/**
+ * One watched component: its current status and, when the page publishes history, the 90-day uptime figure over one bar
+ * per local day, as status.openai.com draws it. Bars are not focus stops (90 would bury the page's other controls);
+ * each carries its day and status as an accessible name, and the list's name says which component and window it
+ * covers.
+ */
+function ComponentRow({ component }: { component: AgentProviderStatusComponent }) {
+    const { t } = useTranslation();
+    const { uptime } = component;
+    const days = uptime ? providerUptimeDays(uptime) : [];
+    const percent =
+        uptime?.percent === undefined
+            ? undefined
+            : t('agentStatus.provider.uptime', { percent: formatUptimePercent(uptime.percent) });
+    return (
+        <li className="min-w-0 py-1.5 text-[12px]">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+                <span className="truncate">{component.name}</span>
+                <span className="flex flex-none items-center gap-3 text-muted">
+                    {percent && <span className="tabular-nums">{percent}</span>}
+                    <span className="flex items-center gap-1.5">
+                        <ProviderStatusDot status={component.status} />
+                        {providerServiceStatusLabel(component.status, t)}
+                    </span>
+                </span>
+            </div>
+            {days.length > 0 && (
+                <>
+                    <ul
+                        className="m-0 mt-2 flex h-7 list-none items-stretch gap-px p-0"
+                        aria-label={t('agentStatus.provider.uptimeChartLabel', {
+                            component: component.name,
+                            count: days.length,
+                        })}
+                    >
+                        {days.map((day) => {
+                            const description = describeUptimeDay(day, t);
+                            return (
+                                <Tooltip key={day.start} content={description} hoverOnly>
+                                    <li
+                                        aria-label={description}
+                                        className={cn(
+                                            'min-w-0 flex-1 rounded-xs hover:opacity-70',
+                                            providerUptimeBarClassName(day.status),
+                                        )}
+                                    />
+                                </Tooltip>
+                            );
+                        })}
+                    </ul>
+                    <div
+                        aria-hidden="true"
+                        className="mt-1 flex justify-between text-[11px] text-muted"
+                    >
+                        <span>{t('agentStatus.provider.uptimeStart', { count: days.length })}</span>
+                        <span>{t('agentStatus.provider.uptimeEnd')}</span>
+                    </div>
+                </>
             )}
         </li>
     );
@@ -100,10 +172,13 @@ export function AgentProviderStatusSection({
     if (!status)
         return (
             <ReportCard title={t('agentStatus.provider.title')}>
-                <p className="m-0 flex items-center gap-2 text-[12px] text-muted">
-                    <Spinner aria-hidden="true" />
-                    {t('agentStatus.provider.checking')}
-                </p>
+                {/* Shaped like the component rows that arrive, per DESIGN.md principle 9. */}
+                <LoadingSkeleton
+                    variant="list"
+                    rows={3}
+                    indent={0}
+                    label={t('agentStatus.provider.checking')}
+                />
             </ReportCard>
         );
     const openPage = (
@@ -137,16 +212,7 @@ export function AgentProviderStatusSection({
                     </div>
                     <ul className="m-0 mt-3 flex list-none flex-col divide-y divide-border p-0">
                         {status.components.map((component) => (
-                            <li
-                                key={component.name}
-                                className="flex min-w-0 items-center justify-between gap-3 py-1.5 text-[12px]"
-                            >
-                                <span className="truncate">{component.name}</span>
-                                <span className="flex flex-none items-center gap-1.5 text-muted">
-                                    <ProviderStatusDot status={component.status} />
-                                    {providerServiceStatusLabel(component.status, t)}
-                                </span>
-                            </li>
+                            <ComponentRow key={component.name} component={component} />
                         ))}
                     </ul>
                     <h3 className="mt-4 mb-2 text-[12px] font-semibold">

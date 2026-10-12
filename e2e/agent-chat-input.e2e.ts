@@ -116,7 +116,7 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         // An image over the 5 MB limit is resized under it and attached, not refused.
         expect(await pasteOversizedImage(message)).toBeGreaterThan(5 * 1024 * 1024);
         await expect(
-            attached.getByRole('img', { name: 'retina.png (resized to fit the 5 mb limit)' }),
+            attached.getByRole('img', { name: 'retina.png (resized to fit the 5 MB limit)' }),
         ).toBeVisible();
         await message.fill('what are these');
         await page.screenshot({ path: testInfo.outputPath('codex-chat-attachments.png') });

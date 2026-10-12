@@ -1,4 +1,5 @@
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
+import { agentChatSlashQuery } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { searchAgentActions } from '../agent-actions/agent-action-search';
@@ -50,6 +51,19 @@ export function filterAgentChatActions(
     const commands = ranked.filter((action) => action.kind === 'command');
     const skills = ranked.filter((action) => action.kind !== 'command');
     return sigil === '$' ? [...skills, ...commands] : [...commands, ...skills];
+}
+
+/**
+ * The menu rows for a draft: none unless it is a bare invocation (`agentChatSlashQuery`), otherwise the matches led by
+ * the group its sigil names (`filterAgentChatActions`).
+ */
+export function agentChatDraftMatches(
+    actions: readonly AgentAction[],
+    draft: string,
+): AgentAction[] {
+    const query = agentChatSlashQuery(draft);
+    if (query === undefined) return [];
+    return filterAgentChatActions(actions, query, draft.startsWith('$') ? '$' : '/');
 }
 
 /**

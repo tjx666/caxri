@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
-import { LoaderCircle, Minimize2, X } from 'lucide-react';
+import { Minimize2, X } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import type { AgentChatAttachment } from './agent-chat-drafts';
@@ -29,7 +30,7 @@ function PendingAttachmentChip() {
             aria-label={t('agentChat.attachments.preparing')}
             className="flex size-16 items-center justify-center rounded-md border border-border text-muted"
         >
-            <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" />
+            <Spinner aria-hidden="true" role="presentation" />
         </li>
     );
 }

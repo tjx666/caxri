@@ -4,6 +4,7 @@ import { useId, useRef } from 'react';
 import { useContextMenu } from '../../hooks/use-context-menu';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { showContextMenu } from '../../lib/context-menu';
+import { isImeComposing } from '../../lib/ime';
 import { cn } from '../../lib/utilities';
 import type { ExtensionTreeNavigationKey } from './extension-tree-navigation';
 import { ExtensionTreeRowContent, ExtensionTreeRowTooltip } from './extension-tree-row-content';
@@ -37,7 +38,7 @@ function handleTreeItemKeyDown(
         row: VisibleItemRow;
     },
 ): void {
-    if (event.nativeEvent.isComposing) return;
+    if (isImeComposing(event)) return;
     if (menu && (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey))) {
         event.preventDefault();
         /**

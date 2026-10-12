@@ -249,6 +249,6 @@ describe('agentChatDraftWithReturnedMessage', () => {
     it('puts the returned message ahead of anything typed since', () => {
         expect(agentChatDraftWithReturnedMessage('', 'queued')).toBe('queued');
         expect(agentChatDraftWithReturnedMessage('  ', 'queued')).toBe('queued');
-        expect(agentChatDraftWithReturnedMessage('typed', 'queued')).toBe('queued\ntyped');
+        expect(agentChatDraftWithReturnedMessage('typed', 'queued')).toBe('queued\n\ntyped');
     });
 });

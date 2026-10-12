@@ -23,12 +23,11 @@ export const processExplorer = {
     'processExplorer.list.empty': 'No Caxri processes found.',
     'processExplorer.list.noMatch': 'No processes match “{{filter}}”.',
     'processExplorer.error.sample': 'Unable to sample processes. Try again.',
-    'processExplorer.error.stop': 'Unable to stop {{name}}. Try again.',
+    'processExplorer.error.stop': 'Unable to suspend {{name}}. Try again.',
     // Rows
     'processExplorer.row.highResource': ', high resource use',
-    'processExplorer.row.stopTooltip':
-        'Stop — suspends this Terminal; reopen its Session to resume',
-    'processExplorer.row.stopLabel': 'Stop {{name}}',
+    'processExplorer.row.stopTooltip': 'Suspend this Terminal; reopen its Session to resume',
+    'processExplorer.row.stopLabel': 'Suspend {{name}}',
     // Tree grouping
     'processExplorer.kind.helper': 'Helper',
     'processExplorer.kind.main': 'Main process',

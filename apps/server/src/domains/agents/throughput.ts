@@ -3,8 +3,16 @@ import type {
     AgentThroughput,
     AgentThroughputAggregate,
     AgentThroughputSample,
+    AgentThroughputVariant,
 } from '@caxri/protocol';
 import { AGENT_THROUGHPUT_RECENT_RESPONSES, AGENT_THROUGHPUT_SAMPLE_LIMIT } from '@caxri/protocol';
+import { omit } from 'es-toolkit';
+
+/**
+ * Model and tier pairs reported per transcript. A conversation rarely uses more than a few; the cap only bounds a
+ * pathological transcript.
+ */
+const MAX_VARIANTS = 32;
 
 /**
  * One measured model response reported by a provider's line scanner. `key` identifies the response: a scanner reports
@@ -47,6 +55,10 @@ function add(
     };
 }
 
+function variantKey(sample: AgentThroughputSample): string {
+    return `${sample.model ?? ''}\0${sample.speed ?? ''}`;
+}
+
 /**
  * Folds scanner reports into the session, turn, and recent-window totals. Session and turn totals are running sums, so
  * a transcript of any length costs constant memory; only the last {@link AGENT_THROUGHPUT_SAMPLE_LIMIT} samples are
@@ -56,6 +68,7 @@ export class ThroughputAccumulator implements ThroughputSink {
     private samples: ThroughputResponse[] = [];
     private session = EMPTY_AGGREGATE;
     private turn = EMPTY_AGGREGATE;
+    private readonly variants = new Map<string, AgentThroughputVariant>();
     /**
      * Whether the newest sample belongs to the current turn, so replacing it adjusts the turn total too.
      */
@@ -66,16 +79,31 @@ export class ThroughputAccumulator implements ThroughputSink {
      */
     private timeToFirstTokenMs: number | undefined;
 
+    private addVariant(sample: AgentThroughputSample, sign: 1 | -1): void {
+        const key = variantKey(sample);
+        const current = this.variants.get(key);
+        if (!current && this.variants.size >= MAX_VARIANTS) return;
+        const next: AgentThroughputVariant = {
+            ...add(current ?? EMPTY_AGGREGATE, sample, sign),
+            ...(sample.model !== undefined && { model: sample.model }),
+            ...(sample.speed !== undefined && { speed: sample.speed }),
+        };
+        if (next.responseCount > 0) this.variants.set(key, next);
+        else this.variants.delete(key);
+    }
+
     response(response: ThroughputResponse): void {
         const latest = this.samples.at(-1);
         if (latest?.key === response.key) {
             this.session = add(this.session, latest, -1);
             if (this.isLatestInTurn) this.turn = add(this.turn, latest, -1);
+            this.addVariant(latest, -1);
             this.samples.pop();
         }
         this.samples.push(response);
         if (this.samples.length > AGENT_THROUGHPUT_SAMPLE_LIMIT) this.samples.shift();
         this.session = add(this.session, response, 1);
+        this.addVariant(response, 1);
         this.turn = add(this.turn, response, 1);
         this.isLatestInTurn = true;
     }
@@ -97,12 +125,12 @@ export class ThroughputAccumulator implements ThroughputSink {
         return {
             provider,
             recent,
-            samples: this.samples.map(({ completedAt, durationMs, outputTokens }) => ({
-                completedAt,
-                durationMs,
-                outputTokens,
-            })),
+            samples: this.samples.map((sample) => omit(sample, ['key'])),
             session: this.session,
+            byModel: this.variants
+                .values()
+                .toArray()
+                .toSorted((a, b) => b.responseCount - a.responseCount),
             turn: this.turn,
             ...(this.timeToFirstTokenMs !== undefined && {
                 turnTimeToFirstTokenMs: this.timeToFirstTokenMs,

@@ -26,6 +26,7 @@ import { AgentChatComposerInput } from './agent-chat-composer-input';
 import {
     agentChatComposerAvailability,
     agentChatComposerButton,
+    agentChatComposerHint,
     agentChatComposerSubmission,
     agentChatDisabledReason,
     agentChatImagesUnsupportedReason,
@@ -322,16 +323,21 @@ const AgentChatComposerButton = ({
 };
 
 /**
- * The lines under the input: why the composer is disabled, a pending Stop, and a failed send or Stop.
+ * The lines under the input: why the composer is disabled, a pending Stop, the steer hint, and a failed send or Stop.
  */
 const AgentChatComposerStatus = ({
     error,
+    hint,
     isStopping,
     provider,
     reason,
     theme,
 }: {
     error: string | null;
+    /**
+     * From `agentChatComposerHint`: how to steer, shown only while no failure or Stop owns the line.
+     */
+    hint: string | undefined;
     isStopping: boolean;
     provider: string;
     reason: string | undefined;
@@ -356,6 +362,14 @@ const AgentChatComposerStatus = ({
                 testID="agent-chat-composer-stopping"
             >
                 {`Stopping ${provider}…`}
+            </Text>
+        ) : null}
+        {hint ? (
+            <Text
+                style={[styles.sendState, { color: theme.muted }]}
+                testID="agent-chat-composer-hint"
+            >
+                {hint}
             </Text>
         ) : null}
         {error ? (
@@ -528,6 +542,7 @@ export const AgentChatComposer = ({
             </View>
             <AgentChatComposerStatus
                 error={error}
+                hint={agentChatComposerHint({ canSteer, hasError: error !== null, isStopping })}
                 isStopping={isStopping}
                 provider={provider}
                 reason={statusReason}

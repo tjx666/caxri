@@ -46,7 +46,9 @@ export function AgentStatusPage({ terminalId }: { terminalId: string }) {
                     {provider && <AgentIdentityIcon identity={provider} size={18} />}
                     <div className="min-w-0">
                         <h1 className="m-0 text-[15px] font-semibold">
-                            {t('editor.tab.agentStatus', { agent: agentName ?? 'Agent' })}
+                            {t('editor.tab.agentStatus', {
+                                agent: agentName ?? t('agentStatus.page.agentFallback'),
+                            })}
                         </h1>
                         {subtitle && (
                             <p className="mt-0.5 mb-0 truncate text-[11px] text-muted">

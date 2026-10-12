@@ -9,6 +9,7 @@ import { describeFailure } from '../../stores/toasts';
 import type { CommanderBoardScope } from './commander-board';
 import { commanderBoardRowsInScope, commanderBoardSections } from './commander-board';
 import { CommanderBoardItem } from './commander-board-item';
+import { CommanderHandoverEmptyAction } from './commander-handover-empty-action';
 import { useCommanderBoardScope } from './hooks/use-commander-board-scope';
 
 /**
@@ -75,11 +76,14 @@ export function CommanderBoardView() {
             />
             {sections.length === 0 ? (
                 <div className="commander-board-empty flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted">
-                    {t(
-                        scope === 'commander'
-                            ? 'agentCommander.board.emptyCommander'
-                            : 'agentCommander.board.emptyAll',
-                    )}
+                    <span>
+                        {t(
+                            scope === 'commander'
+                                ? 'agentCommander.board.emptyCommander'
+                                : 'agentCommander.board.emptyAll',
+                        )}
+                    </span>
+                    {scope === 'commander' && <CommanderHandoverEmptyAction />}
                 </div>
             ) : (
                 <div className="commander-board min-h-0 flex-1 overflow-auto p-2">
@@ -94,8 +98,7 @@ export function CommanderBoardView() {
                                 id={`commander-board-${section.id}`}
                                 className="commander-board-heading m-0 flex items-center gap-1.5 px-2 pb-1 text-[11px] font-medium text-muted"
                             >
-                                <span>{section.label}</span>
-                                <span className="tabular-nums">{section.rows.length}</span>
+                                {section.label} · {section.rows.length}
                             </h2>
                             <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                                 {section.rows.map((row) => (
@@ -147,11 +150,11 @@ function CommanderBoardScopeBar({
                     aria-label={t('agentCommander.board.scopeCommanderLabel')}
                 >
                     {t('agentCommander.board.scopeCommander')}
-                    <span className="tabular-nums opacity-70">{commanderCount}</span>
+                    <span className="tabular-nums opacity-70">· {commanderCount}</span>
                 </ToggleGroupItem>
                 <ToggleGroupItem value="all" aria-label={t('agentCommander.board.scopeAllLabel')}>
                     {t('agentCommander.board.scopeAll')}
-                    <span className="tabular-nums opacity-70">{allCount}</span>
+                    <span className="tabular-nums opacity-70">· {allCount}</span>
                 </ToggleGroupItem>
             </ToggleGroup>
         </div>

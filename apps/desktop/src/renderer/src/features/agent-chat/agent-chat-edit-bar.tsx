@@ -52,7 +52,7 @@ function EditBar({
             data-agent-chat-composer-strip-row=""
             data-agent-chat-edit-bar=""
         >
-            <Pencil aria-hidden className="size-3.5 shrink-0 text-accent" />
+            <Pencil aria-hidden className="size-3.5 shrink-0 text-foreground" />
             <span className="min-w-0 truncate" role="status">
                 {agentChatEditCaption(removedTurns)}
             </span>

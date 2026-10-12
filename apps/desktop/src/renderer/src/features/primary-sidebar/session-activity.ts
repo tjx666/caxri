@@ -6,6 +6,7 @@ import type {
 } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
+import { settingCategoryPath } from '../settings/setting-spec-text';
 import type { SessionStatusTerminal } from './session-status';
 
 export interface SessionActivityPresentation {
@@ -40,7 +41,12 @@ function presentation(
     indicatorClassName: string,
 ): SessionActivityPresentation {
     const label = translate(`primarySidebar.activity.${key}.label`);
-    const description = translate(`primarySidebar.activity.${key}.description`);
+    /**
+     * Only the `suspended` sentence has a `{{settingsPath}}` placeholder; the others ignore the parameter.
+     */
+    const description = translate(`primarySidebar.activity.${key}.description`, {
+        settingsPath: settingCategoryPath(translate, 'terminal.idleSuspension.enabled'),
+    });
     return {
         ariaLabel: translate('primarySidebar.activity.ariaLabel', { description, label }),
         description,

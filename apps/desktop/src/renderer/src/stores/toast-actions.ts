@@ -17,6 +17,10 @@ import { translate } from '../i18n';
  */
 export interface ToastActionParameters {
     /**
+     * Takes back an Agent Chat turn's Undo. Carries only identity: the replaced file bodies stay in the Undo store.
+     */
+    'agentChat.redoUndo': { sessionId: string; turnId: string };
+    /**
      * Raises the Agent Commander window, for a notice about work just handed to it.
      */
     'agentCommander.open': undefined;
@@ -106,6 +110,7 @@ export type ToastAction = {
  * translation keys and resolved where the button renders, so a language change relabels buttons already in history.
  */
 export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
+    'agentChat.redoUndo': 'toasts.action.redo',
     'agentCommander.open': 'toasts.action.openAgentCommander',
     'diagnostics.copyFailure': 'toasts.action.copyDetails',
     'editor.restoreDiscardedChanges': 'toasts.action.restoreDiscardedChanges',

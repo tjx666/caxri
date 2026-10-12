@@ -3,6 +3,7 @@ import { useRef } from 'react';
 
 import type { AgentChatItem } from '@caxri/protocol';
 
+import { isImeComposing } from '../../../lib/ime';
 import type { AgentChatPromptHistoryPosition } from '../agent-chat-prompt-history';
 import {
     agentChatPromptHistory,
@@ -52,7 +53,7 @@ export function useAgentChatPromptHistory({
                 key: event.key,
                 altKey: event.altKey,
                 ctrlKey: event.ctrlKey,
-                isComposing: event.nativeEvent.isComposing,
+                isComposing: isImeComposing(event),
                 metaKey: event.metaKey,
                 shiftKey: event.shiftKey,
             },

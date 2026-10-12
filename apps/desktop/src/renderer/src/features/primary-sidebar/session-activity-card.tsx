@@ -19,6 +19,7 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
 import { cn } from '../../lib/utilities';
 import { openSessionPullRequest } from '../session/session-commands';
+import { sessionTitleForDisplay } from '../session/session-title';
 import { pullRequestUnavailableLabel } from '../status-bar/pull-request-status-label';
 import { useSessionChanges } from './hooks/use-session-changes';
 import { ProjectIcon } from './project-icon';
@@ -233,7 +234,7 @@ export function SessionActivityCard({
                     <AgentIdentityIcon identity={agent} size={17} />
                     <div className="min-w-0 flex-1">
                         <h3 className="m-0 text-[13px] font-semibold wrap-break-word">
-                            {session.displayTitle}
+                            {sessionTitleForDisplay(session.displayTitle, t)}
                         </h3>
                         <p className="mt-0.5 mb-0 flex items-center gap-1 truncate text-[11px] text-muted">
                             <ProjectIcon icon={project.icon} size={11} />

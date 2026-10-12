@@ -62,6 +62,13 @@ describe('agentChatFindCountLabel', () => {
         expect(agentChatFindCountLabel('a', 0, 0)).toBe('No results');
         expect(agentChatFindCountLabel('', 0, 0)).toBe('');
     });
+
+    it('limits an empty result to the loaded messages while older history is not searched', () => {
+        expect(agentChatFindCountLabel('a', 0, 0, { isPartial: true })).toBe(
+            'No results in loaded messages',
+        );
+        expect(agentChatFindCountLabel('a', 2, 0, { isPartial: true })).toBe('1/2');
+    });
 });
 
 describe('stepAgentChatFindIndex', () => {

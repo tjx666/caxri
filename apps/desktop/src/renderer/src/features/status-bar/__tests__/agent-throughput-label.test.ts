@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     describeThroughputAggregate,
+    describeThroughputVariant,
     formatThroughputDuration,
     formatThroughputRate,
     isSameThroughputAggregate,
@@ -11,6 +12,14 @@ import {
 } from '../agent-throughput-label';
 
 describe('agent throughput labels', () => {
+    it('names the model and mode, saying so when the transcript recorded neither', () => {
+        expect(describeThroughputVariant({ model: 'gpt-a', speed: 'fast' })).toBe('gpt-a · Fast');
+        expect(describeThroughputVariant({ model: 'gpt-a', speed: 'standard' })).toBe(
+            'gpt-a · Standard',
+        );
+        expect(describeThroughputVariant({})).toBe('Unknown model · Mode not recorded');
+    });
+
     it('weights the rate by tokens and reports nothing for an empty total', () => {
         expect(throughputRate({ durationMs: 4_000, outputTokens: 200 })).toBe(50);
         expect(throughputRate({ durationMs: 0, outputTokens: 0 })).toBeUndefined();

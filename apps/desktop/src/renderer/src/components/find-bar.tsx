@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 
 import { useTranslation } from '../i18n';
+import { isImeComposing } from '../lib/ime';
 import { cn } from '../lib/utilities';
 import { Input, InputGroup } from './ui/input';
 import { Tooltip } from './ui/tooltip';
@@ -87,7 +88,7 @@ export function FindBar({
     const inputReference = useRef<HTMLInputElement>(null);
     useFocusOnRevision(focusRevision, inputReference, { select: true });
     const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-        if (event.nativeEvent.isComposing) return;
+        if (isImeComposing(event)) return;
         if (event.key === 'Escape') {
             event.preventDefault();
             onClose();

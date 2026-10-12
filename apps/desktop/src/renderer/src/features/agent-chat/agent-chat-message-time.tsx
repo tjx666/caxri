@@ -8,12 +8,16 @@ import {
 import { useClockTick } from './hooks/use-clock-tick';
 
 /**
- * When a message was sent, as a quiet clock time in its action row; the full date is one hover away.
+ * When a message was sent, as a quiet clock time in its action row; the full date is one hover away and is the
+ * element's accessible name.
  */
 export function AgentChatMessageTime({ timestamp }: { timestamp: number }) {
+    const fullTime = agentChatMessageFullTime(timestamp);
     return (
-        <Tooltip content={agentChatMessageFullTime(timestamp)}>
+        <Tooltip content={fullTime}>
+            {/* The full date as its name too: a screen reader hears it without the hover tooltip. */}
             <time
+                aria-label={fullTime}
                 className="px-1 text-[11px] leading-6 text-muted tabular-nums"
                 dateTime={new Date(timestamp).toISOString()}
             >

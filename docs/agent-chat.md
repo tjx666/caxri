@@ -407,8 +407,10 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
 
 - The snapshot's `queue` lists each entry's text, image count, and command; image data stays on
   Server Core. At most 20 entries and 256 KiB of text.
-- `agentChat.interrupt` pauses a non-empty queue (`queuePaused`) so stopping a turn never fires the
-  next message by surprise; `agentChat.resumeQueue` continues it. `agentChat.removeQueued` drops an
+- `agentChat.interrupt` pauses a non-empty queue (`queuePaused`, with `queuePauseReason: 'stopped'`) so stopping a turn never fires the
+  next message by surprise; `agentChat.resumeQueue` continues it. A joined send that fails pauses the queue with
+  `queuePauseReason: 'sendFailed'` (or `'deliveryUnknown'` when delivery could not be confirmed), so
+  the composer names the failure and offers Retry instead of reading like a user Stop. `agentChat.removeQueued` drops an
   entry and `agentChat.sendQueuedNow` sends one ahead of the rest (steering a running turn; a
   command cannot steer). `agentChat.takeQueued` backs Edit on every Client: it removes an entry
   and returns its full text (a command as `/name arguments`) in one step, so an entry the queue
