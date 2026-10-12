@@ -88,6 +88,10 @@ export function trashPrompt(item: {
     name: string;
     path: string;
     hasUnsavedChanges?: boolean;
+    /**
+     * The SSH Host whose Trash receives the item; absent for this Mac's Trash.
+     */
+    host?: string;
 }): MessageBoxOptions {
     return {
         type: 'warning',
@@ -97,9 +101,16 @@ export function trashPrompt(item: {
          * The Trash only restores what was last written to disk, so the blanket "you can recover this" reassurance
          * would be false for a file whose Editor tab still holds unsaved changes.
          */
-        detail: t(item.hasUnsavedChanges ? 'desktop.trash.detailUnsaved' : 'desktop.trash.detail', {
-            path: item.path,
-        }),
+        detail: item.host
+            ? t(
+                  item.hasUnsavedChanges
+                      ? 'desktop.trash.detailRemoteUnsaved'
+                      : 'desktop.trash.detailRemote',
+                  { host: item.host, path: item.path },
+              )
+            : t(item.hasUnsavedChanges ? 'desktop.trash.detailUnsaved' : 'desktop.trash.detail', {
+                  path: item.path,
+              }),
         buttons: [t('desktop.trash.confirm'), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,

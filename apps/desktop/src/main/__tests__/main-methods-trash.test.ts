@@ -7,6 +7,8 @@ const electronMock = vi.hoisted(() => ({
 vi.mock('electron', () => ({ dialog: electronMock.dialog, shell: electronMock.shell }));
 
 import type { RunningWork } from '../confirmations';
+import type { MainEnvironmentMethods } from '../main-environment-methods';
+import { unconfiguredEnvironment } from '../main-environment-methods';
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 import type { DesktopServerConnection } from '../server-connection';
@@ -24,8 +26,12 @@ const authorizedItem = {
     root: { path: '/project', device: '1', inode: '1' },
 };
 
-function handler(request: (method: string, parameters?: unknown) => Promise<unknown>) {
+function handler(
+    request: (method: string, parameters?: unknown) => Promise<unknown>,
+    environment?: MainEnvironmentMethods,
+) {
     return createMainMethodHandler({
+        environment,
         getAgentCommander: vi.fn(),
         revealSessionInWorkbench: () => Promise.resolve(),
         openSettingsInWorkbench: () => Promise.resolve(),
@@ -47,11 +53,12 @@ beforeEach(() => {
 describe('files.trash', () => {
     function router(secondAuthorization: typeof authorizedItem = authorizedItem) {
         let authorizeCalls = 0;
-        return vi.fn((method: string) => {
+        return vi.fn<(method: string, parameters?: unknown) => Promise<unknown>>((method) => {
             if (method === 'files.authorizeTrash') {
                 authorizeCalls += 1;
                 return Promise.resolve(authorizeCalls === 1 ? authorizedItem : secondAuthorization);
             }
+            if (method === 'files.trashOnHost') return Promise.resolve(null);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
     }
@@ -69,6 +76,40 @@ describe('files.trash', () => {
         ).resolves.toEqual(authorizedItem);
         expect(electronMock.shell.trashItem).toHaveBeenCalledWith(authorizedItem.path);
         expect(request).toHaveBeenCalledTimes(2);
+    });
+
+    it("moves an SSH Host window's item into that host's Trash instead of this Mac's", async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const request = router();
+        const handle = handler(request, {
+            ...unconfiguredEnvironment,
+            get: () => ({
+                kind: 'ssh',
+                destination: 'devbox',
+                phase: 'connected',
+                needsUserAction: false,
+            }),
+        });
+
+        await expect(
+            handle({
+                method: 'files.trash',
+                params: { sessionId: 'session-1', path: '/project/notes.md' },
+            }),
+        ).resolves.toEqual(authorizedItem);
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
+            {},
+            expect.objectContaining({
+                detail: expect.stringContaining('the Trash on devbox') as unknown,
+            }),
+        );
+        expect(request).toHaveBeenLastCalledWith('files.trashOnHost', {
+            sessionId: 'session-1',
+            path: authorizedItem.path,
+            device: authorizedItem.device,
+            inode: authorizedItem.inode,
+        });
+        expect(electronMock.shell.trashItem).not.toHaveBeenCalled();
     });
 
     it('returns canceled without a second authorization or Trash call when the user declines', async () => {
