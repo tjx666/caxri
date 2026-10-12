@@ -6,6 +6,7 @@ import { useTranslation } from '../../i18n';
 import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
 import { LinearLogoIcon } from '../../icons/brands/linear-logo-icon';
 import { openExternalUrl } from '../../lib/external-link';
+import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
 import { trackerExcerptText, trackerReferenceText } from './agent-chat-tracker-labels';
 
@@ -39,6 +40,14 @@ const KIND_ICON = {
     issue: CircleDot,
     acceptance: ListChecks,
 } satisfies Record<AgentChatTrackerArtifact['kind'], unknown>;
+
+/**
+ * A pull request's glyph carries GitHub's pull request green, matching the untinted pull request link icon in the
+ * transcript. The card records what the Agent did, not the pull request's live state, so it never turns purple or red.
+ */
+const KIND_ICON_TONE: Partial<Record<AgentChatTrackerArtifact['kind'], string>> = {
+    pull: 'text-success',
+};
 
 /**
  * `Created pull request`, `Updated issue`: what the Agent did, in the words a reader scans for.
@@ -99,7 +108,10 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
                 )}
             </span>
             <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted">
-                <KindIcon aria-hidden="true" className="size-3.5" />
+                <KindIcon
+                    aria-hidden="true"
+                    className={cn('size-3.5', KIND_ICON_TONE[artifact.kind])}
+                />
                 {label}
                 <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </span>
