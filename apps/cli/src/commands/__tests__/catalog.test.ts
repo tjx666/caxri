@@ -49,6 +49,8 @@ describe('CLI business command catalog', () => {
                 'commander board',
                 'commander session create',
                 'commander session archive',
+                'commander session hand-over',
+                'commander session take-back',
                 'commander task list',
                 'commander task add',
                 'commander task update',
@@ -73,6 +75,27 @@ describe('CLI business command catalog', () => {
             'requires one <session-id>',
         );
         expect(() => archive.parseParams(['--project'])).toThrow('requires one <session-id>');
+    });
+
+    it('hands Sessions over and takes one back by ID', async () => {
+        const handOver = findCliCommand(['commander', 'session', 'hand-over', 'session-1']);
+        const takeBack = findCliCommand(['commander', 'session', 'take-back', 'session-1']);
+        if (handOver?.kind !== 'remote' || takeBack?.kind !== 'remote')
+            throw new Error('commander session hand-over or take-back is missing');
+        expect(handOver.method).toBe('commander.session.handOver');
+        await expect(handOver.parseParams(['session-1', 'session-2'])).resolves.toEqual({
+            sessionIds: ['session-1', 'session-2'],
+            conversations: [],
+        });
+        await expect(handOver.parseParams([])).rejects.toThrow(
+            'requires at least one <session-id>',
+        );
+        await expect(handOver.parseParams(['session-1', '--force'])).rejects.toThrow(
+            'Unexpected argument: --force',
+        );
+        expect(takeBack.method).toBe('commander.session.takeBack');
+        expect(takeBack.parseParams(['session-1'])).toEqual({ sessionId: 'session-1' });
+        expect(() => takeBack.parseParams([])).toThrow('requires one <session-id>');
     });
 
     it('parses scoped selectors and bounded diagnostic filters', () => {

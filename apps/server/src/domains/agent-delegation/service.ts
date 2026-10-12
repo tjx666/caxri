@@ -22,11 +22,7 @@ import {
 } from './admission';
 import { readDelegationCompletion } from './collection';
 import { logDelegationRequested, logDelegationTransition } from './diagnostics';
-import {
-    delegationResumeLaunch,
-    prepareDelegationFollowUp,
-    prepareDelegationLaunch,
-} from './launch';
+import { prepareDelegationFollowUp, prepareDelegationLaunch } from './launch';
 import { assertDelegationLayout, delegationLayout } from './layout';
 import {
     applyDelegationLifecycle,
@@ -35,15 +31,12 @@ import {
     recoveredDelegation,
 } from './lifecycle';
 import { admitDelegationRequest } from './new-session';
-import type { DelegationFollowUpRejection, DelegationResumeRejection } from './rejection';
-import {
-    followUpRejection,
-    reportFollowUpRejection,
-    reportResumeRejection,
-    resumeRejection,
-} from './rejection';
+import type { DelegationFollowUpRejection } from './rejection';
+import { followUpRejection, reportFollowUpRejection } from './rejection';
 import { restoredDelegationFor } from './restored-task';
 import { applyDelegationCompletion, collectionIntervalMs, shouldCollectDelegation } from './result';
+import type { ExactResumeHost } from './resume';
+import { continueHandover, handoverTarget, resumeTask } from './resume';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
 import { removeDelegationFiles } from './storage';
@@ -251,78 +244,6 @@ export class AgentDelegationService {
         return { receipt: record.receipt, answer: record.answer };
     }
 
-    private async resumeTask(
-        record: StoredAgentDelegation,
-        authority: DelegationAuthority,
-        previous: StoredAgentDelegation,
-    ): Promise<AgentDelegationReceipt> {
-        const id = record.receipt.delegationId;
-        const prepared = await prepareDelegationFollowUp(
-            this.options.userDataPath,
-            record.rootDelegationId!,
-            id,
-            [record.frozenInstructions, record.input.prompt].filter(Boolean).join('\n\n'),
-        );
-        const parent = this.owned(previous.receipt.delegationId, authority);
-        const reject = (reason: DelegationResumeRejection) => {
-            this.fail(id, reportResumeRejection(this.options.logger, id, reason));
-            return this.owned(id, authority).receipt;
-        };
-        if (!isDelegationActive(this.owned(id, authority).receipt))
-            return this.owned(id, authority).receipt;
-        const rejection = resumeRejection(parent, this.options, (terminalId) =>
-            Boolean(this.activeForTerminal(terminalId)),
-        );
-        if (rejection) return reject(rejection);
-        const terminalId = parent.receipt.terminalId!;
-        const expectedLaunchId = this.options.currentLaunchId?.(terminalId);
-        this.save({ ...parent, nextDelegationId: id });
-        this.save({
-            ...record,
-            promptDigest: prepared.promptDigest,
-            inputEpoch: parent.inputEpoch,
-            receipt: { ...record.receipt, terminalId, status: 'launching' },
-        });
-        const shouldStart = () => {
-            const current = this.options.database.agentDelegations.get(id);
-            return (
-                current !== undefined &&
-                isDelegationActive(current.receipt) &&
-                !this.deletingSessions.has(record.input.sessionId) &&
-                this.options.inputEpoch?.(terminalId) === parent.inputEpoch
-            );
-        };
-        const dispatched = await this.options.dispatch.resume!(
-            id,
-            authority.principal,
-            {
-                projectId: record.input.projectId,
-                sessionId: record.input.sessionId,
-                terminalId,
-                providerSessionId: parent.providerSessionId!,
-            },
-            {
-                delegationId: id,
-                launch: delegationResumeLaunch(record, this.options.userDataPath),
-                initialPrompt: prepared.pointer,
-                replaceLaunchId: expectedLaunchId,
-                shouldStart,
-                beforeResume: () => {
-                    if (
-                        !shouldStart() ||
-                        this.options.currentLaunchId?.(terminalId) !== expectedLaunchId
-                    )
-                        throw new CaxriError(
-                            'CONFLICT',
-                            'Delegation ownership changed before exact resume',
-                        );
-                },
-            },
-        );
-        if (dispatched.status === 'failed') this.fail(id, 'launch_failed');
-        return this.owned(id, authority).receipt;
-    }
-
     private async followUp(
         record: StoredAgentDelegation,
         authority: DelegationAuthority,
@@ -379,6 +300,17 @@ export class AgentDelegationService {
         return this.owned(id, authority).receipt;
     }
 
+    private exactResumeHost(authority: DelegationAuthority): ExactResumeHost {
+        return {
+            hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
+            options: this.options,
+            owned: (id) => this.owned(id, authority),
+            save: (record) => this.save(record),
+            fail: (id, failure) => this.fail(id, failure),
+            isDeleting: (sessionId) => this.deletingSessions.has(sessionId),
+        };
+    }
+
     /**
      * Settles a launch that has not started its turn by the deadline; see `startupDeadlineOutcome`.
      */
@@ -433,10 +365,19 @@ export class AgentDelegationService {
                     );
             }
             const previous = previousId ? this.owned(previousId, authority) : undefined;
+            const { continueFromHandover } = input;
+            const handover = continueFromHandover
+                ? handoverTarget(
+                      this.options,
+                      authority,
+                      { ...input, continueFromHandover },
+                      (terminal) => Boolean(this.activeForTerminal(terminal)),
+                  )
+                : undefined;
             const config = resolveDelegationAdmission({
                 ...this.options,
                 authority,
-                input,
+                input: handover ? { ...input, provider: handover.provider } : input,
                 previous,
                 settings:
                     this.options.delegationSettings?.() ?? agentDelegationSettingsSchema.parse({}),
@@ -454,8 +395,12 @@ export class AgentDelegationService {
                     fingerprint,
                     admission: config,
                     previous,
+                    providerSessionId: handover?.providerSessionId,
                 }),
             );
+            // Before the announcement, so the ledger links the hand-over's task instead of recording a second one.
+            if (continueFromHandover)
+                this.options.commanderHandovers?.consume(continueFromHandover, id);
             logDelegationRequested(this.options.logger, record.receipt, input, {
                 isCommander: isAgentCommanderCaller(this.options.database, authority),
                 parentDelegationId: previousId,
@@ -463,9 +408,16 @@ export class AgentDelegationService {
             });
             this.options.onReceiptChanged?.(record.receipt);
             try {
+                if (handover)
+                    return await continueHandover(
+                        this.exactResumeHost(authority),
+                        record,
+                        authority,
+                        handover,
+                    );
                 if (previous)
                     return await (input.resumeFrom
-                        ? this.resumeTask(record, authority, previous)
+                        ? resumeTask(this.exactResumeHost(authority), record, authority, previous)
                         : this.followUp(record, authority, previous));
                 const pane = delegationPaneCaller(this.options.database, authority, input);
                 const prepared = await prepareDelegationLaunch(

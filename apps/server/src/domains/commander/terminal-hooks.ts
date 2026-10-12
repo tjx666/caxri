@@ -5,6 +5,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
 import type { CommanderCompletionNotifier } from './completion-notice';
+import type { CommanderHandoverService } from './handover';
 import { commanderLaunchArguments } from './launch';
 import { recordCommanderDelegation } from './tasks';
 
@@ -15,6 +16,16 @@ import { recordCommanderDelegation } from './tasks';
  */
 export class CommanderTerminalHooks {
     notifier: CommanderCompletionNotifier | undefined;
+    handovers: CommanderHandoverService | undefined;
+
+    /**
+     * Human input into any Terminal: the notifier's draft fence, and taking back a handed-over Session whose Agent the
+     * user typed into.
+     */
+    readonly input = (terminalId: string, data: string): void => {
+        this.notifier?.observeInput(terminalId, data);
+        this.handovers?.observeInput(terminalId);
+    };
 
     readonly launchArguments = (terminal: TerminalRecord): string[] => {
         const commander = this.database.agentCommanderRows();

@@ -17,6 +17,10 @@ import { settingsTargetSchema } from '../domain/settings-target.js';
 import { terminalFileLinkOpenResultSchema } from '../domain/terminal-file-link.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import {
+    commanderHandoverMethods,
+    commanderHandoverOwnershipReasonSchema,
+} from './agent-commander-handover-contract.js';
 import { commanderInboxMethods } from './agent-commander-inbox-contract.js';
 import {
     agentDelegationFailureSchema,
@@ -91,9 +95,22 @@ export const commanderBoardRowSchema = z.strictObject({
     pullRequest: sessionPullRequestSchema.optional(),
     pullRequestUnavailable: pullRequestUnavailableSchema.optional(),
     /**
-     * True when the Commander created this Session, which is the only kind it may delegate new tasks into.
+     * True when the Commander manages this Session: it created it, or the user handed it over. These are the only
+     * Sessions it may delegate new tasks into.
      */
     commanderSession: z.boolean(),
+    /**
+     * The user's hand-over of this Session, until the Commander's first task continues it. `continuable` has a
+     * conversation the Commander can continue once its Agent is between turns; `ownership_only` has none, for the
+     * reason given, and stays shown while the Session is handed over.
+     */
+    handover: z
+        .strictObject({
+            handoverId: identifierSchema,
+            state: z.enum(['continuable', 'ownership_only']),
+            ownershipReason: commanderHandoverOwnershipReasonSchema.optional(),
+        })
+        .optional(),
     /**
      * The latest task the Commander delegated into this Session: its receipt state only, never its answer.
      */
@@ -359,4 +376,5 @@ export const commanderMethods = {
         result: terminalFileLinkOpenResultSchema,
     },
     ...commanderInboxMethods,
+    ...commanderHandoverMethods,
 } as const satisfies Record<string, MethodSpec>;

@@ -18,7 +18,11 @@ import {
     readDelegationTranscript,
     readVersion,
 } from '../agents';
-import { createCommanderSession, discardCommanderSession } from '../commander';
+import {
+    commanderHandoverAccess,
+    createCommanderSession,
+    discardCommanderSession,
+} from '../commander';
 import { coreRouted } from '../core-routed';
 
 /**
@@ -64,6 +68,7 @@ export function createAgentCommandRuntime(
                     announce('session.delete'),
                 ),
         },
+        commanderHandovers: commanderHandoverAccess(options.database, options.logger),
         dimensions: (terminalId) => options.terminals.dimensions(terminalId),
         inputEpoch: (terminalId) => options.terminals.inputEpoch(terminalId),
         currentLaunchId: (terminalId) =>

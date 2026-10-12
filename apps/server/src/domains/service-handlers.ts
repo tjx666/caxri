@@ -18,7 +18,11 @@ import {
     recordRecentAgentAction,
     SessionContentSearch,
 } from './agents';
-import type { AgentCommanderServiceOptions, CommanderInboxService } from './commander';
+import type {
+    AgentCommanderServiceOptions,
+    CommanderHandoverService,
+    CommanderInboxService,
+} from './commander';
 import { AgentCommanderService } from './commander';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
@@ -102,6 +106,10 @@ type ServiceHandlerMethods =
     | 'commander.snapshot'
     | 'commander.board'
     | 'commander.session.create'
+    | 'commander.session.handOver'
+    | 'commander.session.takeBack'
+    | 'commander.managedSessions'
+    | 'commander.conversations'
     | 'commander.status'
     | 'commander.stop'
     | 'commander.task.create'
@@ -153,6 +161,7 @@ export function createServiceHandlers(services: {
         AgentCommanderServiceOptions,
         'database' | 'onLaunching' | 'pullRequests' | 'userDataPath'
     >;
+    commanderHandovers: CommanderHandoverService;
     commanderInbox: CommanderInboxService;
     configuration: ConfigService;
     database: CaxriDatabase;
@@ -177,6 +186,7 @@ export function createServiceHandlers(services: {
         agentEnvironment,
         agentHooks,
         awaitAgentSettingsReconcile,
+        commanderHandovers,
         commanderInbox,
         configuration,
         database,
@@ -222,7 +232,10 @@ export function createServiceHandlers(services: {
         ...services.commander,
         database,
         logger,
-        onLaunching: () => commanderInbox.announceUnacknowledged(),
+        onLaunching: () => {
+            commanderInbox.announceUnacknowledged();
+            commanderHandovers.requeue();
+        },
         pullRequests: () => sessionPullRequests.snapshot(),
         userDataPath,
     });
@@ -393,6 +406,10 @@ export function createServiceHandlers(services: {
         'commander.stop': () => commander.stop(),
         'commander.board': () => commander.board(),
         'commander.session.create': ({ projectId }) => commander.createSession(projectId),
+        'commander.session.handOver': (request) => commanderHandovers.handOver(request),
+        'commander.session.takeBack': ({ sessionId }) => commanderHandovers.takeBack(sessionId),
+        'commander.managedSessions': () => commanderHandovers.managedSessions(),
+        'commander.conversations': () => commanderHandovers.conversations(),
         'commander.task.create': (parameters) => commander.tasks.create(parameters),
         'commander.task.list': ({ includeClosed }) => ({
             tasks: commander.tasks.list({ includeClosed: includeClosed ?? false }),
