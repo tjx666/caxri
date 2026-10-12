@@ -27,6 +27,8 @@ import {
     assertE2EPoolCensusComplete,
     assertE2EPoolReceipt,
     createE2EPoolReceipt,
+    e2eProgressJournalPath,
+    receiptFromProgressJournal,
 } from './reporters/e2e-receipt-reporter';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -115,7 +117,8 @@ async function runInvocation(
     isCensus = false,
     outputSuffix?: string,
 ): Promise<number> {
-    await rm(receiptPath, { force: true });
+    const journalPath = e2eProgressJournalPath(resolve(receiptPath));
+    await Promise.all([rm(receiptPath, { force: true }), rm(journalPath, { force: true })]);
     const child = spawn('bunx', playwrightTestArguments(invocation, workers, isCensus), {
         cwd: projectRoot,
         env: {
@@ -322,11 +325,25 @@ export async function readInvocationReceipt(path: string, pool: E2EPool): Promis
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         /**
-         * A crash before onEnd has no test verdicts to census. Preserve that absence so the final receipt records the
-         * invocation's exit code and missing specs instead of failing before it can publish any evidence.
+         * A crash or signal before onEnd leaves only the reporter's progress journal. Recover the verdicts it already
+         * settled from there (issue #1847); with no journal either, preserve the absence so the final receipt records
+         * the invocation's exit code and missing specs instead of failing before it can publish any evidence.
          */
         const now = new Date().toISOString();
-        return createE2EPoolReceipt({ pool, startedAt: now, finishedAt: now, tests: [] });
+        const journal = await readProgressJournal(path);
+        return (
+            (journal === undefined ? undefined : receiptFromProgressJournal(journal, pool, now)) ??
+            createE2EPoolReceipt({ pool, startedAt: now, finishedAt: now, tests: [] })
+        );
+    }
+}
+
+async function readProgressJournal(receiptPath: string): Promise<string | undefined> {
+    try {
+        return await readFile(e2eProgressJournalPath(resolve(receiptPath)), 'utf8');
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+        throw error;
     }
 }
 
