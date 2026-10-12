@@ -4,6 +4,7 @@ import {
     AGENT_CHAT_FOLLOW_THRESHOLD_PX,
     agentChatAnchoredScrollTop,
     agentChatFollowScrollTop,
+    agentChatTurnSpacerHeight,
     isScrolledToEnd,
 } from '../hooks/use-agent-chat-scroll';
 
@@ -53,5 +54,17 @@ describe('agentChatAnchoredScrollTop', () => {
 
     it('never scrolls above the top', () => {
         expect(agentChatAnchoredScrollTop(10, 300, 100)).toBe(0);
+    });
+});
+
+describe('agentChatTurnSpacerHeight', () => {
+    it('leaves room for the latest turn to rest at the top of the view', () => {
+        expect(agentChatTurnSpacerHeight(800, 120)).toBe(664);
+        expect(agentChatTurnSpacerHeight(800, 120, 0)).toBe(680);
+    });
+
+    it('needs no room once the turn fills the view', () => {
+        expect(agentChatTurnSpacerHeight(800, 784)).toBe(0);
+        expect(agentChatTurnSpacerHeight(800, 2000)).toBe(0);
     });
 });

@@ -87,21 +87,27 @@ export function useAgentChatSessionMenu({
             ?.scrollIntoView({ block: 'nearest' });
     }, [activeOptionId]);
 
-    const choose = async (candidate: SessionReferenceCandidate): Promise<void> => {
-        if (!mention || isPreparing) return;
-        const typed = draft.slice(mention.start, mention.end);
+    /**
+     * Writes the Session's reference file, then puts `@<path>` over `range` of the draft. The user may keep typing
+     * while the file is written, so the range is used only while it still holds the text it held when chosen; otherwise
+     * the reference goes at the end.
+     */
+    const insertReference = async (
+        candidate: SessionReferenceCandidate,
+        range: { start: number; end: number },
+        typed: string,
+    ): Promise<void> => {
         setPreparing(candidate.title);
         const reference = await prepareSessionReference(candidate.sessionId);
         setPreparing(undefined);
         const textarea = inputReference.current;
         if (!reference || !textarea) return;
-        // The user may have kept typing while the file was written; replace the mention only if it is still there.
         const current = textarea.value;
-        const range =
-            current.slice(mention.start, mention.end) === typed
-                ? mention
+        const target =
+            current.slice(range.start, range.end) === typed
+                ? range
                 : { start: current.length, end: current.length };
-        const inserted = draftWithInsertion(current, range.start, range.end, reference);
+        const inserted = draftWithInsertion(current, target.start, target.end, reference);
         setDraft(() => inserted.draft);
         // A programmatic draft change fires no select event; without this the stale caret still sits inside the
         // inserted `@<path>` and reopens the list on its "No Sessions match" row.
@@ -110,6 +116,11 @@ export function useAgentChatSessionMenu({
             textarea.focus();
             textarea.setSelectionRange(inserted.caret, inserted.caret);
         });
+    };
+
+    const choose = async (candidate: SessionReferenceCandidate): Promise<void> => {
+        if (!mention || isPreparing) return;
+        await insertReference(candidate, mention, draft.slice(mention.start, mention.end));
     };
 
     return {
@@ -137,6 +148,21 @@ export function useAgentChatSessionMenu({
               }
             : undefined,
         ...caretTracking,
+        /**
+         * The most recently opened Sessions the composer's Add menu offers, as the empty `@` list would.
+         */
+        recentCandidates: (limit: number): SessionReferenceCandidate[] =>
+            searchSessionReferences(sessions, projects, currentSessionId, '').slice(0, limit),
+        /**
+         * Cites a Session chosen outside the `@` list (the Add menu) at the input's caret, replacing any selection.
+         */
+        reference: (candidate: SessionReferenceCandidate): void => {
+            const textarea = inputReference.current;
+            if (isPreparing || !textarea) return;
+            const range = { start: textarea.selectionStart, end: textarea.selectionEnd };
+            // eslint-disable-next-line no-void -- prepareSessionReference reports its own failures through tryCommand
+            void insertReference(candidate, range, textarea.value.slice(range.start, range.end));
+        },
         highlight: (index: number) => setActive({ query: mention?.query, index }),
         chooseAt: (index: number) => {
             const candidate = candidates.at(index);

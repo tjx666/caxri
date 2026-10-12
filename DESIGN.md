@@ -212,7 +212,9 @@ may use unitless `1.45` or `1.5` line height; compact uppercase headings may use
   Settings fields/buttons, and 44px palette/path input.
 - Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. `rounded-full` is
   reserved for intrinsically circular shapes: activity dots, the drag insertion line's leading
-  cap, and the Switch track/thumb (the one sanctioned fully-round control). No other radii.
+  cap, and the Switch track/thumb. The Agent Chat composer is the one other sanctioned exception,
+  copying the Codex app's composer: its `+`, its Plan chip, its model picker pill, its 28px primary
+  action circle, and the effort slider's track and thumb. No other radii.
 
 `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric
 arbitrary-class allowlist above and rejects feature-local raw text inputs and raw checkboxes.
@@ -733,9 +735,15 @@ content. An external file gets no last-change annotation: blame needs a Project-
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
 layer:
 
-1. **shadcn overlay layer** (`tw-animate-css` + animation classes in `components/ui/*`): every
-   overlay: dialogs, selects, dropdown menus, tooltips, preview cards, and future shadcn
-   components. Fade plus ~95% zoom on enter/exit, gated by Base UI popup state attributes. We
+1. **shadcn overlay layer** (`tw-animate-css` classes from `components/ui/overlay-motion.ts`, the
+   one source every `components/ui/*` popup composes): dialogs, selects, dropdown menus, popovers,
+   tooltips, preview cards, and future shadcn components. Anchored popups fade, zoom from ~95%
+   at `--transform-origin`, and travel 4px away from their trigger along Base UI's `data-side`;
+   tooltips fade and travel 2px without zooming, since a zoom blurs one line of small text;
+   dialogs fade and zoom from the center. Exits only fade and shrink. Base UI's instant phase
+   (`data-instant`: sweeping between adjacent tooltips, a keyboard-opened trigger, an Escape dismissal) shows and
+   hides without animation so a toolbar sweep never flickers. All of it is gated by Base UI popup
+   state attributes. We
    deliberately do not import `shadcn/tailwind.css`: its custom `data-open`/`data-closed` variants
    exist to bridge Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute
    variants are equivalent (see upstream debate in shadcn-ui/ui#10267).
@@ -751,22 +759,32 @@ layer:
    renderer entries enable StrictMode. Until it lands, simple lists stay instant.
 4. **Motion** (`motion/react` via `LazyMotion strict` + `motion/react-m`, `domAnimation` features
    only): fine presence/timing control and future layout math: the work tab strip's enter/exit
-   (opacity plus width), future drag reorder and shared-element transitions.
+   (opacity plus width), future drag reorder and shared-element transitions. Its easing comes
+   from the same tokens through `motionEasing` in `lib/motion.ts`, never a library preset.
 
 Timing lives in the `--motion-*` tokens in `styles.css` (`:root`): the single source for CSS
 transitions, tw-animate durations, Motion transitions, JS presence-cleanup fallbacks, and tests:
 disclosures expand `--motion-expand` (180ms, `--motion-ease-emphasized`
-`cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, ease-in); work tabs
-enter `--motion-tab-enter` (140ms, ease-out) and exit `--motion-tab-exit` (110ms, ease-in); the
+`cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, exit curve); work tabs
+enter `--motion-tab-enter` (140ms, enter curve) and exit `--motion-tab-exit` (110ms, exit curve); the
 shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 `--motion-ease-emphasized`); overlays enter `--motion-overlay-enter` (150ms) and exit
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
 ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
-literal.
+literal. The enter curve `--motion-ease-enter` is easeOutQuint `cubic-bezier(0.23, 1, 0.32, 1)`,
+which answers the pointer in the first frames instead of the keyword `ease-out`'s slow start;
+exits use the accelerating `--motion-ease-exit` `cubic-bezier(0.4, 0, 1, 1)`. State feedback
+(hover color, hover-revealed row actions, focus rings, switch and checkbox) runs on
+`--motion-feedback` (120ms, enter curve) through Tailwind's `--default-transition-*` variables,
+so a bare `transition-*` utility is already on-token: never add a literal `duration-<n>` or
+`ease-in`/`ease-out` utility. The Terminal and Agent Chat find bars fade in (the floating
+Terminal bar also drops 4px) and close instantly; the pane split drop preview fades in once and
+then glides between zones on `--motion-chrome-switch` so the target split stays legible.
 
 Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
-state transitions, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
+state transitions, sidebar and Panel visibility (animating their width would reflow every
+xterm on each frame), Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
 disclosures in Files, Source Control, and extension-contributed trees. Do not stagger rows or neighboring tabs.
 The Process Explorer window is out of scope (separate style layer, diagnostics; see `docs/process-explorer.md`).
 
@@ -1038,22 +1056,41 @@ from a preview that covers the 96px sent-message tile at 2x, each with its remov
 the top-right corner; clicking one previews the full image in a dialog, and an image that takes
 noticeably long to read holds a placeholder tile with a spinner, so a disabled Send has a visible
 cause), a borderless auto-growing textarea, and one action row in `--muted`, split like the Codex
-app's composer. Leading on the left: Attach files (a paperclip ghost icon that turns into a spinner
-while picked images are read, a long paste is saved, or an `@` Session reference is written; its
-tooltip says what a pick does for this provider, `Attach images or insert file paths` or `Insert
-file paths`) and the permission picker. Trailing on the right: the context meter (a
+app's composer. Leading on the left: `+` (a round ghost icon, tooltip `Add files and more`, that
+turns into a spinner while picked images are read, a long paste is saved, or a Session reference is
+written), a Plan chip (a bulb and `Plan` in `--foreground`, pressed to turn plan mode off) while plan
+mode is on, and the permission picker. `+` opens a menu laid out like the Codex app's: under `Add`,
+Files (the system file picker; its muted description says what a pick does for this provider,
+`Attach images or insert file paths` or `Insert file paths`), Goal (only while the provider reports
+a `goal` command; it turns the draft into `/goal <draft>`), and Plan mode (with its description and a
+trailing check while on); under `Sessions`, the five most recently opened Sessions with an Agent
+conversation, each cited at the caret the way the `@` list cites it. Folders cannot be picked yet:
+Chromium's file input selects files only. Trailing on the right: the context meter (a
 14px ring that fills with the share of the window in use, its percentage beside it, `--warning`
 from 60% and `--danger` from 85%; a `meter` and a Tab stop whose popover gives the token breakdown
 and, when the provider has a compact command, a Compact button; hovering opens it as a preview, and
 Enter, Space, or a click opens it with focus inside so Tab reaches Compact; a preview card opened by
-focus would close as soon as focus left the ring), the model picker (the model's name and
-the next turn's effort, with `Ultracode` in `--foreground` like `Plan` while that mode is on,
-opening a menu of models with their descriptions and the current model's
-efforts; choosing a model keeps the menu open so its efforts show, choosing an effort closes it, and
-a spinner replaces the chevron until the switch is confirmed), and a single primary action slot. The
-permission picker shows a shield, the level's name, a `--warning` shield for full access, `Plan` in
-`--foreground` while plan mode is on, and, for a provider that applies a switch only from the next
-turn (Codex), a `from next turn` caption while a turn runs. The primary action slot is a 28px `--foreground`
+focus would close as soon as focus left the ring), the model picker (a pill holding a filled `--accent` bolt while Fast mode is on and a workflow glyph
+while ultracode is on, then the model's name and the next turn's effort, reading `Choose effort`
+while its effort panel is open; a spinner replaces the chevron until a switch is confirmed), and a
+single primary action slot. The model picker opens a 288px popover copied from the Codex app's: a
+header with the mode toggles on the left (Fast's bolt, ultracode's glyph; `--muted` while off,
+`--accent` while on, each explained in a tooltip above it), the effort in 15px semibold `--accent`
+over the model name and a chevron in the center, and `Reset to default` (a rotate glyph, disabled
+while the effort is the model's default) on the right; below it, a slider with one stop per effort
+(a 24px `--foreground`/15 track filled in `--accent` up to a 28px `--foreground` thumb, a 4px dot on
+every other stop, and twinkling dots across the fill while Fast mode is on). Dragging previews the
+effort in the title; releasing applies it and keeps the popover open. The model name opens the model
+list in place: a `Choose model` caption, one row per model with a trailing check on the current one,
+and each model's description in a tooltip to its right (Claude Code's `default` alias keeps its
+description inline). Choosing a model returns to the effort panel when the model has efforts or
+modes, and closes the popover otherwise; a model with neither opens straight on the list. The
+permission picker shows a shield, the level's name, a `--warning` shield for full access, and, for a
+provider that applies a switch only from the next turn (Codex), a `from next turn` caption while a
+turn runs. Its menu leads every level with a glyph (an eye for read only, a hand for ask, a pen for
+accept edits, a bot for auto, the `--warning` shield for full access) and trails the current level
+with a check; a chosen Full access row reads in `--warning`, as the Codex app tints it. Every
+checkable menu row in the app trails its check, as macOS menus do. The primary action slot is a 28px `--foreground`
 circle holding a `--background` up arrow for Send (a return arrow while the message would queue), or
 a small filled square for Stop. That slot
 shows Stop while a turn runs and the input is empty, and Send as soon as there is content; the two
@@ -1092,7 +1129,7 @@ as part of the draft (reference: LobeHub's chat input). The strip is a `--surfac
 from the card's sides, its top corners radius-8 and its hairline resting on the card's top border;
 the `Editing an earlier message` bar and the idle context notices below use the same strip. The row holds a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
-stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
+stop` right-aligned. A working turn's label is one playful phrase chosen per turn from LobeHub's list (`Herding tokens…`),
 so a long turn reads as progress rather than a stall; a waiting one reads `Waiting for your
 approval` or `Waiting for your answer` by its first pending request. On an idle Chat the same row
 carries context notices instead: an expired prompt cache in `--muted` (a cost fact, not a fault),
@@ -1128,7 +1165,10 @@ plan). Cmd+Enter approves and Cmd+Backspace denies, answering only the first car
 composer is empty, where neither chord has another meaning. A question names the provider (`Codex has a
 question`), and each option's description sits under its label in `meta` `--muted`, not in a
 tooltip. While the reader follows the end, the transcript stays pinned when a dock grows and
-shrinks the view.
+shrinks the view. As in ChatGPT and the Codex app, the latest user message rests 16px below the
+top of the view at the end: the transcript keeps empty space below the latest turn, so a sent
+message rises to the top and its reply fills in below it; once the turn outgrows the view the space
+is gone and following the end takes over.
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the

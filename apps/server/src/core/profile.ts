@@ -26,6 +26,8 @@ import { profileIdForPath } from '@caxri/system';
 import type { LockHandle, ProcessLock } from './linux-profile-lock';
 import { acquireLinuxProcessLock } from './linux-profile-lock';
 import { fileSystemCode, readPrivateJsonFile, replacePrivateJsonFile } from './private-json-store';
+import type { HostLease } from './profile-host-lease';
+import { claimHostLease, readHostIdentity } from './profile-host-lease';
 
 const MAX_PRIVATE_FILE_BYTES = 16 * 1024;
 /**
@@ -36,6 +38,10 @@ const DARWIN_OPEN_EXCLUSIVE_LOCK = 0x20;
 export interface ServerProfilePaths {
     desktopCredential: string;
     directory: string;
+    /**
+     * Cross-host lease for a profile on a shared home directory; see `profile-host-lease.ts`.
+     */
+    hostLease: string;
     lock: string;
     manifest: string;
     mobileDevices: string;
@@ -75,6 +81,7 @@ export async function resolveServerProfilePaths(userDataPath: string): Promise<S
     return {
         desktopCredential: join(directory, 'desktop-credential.json'),
         directory,
+        hostLease: join(directory, 'host-lease.json'),
         lock: join(directory, 'owner.lock'),
         manifest: join(directory, 'manifest.json'),
         mobileDevices: join(directory, 'mobile-devices.json'),
@@ -258,10 +265,20 @@ async function isManifestOwnedBy(path: string, processIdentity: string) {
     }
 }
 
+function stopAfterHostLeaseLost(holder: string): void {
+    process.stderr.write(`Another host (${holder}) took over this profile; stopping.\n`);
+    process.kill(process.pid, 'SIGTERM');
+}
+
 /**
  * Acquires the profile before domain startup, preventing a second SQLite writer from spawning.
  */
 export async function acquireServerProfile(options: {
+    /**
+     * Called when another host took over this profile's lease while this Server ran. Defaults to stopping the process
+     * through its ordinary SIGTERM shutdown.
+     */
+    onHostLeaseLost?: (holder: string) => void;
     processState?: (pid: number) => ServerProcessState;
     startedAt?: number;
     userDataPath: string;
@@ -291,11 +308,23 @@ export async function acquireServerProfile(options: {
         throw error;
     }
 
+    let hostLease: HostLease | undefined;
     try {
+        // Claimed before `cleanPreviousOwner`, whose pid probe cannot see another host and would delete a live
+        // owner's manifest there.
+        if (process.platform === 'linux')
+            hostLease = await claimHostLease({
+                directory: paths.directory,
+                identity: await readHostIdentity(),
+                onLost: options.onHostLeaseLost ?? stopAfterHostLeaseLost,
+                path: paths.hostLease,
+                processIdentity,
+            });
         await cleanPreviousOwner(paths, previousLock, processState);
         await writeLockHandle(lockHandle, lock);
         await chmod(paths.lock, 0o600);
     } catch (error) {
+        await hostLease?.release();
         await processLock.close();
         throw error;
     }
@@ -354,6 +383,7 @@ export async function acquireServerProfile(options: {
                 // Best-effort cleanup; release() must still finish tearing down the lock below.
             }
             try {
+                await hostLease?.release();
                 await writeLockHandle(lockHandle, undefined);
             } finally {
                 await processLock.close();

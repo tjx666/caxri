@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatDraftMatches,
+    agentChatGoalDraft,
     agentChatLeadingInvocation,
     agentChatMenuActions,
     agentChatMenuGroupHeading,
@@ -10,6 +11,7 @@ import {
     agentChatSlashQuery,
     completeAgentChatAction,
     filterAgentChatActions,
+    isAgentChatGoalOffered,
     parseAgentChatCommand,
 } from '../agent-chat-slash-commands';
 
@@ -154,5 +156,20 @@ describe('agentChatLeadingInvocation', () => {
         expect(agentChatLeadingInvocation('$5 is the price')).toBeUndefined();
         expect(agentChatLeadingInvocation('/usr/bin is missing')).toBeUndefined();
         expect(agentChatLeadingInvocation('run $status-report')).toBeUndefined();
+    });
+});
+
+describe('the Add menu Goal', () => {
+    it('is offered only when the provider reports a goal command', () => {
+        expect(isAgentChatGoalOffered([{ name: 'goal' }])).toBe(true);
+        expect(isAgentChatGoalOffered([{ name: 'compact' }])).toBe(false);
+        expect(isAgentChatGoalOffered(undefined)).toBe(false);
+    });
+
+    it('turns the typed text into the goal and leaves an existing goal command alone', () => {
+        expect(agentChatGoalDraft('')).toBe('/goal ');
+        expect(agentChatGoalDraft('  ship the picker')).toBe('/goal ship the picker');
+        expect(agentChatGoalDraft('/goal ship it')).toBe('/goal ship it');
+        expect(agentChatGoalDraft('/goals are fun')).toBe('/goal /goals are fun');
     });
 });

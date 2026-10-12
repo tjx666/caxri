@@ -32,9 +32,9 @@ const ElapsedTime = ({ startedAt, theme }: { startedAt: number; theme: MobileThe
 
 /**
  * What the Chat is doing, above the composer, as Desktop's activity row says it: a spinner and the turn's verb under
- * the activity highlight with how long the turn has run (`Pondering… 12s`), `Compacting context…` while the context is
- * compacted, or a question glyph in the warning color while the turn waits on the user, which does not animate since
- * nothing is working.
+ * the activity highlight with how long the turn has run (`Herding tokens… 12s`), `Compacting context…` while the
+ * context is compacted, or a question glyph in the warning color while the turn waits on the user, which does not
+ * animate since nothing is working.
  */
 export const AgentChatActivityLine = ({
     activity,

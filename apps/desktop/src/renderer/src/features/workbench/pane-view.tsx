@@ -38,8 +38,13 @@ import { useTabFocusRecovery } from './use-tab-focus-recovery';
 
 const fullBleedClassName = 'h-full w-full min-h-0 min-w-0';
 
+/**
+ * The preview element stays mounted while the pointer moves between zones, so its insets glide from one half to the
+ * next instead of jumping, the way VS Code's editor drop overlay tracks a dragged tab; that motion shows which split
+ * the drop will create. It fades in once when the drag first enters the pane.
+ */
 const dropPreviewClassName =
-    'absolute z-[5] grid place-items-center border border-accent bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] text-foreground text-[11px] pointer-events-none';
+    'absolute z-[5] grid place-items-center border border-accent bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] text-foreground text-[11px] pointer-events-none transition-[top,right,bottom,left] duration-(--motion-chrome-switch) ease-(--motion-ease-emphasized) motion-reduce:transition-none motion-safe:animate-in motion-safe:fade-in-0';
 
 const dropZoneClassName: Record<PaneDropZone, string> = {
     center: 'inset-[18%]',

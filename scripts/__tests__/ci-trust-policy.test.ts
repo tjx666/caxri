@@ -140,6 +140,23 @@ function releaseTrustExpression(candidatePolicy: TrustPolicy = policy): string {
     `;
 }
 
+/**
+ * `linux-natives` also runs on a manual rehearsal from main, under the same trusted-actor rule as a CI dispatch. It
+ * reads no secrets and runs on GitHub-hosted runners; `release` itself stays release-commit only.
+ */
+function releaseNativesTrustExpression(candidatePolicy: TrustPolicy = policy): string {
+    const actor = `'${candidatePolicy.trustedActor}'`;
+
+    return `
+        (
+          github.event_name == '${candidatePolicy.ci.workflowDispatchEvent}' &&
+          github.ref == '${candidatePolicy.ci.pushRef}' &&
+          github.actor == ${actor} &&
+          github.triggering_actor == ${actor}
+        ) || (${releaseTrustExpression(candidatePolicy)})
+    `;
+}
+
 function trustExpressionMismatches(candidatePolicy: TrustPolicy = policy): string[] {
     const gateTrustExpression = ciWorkflow.jobs.ci.steps?.find((step) => step.env?.TRUSTED_EVENT)
         ?.env?.TRUSTED_EVENT;
@@ -156,7 +173,7 @@ function trustExpressionMismatches(candidatePolicy: TrustPolicy = policy): strin
         },
         {
             actual: releaseWorkflow.jobs['linux-natives'].if,
-            expected: releaseTrustExpression(candidatePolicy),
+            expected: releaseNativesTrustExpression(candidatePolicy),
             location: 'release.jobs.linux-natives.if',
         },
         {

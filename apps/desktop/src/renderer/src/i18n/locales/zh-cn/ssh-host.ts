@@ -51,6 +51,8 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.failure.installFailed':
         '无法在 SSH Host 上安装 Caxri Server。请检查磁盘剩余空间以及 ~/.caxri-server 的权限。',
     'sshHost.failure.launchFailed': 'Caxri Server 已安装，但未能在 SSH Host 上启动。',
+    'sshHost.failure.profileInUse':
+        '另一台与此主机共用 home 目录的机器正在运行使用同一份数据的 Caxri Server。请先停止那个 Server，或在它退出约一分钟后再重新连接。',
     'sshHost.failure.cancelled': '连接已取消。',
     'sshHost.failure.connectionLost':
         '与 SSH Host 的连接已断开。其中的终端和 Agent 会继续运行，重新连接后即可恢复显示。',

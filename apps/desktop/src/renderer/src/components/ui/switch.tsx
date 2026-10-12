@@ -19,7 +19,7 @@ export function Switch({ className, ...properties }: SwitchPrimitive.Root.Props)
              */
             aria-labelledby={properties['aria-label'] ? '' : undefined}
             className={cn(
-                'inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-[background-color] duration-150 ease-out outline-none motion-reduce:transition-none',
+                'inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-[background-color] outline-none motion-reduce:transition-none',
                 'data-checked:bg-accent data-unchecked:bg-border',
                 'focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]',
                 'data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50',
@@ -29,7 +29,7 @@ export function Switch({ className, ...properties }: SwitchPrimitive.Root.Props)
         >
             <SwitchPrimitive.Thumb
                 data-slot="switch-thumb"
-                className="pointer-events-none block size-3.5 rounded-full bg-foreground transition-transform duration-150 ease-out data-checked:translate-x-3.5 data-checked:bg-accent-foreground data-unchecked:translate-x-0 motion-reduce:transition-none"
+                className="pointer-events-none block size-3.5 rounded-full bg-foreground transition-transform data-checked:translate-x-3.5 data-checked:bg-accent-foreground data-unchecked:translate-x-0 motion-reduce:transition-none"
             />
         </SwitchPrimitive.Root>
     );

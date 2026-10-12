@@ -7,7 +7,7 @@ import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utilities';
 
 const inputVariants = cva(
-    'block w-full min-w-0 appearance-none border text-inherit transition-[border-color,box-shadow,background-color] duration-150 ease-out outline-none placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger aria-invalid:focus-visible:border-danger [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+    'block w-full min-w-0 appearance-none border text-inherit transition-[border-color,box-shadow,background-color] outline-none placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger aria-invalid:focus-visible:border-danger [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
     {
         variants: {
             appearance: {
@@ -30,7 +30,7 @@ const inputVariants = cva(
 );
 
 const inputGroupVariants = cva(
-    'flex w-full min-w-0 items-center border border-border transition-[border-color,box-shadow,background-color] duration-150 ease-out focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]',
+    'flex w-full min-w-0 items-center border border-border transition-[border-color,box-shadow,background-color] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]',
     {
         variants: {
             appearance: {

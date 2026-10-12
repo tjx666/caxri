@@ -32,7 +32,10 @@ import {
     agentChatSendBlock,
     isAgentChatBusy,
 } from './agent-chat-presentation';
-import { isAgentChatMessageRailShown } from './agent-chat-rail-marks';
+import {
+    AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
+    isAgentChatMessageRailShown,
+} from './agent-chat-rail-marks';
 import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import { agentChatTimelineEntryKey } from './agent-chat-timeline';
@@ -52,6 +55,12 @@ import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
 import { useAgentChatTimelines } from './hooks/use-agent-chat-timelines';
+
+/**
+ * The rows a sent message rises to the top with: each user message starts a turn, including one still being sent
+ * (`data-agent-chat-pending`), so the message rises as it is sent rather than when the provider confirms it.
+ */
+const AGENT_CHAT_TURN_SELECTOR = `[${AGENT_CHAT_USER_MESSAGE_ATTRIBUTE}], [data-agent-chat-pending]`;
 
 /**
  * The structured surface of a Chat Terminal (ADR 0012): the conversation Server Core projects from the provider's own
@@ -106,12 +115,13 @@ export function AgentChatPane({
     const {
         scrollReference,
         contentReference,
+        spacerReference,
         isFollowing,
         onScroll,
         jumpToLatest,
         stopFollowing,
         anchor,
-    } = useAgentChatScroll(snapshot?.revision);
+    } = useAgentChatScroll(snapshot?.revision, { turnSelector: AGENT_CHAT_TURN_SELECTOR });
     /**
      * Which rows the user expanded, kept for the Chat's lifetime so a row stays open when the timeline rebuilds it (a
      * finished turn folding, a live row joining a summary group). Toggling one holds it in place instead of following.
@@ -276,6 +286,7 @@ export function AgentChatPane({
                                 message={emptyMessage}
                             />
                         </div>
+                        <div aria-hidden ref={spacerReference} />
                     </div>
                     <AgentChatSelectionToolbar
                         contentReference={contentReference}
