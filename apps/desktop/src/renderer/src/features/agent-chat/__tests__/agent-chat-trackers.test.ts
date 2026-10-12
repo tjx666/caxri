@@ -179,6 +179,74 @@ describe('collectAgentChatTrackers', () => {
         ]);
     });
 
+    it('reads pull requests and issues written through gh api, and ignores reads and sub-resources', () => {
+        const created = JSON.stringify({
+            html_url: 'https://github.com/acme/widgets/issues/9',
+            title: 'Crash on save',
+            body: 'Saving twice crashes.\nSee https://github.com/acme/widgets/pull/3',
+        });
+        expect(
+            collectAgentChatTrackers([
+                command(
+                    'c1',
+                    'cd widgets && gh api -X PATCH repos/acme/widgets/pulls/42 -F body=@/tmp/body.md --jq .html_url',
+                    'https://github.com/acme/widgets/pull/42\n',
+                ),
+                command(
+                    'c2',
+                    "gh api /repos/acme/widgets/issues -f title='Crash on save' -f body=@notes.md",
+                    created,
+                ),
+                command(
+                    'c3',
+                    "rtk gh api --method PATCH repos/acme/widgets/issues/7 -f title='Renamed' --silent",
+                    '',
+                ),
+                command(
+                    'c4',
+                    'gh api repos/acme/widgets/pulls/42 --jq .html_url',
+                    'https://github.com/acme/widgets/pull/42',
+                ),
+                command(
+                    'c5',
+                    "gh api repos/acme/widgets/issues/42/comments -f body='Done'",
+                    'https://github.com/acme/widgets/pull/42#issuecomment-1',
+                ),
+                command(
+                    'c6',
+                    'gh api -X PATCH repos/acme/widgets/pulls/43 -f state=closed',
+                    'HTTP 422',
+                    'failed',
+                ),
+            ]),
+        ).toEqual([
+            {
+                provider: 'github',
+                kind: 'pull',
+                action: 'updated',
+                url: 'https://github.com/acme/widgets/pull/42',
+                reference: 'acme/widgets#42',
+            },
+            {
+                provider: 'github',
+                kind: 'issue',
+                action: 'created',
+                url: 'https://github.com/acme/widgets/issues/9',
+                reference: 'acme/widgets#9',
+                title: 'Crash on save',
+                excerpt: 'Saving twice crashes.',
+            },
+            {
+                provider: 'github',
+                kind: 'issue',
+                action: 'updated',
+                url: 'https://github.com/acme/widgets/issues/7',
+                reference: 'acme/widgets#7',
+                title: 'Renamed',
+            },
+        ]);
+    });
+
     it('merges a create and a later edit of the same pull request into one created card', () => {
         const url = 'https://github.com/acme/widgets/pull/9';
         expect(
