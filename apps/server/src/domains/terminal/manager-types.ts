@@ -89,9 +89,11 @@ export interface TerminalManagerOptions {
      */
     onOutputActivity?: (terminalId: string, processId: number) => void;
     /**
-     * Signals that Core delivered input to a Terminal; consumers receive no content.
+     * Signals that Core delivered input to a Terminal; consumers receive no content. `maintenance` is housekeeping the
+     * user started for many Sessions at once (warm-Session compaction): it fences like typing, but is not the user
+     * working in that Session, so it must not take a handed-over Session back from the Agent Commander.
      */
-    onInput?: (terminalId: string, data: string) => void;
+    onInput?: (terminalId: string, data: string, origin: TerminalInputOrigin) => void;
     shellIntegration?: (
         executable: string,
         environment: NodeJS.ProcessEnv,
@@ -151,3 +153,8 @@ export interface TerminalStartOptions {
      */
     waitForAttachedSizeMs?: number;
 }
+
+/**
+ * Who a non-delegation Terminal input came from; see `TerminalManagerOptions.onInput`.
+ */
+type TerminalInputOrigin = 'human' | 'maintenance';

@@ -46,7 +46,13 @@ export function logDelegationRequested(
             projectId: input.projectId,
             sessionId: input.sessionId,
             provider: receipt.provider,
-            mode: input.resumeFrom ? 'resume' : input.followUpOf ? 'follow_up' : 'new',
+            mode: input.continueFromHandover
+                ? 'handover'
+                : input.resumeFrom
+                  ? 'resume'
+                  : input.followUpOf
+                    ? 'follow_up'
+                    : 'new',
             parentDelegationId: caller.parentDelegationId ?? null,
             isCommanderCaller: caller.isCommander,
             callerTerminalId: caller.terminalId ?? null,

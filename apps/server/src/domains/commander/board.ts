@@ -3,6 +3,7 @@ import type {
     CommanderBoard,
     CommanderBoardGroupId,
     CommanderBoardRow,
+    CommanderHandover,
     CommanderTask,
     ProcessState,
     ProjectRecord,
@@ -119,6 +120,10 @@ export function commanderBoard(input: {
      */
     commanderTasks: readonly CommanderTask[];
     commanderSessionIds: ReadonlySet<string>;
+    /**
+     * The user's hand-overs; one the Commander already continued is no longer shown.
+     */
+    handovers?: readonly CommanderHandover[];
     now: number;
     projects: readonly ProjectRecord[];
     pullRequests: SessionPullRequests;
@@ -131,6 +136,25 @@ export function commanderBoard(input: {
     const terminalsBySession = Map.groupBy(input.terminals, (terminal) => terminal.sessionId);
     const pullRequests = new Map(Object.entries(input.pullRequests.pullRequests));
     const tasks = currentTaskBySession(input.tasks);
+    const handovers = new Map(
+        (input.handovers ?? []).flatMap(
+            (handover): Array<[string, CommanderBoardRow['handover']]> =>
+                handover.firstDelegationId
+                    ? []
+                    : [
+                          [
+                              handover.sessionId,
+                              {
+                                  handoverId: handover.id,
+                                  state: handover.target ? 'continuable' : 'ownership_only',
+                                  ...(handover.ownershipReason && {
+                                      ownershipReason: handover.ownershipReason,
+                                  }),
+                              },
+                          ],
+                      ],
+        ),
+    );
     const order = new Map(commanderBoardGroupIds.map((id, index) => [id, index]));
     const rows = input.sessions.flatMap((session): CommanderBoardRow[] => {
         const project = projectsById.get(session.projectId);
@@ -139,6 +163,7 @@ export function commanderBoard(input: {
         const pullRequest = pullRequests.get(session.id);
         const pullRequestUnavailable = input.pullRequests.unavailable?.[session.id];
         const task = tasks.get(session.id);
+        const handover = handovers.get(session.id);
         const sessionGroup = commanderBoardGroup(session, terminal, input.now);
         return [
             {
@@ -164,6 +189,7 @@ export function commanderBoard(input: {
                 ...(pullRequest && { pullRequest }),
                 ...(pullRequestUnavailable && { pullRequestUnavailable }),
                 commanderSession: input.commanderSessionIds.has(session.id),
+                ...(handover && { handover }),
                 ...(task && { task }),
             },
         ];

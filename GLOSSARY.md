@@ -101,6 +101,12 @@ ready to merge and questions only the user can answer, shown as "Needs you" in t
 window. An item exists only because the Commander reported it.
 _Avoid_: Peer Inbox, Agent Inbox, notifications, to-do list
 
+**Handed-over Session**:
+A Session the user gave to the Agent Commander after starting it themselves, or one created from an
+Agent conversation begun outside Caxri. The Commander manages it like a Session it created and first
+continues the existing conversation; typing into it takes it back.
+_Avoid_: transferred Session, adopted Session, imported Session
+
 **Peer Inbox**:
 The Server-mediated, text-only channel through which managed Agents send, wait for, and reply to
 short Peer Messages (`caxri agent message`). A message the user must approve is held, and the user

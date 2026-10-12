@@ -13,6 +13,7 @@ import type {
 import { agentCommanderTerminal } from '../db';
 import type {
     CommanderCompletionNoticeStatus,
+    CommanderHandoverNoticeEntry,
     CommanderInboxNoticeEntry,
     CommanderInboxNoticeEvent,
 } from './notice-text';
@@ -125,6 +126,10 @@ interface LaunchPromptClaim {
      * The Inbox events the prompt reported; an entry replaced by a later event before the launch runs stays owed.
      */
     inbox: Array<CommanderInboxNoticeEntry & { queuedAt: number }>;
+    /**
+     * The hand-over events the prompt reported, settled like `inbox`.
+     */
+    handovers: Array<CommanderHandoverNoticeEntry & { queuedAt: number }>;
     oldestQueuedAt: number;
     terminalId: string;
 }
@@ -157,6 +162,14 @@ export class CommanderCompletionNotifier {
     private readonly pendingInbox = new Map<
         string,
         CommanderInboxNoticeEntry & { queuedAt: number }
+    >();
+    /**
+     * Hand-over events by hand-over, in memory only like the Inbox ones: the hand-over service re-queues every
+     * hand-over the Commander has not continued before a launch. A later event replaces an earlier one.
+     */
+    private readonly pendingHandovers = new Map<
+        string,
+        CommanderHandoverNoticeEntry & { queuedAt: number }
     >();
     /**
      * Highest receipt revision already turned into a pending or delivered notice, per delegation. Guards against a
@@ -220,6 +233,12 @@ export class CommanderCompletionNotifier {
      * The live Commander Terminal, read in constant time. Runs for every human input chunk in every Terminal, so it
      * must not touch the created-Session list (`agentCommanderRows`), which costs one lookup per stored Session.
      */
+    private pendingCount(): number {
+        return (
+            this.pendingDelegations().length + this.pendingInbox.size + this.pendingHandovers.size
+        );
+    }
+
     private commander() {
         return agentCommanderTerminal(this.options.database);
     }
@@ -266,7 +285,8 @@ export class CommanderCompletionNotifier {
     private tryFlush(terminalId: string, isTurnFinished = false): void {
         const pending = this.pendingDelegations();
         const inbox = this.pendingInbox.values().toArray();
-        const pendingCount = pending.length + inbox.length;
+        const handovers = this.pendingHandovers.values().toArray();
+        const pendingCount = pending.length + inbox.length + handovers.length;
         if (pendingCount === 0) return;
         const deferral = this.deferral(terminalId);
         if (deferral) {
@@ -298,7 +318,8 @@ export class CommanderCompletionNotifier {
          */
         this.options.database.commanderPendingNotices.removeDelegations(pending);
         this.pendingInbox.clear();
-        const queuedAt = [...pending, ...inbox].map((notice) => notice.queuedAt);
+        this.pendingHandovers.clear();
+        const queuedAt = [...pending, ...inbox, ...handovers].map((notice) => notice.queuedAt);
         const waitMs = Math.max(0, this.now() - Math.min(...queuedAt));
         const { blockedTurns } = this;
         this.resetBatch();
@@ -311,7 +332,7 @@ export class CommanderCompletionNotifier {
          * pair, so at most one write happens per proven-idle turn.
          */
         this.lastFinishedTurn = undefined;
-        const text = formatCommanderCompletionNotice(pending, inbox);
+        const text = formatCommanderCompletionNotice(pending, inbox, handovers);
         const accepted = this.options.write(terminalId, text, finished.launchId, (wasAccepted) => {
             if (!wasAccepted) this.reportDeliveryFailed('unconfirmed');
         });
@@ -321,7 +342,13 @@ export class CommanderCompletionNotifier {
                 'info',
                 logEventCatalog.agentCommander.completionNoticeDelivered,
                 {
-                    fields: { count: pendingCount, inboxCount: inbox.length, waitMs, blockedTurns },
+                    fields: {
+                        count: pendingCount,
+                        inboxCount: inbox.length,
+                        handoverCount: handovers.length,
+                        waitMs,
+                        blockedTurns,
+                    },
                 },
             );
     }
@@ -415,7 +442,8 @@ export class CommanderCompletionNotifier {
         this.launchClaim = undefined;
         const notices = this.options.database.commanderPendingNotices.list();
         const inbox = this.pendingInbox.values().toArray();
-        if (notices.length === 0 && inbox.length === 0) return undefined;
+        const handovers = this.pendingHandovers.values().toArray();
+        if (notices.length === 0 && inbox.length === 0 && handovers.length === 0) return undefined;
         const delegations = notices.filter((notice) => notice.kind === 'delegation');
         const hasInterruptedTurn = notices.some((notice) => notice.kind === 'interrupted_turn');
         this.launchClaim = {
@@ -423,10 +451,13 @@ export class CommanderCompletionNotifier {
             delegations,
             hasInterruptedTurn,
             inbox,
-            oldestQueuedAt: Math.min(...[...notices, ...inbox].map((notice) => notice.queuedAt)),
+            handovers,
+            oldestQueuedAt: Math.min(
+                ...[...notices, ...inbox, ...handovers].map((notice) => notice.queuedAt),
+            ),
             terminalId,
         };
-        return formatCommanderResumePrompt(delegations, hasInterruptedTurn, inbox);
+        return formatCommanderResumePrompt(delegations, hasInterruptedTurn, inbox, handovers);
     }
 
     /**
@@ -443,12 +474,16 @@ export class CommanderCompletionNotifier {
         for (const entry of claim.inbox)
             if (this.pendingInbox.get(entry.itemId) === entry)
                 this.pendingInbox.delete(entry.itemId);
+        for (const entry of claim.handovers)
+            if (this.pendingHandovers.get(entry.handoverId) === entry)
+                this.pendingHandovers.delete(entry.handoverId);
         this.lastFinishedTurn = undefined;
         this.turnStartBaseline = undefined;
         this.options.logger?.write('info', logEventCatalog.agentCommander.resumePromptDelivered, {
             fields: {
                 count: claim.delegations.length,
                 inboxCount: claim.inbox.length,
+                handoverCount: claim.handovers.length,
                 interruptedTurn: claim.hasInterruptedTurn,
                 waitMs: Math.max(0, this.now() - claim.oldestQueuedAt),
             },
@@ -512,7 +547,7 @@ export class CommanderCompletionNotifier {
                 delegationId: receipt.delegationId,
                 sessionId: receipt.sessionId,
                 status,
-                pendingCount: this.pendingDelegations().length + this.pendingInbox.size,
+                pendingCount: this.pendingCount(),
             },
         });
         this.tryFlush(terminalId);
@@ -531,7 +566,24 @@ export class CommanderCompletionNotifier {
             fields: {
                 itemId,
                 inboxEvent: event,
-                pendingCount: this.pendingDelegations().length + this.pendingInbox.size,
+                pendingCount: this.pendingCount(),
+            },
+        });
+        const terminalId = this.commander()?.terminalId;
+        if (terminalId) this.tryFlush(terminalId);
+    }
+
+    /**
+     * Queues one hand-over event for the Commander, content-free like the others: the hand-over and Session IDs and a
+     * closed event word. The Commander reads the user's note from the task the hand-over recorded.
+     */
+    notifyHandover(entry: CommanderHandoverNoticeEntry): void {
+        this.pendingHandovers.set(entry.handoverId, { ...entry, queuedAt: this.now() });
+        this.options.logger?.write('debug', logEventCatalog.agentCommander.completionNoticeQueued, {
+            fields: {
+                handoverId: entry.handoverId,
+                handoverEvent: entry.event,
+                pendingCount: this.pendingCount(),
             },
         });
         const terminalId = this.commander()?.terminalId;

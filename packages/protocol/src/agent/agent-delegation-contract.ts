@@ -115,17 +115,45 @@ const agentDelegationCreateFields = {
     prompt: promptSchema,
     followUpOf: identifierSchema.optional(),
     resumeFrom: identifierSchema.optional(),
+    /**
+     * Starts the Commander's first task in a Session the user handed over, continuing that Session's own Agent
+     * conversation (see `commanderHandoverSchema`). The conversation's provider owns the launch, so it takes no
+     * provider, preset, model, or effort; later tasks continue the delegation this one creates.
+     */
+    continueFromHandover: identifierSchema.optional(),
 };
 
 type DelegationCreateShape = Partial<
-    Record<'effort' | 'followUpOf' | 'model' | 'preset' | 'provider' | 'resumeFrom', unknown>
+    Record<
+        | 'continueFromHandover'
+        | 'effort'
+        | 'followUpOf'
+        | 'model'
+        | 'preset'
+        | 'provider'
+        | 'resumeFrom',
+        unknown
+    >
 >;
 
-const isOneContinuation = (value: DelegationCreateShape) => !(value.followUpOf && value.resumeFrom);
+const isOneContinuation = (value: DelegationCreateShape) =>
+    [value.followUpOf, value.resumeFrom, value.continueFromHandover].filter(Boolean).length <= 1;
 const isPresetExclusive = (value: DelegationCreateShape) =>
     !value.preset || (!value.provider && !value.model && !value.effort);
 const hasLaunchSource = (value: DelegationCreateShape) =>
-    Boolean(value.provider ?? value.preset ?? value.followUpOf ?? value.resumeFrom);
+    Boolean(
+        value.provider ??
+        value.preset ??
+        value.followUpOf ??
+        value.resumeFrom ??
+        value.continueFromHandover,
+    );
+/**
+ * A hand-over continues an existing conversation, whose provider and launch are already fixed.
+ */
+const isHandoverSelectionFree = (value: DelegationCreateShape) =>
+    !value.continueFromHandover ||
+    (!value.provider && !value.preset && !value.model && !value.effort);
 
 /**
  * A task admitted into one exact Session. This is what the delegation domain stores and authorizes.
@@ -152,15 +180,18 @@ export const agentDelegationCreateRequestSchema = z
         newSession: z.literal(true).optional(),
         title: sessionRenameTitleSchema.optional(),
     })
-    .refine(isOneContinuation, 'Choose follow-up or exact resume')
+    .refine(isOneContinuation, 'Choose follow-up, exact resume, or a hand-over')
     .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
     .refine(hasLaunchSource, 'Choose a provider, preset or saved task')
+    .refine(isHandoverSelectionFree, 'A hand-over keeps its conversation provider and launch')
     .refine(
         (value) => Boolean(value.sessionId) !== Boolean(value.newSession),
         'Choose one Session or a new Session',
     )
     .refine(
-        (value) => !value.newSession || (!value.followUpOf && !value.resumeFrom),
+        (value) =>
+            !value.newSession ||
+            (!value.followUpOf && !value.resumeFrom && !value.continueFromHandover),
         'A new Session starts a new task',
     )
     .refine(

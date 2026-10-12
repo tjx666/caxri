@@ -19,6 +19,7 @@ const createFlags = new Set([
     '--prompt-file',
     '--follow-up',
     '--resume',
+    '--continue-handover',
     '--title',
 ]);
 
@@ -67,6 +68,9 @@ async function createParameters(tokens: readonly string[]) {
         prompt: await readBoundedTextFile(path, 16_384, 'Delegation task'),
         ...(values.has('--follow-up') && { followUpOf: values.get('--follow-up') }),
         ...(values.has('--resume') && { resumeFrom: values.get('--resume') }),
+        ...(values.has('--continue-handover') && {
+            continueFromHandover: values.get('--continue-handover'),
+        }),
     });
 }
 
@@ -142,7 +146,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         method: 'agent.delegation.create',
         quietIdKey: 'delegationId',
         summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
-        usage: `--project <id> (--session <id> | --new-session --title <text>) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--follow-up <id> | --resume <id>]`,
+        usage: `--project <id> (--session <id> | --new-session --title <text>) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
         ownerConfirmation: 'Create this visible Agent delegation?',
         parseParams: createParameters,
     },

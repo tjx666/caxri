@@ -22,6 +22,7 @@ import { getBootstrap } from '../stores/selectors';
 import type { ToastActionHandlers } from '../stores/toast-actions';
 import { pushToast, tryCommand } from '../stores/toasts';
 import { undoFollowedWorkbenchRoot } from '../stores/workbench-root-notice';
+import { executeCommand } from './execute';
 
 /**
  * Archived Sessions stay in the bootstrap snapshot with an `archivedAt`, so this answers "does the record still exist",
@@ -39,6 +40,7 @@ function hasSession(sessionId: string): boolean {
  * would be exactly the duplicate path this repository refuses to keep.
  */
 export const toastActionHandlers: ToastActionHandlers = {
+    'agentCommander.open': { run: () => executeCommand('agentCommander.open') },
     'diagnostics.copyFailure': {
         run: ({ text }) => {
             // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast

@@ -435,10 +435,10 @@ export class TerminalManager {
         }
     }
 
-    private observeUserInput(terminalId: string, data: string): void {
+    private observeUserInput(id: string, data: string, origin: 'human' | 'maintenance'): void {
         if (isTerminalProtocolResponse(data) || isTerminalMouseReport(data)) return;
-        this.inputEpochs.set(terminalId, this.inputEpoch(terminalId) + 1);
-        this.onInput?.(terminalId, data);
+        this.inputEpochs.set(id, this.inputEpoch(id) + 1);
+        this.onInput?.(id, data, origin);
     }
 
     private async relaunch(
@@ -496,7 +496,7 @@ export class TerminalManager {
     }
 
     write(terminalId: string, data: string): boolean {
-        this.observeUserInput(terminalId, data);
+        this.observeUserInput(terminalId, data, 'human');
         return this.execution.write(terminalId, data);
     }
 
@@ -506,7 +506,7 @@ export class TerminalManager {
         abortSignal?: AbortSignal,
         encoding?: 'binary',
     ): Promise<boolean> {
-        if (!encoding) this.observeUserInput(terminalId, data);
+        if (!encoding) this.observeUserInput(terminalId, data, 'human');
         return this.execution.writeAcknowledged(terminalId, data, abortSignal, encoding);
     }
 
@@ -519,11 +519,11 @@ export class TerminalManager {
         terminalId: string,
         data: string,
         expectedAgentLaunchId: string,
-        origin: 'human' | 'delegation' = 'human',
+        origin: 'human' | 'maintenance' | 'delegation' = 'human',
         onDelivered?: (wasAccepted: boolean) => void,
         encoding?: 'binary',
     ): boolean {
-        if (origin === 'human' && !encoding) this.observeUserInput(terminalId, data);
+        if (origin !== 'delegation' && !encoding) this.observeUserInput(terminalId, data, origin);
         return this.execution.writeAgentExact(
             terminalId,
             data,
@@ -539,7 +539,7 @@ export class TerminalManager {
      * the current attachment.
      */
     writeAgent(terminalId: string, data: string, signal?: AbortSignal): Promise<boolean> {
-        this.observeUserInput(terminalId, data);
+        this.observeUserInput(terminalId, data, 'human');
         return this.execution.writeAgent(terminalId, data, signal);
     }
 
@@ -550,7 +550,7 @@ export class TerminalManager {
         text: string,
         signal?: AbortSignal,
     ): Promise<'accepted' | 'rejected' | 'unknown'> {
-        this.observeUserInput(terminalId, text);
+        this.observeUserInput(terminalId, text, 'human');
         return this.execution.submitAgentExact(
             terminalId,
             expectedSessionId,

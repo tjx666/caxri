@@ -35,6 +35,10 @@ describe('Agent Commander Renderer policy', () => {
             'commander.inbox.reply',
             'commander.inbox.dismiss',
             'commander.inbox.merge',
+            // The user's own hand-over picker; the Commander's Agent Endpoint cannot send these.
+            'commander.conversations',
+            'commander.session.handOver',
+            'commander.session.takeBack',
         ])
             expect(() => policy.admit(request(method))).not.toThrow();
         for (const method of [
@@ -44,6 +48,8 @@ describe('Agent Commander Renderer policy', () => {
             'commander.inbox.add',
             'commander.inbox.ack',
             'commander.inbox.resolve',
+            'commander.managedSessions',
+            'commander.session.archive',
             'commander.stop',
             'file.write',
             'project.add',

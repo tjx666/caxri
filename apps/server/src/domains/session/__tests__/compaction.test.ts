@@ -94,7 +94,7 @@ describe('batch compaction', () => {
             f.terminal.id,
             '/compact\r',
             'launch',
-            'human',
+            'maintenance',
             expect.any(Function),
         );
         expect((await f.service.run()).items[0]?.outcome).toBe('unsafe_input');

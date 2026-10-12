@@ -43,6 +43,35 @@ const INBOX_EVENT_LABEL: Record<CommanderInboxNoticeEvent, string> = {
     dismissed: 'was dismissed by the user',
 };
 
+/**
+ * What a hand-over tells the Commander: the user handed it a Session whose Agent conversation it may continue now
+ * (`ready`), once the Agent finishes the turn it is in (`busy`, followed by `ready`), or never (`ownership_only`: no
+ * conversation to continue, so the Commander starts a new task there instead).
+ */
+export type CommanderHandoverNoticeEvent = 'ready' | 'busy' | 'ownership_only';
+
+export interface CommanderHandoverNoticeEntry {
+    handoverId: string;
+    sessionId: string;
+    event: CommanderHandoverNoticeEvent;
+}
+
+const HANDOVER_EVENT_LABEL: Record<CommanderHandoverNoticeEvent, string> = {
+    ready: 'is ready to continue',
+    busy: 'is still in a turn; wait for its ready notice',
+    ownership_only: 'has no conversation to continue; start a new task there',
+};
+
+/**
+ * One hand-over clause: the hand-over and Session IDs and a closed event word, never the user's note or the Session's
+ * title. The Commander reads the note from the task ledger.
+ */
+function handoverNoticeClause(entry: CommanderHandoverNoticeEntry): string {
+    return `hand-over ${sanitizeSingleLine(entry.handoverId)} of Session ${sanitizeSingleLine(
+        entry.sessionId,
+    )} ${HANDOVER_EVENT_LABEL[entry.event]}`;
+}
+
 function noticeUpdateCount(count: number, noun: string): string {
     return count === 1 ? `1 ${noun}update` : `${count} ${noun}updates`;
 }
@@ -57,10 +86,12 @@ function inboxNoticeClause(entry: CommanderInboxNoticeEntry): string {
 /**
  * The count before a notice's clauses, naming the kind only when every clause shares it.
  */
-function noticeSummary(delegationCount: number, inboxCount: number): string {
-    if (inboxCount === 0) return noticeUpdateCount(delegationCount, 'delegation ');
-    if (delegationCount === 0) return noticeUpdateCount(inboxCount, 'inbox ');
-    return noticeUpdateCount(delegationCount + inboxCount, '');
+function noticeSummary(delegationCount: number, inboxCount: number, handoverCount: number): string {
+    const total = delegationCount + inboxCount + handoverCount;
+    if (total === delegationCount) return noticeUpdateCount(delegationCount, 'delegation ');
+    if (total === inboxCount) return noticeUpdateCount(inboxCount, 'inbox ');
+    if (total === handoverCount) return noticeUpdateCount(handoverCount, 'hand-over ');
+    return noticeUpdateCount(total, '');
 }
 
 const STATUS_LABEL: Record<CommanderCompletionNoticeStatus, string> = {
@@ -78,6 +109,7 @@ const STATUS_LABEL: Record<CommanderCompletionNoticeStatus, string> = {
 export function formatCommanderCompletionNotice(
     entries: readonly CommanderCompletionNoticeEntry[],
     inboxEntries: readonly CommanderInboxNoticeEntry[] = [],
+    handoverEntries: readonly CommanderHandoverNoticeEntry[] = [],
 ): string {
     const clauses = [
         ...entries.map(
@@ -87,8 +119,9 @@ export function formatCommanderCompletionNotice(
                 )} ${STATUS_LABEL[entry.status]}`,
         ),
         ...inboxEntries.map((entry) => inboxNoticeClause(entry)),
+        ...handoverEntries.map((entry) => handoverNoticeClause(entry)),
     ];
-    const summary = noticeSummary(entries.length, inboxEntries.length);
+    const summary = noticeSummary(entries.length, inboxEntries.length, handoverEntries.length);
     return `[Caxri notice] ${summary}: ${clauses.join('; ')}.`;
 }
 
@@ -101,15 +134,16 @@ export function formatCommanderResumePrompt(
     entries: readonly CommanderCompletionNoticeEntry[],
     wasTurnInterrupted: boolean,
     inboxEntries: readonly CommanderInboxNoticeEntry[] = [],
+    handoverEntries: readonly CommanderHandoverNoticeEntry[] = [],
 ): string {
     const parts = ['[Caxri notice] The Agent Commander restarted.'];
     if (wasTurnInterrupted)
         parts.push(
             'Your previous turn did not finish: Caxri or Codex restarted, or the turn was interrupted. Continue it unless the user stopped it on purpose.',
         );
-    if (entries.length + inboxEntries.length > 0)
+    if (entries.length + inboxEntries.length + handoverEntries.length > 0)
         parts.push(
-            formatCommanderCompletionNotice(entries, inboxEntries).replace(
+            formatCommanderCompletionNotice(entries, inboxEntries, handoverEntries).replace(
                 '[Caxri notice] ',
                 'Missed ',
             ),

@@ -279,6 +279,10 @@ export function admittedDelegation(options: {
     fingerprint: string;
     admission: ReturnType<typeof resolveDelegationAdmission>;
     previous: StoredAgentDelegation | undefined;
+    /**
+     * The conversation a hand-over continues; a new root task otherwise gets a fresh one.
+     */
+    providerSessionId?: string;
 }): StoredAgentDelegation {
     const { id, now, authority, input, admission, previous } = options;
     const provider = admission.selection.provider;
@@ -305,7 +309,9 @@ export function admittedDelegation(options: {
         frozenLaunch: admission.frozenLaunch,
         frozenInstructions: admission.frozenInstructions,
         providerSessionId:
-            previous?.providerSessionId ?? delegationAdapter(provider).createSessionId(),
+            options.providerSessionId ??
+            previous?.providerSessionId ??
+            delegationAdapter(provider).createSessionId(),
         transcriptOffset: previous?.transcriptOffset,
         rootDelegationId: previous?.rootDelegationId ?? previous?.receipt.delegationId ?? id,
         promptDigest: '',

@@ -1,6 +1,7 @@
 import {
     auxiliaryWindowStateSchema,
     CaxriError,
+    commanderHandoverSchema,
     identifierSchema,
     persistedWindowStateSchema,
 } from '@caxri/protocol';
@@ -34,6 +35,11 @@ const appStateValueSchemas = {
         terminalId: identifierSchema.optional(),
         sessionIds: z.array(identifierSchema).max(1_000),
     }),
+    /**
+     * The user's hand-overs of Sessions to the Agent Commander, at most one per managed Session. See
+     * `commander/handover.ts`.
+     */
+    commanderHandovers: z.array(commanderHandoverSchema).max(1_000),
 } as const;
 
 export type AppStateKey = keyof typeof appStateValueSchemas;

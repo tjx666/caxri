@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     confirmTurnOffHardwareAcceleration: vi.fn(),
     createTerminalForSession: vi.fn(),
+    executeCommand: vi.fn(),
     getBootstrap: vi.fn(),
     openHardwareAccelerationSettings: vi.fn(),
     openSettings: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('../features/terminal/terminal-commands', () => ({
 vi.mock('../features/updates/update-commands', () => ({
     showUpdateDialog: mocks.showUpdateDialog,
 }));
+vi.mock('./execute', () => ({ executeCommand: mocks.executeCommand }));
 vi.mock('../stores/dialogs', () => ({ openSettings: mocks.openSettings }));
 vi.mock('../stores/selectors', () => ({ getBootstrap: mocks.getBootstrap }));
 vi.mock('../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
@@ -88,6 +90,9 @@ describe('toast action handlers', () => {
 
         expect(runToastAction({ id: 'updates.show' })).toBeUndefined();
         expect(mocks.showUpdateDialog).toHaveBeenCalledOnce();
+
+        expect(runToastAction({ id: 'agentCommander.open' })).toBeUndefined();
+        expect(mocks.executeCommand).toHaveBeenCalledWith('agentCommander.open');
     });
 
     it('replays a parameterized follow-up with the data the notification recorded', () => {

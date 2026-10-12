@@ -100,6 +100,8 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.sessionMenu.pin': '置顶会话',
     'primarySidebar.sessionMenu.unpin': '取消置顶会话',
     'primarySidebar.sessionMenu.archive': '归档',
+    'primarySidebar.sessionMenu.handOverToCommander': '转交给 Agent Commander…',
+    'primarySidebar.sessionMenu.takeBackFromCommander': '从 Agent Commander 收回',
     'primarySidebar.sessionMenu.resumeAgent': '恢复 Agent',
     'primarySidebar.sessionMenu.detachAgent': '分离 Agent',
     'primarySidebar.sessionMenu.turnOffAlwaysAllow': '在此会话中关闭“始终允许”',

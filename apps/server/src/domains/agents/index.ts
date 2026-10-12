@@ -24,6 +24,11 @@ export { delegationAdapter } from './delegation';
 export type { DelegationCompletion } from './delegation-contract';
 export { discoverExecutable, readVersion } from './discovery';
 export { resolveE2EAgentUnknownRecoveryMs } from './e2e-options';
+export {
+    type ExternalConversation,
+    listExternalConversations,
+    type ListExternalConversationsOptions,
+} from './external-conversations';
 export { AgentHookManager } from './hooks';
 export {
     type AgentLifecyclePhase,

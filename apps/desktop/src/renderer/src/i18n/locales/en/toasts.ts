@@ -28,6 +28,7 @@ export const toasts = {
     'toasts.action.turnOffHardwareAcceleration': 'Turn off hardware acceleration…',
     'toasts.action.stop': 'Stop',
     'toasts.action.showUpdate': 'Show Update',
+    'toasts.action.openAgentCommander': 'Open Agent Commander',
 
     // stores/toast-actions.ts, commands/toast-actions.ts: why a follow-up can no longer run
     'toasts.actionUnavailable.unknown': 'Caxri could not run this action.',
