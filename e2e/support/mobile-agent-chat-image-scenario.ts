@@ -230,28 +230,27 @@ export async function executeMobileChatImageStripScenario(
             // eslint-disable-next-line no-await-in-loop -- each pick goes through the same native picker in turn.
             await attachGalleryImage(serial, index);
         }
-        const strip = await checkBounds(serial, 'session-image-attachments');
-        if (!strip) throw new Error('The attachment strip is not laid out');
-        await adbShell(serial, [
-            'input',
-            'swipe',
-            String(strip.right - 40),
-            String(Math.floor((strip.top + strip.bottom) / 2)),
-            String(strip.left + 40),
-            String(Math.floor((strip.top + strip.bottom) / 2)),
-            '400',
-        ]);
+        // Each new image scrolls the strip to its end, so the last image and its remove control show first.
         await waitForCheck(serial, `session-image-remove-${STRIP_IMAGE_COUNT - 1}`);
         await capture(environment, 'strip-end', artifacts);
-        await adbShell(serial, [
-            'input',
-            'swipe',
-            String(strip.left + 40),
-            String(Math.floor((strip.top + strip.bottom) / 2)),
-            String(strip.right - 40),
-            String(Math.floor((strip.top + strip.bottom) / 2)),
-            '400',
-        ]);
+        const strip = await checkBounds(serial, 'session-image-attachments');
+        if (!strip) throw new Error('The attachment strip is not laid out');
+        const width = strip.right - strip.left;
+        const y = String(Math.floor((strip.top + strip.bottom) / 2));
+        // Stay well inside the screen edges: an edge swipe is Android's Back gesture and would leave the Chat. Two
+        // swipes cover the whole strip of six images.
+        for (let swipe = 0; swipe < 2; swipe += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each gesture moves the same strip further.
+            await adbShell(serial, [
+                'input',
+                'swipe',
+                String(strip.left + Math.floor(width * 0.2)),
+                y,
+                String(strip.left + Math.floor(width * 0.8)),
+                y,
+                '400',
+            ]);
+        }
         await waitForCheck(serial, 'session-image-remove-0');
         await capture(environment, 'strip-start', artifacts);
 
