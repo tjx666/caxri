@@ -1,5 +1,11 @@
 import { StyleSheet } from 'react-native';
 
+/**
+ * Send and Stop are the composer's primary action, which the mobile design sizes at 52dp; the one-line input matches it
+ * so the row stays aligned.
+ */
+const COMPOSER_LINE_HEIGHT = 52;
+
 export const sessionDetailStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
     header: { paddingHorizontal: 4, paddingVertical: 4, zIndex: 2 },
@@ -69,26 +75,30 @@ export const sessionDetailStyles = StyleSheet.create({
     placeholderBody: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
     composerBlock: { borderTopWidth: 1, gap: 6, paddingHorizontal: 12, paddingVertical: 10 },
     composerRow: { alignItems: 'flex-end', flexDirection: 'row', gap: 8 },
+    /**
+     * Centers the 44dp attach button on the input's first line, matching the 52dp Send button beside it.
+     */
+    attachSlot: { height: COMPOSER_LINE_HEIGHT, justifyContent: 'center' },
     composer: {
-        borderRadius: 22,
+        borderRadius: COMPOSER_LINE_HEIGHT / 2,
         borderWidth: 1,
         fontSize: 15,
         flex: 1,
         lineHeight: 21,
         maxHeight: 150,
-        minHeight: 44,
+        minHeight: COMPOSER_LINE_HEIGHT,
         paddingHorizontal: 16,
-        paddingVertical: 10,
+        paddingVertical: 14,
     },
     composerMeta: { flexDirection: 'row', gap: 8, justifyContent: 'space-between' },
     reason: { flex: 1, fontSize: 12, lineHeight: 18 },
     byteCount: { fontSize: 12 },
     sendButton: {
         alignItems: 'center',
-        borderRadius: 22,
-        height: 44,
+        borderRadius: COMPOSER_LINE_HEIGHT / 2,
+        height: COMPOSER_LINE_HEIGHT,
         justifyContent: 'center',
-        width: 44,
+        width: COMPOSER_LINE_HEIGHT,
     },
     sendState: { fontSize: 13 },
 });

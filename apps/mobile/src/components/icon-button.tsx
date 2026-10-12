@@ -16,6 +16,7 @@ export const IconButton = ({
     disabled,
     expanded,
     icon: Icon,
+    onDisabledPress,
     onPress,
     size = 22,
     testID,
@@ -27,6 +28,11 @@ export const IconButton = ({
     disabled?: boolean;
     expanded?: boolean;
     icon: ComponentType<LucideProps>;
+    /**
+     * Explains a disabled control on tap. The button still looks and announces as disabled, but a tap reaches this
+     * instead of doing nothing, so the reason is visible and not only a screen reader hint.
+     */
+    onDisabledPress?: () => void;
     onPress: () => void;
     size?: number;
     testID?: string;
@@ -37,9 +43,9 @@ export const IconButton = ({
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
         accessibilityState={{ disabled, expanded }}
-        disabled={disabled}
+        disabled={disabled && !onDisabledPress}
         hitSlop={4}
-        onPress={onPress}
+        onPress={disabled ? onDisabledPress : onPress}
         style={({ pressed }) => ({
             alignItems: 'center',
             borderRadius: 24,

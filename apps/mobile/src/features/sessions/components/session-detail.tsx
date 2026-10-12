@@ -40,6 +40,7 @@ export const SessionDetail = ({
     onMarkRead,
     onRefresh,
     onSegmentChange,
+    savedAt,
     segment,
     session,
     theme,
@@ -61,6 +62,10 @@ export const SessionDetail = ({
     onMarkRead: () => Promise<void>;
     onRefresh: () => Promise<void>;
     onSegmentChange: (segment: SessionSegment) => void;
+    /**
+     * When `session` comes from the Session list saved on this phone rather than a live read.
+     */
+    savedAt: number | null;
     segment: SessionSegment;
     session: MobileSessionItem;
     theme: MobileTheme;
@@ -110,6 +115,7 @@ export const SessionDetail = ({
                 onMarkRead={onMarkRead}
                 onSegmentChange={onSegmentChange}
                 panels={panels.panels}
+                savedAt={savedAt}
                 segment={segment}
                 segments={segments}
                 session={session}

@@ -5,6 +5,7 @@ import type { MobileConnectionStatus } from '../../connection/connection-state';
 import { allMobileSessions } from '../hooks/use-session-polling';
 import { describeSessionHomeEmptyState } from '../session-home-empty-state';
 import type { MobileSessionSections } from '../session-model';
+import { isSessionListErrorShown } from '../session-notices';
 import { savedAgeLabel } from '../session-row-model';
 
 const styles = StyleSheet.create({
@@ -30,6 +31,7 @@ const styles = StyleSheet.create({
 export const SessionHomeStatus = ({
     error,
     hasLoaded,
+    isConnectionNoticeShown,
     isLoading,
     now,
     onRetry,
@@ -39,6 +41,10 @@ export const SessionHomeStatus = ({
 }: {
     error: string | null;
     hasLoaded: boolean;
+    /**
+     * Whether the app-wide connection banner above already explains why the list is not live.
+     */
+    isConnectionNoticeShown: boolean;
     isLoading: boolean;
     now: number;
     onRetry: () => Promise<void>;
@@ -57,7 +63,7 @@ export const SessionHomeStatus = ({
                 </Text>
             </View>
         )}
-        {hasLoaded && error ? (
+        {isSessionListErrorShown({ error, hasLoaded, isConnectionNoticeShown }) ? (
             <View
                 style={[
                     styles.banner,

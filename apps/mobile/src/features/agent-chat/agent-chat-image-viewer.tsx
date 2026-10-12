@@ -8,6 +8,7 @@ import { X } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatImageTarget } from './agent-chat-images';
+import { agentChatViewerContent, clampZoomPan } from './agent-chat-images';
 import { useAgentChatImage } from './use-agent-chat-image';
 
 const MIN_SCALE = 1;
@@ -16,15 +17,24 @@ const DOUBLE_TAP_SCALE = 2.5;
 
 /**
  * Pinch, pan, and double-tap zoom over one image, after Paseo's zoomable viewport (Apache-2.0). Zoom never goes below
- * the fitted size, and returning to it recenters the picture.
+ * the fitted size, returning to it recenters the picture, and a pan stops at the zoomed picture's edges so it can never
+ * be dragged off screen.
  */
-const ZoomableImage = ({ uri }: { uri: string }) => {
+const ZoomableImage = ({
+    accessibilityLabel,
+    uri,
+}: {
+    accessibilityLabel: string;
+    uri: string;
+}) => {
     const scale = useSharedValue(1);
     const savedScale = useSharedValue(1);
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
     const savedX = useSharedValue(0);
     const savedY = useSharedValue(0);
+    const width = useSharedValue(0);
+    const height = useSharedValue(0);
     const reset = () => {
         'worklet';
         scale.value = withTiming(1);
@@ -39,15 +49,31 @@ const ZoomableImage = ({ uri }: { uri: string }) => {
             scale.value = Math.min(MAX_SCALE, Math.max(0.8, savedScale.value * event.scale));
         })
         .onEnd(() => {
-            if (scale.value <= MIN_SCALE) reset();
-            else savedScale.value = scale.value;
+            if (scale.value <= MIN_SCALE) {
+                reset();
+                return;
+            }
+            savedScale.value = scale.value;
+            // Zooming out shrinks the room to pan, so a picture panned to an edge is pulled back inside it.
+            savedX.value = clampZoomPan(translateX.value, scale.value, width.value);
+            savedY.value = clampZoomPan(translateY.value, scale.value, height.value);
+            translateX.value = withTiming(savedX.value);
+            translateY.value = withTiming(savedY.value);
         });
     const pan = Gesture.Pan()
         .maxPointers(1)
         .onUpdate((event) => {
             if (savedScale.value <= MIN_SCALE) return;
-            translateX.value = savedX.value + event.translationX;
-            translateY.value = savedY.value + event.translationY;
+            translateX.value = clampZoomPan(
+                savedX.value + event.translationX,
+                scale.value,
+                width.value,
+            );
+            translateY.value = clampZoomPan(
+                savedY.value + event.translationY,
+                scale.value,
+                height.value,
+            );
         })
         .onEnd(() => {
             savedX.value = translateX.value;
@@ -74,10 +100,18 @@ const ZoomableImage = ({ uri }: { uri: string }) => {
     }));
     return (
         <GestureDetector gesture={gesture}>
-            <Animated.View collapsable={false} style={[styles.fill, style]}>
+            <Animated.View
+                collapsable={false}
+                onLayout={(event) => {
+                    width.value = event.nativeEvent.layout.width;
+                    height.value = event.nativeEvent.layout.height;
+                }}
+                style={[styles.fill, style]}
+            >
                 <Image
+                    accessibilityHint="Pinch or double-tap to zoom."
                     accessibilityIgnoresInvertColors
-                    accessibilityLabel="Full-size image"
+                    accessibilityLabel={accessibilityLabel}
                     resizeMode="contain"
                     source={{ uri }}
                     style={styles.fill}
@@ -126,20 +160,32 @@ const ViewerContent = ({
 }) => {
     const insets = useSafeAreaInsets();
     const original = useAgentChatImage({ ...target, variant: 'original' });
-    // Already loaded by the message strip; it stands in when the provider's record has no original (Codex).
+    // Already loaded by the message strip; it stands in while the original loads, and when the provider's record has
+    // no original (Codex).
     const thumbnail = useAgentChatImage({ ...target, variant: 'thumbnail' });
-    const preview = original.isMissing ? thumbnail.uri : undefined;
-    const uri = original.uri ?? preview;
-    const message =
-        !preview && original.isMissing
-            ? 'This image is no longer available.'
-            : original.isError
-              ? 'The image could not be loaded.'
-              : null;
+    const content = agentChatViewerContent(original, thumbnail.uri);
+    const position = `image ${target.index + 1} of this message`;
     return (
         <GestureHandlerRootView style={styles.backdrop} testID="agent-chat-image-viewer">
-            {uri ? <ZoomableImage uri={uri} /> : null}
-            {preview ? (
+            {content.placeholderUri ? (
+                <Image
+                    accessibilityIgnoresInvertColors
+                    accessibilityLabel={`Preview of ${position}`}
+                    resizeMode="contain"
+                    source={{ uri: content.placeholderUri }}
+                    style={[styles.fill, styles.placeholder]}
+                    testID="agent-chat-image-viewer-placeholder"
+                />
+            ) : null}
+            {content.imageUri ? (
+                <ZoomableImage
+                    accessibilityLabel={
+                        content.isPreview ? `Preview of ${position}` : `Full size ${position}`
+                    }
+                    uri={content.imageUri}
+                />
+            ) : null}
+            {content.isPreview ? (
                 <Text
                     style={[styles.note, { bottom: insets.bottom + 24 }]}
                     testID="agent-chat-image-viewer-preview-note"
@@ -153,11 +199,13 @@ const ViewerContent = ({
                     <Text style={styles.status}>{Math.round(original.progress * 100)}%</Text>
                 </View>
             ) : null}
-            {message ? (
+            {content.message ? (
                 <View style={styles.center} testID="agent-chat-image-viewer-error">
-                    <Text style={styles.status}>{message}</Text>
+                    <Text style={styles.status}>{content.message}</Text>
                     {original.isError ? (
                         <Pressable
+                            accessibilityHint="Loads the full-size image again."
+                            accessibilityLabel="Retry loading the image"
                             accessibilityRole="button"
                             onPress={original.retry}
                             style={[styles.retry, { backgroundColor: theme.elevated }]}
@@ -185,6 +233,10 @@ const ViewerContent = ({
 const styles = StyleSheet.create({
     backdrop: { backgroundColor: 'rgba(0, 0, 0, 0.94)', flex: 1 },
     fill: { flex: 1, height: '100%', width: '100%' },
+    /**
+     * The thumbnail is a fraction of the original's resolution, so it is dimmed while it stands in for it.
+     */
+    placeholder: { opacity: 0.6, ...StyleSheet.absoluteFill },
     center: {
         alignItems: 'center',
         gap: 12,
@@ -200,7 +252,12 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     status: { color: '#fff', fontSize: 15, fontVariant: ['tabular-nums'], textAlign: 'center' },
-    retry: { borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10 },
+    retry: {
+        borderRadius: 10,
+        justifyContent: 'center',
+        minHeight: 48,
+        paddingHorizontal: 18,
+    },
     retryText: { fontSize: 15, fontWeight: '600' },
     close: {
         alignItems: 'center',

@@ -42,7 +42,7 @@ const refreshAfterAcceptedAction = async (onRefresh: () => Promise<void>): Promi
 
 export const useSessionComposer = ({
     attachmentIds,
-    hasPendingAttachment,
+    attachmentWaitReason,
     onAttachmentsSent,
     deviceRole,
     draft,
@@ -53,7 +53,10 @@ export const useSessionComposer = ({
     session,
 }: {
     attachmentIds: string[];
-    hasPendingAttachment: boolean;
+    /**
+     * Why Send waits on the attached images, or `null` once they are all uploaded.
+     */
+    attachmentWaitReason: string | null;
     onAttachmentsSent: () => void;
     deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
@@ -85,6 +88,7 @@ export const useSessionComposer = ({
     const isBusy = delivery.kind === 'sending' || delivery.kind === 'stopping';
     const isSending = delivery.kind === 'sending';
     const isRunning = session.lastActivityState === 'running';
+    const hasPendingAttachment = attachmentWaitReason !== null;
     const isShowStop =
         isRunning &&
         draft.trim().length === 0 &&
@@ -95,9 +99,7 @@ export const useSessionComposer = ({
         : composerDisabledReason(session, isConnected, deviceRole);
     const inputError =
         draft.trim().length === 0 ? null : composerTextError(draft, MOBILE_AGENT_SUBMIT_MAX_BYTES);
-    const disabledReason =
-        targetReason ??
-        (hasPendingAttachment ? 'Wait for the image upload to finish.' : inputError);
+    const disabledReason = targetReason ?? attachmentWaitReason ?? inputError;
     const canSubmit =
         !isBusy &&
         !disabledReason &&

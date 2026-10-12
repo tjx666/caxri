@@ -53,6 +53,12 @@ export const sentenceStartProvider = (provider: string): string =>
     provider.charAt(0).toUpperCase() + provider.slice(1);
 
 /**
+ * Why a Chat composer's attach button is disabled for a provider that takes no images in a Chat (Grok Build).
+ */
+export const agentChatImagesUnsupportedReason = (provider: string): string =>
+    `${sentenceStartProvider(provider)} can't read images in a Chat.`;
+
+/**
  * The same closed failure copy the Desktop Chat pane shows; provider text never selects the message. `canRetry` is
  * false on a view-only device, which has no Retry button, so the copy names the access it needs instead of asking it to
  * retry.

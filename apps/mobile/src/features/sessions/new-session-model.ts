@@ -88,6 +88,27 @@ export const newSessionSurface = (
     return preferred ?? (isChatDefault ? 'chat' : 'pty');
 };
 
+/**
+ * The surface `Open as` starts on before any pick here: the computer's `session.openAgentsInChat` setting, or `null`
+ * while that setting has not been read.
+ */
+export const newSessionDefaultSurface = (
+    openAgentsInChat: boolean | undefined,
+): TerminalSurface | null =>
+    openAgentsInChat === undefined ? null : openAgentsInChat ? 'chat' : 'pty';
+
+/**
+ * The one-line subtitle under an `Open as` choice: what the surface is, and whether it is the computer's default.
+ */
+export const newSessionSurfaceDescription = (
+    surface: TerminalSurface,
+    defaultSurface: TerminalSurface | null,
+): string => {
+    const description =
+        surface === 'chat' ? 'Replies as readable messages' : "The Agent's own terminal screen";
+    return surface === defaultSurface ? `${description} · Default` : description;
+};
+
 export const selectedNewSessionProject = (
     preferred: string | null,
     projects: NewSessionProject[],

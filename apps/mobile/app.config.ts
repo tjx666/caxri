@@ -61,7 +61,7 @@ export default function createExpoConfig({ config }: ConfigContext): ExpoConfig 
             [
                 'expo-camera',
                 {
-                    cameraPermission: 'Allow Caxri to scan a pairing code shown on your Mac.',
+                    cameraPermission: 'Allow Caxri to scan a pairing code shown on your computer.',
                 },
             ],
             'expo-secure-store',

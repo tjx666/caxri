@@ -52,7 +52,7 @@ export const describeSessionHomeEmptyState = ({
     if (error)
         return {
             action: 'retry',
-            body: 'Check the Mac connection, then try again.',
+            body: 'Check the connection to your computer, then try again.',
             showSpinner: false,
             testID: 'session-list-error',
             title: 'Unable to load Sessions',

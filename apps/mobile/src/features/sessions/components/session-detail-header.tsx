@@ -21,7 +21,9 @@ import { isAgentChatTerminal } from '../../agent-chat/agent-chat-model';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
+import { useSavedClock } from '../../read-cache/use-saved-age';
 import type { MobileSessionItem } from '../session-model';
+import { sessionStateLabel } from '../session-row-model';
 import type { SESSION_SEGMENTS, SessionSegment } from '../session-ui-state';
 import {
     isPanelSessionSegment,
@@ -160,6 +162,7 @@ export const SessionDetailHeader = ({
     onMarkRead,
     onSegmentChange,
     panels,
+    savedAt,
     segment,
     segments,
     session,
@@ -171,6 +174,10 @@ export const SessionDetailHeader = ({
     onMarkRead: () => Promise<void>;
     onSegmentChange: (segment: SessionSegment) => void;
     panels: readonly Panel[] | undefined;
+    /**
+     * When `session` comes from the Session list saved on this phone rather than a live read.
+     */
+    savedAt: number | null;
     segment: SessionSegment;
     /**
      * Visible tabs in order: the fixed segments this Session supports, then one per Project view.
@@ -185,6 +192,7 @@ export const SessionDetailHeader = ({
     const [markReadError, setMarkReadError] = useState<string | null>(null);
     const [isTitleExpanded, setTitleExpanded] = useState(false);
     const isChat = isAgentChatTerminal(session.primaryTerminal);
+    const now = useSavedClock(savedAt);
     const handleMarkRead = useCallback(async (): Promise<void> => {
         closeMenu();
         try {
@@ -229,7 +237,12 @@ export const SessionDetailHeader = ({
                         >
                             {session.displayTitle}
                         </Text>
-                        <SessionStatusGlyph session={session} theme={theme} />
+                        <SessionStatusGlyph
+                            isSaved={savedAt !== null}
+                            label={sessionStateLabel(session.stateLabel, savedAt, now)}
+                            session={session}
+                            theme={theme}
+                        />
                     </View>
                     <View collapsable={false} ref={menuAnchor}>
                         <IconButton

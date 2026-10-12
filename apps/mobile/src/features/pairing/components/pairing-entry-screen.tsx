@@ -85,7 +85,7 @@ export const PairingEntryScreen = () => {
                             accessibilityLabel={
                                 wasRevoked
                                     ? 'Pairing revoked. Pair this device with Caxri again.'
-                                    : 'Not connected. Pair this device with Caxri on your Mac.'
+                                    : 'Not connected. Pair this device with Caxri on your computer.'
                             }
                             style={styles.status}
                             testID="pairing-status"
@@ -97,7 +97,7 @@ export const PairingEntryScreen = () => {
                         </View>
                         <ActionButton
                             navigates
-                            accessibilityHint="Opens the camera to scan a pairing code shown by Caxri on your Mac."
+                            accessibilityHint="Opens the camera to scan a pairing code shown by Caxri on your computer."
                             onPress={() => router.push('/pair/scan')}
                             testID="pairing-scan-button"
                             theme={theme}
@@ -115,7 +115,7 @@ export const PairingEntryScreen = () => {
                             Paste pairing link
                         </ActionButton>
                         <Text style={[styles.footnote, { color: theme.muted }]}>
-                            On your Mac, open Settings → Mobile and turn on Mobile access.
+                            On your computer, open Settings → Mobile and turn on Mobile access.
                         </Text>
                     </View>
                 </View>

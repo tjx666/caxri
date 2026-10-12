@@ -218,6 +218,11 @@ const AgentChatModelSheet = ({
 };
 
 /**
+ * Grows the 40dp model row to a 48dp touch target without making the composer taller.
+ */
+const TRIGGER_HIT_SLOP = { top: 4, bottom: 4, left: 8, right: 8 } as const;
+
+/**
  * The model and effort the Chat's next turn uses, above the composer input as Desktop keeps them beside its input. It
  * opens the sheet only when the provider listed models and the device may configure the Chat now; otherwise it is a
  * plain label, so the reader still sees which model answers.
@@ -243,7 +248,9 @@ export const AgentChatModelButton = ({
                 {trigger.model}
             </Text>
             {trigger.effort ? (
-                <Text style={[styles.triggerEffort, { color: theme.muted }]}>{trigger.effort}</Text>
+                <Text style={[styles.triggerEffort, { color: theme.muted }]}>
+                    {`· ${trigger.effort}`}
+                </Text>
             ) : null}
             {trigger.isInteractive ? <ChevronDown color={theme.muted} size={14} /> : null}
         </>
@@ -276,7 +283,7 @@ export const AgentChatModelButton = ({
                 accessibilityHint="Chooses the model and reasoning effort for the next turn."
                 accessibilityLabel={trigger.accessibilityLabel}
                 accessibilityRole="button"
-                hitSlop={8}
+                hitSlop={TRIGGER_HIT_SLOP}
                 onPress={() => setOpen(true)}
                 style={({ pressed }) => [
                     styles.trigger,
@@ -299,8 +306,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 6,
         maxWidth: '100%',
-        minHeight: 32,
-        paddingHorizontal: 6,
+        minHeight: 40,
+        paddingHorizontal: 8,
     },
     triggerModel: { flexShrink: 1, fontSize: 13, fontWeight: '600' },
     triggerEffort: { fontSize: 13 },
