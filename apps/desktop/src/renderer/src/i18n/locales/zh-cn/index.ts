@@ -1,0 +1,79 @@
+import type { enResources } from '../en';
+import type { TranslatedNamespace } from '../types';
+import { agentActions } from './agent-actions';
+import { agentActivity } from './agent-activity';
+import { agentChat } from './agent-chat';
+import { agentCommander } from './agent-commander';
+import { agentInbox } from './agent-inbox';
+import { agentStatus } from './agent-status';
+import { bugReport } from './bug-report';
+import { commands } from './commands';
+import { common } from './common';
+import { confirmations } from './confirmations';
+import { core } from './core';
+import { editor } from './editor';
+import { gpu } from './gpu';
+import { palette } from './palette';
+import { panel } from './panel';
+import { pathBrowser } from './path-browser';
+import { preview } from './preview';
+import { primarySidebar } from './primary-sidebar';
+import { processExplorer } from './process-explorer';
+import { projectSearch } from './project-search';
+import { rendererPerformance } from './renderer-performance';
+import { screencast } from './screencast';
+import { secondarySidebar } from './secondary-sidebar';
+import { session } from './session';
+import { settings } from './settings';
+import { shellCommand } from './shell-command';
+import { statusBar } from './status-bar';
+import { tabs } from './tabs';
+import { terminal } from './terminal';
+import { toasts } from './toasts';
+import { updates } from './updates';
+import { usage } from './usage';
+import { viewContainers } from './view-containers';
+import { windowZoom } from './window-zoom';
+import { workbench } from './workbench';
+
+/**
+ * Simplified Chinese strings. Each namespace module is typed against its English source, and this aggregate is typed
+ * against the English aggregate, so a namespace registered in one locale but not the other fails type checking.
+ */
+export const zhCNResources: TranslatedNamespace<typeof enResources> = {
+    ...agentActions,
+    ...agentActivity,
+    ...agentChat,
+    ...agentCommander,
+    ...agentInbox,
+    ...agentStatus,
+    ...bugReport,
+    ...commands,
+    ...common,
+    ...confirmations,
+    ...core,
+    ...editor,
+    ...gpu,
+    ...palette,
+    ...panel,
+    ...pathBrowser,
+    ...preview,
+    ...primarySidebar,
+    ...processExplorer,
+    ...projectSearch,
+    ...rendererPerformance,
+    ...screencast,
+    ...secondarySidebar,
+    ...session,
+    ...settings,
+    ...shellCommand,
+    ...statusBar,
+    ...tabs,
+    ...terminal,
+    ...toasts,
+    ...updates,
+    ...usage,
+    ...viewContainers,
+    ...windowZoom,
+    ...workbench,
+};
