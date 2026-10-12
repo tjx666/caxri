@@ -91,8 +91,8 @@ export default defineConfig(async ({ command }) => {
             build: {
                 sourcemap: IS_SOURCEMAP_ENABLED,
                 /**
-                 * Native modules and the shared `ws` transport stay external and are packaged from `dependencies`;
-                 * every other pure-JS dependency lives in `devDependencies` so electron-vite bundles it.
+                 * Externalizes only root `dependencies`, which is intentionally empty: every Desktop package, including
+                 * the `ws` transport, lives in `devDependencies` so electron-vite bundles it into Main.
                  */
                 externalizeDeps: true,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;

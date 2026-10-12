@@ -99,8 +99,12 @@ function createHarness(
     });
     const service = new TerminalSuspensionService({
         database: {
-            agentCommanderRows: () =>
-                options.commanderSessionId && { sessionId: options.commanderSessionId },
+            getAppState: () =>
+                options.commanderSessionId && {
+                    projectId: 'project-1',
+                    sessionId: options.commanderSessionId,
+                    sessionIds: [],
+                },
             getProject: () => ({ hiddenAt: undefined }),
             getSession: (id: string) => sessions.get(id),
             getTerminal: (id: string) => terminals.get(id),

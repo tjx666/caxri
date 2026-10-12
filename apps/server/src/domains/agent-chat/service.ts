@@ -4,6 +4,7 @@ import type {
     AgentChatMessageInput,
     AgentChatModelRequest,
     AgentChatPermissionRequest,
+    AgentChatResponse,
     AgentChatSnapshot,
     AgentChatTaskSnapshot,
     TerminalRecord,
@@ -35,7 +36,7 @@ import {
     requireChatTerminal,
 } from './chat-launch';
 import { chatPermissionToStore, switchChatPermission } from './chat-permission-switch';
-import type { AgentChatProviderSession, AgentChatResponse } from './chat-provider';
+import type { AgentChatProviderSession } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import type { ChatRewindRequest } from './chat-rewind';
 import { restoreChatFiles, rewindChat } from './chat-rewind';

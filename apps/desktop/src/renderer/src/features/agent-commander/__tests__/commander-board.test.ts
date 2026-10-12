@@ -340,7 +340,7 @@ describe('commanderTaskBadge', () => {
                 failure: 'startup_waiting',
                 updatedAt: 1,
             }),
-        ).toMatchObject({ label: 'Needs you', toneClassName: 'text-warning' });
+        ).toMatchObject({ label: 'Waiting at startup', toneClassName: 'text-warning' });
     });
 });
 

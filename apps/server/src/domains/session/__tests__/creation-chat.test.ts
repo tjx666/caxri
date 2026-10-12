@@ -63,6 +63,14 @@ describe('session.create with the chat surface', () => {
 describe('session creation for a forked Chat', () => {
     it('binds the forked Agent Session in the source cwd before the Chat starts', async () => {
         const { create, database, observeSelectedSession, project, startChat } = await fixture();
+        const { session: source } = database.createSession(project.id, null);
+        const sourceTerminal = database.createTerminal(source.id, 'codex', undefined, 'chat');
+        database.setChatPermission(sourceTerminal.id, {
+            permissionMode: 'readOnly',
+            planMode: true,
+        });
+        // The fork keeps the source's narrower stored choice over a broader Project default.
+        database.setProjectChatDefault(project.id, 'codex', { permissionMode: 'fullAccess' });
         startChat.mockImplementation((terminalId: string) => {
             expect(database.getTerminal(terminalId)?.agentSessionId).toBe('forked-thread');
         });
@@ -70,6 +78,11 @@ describe('session creation for a forked Chat', () => {
         const created = await create(project.id, 'codex', 'preserve', undefined, 'chat', {
             cwd: join(project.rootPath, 'nested'),
             agentSessionId: 'forked-thread',
+            sourceTerminalId: sourceTerminal.id,
+        });
+        expect(database.getChatPermission(created.terminal!.id)).toEqual({
+            permissionMode: 'readOnly',
+            planMode: true,
         });
 
         expect(created.terminal).toMatchObject({
@@ -78,6 +91,22 @@ describe('session creation for a forked Chat', () => {
         });
         expect(startChat).toHaveBeenCalledOnce();
         expect(observeSelectedSession).not.toHaveBeenCalled();
+    });
+    it('keeps the Project default when the source Chat stored no permission choice', async () => {
+        const { create, database, project } = await fixture();
+        const { session: source } = database.createSession(project.id, null);
+        const sourceTerminal = database.createTerminal(source.id, 'codex', undefined, 'chat');
+        database.setProjectChatDefault(project.id, 'codex', { permissionMode: 'readOnly' });
+
+        const created = await create(project.id, 'codex', 'preserve', undefined, 'chat', {
+            cwd: project.rootPath,
+            agentSessionId: undefined,
+            sourceTerminalId: sourceTerminal.id,
+        });
+        expect(database.getChatPermission(created.terminal!.id)).toEqual({
+            permissionMode: 'readOnly',
+            planMode: false,
+        });
     });
 });
 

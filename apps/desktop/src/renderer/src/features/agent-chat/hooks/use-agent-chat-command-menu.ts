@@ -3,17 +3,17 @@ import { useEffect, useId, useMemo, useState } from 'react';
 
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
 
+import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
 import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useTerminal } from '../../../stores/selectors';
 import {
     agentChatMenuActions,
-    agentChatMenuKeyAction,
     agentChatSkillDiscoveryNotice,
     agentChatSlashQuery,
     filterAgentChatActions,
 } from '../agent-chat-slash-commands';
-import { agentChatActionSuggestion, agentChatSuggestionOptionId } from '../agent-chat-suggestions';
+import { agentChatActionSuggestion } from '../agent-chat-suggestions';
 
 /**
  * Discovered skills stay fresh enough while the user types a run of invocations, and a new search after a pause
@@ -74,7 +74,7 @@ export function useAgentChatCommandMenu({
         active.query === query ? Math.min(active.index, Math.max(matches.length - 1, 0)) : 0;
     const activeCommand = isOpen ? matches[activeIndex] : undefined;
     const activeOptionId = activeCommand
-        ? agentChatSuggestionOptionId(listId, activeCommand.invocation)
+        ? suggestionOptionId(listId, activeCommand.invocation)
         : undefined;
     /**
      * The rows never take focus, so the browser does not scroll the active one into view the way it would a focused
@@ -111,8 +111,8 @@ export function useAgentChatCommandMenu({
         highlight: (index: number) => setActive({ query, index }),
         /**
          * Arrow keys move, Tab completes, Enter chooses, and Escape dismisses while the list is open
-         * (`agentChatMenuKeyAction`). With no matching row only Escape is the menu's, so Enter still sends the draft as
-         * a message. Returns whether the key was the menu's, so the composer skips its own handling.
+         * (`suggestionMenuKeyAction`). With no matching row only Escape is the menu's, so Enter still sends the draft
+         * as a message. Returns whether the key was the menu's, so the composer skips its own handling.
          */
         didHandleKey: (
             event: KeyboardEvent<HTMLTextAreaElement>,
@@ -122,7 +122,7 @@ export function useAgentChatCommandMenu({
             },
         ): boolean => {
             if (!isOpen || event.nativeEvent.isComposing) return false;
-            const action = agentChatMenuKeyAction(event);
+            const action = suggestionMenuKeyAction(event);
             if (!action || (action !== 'dismiss' && !activeCommand)) return false;
             event.preventDefault();
             if (action === 'next' || action === 'previous') move(action === 'next' ? 1 : -1);

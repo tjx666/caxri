@@ -99,7 +99,13 @@ _Avoid_: Output, activity
 The items the Agent Commander explicitly raised for the user to act on: pull requests it verified as
 ready to merge and questions only the user can answer, shown as "Needs you" in the Agent Commander
 window. An item exists only because the Commander reported it.
-_Avoid_: Agent Inbox (Peer Messages), notifications, to-do list
+_Avoid_: Peer Inbox, Agent Inbox, notifications, to-do list
+
+**Peer Inbox**:
+The Server-mediated, text-only channel through which managed Agents send, wait for, and reply to
+short Peer Messages (`caxri agent message`). A message the user must approve is held, and the user
+decides on it from the Desktop; a message is never typed into a Terminal.
+_Avoid_: Caxri Inbox, Agent Inbox, Commander Inbox, chat
 
 **Unread Attention**:
 Attention whose current generation has not been acknowledged by any Client. Visibly focusing the

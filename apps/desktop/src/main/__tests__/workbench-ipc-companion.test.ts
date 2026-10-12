@@ -1,14 +1,19 @@
+import { RENDERER_DIAGNOSTIC_CHANNEL } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => {
     const handles = new Map<string, (...arguments_: unknown[]) => unknown>();
+    const listeners = new Map<string, (...arguments_: unknown[]) => unknown>();
     return {
         handles,
+        listeners,
         ipcMain: {
             handle: vi.fn((channel: string, handler: (...arguments_: unknown[]) => unknown) =>
                 handles.set(channel, handler),
             ),
-            on: vi.fn(),
+            on: vi.fn((channel: string, handler: (...arguments_: unknown[]) => unknown) =>
+                listeners.set(channel, handler),
+            ),
         },
     };
 });
@@ -62,5 +67,98 @@ describe('workbench IPC companion requests', () => {
         await request({ sender: renderer }, envelope);
 
         expect(seen).toEqual([companionWindow, undefined]);
+    });
+
+    /**
+     * The Agent Commander window mounts the same Terminal pane, so a WebGL failure there must reach the GPU log tagged
+     * with its window; its startup frame is not the Workbench's and must not complete the Workbench startup profile.
+     */
+    it('accepts Terminal diagnostics from the companion as the commander window and ignores its startup frame', () => {
+        const renderer = {};
+        const companionRenderer = {};
+        const onRendererDiagnostic = vi.fn();
+        const onStartupFrame = vi.fn();
+        const write = vi.fn();
+        installWorkbenchIpc({
+            isQuitting: () => false,
+            isRecovering: () => false,
+            logger: () => ({ write }) as never,
+            onEventsReady: vi.fn(),
+            onRendererDiagnostic,
+            onStartupFrame,
+            renderer: () => renderer as never,
+            companion: {
+                renderer: () => companionRenderer as never,
+                window: () => {},
+                admit: vi.fn(),
+                onEventsReady: vi.fn(),
+                onRendererError: vi.fn(),
+            },
+            transport: { dispatch: vi.fn(), negotiate: vi.fn() },
+        });
+        const report = electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;
+        const diagnostic = {
+            kind: 'terminal-renderer',
+            diagnosticId: '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae',
+            terminalId: 'terminal-1',
+            mode: 'dom',
+            reason: 'context-loss',
+            trigger: 'webgl-context-loss',
+            preference: 'auto',
+            contextLossCount: 1,
+            redrawCount: 1,
+            visibilityRestoreCoalescedCount: 0,
+            liveWebglContextCount: 1,
+            recoveryResult: 'dom-restored',
+            retryAttemptCount: 0,
+            retryDelayMs: 0,
+            retryLimit: 3,
+            retryState: 'idle',
+            receivedBytes: 0,
+            droppedBytes: 0,
+            paneActive: true,
+            terminalProcessRunning: true,
+            agentTerminal: true,
+            documentVisible: true,
+            documentFocused: true,
+            terminalFocused: true,
+        };
+        const osc52 = {
+            kind: 'terminal-osc52-clipboard-write-failure',
+            diagnosticId: 'bc3db163-6b13-4b50-81f4-126c55cc429b',
+            terminalId: 'terminal-1',
+            errorCategory: 'not-allowed',
+            clipboardWritePermission: 'granted',
+            documentVisible: true,
+            documentFocused: true,
+            secureContext: true,
+            terminalFocused: true,
+            userActivationActive: false,
+            userActivationHasBeenActive: true,
+        };
+
+        report({ sender: companionRenderer }, diagnostic);
+        report({ sender: companionRenderer }, osc52);
+        const startupFrame = {
+            kind: 'startup-frame',
+            diagnosticId: '0b8d7a3e-6a0f-4b5e-9d55-3c1f1f3c2a10',
+            timeOriginEpochMs: 1_700_000_000_000,
+            loaderRemovedMs: 400,
+            firstFrameMs: 420,
+            documentVisible: true,
+        };
+        report({ sender: companionRenderer }, startupFrame);
+
+        expect(onRendererDiagnostic).toHaveBeenCalledExactlyOnceWith(diagnostic, 'commander');
+        expect(write).toHaveBeenCalledOnce();
+        expect(write.mock.calls[0]).toMatchObject([
+            'warn',
+            'renderer.terminal_osc52_clipboard_write_failed',
+            { fields: { code: 'TERMINAL_OSC52_CLIPBOARD_WRITE_FAILED', window: 'commander' } },
+        ]);
+        expect(onStartupFrame).not.toHaveBeenCalled();
+        // The same frame from the Workbench is accepted, so the companion's was refused by sender, not by shape.
+        report({ sender: renderer }, startupFrame);
+        expect(onStartupFrame).toHaveBeenCalledExactlyOnceWith(startupFrame);
     });
 });

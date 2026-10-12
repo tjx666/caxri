@@ -41,6 +41,10 @@ interface AgentChatComposerProperties {
      */
     activity: AgentChatActivity | undefined;
     /**
+     * Whether the permission menu offers "Use as Project default" (`AgentChatHostCapabilities`).
+     */
+    canSaveProjectDefault: boolean;
+    /**
      * The provider's slash commands, from the projection.
      */
     commands: readonly AgentChatCommand[] | undefined;
@@ -117,6 +121,7 @@ interface AgentChatComposerProperties {
 export function AgentChatComposer({
     activeTurnId,
     activity,
+    canSaveProjectDefault,
     commands,
     dropHandlersReference,
     edit: editOptions,
@@ -318,6 +323,7 @@ export function AgentChatComposer({
                 />
                 <AgentChatComposerActions
                     canAttachImages={supportsImages}
+                    canSaveProjectDefault={canSaveProjectDefault}
                     isAttaching={isAttaching}
                     isSendable={isSendable}
                     isStopping={isStopping}

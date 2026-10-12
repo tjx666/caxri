@@ -1,12 +1,12 @@
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 
 import type {
-    AgentChatDecision,
     AgentChatFailureReason,
     AgentChatMessageInput,
     AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatPermission,
+    AgentChatResponse,
     AgentChatSnapshot,
     AgentChatTaskPatchOperation,
     AgentChatTaskSnapshot,
@@ -105,10 +105,6 @@ export interface AgentChatTranscript {
     content: string;
     truncated: boolean;
 }
-
-export type AgentChatResponse =
-    | { kind: 'decision'; decision: AgentChatDecision }
-    | { kind: 'answers'; answers: Record<string, string[]> };
 
 /**
  * Test seam for a fake provider child. Always called with piped stdio.
@@ -212,6 +208,16 @@ export interface ChatTaskHistory {
 }
 
 /**
+ * What a provider fork produced: the new Agent Session, or none when nothing comes before the message and the new Chat
+ * starts a conversation of its own. `skippedRecords` is set by a provider that reads its record itself (Claude Code)
+ * and counts the malformed lines it left out.
+ */
+export interface ChatFork {
+    agentSessionId: string | undefined;
+    skippedRecords?: number;
+}
+
+/**
  * Where "Fork from here" cuts: just before the user message that started `turnId`, so the fork holds the turns before
  * it.
  */
@@ -291,12 +297,11 @@ export interface AgentChatProviderSession {
      */
     rewind(target: ChatRewindTarget): Promise<ChatResumePoint | undefined>;
     /**
-     * "Fork from here": copies the provider's own record up to just before `target` into a new Agent Session and
-     * returns its id, or `undefined` when nothing comes before it and the new Chat starts a conversation of its own.
-     * Leaves this conversation unchanged. The service has already checked that no turn runs, and forks the first
-     * message of a whole conversation without asking the provider.
+     * "Fork from here": copies the provider's own record up to just before `target` into a new Agent Session (see
+     * {@link ChatFork}). Leaves this conversation unchanged. The service has already checked that no turn runs, and
+     * forks the first message of a whole conversation without asking the provider.
      */
-    fork(target: ChatForkTarget): Promise<string | undefined>;
+    fork(target: ChatForkTarget): Promise<ChatFork>;
     /**
      * "Restore code to here": restores the files changed since `target` from the provider's file checkpoints and keeps
      * the conversation. The service has already checked that no turn runs and that the provider offers file restore

@@ -53,6 +53,7 @@ function AgentChatSendButton({
  */
 export function AgentChatComposerActions({
     canAttachImages,
+    canSaveProjectDefault,
     isAttaching,
     isSendable,
     isStopping,
@@ -69,6 +70,10 @@ export function AgentChatComposerActions({
      * Whether the provider accepts images, which decides what Attach files says it does.
      */
     canAttachImages: boolean;
+    /**
+     * Whether the permission menu offers "Use as Project default" (`AgentChatHostCapabilities`).
+     */
+    canSaveProjectDefault: boolean;
     /**
      * Whether picked images are still being read or a long paste saved, which turns Attach files into a spinner.
      */
@@ -113,7 +118,11 @@ export function AgentChatComposerActions({
                 {contextUsage && (
                     <AgentChatContextMeter onCompact={onCompact} usage={contextUsage} />
                 )}
-                <AgentChatPermissionMenu snapshot={snapshot} terminalId={terminalId} />
+                <AgentChatPermissionMenu
+                    canSaveProjectDefault={canSaveProjectDefault}
+                    snapshot={snapshot}
+                    terminalId={terminalId}
+                />
                 <AgentChatModelMenu snapshot={snapshot} terminalId={terminalId} />
             </div>
             {showsStop ? (

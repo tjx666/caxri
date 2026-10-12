@@ -1,8 +1,8 @@
-import type { AgentChatRequest } from '@caxri/protocol';
+import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { answeredNotice, clip, questionAnswers, stringField } from './chat-items';
-import type { AgentChatResponse, AgentChatSessionHost } from './chat-provider';
+import type { AgentChatSessionHost } from './chat-provider';
 import type { CodexRequestKind } from './codex-items';
 import { codexRequestKey, codexRequestKind, mapCodexRequest } from './codex-items';
 import type { JsonRpcConnection, JsonRpcServerRequest } from './json-rpc-connection';

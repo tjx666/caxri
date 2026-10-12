@@ -25,10 +25,13 @@ export interface AgentChatEditActions {
     editingId: string | undefined;
     startEdit: (itemId: string, text: string) => void;
     /**
-     * Like `availability`, for "Fork from here".
+     * "Fork from here", absent when the host cannot show the forked Session (`AgentChatHostCapabilities.canFork`).
+     * `availability` follows the same shape as the edit's.
      */
-    forkAvailability: (itemId: string) => string | null | undefined;
-    fork: (itemId: string, text: string) => Promise<void>;
+    fork?: {
+        availability: (itemId: string) => string | null | undefined;
+        run: (itemId: string, text: string) => Promise<void>;
+    };
     /**
      * "Restore code to here", absent when the provider cannot restore files. `availability` follows the same shape as
      * the edit's: `undefined` offers no action, a string disables it with that reason, `null` enables it.
@@ -54,7 +57,11 @@ export function useAgentChatEdit(): AgentChatEditActions | undefined {
 export function useAgentChatEditActions(
     terminalId: string,
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'> | undefined,
-    { providerName, supportsRewindFiles }: { providerName: string; supportsRewindFiles: boolean },
+    {
+        canFork,
+        providerName,
+        supportsRewindFiles,
+    }: { canFork: boolean; providerName: string; supportsRewindFiles: boolean },
 ) {
     const composerEdit = useRef<AgentChatComposerEditHandle | null>(null);
     const [editingId, setEditingId] = useState(() => readAgentChatEdit(terminalId)?.itemId);
@@ -75,15 +82,19 @@ export function useAgentChatEditActions(
             },
             editingId,
             startEdit: (itemId, text) => composerEdit.current?.startEdit(itemId, text),
-            forkAvailability: (itemId) => {
-                if (!rewindable.has(itemId)) return;
-                const availability = agentChatForkAvailability(
-                    { items, turns, activeTurnId },
-                    itemId,
-                );
-                return availability.canFork ? null : availability.reason;
-            },
-            fork: (itemId, text) => forkAgentChat(terminalId, itemId, text),
+            ...(canFork && {
+                fork: {
+                    availability: (itemId) => {
+                        if (!rewindable.has(itemId)) return;
+                        const availability = agentChatForkAvailability(
+                            { items, turns, activeTurnId },
+                            itemId,
+                        );
+                        return availability.canFork ? null : availability.reason;
+                    },
+                    run: (itemId, text) => forkAgentChat(terminalId, itemId, text),
+                },
+            }),
             ...(supportsRewindFiles && {
                 restore: {
                     availability: (itemId) => {
@@ -110,6 +121,15 @@ export function useAgentChatEditActions(
                 },
             }),
         };
-    }, [items, turns, activeTurnId, editingId, supportsRewindFiles, terminalId, providerName]);
+    }, [
+        items,
+        turns,
+        activeTurnId,
+        editingId,
+        canFork,
+        supportsRewindFiles,
+        terminalId,
+        providerName,
+    ]);
     return { composerEdit, editActions, setEditingId };
 }

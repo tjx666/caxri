@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { Inbox, Power } from 'lucide-react';
+import { MessageSquareWarning, Power } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipProvider } from '../../components/ui/tooltip';
@@ -107,7 +107,9 @@ function AgentCommanderHeader() {
 }
 
 /**
- * Shows or hides the Inbox column, counting the open items so a hidden Inbox still says that something waits.
+ * Shows or hides the Inbox column, counting the open items so a hidden Inbox still says that something waits. Its
+ * flagged message is the Commander Inbox's own glyph: the `Inbox` tray marks the Peer Inbox's held peer messages, and
+ * the bell belongs to the status bar's notification center.
  */
 function InboxToggle() {
     const isVisible = useCommanderInboxUiStore((state) => state.isVisible);
@@ -122,7 +124,7 @@ function InboxToggle() {
                 className="agent-commander-inbox-toggle text-muted"
                 onClick={() => setCommanderInboxVisible(!isVisible)}
             >
-                <Inbox size={13} />
+                <MessageSquareWarning size={13} />
                 Needs you
                 {count > 0 && (
                     <span className="agent-commander-inbox-count rounded-full bg-badge px-1.5 text-[10px] leading-4 text-badge-foreground">

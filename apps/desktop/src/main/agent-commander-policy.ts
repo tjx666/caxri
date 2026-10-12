@@ -13,12 +13,16 @@ import { z } from 'zod';
  * `app.bootstrap` and `app.records`: the window reads its rows through `commander.snapshot`. `session.pullRequests` is
  * the board's own pull request read: the board patches its rows from it after a `sessionPullRequests.changed` event,
  * and it answers from the same snapshot `commander.board` embeds, so it exposes nothing the board does not already
- * show. It shares the Workbench's Desktop principal, so this list is its only authority boundary.
+ * show. `agentChat.confirmRevertFiles` names no Terminal: it only asks the native confirmation before "Edit from here"
+ * or "Restore code to here" reverts files and returns the answer, and the revert itself is a separate
+ * `agentChat.rewind` or `agentChat.restoreFiles` admitted only for the Commander Terminal. It shares the Workbench's
+ * Desktop principal, so this list is its only authority boundary.
  */
 const ADMITTED_METHODS = new Set<string>([
     'agentCommander.openSettings',
     'agentCommander.revealSession',
     'agentCommander.stop',
+    'agentChat.confirmRevertFiles',
     'commander.board',
     'commander.ensure',
     'commander.inbox.dismiss',
@@ -54,7 +58,9 @@ const TERMINAL_METHODS = new Set<string>([
     'agentChat.readTask',
     'agentChat.removeQueued',
     'agentChat.respond',
+    'agentChat.restoreFiles',
     'agentChat.resumeQueue',
+    'agentChat.rewind',
     'agentChat.runCommand',
     'agentChat.saveLongPaste',
     'agentChat.send',
@@ -78,6 +84,29 @@ const TERMINAL_METHODS = new Set<string>([
  * Workbench Session's state.
  */
 const SESSION_METHODS = new Set<string>(['session.updateState']);
+
+/**
+ * `agentChat.*` methods refused even for the Commander Terminal. Every `agentChat.*` method must sit in one of the
+ * admitted sets or here, so a new Chat request is classified on purpose instead of failing as `FORBIDDEN` in the
+ * Commander window (the unit test walks the protocol registry). `agentChat.fork` opens a new Session in the Commander's
+ * hidden system Project and selects it, and this window has no Workbench to show it; the window does not offer "Fork
+ * from here". `project.setChatDefault` is not an `agentChat.*` method and stays refused with every other write.
+ */
+const REFUSED_AGENT_CHAT_METHODS = new Set<string>(['agentChat.fork']);
+
+/**
+ * How the policy classifies `method`, or `undefined` when it names none of its sets (so it is refused by default).
+ * Exposed for the exhaustiveness test.
+ */
+export function agentCommanderMethodClass(
+    method: string,
+): 'admitted' | 'refused' | 'session' | 'terminal' | undefined {
+    if (ADMITTED_METHODS.has(method)) return 'admitted';
+    if (TERMINAL_METHODS.has(method)) return 'terminal';
+    if (SESSION_METHODS.has(method)) return 'session';
+    if (REFUSED_AGENT_CHAT_METHODS.has(method)) return 'refused';
+    return undefined;
+}
 
 const terminalTargetSchema = z.object({ params: z.object({ terminalId: z.string() }) });
 const sessionTargetSchema = z.object({ params: z.object({ sessionId: z.string() }) });

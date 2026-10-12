@@ -57,7 +57,7 @@ export function AgentChatUserMessageActions({
 }) {
     const edit = useAgentChatEdit();
     if (!edit) return null;
-    const { restore } = edit;
+    const { fork, restore } = edit;
     return (
         <>
             {/* A pencil, as the queued message's Edit uses: the action changes the message; the rewind is its
@@ -69,13 +69,15 @@ export function AgentChatUserMessageActions({
                 onClick={() => edit.startEdit(id, text)}
             />
             {/* `isForking` is owned by the message so its context menu shares it: no second fork while one opens. */}
-            <RewindActionButton
-                availability={edit.forkAvailability(id)}
-                icon={GitFork}
-                isBusy={isForking}
-                label="Fork from here"
-                onClick={onFork}
-            />
+            {fork && (
+                <RewindActionButton
+                    availability={fork.availability(id)}
+                    icon={GitFork}
+                    isBusy={isForking}
+                    label="Fork from here"
+                    onClick={onFork}
+                />
+            )}
             {restore && (
                 <RewindActionButton
                     availability={restore.availability(id)}

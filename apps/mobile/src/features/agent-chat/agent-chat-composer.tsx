@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
 
+import { sentenceStartProvider } from '@caxri/protocol';
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
@@ -16,7 +17,6 @@ import {
     agentChatDisabledReason,
     agentChatImagesUnsupportedReason,
     isAgentChatStopping,
-    sentenceStartProvider,
 } from './agent-chat-model';
 import { AgentChatModelButton } from './agent-chat-model-sheet';
 import type { AgentChatController } from './use-agent-chat';

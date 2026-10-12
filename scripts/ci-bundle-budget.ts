@@ -35,9 +35,10 @@ interface TimeBudget {
 
 /**
  * Byte ceilings for every packaged artifact this repository ships. Baseline (2026-09, with source maps shipped in every
- * build): standalone Server ≈ 137.6 MiB, out/main ≈ 3.0 MiB, out/preload ≈ 48 KiB, out/renderer ≈ 113.2 MiB, app.asar ≈
- * 116.8 MiB, Caxri.app ≈ 497.5 MiB. The Server deliberately includes its pinned Node runtime and bundled ripgrep binary
- * so Desktop and platform deployments consume one identical, self-contained artifact.
+ * build): standalone Server ≈ 137.6 MiB, out/main ≈ 3.0 MiB (4.06 MiB by 2026-10, see below), out/preload ≈ 48 KiB,
+ * out/renderer ≈ 113.2 MiB, app.asar ≈ 116.8 MiB, Caxri.app ≈ 497.5 MiB. The Server deliberately includes its pinned
+ * Node runtime and bundled ripgrep binary so Desktop and platform deployments consume one identical, self-contained
+ * artifact.
  *
  * Source maps are roughly half of the JavaScript in these numbers and are a deliberate, permanent cost, a packaged
  * build has to be debuggable without a rebuild (docs/bundle-size.md, `.agents/skills/debug`). A drop in these figures
@@ -51,11 +52,16 @@ interface TimeBudget {
  * The Renderer and asar ceilings were raised again for the PDF preview (≈ 11 MiB with maps, measured 118.9 → 130.1 MiB
  * for out/renderer): pdf.js, its worker, and the CMaps, symbol fonts, and image decoders it needs, each in its own lazy
  * chunk so only an opened PDF loads any of it and only the CMap or decoder that PDF asks for.
+ *
+ * The out/main ceiling was raised from 4 MiB to 5 MiB once Desktop Main reached 4.06 MiB (4,261,667 B, 2026-10). The
+ * growth is cumulative across many features rather than one regression. About 67% of out/main is source maps whose
+ * `sourcesContent` alone is ≈ 2 MB; the JavaScript (≈ 1.4 MB) is unminified. Minifying Main was considered and
+ * deferred: packaged Main stack traces would then need source-map support to stay readable.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const SIZE_BUDGETS: SizeBudget[] = [
     { path: 'apps/server/dist/server', maxBytes: 150 * MiB },
-    { path: 'out/main', maxBytes: 4 * MiB },
+    { path: 'out/main', maxBytes: 5 * MiB },
     { path: 'out/preload', maxBytes: 256 * 1_024 },
     { path: 'out/renderer', maxBytes: 140 * MiB },
     {

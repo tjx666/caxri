@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { methods } from '../../registry/method-registry.js';
 import {
     agentChatPermissionModeLabel,
     agentChatPermissionModes,
@@ -7,8 +8,7 @@ import {
     initialAgentChatPermission,
     isAgentChatPermissionNextTurnOnly,
     resolveAgentChatPermissionChange,
-} from '../agent/agent-chat-permissions.js';
-import { methods } from '../registry/method-registry.js';
+} from '../agent-chat-permissions.js';
 
 describe('Agent Chat permission levels', () => {
     it('offers only the levels each provider supports natively', () => {

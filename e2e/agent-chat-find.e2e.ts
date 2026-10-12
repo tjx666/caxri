@@ -74,8 +74,8 @@ test('Cmd+F finds text in a Chat, steps through matches, and opens a folded turn
         await expect(find.getByText('4/4')).toBeVisible();
 
         await input.fill('zzz');
-        await expect(find.getByText('0/0')).toBeVisible();
-        await expect(find.getByRole('button', { name: 'Next match' })).toBeDisabled();
+        await expect(find.getByText('No results')).toBeVisible();
+        await expect(find.getByRole('button', { name: 'Next Match' })).toBeDisabled();
 
         // Commentary folded into a finished turn is not in the DOM until find opens its fold.
         await input.fill('looking around');

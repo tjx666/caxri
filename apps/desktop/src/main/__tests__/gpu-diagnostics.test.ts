@@ -167,6 +167,23 @@ describe('GPU diagnostics', () => {
         });
     });
 
+    it('tags a Terminal renderer status with the window that reported it', () => {
+        const harness = createHarness();
+        const contextLoss = rendererDiagnostic({
+            mode: 'dom',
+            reason: 'context-loss',
+            trigger: 'webgl-context-loss',
+        });
+
+        harness.diagnostics.recordRendererDiagnostic(contextLoss);
+        harness.diagnostics.recordRendererDiagnostic(contextLoss, 'commander');
+
+        const windows = harness.write.mock.calls
+            .filter(([, event]) => event === logEventCatalog.renderer.terminalRendererStatus)
+            .map((call) => call[2]?.fields?.window);
+        expect(windows).toEqual(['workbench', 'commander']);
+    });
+
     it('decodes POSIX Chromium GPU exits and links the last Renderer state', () => {
         vi.useFakeTimers();
         const harness = createHarness();

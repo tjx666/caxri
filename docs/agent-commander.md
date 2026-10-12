@@ -71,11 +71,22 @@ The window runs with the Desktop principal. Main therefore authorizes it separat
   directly; Main closes the window before it stops the Commander. `app.bootstrap` and
   `app.records` are refused: the window reads its rows only through `commander.snapshot`.
 - **Terminal requests** (attach, detach, input, resize, restart, long paste, the pane's
-  reference-context read, `agentCommander.openFileLink`, `terminal.switchSurface`, every
-  `agentChat.*` request, and the Chat composer's `agentActions.list`/`agentActions.read`) are
-  admitted only when they name the Commander Terminal, and `session.updateState` (the pane's own layout and focus) only when it names
-  the Commander Session. Main learns both IDs from the reply to `commander.ensure` or
-  `commander.snapshot`.
+  reference-context read, `agentCommander.openFileLink`, `terminal.switchSurface`, the Chat
+  pane's `agentChat.*` requests, and the Chat composer's `agentActions.list`/`agentActions.read`)
+  are admitted only when they name the Commander Terminal, and `session.updateState` (the pane's
+  own layout and focus) only when it names the Commander Session. Main learns both IDs from the
+  reply to `commander.ensure` or `commander.snapshot`. The admitted Chat requests are `read`,
+  `send`, `respond`, `configure`, `interrupt`, `runCommand`, `readImage`, `readTask`, `stopTask`,
+  `removeQueued`, `sendQueuedNow`, `resumeQueue`, `saveLongPaste`, `rewind` (Edit from here), and
+  `restoreFiles` (Restore code to here). `agentChat.confirmRevertFiles`, the native confirmation
+  before either reverts files, names no Terminal and is admitted on its own, since it only returns
+  the answer.
+- **Fork is not available in the Commander window.** `agentChat.fork` is refused even for the
+  Commander Terminal, and the Chat pane hides Fork from here there (`host="commander"` on
+  `AgentChatTerminalContent`, read through `agentChatHostCapabilities`): a fork opens a new Session in the hidden Commander system Project
+  and selects it, and this window has no Workbench to show it. Every `agentChat.*` method in the
+  protocol registry must be classified as admitted or refused in `agent-commander-policy.ts`; a
+  unit test fails until a new one is.
 - **Everything else** is refused with `FORBIDDEN` and logged. That includes file edits, Project and
   Session mutations, Settings writes, and any other Session's Terminal.
 
@@ -254,8 +265,10 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
   Only receipt state leaves the database; the
   task's prompt and answer never reach the board. The window prints it next to the `Commander`
   marker as `Starting`, `Running`, `Answered`, `Blocked`, `Taken over`, `Stopped`, or `Failed`.
-  A task `blocked` with `startup_waiting` reads `Needs you` and moves its row to `attention`: its
-  Agent is running but waits at startup, usually on a first-run prompt only the user can answer.
+  A task `blocked` with `startup_waiting` reads `Waiting at startup` and moves its row to
+  `attention`: its Agent is running but waits at startup, usually on a first-run prompt only the
+  user can answer. The badge does not reuse `Needs you`, which names the Commander Inbox column,
+  because such a task need not have an Inbox item.
   A `failed` or `answer_unavailable` task moves its row to `failed`, since a task that never
   started often left no Session activity to group by.
   `Answered` means the Agent gave its final answer, not that the Commander verified it.
@@ -275,7 +288,7 @@ not turn into a wall of green), the Session title, the Commander task's status i
 The second line holds the Agent's color icon, the Project name, an icon for a non-running process
 (exited, failed, interrupted, starting, or suspended; a detached Terminal shows none), and the pull
 request as `#N` with a checks icon (passed, failed, or pending). Every icon carries a tooltip and
-an accessible name with the full wording: the task tooltip leads with its label (`Needs you`,
+an accessible name with the full wording: the task tooltip leads with its label (`Waiting at startup`,
 `Taken over`, ...), explains the status, names the failure reason, and ends with the delegation ID;
 the pull request tooltip reads `#N State · Checks: title`. A takeover uses a warning tint because it
 means the Commander has let the Session go: the user typed into it, and the Commander no longer

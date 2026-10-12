@@ -1,3 +1,8 @@
+export {
+    agentCommanderIdentity,
+    type AgentCommanderRowReader,
+    agentCommanderTerminal,
+} from './commander-rows';
 export { CaxriDatabaseConnection } from './database-connection';
 export type { StoredAgentDelegation } from './models/agent-delegations';
 export type {

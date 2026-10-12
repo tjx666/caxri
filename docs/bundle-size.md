@@ -17,7 +17,7 @@ legitimately needs more bytes.
 | `Resources/server`        | ~137.6 MiB | Pinned runtime (~121 MiB), native dependencies, bundles, extensions       |
 | `app.asar`                | ~116.8 MiB | Desktop Main, Preload, and Renderer bundles plus their source maps        |
 | `out/renderer`            | ~113.2 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), Mermaid, fonts, vscode-icons, maps |
-| `out/main`                | ~3.0 MiB   | Electron Desktop Main only                                                |
+| `out/main`                | ~4.06 MiB  | Electron Desktop Main only (measured 2026-10)                             |
 | `out/preload`             | ~48 KiB    | Sandboxed preload bundles                                                 |
 | `apps/server/dist/server` | ~137.6 MiB | Byte-identical source of the embedded Server artifact                     |
 
@@ -55,6 +55,15 @@ can encounter any file or folder name in a user's project at runtime, so there i
 subset to tree-shake, and shipping the complete set is what makes icons match VS Code's
 vscode-icons extension.
 
+Desktop Main grew from ~3.0 MiB to 4.06 MiB (4,261,667 B, 2026-10) across many features rather
+than through one regression, so its budget was raised from 4 MiB to 5 MiB. About 67% of `out/main`
+is source maps, and their `sourcesContent` alone is ~2 MB; the JavaScript (~1.4 MB) is not minified.
+The largest bundled sources are `zod`, the `ws` transport, and `jsonc-parser`, plus the
+`@caxri/protocol` build output. Minifying Main was considered and deferred: packaged Main stack
+traces would then need source-map support (`process.setSourceMapsEnabled` or
+`--enable-source-maps`) to stay readable. Dropping `sourcesContent` would contradict the
+debuggable-without-rebuild goal above.
+
 The Server runtime also carries the bundled ripgrep executable (~4.3 MiB) so project search uses a
 known binary without relying on the host environment. The 150 MiB ceiling keeps roughly nine percent
 headroom over the measured 137.6 MiB while the job-summary delta still exposes incremental growth.
@@ -91,7 +100,13 @@ duplicated across chunks. Sonda attributes bytes through the source maps every b
 
 ## The CI budget gate
 
-`scripts/ci-bundle-budget.ts` (wired into the `checks` job of `.github/workflows/ci.yml`) runs a
+`scripts/ci-bundle-budget.ts` is one of the full platform gates in `scripts/ci-platform-gates.ts`.
+`.github/workflows/ci.yml` runs those gates (in the `checks` job, or beside the E2E pools in the
+`e2e` job for the optimized profile) only when `scripts/ci-execution-plan.ts` selects the `full`
+checks scope: the nightly schedule, `workflow_dispatch`, and ready pull requests that touch a
+full-validation path (global configuration such as `package.json`, tsconfig, Vite or Vitest config,
+`patches/`, or a protected CI script). Ordinary ready source pull requests run the `affected` scope and skip this gate, so a
+regression can land on `main` and first fail the next nightly run. The gate runs a
 timed build, a timed `electron-builder --mac dir` packaging pass, the packaged module-resolution
 artifact integrity and entry-point probe, and asserts every artifact stays under its byte budget. Budgets are absolute ceilings with
 headroom over this baseline: when the gate fails, first try to optimize the regression away;

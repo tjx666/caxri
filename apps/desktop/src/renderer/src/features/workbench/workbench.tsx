@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { listPaneTerminalIds } from '@caxri/protocol';
+import { isChatTerminal, listPaneTerminalIds } from '@caxri/protocol';
 import { Code2, Plus, X } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -8,6 +8,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useDialogStore } from '../../stores/dialogs';
 import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { retainAgentChatComposerState } from '../agent-chat/agent-chat-drafts';
 import { chooseProjectFolder } from '../session/session-creation-commands';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
@@ -127,6 +128,24 @@ export function Workbench() {
     useEffect(() => {
         retainTerminalProgress(new Set(terminalKey ? terminalKey.split('\u{0}') : []));
     }, [terminalKey]);
+    /**
+     * Every Chat Terminal of every Session, not only the mounted ones: a Chat's unsent images and "Edit from here" must
+     * survive its Session leaving the keep-alive set, and are released only once the Chat itself is gone (closed,
+     * deleted with its Session or Project, or switched to the Terminal surface). `undefined` until the first snapshot,
+     * so nothing is released before the Workbench knows which Chats exist.
+     */
+    const chatTerminalKey = useWorkbenchStore((state) =>
+        state.bootstrap?.terminals
+            .filter((terminal) => isChatTerminal(terminal))
+            .map(({ id }) => id)
+            .join('\u{0}'),
+    );
+    useEffect(() => {
+        if (chatTerminalKey === undefined) return;
+        retainAgentChatComposerState(
+            new Set(chatTerminalKey ? chatTerminalKey.split('\u{0}') : []),
+        );
+    }, [chatTerminalKey]);
     return (
         <section className="workbench flex min-h-0 min-w-0 flex-col bg-background">
             {session ? (

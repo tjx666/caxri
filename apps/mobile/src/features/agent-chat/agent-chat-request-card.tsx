@@ -3,18 +3,17 @@ import { useState } from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import type { AgentChatItem, AgentChatRequest } from '@caxri/protocol';
-import { agentChatApprovalChoices, agentChatRequestTitle } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
+import {
+    agentChatApprovalChoices,
+    agentChatQuestionAnswers,
+    agentChatRequestTitle,
+    sentenceStartProvider,
+} from '@caxri/protocol';
 
 import type { MobileTheme } from '../../theme/tokens';
 import type { agentChatRequestBlockedReason } from './agent-chat-model';
-import {
-    agentChatApprovalFiles,
-    agentChatApprovalRows,
-    agentChatQuestionAnswers,
-    sentenceStartProvider,
-} from './agent-chat-model';
-import type { AgentChatResponse } from './use-agent-chat';
+import { agentChatApprovalFiles, agentChatApprovalRows } from './agent-chat-model';
 
 type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
 type ApprovalRequest = Extract<AgentChatRequest, { kind: 'command' | 'fileChange' | 'tool' }>;

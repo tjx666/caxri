@@ -1,8 +1,8 @@
 import type {
-    AgentChatDecision,
     AgentChatDefault,
     AgentChatMessageInput,
     AgentChatModelRequest,
+    AgentChatResponse,
     AgentProvider,
     TerminalRecord,
 } from '@caxri/protocol';
@@ -169,9 +169,7 @@ export function interruptAgentChat(terminalId: string): void {
 export async function didAnswerAgentChatRequest(
     terminalId: string,
     requestId: string,
-    response:
-        | { kind: 'decision'; decision: AgentChatDecision }
-        | { kind: 'answers'; answers: Record<string, string[]> },
+    response: AgentChatResponse,
 ): Promise<boolean> {
     let isAnswered = false;
     await tryCommand('Unable to answer the Agent', async () => {

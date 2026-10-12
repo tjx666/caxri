@@ -5,6 +5,7 @@ import { access, appendFile, mkdir, rm, symlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
+import { platformChecksEnvironment, sanitizedChildEnvironment } from './ci-child-environment';
 import { execFileAsync, runChildProcess } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -128,13 +129,6 @@ export function authenticatedGitEnvironment(environment: NodeJS.ProcessEnv): Nod
         [`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraheader',
         [`GIT_CONFIG_VALUE_${index}`]: `AUTHORIZATION: basic ${authorization}`,
     };
-}
-
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
-export function sanitizedChildEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-    const sanitized = { ...environment };
-    delete sanitized.CAXRI_GITHUB_TOKEN;
-    return sanitized;
 }
 
 async function isPathPresent(path: string): Promise<boolean> {
@@ -509,7 +503,7 @@ async function prepareCaches(worktree: string, environment: NodeJS.ProcessEnv): 
 export async function prepareChecksWorktree(
     environment: NodeJS.ProcessEnv = process.env,
     operations: ChecksWorktreeOperations = {},
-): Promise<{ baseRevision: string; worktree: string }> {
+): Promise<{ baseRevision: string; checksEnvironment: NodeJS.ProcessEnv; worktree: string }> {
     const revision = requiredEnvironment(environment, 'CAXRI_CHECKS_REVISION');
     if (!/^[0-9a-f]{40}$/u.test(revision)) throw new Error('Invalid CAXRI_CHECKS_REVISION');
     const headRevision = requiredEnvironment(environment, 'CAXRI_CHECKS_HEAD_REVISION');
@@ -584,7 +578,11 @@ export async function prepareChecksWorktree(
             'utf8',
         );
     }
-    return { baseRevision, worktree };
+    return {
+        baseRevision,
+        checksEnvironment: platformChecksEnvironment(environment, baseRevision),
+        worktree,
+    };
 }
 
 async function remove(): Promise<void> {

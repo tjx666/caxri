@@ -96,6 +96,20 @@ export function writeAgentChatEdit(terminalId: string, edit: AgentChatEdit | und
     writeLocalStorageJson(AGENT_CHAT_EDITS_STORAGE_KEY, persistableAgentChatEdits(edits));
 }
 
+/**
+ * Drops the edit of every Chat outside `chatTerminalIds`. Called through `retainAgentChatComposerState`.
+ */
+export function retainAgentChatEdits(chatTerminalIds: ReadonlySet<string>): void {
+    const edits = loadedEdits();
+    const retired = edits
+        .keys()
+        .filter((terminalId) => !chatTerminalIds.has(terminalId))
+        .toArray();
+    if (retired.length === 0) return;
+    for (const terminalId of retired) edits.delete(terminalId);
+    writeLocalStorageJson(AGENT_CHAT_EDITS_STORAGE_KEY, persistableAgentChatEdits(edits));
+}
+
 type EditSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>;
 
 /**
