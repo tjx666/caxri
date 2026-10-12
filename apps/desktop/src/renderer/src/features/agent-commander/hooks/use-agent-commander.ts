@@ -6,6 +6,7 @@ import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../../queries/client';
 import { describeFailure } from '../../../stores/toasts';
+import { syncWindowFullScreen } from '../../../stores/window-full-screen';
 import { refreshWorkbench, useWorkbenchStore } from '../../../stores/workbench';
 import {
     ensureAgentCommander,
@@ -107,6 +108,9 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
             // Re-runs the start effect without its loading state: the pane keeps its screen while the Server resumes it.
             if (effect.ensure) setAttempt((current) => current + 1);
         });
+        // Fire-and-forget: syncWindowFullScreen() swallows its own request failure.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void syncWindowFullScreen();
         return () => {
             unsubscribe();
             refetchBoard.cancel();
