@@ -62,7 +62,7 @@ const Thumbnail = ({
 
 /**
  * A user message's images, right-aligned above its text like Desktop's message strip. Thumbnails load as the message
- * renders, and a tap opens the original at full size.
+ * renders, and a tap opens the original at full size, from where the message's other images are a swipe away.
  */
 export const AgentChatMessageImages = ({
     count,
@@ -89,6 +89,7 @@ export const AgentChatMessageImages = ({
                 />
             ))}
             <AgentChatImageViewer
+                count={count}
                 onClose={() => setOpenIndex(null)}
                 target={openIndex === null ? null : { terminalId, itemId, index: openIndex }}
                 theme={theme}
