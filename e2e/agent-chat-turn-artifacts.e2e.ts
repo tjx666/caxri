@@ -22,7 +22,7 @@ async function hasPath(path: string): Promise<boolean> {
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a finished Codex turn shows its edited files with Undo and the pull request and issue it filed', async ({}, testInfo) => {
+test('a finished Codex turn shows its edited files with Undo and the pull request, issue, and acceptance report it filed', async ({}, testInfo) => {
     const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-artifacts-'));
     const directory = await realpath(created);
     const userData = join(directory, 'user-data');
@@ -68,6 +68,10 @@ test('a finished Codex turn shows its edited files with Undo and the pull reques
         });
         await expect(pull).toBeVisible();
         await expect(issue).toContainText('Explain how greet formats a name.');
+        const acceptance = chat.getByRole('button', {
+            name: 'Created acceptance report: Greeting ends with punctuation, Round 1. Open in browser',
+        });
+        await expect(acceptance).toContainText('3 checks');
         await chat
             .locator('[data-agent-chat-turn-changes]')
             .locator('..')
@@ -98,6 +102,16 @@ test('a finished Codex turn shows its edited files with Undo and the pull reques
                 ),
             )
             .toContain('https://github.com/acme/widgets/pull/42');
+        await acceptance.click();
+        await expect
+            .poll(() =>
+                app.evaluate(
+                    () =>
+                        (globalThis as typeof globalThis & { caxriOpenedLinks?: string[] })
+                            .caxriOpenedLinks ?? [],
+                ),
+            )
+            .toContain('https://app.lobehub.com/acceptance/00000000-0000-4000-8000-000000000042');
 
         await changes.getByRole('button', { name: 'Undo' }).click();
         await expect(changes.getByText('Undone')).toBeVisible();

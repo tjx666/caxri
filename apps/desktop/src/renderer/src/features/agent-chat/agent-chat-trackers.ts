@@ -2,16 +2,17 @@ import type { AgentChatItem } from '@caxri/protocol';
 import { parseAgentMcpToolName, unwrapShellCommand } from '@caxri/protocol';
 
 /**
- * A pull request or issue the Agent created or edited during a turn, shown as a card under the turn's reply the way the
- * Codex app and LobeHub surface what an Agent filed.
+ * A pull request, issue, or LobeHub acceptance report the Agent created or updated during a turn, shown as a card under
+ * the turn's reply the way the Codex app and LobeHub surface what an Agent filed.
  */
 export interface AgentChatTrackerArtifact {
-    provider: 'github' | 'linear';
-    kind: 'pull' | 'issue';
+    provider: 'github' | 'linear' | 'lobehub';
+    kind: 'pull' | 'issue' | 'acceptance';
     action: 'created' | 'updated';
     url: string;
     /**
-     * `owner/repo#12` for GitHub, the issue identifier (`ENG-123`) for Linear.
+     * `owner/repo#12` for GitHub, the issue identifier (`ENG-123`) for Linear, and `Round 2` (or the short acceptance
+     * id when the round is unknown) for an acceptance report.
      */
     reference: string;
     title?: string;
@@ -27,6 +28,14 @@ type ToolCallItem = Extract<AgentChatItem, { type: 'toolCall' }>;
 const GITHUB_URL = /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/(pull|issues)\/(\d+)/gu;
 const LINEAR_URL = /https:\/\/linear\.app\/[\w.-]+\/issue\/([A-Z][\dA-Z]*-\d+)(?:\/[\w%-]*)?/gu;
 const GH_TRACKER_COMMAND = /(?<=^|[\s;&|(])gh\s+(?:pr|issue)\s+(create|edit)\b/gu;
+const LH_INGEST_COMMAND = /(?<=^|[\s;&|(])lh\s+acceptance\s+run\s+ingest\b/gu;
+/**
+ * The acceptance page `lh acceptance run ingest` prints: the absolute `acceptanceUrl` in `--json` output, or the bare
+ * `/acceptance/<id>` path in its plain output. A bare path must not continue another path, so the local report
+ * directory (`.records/acceptance/<name>/round-1`) is never read as the page.
+ */
+const ACCEPTANCE_URL = /(?:(https?:\/\/[\w.-]+(?::\d+)?)|(?<![\w./-]))\/acceptance\/([\w-]{8,})/gu;
+const ACCEPTANCE_ORIGIN = 'https://app.lobehub.com';
 
 const MAX_EXCERPT_LENGTH = 200;
 
@@ -138,7 +147,7 @@ function expandHeredoc(value: string): string {
     return end === -1 ? value : lines.slice(0, end).join('\n');
 }
 
-function flagValue(words: readonly string[], long: string, short: string): string | undefined {
+function flagValue(words: readonly string[], long: string, short?: string): string | undefined {
     let value: string | undefined;
     for (const [index, word] of words.entries()) {
         if (word === long || word === short) value = words[index + 1];
@@ -185,6 +194,49 @@ function commandTrackerArtifact(item: CommandItem): AgentChatTrackerArtifact | u
         action: match[1] === 'create' ? 'created' : 'updated',
         ...(title && { title }),
         ...(excerpt && { excerpt }),
+    };
+}
+
+/**
+ * A positive integer field of `lh --json` output, or the `?r=<round>` of a printed round URL for `roundIndex`.
+ */
+function ingestNumber(output: string, key: 'cases' | 'roundIndex'): number | undefined {
+    const match =
+        new RegExp(String.raw`"${key}"\s*:\s*(\d+)`, 'u').exec(output) ??
+        (key === 'roundIndex' ? /\/acceptance\/[\w-]+\?r=(\d+)/u.exec(output) : null);
+    const value = Number(match?.[1]);
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * `lh acceptance run ingest` that published a round of an acceptance report. The first round creates the report; a
+ * round appended with `--acceptance <id>` updates it. The title comes from `--title` or the first round's
+ * `--requirement` only when written literally, since a `"$VAR"` value never reaches the transcript expanded.
+ */
+function commandAcceptanceArtifact(item: CommandItem): AgentChatTrackerArtifact | undefined {
+    if (item.status !== 'completed') return undefined;
+    const command = unwrapShellCommand(item.command);
+    const match = command
+        .matchAll(LH_INGEST_COMMAND)
+        .find((candidate) => !isQuotedAt(command, candidate.index));
+    const printed = item.output.matchAll(ACCEPTANCE_URL).toArray().at(-1);
+    if (!match || !printed?.[2]) return undefined;
+    const [, origin = ACCEPTANCE_ORIGIN, id] = printed;
+    const words = shellWords(command.slice(match.index));
+    const round = ingestNumber(item.output, 'roundIndex');
+    const cases = ingestNumber(item.output, 'cases');
+    const isAppended = flagValue(words, '--acceptance') !== undefined;
+    const title = [flagValue(words, '--title'), flagValue(words, '--requirement')].find(
+        (value) => value?.trim() && !value.includes('$'),
+    );
+    return {
+        provider: 'lobehub',
+        kind: 'acceptance',
+        action: (round === undefined ? isAppended : round > 1) ? 'updated' : 'created',
+        url: `${origin}/acceptance/${id}`,
+        reference: round === undefined ? id.slice(0, 8) : `Round ${round}`,
+        ...(title && { title }),
+        ...(cases && { excerpt: `${cases} ${cases === 1 ? 'check' : 'checks'}` }),
     };
 }
 
@@ -300,8 +352,8 @@ function toolCallTrackerArtifact(item: ToolCallItem): AgentChatTrackerArtifact |
 }
 
 /**
- * Every issue and pull request the items created or edited, once each in the order first touched. A later edit keeps
- * `created` when the same turn also created it, and fills in a newer title or body.
+ * Every issue, pull request, and acceptance report the items created or edited, once each in the order first touched. A
+ * later edit keeps `created` when the same turn also created it, and fills in a newer title, body, or round.
  */
 export function collectAgentChatTrackers(
     items: readonly AgentChatItem[],
@@ -310,7 +362,7 @@ export function collectAgentChatTrackers(
     for (const item of items) {
         const artifact =
             item.type === 'command'
-                ? commandTrackerArtifact(item)
+                ? (commandTrackerArtifact(item) ?? commandAcceptanceArtifact(item))
                 : item.type === 'toolCall'
                   ? toolCallTrackerArtifact(item)
                   : undefined;

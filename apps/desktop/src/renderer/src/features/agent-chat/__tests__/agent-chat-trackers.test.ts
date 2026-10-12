@@ -188,4 +188,86 @@ describe('collectAgentChatTrackers', () => {
             ]),
         ).toMatchObject([{ action: 'created', title: 'Second', url }]);
     });
+
+    it('reads a published acceptance report from lh ingest JSON and plain output', () => {
+        const id = '76b1c38d-b4bd-43b6-9a30-bc7b009c1bc1';
+        const json = JSON.stringify(
+            {
+                acceptanceId: id,
+                acceptanceUrl: `https://app.lobehub.com/acceptance/${id}`,
+                cases: 4,
+                roundIndex: 1,
+                roundUrl: `https://app.lobehub.com/acceptance/${id}?r=1`,
+            },
+            null,
+            2,
+        );
+        expect(
+            collectAgentChatTrackers([
+                command(
+                    'c1',
+                    `lh acceptance run ingest "$ROUND_DIR" --source agent-testing --requirement "$FROZEN_REQUIREMENT" --json`,
+                    json,
+                ),
+            ]),
+        ).toEqual([
+            {
+                provider: 'lobehub',
+                kind: 'acceptance',
+                action: 'created',
+                url: `https://app.lobehub.com/acceptance/${id}`,
+                reference: 'Round 1',
+                excerpt: '4 checks',
+            },
+        ]);
+        expect(
+            collectAgentChatTrackers([
+                command(
+                    'c2',
+                    `lh acceptance run ingest round-2 --acceptance ${id} --title 'Bulk select'`,
+                    `Ingesting .records/acceptance/bulk-select-20260908/round-2\nIngested round\n/acceptance/${id}\n.records/acceptance/bulk-select-20260908 done\n`,
+                ),
+            ]),
+        ).toEqual([
+            {
+                provider: 'lobehub',
+                kind: 'acceptance',
+                action: 'updated',
+                url: `https://app.lobehub.com/acceptance/${id}`,
+                reference: '76b1c38d',
+                title: 'Bulk select',
+            },
+        ]);
+    });
+
+    it('merges acceptance rounds of one report and ignores failed or quoted ingests', () => {
+        const id = '76b1c38d-b4bd-43b6-9a30-bc7b009c1bc1';
+        const round = (index: number) =>
+            JSON.stringify({
+                acceptanceUrl: `https://app.lobehub.com/acceptance/${id}`,
+                cases: 2,
+                roundIndex: index,
+            });
+        const items = [
+            command(
+                'c1',
+                'lh acceptance run ingest r1 --requirement "Show cards" --json',
+                round(1),
+            ),
+            command('c2', `lh acceptance run ingest r2 --acceptance ${id} --json`, round(2)),
+            command('c3', 'lh acceptance run ingest r3 --json', round(3), 'failed'),
+            command('c4', `echo "lh acceptance run ingest"`, `/acceptance/${id}`),
+        ];
+        expect(collectAgentChatTrackers(items)).toEqual([
+            {
+                provider: 'lobehub',
+                kind: 'acceptance',
+                action: 'created',
+                url: `https://app.lobehub.com/acceptance/${id}`,
+                reference: 'Round 2',
+                title: 'Show cards',
+                excerpt: '2 checks',
+            },
+        ]);
+    });
 });

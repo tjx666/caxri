@@ -1,6 +1,7 @@
 /**
- * `artifacts`: a turn that edits and creates files on disk, opens a pull request through `gh`, and files a Linear issue
- * through MCP, so the Chat's turn-end cards (edited files with Undo, tracker cards) have something real to show.
+ * `artifacts`: a turn that edits and creates files on disk, opens a pull request through `gh`, files a Linear issue
+ * through MCP, and publishes an acceptance report through `lh`, so the Chat's turn-end cards (edited files with Undo,
+ * tracker cards) have something real to show.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -12,6 +13,7 @@ import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
 const AFTER =
     'export function greet(name: string) {\n    const greeting = `Hello, ${name}!`;\n    return greeting;\n}\n';
 const CREATED = '# Greeting\n\nCall `greet(name)`.\n';
+const ACCEPTANCE_ID = '00000000-0000-4000-8000-000000000042';
 
 export async function runTurnArtifacts(io: FakeCodexIo, turn: FakeTurn) {
     const edited = path.join(process.cwd(), 'src', 'greeting.ts');
@@ -71,6 +73,26 @@ export async function runTurnArtifacts(io: FakeCodexIo, turn: FakeTurn) {
                 },
             ],
         },
+        durationMs: 5,
+    });
+    io.completeItem(turn, {
+        type: 'commandExecution',
+        id: crypto.randomUUID(),
+        command: `/bin/zsh -lc "lh acceptance run ingest round-1 --requirement 'Greeting ends with punctuation' --json"`,
+        cwd: process.cwd(),
+        status: 'completed',
+        aggregatedOutput: `${JSON.stringify(
+            {
+                acceptanceId: ACCEPTANCE_ID,
+                acceptanceUrl: `https://app.lobehub.com/acceptance/${ACCEPTANCE_ID}`,
+                cases: 3,
+                roundIndex: 1,
+                roundUrl: `https://app.lobehub.com/acceptance/${ACCEPTANCE_ID}?r=1`,
+            },
+            null,
+            2,
+        )}\n`,
+        exitCode: 0,
         durationMs: 5,
     });
     await io.streamMessage(turn, 'Updated the greeting and opened a pull request.', 0);
