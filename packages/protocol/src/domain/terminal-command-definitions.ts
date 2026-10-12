@@ -74,8 +74,8 @@ export const terminalCommandDefinitions: CommandDefinition[] = [
         /**
          * One command for both: a Shell starts again, and an Agent Terminal restarts the Agent and resumes its
          * conversation, which its menus and recovery row call "Restart Agent". The catalog title is static because the
-         * native menu is built from it once, so the Agent wording reaches the palette through the description and
-         * keywords.
+         * native menu is built from it once; the command palette resolves "Restart Agent" for an Agent Terminal at
+         * render time, and the description and keywords keep both wordings searchable.
          */
         description:
             'Restart the active Shell, or restart the active Agent and resume its conversation (Restart Agent)',
