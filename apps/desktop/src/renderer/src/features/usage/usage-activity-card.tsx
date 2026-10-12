@@ -8,6 +8,8 @@ import { Tooltip } from '../../components/ui/tooltip';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import type { EndPin } from './usage-activity-scroll';
+import { attachEndPin } from './usage-activity-scroll';
 import type { HeatmapWeek, UsageMetric } from './usage-metrics';
 import {
     activityCardLabel,
@@ -207,13 +209,23 @@ export function UsageActivityCard({
     const [metric, setMetric] = useState<UsageMetric>('tokens');
     const [hover, setHover] = useState<HoverTarget>();
     const chartReference = useRef<HTMLDivElement>(null);
+    const endPinReference = useRef<EndPin>(undefined);
     /**
-     * The chart runs oldest to newest, so a pane narrower than the year scrolls it to the newest weeks: the ones a user
-     * opens the page to see. Each view lays out anew, so switching views lands on the newest weeks again.
+     * The chart runs oldest to newest, so a pane narrower than the year stays on the newest weeks, also when the pane
+     * narrows after mount, until the user scrolls away. Each view lays out anew, so a view switch re-pins.
      */
     useLayoutEffect(() => {
         const chart = chartReference.current;
-        if (chart) chart.scrollLeft = chart.scrollWidth;
+        if (!chart) return;
+        const pin = attachEndPin(chart);
+        endPinReference.current = pin;
+        return () => {
+            pin.dispose();
+            endPinReference.current = undefined;
+        };
+    }, []);
+    useLayoutEffect(() => {
+        endPinReference.current?.repin();
     }, [view]);
     const weeks = useMemo(
         () => buildHeatmap(t, activity, today, metric),
