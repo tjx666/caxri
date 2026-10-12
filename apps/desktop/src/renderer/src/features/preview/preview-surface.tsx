@@ -140,6 +140,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
                 <ImagePreview
                     path={tab.path}
                     sessionId={session.id}
+                    viewStateKey={viewStateKey}
                     workbenchProjectId={session.workbenchProjectId}
                 />
             );
@@ -183,6 +184,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
                     source={document.content}
                     sourcePath={projectFilePath}
                     theme={theme}
+                    viewStateKey={viewStateKey}
                 />
             ));
         }

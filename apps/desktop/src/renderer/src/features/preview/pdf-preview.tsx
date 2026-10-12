@@ -1,23 +1,12 @@
 import './pdf-preview.css';
 
-import type { ReactElement } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
 import { FindBar } from '../../components/find-bar';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
-import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import {
-    Menu,
-    MenuContent,
-    MenuRadioGroup,
-    MenuRadioItem,
-    MenuTrigger,
-} from '../../components/ui/menu';
-import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { documentLoadRecoveryAction } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
@@ -27,7 +16,6 @@ import type { PdfViewerSession, PdfViewState } from './pdf-document';
 import { createPdfViewerSession } from './pdf-document';
 import { isPdfFindMiss, isPdfFindShortcut, pdfFindCountLabel } from './pdf-find';
 import { PdfPasswordForm } from './pdf-password-form';
-import type { PdfZoomChoice } from './pdf-toolbar-model';
 import {
     describePdfView,
     parsePdfPageInput,
@@ -36,24 +24,7 @@ import {
 } from './pdf-toolbar-model';
 import { PREVIEW_LOADING_LABEL_KEY } from './preview-registry';
 import { readPreviewViewState, rememberPreviewViewState } from './preview-view-state';
-
-function ToolbarButton({
-    label,
-    icon,
-    onClick,
-}: {
-    label: string;
-    icon: ReactElement;
-    onClick: () => void;
-}) {
-    return (
-        <Tooltip content={label}>
-            <Button aria-label={label} size="icon" variant="ghost" onClick={onClick}>
-                {icon}
-            </Button>
-        </Tooltip>
-    );
-}
+import { ZoomControls } from './zoom-controls';
 
 /**
  * The page field. It shows the current page and takes a page number on Enter; Escape or leaving the field puts the
@@ -93,57 +64,6 @@ function PageField({
                 onGoToPage(target);
             }}
         />
-    );
-}
-
-/**
- * The zoom percentage, which opens the zoom choices: the two fits and fixed scales. The checked row is the fit in
- * force, or the fixed scale matching the current zoom.
- */
-function ZoomMenu({
-    view,
-    onZoom,
-}: {
-    view: PdfViewState;
-    onZoom: (choice: PdfZoomChoice) => void;
-}) {
-    const { t } = useTranslation();
-    const checkedChoice = PDF_ZOOM_CHOICES.find(
-        (choice) => choice === view.scaleValue || choice === Number(view.scaleValue),
-    );
-    // The radio value is the choice itself, so the checked row does not depend on the display language.
-    const checked = checkedChoice === undefined ? null : String(checkedChoice);
-    return (
-        <Menu>
-            <MenuTrigger
-                aria-label={t('preview.pdf.zoomLabel', { percent: Math.round(view.scale * 100) })}
-                render={
-                    <Button
-                        className="w-16 gap-0.5 px-1 text-[12px] tabular-nums"
-                        size="sm"
-                        variant="ghost"
-                    />
-                }
-            >
-                {Math.round(view.scale * 100)}%
-                <ChevronDown aria-hidden="true" size={12} />
-            </MenuTrigger>
-            <MenuContent align="end" className="min-w-32">
-                <MenuRadioGroup
-                    value={checked}
-                    onValueChange={(value: string) => {
-                        const option = PDF_ZOOM_CHOICES.find((choice) => String(choice) === value);
-                        if (option !== undefined) onZoom(option);
-                    }}
-                >
-                    {PDF_ZOOM_CHOICES.map((choice) => (
-                        <MenuRadioItem key={choice} closeOnClick value={String(choice)}>
-                            {pdfZoomChoiceLabel(choice, t)}
-                        </MenuRadioItem>
-                    ))}
-                </MenuRadioGroup>
-            </MenuContent>
-        </Menu>
     );
 }
 
@@ -265,19 +185,17 @@ function PdfDocumentView({
                 <span aria-live="polite" className="sr-only">
                     {announcement}
                 </span>
-                <ToolbarButton
-                    icon={<ZoomOut aria-hidden="true" size={14} />}
-                    label={t('preview.pdf.zoomOut')}
-                    onClick={() => act((session) => session.zoomOut())}
-                />
-                <ZoomMenu
-                    view={view}
+                <ZoomControls
+                    checked={PDF_ZOOM_CHOICES.find(
+                        (choice) =>
+                            choice === view.scaleValue || choice === Number(view.scaleValue),
+                    )}
+                    choiceLabel={(choice) => pdfZoomChoiceLabel(choice, t)}
+                    choices={PDF_ZOOM_CHOICES}
+                    scale={view.scale}
                     onZoom={(choice) => act((session) => session.setZoom(choice))}
-                />
-                <ToolbarButton
-                    icon={<ZoomIn aria-hidden="true" size={14} />}
-                    label={t('preview.pdf.zoomIn')}
-                    onClick={() => act((session) => session.zoomIn())}
+                    onZoomIn={() => act((session) => session.zoomIn())}
+                    onZoomOut={() => act((session) => session.zoomOut())}
                 />
             </div>
             {find.isOpen && (
