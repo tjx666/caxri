@@ -37,6 +37,11 @@ export interface AgentChatTurnArtifacts {
     turnId: string;
     files: readonly AgentChatEditedFile[];
     trackers: readonly AgentChatTrackerArtifact[];
+    /**
+     * Set by the Client when the projection's item budget dropped the start of this turn, so `files` covers only what
+     * remained and Undo would restore part of the turn: a file created and then edited would only lose the edit.
+     */
+    isPartial?: true;
 }
 
 function netKind(changes: readonly AgentChatFileChange[]): AgentChatFileChange['kind'] | undefined {

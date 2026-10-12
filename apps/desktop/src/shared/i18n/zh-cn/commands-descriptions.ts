@@ -45,6 +45,9 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
         '将当前 Agent 以对话方式重新打开，或将对话以终端方式重新打开，并延续其对话',
     'commands.description.terminal.showAgentStatus':
         '打开当前 Agent 的输出速度及其提供商的服务状态',
+    'commands.description.agentChat.changeModel': '打开当前对话的模型与推理强度选择器',
+    'commands.description.agentChat.changePermissionMode': '打开当前对话的权限级别菜单',
+    'commands.description.agentChat.togglePlanMode': '为当前对话开启或关闭计划模式',
     'commands.description.terminal.close': '关闭当前终端',
     'commands.description.workbench.closeActiveTab': '关闭当前终端或文件标签页',
     'commands.description.workbench.nextTab': '激活下一个终端或文件标签页',
@@ -102,6 +105,8 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
         '停止在后台运行的 Agent Commander；再次打开会恢复同一对话',
     'commands.description.agentCommander.handOver':
         '选择会话或在 Caxri 之外开始的 Agent 对话，交给 Agent Commander 接手',
+    'commands.description.agentCommander.takeBack':
+        '结束 Agent Commander 对所选会话的管理；会话中的 Agent 继续运行',
     'commands.description.processExplorer.open': '查看 Caxri 各进程的资源占用',
     'commands.description.developer.toggleScreencastMode': '显示点击和 Caxri 快捷键，便于外部录屏',
     'commands.description.developer.reportBug':

@@ -217,6 +217,7 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('workbench.language'),
     specRow('session.defaultAgent'),
     specRow('session.openAgentsInChat'),
+    specRow('agentChat.longPasteThreshold'),
     specRow('primarySidebar.autoCollapseProjects'),
     specRow('workbench.newWorktreeBehavior'),
     specRow('workbench.fontFamily'),

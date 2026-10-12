@@ -16,8 +16,11 @@ behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) rec
   aliases from `~/.ssh/config` (wildcard patterns are skipped), recently connected destinations, and
   accepts a typed `user@host[:port]`. A destination starting with `-` is refused.
 - **Window**: each SSH Host gets one window titled `SSH: <destination>`. Connecting to a destination
-  that already has a window focuses it. The status bar shows the SSH Host; while connecting, an
-  overlay names the current phase (connecting, probing, installing, starting, forwarding).
+  that already has a window focuses it. Destinations are compared by the `user@hostname:port` that
+  `ssh -G` resolves, so two `~/.ssh/config` aliases for the same account share one window, and the
+  focused window says so in a notification; when `ssh -G` fails, the typed spelling decides. The
+  status bar shows the SSH Host; while connecting, an overlay names the current phase (connecting,
+  probing, installing, starting, forwarding).
 - **Prompts**: passwords, key passphrases, 2FA codes, and new host-key confirmations appear as a
   dialog inside that window. Answers go straight to OpenSSH and are never logged.
 - **Reconnect**: a dropped connection retries with backoff. A failure that needs the user

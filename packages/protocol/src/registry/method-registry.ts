@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 import { agentActionMethods } from '../agent/agent-action-contract.js';
+import {
+    agentChatImageMediaTypeSchema,
+    MAX_AGENT_CHAT_PICKED_IMAGES_BYTES,
+} from '../agent/agent-chat-contract.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { commanderMethods } from '../agent/agent-commander-contract.js';
 import {
@@ -114,6 +118,17 @@ const serverControl = commandPolicy('server', 'control');
  */
 const terminalStreamControl = { ...serverControl, idempotency: 'none' as const };
 const desktopRead = commandPolicy('desktop', 'read');
+/**
+ * One path `dialog.selectPaths` returns, with an image's bytes when the composer asked for them.
+ */
+const agentChatPickedImageSchema = z.object({
+    mediaType: agentChatImageMediaTypeSchema,
+    base64: z.string().max(Math.ceil(MAX_AGENT_CHAT_PICKED_IMAGES_BYTES / 3) * 4),
+});
+const agentChatPickedPathSchema = z.object({
+    path: z.string().min(1),
+    image: agentChatPickedImageSchema.optional(),
+});
 const desktopWrite = commandPolicy('desktop', 'write');
 const desktopControl = commandPolicy('desktop', 'control');
 const serverStatusRead = commandPolicy('server', 'read', ['host.read']);
@@ -282,6 +297,17 @@ export const methods = {
         ...desktopControl,
         params: noParameters,
         result: z.string().nullable(),
+    },
+    /**
+     * The Chat composer's `+` → Files and folders: a native open panel that takes several files and folders at once,
+     * answered with the chosen paths (empty when dismissed). Unlike `dialog.selectDirectory` it grants nothing, so a
+     * pick never widens what a Project may reach. With `shouldReadImages`, an image file also carries its bytes for the
+     * composer to attach, up to {@link MAX_AGENT_CHAT_PICKED_IMAGES_BYTES} across the pick.
+     */
+    'dialog.selectPaths': {
+        ...desktopControl,
+        params: z.object({ shouldReadImages: z.boolean() }),
+        result: z.array(agentChatPickedPathSchema),
     },
     'diagnostics.export': {
         ...desktopWrite,

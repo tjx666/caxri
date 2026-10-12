@@ -123,6 +123,36 @@ describe('collectAgentChatTrackers', () => {
         ]);
     });
 
+    it('does not call a pull request created when a || fallback may have printed its URL', () => {
+        const url = 'https://github.com/acme/widgets/pull/7';
+        const create = 'gh pr create --title "Add widget" --fill';
+        const existing = `a pull request for branch "feat" into branch "main" already exists:\n${url}`;
+        expect(
+            collectAgentChatTrackers([
+                // The create failed because the pull request exists; `gh pr view` printed the URL again.
+                command('c1', `${create} || gh pr view --json url -q .url`, `${existing}\n${url}`),
+                // The create's own error was discarded, so the URL alone cannot say which command printed it.
+                command('c2', `${create} 2>/dev/null || gh pr view --json url -q .url`, url),
+            ]),
+        ).toEqual([]);
+        // A fallback that edits the existing pull request is still an update.
+        expect(
+            collectAgentChatTrackers([
+                command(
+                    'c3',
+                    `${create} || gh pr edit --title "Add widget"`,
+                    `${existing}\n${url}`,
+                ),
+            ]),
+        ).toMatchObject([{ action: 'updated', url, title: 'Add widget' }]);
+        // Without a sign of failure, the create printed the URL and its fallback never ran.
+        expect(
+            collectAgentChatTrackers([
+                command('c4', `${create} || gh pr view --json url -q .url`, url),
+            ]),
+        ).toMatchObject([{ action: 'created', url, title: 'Add widget' }]);
+    });
+
     it('reads GitHub and Linear MCP results, falling back to JSON arguments', () => {
         const github = tool(
             'm1',

@@ -6,7 +6,12 @@ import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 
 import type { FileAsset, FileDocument, ServerOperationResult } from '@caxri/protocol';
-import { CaxriError, previewAssetByteLimit, previewAssetMediaType } from '@caxri/protocol';
+import {
+    binaryFileReadError,
+    CaxriError,
+    previewAssetByteLimit,
+    previewAssetMediaType,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { formatBytes } from '@caxri/utils';
@@ -168,8 +173,7 @@ export class DocumentService {
                     `File exceeds the ${formatBytes(this.maxFileBytes())} safety limit`,
                 );
             const buffer = await file.readFile(signal ? { signal } : undefined);
-            if (buffer.subarray(0, 8_192).includes(0))
-                throw new CaxriError('IO', 'Binary files cannot be opened in the editor');
+            if (buffer.subarray(0, 8_192).includes(0)) throw binaryFileReadError();
             return {
                 path: resolved.workspacePath ?? resolved.path,
                 content: buffer.toString('utf8'),

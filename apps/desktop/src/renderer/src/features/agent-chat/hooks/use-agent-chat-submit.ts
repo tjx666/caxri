@@ -9,7 +9,11 @@ import {
     didSendAgentChatMessage,
 } from '../agent-chat-commands';
 import type { AgentChatAttachment } from '../agent-chat-drafts';
-import { draftAfterSend, returnUnsentAgentChatMessage } from '../agent-chat-drafts';
+import {
+    didDeliverAgentChatComposerInput,
+    draftAfterSend,
+    returnUnsentAgentChatMessage,
+} from '../agent-chat-drafts';
 import {
     dropAgentChatPendingMessage,
     expireAgentChatPendingMessage,
@@ -20,8 +24,9 @@ import { parseAgentChatCommand } from '../agent-chat-slash-commands';
 /**
  * Sends the draft as a message with its images, or runs it when it names a listed slash command. A message leaves the
  * composer at once and shows as pending where it will land (`agent-chat-pending.ts`); a failed send takes the pending
- * row away and puts its text and images back. A command, an edit, and a rewind still wait for Server Core, and clear
- * only what was actually sent, so text typed or images attached while they are in flight survive them.
+ * row away and puts its text and images back. A command and an edit leave the composer at once too, while Send says the
+ * composer is sending until Server Core answers, and come back if it refuses them (`didDeliverAgentChatComposerInput`).
+ * Each clears only what was actually sent, so text typed or images attached while they are in flight survive them.
  */
 export function useAgentChatSubmit({
     attachments,
@@ -44,24 +49,34 @@ export function useAgentChatSubmit({
 }) {
     const [isSending, setSending] = useState(false);
     const send = async (
-        didDeliver: () => Promise<boolean>,
-        clearDelivered: () => void,
+        delivery: Parameters<typeof didDeliverAgentChatComposerInput>[0],
     ): Promise<void> => {
         setSending(true);
         try {
-            if (await didDeliver()) {
-                clearDelivered();
-                onSent?.();
-            }
+            if (await didDeliverAgentChatComposerInput(delivery)) onSent?.();
         } finally {
             setSending(false);
         }
     };
-    const runCommand = (sent: string, command: { name: string; arguments?: string }) =>
-        send(
-            () => didRunAgentChatCommand(terminalId, command),
-            () => setDraft((current) => draftAfterSend(current, sent)),
-        );
+    /**
+     * Runs `command`, typed or chosen in the composer as `sent`. A command the composer did not hold (the compact
+     * command the context alert runs, `isFromDraft: false`) leaves the draft alone and has nothing to put back.
+     */
+    const runCommand = (
+        sent: string,
+        command: { name: string; arguments?: string },
+        { isFromDraft = true }: { isFromDraft?: boolean } = {},
+    ) =>
+        send({
+            clear: () => setDraft((current) => draftAfterSend(current, sent)),
+            deliver: (clear) => {
+                clear();
+                return didRunAgentChatCommand(terminalId, command);
+            },
+            restore: () => {
+                if (isFromDraft) returnUnsentAgentChatMessage(terminalId, sent, []);
+            },
+        });
     /**
      * `delivery` applies only while a turn runs (see `agentChat.send`); a slash command issued during a turn always
      * waits in the queue, because a command cannot join a running turn.
@@ -103,7 +118,9 @@ export function useAgentChatSubmit({
     };
     /**
      * Sends the draft in place of an earlier message ("Edit from here"). It is always sent as a message, never run as a
-     * slash command, because it replaces a message. Once delivered, the draft the edit replaced comes back.
+     * slash command, because it replaces a message. Once the user confirmed it, the draft the edit replaced comes back
+     * and `onCleared` ends the edit; if Server Core then refuses it, its images come back and `onReturned` puts the
+     * edit back.
      */
     const submitEdit = (
         sent: string,
@@ -114,29 +131,37 @@ export function useAgentChatSubmit({
             providerName: string;
             removedTurns: number;
         },
-        onDone: () => void,
+        { onCleared, onReturned }: { onCleared: () => void; onReturned: () => void },
     ): Promise<void> => {
         const sentAttachments = attachments;
-        return send(
-            () =>
-                didRewindAgentChat(terminalId, {
-                    itemId: edit.itemId,
-                    restoreFiles: edit.restoreFiles,
-                    providerName: edit.providerName,
-                    removedTurns: edit.removedTurns,
-                    message: {
-                        text: sent,
-                        ...(sentAttachments.length > 0 && {
-                            images: sentAttachments.map((attachment) => attachment.image),
-                        }),
-                    },
-                }),
-            () => {
+        return send({
+            clear: () => {
                 setDraft((current) => (current === sent ? edit.previousDraft : current));
                 clearSent(sentAttachments);
-                onDone();
+                onCleared();
             },
-        );
+            deliver: (clear) =>
+                didRewindAgentChat(
+                    terminalId,
+                    {
+                        itemId: edit.itemId,
+                        restoreFiles: edit.restoreFiles,
+                        providerName: edit.providerName,
+                        removedTurns: edit.removedTurns,
+                        message: {
+                            text: sent,
+                            ...(sentAttachments.length > 0 && {
+                                images: sentAttachments.map((attachment) => attachment.image),
+                            }),
+                        },
+                    },
+                    clear,
+                ),
+            restore: () => {
+                onReturned();
+                returnUnsentAgentChatMessage(terminalId, '', sentAttachments);
+            },
+        });
     };
     return { isSending, runCommand, submit, submitEdit };
 }
