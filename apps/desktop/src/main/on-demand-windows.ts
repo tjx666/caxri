@@ -1,7 +1,7 @@
 import os from 'node:os';
 import process from 'node:process';
 
-import type { AuxiliaryWindowState } from '@caxri/protocol';
+import type { AuxiliaryWindowState, ServerEvent } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { app } from 'electron';
@@ -20,6 +20,7 @@ export function createOnDemandWindows(options: {
     currentDirectory: string;
     logger: StructuredLogger;
     mainWindow: () => BrowserWindow | undefined;
+    sendEvent: (event: ServerEvent) => void;
     supervisor: DesktopServerConnection;
     windowMode: E2EWindowMode;
     zoomLevel: () => number;
@@ -55,6 +56,7 @@ export function createOnDemandWindows(options: {
                 agentCommander: state,
                 processExplorer: processExplorerState(),
             }),
+        sendEvent: options.sendEvent,
         stopCommander: () => supervisor.request('commander.stop'),
         windowMode,
         zoomLevel: options.zoomLevel,

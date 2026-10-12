@@ -114,6 +114,62 @@ test('Agent Commander window follows the app zoom and zooms from its own shortcu
 });
 
 /**
+ * MacOS fullscreen hides the traffic lights, so the Commander title bar drops their clearance and shows the logo. The
+ * Commander window publishes its own state; the Workbench receives the same durable event and must ignore it. The
+ * native transition is simulated on the real `BrowserWindow`, because a locked CI console cannot enter a fullscreen
+ * Space.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Agent Commander title bar swaps the traffic-light clearance for the logo in fullscreen', async ({}) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-fullscreen-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    const setCommanderFullScreen = (isFullScreen: boolean) =>
+        running.app.evaluate(({ BrowserWindow }, nextFullScreen) => {
+            const window = BrowserWindow.getAllWindows().find((candidate) =>
+                candidate.webContents.getURL().includes('agent-commander.html'),
+            );
+            if (!window) throw new Error('Commander window is missing');
+            window.isFullScreen = () => nextFullScreen;
+            window.emit(nextFullScreen ? 'enter-full-screen' : 'leave-full-screen');
+        }, isFullScreen);
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        const header = commander.locator('.agent-commander-header');
+        await expect(header).toBeVisible();
+        await expect(header.locator('[data-caxri-logo]')).toHaveCount(0);
+        await expect(header).toHaveCSS('padding-left', '78px');
+
+        await setCommanderFullScreen(true);
+        await expect(header.locator('img[data-caxri-logo]')).toBeVisible();
+        await expect(header).toHaveCSS('padding-left', '12px');
+        await expect(running.page.locator('.primary-sidebar-title [data-caxri-logo]')).toHaveCount(
+            0,
+        );
+
+        await setCommanderFullScreen(false);
+        await expect(header.locator('[data-caxri-logo]')).toHaveCount(0);
+        await expect(header).toHaveCSS('padding-left', '78px');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
  * The Commander keeps running after its window closes, and the user reopens the window many times a day. It comes back
  * where the user left it rather than at the default size in the middle of the screen.
  */

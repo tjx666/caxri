@@ -8,7 +8,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { authorizeDelegationSession } from '../../agent-delegation/admission';
 import { CaxriDatabase } from '../../db';
-import { AgentCommanderService } from '../service';
+import { AgentCommanderService, requireCommanderSession } from '../service';
 import { COMMANDER_WORKSPACE_DIRECTORY } from '../workspace';
 
 async function fixture() {
@@ -237,6 +237,18 @@ describe('Agent Commander service', () => {
             encoding: 'utf8',
         }).trim();
         expect(await realpath(topLevel)).toBe(workspacePath);
+    });
+
+    it('admits archiving only a Session the Commander created', async () => {
+        const { database, service, userProject, userSession } = await fixture();
+        const commander = await service.ensure();
+        const created = service.createSession(userProject.id);
+
+        expect(() => requireCommanderSession(database, created.sessionId)).not.toThrow();
+        for (const sessionId of [userSession.id, commander.identity.sessionId, 'missing'])
+            expect(() => requireCommanderSession(database, sessionId)).toThrow(
+                expect.objectContaining({ code: 'NOT_FOUND' }),
+            );
     });
 
     it('creates Commander Sessions without moving the Workbench selection', async () => {

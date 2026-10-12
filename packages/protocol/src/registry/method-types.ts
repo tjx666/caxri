@@ -92,6 +92,7 @@ export const effectfulCommandRecovery = {
     'agent.delegation.create': 'durable',
     'commander.ensure': 'memory',
     'commander.session.create': 'durable',
+    'commander.session.archive': 'durable',
     'commander.task.create': 'durable',
     'commander.task.update': 'durable',
     'commander.stop': 'durable',

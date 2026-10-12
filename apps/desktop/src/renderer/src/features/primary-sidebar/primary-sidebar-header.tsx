@@ -3,8 +3,8 @@ import { useMemo } from 'react';
 
 import { ListTodo } from 'lucide-react';
 
-import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { executeCommand } from '../../commands/execute';
+import { CaxriLogo } from '../../components/caxri-logo';
 import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
 import { useProjects, useSessions } from '../../stores/selectors';
@@ -14,11 +14,6 @@ import { SessionHistoryNavigation } from './session-history-navigation';
 
 const NO_RECORDS: never[] = [];
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
-
-/**
- * Vite serves this repo-only asset in development without bundling it into production.
- */
-const primarySidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.png' : caxriLogoUrl;
 
 /**
  * Past this the tally stops being readable at 10px and starts being a shape.
@@ -93,17 +88,7 @@ export function PrimarySidebarHeader({
             className={`primary-sidebar-title flex h-11 items-center py-0 pr-2 font-semibold ${isFullScreen ? 'pl-3' : 'pl-(--traffic-light-header-inset)'}`}
             style={{ WebkitAppRegion: 'drag' } as CSSProperties}
         >
-            {isFullScreen && (
-                /**
-                 * Fullscreen hides the traffic lights; the logo anchors the header in their absence.
-                 */
-                <img
-                    src={primarySidebarLogoUrl}
-                    alt="Caxri"
-                    className="mr-2 h-7 w-7 object-contain"
-                    data-caxri-logo
-                />
-            )}
+            {isFullScreen && <CaxriLogo className="mr-2" />}
             <SessionHistoryNavigation />
             {/*
              * The header is the window's drag region, so anything clickable inside it has to opt out or the pointer

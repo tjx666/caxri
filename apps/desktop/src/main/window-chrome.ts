@@ -1,5 +1,6 @@
 import process from 'node:process';
 
+import type { ServerEvent } from '@caxri/protocol';
 import type { BrowserWindow, BrowserWindowConstructorOptions, Point } from 'electron';
 
 /**
@@ -119,4 +120,25 @@ export function createWindowZoomController(options: {
             });
         },
     };
+}
+
+/**
+ * Publishes one window's macOS fullscreen state as `window.fullScreen`; fullscreen hides the traffic lights, so the
+ * Renderer drops their clearance and shows the logo instead. Durable delivery reaches every Renderer, hence `kind`.
+ * `did-finish-load` covers a Renderer that loads (or reloads after a crash) while already fullscreen, which would
+ * otherwise miss the one-shot `enter-full-screen` of a restored placement.
+ */
+export function publishFullScreenState(
+    window: BrowserWindow,
+    kind: 'workbench' | 'agentCommander',
+    sendEvent: (event: ServerEvent) => void,
+): void {
+    const send = (): void =>
+        sendEvent({
+            event: 'window.fullScreen',
+            payload: { window: kind, isFullScreen: window.isFullScreen() },
+        });
+    window.on('enter-full-screen', send);
+    window.on('leave-full-screen', send);
+    window.webContents.on('did-finish-load', send);
 }

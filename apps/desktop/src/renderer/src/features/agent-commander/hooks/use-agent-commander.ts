@@ -89,6 +89,8 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
                 useWorkbenchStore.setState((current) => ({
                     attachEpoch: current.attachEpoch + 1,
                 }));
+            if (effect.isFullScreen !== undefined)
+                useWorkbenchStore.setState({ isFullScreen: effect.isFullScreen });
             if (effect.snapshot) refreshCommanderSnapshot();
             if (effect.board) refetchBoard();
             // Fire-and-forget: the Inbox query surfaces its own failure in the Inbox column.

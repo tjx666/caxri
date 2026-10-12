@@ -21,6 +21,11 @@ interface CommanderEventEffect {
      */
     inbox: boolean;
     /**
+     * This window's own fullscreen state, when the event reports it; the title bar drops the traffic-light clearance
+     * while it is set. Undefined leaves the current state alone.
+     */
+    isFullScreen?: boolean;
+    /**
      * Mounted Terminal panes must re-issue `terminal.attach`: a Server restart or a Desktop↔Server reconnect dropped
      * the attachment and any PTY output sent meanwhile.
      */
@@ -101,6 +106,10 @@ export function commanderEventEffect(
             return { ...NO_EFFECT, inbox: true };
         case 'sessionPullRequests.changed':
             return { ...NO_EFFECT, pullRequestSessionIds: event.payload.sessionIds };
+        case 'window.fullScreen':
+            return event.payload.window === 'agentCommander'
+                ? { ...NO_EFFECT, isFullScreen: event.payload.isFullScreen }
+                : NO_EFFECT;
         default:
             return NO_EFFECT;
     }

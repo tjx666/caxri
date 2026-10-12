@@ -48,6 +48,7 @@ describe('CLI business command catalog', () => {
                 'agent message policy-set',
                 'commander board',
                 'commander session create',
+                'commander session archive',
                 'commander task list',
                 'commander task add',
                 'commander task update',
@@ -60,6 +61,18 @@ describe('CLI business command catalog', () => {
                 'skills uninstall',
             ]),
         );
+    });
+
+    it('archives exactly one Commander Session by ID', () => {
+        const archive = findCliCommand(['commander', 'session', 'archive', 'session-1']);
+        if (archive?.kind !== 'remote') throw new Error('commander session archive is missing');
+        expect(archive.method).toBe('commander.session.archive');
+        expect(archive.parseParams(['session-1'])).toEqual({ sessionId: 'session-1' });
+        expect(() => archive.parseParams([])).toThrow('requires one <session-id>');
+        expect(() => archive.parseParams(['session-1', 'session-2'])).toThrow(
+            'requires one <session-id>',
+        );
+        expect(() => archive.parseParams(['--project'])).toThrow('requires one <session-id>');
     });
 
     it('parses scoped selectors and bounded diagnostic filters', () => {
@@ -212,6 +225,7 @@ describe('CLI business command catalog', () => {
                 'agent message send',
                 'commander board',
                 'commander session create',
+                'commander session archive',
                 'commander task list',
                 'terminal send',
             ]),

@@ -101,8 +101,10 @@ vi.mock('../../../stores/toasts', () => ({
     pushToast: mocks.pushToast,
     tryCommand: mocks.tryCommand,
 }));
-vi.mock('../../../stores/workbench', () => ({
+vi.mock('../../../stores/session-command-convergence', () => ({
     registerSessionCommandConvergence: mocks.registerSessionCommandConvergence,
+}));
+vi.mock('../../../stores/workbench', () => ({
     refreshWorkbench: mocks.refreshWorkbench,
     useWorkbenchStore: { getState: () => ({ bootstrap: undefined }) },
 }));
