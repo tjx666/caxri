@@ -354,21 +354,30 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
         window.focus();
     }
 
+    async function reveal(existing: SshEnvironmentController, destination: string): Promise<void> {
+        focus(existing);
+        // Another spelling or alias of the same SSH Host: say why this window came forward instead of a new one.
+        if (existing.destination !== destination)
+            existing.sendEvent({
+                event: 'environment.connectionReused',
+                payload: { destination },
+            });
+        if (existing.state().phase === 'failed') await existing.reconnect();
+    }
+
     async function connect(destination: string): Promise<void> {
+        /**
+         * A window opened for this exact spelling is found without `keyOf`, whose `ssh -G` can take seconds behind a
+         * slow `Match exec`; only a spelling no window has used yet pays for resolving it.
+         */
+        const sameSpelling = environments
+            .values()
+            .find((environment) => environment.destination === destination);
+        if (sameSpelling) return reveal(sameSpelling, destination);
         const key = await options.keyOf(destination);
         // Nothing below awaits until the new environment is registered, so concurrent connects cannot both miss.
         const existing = environments.get(key);
-        if (existing) {
-            focus(existing);
-            // Another spelling or alias of the same SSH Host: say why this window came forward instead of a new one.
-            if (existing.destination !== destination)
-                existing.sendEvent({
-                    event: 'environment.connectionReused',
-                    payload: { destination },
-                });
-            if (existing.state().phase === 'failed') await existing.reconnect();
-            return;
-        }
+        if (existing) return reveal(existing, destination);
         const environment = new SshEnvironmentController(destination, options);
         environments.set(key, environment);
         environment.window.once('closed', () => {
