@@ -1,4 +1,9 @@
-import type { AgentProvider, AgentProviderStatus, AgentThroughputSample } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    AgentProviderStatus,
+    AgentThroughput,
+    AgentThroughputSample,
+} from '@caxri/protocol';
 import { agentProviderCatalog, agentStatusTabLabel } from '@caxri/protocol';
 import { Gauge } from 'lucide-react';
 
@@ -6,10 +11,12 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { cn } from '../../lib/utilities';
 import { useTerminal } from '../../stores/selectors';
+import type { ProviderStatusAlert } from '../agent-status/agent-provider-status-label';
 import {
     describeProviderStatus,
-    isProviderStatusDisrupted,
+    providerStatusAlert,
 } from '../agent-status/agent-provider-status-label';
 import { openAgentStatusTab } from '../agent-status/open-agent-status-tab';
 import { ProviderStatusSummary } from '../agent-status/provider-status-summary';
@@ -72,15 +79,53 @@ function ThroughputBars({ samples }: { samples: readonly AgentThroughputSample[]
 }
 
 /**
+ * Literal fill classes for the alert dot: the SVG counterpart of the `bg-*` dots on the Agent status tab, spelled out
+ * because Tailwind only generates utilities it finds in source.
+ */
+const ALERT_DOT_FILL_CLASS_NAMES: Record<ProviderStatusAlert['tone'], string> = {
+    warning: 'fill-warning',
+    danger: 'fill-danger',
+};
+
+/**
+ * The chip's Gauge, with the provider alert dot drawn into the glyph's top-right corner. Drawing it inside the same SVG
+ * keeps the chip's width fixed as the dot comes and goes (DESIGN.md principle 8), and the `--surface` ring cuts it out
+ * of the gauge's arc so it reads as a badge on the glyph rather than as part of it. Lucide drops its default
+ * `aria-hidden` once an icon has children, so the alert variant restores it: the chip's accessible name carries the
+ * status in words.
+ */
+function ThroughputGlyph({ alert }: { alert: ProviderStatusAlert | undefined }) {
+    if (!alert) return <Gauge />;
+    return (
+        <Gauge aria-hidden="true" data-provider-status={alert.tone}>
+            <circle
+                key="provider-status"
+                className={cn(
+                    ALERT_DOT_FILL_CLASS_NAMES[alert.tone],
+                    // The ring matches what is behind the glyph: the status bar, or the chip's hover fill over it.
+                    'stroke-surface [.statusbar-item:hover_&]:stroke-[color-mix(in_srgb,var(--foreground)_10%,var(--surface))]',
+                )}
+                cx={19}
+                cy={5}
+                r={4.5}
+                strokeWidth={2}
+            />
+        </Gauge>
+    );
+}
+
+/**
  * The chip before the Agent's first measured response, shown only while the provider's status page reports a problem: a
  * muted dash placeholder rate, so an incident is visible before the user's first prompt rather than only after a slow
  * answer.
  */
 function UnmeasuredThroughputStatus({
+    alert,
     provider,
     status,
     terminalId,
 }: {
+    alert: ProviderStatusAlert;
     provider: AgentProvider;
     status: Extract<AgentProviderStatus, { state: 'available' }>;
     terminalId: string;
@@ -91,7 +136,7 @@ function UnmeasuredThroughputStatus({
         <StatusItem
             ariaLabel={`Open ${tabLabel} — ${agentName} output speed: not measured yet; API status: ${describeProviderStatus(status)}`}
             className="statusbar-agent-throughput text-muted [&>span]:min-w-[8ch]"
-            icon={<Gauge />}
+            icon={<ThroughputGlyph alert={alert} />}
             onClick={() => openAgentStatusTab(terminalId)}
             title={
                 <StructuredTooltip
@@ -113,10 +158,11 @@ function UnmeasuredThroughputStatus({
 
 /**
  * Output speed of the Agent in the active Terminal, measured from the provider's own transcript, with the provider's
- * public service status beside it so a slow Agent can be told apart from a provider incident. Clicking opens the
- * Terminal's Agent status tab, the same tab `Show Agent Status` opens. Renders nothing for a Shell or an unsupported
- * provider. Before the first measured response it renders nothing either, unless the provider's status page reports a
- * problem (`UnmeasuredThroughputStatus`), so it never holds a slot to say "none".
+ * public service status beside it so a slow Agent can be told apart from a provider incident: maintenance or degraded
+ * performance marks the glyph with a `--warning` dot, an outage with a `--danger` one. Clicking opens the Terminal's
+ * Agent status tab, the same tab `Show Agent Status` opens. Renders nothing for a Shell or an unsupported provider.
+ * Before the first measured response it renders nothing either, unless the provider's status page reports a problem
+ * (`UnmeasuredThroughputStatus`), so it never holds a slot to say "none".
  */
 export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
     const throughputQuery = usePolledQuery(
@@ -131,19 +177,52 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
     const providerStatusQuery = useAgentProviderStatus(provider);
     const providerStatus = providerStatusQuery.data;
     const latest = throughput?.samples.at(-1);
-    const lastResponseAgo = useRelativeTime(latest?.completedAt);
     const rate = throughput ? throughputRate(throughput.recent) : undefined;
-    if (!throughput || !latest || rate === undefined) {
-        if (!provider || providerStatus?.state !== 'available') return null;
-        if (!isProviderStatusDisrupted(providerStatus)) return null;
+    const alert = providerStatusAlert(providerStatus);
+    if (throughput && latest && rate !== undefined)
         return (
-            <UnmeasuredThroughputStatus
-                provider={provider}
-                status={providerStatus}
+            <MeasuredThroughputStatus
+                alert={alert}
+                isProviderStatusError={providerStatusQuery.isError}
+                latest={latest}
+                providerStatus={providerStatus}
+                rate={rate}
                 terminalId={terminalId}
+                throughput={throughput}
             />
         );
-    }
+    if (!provider || !alert || providerStatus?.state !== 'available') return null;
+    return (
+        <UnmeasuredThroughputStatus
+            alert={alert}
+            provider={provider}
+            status={providerStatus}
+            terminalId={terminalId}
+        />
+    );
+}
+
+/**
+ * The chip once the Agent has a measured response: the recent rate, with the tooltip's per-response breakdown.
+ */
+function MeasuredThroughputStatus({
+    alert,
+    isProviderStatusError,
+    latest,
+    providerStatus,
+    rate,
+    terminalId,
+    throughput,
+}: {
+    alert: ProviderStatusAlert | undefined;
+    isProviderStatusError: boolean;
+    latest: AgentThroughputSample;
+    providerStatus: AgentProviderStatus | null | undefined;
+    rate: number;
+    terminalId: string;
+    throughput: AgentThroughput;
+}) {
+    const lastResponseAgo = useRelativeTime(latest.completedAt);
     const label = formatThroughputRate(rate);
     const agentName = agentProviderCatalog[throughput.provider].displayName;
     const tabLabel = agentStatusTabLabel(agentName);
@@ -154,9 +233,9 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
         !isSameThroughputAggregate(throughput.turn, throughput.session);
     return (
         <StatusItem
-            ariaLabel={`Open ${tabLabel} — ${agentName} output speed: ${spokenThroughputRate(rate)}, ${averageLabel.toLowerCase()}`}
+            ariaLabel={`Open ${tabLabel} — ${agentName} output speed: ${spokenThroughputRate(rate)}, ${averageLabel.toLowerCase()}${alert ? `, ${alert.label}` : ''}`}
             className="statusbar-agent-throughput [&>span]:min-w-[8ch]"
-            icon={<Gauge />}
+            icon={<ThroughputGlyph alert={alert} />}
             onClick={() => openAgentStatusTab(terminalId)}
             title={
                 <StructuredTooltip
@@ -214,7 +293,7 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
                                       label: 'API status',
                                       value: (
                                           <ProviderStatusSummary
-                                              isError={providerStatusQuery.isError}
+                                              isError={isProviderStatusError}
                                               status={providerStatus}
                                           />
                                       ),
