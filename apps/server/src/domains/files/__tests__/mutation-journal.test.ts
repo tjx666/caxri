@@ -185,6 +185,7 @@ describe('FileMutationJournal', () => {
         const first = new FileMutationJournal(path, () => {}, logger);
         await first.initialize();
         const never = new Promise<never>(() => {});
+        const renamed = Promise.withResolvers<void>();
         const startedAt = Date.now();
         const pending = first.run(
             {
@@ -208,13 +209,19 @@ describe('FileMutationJournal', () => {
                 };
                 await stage(result);
                 await rename(source, target);
+                renamed.resolve();
                 await never;
                 return result;
             },
         );
         // eslint-disable-next-line unicorn/prefer-await -- `pending` awaits a never-resolving promise inside the journal executor; awaiting the rejection handler here would hang the test forever, so the rejection is deliberately observed fire-and-forget.
         pending.catch(() => {});
-        await expect.poll(() => first.get('operation-3')).toMatchObject({ phase: 'staged' });
+        /**
+         * `stage()` persists the `staged` phase before the executor renames, so the phase alone does not prove the move
+         * happened; on a loaded host the restart below would otherwise run before the rename.
+         */
+        await renamed.promise;
+        await expect(first.get('operation-3')).resolves.toMatchObject({ phase: 'staged' });
         await expect(access(target)).resolves.toBeUndefined();
         await first.close();
 
