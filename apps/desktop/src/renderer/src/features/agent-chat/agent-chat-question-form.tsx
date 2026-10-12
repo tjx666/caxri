@@ -130,7 +130,10 @@ export function AgentChatQuestionForm({
     title: string;
 }) {
     const [index, setIndex] = useState(0);
-    const [answers, setAnswers] = useState<Record<string, string[]>>({});
+    /**
+     * Answers to the questions already passed; read only when the next answer arrives, so it never re-renders the card.
+     */
+    const answers = useRef<Record<string, string[]>>({});
     const [typed, setTyped] = useState('');
     const [selected, setSelected] = useState(() =>
         recommendedQuestionOptionIndex(request.questions.at(0)?.options ?? []),
@@ -141,9 +144,9 @@ export function AgentChatQuestionForm({
     const isLast = index + 1 >= request.questions.length;
     const answer = (value: string | undefined): void => {
         if (isAnswering) return;
-        const step = answerAgentChatQuestion(request, answers, index, value);
+        const step = answerAgentChatQuestion(request, answers.current, index, value);
         if (step.kind === 'respond') return respond(step.response);
-        setAnswers(step.answers);
+        answers.current = step.answers;
         setIndex(step.index);
         setTyped('');
         setSelected(

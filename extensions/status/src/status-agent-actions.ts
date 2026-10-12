@@ -7,7 +7,7 @@ import { unresolvedCommentsLabel } from './status-labels';
  * The Workbench command that hands a prompt to the selected Session's Agent. The Renderer resolves it itself, like
  * `caxri.openExternal`, because an extension has no authority over Agents.
  */
-export const SEND_TO_AGENT_COMMAND = 'caxri.sendToAgent';
+const SEND_TO_AGENT_COMMAND = 'caxri.sendToAgent';
 
 /**
  * One comment's body is cut here so a single long review (a pasted log, a large suggestion block) cannot crowd out the
