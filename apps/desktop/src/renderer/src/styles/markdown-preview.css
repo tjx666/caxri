@@ -258,12 +258,20 @@
     opacity: 0.4;
 }
 
+/*
+ * A parse error points at the failing column with a `----^` line under the quoted source, so its lines must not wrap:
+ * wrapping moves the marker off its column. The box takes the diagram's width and scrolls sideways instead of
+ * overflowing a narrow pane.
+ */
 .caxri-markdown-diagram-error {
+    align-self: stretch;
+    max-width: 100%;
     margin: 0;
+    overflow-x: auto;
     color: var(--danger);
     font-family: var(--editor-font-family, ui-monospace, 'Caxri JetBrains Mono', monospace);
     font-size: 12px;
-    white-space: pre-wrap;
+    white-space: pre;
 }
 
 /*

@@ -281,8 +281,9 @@ destination and must not look like it does. When the bar's content does not fit,
 one at a time, lowest first: child-process count, memory, Agent output speed, Agent conversation
 usage, Linear issue, acceptance, pull request. A chip's label is never truncated. The decision is by
 measured width, not fixed window breakpoints, because which chips are present (an Agent's two chips,
-a Commander chip, a debugging disclosure) changes how much room the rest needs; a hidden chip
-returns once the width it last occupied fits again. Everything else (the bell, degraded and update
+a Commander chip, a debugging disclosure) changes how much room the rest needs; a hidden chip is
+still measured off screen, so it returns once its current width fits again, and one whose data goes
+away stops crowding out chips that fit. Everything else (the bell, degraded and update
 chips, Terminal progress, the debugging disclosure, the Commander chips including `N need you`,
 pending peer approvals, the change counter, and the Project root and branch pickers) is never
 dropped; the pickers cap their own width instead.

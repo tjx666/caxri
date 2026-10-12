@@ -54,7 +54,7 @@ export function SettingRowChrome({
 }: SettingRowChromeProperties) {
     const { t } = useTranslation();
     const labelBlock = (
-        <FieldContent>
+        <FieldContent className={fullWidth ? undefined : 'flex-[1_1_12rem]'}>
             <span className="flex items-center gap-1.5">
                 {labelFor ? (
                     <FieldLabel htmlFor={labelFor}>{row.title}</FieldLabel>
@@ -121,7 +121,11 @@ export function SettingRowChrome({
                     {control}
                 </Field>
             ) : (
-                <Field orientation="horizontal" className="min-h-9 items-start gap-4">
+                /*
+                 * Wraps instead of squeezing: once the label block cannot keep 12rem beside the control, the control
+                 * drops under the description, so a narrow pane never breaks a title one word per line.
+                 */
+                <Field orientation="horizontal" className="min-h-9 flex-wrap items-start gap-4">
                     {labelBlock}
                     {control}
                 </Field>

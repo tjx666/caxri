@@ -94,61 +94,51 @@ export function RepoStatusChips({
     const { t } = useTranslation();
     return (
         <>
-            {chipVisibility.pullRequest && (
-                <PriorityChipSlot chip="pullRequest">
-                    {repo.pullRequest && (
-                        <StatusItem
-                            icon={<GitPullRequest />}
-                            href={repo.pullRequest.url}
-                            ariaLabel={t('statusBar.pullRequest.ariaLabel', {
-                                number: repo.pullRequest.number,
-                            })}
-                            title={
-                                <StructuredTooltip
-                                    eyebrow={t('statusBar.pullRequest.eyebrow', {
-                                        number: repo.pullRequest.number,
-                                    })}
-                                    title={repo.pullRequest.title}
-                                    hint={t('statusBar.pullRequest.hint')}
-                                />
-                            }
-                        >
-                            #{repo.pullRequest.number}
-                        </StatusItem>
-                    )}
-                    {repo.pullRequestUnavailable && (
-                        <StatusInfo
-                            icon={<GitPullRequest />}
-                            ariaLabel={t('statusBar.pullRequest.unavailableAriaLabel', {
-                                label: pullRequestUnavailableLabel(
-                                    repo.pullRequestUnavailable.reason,
-                                    t,
-                                ),
-                                hint: repo.pullRequestUnavailable.hint,
-                            })}
-                            title={repo.pullRequestUnavailable.hint}
-                            className="bg-elevated text-muted"
-                            focusable
-                        >
-                            {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason, t)}
-                        </StatusInfo>
-                    )}
-                </PriorityChipSlot>
-            )}
-            {chipVisibility.linearIssue && (
-                <PriorityChipSlot chip="linearIssue">
-                    {repo.linearIssues.length > 0 && (
-                        <LinearIssueStatus issues={repo.linearIssues} />
-                    )}
-                </PriorityChipSlot>
-            )}
-            {chipVisibility.acceptance && (
-                <PriorityChipSlot chip="acceptance">
-                    {repo.acceptances.length > 0 && (
-                        <AcceptanceStatus acceptances={repo.acceptances} />
-                    )}
-                </PriorityChipSlot>
-            )}
+            <PriorityChipSlot chip="pullRequest" isHidden={!chipVisibility.pullRequest}>
+                {repo.pullRequest && (
+                    <StatusItem
+                        icon={<GitPullRequest />}
+                        href={repo.pullRequest.url}
+                        ariaLabel={t('statusBar.pullRequest.ariaLabel', {
+                            number: repo.pullRequest.number,
+                        })}
+                        title={
+                            <StructuredTooltip
+                                eyebrow={t('statusBar.pullRequest.eyebrow', {
+                                    number: repo.pullRequest.number,
+                                })}
+                                title={repo.pullRequest.title}
+                                hint={t('statusBar.pullRequest.hint')}
+                            />
+                        }
+                    >
+                        #{repo.pullRequest.number}
+                    </StatusItem>
+                )}
+                {repo.pullRequestUnavailable && (
+                    <StatusInfo
+                        icon={<GitPullRequest />}
+                        ariaLabel={t('statusBar.pullRequest.unavailableAriaLabel', {
+                            label: pullRequestUnavailableLabel(
+                                repo.pullRequestUnavailable.reason,
+                                t,
+                            ),
+                            hint: repo.pullRequestUnavailable.hint,
+                        })}
+                        title={repo.pullRequestUnavailable.hint}
+                        className="bg-elevated text-muted"
+                        focusable
+                    >
+                        {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason, t)}
+                    </StatusInfo>
+                )}
+            </PriorityChipSlot>
+            <PriorityChipSlot chip="linearIssue" isHidden={!chipVisibility.linearIssue}>
+                {repo.linearIssues.length > 0 && <LinearIssueStatus issues={repo.linearIssues} />}
+            </PriorityChipSlot>
+            <PriorityChipSlot chip="acceptance" isHidden={!chipVisibility.acceptance}>
+                {repo.acceptances.length > 0 && <AcceptanceStatus acceptances={repo.acceptances} />}
+            </PriorityChipSlot>
             <RepoChangesStatus additions={repo.additions} deletions={repo.deletions} />
         </>
     );
