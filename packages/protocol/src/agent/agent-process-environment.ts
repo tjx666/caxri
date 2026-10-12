@@ -45,6 +45,13 @@ export const INHERITED_PROCESS_ENVIRONMENT_KEYS: readonly string[] = [
     'XDG_CONFIG_HOME',
     'XDG_CACHE_HOME',
     'XDG_DATA_HOME',
+    'XDG_STATE_HOME',
+    /**
+     * Linux session context: `systemctl --user`, rootless containers, and desktop keyrings find their sockets through
+     * these, so a Terminal on an SSH Host behaves like the user's own login shell.
+     */
+    'XDG_RUNTIME_DIR',
+    'DBUS_SESSION_BUS_ADDRESS',
     /**
      * Network and trust context for Agent providers and Git behind a proxy or a TLS-inspecting CA. Both cases exist
      * because tools disagree on which spelling they read.

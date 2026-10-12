@@ -12,6 +12,11 @@ export interface CreateExtensionServiceOptions {
     bootId: string;
     buildId: string;
     commit: string;
+    /**
+     * Leave the Extension Host child unforked until {@link ExtensionService.startHost} or the first request that needs
+     * it; see {@link ExtensionService.start}.
+     */
+    deferHostStart?: boolean;
     desktopRouter(): ServerDesktopRouter | undefined;
     domainService: ServerDomainService;
     executable?: string;
@@ -69,6 +74,6 @@ export async function createExtensionService(
         options.server()?.broadcast({ event: 'viewContainers.catalogChanged', payload }),
     );
     publishExtensionViewEvents(service, () => options.server());
-    await service.start();
+    await service.start({ deferHost: options.deferHostStart ?? false });
     return service;
 }

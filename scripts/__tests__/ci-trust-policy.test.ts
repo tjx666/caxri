@@ -155,6 +155,11 @@ function trustExpressionMismatches(candidatePolicy: TrustPolicy = policy): strin
             location: 'ci.jobs.ci.env.TRUSTED_EVENT',
         },
         {
+            actual: releaseWorkflow.jobs['linux-natives'].if,
+            expected: releaseTrustExpression(candidatePolicy),
+            location: 'release.jobs.linux-natives.if',
+        },
+        {
             actual: releaseWorkflow.jobs.release.if,
             expected: releaseTrustExpression(candidatePolicy),
             location: 'release.jobs.release.if',
@@ -205,6 +210,7 @@ describe('CI trust policy', () => {
         expect(mismatches).toEqual([
             'ci.jobs.retry-policy.if',
             'ci.jobs.ci.env.TRUSTED_EVENT',
+            'release.jobs.linux-natives.if',
             'release.jobs.release.if',
         ]);
     });

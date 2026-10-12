@@ -1,4 +1,5 @@
 import type { ServerEvent } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { dialog, shell } from 'electron';
 
@@ -7,6 +8,11 @@ import type { DesktopOperationHandlers } from './desktop-operations';
 import { launchExternalEditor } from './external-editor';
 
 export interface DesktopActionDependencies {
+    /**
+     * An SSH Host's Server names paths on that host. Revealing or opening one here would act on whatever local file
+     * happens to share the path, so those operations are refused instead.
+     */
+    environment?: 'local' | 'ssh';
     focusMainWindow: () => Promise<BrowserWindow>;
     getMainWindow: () => BrowserWindow | undefined;
     sendEvent: (event: ServerEvent) => void;
@@ -18,11 +24,20 @@ export interface DesktopActionDependencies {
  * Each handler receives a path Server Core already validated against the requesting Session's authorized Project root
  * and Main re-confirmed through `desktop-target.consume`; none of them may be reached with a Renderer-supplied path.
  */
+function refuseRemotePath(): never {
+    throw new CaxriError(
+        'UNAVAILABLE',
+        'This file is on the SSH Host and cannot be opened on this computer',
+    );
+}
+
 export function createDesktopActions({
+    environment = 'local',
     focusMainWindow,
     getMainWindow,
     sendEvent,
 }: DesktopActionDependencies): DesktopOperationHandlers {
+    const isRemote = environment === 'ssh';
     return {
         confirmGitDiscard: async (target) => {
             const result = await dialog.showMessageBox(
@@ -45,17 +60,24 @@ export function createDesktopActions({
                     ...(target.focusEditor && { focusEditor: target.focusEditor }),
                 },
             }),
-        openInEditor: (path, editorCommand) => launchExternalEditor(editorCommand, path),
+        openInEditor: async (path, editorCommand) => {
+            if (isRemote) refuseRemotePath();
+            await launchExternalEditor(editorCommand, path);
+        },
         /**
          * `shell.openPath` never rejects: it resolves with an error message string, and with an empty string when the
          * OS accepted the launch. Rethrowing that message is what turns "no application is registered for this file
          * type" into a Renderer toast instead of a click that silently does nothing.
          */
         openWithDefaultApp: async (path) => {
+            if (isRemote) refuseRemotePath();
             const failure = await shell.openPath(path);
             if (failure) throw new Error(failure);
         },
-        reveal: (path) => shell.showItemInFolder(path),
+        reveal: (path) => {
+            if (isRemote) refuseRemotePath();
+            shell.showItemInFolder(path);
+        },
         status: () => {
             const window = getMainWindow();
             return window && !window.isDestroyed() ? 'window' : 'background';

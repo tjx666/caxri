@@ -1,4 +1,5 @@
 export * from './concurrency.js';
+export * from './default-shell.js';
 export * from './environment.js';
 export * from './error-monitor.js';
 export * from './event-loop-monitor.js';

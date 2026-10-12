@@ -169,8 +169,9 @@ function readIdentifiers(callback) {
           responseDigest = createHash('sha256').update(response).digest('hex');
           if (provider === 'grok') {
             responseByteLength = Buffer.byteLength(response);
-            // Native Grok clips Stop text; a prefix hash cannot authenticate the omitted suffix.
-            if (/… \[\+\d+ chars\]$/.test(response)) overflow = true;
+            // Native Grok clips Stop text; a prefix hash cannot authenticate the omitted suffix. The ellipsis is
+            // escaped so this raw template, and with it the Server bundle, stays ASCII-only (one-byte in V8).
+            if (/\u2026 \[\+\d+ chars\]$/.test(response)) overflow = true;
           }
         }
       }

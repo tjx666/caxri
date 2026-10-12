@@ -7,12 +7,20 @@ import { sessionCommandDefinitions } from './session-command-definitions.js';
 import { terminalCommandDefinitions } from './terminal-command-definitions.js';
 
 /**
- * Context predicates the palette can evaluate against the currently selected Session so commands only surface when
- * their target state is real. Kept as a small enum rather than a general when-clause expression because the current
- * catalog has only three gated commands; a full evaluator is not warranted yet.
+ * Context predicates the palette can evaluate against the current window and selected Session so commands only surface
+ * when their target state is real. Kept as a small enum rather than a general when-clause expression because the
+ * current catalog has only a handful of gated commands; a full evaluator is not warranted yet.
+ *
+ * - `localMachine`: the window's Server runs on this Mac. An SSH Host window hides commands that act on this machine's
+ *   disk or OS, because Main refuses them there (see docs/adr/0014-ssh-remote-server.md).
+ * - `sshHost`: the window belongs to an SSH Host.
  */
 export type CommandWhen =
-    'sessionHasLiveAgent' | 'sessionHasDetachedAgent' | 'sessionHasPullRequest';
+    | 'sessionHasLiveAgent'
+    | 'sessionHasDetachedAgent'
+    | 'sessionHasPullRequest'
+    | 'localMachine'
+    | 'sshHost';
 
 export interface CommandDefinition {
     id: CommandId;
@@ -88,6 +96,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Project',
         description: 'Open the selected Project root in the configured external editor',
         nativeMenu: { menu: 'project', group: 1, order: 0 },
+        when: 'localMachine',
     },
     {
         id: 'project.customizeIcon',
@@ -382,6 +391,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Shell Command',
         description: 'Link the bundled caxri CLI into /usr/local/bin so any terminal can run it',
         keywords: ['cli', 'terminal', 'symlink'],
+        when: 'localMachine',
     },
     {
         id: 'shellCommand.uninstall',
@@ -389,6 +399,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Shell Command',
         description: 'Remove the caxri link that points into a Caxri app bundle',
         keywords: ['cli', 'terminal', 'symlink'],
+        when: 'localMachine',
     },
     {
         id: 'pathBrowser.open',
@@ -396,6 +407,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'View',
         description: 'Browse the selected Project and open a file',
         nativeMenu: { menu: 'view', group: 1, order: 0 },
+        when: 'localMachine',
     },
     {
         id: 'commandPalette.open',
@@ -410,6 +422,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'View',
         description: 'Open the cross-Project Agent board beside the Commander Agent',
         nativeMenu: { menu: 'view', group: 1, order: 2 },
+        when: 'localMachine',
     },
     {
         id: 'agentCommander.stop',
@@ -418,6 +431,7 @@ export const commandDefinitions: CommandDefinition[] = [
         description:
             'Stop the Agent Commander running in the background; opening it again resumes the same conversation',
         nativeMenu: { menu: 'view', group: 1, order: 3 },
+        when: 'localMachine',
     },
     {
         id: 'processExplorer.open',
@@ -425,6 +439,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Help',
         description: 'Inspect Caxri process resource usage',
         nativeMenu: { menu: 'help', group: 0, order: 0 },
+        when: 'localMachine',
     },
     {
         id: 'developer.toggleScreencastMode',
@@ -438,6 +453,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Help',
         description: 'Preview and send a privacy-safe local bug report to a running Agent',
         nativeMenu: { menu: 'help', group: 1, order: 0 },
+        when: 'localMachine',
     },
     {
         id: 'diagnostics.export',
@@ -445,6 +461,32 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Help',
         description: 'Export a privacy-safe diagnostics bundle',
         nativeMenu: { menu: 'help', group: 1, order: 1 },
+        when: 'localMachine',
+    },
+    {
+        id: 'remote.connect',
+        title: 'Connect to SSH Host…',
+        category: 'SSH Host',
+        description: 'Open a window whose Projects, Terminals, and Agents run on an SSH Host',
+        keywords: ['ssh', 'remote', 'server'],
+        nativeMenu: { menu: 'project', group: 2, order: 0 },
+    },
+    {
+        id: 'remote.reconnect',
+        title: 'Reconnect to SSH Host',
+        category: 'SSH Host',
+        description: "Reconnect this window to its SSH Host's Server",
+        keywords: ['ssh', 'remote'],
+        when: 'sshHost',
+    },
+    {
+        id: 'remote.stopServer',
+        title: 'Stop Server on SSH Host',
+        category: 'SSH Host',
+        description:
+            'Stop the Server on this SSH Host, ending every Terminal and Agent running there',
+        keywords: ['ssh', 'remote', 'shutdown'],
+        when: 'sshHost',
     },
     ...gitCommandDefinitions,
 ];

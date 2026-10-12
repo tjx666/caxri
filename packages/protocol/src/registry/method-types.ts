@@ -207,6 +207,16 @@ export const effectfulCommandRecovery = {
     'updates.cancel': 'memory',
     'updates.open': 'memory',
     'shellCommand.install': 'memory',
+    /**
+     * Opening or reconnecting an SSH Host window is idempotent per destination; a replay only refocuses it.
+     */
+    'remote.connect': 'memory',
+    'remote.reconnect': 'none',
+    'remote.stopServer': 'memory',
+    /**
+     * Answers one live OpenSSH prompt whose helper process waits with its own timeout; a replay would answer nobody.
+     */
+    'remote.askpass.reply': 'none',
     'shellCommand.uninstall': 'memory',
     'project.create': 'durable',
     'project.cancelCreate': 'durable',

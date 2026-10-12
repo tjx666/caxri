@@ -11,7 +11,11 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
-import { resolveOwnerProjectRoot } from '../project';
+import {
+    hasVisibleChildDirectory,
+    isGitRepoRoot as isGitRepoRoot,
+    resolveOwnerProjectRoot,
+} from '../project';
 
 type BrowseParameters = Omit<
     ServerOperationParameters<'mobile.project.browseInternal'>,
@@ -55,27 +59,6 @@ async function resolveWithinHome(
     return { absolute: canonical, relativePath: relative(homeDirectory, canonical) };
 }
 
-async function isGitRepo(candidatePath: string): Promise<boolean> {
-    try {
-        await stat(join(candidatePath, '.git'));
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-async function hasVisibleChildDirectory(candidatePath: string): Promise<boolean> {
-    let children: Dirent[];
-    try {
-        children = await readdir(candidatePath, { withFileTypes: true });
-    } catch {
-        return false;
-    }
-    return children.some(
-        (entry) => !entry.name.startsWith('.') && (entry.isDirectory() || entry.isSymbolicLink()),
-    );
-}
-
 export function createMobileProjectBrowseHandler(options: {
     homeDirectory?: () => Promise<string>;
 }) {
@@ -102,7 +85,7 @@ export function createMobileProjectBrowseHandler(options: {
                 const childStats = await statOrUndefined(childPath);
                 if (!childStats?.isDirectory()) return;
                 const [isRepo, hasChildren] = await Promise.all([
-                    isGitRepo(childPath),
+                    isGitRepoRoot(childPath),
                     hasVisibleChildDirectory(childPath),
                 ]);
                 return {

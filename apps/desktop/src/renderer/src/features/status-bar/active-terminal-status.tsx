@@ -16,6 +16,7 @@ import { StructuredTooltip } from '../../components/structured-tooltip';
 import { useTranslation } from '../../i18n';
 import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { cn } from '../../lib/utilities';
+import { useIsLocalOnlyAvailable } from '../../stores/environment';
 import { openHardwareAccelerationSettings } from '../gpu/gpu-commands';
 import { useIsHardwareAccelerationOff } from '../gpu/use-is-hardware-acceleration-off';
 import {
@@ -135,6 +136,14 @@ function TerminalUsageStatus({
     terminalId: string;
 }) {
     const { t } = useTranslation();
+    /**
+     * Process Explorer inspects this Mac's processes, so in an SSH Host window the chips stay a plain reading.
+     */
+    const canOpenProcessExplorer = useIsLocalOnlyAvailable();
+    const processExplorerHint = canOpenProcessExplorer
+        ? t('statusBar.terminal.clickToOpenProcessExplorer')
+        : undefined;
+    const onOpenProcessExplorer = canOpenProcessExplorer ? openProcessExplorer : undefined;
     const usage = usePolledQuery(
         'terminal.resources',
         { terminalId },
@@ -190,10 +199,10 @@ function TerminalUsageStatus({
                                           ]
                                         : []),
                                 ]}
-                                hint={t('statusBar.terminal.clickToOpenProcessExplorer')}
+                                hint={processExplorerHint}
                             />
                         }
-                        onClick={openProcessExplorer}
+                        onClick={onOpenProcessExplorer}
                     >
                         {memoryLabel}
                     </StatusItem>
@@ -210,10 +219,10 @@ function TerminalUsageStatus({
                             <StructuredTooltip
                                 title={childLabel}
                                 notes={[t('statusBar.terminal.childProcessNote')]}
-                                hint={t('statusBar.terminal.clickToOpenProcessExplorer')}
+                                hint={processExplorerHint}
                             />
                         }
-                        onClick={openProcessExplorer}
+                        onClick={onOpenProcessExplorer}
                     >
                         {usage.childProcessCount}
                     </StatusItem>
