@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { Alert } from 'react-native';
 
 import { encodeHex } from '@caxri/mobile-transport';
@@ -14,6 +14,16 @@ import {
     isWithinChatThumbnailLimit,
     splitMobileImage,
 } from '../image-attachment';
+import type { ImageAttachment } from '../image-attachment-store';
+import {
+    completeImageAttachment,
+    expireImageAttachments,
+    imageAttachmentKey,
+    imageAttachmentStore,
+    imageAttachmentWaitReason,
+    patchImageAttachment,
+    removeImageAttachment,
+} from '../image-attachment-store';
 import { didUploadImageChunks } from '../image-upload';
 
 /**
@@ -47,41 +57,53 @@ const renderChatThumbnail = async (uri: string, width: number, height: number): 
 
 export type ImageSource = 'library' | 'camera' | 'clipboard';
 
-interface Attachment {
-    id: string;
-    uri: string;
-    progress: number;
-    state: 'uploading' | 'ready' | 'failed';
-    base64: string;
-    /**
-     * A Chat image's preview, uploaded after the image under its own ID.
-     */
-    thumbnail?: { id: string; base64: string };
-    error?: string;
-}
+const failureMessage = (error: unknown): string =>
+    error instanceof Error && error.message.length > 0 ? error.message : 'Upload failed.';
 
+/**
+ * The pending images of one composer. They live in `imageAttachmentStore` rather than component state, so leaving the
+ * composer and coming back keeps them, and an upload started before leaving still finishes.
+ */
 export const useImageAttachments = (
     sessionId: string,
     {
         maxAttachments = MAX_ATTACHMENTS,
+        surface = 'terminal',
         withThumbnail = false,
     }: {
         maxAttachments?: number;
+        /**
+         * Which composer owns the strip; a Chat and a Terminal composer never share pending images.
+         */
+        surface?: 'chat' | 'terminal';
         /**
          * Also prepares and uploads a thumbnail per image, as an Agent Chat message carries one.
          */
         withThumbnail?: boolean;
     } = {},
 ) => {
-    const { request } = useMobileClient();
-    const [attachments, setAttachments] = useState<Attachment[]>([]);
-    const cancelled = useRef(new Set<string>());
+    const { connectionScopeKey, request } = useMobileClient();
+    const key = imageAttachmentKey(connectionScopeKey, surface, sessionId);
+    const subscribe = useCallback(
+        (listener: () => void) => imageAttachmentStore.subscribe(key, listener),
+        [key],
+    );
+    const snapshot = useCallback(() => imageAttachmentStore.get(key), [key]);
+    const attachments = useSyncExternalStore(subscribe, snapshot, snapshot);
+    const update = (change: (current: readonly ImageAttachment[]) => readonly ImageAttachment[]) =>
+        imageAttachmentStore.update(key, change);
+    // Pending images outlive the composer; one the Server has deleted since must not look ready on return.
+    useEffect(() => {
+        imageAttachmentStore.update(key, (current) => expireImageAttachments(current, Date.now()));
+    }, [key]);
 
-    const upload = async (item: Attachment) => {
+    const upload = async (item: ImageAttachment) => {
         try {
+            if (!item.base64)
+                throw new Error('This image is no longer available. Attach it again.');
             const parts = [
                 { id: item.id, chunks: splitMobileImage(item.base64) },
-                ...(item.thumbnail
+                ...(item.thumbnail?.base64
                     ? [{ id: item.thumbnail.id, chunks: splitMobileImage(item.thumbnail.base64) }]
                     : []),
             ];
@@ -101,57 +123,79 @@ export const useImageAttachments = (
                             chunk,
                         });
                     },
-                    () => cancelled.current.has(item.id),
+                    () => imageAttachmentStore.isCancelled(item.id),
                     (progress) =>
-                        setAttachments((current) =>
-                            current.map((candidate) =>
-                                candidate.id === item.id
-                                    ? {
-                                          ...candidate,
-                                          progress:
-                                              (before + progress * part.chunks.length) / total,
-                                      }
-                                    : candidate,
-                            ),
+                        update((current) =>
+                            patchImageAttachment(current, item.id, {
+                                progress: (before + progress * part.chunks.length) / total,
+                            }),
                         ),
                 );
                 if (!completed) return;
                 sent += part.chunks.length;
             }
-            setAttachments((current) =>
-                current.map((candidate) =>
-                    candidate.id === item.id
-                        ? { ...candidate, state: 'ready', progress: 1 }
-                        : candidate,
-                ),
-            );
+            update((current) => completeImageAttachment(current, item.id, Date.now()));
         } catch (error) {
-            setAttachments((current) =>
-                current.map((candidate) =>
-                    candidate.id === item.id
-                        ? {
-                              ...candidate,
-                              state: 'failed',
-                              error: error instanceof Error ? error.message : 'Upload failed.',
-                          }
-                        : candidate,
-                ),
+            update((current) =>
+                patchImageAttachment(current, item.id, {
+                    state: 'failed',
+                    error: failureMessage(error),
+                }),
             );
         }
     };
 
+    /**
+     * Prepares a picked image into an upload: a JPEG at most 1600 wide, plus a Chat thumbnail when asked for one.
+     */
+    const prepare = async (source: {
+        uri: string;
+        width: number;
+        height: number;
+        base64?: string;
+    }): Promise<Pick<ImageAttachment, 'base64' | 'thumbnail' | 'uri'>> => {
+        let { uri, base64 } = source;
+        let size = { width: source.width, height: source.height };
+        if (base64 === undefined) {
+            const context = ImageManipulator.ImageManipulator.manipulate(source.uri);
+            if (source.width > 1_600) context.resize({ width: 1_600 });
+            const rendered = await context.renderAsync();
+            const image = await rendered.saveAsync({
+                format: ImageManipulator.SaveFormat.JPEG,
+                compress: 0.75,
+                base64: true,
+            });
+            if (!image.base64) throw new Error('Unable to prepare this image.');
+            uri = image.uri;
+            base64 = image.base64;
+            size = { width: image.width, height: image.height };
+        }
+        splitMobileImage(base64);
+        return {
+            uri,
+            base64,
+            ...(withThumbnail && {
+                thumbnail: {
+                    id: newAttachmentId(),
+                    base64: await renderChatThumbnail(uri, size.width, size.height),
+                },
+            }),
+        };
+    };
+
     const add = async (source: ImageSource) => {
-        if (attachments.length >= maxAttachments) return;
+        if (imageAttachmentStore.get(key).length >= maxAttachments) return;
+        const id = newAttachmentId();
         try {
-            let uri: string;
-            let base64: string;
-            let size: { width: number; height: number };
+            let picked: { uri: string; width: number; height: number; base64?: string };
             if (source === 'clipboard') {
                 const image = await Clipboard.getImageAsync({ format: 'jpeg', jpegQuality: 0.75 });
                 if (!image) throw new Error('The clipboard has no image.');
-                uri = image.data;
-                base64 = image.data.replace(/^data:image\/jpeg;base64,/u, '');
-                size = image.size;
+                picked = {
+                    uri: image.data,
+                    base64: image.data.replace(/^data:image\/jpeg;base64,/u, ''),
+                    ...image.size,
+                };
             } else {
                 const result =
                     source === 'camera'
@@ -165,41 +209,53 @@ export const useImageAttachments = (
                           });
                 if (result.canceled || !result.assets[0]) return;
                 const asset = result.assets[0];
-                const context = ImageManipulator.ImageManipulator.manipulate(asset.uri);
-                if (asset.width > 1_600) context.resize({ width: 1_600 });
-                const rendered = await context.renderAsync();
-                const image = await rendered.saveAsync({
-                    format: ImageManipulator.SaveFormat.JPEG,
-                    compress: 0.75,
-                    base64: true,
-                });
-                if (!image.base64) throw new Error('Unable to prepare this image.');
-                uri = image.uri;
-                base64 = image.base64;
-                size = { width: image.width, height: image.height };
+                picked = { uri: asset.uri, width: asset.width, height: asset.height };
             }
-            splitMobileImage(base64);
-            const item: Attachment = {
-                id: newAttachmentId(),
-                uri,
-                base64,
-                progress: 0,
-                state: 'uploading',
-                ...(withThumbnail && {
-                    thumbnail: {
-                        id: newAttachmentId(),
-                        base64: await renderChatThumbnail(uri, size.width, size.height),
-                    },
-                }),
-            };
-            setAttachments((current) => [...current, item]);
+            // Another pick may have filled the strip while the picker was open.
+            if (imageAttachmentStore.get(key).length >= maxAttachments) return;
+            // The picked picture shows at once as `Preparing…` while it is resized and compressed.
+            update((current) => [
+                ...current,
+                { id, uri: picked.uri, progress: 0, state: 'preparing' },
+            ]);
+            const prepared = await prepare(picked);
+            if (imageAttachmentStore.isCancelled(id)) return;
+            const item: ImageAttachment = { id, progress: 0, state: 'uploading', ...prepared };
+            update((current) =>
+                patchImageAttachment(current, id, { ...prepared, state: 'uploading' }),
+            );
             await upload(item);
         } catch (error) {
+            update((current) => removeImageAttachment(current, id));
             Alert.alert(
                 'Unable to attach image',
                 error instanceof Error ? error.message : 'Try another image.',
             );
         }
+    };
+
+    const remove = (id: string) => {
+        imageAttachmentStore.cancel(id);
+        update((current) => removeImageAttachment(current, id));
+    };
+
+    const retry = async (id: string) => {
+        const item = imageAttachmentStore.get(key).find((candidate) => candidate.id === id);
+        if (!item) return;
+        const replacement: ImageAttachment = {
+            id: newAttachmentId(),
+            uri: item.uri,
+            ...(item.base64 !== undefined && { base64: item.base64 }),
+            ...(item.thumbnail && {
+                thumbnail: { ...item.thumbnail, id: newAttachmentId() },
+            }),
+            state: 'uploading',
+            progress: 0,
+        };
+        update((current) =>
+            current.map((candidate) => (candidate.id === id ? replacement : candidate)),
+        );
+        await upload(replacement);
     };
 
     return {
@@ -216,27 +272,30 @@ export const useImageAttachments = (
                 : [],
         ),
         hasUnsentAttachment: attachments.some((item) => item.state !== 'ready'),
-        remove: (id: string) => {
-            cancelled.current.add(id);
-            setAttachments((current) => current.filter((item) => item.id !== id));
-        },
-        retry: async (id: string) => {
-            const item = attachments.find((candidate) => candidate.id === id);
+        /**
+         * Why Send waits on the images, or `null` once they are all uploaded.
+         */
+        waitReason: imageAttachmentWaitReason(attachments),
+        remove,
+        retry,
+        /**
+         * Shows why an upload failed and lets the user retry or remove the image.
+         */
+        explainFailure: (id: string) => {
+            const item = imageAttachmentStore.get(key).find((candidate) => candidate.id === id);
             if (!item) return;
-            const replacement = {
-                ...item,
-                id: newAttachmentId(),
-                ...(item.thumbnail && {
-                    thumbnail: { ...item.thumbnail, id: newAttachmentId() },
-                }),
-                state: 'uploading' as const,
-                progress: 0,
-            };
-            setAttachments((current) =>
-                current.map((candidate) => (candidate.id === id ? replacement : candidate)),
-            );
-            await upload(replacement);
+            Alert.alert('Image upload failed', item.error ?? 'Upload failed.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Remove', style: 'destructive', onPress: () => remove(id) },
+                {
+                    text: 'Retry',
+                    onPress: () => {
+                        // eslint-disable-next-line no-void -- A failed retry marks the image failed again.
+                        void retry(id);
+                    },
+                },
+            ]);
         },
-        clear: () => setAttachments([]),
+        clear: () => update(() => []),
     };
 };

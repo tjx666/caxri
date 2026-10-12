@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
     toast: vi.fn(),
 }));
 
-vi.mock('../terminal-commands', () => ({ didPasteIntoTerminal: mocks.paste }));
+vi.mock('../terminal-pane-handlers', () => ({ didPasteIntoTerminal: mocks.paste }));
 vi.mock('../../../stores/toasts', () => ({ pushToast: mocks.toast }));
 
 import { PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';

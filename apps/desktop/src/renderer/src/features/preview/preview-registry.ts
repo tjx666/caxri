@@ -1,6 +1,12 @@
 import { filePreviewExtension } from '@caxri/protocol';
 
 /**
+ * The one loading sentence every preview shows, from the lazy view chunk through the source or asset read. Naming the
+ * stage ("Loading file…", then "Loading PDF…") made one wait read as two different steps flickering past.
+ */
+export const PREVIEW_LOADING_LABEL = 'Loading preview…';
+
+/**
  * Which rendered view a preview tab shows. One entry per registered format family.
  */
 type PreviewViewId = 'image' | 'markdown' | 'mermaid' | 'pdf' | 'table';

@@ -22,17 +22,23 @@ describe('describePdfFailure', () => {
         expect(describePdfFailure(namedError('PasswordException'))).toEqual({
             reason: 'This PDF is password-protected, and protected PDFs cannot be previewed yet.',
             tone: 'failed',
+            recovery: 'openWithDefaultApp',
         });
         expect(describePdfFailure(namedError('InvalidPDFException'))).toEqual({
             reason: 'This file is not a valid PDF, or it is damaged.',
             tone: 'failed',
+            recovery: 'openWithDefaultApp',
         });
     });
 
     it('states the size ceiling in megabytes', () => {
         expect(
             describePdfFailure(new CaxriError('CAPACITY', 'Asset exceeds the 33554432 byte limit')),
-        ).toEqual({ reason: 'This PDF is larger than the 32 MB preview limit.', tone: 'failed' });
+        ).toEqual({
+            reason: 'This PDF is larger than the 32.0 MB preview limit.',
+            tone: 'failed',
+            recovery: 'openWithDefaultApp',
+        });
     });
 
     it('keeps the editor wording for an ordinary read failure', () => {
@@ -40,5 +46,7 @@ describe('describePdfFailure', () => {
 
         expect(failure.tone).toBe('failed');
         expect(failure.reason).toMatch(/^Couldn't open this file/);
+        // A missing file can come back, so a read failure keeps Retry.
+        expect(failure.recovery).toBe('retry');
     });
 });

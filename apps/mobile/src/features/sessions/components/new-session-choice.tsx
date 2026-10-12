@@ -7,28 +7,31 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { newSessionStyles as styles } from './new-session-styles';
 
 export const NewSessionChoice = ({
+    detail,
     disabled,
     isCompact,
     label,
     leading,
     onPress,
-    reason,
     selected,
     testID,
     theme,
 }: {
+    /**
+     * The muted second line, also the accessibility hint: why a choice is unavailable, or what it does.
+     */
+    detail?: string;
     disabled?: boolean;
     isCompact?: boolean;
     label: string;
     leading?: ReactNode;
     onPress: () => void;
-    reason?: string;
     selected: boolean;
     testID: string;
     theme: MobileTheme;
 }) => (
     <Pressable
-        accessibilityHint={reason}
+        accessibilityHint={detail}
         accessibilityLabel={label}
         accessibilityRole="radio"
         accessibilityState={{ disabled, selected }}
@@ -53,9 +56,9 @@ export const NewSessionChoice = ({
             >
                 {label}
             </Text>
-            {reason ? (
+            {detail ? (
                 <Text numberOfLines={2} style={[styles.choiceReason, { color: theme.muted }]}>
-                    {reason}
+                    {detail}
                 </Text>
             ) : null}
         </View>

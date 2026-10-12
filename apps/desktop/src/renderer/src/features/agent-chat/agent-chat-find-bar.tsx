@@ -3,7 +3,9 @@ import { agentChatFindCountLabel } from './agent-chat-find';
 
 /**
  * The Chat's find bar, at the top right of the conversation like the Terminal's, clear of the message rail on the left
- * and Jump to latest at the bottom. Escape returns focus to the composer through `onClose`.
+ * and Jump to latest at the bottom. It is docked in its own strip above the conversation (`AgentChatFindScope`) rather
+ * than floating over it, so it never covers the transcript text it searches. Escape returns focus to the composer
+ * through `onClose`.
  */
 export function AgentChatFindBar({
     activeIndex,
@@ -27,11 +29,11 @@ export function AgentChatFindBar({
     return (
         <FindBar
             ariaLabel="Find in Chat"
-            className="z-10"
             countLabel={agentChatFindCountLabel(query, count, activeIndex)}
             focusRevision={focusRevision}
             hasMatches={count > 0}
             inputLabel="Find in Chat"
+            isDocked
             isNoMatch={query !== '' && count === 0}
             query={query}
             onClose={onClose}

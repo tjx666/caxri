@@ -15,7 +15,6 @@ export interface AppMenuOptions {
     dispatchCommand: (command: CommandId, isViaAccelerator: boolean) => void;
     openProcessExplorer: () => void;
     openAgentCommander: () => void;
-    stopAgentCommander: () => void;
     /**
      * The Workbench window, which runs every command-backed item. Absent while it is closed.
      */
@@ -143,7 +142,6 @@ export function buildAppMenuTemplate({
     dispatchCommand,
     openAgentCommander,
     openProcessExplorer,
-    stopAgentCommander,
     workbenchWindow,
     focusWorkbench,
     isFollowingAppZoom,
@@ -167,18 +165,19 @@ export function buildAppMenuTemplate({
          * `useCommandShortcuts` does) or an actual mouse/touch click on the menu item (a deliberate user action that
          * must keep working even while a Terminal/editor has focus).
          */
-        click: (_menuItem: MenuItem, focused: BaseWindow | undefined, event: KeyboardEvent) => {
+        click: (_menuItem: MenuItem, focused: BaseWindow | undefined, event?: KeyboardEvent) => {
             /**
              * The Process Explorer menu must work while its diagnostic window is focused.
              */
             if (definition.id === 'processExplorer.open') return openProcessExplorer();
             /**
-             * Like Process Explorer, the Agent Commander menu must work while its own window is focused, and the
-             * Workbench Renderer is not the one that should run it.
+             * Like Process Explorer, Open Agent Commander must work while its own window is focused, and the Workbench
+             * Renderer is not the one that should run it. Stop is an ordinary Workbench command: only a Renderer can
+             * ask before a running Commander turn ends.
              */
             if (definition.id === 'agentCommander.open') return openAgentCommander();
-            if (definition.id === 'agentCommander.stop') return stopAgentCommander();
-            const isViaAccelerator = event.triggeredByAccelerator === true;
+            // A programmatic `MenuItem.click()` passes no event; it is a deliberate click, not an accelerator.
+            const isViaAccelerator = event?.triggeredByAccelerator === true;
             const workbench = workbenchWindow();
             switch (
                 commandTarget(

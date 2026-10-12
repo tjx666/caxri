@@ -3,8 +3,13 @@ import { GitBranch, GitCommitHorizontal } from 'lucide-react';
 
 import { executeCommand } from '../../../commands/execute';
 import { StructuredTooltip } from '../../../components/structured-tooltip';
+import { caxri } from '../../../lib/caxri';
 import { cn } from '../../../lib/utilities';
-import { branchRowInteraction, branchRowTooltipDetails } from './source-control-row-labels';
+import {
+    branchRowInteraction,
+    branchRowTooltipDetails,
+    branchSyncConfirmRequest,
+} from './source-control-row-labels';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
 import { SourceControlTreeRow } from './source-control-tree-row';
 
@@ -14,10 +19,11 @@ type ProviderModel = SourceControlViewModel['providers'][number];
  * The repository's branch (or whatever reference the provider describes) as the section's first child row, laid out on
  * the directory rows' grid: the same height, padding, base text, a glyph in their file-icon column, and an optional
  * trailing status such as `↑2 ↓1` in their right-aligned `+N -M` column. Like the status bar's branch item, activating
- * the primary repository's row opens the branch picker, and clicking the ahead/behind badge runs the repository's sync
- * action. The badge is not its own button: a treeitem cannot nest one, so keyboard users reach sync through the row's
- * `Shift+F10` menu and the provider header's Sync button. An empty description means the provider judged the row
- * redundant with the header, and it is omitted.
+ * the primary repository's row opens the branch picker, and clicking the ahead/behind badge asks to sync (naming the
+ * remote branch and both counts) before running the repository's sync action, since the badge reads as a status number
+ * rather than a push-and-pull button. The badge is not its own button: a treeitem cannot nest one, so keyboard users
+ * reach sync through the row's `Shift+F10` menu and the provider header's Sync button. An empty description means the
+ * provider judged the row redundant with the header, and it is omitted.
  */
 export function SourceControlBranchRow({
     provider,
@@ -66,7 +72,10 @@ export function SourceControlBranchRow({
                     event.target instanceof Element &&
                     event.target.closest('[data-branch-sync-badge]') !== null;
                 if (isOnBadge && syncAction) {
-                    runAction(syncAction);
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, a declined confirmation is the only outcome to handle
+                    void caxri.window
+                        .showConfirm(branchSyncConfirmRequest(provider, syncAction))
+                        .then((isConfirmed) => isConfirmed && runAction(syncAction));
                     return;
                 }
                 if (canSwitchBranch) executeCommand('git.switchBranch');
@@ -88,7 +97,9 @@ export function SourceControlBranchRow({
                     <span
                         className={cn(
                             'git-repository-branch-badge shrink-0 text-[11px] whitespace-nowrap text-muted tabular-nums',
-                            syncAction && 'hover:text-foreground',
+                            // A visible hover box marks the badge as clickable; `-mr-1` keeps its digits in the counts' column.
+                            syncAction &&
+                                '-mr-1 rounded px-1 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] hover:text-foreground',
                         )}
                         data-branch-sync-badge={syncAction ? '' : undefined}
                     >

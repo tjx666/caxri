@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentChatFileChange } from '../agent-chat-diff';
 import type { AgentChatEditedFile } from '../agent-chat-turn-artifacts';
-import { planAgentChatFileUndo, revertAgentChatUpdate } from '../agent-chat-undo';
+import {
+    agentChatUndoFailureMessage,
+    agentChatUndoSuccessMessage,
+    planAgentChatFileUndo,
+    revertAgentChatUpdate,
+} from '../agent-chat-undo';
 
 const edited = (
     changes: AgentChatFileChange[],
@@ -139,5 +144,26 @@ describe('planAgentChatFileUndo', () => {
             { path: '/project/a.ts', kind: 'update', diff: '@@\n-a\n+b', truncated: true },
         ]);
         expect(planAgentChatFileUndo(cut, 'b')).toMatchObject({ ok: false, reason: 'truncated' });
+    });
+});
+
+describe('agentChatUndoFailureMessage', () => {
+    it('names the next step when a later change blocks the Undo', () => {
+        expect(agentChatUndoFailureMessage('src/a.ts', 'changed')).toBe(
+            'Nothing was undone: src/a.ts cannot be restored because it changed after the Agent edited it. Undo the later turn that edited it first, or use Restore Code to Here on the message that started this turn.',
+        );
+    });
+
+    it('states the cause alone when there is nothing to do instead', () => {
+        expect(agentChatUndoFailureMessage('src/a.ts', 'missing')).toBe(
+            'Nothing was undone: src/a.ts cannot be restored because it no longer exists.',
+        );
+    });
+});
+
+describe('agentChatUndoSuccessMessage', () => {
+    it('counts the files restored', () => {
+        expect(agentChatUndoSuccessMessage(1)).toBe('Undid the changes to 1 file');
+        expect(agentChatUndoSuccessMessage(3)).toBe('Undid the changes to 3 files');
     });
 });

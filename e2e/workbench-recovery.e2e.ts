@@ -80,9 +80,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .locator('span[id$="-description"]');
         await expect(editorTabDescription).not.toContainText('Unsaved changes.');
 
-        const externalReloadNotice = running.page.getByText(
-            /reloaded from disk; external changes take precedence/,
-        );
+        const externalReloadNotice = running.page.getByText(/were replaced by changes on disk/);
         await writeFile(join(sessionRoot, 'note.txt'), 'clean external change\n', 'utf8');
         await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).toContainText(
             'clean external change',

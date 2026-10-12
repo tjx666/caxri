@@ -39,10 +39,14 @@ export function windowClosePrompt(runningCount: number): WindowClosePrompt {
     return {
         type: 'warning',
         title: 'Close this window?',
+        /**
+         * The question lives in `message` because macOS sheets do not show `title`; the title is only for platforms
+         * that draw one.
+         */
         message:
             runningCount === 1
-                ? '1 Terminal or Chat is still running.'
-                : `${runningCount} Terminals or Chats are still running.`,
+                ? 'Close this window while 1 Terminal or Chat is running?'
+                : `Close this window while ${runningCount} Terminals or Chats are running?`,
         detail: 'Keep Running closes this window and keeps them running in the background. To exit the app, use Quit Caxri and choose whether they should stop.',
         buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
         defaultId: 2,

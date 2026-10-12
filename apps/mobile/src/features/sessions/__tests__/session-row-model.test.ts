@@ -8,6 +8,8 @@ import {
     savedAgeLabel,
     sessionAgeLabel,
     sessionAgentLabel,
+    sessionStateLabel,
+    sessionStatusGlyphKind,
 } from '../session-row-model';
 
 describe('Session row labels', () => {
@@ -59,5 +61,27 @@ describe('savedAgeLabel', () => {
         const now = 1_000_000_000;
         expect(savedAgeLabel(now, now)).toBe('saved just now');
         expect(savedAgeLabel(now - 5 * 60_000, now)).toBe('saved 5m ago');
+    });
+});
+
+describe('Session status on a saved copy', () => {
+    it('says how old a saved state is', () => {
+        const now = 1_000_000_000;
+        expect(sessionStateLabel('Working', null, now)).toBe('Working');
+        expect(sessionStateLabel('Working', now, now)).toBe('Working, as of just now');
+        expect(sessionStateLabel('Working', now - 5 * 60_000, now)).toBe('Working, as of 5m ago');
+    });
+
+    it('never spins for a running Session read from the saved copy', () => {
+        const running = { hasUnread: false, lastActivityState: 'running' } as const;
+        expect(sessionStatusGlyphKind(running, false)).toBe('running');
+        expect(sessionStatusGlyphKind(running, true)).toBe('running-saved');
+        expect(sessionStatusGlyphKind({ ...running, hasUnread: true }, true)).toBe('attention');
+        expect(
+            sessionStatusGlyphKind({ hasUnread: false, lastActivityState: 'failed' }, true),
+        ).toBe('failed');
+        expect(
+            sessionStatusGlyphKind({ hasUnread: false, lastActivityState: 'completed' }, false),
+        ).toBeNull();
     });
 });

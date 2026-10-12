@@ -62,6 +62,12 @@ export interface SettingRowDescriptor {
      * worked examples). Most rows have no `detail` and rely on `description` alone.
      */
     detail?: string;
+    /**
+     * A boolean setting this row only applies under. While that switch is off the row's control is disabled, so a
+     * dependent value (Pause idle Agents after) cannot read as if it were in force. Honored by the generic boolean and
+     * integer controls of a `setting` binding.
+     */
+    enabledBy?: SettingKey;
     binding: SettingRowBinding;
     /**
      * Lowercased text corpus the settings search matches against.
@@ -301,9 +307,6 @@ const rows: SettingRowSource[] = [
     specRow('terminal.scrollback'),
     specRow('terminal.longPasteThreshold'),
     specRow('terminal.copyOnSelect'),
-    specRow('terminal.suspendUntouchedAgents'),
-    specRow('terminal.idleSuspension.enabled'),
-    specRow('terminal.idleSuspension.afterMinutes'),
     specRow('terminal.osc52ClipboardWrite'),
     specRow('terminal.wordSeparators'),
     {
@@ -407,6 +410,11 @@ const rows: SettingRowSource[] = [
     },
     specRow('agents.notifications.enabled'),
     specRow('agents.notifications.completionThresholdSeconds'),
+    specRow('terminal.suspendUntouchedAgents'),
+    specRow('terminal.idleSuspension.enabled'),
+    specRow('terminal.idleSuspension.afterMinutes', {
+        enabledBy: 'terminal.idleSuspension.enabled',
+    }),
     ...agentProviderIds.flatMap((provider) => providerRows(provider)),
 ];
 

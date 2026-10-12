@@ -131,11 +131,11 @@ export const visibleConversationStatus = (
 /**
  * A back-navigation pop keeps the leaving Session screen mounted and visible while it slides off, and React Navigation
  * blurs it (`isFocused` -> false) at the very start of that transition. Feeding that immediate blur into
- * `visibleConversationStatus` inserts the "Reconnect to update Conversation" row below the list mid-transition -- a
- * re-layout of a screen the user is already leaving (#1329). `isStaleAfterBlur` is a timer the hook only commits to
- * `true` after this many milliseconds of continuous non-observability, so a pop transition (well under it) finishes
- * before the row would ever render, while a real backgrounding or a screen left covered still falls back to `stale`
- * once the window elapses.
+ * `visibleConversationStatus` inserts the stale-Conversation notice above the list mid-transition, a re-layout of a
+ * screen the user is already leaving (#1329). `isStaleAfterBlur` is a timer the hook only commits to `true` after this
+ * many milliseconds of continuous non-observability, so a pop transition (well under it) finishes before the row would
+ * ever render, while a real backgrounding or a screen left covered still falls back to `stale` once the window
+ * elapses.
  */
 export const CONVERSATION_BLUR_GRACE_MS = 500;
 

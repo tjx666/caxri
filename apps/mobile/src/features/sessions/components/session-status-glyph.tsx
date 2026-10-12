@@ -1,50 +1,76 @@
 import { ActivityIndicator, View } from 'react-native';
 
-import { CircleAlert } from 'lucide-react-native';
+import { CircleAlert, LoaderCircle } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
+import { sessionStatusGlyphKind } from '../session-row-model';
 
 /**
  * The single status slot shared by the Session list and the Session header. It mirrors Desktop's
  * `SessionStatusIndicator`: unread attention is amber, running spins, and a settled Session shows nothing so the title
- * carries the row. A failure the user has already read stays marked because nothing else on a phone row reveals it.
+ * carries the row. A failure the user has already read stays marked because nothing else on a phone row reveals it. On
+ * a saved copy a running Session shows a still spinner glyph, since the phone cannot know it is still working.
  */
 export const SessionStatusGlyph = ({
+    isSaved = false,
+    label,
     session,
     theme,
 }: {
+    /**
+     * Whether `session` comes from the copy saved on this phone rather than a live read.
+     */
+    isSaved?: boolean;
+    /**
+     * The accessible state, `session.stateLabel` unless a saved copy adds its age (see `sessionStateLabel`).
+     */
+    label?: string;
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
-    if (session.hasUnread)
-        return (
-            <View
-                accessibilityLabel={`Needs attention: ${session.stateLabel}`}
-                accessible
-                style={{
-                    backgroundColor: theme.warning,
-                    borderRadius: 5,
-                    height: 10,
-                    width: 10,
-                }}
-                testID="session-status-attention"
-            />
-        );
-    if (session.lastActivityState === 'running')
-        return (
-            <ActivityIndicator
-                accessibilityLabel={session.stateLabel}
-                color={theme.muted}
-                size="small"
-                testID="session-status-running"
-            />
-        );
-    if (session.lastActivityState === 'failed')
-        return (
-            <View accessibilityLabel={session.stateLabel} accessible testID="session-status-failed">
-                <CircleAlert color={theme.danger} size={18} />
-            </View>
-        );
-    return null;
+    const stateLabel = label ?? session.stateLabel;
+    switch (sessionStatusGlyphKind(session, isSaved)) {
+        case 'attention':
+            return (
+                <View
+                    accessibilityLabel={`Needs attention: ${stateLabel}`}
+                    accessible
+                    style={{
+                        backgroundColor: theme.warning,
+                        borderRadius: 5,
+                        height: 10,
+                        width: 10,
+                    }}
+                    testID="session-status-attention"
+                />
+            );
+        case 'running':
+            return (
+                <ActivityIndicator
+                    accessibilityLabel={stateLabel}
+                    color={theme.muted}
+                    size="small"
+                    testID="session-status-running"
+                />
+            );
+        case 'running-saved':
+            return (
+                <View
+                    accessibilityLabel={stateLabel}
+                    accessible
+                    testID="session-status-running-saved"
+                >
+                    <LoaderCircle color={theme.muted} size={18} />
+                </View>
+            );
+        case 'failed':
+            return (
+                <View accessibilityLabel={stateLabel} accessible testID="session-status-failed">
+                    <CircleAlert color={theme.danger} size={18} />
+                </View>
+            );
+        case null:
+            return null;
+    }
 };

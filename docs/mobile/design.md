@@ -192,15 +192,17 @@ added without moving screens. Query keys include the same host identity.
   submitted with the Terminal's Enter path; what the Agent does with input during a turn is the
   Agent's own behavior, so the UI never promises queuing.
 - While the Agent is running and the draft is empty, the Send button becomes **Stop** (square icon,
-  danger color, label `Stop Agent`). Stop interrupts only the current Agent endpoint and never sends
+  danger color, label `Stop Agent`). Send and Stop are the composer's primary action at `52dp`, and
+  the one-line input matches that height. Stop interrupts only the current Agent endpoint and never sends
   a raw Ctrl-C to a shell.
 - The byte counter appears only past 75% of the limit.
 - Drafts are kept per Session in memory and survive segment switches, navigation, and reconnects.
 - The attach button opens an image source sheet. A choice slides the sheet away first and only then
   opens the photo picker or camera, so system UI never covers a sheet still on screen
-  (`MOB-COMPOSE-02`). A Chat composer offers the same sheet and strip, for up to 4 images, only
-  when the provider takes images in a Chat (Claude Code and Codex, not Grok Build); an image alone is
-  a valid message (`MOB-CHAT-05`). A sent image opens full screen; when the provider's record has
+  (`MOB-COMPOSE-02`). A Chat composer offers the same sheet and strip, for up to 4 images, when the
+  provider takes images in a Chat (Claude Code and Codex); an image alone is a valid message
+  (`MOB-CHAT-05`). For a provider that does not (Grok Build) the attach button stays visible but
+  disabled, and tapping it explains why (`Grok Build can't read images in a Chat.`). A sent image opens full screen; when the provider's record has
   no original (always for Codex) the viewer shows the thumbnail and says `Showing a preview. The
 full-size image is not available.` (`MOB-CHAT-07`), and with neither it says `This image is no
 longer available.` without a Retry (`MOB-CHAT-08`).
@@ -212,7 +214,8 @@ longer available.` without a Retry (`MOB-CHAT-08`).
 Check the Terminal before sending again.` Never resend automatically.
 - When the connection is stale, the composer keeps the draft and names the disabled reason.
 - A Chat's composer carries one row above the input naming the model and reasoning effort of the
-  next turn (`Fake Codex High`), with Desktop's names. Tapping it opens a sheet with `Model` and
+  next turn (`Fake Codex · High`), with Desktop's names. The row is `40dp` tall with a hit slop that
+  makes it a `48dp` target. Tapping it opens a sheet with `Model` and
   `Reasoning effort` lists that apply on tap and a `Done` button; the sheet stays open after a
   model is chosen so its efforts show right away. While a turn runs the sheet says `Applies from
 the next turn.` Without access or a connection the row is plain text, and an open sheet disables
@@ -376,7 +379,8 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 - Screen titles use `22sp`; detail titles use `17sp`; metadata uses `13sp`; compact state labels use
   `11–12sp`. Never disable system font scaling.
 - Interactive targets are at least `48dp`, except key-bar keys at `44dp`; primary actions use
-  `52–56dp`.
+  `52–56dp`. The composer's Send and Stop are `52dp`; approval, question, and request buttons and
+  their options are `48dp`.
 - Base spacing is `4dp`; common gaps are `8`, `12`, `16`, `24`, and `32dp`.
 
 ## Color and state
@@ -440,8 +444,10 @@ the Session list, and the newest messages of recently opened Conversations and C
 cache only; nothing is sent from it (see the offline outbox under [Deferred](#deferred)).
 
 - Each saved copy is labeled: `Showing Sessions saved 5m ago.` above the list and
-  `Showing messages saved 5m ago.` under a Conversation or Chat. The app-wide `Reconnecting…`
-  banner and every disabled mutation keep explaining why it is not live.
+  `Showing messages saved 5m ago.` at the top of a Conversation or Chat, above any state notice.
+  The app-wide `Reconnecting…` banner and every disabled mutation keep explaining why it is not
+  live. While the screen below labels its saved copy, the banner's body reads only `Replies are
+paused until Caxri reconnects.` instead of repeating `Showing the last known state.`
 - The first live read replaces the saved copy as a whole; the label disappears with it. A saved
   copy is never merged into live history, because it has no cursor into it.
 - What is kept: the Session dashboard as the Server returned it, and per Conversation or Chat the

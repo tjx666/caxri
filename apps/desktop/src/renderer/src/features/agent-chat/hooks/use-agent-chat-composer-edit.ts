@@ -11,7 +11,7 @@ import {
     writeAgentChatEdit,
 } from '../agent-chat-edit';
 import type { AgentChatEditBarProperties as AgentChatEditBarProperties } from '../agent-chat-edit-bar';
-import { agentChatSendAction } from '../agent-chat-presentation';
+import { agentChatEscapeAction, agentChatSendAction } from '../agent-chat-presentation';
 import type { useAgentChatSubmit } from './use-agent-chat-submit';
 
 export interface AgentChatComposerEditHandle {
@@ -63,7 +63,7 @@ export function useAgentChatComposerEdit({
     isTurnRunning: boolean;
     options: AgentChatComposerEditOptions;
     providerName: string;
-    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'> | undefined;
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'planMode' | 'turns'> | undefined;
     submitEdit: ReturnType<typeof useAgentChatSubmit>['submitEdit'];
     terminalId: string;
     setDraft: (update: (current: string) => string) => void;
@@ -98,7 +98,12 @@ export function useAgentChatComposerEdit({
         focusInput();
     };
     const { filesUnsupportedReason } = options;
+    const escapeAction = agentChatEscapeAction(
+        { key: 'Escape', isComposing: false, repeat: false },
+        { isTurnRunning, isEditing: true },
+    );
     const bar: AgentChatEditBarProperties | undefined = active && {
+        cancelShortcut: escapeAction === 'cancelEdit' ? 'escape' : undefined,
         filesUnsupportedReason,
         removedTurns: active.removedTurns,
         shouldRestoreFiles: active.restoreFiles,
@@ -115,11 +120,14 @@ export function useAgentChatComposerEdit({
          */
         bar,
         /**
-         * The Send button: "Send edit" while editing.
+         * The Send button: "Send edit" while editing, and a planning placeholder while plan mode is on.
          */
         sendAction: active
             ? agentChatEditSendAction(isTurnRunning, providerName)
-            : agentChatSendAction({ isTurnRunning, isBusy }, providerName),
+            : agentChatSendAction(
+                  { isTurnRunning, isBusy, isPlanMode: snapshot?.planMode === true },
+                  providerName,
+              ),
         /**
          * Whether Send is available as far as the Chat goes (`canSend`). A provider rewinds only a settled
          * conversation, so an edit also waits for the running turn to end or be stopped.

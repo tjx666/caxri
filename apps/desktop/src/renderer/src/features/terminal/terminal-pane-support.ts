@@ -10,8 +10,7 @@ import {
     invalidateControlledViewSnapshot,
 } from '../view-containers/view-container-commands';
 import {
-    registerTerminalInputGate,
-    registerTerminalPasteHandler,
+    attachTerminal,
     sendTerminalBinaryInput,
     sendTerminalInput,
     sendTerminalInputToAgent,
@@ -26,6 +25,11 @@ import { createTerminalLinkScanner } from './terminal-link-scanner';
 import type { TerminalLinkContext, TerminalLinkMatch } from './terminal-links';
 import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
+import {
+    markTerminalAttached,
+    registerTerminalInputGate,
+    registerTerminalPasteHandler,
+} from './terminal-pane-handlers';
 import { terminalPaneHost } from './terminal-pane-host';
 import type { TerminalLinkReferenceContext } from './terminal-reference-links';
 import {
@@ -34,7 +38,9 @@ import {
     terminalReferencePreviewRequest,
     TerminalReferencePreviewStore,
 } from './terminal-reference-preview';
+import type { TerminalReplayCoordinator } from './terminal-replay';
 import type { TerminalSearchResults } from './terminal-search';
+import type { TerminalSize } from './terminal-size';
 import { isTerminalSwitchingToChat } from './terminal-surface-switch-pending';
 
 /**
@@ -51,6 +57,27 @@ export const onError = (message: string): void => pushToast('error', message);
 export function reportTerminalOperationError(error: unknown, fallback: string): void {
     if (isCaxriError(error) && error.code === 'CANCELLED') return;
     onError(errorMessage(error, fallback));
+}
+
+/**
+ * Re-claims a mounted pane's Server attachment after it was lost with the utility process or went stale behind a PTY
+ * spawned after the initial attach. Command input waits on the attachment registry while the replay runs. `readSize` is
+ * read when the snapshot is requested, not when the reattach starts, so it sees the latest process state. Callers are
+ * effects with nothing to rethrow to, so a failure is reported under `failureTitle`.
+ */
+export async function reattachTerminalView(
+    terminalId: string,
+    replay: TerminalReplayCoordinator,
+    readSize: () => TerminalSize | undefined,
+    failureTitle: string,
+): Promise<void> {
+    markTerminalAttached(terminalId, false);
+    try {
+        await replay.reattach(() => attachTerminal(terminalId, readSize()));
+        markTerminalAttached(terminalId, true);
+    } catch (error) {
+        reportTerminalOperationError(error, failureTitle);
+    }
 }
 
 /**

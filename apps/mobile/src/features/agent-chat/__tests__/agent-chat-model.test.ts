@@ -15,6 +15,7 @@ import {
     agentChatDisabledReason,
     agentChatEmptyMessage,
     agentChatImageCounts,
+    agentChatImagesUnsupportedReason,
     agentChatProviderName,
     agentChatRequestBlockedReason,
     agentChatTimelineItems,
@@ -231,6 +232,15 @@ describe('Agent Chat model', () => {
         expect(
             agentChatDisabledReason({ ...access, action: 'configure', deviceRole: 'view' }),
         ).toBe('Reply access is required to change the model.');
+    });
+
+    it('starts the unsupported-images reason with a capital for the providerless fallback', () => {
+        expect(agentChatImagesUnsupportedReason('Grok Build')).toBe(
+            "Grok Build can't read images in a Chat.",
+        );
+        expect(agentChatImagesUnsupportedReason('the Agent')).toBe(
+            "The Agent can't read images in a Chat.",
+        );
     });
 
     it('offers no Retry for a provider that must be installed or updated on the computer', () => {

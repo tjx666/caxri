@@ -407,9 +407,7 @@ test('external replacement refreshes every open workspace alias model', async ()
             'external change takes precedence',
         );
         await expect(linkedTab).not.toContainText('●');
-        await expect(
-            running.page.getByText(/reloaded from disk; external changes take precedence/),
-        ).toBeVisible();
+        await expect(running.page.getByText(/were replaced by changes on disk/)).toBeVisible();
 
         await aliasTab.click();
         await expect(editor.locator('.view-lines')).toContainText(

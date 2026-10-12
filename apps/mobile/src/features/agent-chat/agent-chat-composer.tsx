@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
 
 import { sentenceStartProvider } from '@caxri/protocol';
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
@@ -15,6 +15,7 @@ import {
     agentChatComposerButton,
     agentChatComposerSubmission,
     agentChatDisabledReason,
+    agentChatImagesUnsupportedReason,
     isAgentChatStopping,
 } from './agent-chat-model';
 import { AgentChatModelButton } from './agent-chat-model-sheet';
@@ -102,31 +103,53 @@ const useFocusRequest = ({
     return inputReference;
 };
 
+/**
+ * A provider that cannot read images in a Chat (Grok Build) keeps the button, disabled, so the reader learns why
+ * instead of wondering where attaching went.
+ */
 const AttachButton = ({
     canAdd,
     isEditable,
     onPress,
+    provider,
+    supportsImages,
     theme,
 }: {
     canAdd: boolean;
     isEditable: boolean;
     onPress: () => void;
+    provider: string;
+    supportsImages: boolean;
     theme: MobileTheme;
-}) => (
-    <IconButton
-        accessibilityHint={
-            canAdd ? undefined : `Up to ${MOBILE_CHAT_MAX_IMAGES} images per message.`
-        }
-        accessibilityLabel="Attach image"
-        color={theme.muted}
-        disabled={!isEditable || !canAdd}
-        icon={Paperclip}
-        onPress={onPress}
-        size={22}
-        testID="agent-chat-attach-image"
-        theme={theme}
-    />
-);
+}) => {
+    const unsupportedReason = agentChatImagesUnsupportedReason(provider);
+    return (
+        <View style={styles.attachSlot}>
+            <IconButton
+                accessibilityHint={
+                    !supportsImages
+                        ? unsupportedReason
+                        : canAdd
+                          ? undefined
+                          : `Up to ${MOBILE_CHAT_MAX_IMAGES} images per message.`
+                }
+                accessibilityLabel="Attach image"
+                color={theme.muted}
+                disabled={!supportsImages || !isEditable || !canAdd}
+                icon={Paperclip}
+                onDisabledPress={
+                    supportsImages
+                        ? undefined
+                        : () => Alert.alert("Images aren't available", unsupportedReason)
+                }
+                onPress={onPress}
+                size={22}
+                testID="agent-chat-attach-image"
+                theme={theme}
+            />
+        </View>
+    );
+};
 
 /**
  * The composer's one button: Send (or Queue during a turn), or Stop on an empty draft during a turn. Holding it, or the
@@ -282,6 +305,7 @@ export const AgentChatComposer = ({
 }) => {
     const images = useImageAttachments(sessionId, {
         maxAttachments: MOBILE_CHAT_MAX_IMAGES,
+        surface: 'chat',
         withThumbnail: true,
     });
     const [isChoosingImage, setChoosingImage] = useState(false);
@@ -322,7 +346,7 @@ export const AgentChatComposer = ({
     const steer = async (): Promise<void> => {
         if (canSteer) await run('steer');
     };
-    const canAttach = supportsImages && (deviceRole === 'reply' || deviceRole === 'control');
+    const canAttach = deviceRole === 'reply' || deviceRole === 'control';
     return (
         <View
             style={[styles.composerBlock, { borderColor: theme.border }]}
@@ -340,6 +364,8 @@ export const AgentChatComposer = ({
                         canAdd={images.canAdd}
                         isEditable={isEditable}
                         onPress={() => setChoosingImage(true)}
+                        provider={provider}
+                        supportsImages={supportsImages}
                         theme={theme}
                     />
                 ) : null}
@@ -389,7 +415,7 @@ export const AgentChatComposer = ({
                 error={error}
                 isStopping={isStopping}
                 provider={provider}
-                reason={availability.reason}
+                reason={availability.reason ?? images.waitReason ?? undefined}
                 theme={theme}
             />
             {isChoosingImage ? (

@@ -13,12 +13,9 @@ import {
 } from '../../lib/keybindings';
 import { useDialogStore } from '../../stores/dialogs';
 import { useWorkbenchStore } from '../../stores/workbench';
-import {
-    clearActiveTerminal,
-    findInActiveTerminal,
-    restartActiveTerminal,
-} from '../terminal/terminal-commands';
+import { restartActiveTerminal } from '../terminal/terminal-commands';
 import { openTerminalLinkPicker } from '../terminal/terminal-link-actions';
+import { clearActiveTerminal, findInActiveTerminal } from '../terminal/terminal-pane-handlers';
 import { switchTerminalToOtherSurface } from '../terminal/terminal-surface-commands';
 import { useAgentCommanderStore } from './commander-client';
 

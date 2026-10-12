@@ -184,6 +184,16 @@ describe('invalidation predicates match factory-built query keys', () => {
         expect(isInvalidated(queryClient, overview)).toBe(true);
     });
 
+    it('invalidates the Commander Inbox read behind the status bar chip on commanderInbox.changed', () => {
+        const queryClient = new QueryClient();
+        const inbox = caxriQueryKey('commander.inbox.list', {});
+        queryClient.setQueryData(inbox, { generatedAt: 0, items: [] });
+
+        emit(queryClient, { event: 'commanderInbox.changed', payload: { itemIds: ['item-a'] } });
+
+        expect(isInvalidated(queryClient, inbox)).toBe(true);
+    });
+
     it('invalidates the "Always allow in this Session" read its own change event names (issue caxri#1295)', () => {
         const queryClient = new QueryClient();
         const status = caxriQueryKey('session.permissionAutoAllowStatus', {

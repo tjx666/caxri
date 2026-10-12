@@ -28,6 +28,7 @@ import { getSessionDocuments, useSessionViewStore } from '../../../stores/sessio
 import { dismissToast, getToasts } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import { useFileOperationStore } from '../../view-containers/resource-explorer/file-operation-state';
+import { clearDiscardedBuffers, discardedChangesUnavailableReason } from '../discarded-buffers';
 import { subscribeExternalDocumentSync } from '../external-sync';
 
 const oldPath = '/project/old.ts';
@@ -92,6 +93,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    clearDiscardedBuffers();
     useFileOperationStore.getState().clear();
     useWorkbenchStore.setState({ bootstrap: undefined });
     dismissToast();
@@ -285,7 +287,7 @@ describe('subscribeExternalDocumentSync', () => {
         unsubscribe();
     });
 
-    it('keeps the external-reload notice on screen because it can discard unsaved work', async () => {
+    it('warns about a discarded buffer and offers to restore it', async () => {
         useSessionViewStore.getState().cacheDocument('session-1', {
             path: '/project/first.ts',
             content: 'dirty content',
@@ -316,9 +318,21 @@ describe('subscribeExternalDocumentSync', () => {
 
         await vi.waitFor(() => {
             expect(getToasts()).toContainEqual(
-                expect.objectContaining({ type: 'info', duration: Infinity }),
+                expect.objectContaining({
+                    type: 'warning',
+                    title: 'Your unsaved changes to first.ts were replaced by changes on disk.',
+                    duration: Infinity,
+                }),
             );
         });
+        // What the action restores is covered by `discarded-buffers.test.ts`; here the stash must be ready for it.
+        expect(
+            discardedChangesUnavailableReason({
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                paths: ['/project/first.ts'],
+            }),
+        ).toBeUndefined();
         unsubscribe();
     });
 
@@ -381,8 +395,8 @@ describe('subscribeExternalDocumentSync', () => {
         await vi.waitFor(() => {
             expect(getToasts()).toEqual([
                 expect.objectContaining({
-                    type: 'info',
-                    title: '2 open files reloaded from disk; external changes take precedence.',
+                    type: 'warning',
+                    title: 'Your unsaved changes to 2 files were replaced by changes on disk.',
                     duration: Infinity,
                 }),
             ]);
@@ -537,7 +551,7 @@ describe('subscribeExternalDocumentSync', () => {
             await vi.waitFor(() => {
                 expect(getToasts()).toContainEqual(
                     expect.objectContaining({
-                        title: 'notes.md reloaded from disk; external changes take precedence.',
+                        title: 'Your unsaved changes to notes.md were replaced by changes on disk.',
                         duration: Infinity,
                     }),
                 );

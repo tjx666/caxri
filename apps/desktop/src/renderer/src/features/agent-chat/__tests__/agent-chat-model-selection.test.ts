@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentChatPendingSelection } from '../agent-chat-model-selection';
 import {
     agentChatConfigureFailureMessage,
+    agentChatMenuModel,
     agentChatSelectionView,
     isAgentChatSelectionSettled,
 } from '../agent-chat-model-selection';
@@ -85,5 +86,29 @@ describe('Agent Chat model selection', () => {
         expect(agentChatConfigureFailureMessage({ ultracode: true })).toBe(
             'Unable to turn on Ultracode',
         );
+    });
+});
+
+describe('agentChatMenuModel', () => {
+    it('checks the listed model in use, matching an alias by its resolved id', () => {
+        expect(agentChatMenuModel(snapshot)?.id).toBe('fast');
+        expect(
+            agentChatMenuModel({
+                model: 'claude-opus-5-5',
+                models: [
+                    { id: 'opus', displayName: 'Opus', resolvedId: 'claude-opus-5-5', efforts: [] },
+                ],
+            })?.id,
+        ).toBe('opus');
+    });
+
+    it('checks the default alias before the provider names its model, so its efforts show', () => {
+        const withDefault = [
+            { id: 'default', displayName: 'Default (recommended)', efforts: ['low', 'medium'] },
+            ...models,
+        ];
+        expect(agentChatMenuModel({ model: undefined, models: withDefault })?.id).toBe('default');
+        expect(agentChatMenuModel({ model: undefined, models })).toBeUndefined();
+        expect(agentChatMenuModel({ model: 'unlisted', models: withDefault })).toBeUndefined();
     });
 });

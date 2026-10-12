@@ -1,7 +1,12 @@
 import type { AgentUsageReadout } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentUsageLabel, currentLimitWindows, shortWindowName } from '../agent-usage-label';
+import {
+    agentUsageCostLabel,
+    agentUsageLabel,
+    currentLimitWindows,
+    shortWindowName,
+} from '../agent-usage-label';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
 
@@ -54,6 +59,14 @@ describe('agent usage chip label', () => {
             NOW,
         );
         expect(label).toBe('1.2M');
+    });
+
+    it('marks a cost that leaves some unpriced models out as a lower bound', () => {
+        const partial = readout({ models: ['gpt-5.5', 'mystery'], unpricedModels: ['mystery'] });
+        expect(agentUsageCostLabel(partial)).toBe('≥$3.40');
+        expect(agentUsageLabel(partial, NOW)).toBe('1.2M · ≥$3.40');
+        expect(agentUsageCostLabel(readout())).toBe('$3.40');
+        expect(agentUsageCostLabel(readout({ unpricedModels: ['gpt-5.5'] }))).toBeUndefined();
     });
 
     it('keeps a window without a reset time and orders windows shortest first', () => {

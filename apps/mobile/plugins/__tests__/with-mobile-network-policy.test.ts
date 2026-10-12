@@ -44,7 +44,7 @@ describe('withMobileNetworkPolicy', () => {
     it('ships a product-specific iOS local-network explanation', () => {
         expect(describeIosLocalNetworkAccess({})).toMatchObject({
             NSLocalNetworkUsageDescription:
-                'Allow Caxri to connect securely to your Mac on the local network.',
+                'Allow Caxri to connect securely to your computer on the local network.',
             NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
         });
     });

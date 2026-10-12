@@ -316,23 +316,28 @@ export const settingsSpec = [
         ],
         default: 'on',
     },
+    /**
+     * The three suspension rows live under Agents although their keys keep the `terminal.` prefix: they decide when an
+     * Agent is paused, which is where a user looking for "why did my Agent restart" goes. Renaming the keys would
+     * orphan every value already written to `settings.jsonc`.
+     */
     {
         kind: 'boolean',
         key: 'terminal.suspendUntouchedAgents',
-        title: 'Suspend untouched Agents',
+        title: 'Pause Agents you opened but never used',
         description:
-            'Stops an Agent CLI that received no input before you switched away; it resumes on return',
-        category: 'terminal',
-        keywords: ['agent', 'suspend', 'idle', 'background', 'memory', 'resume'],
+            'Pauses an Agent you never typed into once you switch to another Session, to save memory. It picks up where it left off when you come back.',
+        category: 'agents',
+        keywords: ['agent', 'suspend', 'untouched', 'idle', 'background', 'memory', 'resume'],
         default: true,
     },
     {
         kind: 'boolean',
         key: 'terminal.idleSuspension.enabled',
-        title: 'Suspend idle background Agents',
+        title: 'Pause idle Agents in the background',
         description:
-            'Stops an Agent CLI that finished its turn and sat idle at its prompt in an unselected Session; it resumes when you return',
-        category: 'terminal',
+            'Pauses an Agent that finished its work and waited in a Session you are not viewing, to save memory. It picks up where it left off when you come back.',
+        category: 'agents',
         keywords: [
             'agent',
             'suspend',
@@ -348,10 +353,10 @@ export const settingsSpec = [
     {
         kind: 'integer',
         key: 'terminal.idleSuspension.afterMinutes',
-        title: 'Suspend idle Agents after',
+        title: 'Pause idle Agents after',
         description:
-            'How long an Agent must stay idle, and its Session unselected, before it is suspended. Applies only while Suspend idle background Agents is on',
-        category: 'terminal',
+            'How long an Agent waits, in a Session you are not viewing, before it is paused. Used only while Pause idle Agents in the background is on.',
+        category: 'agents',
         keywords: ['agent', 'suspend', 'idle', 'timeout', 'delay', 'hibernate', 'sleep'],
         min: 1,
         max: 1_440,
@@ -461,7 +466,12 @@ export const settingsSpec = [
         kind: 'integer',
         key: 'files.maxFileBytes',
         title: 'Maximum editable file size',
-        description: 'Larger files open read-only to keep the editor responsive',
+        /**
+         * The Server refuses to read a larger file at all (`DocumentService` throws `CAPACITY`), and Project search
+         * skips it, so the description must not promise a read-only view.
+         */
+        description:
+            "Larger files can't be opened in the editor and are skipped by search. Use Open with Default App for them.",
         category: 'files',
         keywords: ['limit', 'editor', 'megabytes'],
         min: 1024,

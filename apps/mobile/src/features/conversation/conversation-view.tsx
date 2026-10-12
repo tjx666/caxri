@@ -7,6 +7,7 @@ import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
 import { ArrowDown } from 'lucide-react-native';
 
+import { NoticeBanner } from '../../components/notice-banner';
 import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { PANEL_ENTER_MS, segmentEnterOffset } from '../sessions/hooks/use-segment-entering';
@@ -144,11 +145,13 @@ const ConversationStatus = ({
  */
 const ConversationList = ({
     enterFrom,
+    isConnected,
     onRetry,
     theme,
     timeline,
 }: {
     enterFrom: -1 | 0 | 1 | null;
+    isConnected: boolean;
     onRetry: () => void;
     theme: MobileTheme;
     timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
@@ -214,6 +217,21 @@ const ConversationList = ({
     }, []);
     return (
         <View style={styles.root} testID="conversation-view">
+            {/*
+             * Notices sit above the timeline, as on a Chat. Offline, the app-wide Reconnecting banner already explains
+             * a stale Conversation, so this one appears only when the connection is up but the read failed.
+             */}
+            <SavedCopyNote savedAt={timeline.savedAt} testID="conversation-saved" theme={theme} />
+            {isConnected && timeline.status === 'stale' ? (
+                <NoticeBanner
+                    actionLabel="Retry"
+                    message="This Conversation could not be updated. Showing the last loaded messages."
+                    onAction={onRetry}
+                    testID="conversation-status-stale"
+                    theme={theme}
+                    tone="muted"
+                />
+            ) : null}
             <Animated.View onLayout={onViewportLayout} style={[styles.list, revealStyle]}>
                 <FlashList
                     contentContainerStyle={styles.listContent}
@@ -263,18 +281,6 @@ const ConversationList = ({
                     style={styles.list}
                 />
             </Animated.View>
-            <SavedCopyNote savedAt={timeline.savedAt} testID="conversation-saved" theme={theme} />
-            {timeline.status === 'stale' ? (
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={onRetry}
-                    testID="conversation-status-stale"
-                >
-                    <Text style={[styles.historyText, { color: theme.muted }]}>
-                        Reconnect to update Conversation. Retry
-                    </Text>
-                </Pressable>
-            ) : null}
             {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (
                 <Pressable
                     accessibilityLabel="Jump to latest"
@@ -296,6 +302,7 @@ const ConversationList = ({
 export const ConversationView = ({
     canSend = true,
     enterFrom = null,
+    isConnected = true,
     onRetry,
     theme,
     timeline,
@@ -308,6 +315,10 @@ export const ConversationView = ({
      * The side a tab switch opened this Conversation from, or `null` when no tab switch motion should play.
      */
     enterFrom?: -1 | 0 | 1 | null;
+    /**
+     * Whether the connection is live. Offline, the app-wide banner explains a stale Conversation instead.
+     */
+    isConnected?: boolean;
     onRetry: () => void;
     theme: MobileTheme;
     timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
@@ -327,6 +338,7 @@ export const ConversationView = ({
     return (
         <ConversationList
             enterFrom={enterFrom}
+            isConnected={isConnected}
             onRetry={onRetry}
             theme={theme}
             timeline={timeline}

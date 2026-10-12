@@ -4,8 +4,20 @@ import type { GitPullRequestChanges } from 'caxri';
 import { CancellationTokenSource } from 'caxri';
 import { describe, expect, it, vi } from 'vitest';
 
-import { hasDetectedPullRequest } from '../pull-request-detection';
+import {
+    canAutoSelectPullRequestMode,
+    hasDetectedPullRequest,
+    shouldAutoSelectPullRequestMode,
+} from '../pull-request-detection';
 import { createHarness, repo, scopeId, summary } from './git-provider.fixture';
+
+/**
+ * Auto-selection never trades uncommitted changes for a pull request diff, so these cases start from a clean tree.
+ */
+const cleanSummary = {
+    ...summary,
+    repositories: [{ ...repo, changedFileCount: 0, additions: 0, deletions: 0, files: [] }],
+};
 
 const pullRequest: GitPullRequestChanges = {
     repositoryId: repo.id,
@@ -37,12 +49,37 @@ describe('Source Control default mode', () => {
         ).toBe(false);
     });
 
+    it('auto-selects only while no repository has uncommitted changes', () => {
+        expect(canAutoSelectPullRequestMode([{ changedFileCount: 0 }])).toBe(true);
+        expect(
+            canAutoSelectPullRequestMode([{ changedFileCount: 0 }, { changedFileCount: 2 }]),
+        ).toBe(false);
+    });
+
+    it('starts no lookup once the mode is settled or the tree is dirty', () => {
+        const load = vi.fn();
+        const clean = [{ id: 'one', branch: 'main', changedFileCount: 0 }];
+        const found = new Map([['one', { value: pullRequest }]]);
+        const open = { isModeChosen: false, mode: 'working', pullRequests: found };
+        expect(shouldAutoSelectPullRequestMode(open, clean, load)).toBe(true);
+        expect(load).toHaveBeenCalledTimes(1);
+        load.mockClear();
+        expect(shouldAutoSelectPullRequestMode({ ...open, isModeChosen: true }, clean, load)).toBe(
+            false,
+        );
+        const dirty = [{ ...clean[0], changedFileCount: 1 }];
+        expect(shouldAutoSelectPullRequestMode(open, dirty, load)).toBe(false);
+        expect(load).not.toHaveBeenCalled();
+    });
+
     it('opens in Pull Request mode once the branch has a pull request, until the user picks a mode', async () => {
         const { git, provider } = createHarness();
+        vi.mocked(git.summary).mockResolvedValue(cleanSummary);
         vi.mocked(git.pullRequestChanges).mockResolvedValue(pullRequest);
         const cancellation = new CancellationTokenSource();
         try {
-            // The first request only restores the persisted mode, which is not a user choice.
+            // The first request only restores the persisted mode, which is not a user choice: the Renderer persists
+            // whatever mode the provider reported, including the default Working Tree mode.
             await provider.provideView(
                 { scopeId, preferredModeId: 'working', refresh: 0 },
                 cancellation.token,
@@ -74,8 +111,24 @@ describe('Source Control default mode', () => {
         }
     });
 
+    it('never leaves Working Tree mode on its own while the tree has uncommitted changes', async () => {
+        const { git, provider } = createHarness();
+        vi.mocked(git.pullRequestChanges).mockResolvedValue(pullRequest);
+        const cancellation = new CancellationTokenSource();
+        try {
+            await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            const view = await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+            expect(view.selectedModeId).toBe('working');
+        } finally {
+            cancellation.dispose();
+            provider.dispose();
+        }
+    });
+
     it('stays in Working Tree mode when the branch has no pull request', async () => {
         const { git, provider } = createHarness();
+        vi.mocked(git.summary).mockResolvedValue(cleanSummary);
         const cancellation = new CancellationTokenSource();
         try {
             await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);

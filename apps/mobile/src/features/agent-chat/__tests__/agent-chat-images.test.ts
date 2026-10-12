@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatImageDataUri, readAgentChatImage } from '../agent-chat-images';
+import {
+    agentChatImageDataUri,
+    agentChatViewerContent,
+    clampZoomPan,
+    readAgentChatImage,
+} from '../agent-chat-images';
 
 describe('Agent Chat image paging', () => {
     it('joins every chunk of an original in order and reports progress', async () => {
@@ -36,5 +41,52 @@ describe('Agent Chat image paging', () => {
                 }),
             ),
         ).rejects.toThrow('The image changed while it was loading.');
+    });
+});
+
+describe('Agent Chat image viewer', () => {
+    it('keeps a zoomed pan within the picture edges', () => {
+        expect(clampZoomPan(120, 1, 400)).toBe(0);
+        expect(clampZoomPan(150, 2, 400)).toBe(150);
+        expect(clampZoomPan(500, 2, 400)).toBe(200);
+        expect(clampZoomPan(-500, 2, 400)).toBe(-200);
+        expect(clampZoomPan(30, 0.8, 400)).toBe(0);
+    });
+
+    const loading = { uri: null, isMissing: false, isError: false };
+
+    it('shows the cached thumbnail while the original loads', () => {
+        expect(agentChatViewerContent(loading, 'data:thumb')).toEqual({
+            imageUri: null,
+            isPreview: false,
+            placeholderUri: 'data:thumb',
+            message: null,
+        });
+        expect(
+            agentChatViewerContent({ ...loading, uri: 'file:///full.png' }, 'data:thumb'),
+        ).toEqual({
+            imageUri: 'file:///full.png',
+            isPreview: false,
+            placeholderUri: null,
+            message: null,
+        });
+    });
+
+    it('falls back to a preview, or says the image is gone', () => {
+        expect(agentChatViewerContent({ ...loading, isMissing: true }, 'data:thumb')).toEqual({
+            imageUri: 'data:thumb',
+            isPreview: true,
+            placeholderUri: null,
+            message: null,
+        });
+        expect(agentChatViewerContent({ ...loading, isMissing: true }, null).message).toBe(
+            'This image is no longer available.',
+        );
+        expect(agentChatViewerContent({ ...loading, isError: true }, 'data:thumb')).toEqual({
+            imageUri: null,
+            isPreview: false,
+            placeholderUri: 'data:thumb',
+            message: 'The image could not be loaded.',
+        });
     });
 });

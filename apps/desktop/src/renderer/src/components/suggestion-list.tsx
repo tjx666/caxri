@@ -1,7 +1,16 @@
+import { useRelativeTime } from '../hooks/use-relative-time';
 import type { SuggestionOption } from '../lib/suggestion-options';
 import { suggestionOptionId } from '../lib/suggestion-options';
 import { cn } from '../lib/utilities';
 import { Spinner } from './ui/spinner';
+
+/**
+ * When a same-titled row was last opened, ticking on the shared relative-time clock in this leaf only.
+ */
+function OpenedTime({ openedAt }: { openedAt: number }) {
+    const label = useRelativeTime(openedAt, 'narrow');
+    return <span className="shrink-0 text-muted">· {label}</span>;
+}
 
 const GROUP_HEADING_CLASS_NAME = 'px-2 pt-1.5 pb-0.5 text-[11px] leading-4 text-muted';
 
@@ -10,7 +19,7 @@ const GROUP_HEADING_CLASS_NAME = 'px-2 pt-1.5 pb-0.5 text-[11px] leading-4 text-
  * Commander Inbox reply box's `@` item list. Focus stays in the input, which drives the list through
  * `aria-activedescendant`; the pointer can pick a row too. Rows match the command palette's density and focus fill,
  * under group headings, and a `meta` footer names the keys. A list with an `emptyText` stays open on no match so a typo
- * reads as a miss, and `notice` explains rows that are still missing.
+ * reads as a miss, and `notice` explains rows that are still missing or, with a spinner, work in progress.
  *
  * It is not a Base UI popup, because focus has to stay in the textarea while the arrow keys drive it, but it wears the
  * shared overlay surface (`--elevated`, the `--border` ring plus `--shadow` elevation the popover and tooltip use) and
@@ -36,7 +45,10 @@ export function SuggestionList({
      */
     className?: string;
     emptyText?: string;
-    footer: string;
+    /**
+     * Omitted while the list only reports progress and no key does anything in it.
+     */
+    footer?: string;
     /**
      * The visible group title a row starts, or `undefined` when it continues the group above it.
      */
@@ -100,6 +112,9 @@ export function SuggestionList({
                                             {suggestion.description}
                                         </span>
                                     )}
+                                    {suggestion.openedAt !== undefined && (
+                                        <OpenedTime openedAt={suggestion.openedAt} />
+                                    )}
                                 </div>
                             </div>
                         );
@@ -123,12 +138,14 @@ export function SuggestionList({
                     </div>
                 )}
             </div>
-            <div
-                aria-hidden
-                className="shrink-0 border-0 border-t border-solid border-border px-3 py-1 text-[11px] leading-4 text-muted"
-            >
-                {footer}
-            </div>
+            {footer && (
+                <div
+                    aria-hidden
+                    className="shrink-0 border-0 border-t border-solid border-border px-3 py-1 text-[11px] leading-4 text-muted"
+                >
+                    {footer}
+                </div>
+            )}
         </div>
     );
 }

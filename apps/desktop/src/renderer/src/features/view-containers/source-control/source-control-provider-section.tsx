@@ -27,7 +27,11 @@ import type {
 import { SourceControlBranchRow } from './source-control-branch-row';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
-import { changedFileCountLabel } from './source-control-row-labels';
+import {
+    changedFileCountLabel,
+    changedFileCountText,
+    GROUP_LINE_STATS_NOTE,
+} from './source-control-row-labels';
 import type { SourceControlRowMenuItem } from './source-control-row-menu';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
 import {
@@ -411,13 +415,20 @@ function GroupCaption({
             <span className="git-changes-actions flex items-center gap-1">
                 <GroupActionButtons controller={controller} group={group} />
                 {lineStats && (
-                    <DiffStat
-                        {...lineStats}
-                        className="mr-1 text-[11px] font-normal tracking-normal normal-case"
-                    />
+                    <Tooltip content={`${diffStatLabel(lineStats)}. ${GROUP_LINE_STATS_NOTE}.`}>
+                        <span className="flex">
+                            <DiffStat
+                                {...lineStats}
+                                className="mr-1 text-[11px] font-normal tracking-normal normal-case"
+                            />
+                        </span>
+                    </Tooltip>
                 )}
+                {/* Names its unit on screen: a bare count beside `+4 -1` read as a third diff figure. */}
                 <Tooltip content={changedFileCountLabel(group.count)}>
-                    <span className="git-changes-count tabular-nums">{group.count}</span>
+                    <span className="git-changes-count ml-1 text-[11px] font-normal tracking-normal whitespace-nowrap normal-case tabular-nums">
+                        {changedFileCountText(group.count)}
+                    </span>
                 </Tooltip>
             </span>
         </div>

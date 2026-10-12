@@ -6,7 +6,11 @@ import type {
 } from 'caxri';
 import { ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
 
-import { pullRequestCheckNodes } from './status-checks';
+import {
+    isPullRequestRowExpanded,
+    pullRequestCheckNodes,
+    pullRequestCheckSummary,
+} from './status-checks';
 import type { StatusNode } from './status-item';
 import { item } from './status-item';
 import {
@@ -353,6 +357,11 @@ function buildRepoChildren(
                  * the branch row (see `lifecycle` above), so this row no longer repeats it in the trailing slot.
                  */
                 icon: stateIcons[pullRequest.state],
+                /**
+                 * Trailing counts name only the checks that ask for attention (`1 failing · 3 running`), so a row whose
+                 * checks all passed stays quiet while a pending or failed one says how many without expanding.
+                 */
+                description: pullRequestCheckSummary(pullRequest.checks),
                 accessibilityLabel: [
                     `#${pullRequest.number} ${pullRequest.title}`,
                     lifecycleLabel,
@@ -382,10 +391,9 @@ function buildRepoChildren(
                     ],
                 },
                 children,
-                collapsibleState:
-                    pullRequest.state === 'failure'
-                        ? TreeItemCollapsibleState.Expanded
-                        : TreeItemCollapsibleState.Collapsed,
+                collapsibleState: isPullRequestRowExpanded(pullRequest)
+                    ? TreeItemCollapsibleState.Expanded
+                    : TreeItemCollapsibleState.Collapsed,
             }),
         );
     }

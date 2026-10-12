@@ -137,9 +137,9 @@ process.stdout.write('READY\r\n');
         });
         await running.page.keyboard.press('Meta+Shift+P');
         const search = running.page.getByPlaceholder('Search projects, sessions, and commands…');
-        await search.fill('Compact Sessions');
+        await search.fill('Compact Recently Idle');
         await expect(
-            running.page.getByRole('option', { name: /Compact Sessions with Warm Cache/ }),
+            running.page.getByRole('option', { name: /Compact Recently Idle Sessions/ }),
         ).toBeVisible();
         await search.press('Enter');
         await expect(

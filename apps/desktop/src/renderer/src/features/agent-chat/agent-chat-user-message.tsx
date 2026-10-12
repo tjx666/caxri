@@ -1,7 +1,5 @@
 import { useRef, useState } from 'react';
 
-import { GitFork, History, Undo2 } from 'lucide-react';
-
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { WebLink } from '../../components/markdown/web-link';
@@ -14,9 +12,11 @@ import { AgentChatMessageImages } from './agent-chat-message-images';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { agentChatDeliveryCaption } from './agent-chat-presentation';
 import { agentChatLeadingInvocation } from './agent-chat-slash-commands';
+import { AgentChatUserMessageActions } from './agent-chat-user-message-actions';
 import { agentChatUserMessageSegments } from './agent-chat-user-message-text';
 import { useAgentChatEdit } from './hooks/use-agent-chat-edit';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
+import { useAgentChatUserMessageMenu } from './hooks/use-agent-chat-user-message-menu';
 import { useIsAgentChatClamped } from './hooks/use-is-agent-chat-clamped';
 
 /**
@@ -26,9 +26,11 @@ import { useIsAgentChatClamped } from './hooks/use-is-agent-chat-clamped';
  * revealing it never shifts the transcript. A long message (a pasted log, a spec) clamps to twelve lines with Show
  * more, so one prompt does not push the reply it asked for off screen; Copy still takes the whole text. A message that
  * started a turn also offers "Edit from here", which puts its text back into the composer to send in its place (the
- * message being edited keeps an accent outline until then), "Fork from here", which opens the conversation before it in
- * a new Session with its text in the composer, and, when the provider restores files, "Restore code to here", which
- * reverts the files changed since and keeps the conversation, as Claude Code's `/rewind` "Restore code" does.
+ * message being edited keeps a quiet `--muted` outline until then), "Fork from here", which opens the conversation
+ * before it in a new Session with its text in the composer, and, when the provider restores files, "Restore code to
+ * here", which reverts the files changed since and keeps the conversation, as Claude Code's `/rewind` "Restore code"
+ * does. A right-click offers the same actions in a native menu (`agentChatUserMessageMenu`), so they are reachable
+ * without finding the hover row.
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -53,6 +55,8 @@ export function AgentChatUserMessage({
     const caption = agentChatDeliveryCaption(delivery);
     const edit = useAgentChatEdit();
     const isEditing = edit?.editingId === id;
+    const container = useRef<HTMLDivElement>(null);
+    const menu = useAgentChatUserMessageMenu({ container, id, text });
     const hasActions =
         text !== '' ||
         createdAt !== undefined ||
@@ -62,6 +66,8 @@ export function AgentChatUserMessage({
         <div
             className="group/user-message flex flex-col items-end gap-1.5"
             data-agent-chat-user-message={id}
+            ref={container}
+            onContextMenu={menu.onContextMenu}
         >
             {images && images.length > 0 && (
                 <AgentChatMessageImages
@@ -80,9 +86,12 @@ export function AgentChatUserMessage({
                     data-agent-chat-find-ignore=""
                 >
                     {createdAt !== undefined && <AgentChatMessageTime timestamp={createdAt} />}
-                    <EditFromHereButton id={id} text={text} />
-                    <ForkFromHereButton id={id} text={text} />
-                    <RestoreCodeButton id={id} />
+                    <AgentChatUserMessageActions
+                        id={id}
+                        isForking={menu.isForking}
+                        text={text}
+                        onFork={menu.fork}
+                    />
                     {text && (
                         <CopyIconButton
                             className="-mr-1"
@@ -96,12 +105,9 @@ export function AgentChatUserMessage({
     );
 }
 
-const ACTION_BUTTON_CLASS =
-    'flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted';
-
 /**
- * The message bubble. A long message clamps to twelve lines with Show more; the message being edited keeps an accent
- * outline.
+ * The message bubble. A long message clamps to twelve lines with Show more; the message being edited keeps a `--muted`
+ * outline, which marks it without competing with the edit banner's accent for attention.
  */
 function UserMessageBubble({
     isEditing,
@@ -120,7 +126,7 @@ function UserMessageBubble({
         <div
             className={cn(
                 'max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground select-text',
-                isEditing && 'outline outline-1 outline-accent',
+                isEditing && 'outline outline-1 outline-muted',
             )}
         >
             <div className={cn(!isExpanded && 'line-clamp-12')} ref={textReference}>
@@ -144,80 +150,6 @@ function UserMessageBubble({
                 </button>
             )}
         </div>
-    );
-}
-
-/**
- * "Edit from here" in a user message's action row, when the Chat offers it for this message; disabled with the reason
- * on hover while it cannot run.
- */
-function EditFromHereButton({ id, text }: { id: string; text: string }) {
-    const edit = useAgentChatEdit();
-    const availability = edit?.availability(id);
-    if (!edit || availability === undefined) return null;
-    return (
-        <Tooltip content={availability ?? 'Edit from here'}>
-            <button
-                aria-label="Edit from here"
-                className={ACTION_BUTTON_CLASS}
-                disabled={availability !== null}
-                type="button"
-                onClick={() => edit.startEdit(id, text)}
-            >
-                <Undo2 className="size-3.5" />
-            </button>
-        </Tooltip>
-    );
-}
-
-/**
- * "Fork from here" in a user message's action row, beside "Edit from here"; disabled with the reason on hover while it
- * cannot run, and while a fork it started is in flight so a second click cannot open two Sessions.
- */
-function ForkFromHereButton({ id, text }: { id: string; text: string }) {
-    const fork = useAgentChatEdit()?.fork;
-    const [isForking, setIsForking] = useState(false);
-    const availability = fork?.availability(id);
-    if (!fork || availability === undefined) return null;
-    return (
-        <Tooltip content={availability ?? 'Fork from here'}>
-            <button
-                aria-label="Fork from here"
-                className={ACTION_BUTTON_CLASS}
-                disabled={availability !== null || isForking}
-                type="button"
-                onClick={() => {
-                    setIsForking(true);
-                    // eslint-disable-next-line no-void -- `forkAgentChat` reports its own failure through a toast
-                    void fork.run(id, text).finally(() => setIsForking(false));
-                }}
-            >
-                <GitFork className="size-3.5" />
-            </button>
-        </Tooltip>
-    );
-}
-
-/**
- * "Restore code to here" in a user message's action row, when the provider restores files; disabled with the reason on
- * hover while it cannot run.
- */
-function RestoreCodeButton({ id }: { id: string }) {
-    const restore = useAgentChatEdit()?.restore;
-    const availability = restore?.availability(id);
-    if (!restore || availability === undefined) return null;
-    return (
-        <Tooltip content={availability ?? 'Restore code to here'}>
-            <button
-                aria-label="Restore code to here"
-                className={ACTION_BUTTON_CLASS}
-                disabled={availability !== null}
-                type="button"
-                onClick={() => restore.run(id)}
-            >
-                <History className="size-3.5" />
-            </button>
-        </Tooltip>
     );
 }
 

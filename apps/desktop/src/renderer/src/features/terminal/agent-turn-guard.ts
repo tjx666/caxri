@@ -61,16 +61,24 @@ export interface EndTurnConfirmationCopy {
     confirmLabel: string;
     failureTitle: string;
     outcome: string;
+    /**
+     * The question to ask when no turn is running, for an action that must never happen silently even then (Start New
+     * Conversation drops the binding the Terminal resumes from). Omitted, an idle Agent proceeds without a dialog.
+     */
+    idle?: { confirmLabel: string; message: string; title: string };
 }
 
 /**
  * Runs `proceed` for an action that ends the Terminal's current Agent Run, first asking the user when that would stop a
- * running turn. Every such action (Restart Agent from a menu, `terminal.restart`, the recovery row, Start New Agent
- * Session) comes through here, so none of them ends a turn silently while another asks first. The check reads the
- * latest bootstrap rather than a menu's snapshot, because the turn may have finished while the menu was open.
+ * running turn. Every such action (Restart Agent from a menu, `terminal.restart`, the recovery row, Start New
+ * Conversation, Detach Agent, the Commander's Stop) comes through here, so none of them ends a turn silently while
+ * another asks first. The check reads the latest bootstrap rather than a menu's snapshot, because the turn may have
+ * finished while the menu was open.
  *
- * `proceed` runs synchronously when no turn is running, so a caller that does not await still sends its request in the
- * same tick. The exception is a secondary Chat, whose turn state is read from its snapshot first.
+ * `proceed` runs synchronously when no turn is running and `copy.idle` is absent, so a caller that does not await still
+ * sends its request in the same tick. The exceptions are a secondary Chat, whose turn state is read from its snapshot
+ * first, and `copy.idle`, which asks its own question instead; a running turn asks only the running-turn question, so
+ * the user never answers two dialogs for one action.
  */
 export async function confirmBeforeEndingTurn(
     terminalId: string,
@@ -87,7 +95,15 @@ export async function confirmBeforeEndingTurn(
             ? await readSecondaryChatSnapshot(terminal)
             : undefined;
     if (!terminal?.provider || !isAgentTurnRunning(terminal, session, chat)) {
-        proceed();
+        const { idle } = copy;
+        if (!idle) {
+            proceed();
+            return;
+        }
+        const isIdleConfirmed = await tryCommand(copy.failureTitle, () =>
+            caxri.window.showConfirm(idle),
+        );
+        if (isIdleConfirmed === true) proceed();
         return;
     }
     const providerName = agentProviderCatalog[terminal.provider].displayName;

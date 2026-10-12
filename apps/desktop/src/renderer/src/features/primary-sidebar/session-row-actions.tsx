@@ -3,7 +3,8 @@ import { isPinnedSession } from '@caxri/protocol';
 import { Archive, Pin, PinOff } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
-import { archiveSession, setSessionPinned } from '../session/session-commands';
+import { archiveSession } from '../session/session-archive-commands';
+import { setSessionPinned } from '../session/session-commands';
 
 /**
  * The Session hover-action chip, shared with the Activity row's mark-read button so a Session's pointer actions look

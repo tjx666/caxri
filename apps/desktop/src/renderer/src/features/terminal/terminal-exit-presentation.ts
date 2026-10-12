@@ -7,6 +7,11 @@ export interface TerminalExitPresentation {
      */
     icon: 'completed' | 'detached' | 'failed' | 'pending' | 'unexpected';
     label: string;
+    /**
+     * The longer explanation the recovery row's tooltip shows instead of repeating `label`, for a state whose cause the
+     * short label cannot carry (where to change an automatic behavior).
+     */
+    detail?: string;
     tone: 'neutral' | 'danger';
 }
 
@@ -21,6 +26,14 @@ export const FAILURE_REASON_LABELS: Record<TerminalFailureReason, string> = {
     agent_session_unavailable:
         'Original Agent Session could not be restored; check provider state or start fresh',
 };
+
+/**
+ * Names the setting behind automatic suspension, so a user who wonders why their Agent restarted can find where to turn
+ * it off. The record carries no suspension reason (an archive or a Process Explorer stop parks it the same way), so the
+ * sentence describes the automatic rule without claiming it caused this particular park.
+ */
+export const SUSPENDED_DETAIL =
+    'Caxri suspends background Agents to save memory and resumes them when you come back. Change when this happens in Settings > Agents.';
 
 export function getTerminalExitPresentation(
     state: ProcessState,
@@ -50,8 +63,9 @@ export function getTerminalExitPresentation(
             };
         case 'suspended':
             return {
+                detail: SUSPENDED_DETAIL,
                 icon: 'pending',
-                label: 'Suspended while inactive — resuming',
+                label: 'Suspended in the background, resuming',
                 tone: 'neutral',
             };
         case 'detached':

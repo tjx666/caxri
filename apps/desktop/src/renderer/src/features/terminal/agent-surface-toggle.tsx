@@ -22,6 +22,9 @@ const SURFACES = [
  * The group's accessible name, "Open as Terminal or Chat", is the `terminal.switchAgentSurface` title, so the palette,
  * the native menu, and this control read as one action.
  *
+ * A host may dim the pressed segment's icon at rest by setting `--agent-surface-toggle-pressed` (the Workbench tab rail
+ * does); without it the segment keeps the shared Toggle's `--foreground`.
+ *
  * The pressed segment carries a border on top of the shared Toggle's pressed fill, scoped to this control: the shared
  * Toggle paints hover and pressed identically (`bg-elevated` + `text-foreground`), which in a two-segment switch made
  * the hovered other segment look already selected.
@@ -67,7 +70,7 @@ export function AgentSurfaceToggle({ terminal }: { terminal: TerminalRecord }) {
                             aria-busy={isPending}
                             aria-disabled={isSwitching || undefined}
                             aria-label={label}
-                            className="h-5 min-w-5 px-1 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-pressed:border-border"
+                            className="h-5 min-w-5 px-1 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-pressed:border-border data-pressed:text-[var(--agent-surface-toggle-pressed,var(--foreground))]"
                             value={surface}
                         >
                             {isPending ? (

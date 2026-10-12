@@ -511,7 +511,7 @@ export class UsageService {
         const outside = parameters.scope === 'all' ? await this.loadOutside() : undefined;
         const pullRequests = database.agentSessionUsage.listPullRequestOutcomes();
         this.schedulePullRequestPass([...entries, ...(outside?.entries ?? [])]);
-        return buildUsageReport({
+        const report = buildUsageReport({
             params: parameters,
             now: this.now(),
             entries,
@@ -523,5 +523,8 @@ export class UsageService {
             pricing: { source: this.pricing.source, updatedAt: this.pricing.updatedAt },
             pendingScans: reportedPendingScans(this.syncs.has('ledger'), this.ledgerPendingScans),
         });
+        // Plan limits are account-wide: the status bar's live reading should never trail what this page just saw.
+        this.live.observeLimits(report.limits);
+        return report;
     }
 }

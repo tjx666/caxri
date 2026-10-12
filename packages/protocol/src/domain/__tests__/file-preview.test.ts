@@ -29,6 +29,7 @@ describe('file preview tabs', () => {
             'Preview: 接入说明.md',
         );
         expect(filePreviewTabLabel('/p/README.md')).toBe('Preview: README.md');
+        expect(filePreviewTabLabel('/p/manual.pdf', { isOnlyView: true })).toBe('manual.pdf');
     });
 });
 

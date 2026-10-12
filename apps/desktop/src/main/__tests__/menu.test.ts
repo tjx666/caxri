@@ -19,7 +19,6 @@ describe('application menu', () => {
             keybindings: [],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -36,7 +35,6 @@ describe('application menu', () => {
             keybindings: [],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -59,15 +57,13 @@ describe('application menu', () => {
             );
     });
 
-    it('runs the Agent Commander items in Main instead of the Workbench Renderer', () => {
+    it('opens Agent Commander in Main and leaves Stop to the Workbench, which asks before a running turn ends', () => {
         const dispatchCommand = vi.fn();
         const openAgentCommander = vi.fn();
-        const stopAgentCommander = vi.fn();
         const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand,
             openAgentCommander,
-            stopAgentCommander,
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -83,8 +79,7 @@ describe('application menu', () => {
         click('command.agentCommander.stop');
 
         expect(openAgentCommander).toHaveBeenCalledOnce();
-        expect(stopAgentCommander).toHaveBeenCalledOnce();
-        expect(dispatchCommand).not.toHaveBeenCalled();
+        expect(dispatchCommand).toHaveBeenCalledExactlyOnceWith('agentCommander.stop', false);
     });
 
     describe('while another Caxri window is focused', () => {
@@ -97,7 +92,6 @@ describe('application menu', () => {
                 keybindings: defaultKeybindings,
                 dispatchCommand,
                 openAgentCommander: vi.fn(),
-                stopAgentCommander: vi.fn(),
                 openProcessExplorer: vi.fn(),
                 workbenchWindow: () => workbench as BaseWindow,
                 focusWorkbench,
@@ -183,7 +177,6 @@ describe('application menu', () => {
             ],
             dispatchCommand,
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -211,7 +204,6 @@ describe('application menu', () => {
             ],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -237,7 +229,6 @@ describe('application menu', () => {
             ],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -259,7 +250,6 @@ describe('application menu', () => {
             keybindings: [{ command: 'terminal.new', key: 'cmd+k t' }],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -287,7 +277,6 @@ describe('application menu', () => {
             keybindings: [{ command, key: 'cmd+alt+l' }],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -306,7 +295,6 @@ describe('application menu', () => {
             keybindings: [{ command: 'terminal.copy', key: 'cmd+c' }],
             dispatchCommand,
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -327,7 +315,6 @@ describe('application menu', () => {
             keybindings: [{ command: 'terminal.copy', key: 'cmd+shift+c' }],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -348,7 +335,6 @@ describe('application menu', () => {
             keybindings: [{ command: 'terminal.copy', key: '+' }],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -376,7 +362,6 @@ describe('application menu', () => {
             ],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -405,7 +390,6 @@ describe('application menu', () => {
             keybindings: [],
             dispatchCommand,
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer,
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
@@ -425,7 +409,6 @@ describe('application menu', () => {
             keybindings: defaultKeybindings,
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
-            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),

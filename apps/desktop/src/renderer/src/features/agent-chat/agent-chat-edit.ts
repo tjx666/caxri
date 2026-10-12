@@ -1,6 +1,8 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatRewindableMessageIds, agentChatRewindTarget } from '@caxri/protocol';
 
+import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+
 /**
  * "Edit from here" in progress for one Chat: the earlier message the composer replaces, and whether sending also
  * reverts the files the removed turns changed. See `docs/agent-chat.md`.
@@ -14,27 +16,98 @@ export interface AgentChatEdit {
     previousDraft: string;
 }
 
+export const AGENT_CHAT_EDITS_STORAGE_KEY = 'caxri.agent-chat.edits';
+
+/**
+ * Bounds on what is persisted, newest first, for the same reason as the drafts' bounds: an edit of a deleted Chat is
+ * never cleared, and its held-back draft may be as long as a message.
+ */
+export const MAX_PERSISTED_AGENT_CHAT_EDITS = 50;
+export const MAX_PERSISTED_AGENT_CHAT_EDIT_CHARACTERS = 1_000_000;
+
 /**
  * Edits per Chat Terminal, so an edit survives the composer unmounting on a tab or Session switch the way its draft
- * does (`agent-chat-drafts.ts`).
+ * does (`agent-chat-drafts.ts`). They are mirrored to device-local `localStorage` too: the draft already survives a
+ * restart, and starting an edit replaced it with the earlier message's text, so an edit kept only in memory came back
+ * as that text with the held-back draft lost and Enter sending it as a new message. Loaded lazily, in recency order.
  */
-const edits = new Map<string, AgentChatEdit>();
+const loaded: { edits?: Map<string, AgentChatEdit> } = {};
 
-export function readAgentChatEdit(terminalId: string): AgentChatEdit | undefined {
-    return edits.get(terminalId);
+/**
+ * Reads the persisted entry, oldest first. Anything malformed is dropped rather than trusted.
+ */
+export function parsePersistedAgentChatEdits(value: unknown): Map<string, AgentChatEdit> {
+    const parsed = new Map<string, AgentChatEdit>();
+    if (!Array.isArray(value)) return parsed;
+    for (const entry of value) {
+        if (!Array.isArray(entry) || entry.length !== 2) continue;
+        const [terminalId, edit] = entry as unknown[];
+        if (typeof terminalId !== 'string' || !terminalId || typeof edit !== 'object' || !edit)
+            continue;
+        const { itemId, restoreFiles, previousDraft } = edit as Record<string, unknown>;
+        if (
+            typeof itemId === 'string' &&
+            itemId &&
+            typeof restoreFiles === 'boolean' &&
+            typeof previousDraft === 'string'
+        )
+            parsed.set(terminalId, { itemId, restoreFiles, previousDraft });
+    }
+    return parsed;
 }
 
+/**
+ * The entries to persist, oldest first: the newest edits whose held-back drafts fit both bounds.
+ */
+export function persistableAgentChatEdits(
+    current: ReadonlyMap<string, AgentChatEdit>,
+): Array<[string, AgentChatEdit]> {
+    const kept: Array<[string, AgentChatEdit]> = [];
+    let characters = 0;
+    for (const entry of [...current].toReversed()) {
+        if (kept.length >= MAX_PERSISTED_AGENT_CHAT_EDITS) break;
+        characters += entry[1].previousDraft.length;
+        if (characters > MAX_PERSISTED_AGENT_CHAT_EDIT_CHARACTERS) break;
+        kept.push(entry);
+    }
+    return kept.toReversed();
+}
+
+function loadedEdits(): Map<string, AgentChatEdit> {
+    loaded.edits ??= parsePersistedAgentChatEdits(
+        readLocalStorageJson(AGENT_CHAT_EDITS_STORAGE_KEY),
+    );
+    return loaded.edits;
+}
+
+export function readAgentChatEdit(terminalId: string): AgentChatEdit | undefined {
+    return loadedEdits().get(terminalId);
+}
+
+/**
+ * Stores or ends a Chat's edit, written through to storage at once: an edit starts and ends on a click, never per
+ * keystroke, so there is nothing to debounce.
+ */
 export function writeAgentChatEdit(terminalId: string, edit: AgentChatEdit | undefined): void {
+    const edits = loadedEdits();
+    if (!edit && !edits.has(terminalId)) return;
+    edits.delete(terminalId);
     if (edit) edits.set(terminalId, edit);
-    else edits.delete(terminalId);
+    writeLocalStorageJson(AGENT_CHAT_EDITS_STORAGE_KEY, persistableAgentChatEdits(edits));
 }
 
 /**
  * Drops the edit of every Chat outside `chatTerminalIds`. Called through `retainAgentChatComposerState`.
  */
 export function retainAgentChatEdits(chatTerminalIds: ReadonlySet<string>): void {
-    for (const terminalId of edits.keys())
-        if (!chatTerminalIds.has(terminalId)) edits.delete(terminalId);
+    const edits = loadedEdits();
+    const retired = edits
+        .keys()
+        .filter((terminalId) => !chatTerminalIds.has(terminalId))
+        .toArray();
+    if (retired.length === 0) return;
+    for (const terminalId of retired) edits.delete(terminalId);
+    writeLocalStorageJson(AGENT_CHAT_EDITS_STORAGE_KEY, persistableAgentChatEdits(edits));
 }
 
 type EditSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>;

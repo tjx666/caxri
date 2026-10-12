@@ -12,6 +12,11 @@ export interface SuggestionOption {
      */
     key: string;
     label: string;
+    /**
+     * When the row's item was last opened, shown after its description so two rows with the same title can be told
+     * apart; set only for such rows.
+     */
+    openedAt?: number;
 }
 
 /**

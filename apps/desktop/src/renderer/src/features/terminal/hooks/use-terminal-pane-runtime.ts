@@ -31,10 +31,7 @@ import {
 import {
     attachTerminal,
     detachTerminalQuietly,
-    markTerminalAttached,
     prepareTerminalLongPaste,
-    registerTerminalClearHandler,
-    registerTerminalSelectionHandlers,
     resizeTerminal,
 } from '../terminal-commands';
 import { loadTerminalFonts } from '../terminal-fonts';
@@ -46,7 +43,13 @@ import {
 } from '../terminal-keyboard';
 import { createTerminalLongPasteRuntime, longPasteFailureMessage } from '../terminal-long-paste';
 import {
+    markTerminalAttached,
+    registerTerminalClearHandler,
+    registerTerminalSelectionHandlers,
+} from '../terminal-pane-handlers';
+import {
     onError,
+    reattachTerminalView,
     registerTerminalInputHandlers,
     registerTerminalPaneLinks,
     reportTerminalOperationError,
@@ -683,29 +686,18 @@ export function useTerminalPaneRuntime({
         const replay = replayReference.current;
         const xterm = xtermReference.current;
         if (!replay || !xterm) return;
-        /**
-         * Server-owned attachment state is lost with the utility process even though this pane remains mounted.
-         */
-        const reattach = async (): Promise<void> => {
-            // Server lost the attachment with the utility process; command input must wait for the new one.
-            markTerminalAttached(terminalId, false);
-            try {
-                await replay.reattach(async () => {
-                    return attachTerminal(
-                        terminalId,
-                        latestReference.current.processState === 'running'
-                            ? { cols: xterm.cols, rows: xterm.rows }
-                            : undefined,
-                    );
-                });
-                markTerminalAttached(terminalId, true);
-            } catch (error) {
-                reportTerminalOperationError(error, 'Terminal reattachment failed');
-            }
-        };
-        // Effects cannot be async themselves; the failure path above already reports the error.
+        // Server-owned attachment state is lost with the utility process even though this pane remains mounted.
+        // Effects cannot be async themselves; `reattachTerminalView` reports its own failure.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void reattach();
+        void reattachTerminalView(
+            terminalId,
+            replay,
+            () =>
+                latestReference.current.processState === 'running'
+                    ? { cols: xterm.cols, rows: xterm.rows }
+                    : undefined,
+            'Terminal reattachment failed',
+        );
         // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
     }, [attachEpoch, terminalId]);
 
@@ -735,20 +727,14 @@ export function useTerminalPaneRuntime({
          * measured grid so Server resizes its parsed screen behind an ordering barrier, then replace any stale
          * persisted snapshot ahead of later live output.
          */
-        const reattach = async (): Promise<void> => {
-            markTerminalAttached(terminalId, false);
-            try {
-                await replay.reattach(async () => {
-                    return attachTerminal(terminalId, { cols: xterm.cols, rows: xterm.rows });
-                });
-                markTerminalAttached(terminalId, true);
-            } catch (error) {
-                reportTerminalOperationError(error, 'Terminal recovery reconciliation failed');
-            }
-        };
-        // Effects cannot be async themselves; the failure path above already reports the error.
+        // Effects cannot be async themselves; `reattachTerminalView` reports its own failure.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void reattach();
+        void reattachTerminalView(
+            terminalId,
+            replay,
+            () => ({ cols: xterm.cols, rows: xterm.rows }),
+            'Terminal recovery reconciliation failed',
+        );
         return invalidateFocus;
     }, [active, longPastePending, processState, terminalId]);
 

@@ -58,6 +58,43 @@ export function unsavedEditorName(path: string): string {
     return parseExternalEditorTab(path)?.name ?? pathBasename(path);
 }
 
+/**
+ * The names a prompt or toast lists for `paths`, at most `limit` of them. A name two unsaved files share (two
+ * `index.ts` in different folders) gets its parent folder, so the user can tell which file the prompt means. Duplicates
+ * are found across every path, not only the listed ones, because "index.ts and 2 more" is just as ambiguous when the
+ * other `index.ts` is among the unlisted.
+ */
+export function unsavedEditorNames(paths: readonly string[], limit: number): string[] {
+    const counts = new Map<string, number>();
+    for (const path of paths) {
+        const name = unsavedEditorName(path);
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return paths.slice(0, limit).map((path) => {
+        const name = unsavedEditorName(path);
+        if ((counts.get(name) ?? 0) < 2 || parseExternalEditorTab(path)) return name;
+        const parent = pathBasename(path.slice(0, path.lastIndexOf('/')));
+        return parent ? `${name} (${parent})` : name;
+    });
+}
+
+/**
+ * The toast shown when Save All stops at buffers kept under a Workbench Root the Session is not showing. It names the
+ * files, so the user knows which root to switch back to. Main asks the same question before quitting and before closing
+ * the window, so the advice names the dialog's own choice rather than either action.
+ */
+export function unreachableUnsavedEditorsMessage(paths: readonly string[]): string {
+    const names = unsavedEditorNames(paths, MAX_PROMPT_NAMES);
+    const more = paths.length - names.length;
+    const subject =
+        more > 0
+            ? `${names.join(', ')}, and ${more} more`
+            : names.length === 1
+              ? names[0]
+              : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+    return `${subject} ${paths.length === 1 ? 'belongs' : 'belong'} to a Workbench Root that is not open. Switch back to it to save, or choose Don't Save.`;
+}
+
 function currentUnsavedEditorDocuments(): UnsavedEditorDocument[] {
     return listUnsavedEditorDocuments(
         useSessionViewStore.getState().documents,
@@ -74,12 +111,9 @@ async function saveAllUnsavedEditors(): Promise<'inactiveRoot' | 'saved' | 'writ
         // eslint-disable-next-line no-await-in-loop -- intentional sequential save, see comment above
         if (!(await didSaveDocumentAt(entry.sessionId, entry.path))) return 'writeFailed';
     }
-    const unreachable = unsaved.filter(({ isActiveRoot }) => !isActiveRoot).length;
-    if (unreachable === 0) return 'saved';
-    pushToast(
-        'error',
-        `${unreachable} unsaved ${unreachable === 1 ? 'file belongs' : 'files belong'} to a Workbench Root that is not open. Switch back to it to save, or quit with Don't Save.`,
-    );
+    const unreachable = unsaved.filter(({ isActiveRoot }) => !isActiveRoot).map(({ path }) => path);
+    if (unreachable.length === 0) return 'saved';
+    pushToast('error', unreachableUnsavedEditorsMessage(unreachable));
     return 'inactiveRoot';
 }
 
@@ -119,9 +153,10 @@ async function handleUnsavedEditorsRequest(request: UnsavedEditorsRequest): Prom
             reply: {
                 kind: 'summary',
                 count: unsaved.length,
-                names: unsaved
-                    .slice(0, MAX_PROMPT_NAMES)
-                    .map(({ path }) => unsavedEditorName(path)),
+                names: unsavedEditorNames(
+                    unsaved.map(({ path }) => path),
+                    MAX_PROMPT_NAMES,
+                ),
             },
         });
         return;

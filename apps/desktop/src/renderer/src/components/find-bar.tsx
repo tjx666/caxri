@@ -32,6 +32,11 @@ interface FindBarProperties {
     hasMatches: boolean;
     inputLabel: string;
     /**
+     * Docks the bar in its own strip at the top of a flex column instead of floating it over the surface, so it never
+     * covers the text it searches. The Chat docks it; the Terminal keeps it floating over a fixed-size grid.
+     */
+    isDocked?: boolean;
+    /**
      * The query has no match or cannot be searched, which shows the count in the danger tone.
      */
     isNoMatch: boolean;
@@ -56,8 +61,8 @@ interface FindBarProperties {
 
 /**
  * The find bar a Terminal and a Chat open from the same `terminal.find` command, at the top right of the surface. Enter
- * and Shift+Enter step through matches and Escape closes; none of them act while an IME is composing, where Enter
- * commits the composition and Escape cancels it.
+ * and Shift+Enter step through matches and Escape closes, which the buttons' tooltips name; none of them act while an
+ * IME is composing, where Enter commits the composition and Escape cancels it.
  */
 export function FindBar({
     ariaLabel,
@@ -66,6 +71,7 @@ export function FindBar({
     focusRevision,
     hasMatches,
     inputLabel,
+    isDocked = false,
     isNoMatch,
     isQueryInvalid = false,
     options,
@@ -90,11 +96,14 @@ export function FindBar({
         if (event.shiftKey) onPrevious();
         else onNext();
     };
-    return (
+    const bar = (
         <search
             aria-label={ariaLabel}
             className={cn(
-                'absolute top-2 right-2 flex max-w-[calc(100%-1rem)] items-center gap-1 rounded border border-border bg-surface p-1 shadow-lg',
+                'flex items-center gap-1 rounded border border-border bg-surface p-1',
+                isDocked
+                    ? 'max-w-full'
+                    : 'absolute top-2 right-2 max-w-[calc(100%-1rem)] shadow-lg',
                 className,
             )}
             onKeyDown={onKeyDown}
@@ -124,7 +133,7 @@ export function FindBar({
             >
                 {countLabel}
             </span>
-            <Tooltip content="Previous Match">
+            <Tooltip content="Previous Match" shortcut="shift+enter">
                 <button
                     aria-label="Previous Match"
                     className={ACTION_CLASS_NAME}
@@ -135,7 +144,7 @@ export function FindBar({
                     <ChevronUp size={14} />
                 </button>
             </Tooltip>
-            <Tooltip content="Next Match">
+            <Tooltip content="Next Match" shortcut="enter">
                 <button
                     aria-label="Next Match"
                     className={ACTION_CLASS_NAME}
@@ -146,7 +155,7 @@ export function FindBar({
                     <ChevronDown size={14} />
                 </button>
             </Tooltip>
-            <Tooltip content="Close Find">
+            <Tooltip content="Close Find" shortcut="escape">
                 <button
                     aria-label="Close Find"
                     className={ACTION_CLASS_NAME}
@@ -158,4 +167,5 @@ export function FindBar({
             </Tooltip>
         </search>
     );
+    return isDocked ? <div className="flex shrink-0 justify-end px-2 pt-2">{bar}</div> : bar;
 }

@@ -35,16 +35,18 @@ function restartAgentBlockedReason(
  * Run and resumes the same Agent Session in the same Terminal. It is `terminal.restart` itself (the same name, the same
  * running-turn confirmation, and the Terminal's recovery offer, so the Server keeps the approval mode the replaced run
  * launched with), which is why it shows that command's key hint, as the tab menu's surface switch shows its own; the
- * shortcut acts on the active Terminal, the entry on the clicked row or tab.
+ * shortcut acts on the active Terminal, the entry on the clicked row or tab. A menu whose target is not the active
+ * Terminal passes `shouldShowShortcut: false`, so the hint never promises that the chord would act on the clicked row.
  */
 export function agentRestartMenuEntry(
     terminal: RestartAgentTerminal | undefined,
     missingConversationReason?: string,
+    shouldShowShortcut = true,
 ): ContextMenuEntry {
     const blockedReason = restartAgentBlockedReason(terminal, missingConversationReason);
     return {
         label: 'Restart Agent',
-        shortcut: readCommandShortcut('terminal.restart'),
+        shortcut: shouldShowShortcut ? readCommandShortcut('terminal.restart') : undefined,
         disabled: blockedReason !== undefined,
         disabledReason: blockedReason,
         onSelect: () => terminal && restartTerminal(terminal.id),

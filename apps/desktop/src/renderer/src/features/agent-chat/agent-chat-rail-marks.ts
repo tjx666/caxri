@@ -20,6 +20,14 @@ export const AGENT_CHAT_USER_MESSAGE_ATTRIBUTE = 'data-agent-chat-user-message';
 const PREVIEW_LENGTH = 120;
 
 /**
+ * Whether the message rail shows: a conversation with one message has nowhere to jump, so it appears from the second.
+ * The transcript reads the same rule to make room for the rail at its left edge.
+ */
+export function isAgentChatMessageRailShown(marks: readonly AgentChatRailMark[]): boolean {
+    return marks.length >= 2;
+}
+
+/**
  * The first line of a message, collapsed and cut to fit a tooltip. A message of images alone says so.
  */
 export function agentChatRailPreview(text: string, imageCount: number): string {

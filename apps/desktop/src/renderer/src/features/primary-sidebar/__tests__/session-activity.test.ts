@@ -86,6 +86,15 @@ describe('current Session activity', () => {
         ).toBe('Detached');
     });
 
+    it('names a suspended Agent and where automatic suspension is set, instead of its last idle state', () => {
+        const activity = currentSessionActivityPresentation(
+            { lastActivityState: 'idle' },
+            { kind: 'claude', lastProcessState: 'suspended' },
+        );
+        expect(activity.label).toBe('Suspended');
+        expect(activity.description).toContain('Settings > Agents');
+    });
+
     it('describes a Shell Session as having no Agent instead of an idle one', () => {
         const activity = currentSessionActivityPresentation(
             { lastActivityState: 'idle' },

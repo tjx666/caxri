@@ -172,8 +172,10 @@ interface CommanderRowPresentation {
 }
 
 /**
- * Presents one board row. Tone follows the Activity view's two-tier rule: apart from a live turn's green spinner, only
- * a row that asks the user for something (unread, failed) is tinted, so color on the board always means "look here".
+ * Presents one board row. Only a row that asks the user for something (unread, failed) is tinted, so color on the board
+ * always means "look here". A live turn is the sidebar's monochrome running ring in `--muted`, not a green spinner: the
+ * same Session reads the same in both windows, and a board of several working Agents does not turn into a wall of
+ * green.
  */
 export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPresentation {
     const { agent } = row;
@@ -207,7 +209,7 @@ export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPr
         activityState === 'running' || (isAgentAlive && agent.operation === 'compacting');
     const glyph = isLive ? 'spinner' : GLYPH_BY_STATE[activityState];
     const tone: SessionActivityPresentation['tone'] = isLive
-        ? 'success'
+        ? 'neutral'
         : row.group === 'attention' && row.hasUnread
           ? sessionUnreadTone(activityState)
           : row.group === 'failed'

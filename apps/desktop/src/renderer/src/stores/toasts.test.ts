@@ -200,6 +200,32 @@ describe('Sonner notification adapter', () => {
         expect(onSelect).toHaveBeenCalledOnce();
     });
 
+    it('takes a persistent notice away once an action that resolves it succeeds, and keeps it when refused', () => {
+        const restore = vi.fn();
+        let refusal: string | undefined = 'The file was closed.';
+        installToastActions({
+            'editor.restoreDiscardedChanges': { run: restore, unavailable: () => refusal },
+        });
+        const options = {
+            persist: true,
+            dismissOnSuccess: true,
+            action: {
+                id: 'editor.restoreDiscardedChanges' as const,
+                params: { sessionId: 's', workbenchProjectId: 'p', paths: ['README.md'] },
+            },
+        };
+        pushToast('warning', 'changes replaced', options);
+
+        clickToastAction();
+        expect(restore).not.toHaveBeenCalled();
+        expect(getToasts().map((entry) => entry.title)).toContain('changes replaced');
+
+        refusal = undefined;
+        clickToastAction();
+        expect(restore).toHaveBeenCalledOnce();
+        expect(getToasts().map((entry) => entry.title)).not.toContain('changes replaced');
+    });
+
     it.each(['info', 'success', 'error'] as const)(
         'updates a repeated %s toast without stacking it',
         (kind) => {

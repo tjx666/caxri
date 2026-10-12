@@ -33,6 +33,11 @@ export type AgentChatPermissionMode = z.infer<typeof agentChatPermissionModeSche
 export interface AgentChatPermissionCapabilities {
     modes: readonly AgentChatPermissionMode[];
     planMode: boolean;
+    /**
+     * Whether a switch made while a turn runs reaches the provider only with the next turn. The Chat reports the new
+     * choice at once, so a Client says when it takes effect instead of implying the running turn already uses it.
+     */
+    appliesOnNextTurn: boolean;
 }
 
 export const agentChatPermissionCapabilities = {
@@ -40,17 +45,25 @@ export const agentChatPermissionCapabilities = {
      * Claude Code's `--permission-mode` values; `plan` is its own mode, so plan mode replaces the level until it ends.
      * `dontAsk` (deny anything not pre-approved) is not offered: it only differs from `ask` with allow rules.
      */
-    claude: { modes: ['ask', 'acceptEdits', 'auto', 'fullAccess'], planMode: true },
+    claude: {
+        modes: ['ask', 'acceptEdits', 'auto', 'fullAccess'],
+        planMode: true,
+        appliesOnNextTurn: false,
+    },
     /**
      * Codex's sandbox and approval presets: Read Only, Default, Approve for me (auto-review), and Full Access. Plan
-     * mode is app-server's `collaborationMode`.
+     * mode is app-server's `collaborationMode`. Both have no in-place request and ride on the next `turn/start`.
      */
-    codex: { modes: ['readOnly', 'acceptEdits', 'auto', 'fullAccess'], planMode: true },
+    codex: {
+        modes: ['readOnly', 'acceptEdits', 'auto', 'fullAccess'],
+        planMode: true,
+        appliesOnNextTurn: true,
+    },
     /**
      * Grok Build's `--permission-mode default|auto` and `--always-approve`. It has no accept-edits mode, and its plan
-     * mode needs ACP extensions Caxri does not handle yet.
+     * mode needs ACP extensions Caxri does not handle yet. A switch restarts it and is refused while a turn runs.
      */
-    grok: { modes: ['ask', 'auto', 'fullAccess'], planMode: false },
+    grok: { modes: ['ask', 'auto', 'fullAccess'], planMode: false, appliesOnNextTurn: false },
 } as const satisfies Record<AgentProvider, AgentChatPermissionCapabilities>;
 
 /**
@@ -64,6 +77,13 @@ export function agentChatPermissionModes(
 
 export function canAgentChatPlan(provider: AgentProvider): boolean {
     return agentChatPermissionCapabilities[provider].planMode;
+}
+
+/**
+ * Whether `provider` applies a permission or plan mode switch made during a running turn only from the next turn.
+ */
+export function isAgentChatPermissionNextTurnOnly(provider: AgentProvider): boolean {
+    return agentChatPermissionCapabilities[provider].appliesOnNextTurn;
 }
 
 /**

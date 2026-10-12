@@ -5,7 +5,8 @@ status: current
 
 # Batch Session compaction
 
-Run **Session: Compact Sessions with Warm Cache** from the Desktop command palette before leaving
+Run **Session: Compact Recently Idle Sessions** from the Desktop command palette (it is also
+found by searching `warm cache`) before leaving
 long conversations idle. One invocation checks visible, unarchived Sessions and submits native
 `/compact` to their eligible primary Claude Code or Codex Agent. It does not restart stopped Agents
 or touch Grok Sessions.
