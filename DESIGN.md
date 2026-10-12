@@ -284,9 +284,11 @@ dropped; the pickers cap their own width instead.
 Acceptance outranks Linear because it reports whether the current work passed, which changes what
 the reviewer does next; the pull request survives longest because it is the branch's identity.
 The right side follows the active tab: a normal file shows
-current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
-process-tree memory, and child count. Terminal progress takes an hourglass (`Hourglass`), because
-`Gauge` belongs to the Agent output-speed chip that sits beside it. The memory chip turns `--danger` while that Terminal's tree is
+current-line blame, selection, cursor position, and language; an external file (opened from outside
+the Project, such as from a Terminal link) shows the same minus blame, since there is no Project
+history to blame it against; a Terminal shows Terminal progress, process-tree memory, and child
+count. Terminal progress takes an hourglass (`Hourglass`), because `Gauge` belongs to the Agent
+output-speed chip that sits beside it. The memory chip turns `--danger` while that Terminal's tree is
 above the shared resource-alert thresholds (see `docs/process-explorer.md`), and its tooltip names
 the CPU reading and the threshold, so a runaway Agent is visible before its alert toast fires.
 An Agent Terminal also shows its Agent's output speed (`62 tok/s`) once the Agent's transcript has a
