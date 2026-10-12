@@ -55,9 +55,9 @@ describe('locateAgentChatFindMatch', () => {
 });
 
 describe('agentChatFindCountLabel', () => {
-    it('counts from one, shows 0/0 without matches, and nothing before a query', () => {
+    it('counts from one, shows No results without matches, and nothing before a query', () => {
         expect(agentChatFindCountLabel('a', 12, 2)).toBe('3/12');
-        expect(agentChatFindCountLabel('a', 0, 0)).toBe('0/0');
+        expect(agentChatFindCountLabel('a', 0, 0)).toBe('No results');
         expect(agentChatFindCountLabel('', 0, 0)).toBe('');
     });
 });

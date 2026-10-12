@@ -52,6 +52,7 @@ function AgentChatSendButton({
  * slot that holds Stop while a turn runs and nothing is typed, and Send otherwise.
  */
 export function AgentChatComposerActions({
+    canSaveProjectDefault,
     isAttaching,
     isSendable,
     isStopping,
@@ -64,6 +65,10 @@ export function AgentChatComposerActions({
     snapshot,
     terminalId,
 }: {
+    /**
+     * Whether the permission menu offers "Use as Project default" (`AgentChatHostCapabilities`).
+     */
+    canSaveProjectDefault: boolean;
     /**
      * Whether picked images are still being read or a long paste saved, which turns Attach files into a spinner.
      */
@@ -98,7 +103,11 @@ export function AgentChatComposerActions({
                 {contextUsage && (
                     <AgentChatContextMeter onCompact={onCompact} usage={contextUsage} />
                 )}
-                <AgentChatPermissionMenu snapshot={snapshot} terminalId={terminalId} />
+                <AgentChatPermissionMenu
+                    canSaveProjectDefault={canSaveProjectDefault}
+                    snapshot={snapshot}
+                    terminalId={terminalId}
+                />
                 <AgentChatModelMenu snapshot={snapshot} terminalId={terminalId} />
             </div>
             {showsStop ? (

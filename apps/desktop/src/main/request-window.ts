@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 
 /**
@@ -17,4 +18,15 @@ export function runInRequestWindow<T>(window: BrowserWindow | undefined, run: ()
 export function currentRequestWindow(): BrowserWindow | undefined {
     const window = requestWindow.getStore();
     return window && !window.isDestroyed() ? window : undefined;
+}
+
+/**
+ * The window native UI for the current request attaches to: the requesting window, else `fallback` (the Workbench).
+ * Throws `UNAVAILABLE` when neither is open, so a sheet never opens detached.
+ */
+export function requestWindowOr(fallback: BrowserWindow | undefined): BrowserWindow {
+    const window = currentRequestWindow() ?? fallback;
+    if (!window || window.isDestroyed())
+        throw new CaxriError('UNAVAILABLE', 'No window is available for this request');
+    return window;
 }

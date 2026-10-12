@@ -68,19 +68,25 @@ export const logEventCatalog = {
          */
         taskFinished: 'agent_chat.task_finished',
         /**
-         * One "Edit from here" with a closed `outcome` (`rewound`, `refused`, `failed`), the provider, whether files
-         * were restored, the turns removed, and the duration through the restart. Never carries message text or paths.
+         * One "Edit from here" with a closed `outcome` (`rewound`, `refused`, `failed`, or `resendFailed` when the
+         * record was rewound but the restart or the edited message's send failed), a closed `reason` for a refusal or
+         * capability failure (`capability`, `turnRunning`, `notTurnStart`, `unknownMessage`, else null), the error
+         * `code` (null on success), the provider, whether files were restored, the turns removed, and the duration
+         * through the restart and the send. Never carries message text or paths.
          */
         rewound: 'agent_chat.rewound',
         /**
          * One "Fork from here" with a closed `outcome` (`forked`, `refused`, `failed`), the error `code` when it did
-         * not fork, the provider, the turns the fork keeps, and the duration through creating the new Session. Never
-         * carries message text or paths.
+         * not fork, the provider, the turns the fork keeps, `skippedRecords` (the malformed transcript lines a provider
+         * that reads its own record skipped, Claude Code only, else null), and the duration through creating the new
+         * Session. Never carries message text or paths.
          */
         forked: 'agent_chat.forked',
         /**
-         * One "Restore code to here" with a closed `outcome` (`restored`, `refused`, `failed`), the provider, the turns
-         * whose file changes were undone, and the duration. Never carries message text or paths.
+         * One "Restore code to here" with a closed `outcome` (`restored`, `refused`, `failed`), a closed `reason` for a
+         * refusal or capability failure (`capability`, `turnRunning`, `notTurnStart`, `unknownMessage`, else null), the
+         * error `code` (null on success), the provider, the turns whose file changes were undone, and the duration.
+         * Never carries message text or paths.
          */
         filesRestored: 'agent_chat.files_restored',
     },

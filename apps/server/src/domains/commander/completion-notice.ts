@@ -5,7 +5,13 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { AgentChatService } from '../agent-chat';
 import type { AgentCoordinator, AgentLifecycleSignal } from '../agents';
-import type { CaxriDatabase, CommanderPendingNoticesModel, DeliveredNotice } from '../db';
+import type {
+    AgentCommanderRowReader,
+    CaxriDatabase,
+    CommanderPendingNoticesModel,
+    DeliveredNotice,
+} from '../db';
+import { agentCommanderTerminal } from '../db';
 import type { TerminalManager } from '../terminal';
 import type {
     CommanderCompletionNoticeStatus,
@@ -66,12 +72,17 @@ export function classifyCommanderCompletionNotice(
 }
 
 export interface CommanderCompletionNotifierOptions {
-    database: Pick<CaxriDatabase, 'agentCommanderRows' | 'getSession'> & {
-        commanderPendingNotices: Pick<
-            CommanderPendingNoticesModel,
-            'clearTurn' | 'list' | 'markTurnStarted' | 'putDelegation' | 'removeDelegations'
-        >;
-    };
+    /**
+     * `agentCommanderRows` filters every created Session and is reserved for receipts that need that list; every other
+     * path identifies the Commander Terminal through the constant-time `agentCommanderTerminal` reader.
+     */
+    database: Pick<CaxriDatabase, 'agentCommanderRows' | 'getSession'> &
+        AgentCommanderRowReader & {
+            commanderPendingNotices: Pick<
+                CommanderPendingNoticesModel,
+                'clearTurn' | 'list' | 'markTurnStarted' | 'putDelegation' | 'removeDelegations'
+            >;
+        };
     /**
      * The same idle proof delegation follow-ups fence resume against (`AgentCoordinator.hasIdleProof`,
      * `apps/server/src/domains/agent-delegation/service.ts`). Proves the exact launch and turn actually finished; it
@@ -202,9 +213,17 @@ export class CommanderCompletionNotifier {
             .filter((notice) => notice.kind === 'delegation');
     }
 
+    /**
+     * The live Commander Terminal, read in constant time. Runs for every human input chunk in every Terminal, so it
+     * must not touch the created-Session list (`agentCommanderRows`), which costs one lookup per stored Session.
+     */
+    private commander() {
+        return agentCommanderTerminal(this.options.database);
+    }
+
     private deferral(terminalId: string): CommanderCompletionNoticeDeferral | undefined {
-        const rows = this.options.database.agentCommanderRows();
-        if (!rows?.terminalId || rows.terminalId !== terminalId) return 'not_commander_terminal';
+        const commander = this.commander();
+        if (commander?.terminalId !== terminalId) return 'not_commander_terminal';
         const finished = this.lastFinishedTurn;
         if (!finished || !this.options.hasIdleProof(terminalId, finished.launchId, finished.turnId))
             return 'commander_busy';
@@ -212,7 +231,7 @@ export class CommanderCompletionNotifier {
         if (!baseline || baseline.launchId !== finished.launchId) return 'turn_baseline_missing';
         const epoch = this.options.inputEpoch(terminalId);
         if (epoch !== baseline.epoch && epoch !== this.submittedEpoch) return 'draft_input';
-        const session = this.options.database.getSession(rows.sessionId);
+        const session = this.options.database.getSession(commander.sessionId);
         /**
          * Only a pending permission/attention prompt blocks delivery. `hasUnread` is deliberately not a gate: every
          * settled Commander turn raises `completed` attention on its own Session, and nothing marks that Session read
@@ -319,8 +338,7 @@ export class CommanderCompletionNotifier {
      * harm.
      */
     observeInput(terminalId: string, data: string): void {
-        const rows = this.options.database.agentCommanderRows();
-        if (!rows?.terminalId || rows.terminalId !== terminalId) return;
+        if (this.commander()?.terminalId !== terminalId) return;
         if (data.includes('\u{1B}[200~')) this.isPasting = true;
         this.submittedEpoch =
             data === '\r' && !this.isPasting ? this.options.inputEpoch(terminalId) : undefined;
@@ -329,13 +347,12 @@ export class CommanderCompletionNotifier {
 
     /**
      * Feeds every lifecycle signal Server Core applies. Signals for a Terminal other than the current Commander
-     * Terminal are ignored; a stopped or replaced Commander naturally stops matching once `agentCommanderRows` no
+     * Terminal are ignored; a stopped or replaced Commander naturally stops matching once `agentCommanderTerminal` no
      * longer names that Terminal. A started turn is persisted until it finishes or fails, which is how the next launch
      * knows a restart cut one off.
      */
     onLifecycleApplied(signal: AgentLifecycleSignal): void {
-        const rows = this.options.database.agentCommanderRows();
-        if (!rows?.terminalId || rows.terminalId !== signal.terminalId) return;
+        if (this.commander()?.terminalId !== signal.terminalId) return;
         /**
          * A subagent's turn is part of the Commander's own; only the main thread's turns mark or clear the marker.
          */
@@ -369,7 +386,7 @@ export class CommanderCompletionNotifier {
          * Every Agent launch without its own first prompt asks, restores included. Another Terminal resolving while the
          * Commander's launch is still between this call and `onLaunched` must leave the Commander's claim alone.
          */
-        if (this.options.database.agentCommanderRows()?.terminalId !== terminalId) return undefined;
+        if (this.commander()?.terminalId !== terminalId) return undefined;
         this.launchClaim = undefined;
         const notices = this.options.database.commanderPendingNotices.list();
         const inbox = this.pendingInbox.values().toArray();
@@ -440,10 +457,13 @@ export class CommanderCompletionNotifier {
      * delegation caller that happens to target a Commander Session is not this module's concern.
      */
     notifyReceiptChanged(receipt: AgentDelegationReceipt, previous?: AgentDelegationReceipt): void {
-        const rows = this.options.database.agentCommanderRows();
-        if (!rows?.terminalId) return;
-        if (receipt.callerTerminalId !== rows.terminalId) return;
-        if (!rows.sessionIds.includes(receipt.sessionId)) return;
+        const terminalId = this.commander()?.terminalId;
+        if (!terminalId || receipt.callerTerminalId !== terminalId) return;
+        /**
+         * Only a receipt the Commander Terminal itself dispatched pays for the created-Session list.
+         */
+        if (!this.options.database.agentCommanderRows()?.sessionIds.includes(receipt.sessionId))
+            return;
         const status = classifyCommanderCompletionNotice(receipt);
         if (!status) return;
         /**
@@ -470,7 +490,7 @@ export class CommanderCompletionNotifier {
                 pendingCount: this.pendingDelegations().length + this.pendingInbox.size,
             },
         });
-        this.tryFlush(rows.terminalId);
+        this.tryFlush(terminalId);
     }
 
     /**
@@ -489,7 +509,7 @@ export class CommanderCompletionNotifier {
                 pendingCount: this.pendingDelegations().length + this.pendingInbox.size,
             },
         });
-        const terminalId = this.options.database.agentCommanderRows()?.terminalId;
+        const terminalId = this.commander()?.terminalId;
         if (terminalId) this.tryFlush(terminalId);
     }
 }
@@ -526,7 +546,11 @@ export function createCommanderCompletionNotifier({
 }: {
     agentChat: Pick<AgentChatService, 'send'>;
     coordinator: Pick<AgentCoordinator, 'hasIdleProof'>;
-    database: CommanderCompletionNotifierOptions['database'] & Pick<CaxriDatabase, 'getTerminal'>;
+    /**
+     * `getTerminal` comes first so the full record (its `surface`) is the overload `write` below resolves, not the
+     * narrow one `AgentCommanderRowReader` declares.
+     */
+    database: Pick<CaxriDatabase, 'getTerminal'> & CommanderCompletionNotifierOptions['database'];
     logger?: StructuredLogger;
     terminals: Pick<TerminalManager, 'inputEpoch' | 'writeAgentExact'>;
 }): CommanderCompletionNotifier {

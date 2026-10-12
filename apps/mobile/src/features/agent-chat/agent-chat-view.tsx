@@ -5,6 +5,7 @@ import type { ListRenderItemInfo } from 'react-native';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatRequest } from '@caxri/protocol';
+import { agentChatFailureMessage, sentenceStartProvider } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
@@ -16,12 +17,10 @@ import {
     AGENT_CHAT_HANDED_OFF_BANNER,
     agentChatActivityLabel,
     agentChatEmptyMessage,
-    agentChatFailureMessage,
     agentChatImageCounts,
     agentChatRequestBlockedReason,
     agentChatTimelineItems,
     isAgentChatFailureRetryable,
-    sentenceStartProvider,
 } from './agent-chat-model';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatRequestCard } from './agent-chat-request-card';
@@ -319,7 +318,12 @@ export const AgentChatView = ({
                     actionLabel={canRetryFailure ? 'Retry' : undefined}
                     isBusy={isRestarting}
                     message={
-                        restartError ?? agentChatFailureMessage(failure.reason, provider, canRetry)
+                        restartError ??
+                        agentChatFailureMessage(failure.reason, {
+                            canRetry,
+                            providerName: provider,
+                            surface: 'mobile',
+                        })
                     }
                     onAction={() => {
                         // eslint-disable-next-line no-void -- The banner reports a failed restart itself.

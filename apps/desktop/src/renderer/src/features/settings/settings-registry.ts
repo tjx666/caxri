@@ -149,7 +149,7 @@ function providerRows(provider: AgentProvider): SettingRowSource[] {
             title: 'Peer messaging',
             description:
                 'Lets this Agent send and receive short messages with other Agents through the ' +
-                'Caxri Inbox. Messages are never typed into the Terminal. Turning this off takes ' +
+                'Peer Inbox. Messages are never typed into the Terminal. Turning this off takes ' +
                 'effect immediately; restart the Terminal only if messaging stays unavailable.',
             binding: { type: 'provider-toggle', provider, field: 'messaging' },
             haystack: lower(['peer messaging', 'inbox', ...providerTerms]),

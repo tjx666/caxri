@@ -5,10 +5,14 @@ import {
     appendToAgentChatDraft,
     draftAfterSend,
     draftWithInsertion,
+    readAgentChatAttachments,
     readAgentChatDraft,
+    retainAgentChatComposerState,
     subscribeAgentChatDraftAppends,
+    writeAgentChatAttachments,
     writeAgentChatDraft,
 } from '../agent-chat-drafts';
+import { readAgentChatEdit, writeAgentChatEdit } from '../agent-chat-edit';
 
 describe('Agent Chat drafts', () => {
     it('keeps one draft per Chat and forgets an emptied one', () => {
@@ -34,6 +38,24 @@ describe('Agent Chat drafts', () => {
         unsubscribe();
         appendToAgentChatDraft('chat-d', 'alone');
         expect(readAgentChatDraft('chat-d')).toBe('alone');
+    });
+
+    it('releases the images and edit of a Chat that is gone, keeping those of open Chats and every text draft', () => {
+        const image = { mediaType: 'image/png', data: 'AAAA', thumbnail: 'AAAA' } as const;
+        const edit = { itemId: 'message-1', restoreFiles: false, previousDraft: '' };
+        for (const terminalId of ['chat-open', 'chat-closed']) {
+            writeAgentChatDraft(terminalId, `draft of ${terminalId}`);
+            writeAgentChatAttachments(terminalId, [{ id: `${terminalId}-image`, image }]);
+            writeAgentChatEdit(terminalId, edit);
+        }
+
+        retainAgentChatComposerState(new Set(['chat-open']));
+
+        expect(readAgentChatAttachments('chat-closed')).toEqual([]);
+        expect(readAgentChatEdit('chat-closed')).toBeUndefined();
+        expect(readAgentChatDraft('chat-closed')).toBe('draft of chat-closed');
+        expect(readAgentChatAttachments('chat-open')).toHaveLength(1);
+        expect(readAgentChatEdit('chat-open')).toEqual(edit);
     });
 
     it('clears only the text that was sent, keeping anything typed while the send was in flight', () => {

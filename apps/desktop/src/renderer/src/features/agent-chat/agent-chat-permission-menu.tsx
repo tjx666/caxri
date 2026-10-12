@@ -31,12 +31,18 @@ const TRIGGER_CLASS_NAME =
  * The Chat's permission level and plan mode, and the menu that switches them, beside the model picker. Only the levels
  * the provider runs natively are offered, and the Plan mode row appears only for a provider that has one. Full access
  * carries a `--warning` shield so the riskiest level reads differently at a glance. "Use as Project default" saves the
- * current choice for the Project's new Chats of this provider; see `docs/agent-chat.md`.
+ * current choice for the Project's new Chats of this provider (see `docs/agent-chat.md`); the Agent Commander window
+ * omits it, because Main's Commander policy refuses Project writes.
  */
 export function AgentChatPermissionMenu({
+    canSaveProjectDefault,
     snapshot,
     terminalId,
 }: {
+    /**
+     * Whether the host can save a Project default (`AgentChatHostCapabilities`).
+     */
+    canSaveProjectDefault: boolean;
     snapshot: Pick<AgentChatSnapshot, 'permissionMode' | 'planMode'> | undefined;
     terminalId: string;
 }) {
@@ -65,7 +71,7 @@ export function AgentChatPermissionMenu({
                     provider={provider}
                     terminalId={terminalId}
                 />
-                {project && projectDefault && (
+                {canSaveProjectDefault && project && projectDefault && (
                     <>
                         <MenuSeparator />
                         <MenuItem

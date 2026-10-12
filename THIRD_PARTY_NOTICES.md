@@ -67,3 +67,13 @@ Caxri bundles the platform-specific ripgrep executable distributed by `@vscode/r
 ripgrep is Copyright (c) 2015 Andrew Gallant and licensed under the MIT License. The vendored license text is in `licenses/RIPGREP_LICENSE.txt`; the upstream source is <https://github.com/BurntSushi/ripgrep>.
 
 vscode-ripgrep is Copyright (c) Microsoft Corporation and licensed under the MIT License. The vendored license text is in `licenses/VSCODE_RIPGREP_LICENSE.txt`; the upstream source is <https://github.com/microsoft/vscode-ripgrep>.
+
+## PDF.js
+
+Caxri bundles PDF.js from the `pdfjs-dist` package to render PDF files in the Preview, along with the built-in data PDF.js reads while parsing: Adobe CMaps, two Foxit standard fonts, and WebAssembly image decoders. These data files are inlined into the packaged Renderer and loaded locally, never fetched remotely. The PDF Preview stylesheet also copies a subset of the rules in PDF.js's `web/pdf_viewer.css`.
+
+- PDF.js, including the rules adapted from `web/pdf_viewer.css`, is Copyright Mozilla Foundation and licensed under the Apache License 2.0. The vendored license text is in `licenses/PDFJS_LICENSE.txt`; the upstream source is <https://github.com/mozilla/pdf.js>.
+- The Adobe CMaps (`cmaps/*.bcmap`) are Copyright 1990-2009 Adobe Systems Incorporated and licensed under the BSD 3-Clause License. The vendored license text is in `licenses/ADOBE_CMAPS_LICENSE.txt`; the upstream source is <https://github.com/adobe-type-tools/cmap-resources>.
+- The Foxit standard fonts `FoxitSymbol.pfb` and `FoxitDingbats.pfb` are Copyright 2014 PDFium Authors and licensed under the BSD 3-Clause License. The vendored license text is in `licenses/FOXIT_FONTS_LICENSE.txt`; the upstream source is <https://pdfium.googlesource.com/pdfium/>.
+- The JBIG2 decoder (`wasm/jbig2.wasm`) is built from the PDFium JBIG2 decoder, Copyright 2014 The PDFium Authors, under the BSD 3-Clause and Apache 2.0 terms in `licenses/JBIG2_LICENSE.txt`. Its PDF.js WebAssembly wrapper is Copyright 2026 Mozilla Foundation and licensed under the Apache License 2.0; the vendored license text is in `licenses/PDFJS_JBIG2_LICENSE.txt`.
+- The JPEG 2000 decoder (`wasm/openjpeg.wasm`) is built from OpenJPEG, Copyright (c) 2002-2014 Universite catholique de Louvain (UCL), Belgium, and other contributors, licensed under the BSD 2-Clause License. The vendored license text is in `licenses/OPENJPEG_LICENSE.txt`; the upstream source is <https://github.com/uclouvain/openjpeg>. Its PDF.js WebAssembly wrapper is Copyright (c) 2024 Mozilla Foundation and licensed under the BSD 2-Clause License; the vendored license text is in `licenses/PDFJS_OPENJPEG_LICENSE.txt`.

@@ -1,17 +1,80 @@
 import type { AgentChatPermission, AgentChatPermissionMode } from '@caxri/protocol';
+import { agentChatPermissionModes } from '@caxri/protocol';
 
-import {
-    chatPermissionState,
-    codexPermissionMode,
-    codexPermissionSettings,
-    codexSandboxPolicy,
-    supportedChatPermission,
-} from './chat-permissions';
+import { chatPermissionState, supportedChatPermission } from './chat-permissions';
 import type { AgentChatSessionHost } from './chat-provider';
 import type { CodexThreadSettings } from './codex-chat-types';
 import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settings';
 
 type Json = Record<string, unknown>;
+
+export type CodexPermissionSettings = Pick<
+    CodexThreadSettings,
+    'approvalPolicy' | 'approvalsReviewer' | 'sandbox'
+>;
+
+/**
+ * Codex's presets: Read Only, Default, Approve for me (approval requests go to Codex's auto-review agent), and Full
+ * Access. Read Only keeps `on-request` so Codex can still ask to go beyond the sandbox.
+ */
+const CODEX_PERMISSIONS: Partial<Record<AgentChatPermissionMode, CodexPermissionSettings>> = {
+    readOnly: { approvalPolicy: 'on-request', approvalsReviewer: 'user', sandbox: 'read-only' },
+    acceptEdits: {
+        approvalPolicy: 'on-request',
+        approvalsReviewer: 'user',
+        sandbox: 'workspace-write',
+    },
+    auto: {
+        approvalPolicy: 'on-request',
+        approvalsReviewer: 'auto_review',
+        sandbox: 'workspace-write',
+    },
+    fullAccess: {
+        approvalPolicy: 'never',
+        approvalsReviewer: 'user',
+        sandbox: 'danger-full-access',
+    },
+};
+
+export function codexPermissionSettings(mode: AgentChatPermissionMode): CodexPermissionSettings {
+    const settings = CODEX_PERMISSIONS[mode];
+    if (!settings) throw new Error(`Codex has no ${mode} permission`);
+    return settings;
+}
+
+/**
+ * The level that matches Codex's thread settings, if any.
+ */
+export function codexPermissionMode(
+    settings: CodexPermissionSettings,
+): AgentChatPermissionMode | undefined {
+    return agentChatPermissionModes('codex').find((mode) => {
+        const candidate = CODEX_PERMISSIONS[mode];
+        return (
+            candidate?.approvalPolicy === settings.approvalPolicy &&
+            candidate.approvalsReviewer === settings.approvalsReviewer &&
+            candidate.sandbox === settings.sandbox
+        );
+    });
+}
+
+/**
+ * `turn/start` takes the sandbox as a policy object rather than `thread/start`'s mode name. Only the type is sent, so
+ * Codex fills in its own defaults for that sandbox.
+ */
+function codexSandboxPolicy(sandbox: CodexThreadSettings['sandbox']): { type: string } {
+    switch (sandbox) {
+        case 'read-only': {
+            return { type: 'readOnly' };
+        }
+        case 'workspace-write': {
+            return { type: 'workspaceWrite' };
+        }
+        case 'danger-full-access': {
+            return { type: 'dangerFullAccess' };
+        }
+    }
+}
 
 /**
  * The thread settings a Codex Chat opens with: the launch settings, with the Chat's chosen level in place of their

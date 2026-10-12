@@ -1,6 +1,7 @@
 import type { TerminalRecord } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
+import type { AgentChatHost } from './agent-chat-host';
 import { AgentChatPane } from './agent-chat-pane';
 
 /**
@@ -9,6 +10,7 @@ import { AgentChatPane } from './agent-chat-pane';
  */
 export function AgentChatTerminalContent({
     ariaLabel,
+    host = 'workbench',
     isShown,
     terminal,
 }: {
@@ -16,6 +18,10 @@ export function AgentChatTerminalContent({
      * Defaults to the Terminal's title.
      */
     ariaLabel?: string;
+    /**
+     * The window mounting the Chat, which gates the actions it cannot carry out (`agentChatHostCapabilities`).
+     */
+    host?: AgentChatHost;
     isShown: boolean;
     terminal: TerminalRecord;
 }) {
@@ -23,6 +29,7 @@ export function AgentChatTerminalContent({
     return (
         <AgentChatPane
             ariaLabel={ariaLabel ?? terminal.title}
+            host={host}
             isShown={isShown}
             providerName={provider?.displayName ?? 'the Agent'}
             supportsImages={provider?.capabilities.chatImages ?? false}

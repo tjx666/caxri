@@ -405,8 +405,9 @@ export function commanderTaskBadge(
     if (task.status === 'blocked' && task.failure === 'startup_waiting')
         return {
             icon: 'blocked',
-            label: 'Needs you',
-            title: `Needs you. The Agent is waiting at startup, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own. Task ${task.delegationId}.`,
+            // Not "Needs you": that names the Commander Inbox column, and this task need not have an Inbox item.
+            label: 'Waiting at startup',
+            title: `Waiting at startup. The Agent is running but has not started, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own. Task ${task.delegationId}.`,
             toneClassName: TONE_TEXT_CLASSNAME.warning,
         };
     const { description, icon, label, tone } = TASK_PRESENTATION[task.status];
