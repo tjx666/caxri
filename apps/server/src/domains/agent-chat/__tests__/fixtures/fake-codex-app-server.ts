@@ -7,6 +7,8 @@
  *   issue, and publishes an acceptance report.
  * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
  * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
+ * - `browsestep`: a Computer Use browser step that binds a tab, then one that drives it and stays running briefly before
+ *   its result reports the browser surface.
  * - `ask`: a question; the reply quotes the chosen answer.
  * - `slow`: a titled thought, a running command, and a long streamed reply that `turn/interrupt` can stop.
  * - `fail`: a failed turn with a provider error.
@@ -62,7 +64,7 @@ import {
     wireTurn,
 } from './fake-codex-history.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
-import { completeMcpCalls } from './fake-codex-mcp-calls.ts';
+import { completeMcpCalls, runBrowserStep } from './fake-codex-mcp-calls.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
 import { runCodeBlocks, runMarkdownTable, runTestCommands } from './fake-codex-replies.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
@@ -264,6 +266,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
             ],
         });
         await streamMessage(turn, 'Generated a large file.', 0);
+    } else if (text.includes('browsestep')) {
+        await runBrowserStep(io, turn);
     } else if (text.includes('explore')) {
         /**
          * Consecutive tool calls the Chat groups into one summary row, with output it can paint.

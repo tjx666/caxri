@@ -1,3 +1,4 @@
+import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
@@ -144,6 +145,23 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(done.activeTurnId).toBeUndefined();
         expect(service.hasActiveTurn(terminal.id)).toBe(false);
         expect(done.items.at(-1)).toMatchObject({ type: 'agentMessage', streaming: false });
+    });
+
+    it('names a running browser step a browser step before its result reports the surface', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'browsestep please' });
+        const save = (snapshot: AgentChatSnapshot) =>
+            snapshot.items.find(
+                (item): item is Extract<AgentChatItem, { type: 'toolCall' }> =>
+                    item.type === 'toolCall' && item.summary === 'Click Save',
+            );
+        const running = await until((snapshot) => save(snapshot)?.status === 'running');
+        expect(save(running)).toMatchObject({ name: 'browserUse' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(save(done)).toMatchObject({
+            name: 'browserUse',
+            status: 'completed',
+        });
     });
 
     it('resumes the bound thread with its history after the process stops', async () => {
