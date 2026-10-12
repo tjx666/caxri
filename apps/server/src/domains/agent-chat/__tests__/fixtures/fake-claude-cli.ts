@@ -13,6 +13,7 @@
  * - `fail`: a failed turn with an error result.
  * - `crash`: the process exits mid-turn.
  * - `table`: a reply with a Markdown table and a fenced code block.
+ * - `use chrome`: three Claude in Chrome (`mcp__claude-in-chrome__*`) browser steps, the last one failing, then a reply.
  * - `subagent`: a foreground `Agent` subagent whose own frames carry `parent_tool_use_id`, with `task_*` frames and a
  *   subagent transcript (`subagents/agent-<id>.jsonl` plus `.meta.json`) beside the session transcript.
  * - `workflow`: a `Workflow` tool call whose `local_workflow` task runs until `stop_task`; `quick workflow` finishes it.
@@ -60,7 +61,7 @@ import {
     hookCallbackIds,
     hookCallbackRequest,
 } from './fake-claude-models.ts';
-import { streamPlannedReply } from './fake-claude-replies.ts';
+import { streamBrowserSteps, streamPlannedReply } from './fake-claude-replies.ts';
 import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
 import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
 
@@ -436,6 +437,11 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
             ].join('\n'),
             0,
         );
+        result(startedAt, 'done');
+        return;
+    }
+    if (text.includes('use chrome')) {
+        await streamBrowserSteps(scenarioIo);
         result(startedAt, 'done');
         return;
     }
