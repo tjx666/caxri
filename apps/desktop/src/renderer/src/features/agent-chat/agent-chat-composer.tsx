@@ -1,7 +1,12 @@
 import type { RefObject } from 'react';
 import { useState } from 'react';
 
-import type { AgentChatCommand, AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
+import type {
+    AgentChatActivity,
+    AgentChatCommand,
+    AgentChatQueuedMessage,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
 import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 
 import { Textarea } from '../../components/ui/textarea';
@@ -16,7 +21,7 @@ import { agentChatComposerKeyAction } from './agent-chat-composer-keys';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
-import type { AgentChatActivity, agentChatSendBlock } from './agent-chat-presentation';
+import type { agentChatSendBlock } from './agent-chat-presentation';
 import { agentChatSendTooltip } from './agent-chat-presentation';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';

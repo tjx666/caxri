@@ -1,7 +1,6 @@
+import type { AgentChatEditedFile, AgentChatFileChange } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatFileChange } from '../agent-chat-diff';
-import type { AgentChatEditedFile } from '../agent-chat-turn-artifacts';
 import {
     agentChatUndoFailureMessage,
     agentChatUndoSuccessMessage,

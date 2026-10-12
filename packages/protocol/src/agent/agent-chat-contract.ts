@@ -255,6 +255,12 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          * One-line description (a search query or tool arguments preview).
          */
         summary: z.string().max(1_000).optional(),
+        /**
+         * JSON preview of the arguments, set only when `summary` is a readable digest of them (`to lead: Done` for a
+         * `SendMessage`) rather than the arguments themselves. The row title reads `summary`; an expanded row shows
+         * this so the full arguments stay inspectable.
+         */
+        input: z.string().max(1_000).optional(),
         output: boundedOutput.optional(),
         durationMs: z.number().nonnegative().optional(),
     }),
@@ -445,6 +451,11 @@ export const agentChatSnapshotSchema = z.strictObject({
     tasks: z.array(agentChatTaskSchema).max(MAX_AGENT_CHAT_TASKS).optional(),
     queue: z.array(agentChatQueuedMessageSchema).max(MAX_AGENT_CHAT_QUEUE).optional(),
     /**
+     * How many messages the queue really holds. Set on a phone's copy, whose `queue` keeps only the first
+     * `MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS`, so the queue card still counts every waiting message.
+     */
+    queueLength: z.number().int().nonnegative().max(MAX_AGENT_CHAT_QUEUE).optional(),
+    /**
      * True after the user stopped a turn with messages still queued; nothing is sent until they resume the queue.
      */
     queuePaused: z.boolean().optional(),
@@ -487,6 +498,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 operation: agentChatSnapshotSchema.shape.operation.unwrap().nullable(),
                 tasks: agentChatSnapshotSchema.shape.tasks.unwrap(),
                 queue: agentChatSnapshotSchema.shape.queue.unwrap(),
+                queueLength: agentChatSnapshotSchema.shape.queueLength.unwrap(),
                 queuePaused: agentChatSnapshotSchema.shape.queuePaused.unwrap(),
             })
             .partial(),
@@ -514,68 +526,9 @@ export const agentChatPatchSchema = z.strictObject({
     operations: z.array(agentChatPatchOperationSchema).min(1).max(MAX_AGENT_CHAT_PATCH_OPERATIONS),
 });
 
-/**
- * The conversation of one task: a subagent's own messages and tool rows, or a background shell's output tail. Kept
- * apart from the parent projection with its own revisions and budget.
- */
-export const agentChatTaskSnapshotSchema = z.strictObject({
-    terminalId: identifierSchema,
-    taskId: agentChatTaskSchema.shape.id,
-    revision: z.number().int().nonnegative(),
-    truncated: z.boolean(),
-    items: z.array(agentChatItemSchema).max(MAX_AGENT_CHAT_TASK_ITEMS),
-    /**
-     * Tail of a background shell's output.
-     */
-    output: boundedOutput.optional(),
-    /**
-     * Set when the provider stopped streaming this shell's output (Codex caps the deltas of one command), so the tab
-     * says the output is no longer live instead of looking idle.
-     */
-    isOutputCapped: z.boolean().optional(),
-});
-
-export const agentChatTaskPatchOperationSchema = z.discriminatedUnion('op', [
-    z.strictObject({ op: z.literal('upsertItem'), item: agentChatItemSchema }),
-    z.strictObject({
-        op: z.literal('appendText'),
-        itemId: z.string().min(1).max(200),
-        delta: z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH),
-    }),
-    z.strictObject({
-        op: z.literal('appendOutput'),
-        delta: z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH),
-    }),
-    z.strictObject({
-        op: z.literal('state'),
-        state: z
-            .strictObject({
-                output: boundedOutput,
-                isOutputCapped: z.boolean(),
-                truncated: z.boolean(),
-            })
-            .partial(),
-    }),
-    z.strictObject({ op: z.literal('reset') }),
-]);
-
-export const agentChatTaskPatchSchema = z.strictObject({
-    terminalId: identifierSchema,
-    taskId: agentChatTaskSchema.shape.id,
-    baseRevision: z.number().int().nonnegative(),
-    revision: z.number().int().positive(),
-    operations: z
-        .array(agentChatTaskPatchOperationSchema)
-        .min(1)
-        .max(MAX_AGENT_CHAT_PATCH_OPERATIONS),
-});
-
 export type AgentChatItem = z.infer<typeof agentChatItemSchema>;
 export type AgentChatTask = z.infer<typeof agentChatTaskSchema>;
 export type AgentChatQueuedMessage = z.infer<typeof agentChatQueuedMessageSchema>;
-export type AgentChatTaskSnapshot = z.infer<typeof agentChatTaskSnapshotSchema>;
-export type AgentChatTaskPatchOperation = z.infer<typeof agentChatTaskPatchOperationSchema>;
-export type AgentChatTaskPatch = z.infer<typeof agentChatTaskPatchSchema>;
 export type AgentChatItemStatus = z.infer<typeof agentChatItemStatusSchema>;
 export type AgentChatTurn = z.infer<typeof agentChatTurnSchema>;
 export type AgentChatPlan = z.infer<typeof agentChatPlanSchema>;

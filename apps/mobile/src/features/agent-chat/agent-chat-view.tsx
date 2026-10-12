@@ -5,26 +5,35 @@ import type { ListRenderItemInfo } from 'react-native';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatRequest } from '@caxri/protocol';
-import { agentChatFailureMessage, sentenceStartProvider } from '@caxri/protocol';
+import {
+    agentChatActivity,
+    agentChatDockedPlan,
+    agentChatFailureMessage,
+    sentenceStartProvider,
+} from '@caxri/protocol';
 
 import { NoticeBanner } from '../../components/notice-banner';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
-import { ConversationView } from '../conversation/conversation-view';
+import { ConversationList } from '../conversation/conversation-view';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
+import { AgentChatActivityLine } from './agent-chat-activity-line';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import {
     AGENT_CHAT_HANDED_OFF_BANNER,
-    agentChatActivityLabel,
+    agentChatComposerAvailability,
     agentChatEmptyMessage,
     agentChatImageCounts,
     agentChatRequestBlockedReason,
-    agentChatTimelineItems,
     isAgentChatFailureRetryable,
 } from './agent-chat-model';
+import { AgentChatPlanCard } from './agent-chat-plan-card';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatRequestCard } from './agent-chat-request-card';
+import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
+import { buildAgentChatTimeline } from './agent-chat-timeline';
+import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
 import type { AgentChatController } from './use-agent-chat';
 
 const noOlderPage = async (): Promise<void> => {};
@@ -50,17 +59,26 @@ const AgentChatBody = ({
     theme: MobileTheme;
 }) => {
     const { snapshot } = chat;
+    const entries = useMemo(() => (snapshot ? buildAgentChatTimeline(snapshot) : []), [snapshot]);
+    /**
+     * The Chat reads one bounded window, so the list's history header only says whether older messages were cut.
+     */
+    const truncated = snapshot?.truncated ?? false;
     const timeline = useMemo<ConversationTimelineState & { loadOlder: () => Promise<void> }>(
         () => ({
             error: null,
             historyExpired: false,
             isLoadingOlder: false,
-            items: snapshot ? agentChatTimelineItems(snapshot) : [],
+            items: [],
             loadOlder: noOlderPage,
             status: 'available',
-            truncated: snapshot?.truncated ?? false,
+            truncated,
         }),
-        [snapshot],
+        [truncated],
+    );
+    const renderEntry = useCallback(
+        (entry: TimelineEntry) => <AgentChatTimelineEntry entry={entry} theme={theme} />,
+        [theme],
     );
     /**
      * Keyed on the messages that carry images, not the snapshot, so a streamed reply does not redraw every entry.
@@ -83,12 +101,15 @@ const AgentChatBody = ({
             ) : null;
         };
     }, [imageCounts, terminalId, theme]);
-    if (timeline.items.length > 0)
+    if (entries.length > 0)
         return (
             <ConversationUserAttachments value={renderImages}>
-                <ConversationView
+                <ConversationList
+                    entries={entries}
                     enterFrom={enterFrom}
+                    isConnected={isConnected}
                     onRetry={chat.refresh}
+                    renderEntry={renderEntry}
                     theme={theme}
                     timeline={timeline}
                 />
@@ -188,21 +209,17 @@ const AgentChatActivity = ({
     theme: MobileTheme;
 }) => {
     const { snapshot } = chat;
-    const activity = agentChatActivityLabel(snapshot, provider);
-    // A saved copy's activity is however the Chat stood when it was saved, not what it is doing now.
-    if (!activity || !snapshot || snapshot.status === 'starting' || chat.savedAt !== undefined)
-        return null;
-    return (
-        <View style={styles.activity} testID="agent-chat-activity">
-            {activity.isBusy ? <ActivityIndicator color={theme.muted} size="small" /> : null}
-            <Text style={[styles.activityText, { color: theme.muted }]}>{activity.text}</Text>
-        </View>
-    );
+    const activity = agentChatActivity(snapshot, provider);
+    // A saved copy's activity is however the Chat stood when it was saved, not what it is doing now. Starting has its
+    // own status in the body.
+    if (!activity || activity.kind === 'starting' || chat.savedAt !== undefined) return null;
+    return <AgentChatActivityLine activity={activity} theme={theme} />;
 };
 
 /**
- * The phone's Chat: the same Conversation rendering a terminal Agent gets (Markdown replies, grouped tool rows, a
- * collapsed Thought row for reasoning), with the Chat's own states and pending requests docked above the composer.
+ * The phone's Chat: Desktop's Chat timeline in the Conversation's list (Markdown replies, work rows and summaries, each
+ * finished turn's artifacts and `Worked for` footer), with the Chat's own states, pending requests, plan, and activity
+ * docked above the composer.
  */
 export const AgentChatView = ({
     chat,
@@ -235,6 +252,7 @@ export const AgentChatView = ({
     const [isRestarting, setRestarting] = useState(false);
     const [restartError, setRestartError] = useState<string | null>(null);
     const { snapshot } = chat;
+    const dockedPlan = agentChatDockedPlan(snapshot);
     /**
      * Reply access is the bar for both retrying a failed provider and sending a message, matching
      * `agentChatDisabledReason`.
@@ -260,6 +278,15 @@ export const AgentChatView = ({
      */
     const canRetryFailure =
         canRetry && failure !== undefined && isAgentChatFailureRetryable(failure.reason);
+    /**
+     * Deleting, steering with, or resuming a queued message needs what sending needs, so the card follows the composer.
+     */
+    const canActOnQueue = agentChatComposerAvailability({
+        deviceRole,
+        isConnected,
+        isHandedOff,
+        snapshot,
+    }).isEnabled;
     const blockedReason = useMemo(
         () => agentChatRequestBlockedReason({ deviceRole, isConnected }),
         [deviceRole, isConnected],
@@ -319,6 +346,13 @@ export const AgentChatView = ({
                     theme={theme}
                 />
             </View>
+            {dockedPlan ? (
+                <AgentChatPlanCard
+                    isTurnRunning={dockedPlan.isTurnRunning}
+                    plan={dockedPlan.plan}
+                    theme={theme}
+                />
+            ) : null}
             <AgentChatRequests
                 blockedReason={blockedReason}
                 chat={chat}
@@ -326,7 +360,7 @@ export const AgentChatView = ({
                 theme={theme}
             />
             <AgentChatActivity chat={chat} provider={provider} theme={theme} />
-            <AgentChatQueueList snapshot={snapshot} theme={theme} />
+            <AgentChatQueueList canAct={canActOnQueue} chat={chat} theme={theme} />
         </View>
     );
 };
@@ -347,13 +381,5 @@ const styles = StyleSheet.create({
     statusText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
     dock: { borderTopWidth: 1, flexGrow: 0, maxHeight: '55%' },
     requests: { gap: 8, padding: 12 },
-    activity: {
-        alignItems: 'center',
-        flexDirection: 'row',
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 6,
-    },
-    activityText: { fontSize: 13 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

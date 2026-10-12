@@ -1,6 +1,7 @@
+import type { AgentChatWorkItem } from '@caxri/protocol';
 import { notifyListeners } from '@caxri/utils';
 
-import type { AgentChatTimelineEntry, AgentChatWorkItem } from './agent-chat-timeline';
+import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 
 /**
  * Disclosure keys for the rows of one Chat timeline. A work row is keyed by its item, so it keeps its state when the

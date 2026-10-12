@@ -43,6 +43,7 @@ type MobileDomainMethods = Pick<
     | 'mobile.changes.diff'
     | 'mobile.changes.diffInternal'
     | 'mobile.session.show'
+    | 'mobile.session.projectRootInternal'
     | 'mobile.timeline.read'
     | 'mobile.timeline.readInternal'
     | 'mobile.timeline.watchInternal'
@@ -209,6 +210,9 @@ export function createMobileDomainHandlers(options: {
             authorizedSession(options.database, sessionId, principal);
             return options.git.mobileChangesDiff(sessionId, repositoryId, path);
         },
+        'mobile.session.projectRootInternal': ({ sessionId, principal }) => ({
+            rootPath: authorizedSession(options.database, sessionId, principal).rootPath,
+        }),
         'mobile.session.show': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile Session view requires a paired device');
         },

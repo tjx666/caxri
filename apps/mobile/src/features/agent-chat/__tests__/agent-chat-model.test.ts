@@ -1,12 +1,11 @@
-import type { AgentChatRequest, AgentChatSnapshot } from '@caxri/protocol';
-import { agentProviderCatalog, agentProviderIds, describeAgentTool } from '@caxri/protocol';
+import type { AgentChatSnapshot } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { mobileTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
 import {
     AGENT_CHAT_HANDED_OFF_BANNER,
     AGENT_CHAT_HANDED_OFF_NOTICE,
-    agentChatActivityLabel,
     agentChatApprovalFiles,
     agentChatApprovalRows,
     agentChatComposerAvailability,
@@ -18,7 +17,6 @@ import {
     agentChatImagesUnsupportedReason,
     agentChatProviderName,
     agentChatRequestBlockedReason,
-    agentChatTimelineItems,
     canAttachAgentChatImages,
     isAgentChatFailureRetryable,
     isAgentChatHandedOff,
@@ -67,86 +65,7 @@ describe('Agent Chat model', () => {
         expect(canAttachAgentChatImages(undefined)).toBe(false);
     });
 
-    it('projects a Chat onto the Conversation timeline with a Thought row and turn dividers', () => {
-        const timeline = agentChatTimelineItems({
-            ...base,
-            items: [
-                { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Fix the test' },
-                {
-                    id: 'r1',
-                    turnId: 't1',
-                    type: 'reasoning',
-                    text: '**Inspecting tests**\n\nLooking at the failure.',
-                    streaming: false,
-                },
-                {
-                    id: 'c1',
-                    turnId: 't1',
-                    type: 'command',
-                    command: 'pnpm test',
-                    output: 'ok',
-                    status: 'completed',
-                    durationMs: 1200.4,
-                },
-                {
-                    id: 'f1',
-                    turnId: 't1',
-                    type: 'fileChange',
-                    status: 'declined',
-                    changes: [
-                        { path: 'src/a.ts', kind: 'update', diff: '+a' },
-                        { path: 'src/b.ts', kind: 'add', diff: '+b' },
-                    ],
-                },
-                { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Done.', streaming: false },
-                { id: 'u2', turnId: 't2', type: 'userMessage', text: 'Thanks' },
-                { id: 'empty', turnId: 't2', type: 'agentMessage', text: '', streaming: true },
-            ],
-            turns: [
-                { id: 't1', status: 'completed', durationMs: 9000 },
-                { id: 't2', status: 'running' },
-            ],
-            activeTurnId: 't2',
-        });
-        expect(timeline.map((item) => item.type)).toEqual([
-            'userMessage',
-            'toolCall',
-            'toolCall',
-            'toolCall',
-            'agentMessage',
-            'turnBoundary',
-            'userMessage',
-        ]);
-        const thought = timeline[1] as Extract<(typeof timeline)[number], { type: 'toolCall' }>;
-        expect(thought).toMatchObject({ summary: 'Inspecting tests', status: 'succeeded' });
-        expect(describeAgentTool(thought)).toMatchObject({ kind: 'thought', label: 'Thought' });
-        expect(timeline[2]).toMatchObject({
-            name: 'exec_command',
-            summary: 'pnpm test',
-            durationMs: 1200,
-        });
-        expect(timeline[3]).toMatchObject({ summary: 'src/a.ts and 1 more', status: 'failed' });
-        expect(timeline[5]).toMatchObject({ durationMs: 9000 });
-    });
-
-    it('keeps an image-only message, whose images the Chat view draws', () => {
-        const timeline = agentChatTimelineItems({
-            ...base,
-            items: [
-                { id: 'u1', turnId: 't1', type: 'userMessage', text: '', images: [{}] },
-                {
-                    id: 'u2',
-                    turnId: 't1',
-                    type: 'userMessage',
-                    text: 'Compare these',
-                    images: [{}, {}],
-                },
-            ],
-        });
-        expect(timeline.filter((item) => item.type === 'userMessage')).toEqual([
-            { id: 'u1', type: 'userMessage', text: '' },
-            { id: 'u2', type: 'userMessage', text: 'Compare these' },
-        ]);
+    it('counts the images each message carries, keyed for the Chat view', () => {
         expect(
             agentChatImageCounts({
                 items: [
@@ -156,29 +75,6 @@ describe('Agent Chat model', () => {
             }),
         ).toBe('[["u1",1]]');
         expect(agentChatImageCounts(undefined)).toBe('');
-    });
-
-    it('reports what the Chat is doing and waits on a pending request', () => {
-        expect(agentChatActivityLabel(undefined, 'Codex')?.text).toBe('Starting Codex…');
-        expect(agentChatActivityLabel(base, 'Codex')).toBeUndefined();
-        expect(agentChatActivityLabel({ ...base, activeTurnId: 't1' }, 'Codex')).toEqual({
-            text: 'Working…',
-            isBusy: true,
-        });
-        const request: AgentChatRequest = { id: 'q', kind: 'command', command: 'ls' };
-        expect(
-            agentChatActivityLabel({ ...base, activeTurnId: 't1', requests: [request] }, 'Codex')
-                ?.text,
-        ).toBe('Waiting for your approval');
-        const question: AgentChatRequest = {
-            id: 'q',
-            kind: 'question',
-            questions: [{ id: 'a', header: '', question: 'Why?', options: [], allowsOther: true }],
-        };
-        expect(
-            agentChatActivityLabel({ ...base, activeTurnId: 't1', requests: [question] }, 'Codex')
-                ?.text,
-        ).toBe('Waiting for your answer');
     });
 
     it('lists the files a file-change approval gates', () => {

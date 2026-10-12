@@ -1,5 +1,11 @@
 import { useId, useMemo, useState } from 'react';
 
+import type { AgentChatEditedFile } from '@caxri/protocol';
+import {
+    agentChatEditedFileLines,
+    agentChatEditedFilesStat,
+    projectDisplayPath,
+} from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { ChevronDown, FileDiff, LoaderCircle, MessageSquareDiff, Undo2 } from 'lucide-react';
 
@@ -10,17 +16,12 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { diffStatLabel } from '../../lib/diff-stat-label';
-import { parentDirectoryPath, projectRelativePath } from '../../lib/file-path';
+import { parentDirectoryPath } from '../../lib/file-path';
 import { cn } from '../../lib/utilities';
 import { usePaneViewSession } from '../workbench/pane-view-session';
+import { agentChatLocalizedEditedFilesTitle } from './agent-chat-diff-labels';
 import { AgentChatDiff } from './agent-chat-file-changes';
 import { openAgentChatTurnReview } from './agent-chat-task-opener';
-import type { AgentChatEditedFile } from './agent-chat-turn-artifacts';
-import {
-    agentChatEditedFileLines,
-    agentChatEditedFilesStat,
-    agentChatEditedFilesTitle,
-} from './agent-chat-turn-artifacts';
 import {
     agentChatUndoKey,
     undoAgentChatTurn,
@@ -126,10 +127,9 @@ export function AgentChatTurnChanges({
     const undoStatus = useAgentChatUndoStore((state) =>
         session ? state.turns[agentChatUndoKey(session.id, turnId)] : undefined,
     );
-    const displayPath = (path: string): string =>
-        (session?.rootPath && projectRelativePath(path, session.rootPath)) ?? path;
+    const displayPath = (path: string): string => projectDisplayPath(path, session?.rootPath);
     const stat = agentChatEditedFilesStat(files);
-    const title = agentChatEditedFilesTitle(files, pathBasename, t);
+    const title = agentChatLocalizedEditedFilesTitle(files, t);
     const isAllExpanded = files.every((file) => expanded.has(file.path));
     /**
      * The hover preview only stands in for the diffs while they are hidden. A click on the counts discloses them in

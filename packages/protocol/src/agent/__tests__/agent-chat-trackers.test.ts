@@ -1,21 +1,13 @@
-import type { AgentChatItem, AppLocale } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { translate, useLocaleStore } from '../../../i18n';
+import type { AgentChatItem } from '../agent-chat-contract';
 import {
+    agentChatTrackerExcerpt,
+    agentChatTrackerShellWords,
     collectAgentChatTrackers,
-    shellWords,
-    trackerExcerpt,
     trackerExcerptText,
     trackerReferenceText,
 } from '../agent-chat-trackers';
-
-const translateIn =
-    (locale: AppLocale): typeof translate =>
-    (...parameters) => {
-        useLocaleStore.setState({ locale });
-        return translate(...parameters);
-    };
 
 const command = (
     id: string,
@@ -38,10 +30,10 @@ const tool = (
     output,
 });
 
-describe('shellWords', () => {
+describe('agentChatTrackerShellWords', () => {
     it('groups quotes and keeps a heredoc substitution as one word', () => {
         expect(
-            shellWords(
+            agentChatTrackerShellWords(
                 `gh pr create --title "Fix the bar" --body "$(cat <<'EOF'\nLine one\nEOF\n)" && echo done`,
             ),
         ).toEqual([
@@ -53,7 +45,7 @@ describe('shellWords', () => {
             '--body',
             "$(cat <<'EOF'\nLine one\nEOF\n)",
         ]);
-        expect(shellWords(`gh issue edit 2 -t 'it''s'; ls`)).toEqual([
+        expect(agentChatTrackerShellWords(`gh issue edit 2 -t 'it''s'; ls`)).toEqual([
             'gh',
             'issue',
             'edit',
@@ -64,12 +56,12 @@ describe('shellWords', () => {
     });
 });
 
-describe('trackerExcerpt', () => {
+describe('agentChatTrackerExcerpt', () => {
     it('skips headings and markers to the first line of prose', () => {
-        expect(trackerExcerpt('## Summary\n\n- Adds the **card** view\n- More')).toBe(
+        expect(agentChatTrackerExcerpt('## Summary\n\n- Adds the **card** view\n- More')).toBe(
             'Adds the card view',
         );
-        expect(trackerExcerpt('   \n')).toBeUndefined();
+        expect(agentChatTrackerExcerpt('   \n')).toBeUndefined();
     });
 });
 
@@ -355,7 +347,7 @@ describe('collectAgentChatTrackers', () => {
         ]);
     });
 
-    it('localizes an acceptance round and check count when the card renders', () => {
+    it('names an acceptance round and check count in English for the phone', () => {
         const artifact = {
             provider: 'lobehub',
             kind: 'acceptance',
@@ -365,11 +357,9 @@ describe('collectAgentChatTrackers', () => {
             round: 2,
             checks: 1,
         } as const;
-        expect(trackerReferenceText(artifact, translateIn('zh-CN'))).not.toBe('Round 2');
-        expect(trackerReferenceText(artifact, translateIn('en'))).toBe('Round 2');
-        expect(trackerExcerptText(artifact, translateIn('en'))).toBe('1 check');
-        expect(trackerReferenceText({ ...artifact, round: undefined }, translateIn('en'))).toBe(
-            'abcdef12',
-        );
+        expect(trackerReferenceText(artifact)).toBe('Round 2');
+        expect(trackerExcerptText(artifact)).toBe('1 check');
+        expect(trackerExcerptText({ ...artifact, checks: 3 })).toBe('3 checks');
+        expect(trackerReferenceText({ ...artifact, round: undefined })).toBe('abcdef12');
     });
 });

@@ -1,5 +1,6 @@
+import type { AgentChatTurnArtifacts } from '@caxri/protocol';
+
 import { AgentChatTrackerCard } from './agent-chat-tracker-card';
-import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { AgentChatTurnChanges } from './agent-chat-turn-changes';
 
 /**

@@ -4,7 +4,6 @@ import type { AgentChatSnapshot } from '../agent-chat-contract';
 import {
     agentChatPatchSchema,
     agentChatSnapshotSchema,
-    agentChatTaskSnapshotSchema,
     MAX_AGENT_CHAT_ITEMS,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
     MAX_AGENT_CHAT_TASK_ITEMS,
@@ -19,6 +18,7 @@ import {
     emptyAgentChatSnapshot,
     emptyAgentChatTaskSnapshot,
 } from '../agent-chat-reducer';
+import { agentChatTaskSnapshotSchema } from '../agent-chat-task-contract';
 
 const empty = (): AgentChatSnapshot => emptyAgentChatSnapshot('terminal-1');
 

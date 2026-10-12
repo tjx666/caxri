@@ -16,7 +16,14 @@ import {
     MAX_AGENT_CHAT_TEXT_LENGTH,
 } from '@caxri/protocol';
 
-import { clip, closeDanglingItem, isRecord, replacementDiff, stringField } from './chat-items';
+import {
+    clip,
+    closeDanglingItem,
+    isRecord,
+    readableToolInputSummary,
+    replacementDiff,
+    stringField,
+} from './chat-items';
 
 /**
  * Pure translation from Claude Code's message stream (Agent SDK messages and the session JSONL transcript share the
@@ -64,16 +71,46 @@ function isClaudeHiddenTool(name: string): boolean {
     return name === 'TodoWrite' || name === 'AskUserQuestion';
 }
 
-function claudeToolSummary(input: unknown): string | undefined {
-    if (!isRecord(input)) return undefined;
-    const field = TOOL_SUBJECT_FIELDS.find((key) => typeof input[key] === 'string' && input[key]);
-    if (field) return clip(text(input[field]), 1_000);
+/**
+ * `SendMessage` (a message to a teammate Agent) reads as who it went to and what it said: `to researcher: Check the
+ * tests`. Its preview `summary`, when Claude Code wrote one, is shorter than the message's first line.
+ */
+function sendMessageSummary(input: Json): string | undefined {
+    const recipient = stringField(input.to) ?? stringField(input.recipient);
+    const body =
+        stringField(input.summary) ?? stringField(input.message) ?? stringField(input.content);
+    const line = body?.trim().split('\n', 1)[0]?.trim();
+    const summary = recipient ? (line ? `to ${recipient}: ${line}` : `to ${recipient}`) : line;
+    return summary ? clip(summary, 1_000) : undefined;
+}
+
+function jsonPreview(input: Json): string | undefined {
     try {
         const serialized = JSON.stringify(input);
         return serialized && serialized !== '{}' ? clip(serialized, 1_000) : undefined;
     } catch {
         return undefined;
     }
+}
+
+function subjectField(input: Json): string | undefined {
+    const field = TOOL_SUBJECT_FIELDS.find((key) => typeof input[key] === 'string' && input[key]);
+    return field ? clip(text(input[field]), 1_000) : undefined;
+}
+
+/**
+ * A tool row's title and, when that title is only a readable digest of the arguments, their JSON preview for the
+ * expanded row. An MCP call keeps its arguments as JSON in `summary`: its row title names the server and tool, and
+ * tracker detection (`collectAgentChatTrackers`) reads a GitHub or Linear call's title and body back out of them.
+ */
+function claudeToolCallFields(name: string, input: Json): { summary?: string; input?: string } {
+    const sendMessage = name === 'SendMessage' ? sendMessageSummary(input) : undefined;
+    const subject = sendMessage ? undefined : subjectField(input);
+    if (subject) return { summary: subject };
+    const preview = jsonPreview(input);
+    if (name.startsWith('mcp__')) return preview ? { summary: preview } : {};
+    const summary = sendMessage ?? readableToolInputSummary(input, 1_000);
+    return { ...(summary && { summary }), ...(preview && { input: preview }) };
 }
 
 /**
@@ -161,13 +198,12 @@ export function mapClaudeToolUse(
             ].slice(0, MAX_AGENT_CHAT_FILE_CHANGES),
         };
     }
-    const summary = claudeToolSummary(input);
     return {
         ...base,
         type: 'toolCall',
         name: clip(name, 200),
         status: 'running',
-        ...(summary && { summary }),
+        ...claudeToolCallFields(name, input),
     };
 }
 
@@ -313,8 +349,11 @@ export function mapClaudeApproval(
         };
     }
     if (FILE_TOOLS.has(toolName)) return { ...base, kind: 'fileChange', itemId: id };
+    // An approval decides on the arguments themselves, so it never shows a readable digest of them in their place.
     const summary =
-        toolName === 'ExitPlanMode' ? optionalText(fields.plan, 4_096) : claudeToolSummary(input);
+        toolName === 'ExitPlanMode'
+            ? optionalText(fields.plan, 4_096)
+            : (subjectField(fields) ?? jsonPreview(fields));
     return { ...base, kind: 'tool', name: clip(toolName, 200), ...(summary && { summary }) };
 }
 

@@ -1,7 +1,8 @@
+import { isPathAtOrBelow } from '@caxri/protocol';
+
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { isDirectoryEntry } from '../../lib/file-entry';
-import { isPathAtOrBelow } from '../../lib/file-path';
 
 export type PathBrowserMode = 'free' | 'project';
 

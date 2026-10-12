@@ -1,4 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
+import { agentChatDockedPlan } from '@caxri/protocol';
 import { CircleAlert, Info, RotateCcw, SquareTerminal, Unplug } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -6,7 +7,6 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { AgentChatPlanCard } from './agent-chat-plan-card';
 import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
-import { isAgentChatTurnRunning } from './agent-chat-presentation';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import { AgentChatTaskStrip } from './agent-chat-task-strip';
 
@@ -86,6 +86,7 @@ export function AgentChatDock({
     onOpenAsTerminal: (() => void) | undefined;
     onRecover: () => void;
 }) {
+    const dockedPlan = agentChatDockedPlan(snapshot);
     return (
         <div className="mx-auto flex max-h-[60%] w-full max-w-3xl shrink-0 flex-col gap-2 overflow-y-auto px-4 empty:hidden">
             <AgentChatRecoveryBanner
@@ -93,10 +94,10 @@ export function AgentChatDock({
                 onOpenAsTerminal={onOpenAsTerminal}
                 onRecover={onRecover}
             />
-            {snapshot?.plan && (
+            {dockedPlan && (
                 <AgentChatPlanCard
-                    isTurnRunning={isAgentChatTurnRunning(snapshot)}
-                    plan={snapshot.plan}
+                    isTurnRunning={dockedPlan.isTurnRunning}
+                    plan={dockedPlan.plan}
                 />
             )}
             {snapshot?.requests.map((request) => (
