@@ -60,7 +60,9 @@ _Avoid_: Conversation, chat mode, Agent panel
 ## Agents and attention
 
 **Agent Session**:
-A provider-owned conversation identity that may continue across more than one Agent Run.
+A provider-owned conversation identity that may continue across more than one Agent Run. User-facing
+copy calls it a "conversation" (as in "Start New Conversation"), because a bare "session" in a label
+reads as a Session.
 _Avoid_: Session, Caxri Session
 
 **Agent Run**:
