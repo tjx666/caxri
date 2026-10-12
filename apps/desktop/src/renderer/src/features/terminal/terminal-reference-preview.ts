@@ -167,9 +167,11 @@ export function terminalReferencePreviewCard(
             title: preview.subject,
         };
     // GitHub reports `open` / `closed`; the fact starts a line, so it is capitalized like every other one on the card.
-    const state = preview.isDraft
-        ? 'Draft'
-        : preview.state.charAt(0).toUpperCase() + preview.state.slice(1);
+    const state = preview.isMerged
+        ? 'Merged'
+        : preview.isDraft
+          ? 'Draft'
+          : preview.state.charAt(0).toUpperCase() + preview.state.slice(1);
     return {
         detail: basic.detail,
         facts: [
