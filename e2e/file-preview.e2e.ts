@@ -268,6 +268,19 @@ test('previews PDF, CSV, and Mermaid files', async () => {
         await expect(table.getByRole('cell', { name: 'Lisbon, PT' })).toBeVisible();
         await expect(table.getByRole('row')).toHaveCount(3);
         await expect(page.getByText('2 rows × 3 columns')).toBeVisible();
+        // A descending sort on a numeric column keeps each row's source number in the gutter.
+        const population = table.getByRole('columnheader', { name: 'population' });
+        await population.getByRole('button').click();
+        await population.getByRole('button').click();
+        await expect(population).toHaveAttribute('aria-sort', 'descending');
+        await expect(table.getByRole('row').nth(1)).toContainText('Oslo');
+        await expect(table.getByRole('rowheader').first()).toHaveText('2');
+        await page.keyboard.press('Meta+F');
+        const filter = page.getByRole('textbox', { name: 'Filter rows' });
+        await expect(filter).toBeFocused();
+        await page.keyboard.type('lisbon');
+        await expect(page.getByText('1 of 2 rows × 3 columns')).toBeVisible();
+        await expect(table.getByRole('rowheader').first()).toHaveText('1');
 
         await page.getByRole('treeitem', { name: 'flow.mmd', exact: true }).click();
         await expect(page.getByRole('tab', { name: 'flow.mmd', exact: true })).toBeVisible();

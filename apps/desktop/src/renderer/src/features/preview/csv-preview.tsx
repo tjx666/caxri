@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useDeferredValue, useLayoutEffect, useMemo, useRef } from 'react';
+import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TriangleAlert } from 'lucide-react';
@@ -8,16 +8,19 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
-import { cn } from '../../lib/utilities';
+import type { TableSort } from './csv-row-view';
+import { nextTableSort, tableRowSearchText, tableRowView } from './csv-row-view';
 import type { DelimitedTable } from './csv-table';
 import {
     describeTableIssues,
     describeTableLimits,
     describeTableSize,
-    isCellClipped,
     parseDelimitedTable,
     rowNumberGutterWidth,
 } from './csv-table';
+import { CsvTableFilter } from './csv-table-filter';
+import { CsvTableHeader } from './csv-table-header';
+import { CsvTableRow } from './csv-table-row';
 import { openPreviewSource } from './preview-commands';
 import { readPreviewViewState, rememberPreviewViewState } from './preview-view-state';
 
@@ -25,66 +28,15 @@ const ROW_HEIGHT = 24;
 
 /**
  * One grid template for the header and every row, so columns line up without measuring the DOM: the row-number gutter
- * sized to the largest row number, then each column at its estimated width plus the cell's horizontal padding. Every
- * row is its own grid, so no track may depend on that row's content.
+ * sized to the largest row number, then each column at its estimated width plus the cell's horizontal padding. The
+ * sorted column also makes room for its direction arrow (12px plus a 4px gap), so the arrow never truncates the label.
+ * Every row is its own grid, so no track may depend on that row's content.
  */
-function gridTemplate(table: DelimitedTable): CSSProperties {
-    const columns = table.columnWidths.map((width) => `calc(${width}ch + 16px)`).join(' ');
+function gridTemplate(table: DelimitedTable, sortedColumn: number | undefined): CSSProperties {
+    const columns = table.columnWidths
+        .map((width, column) => `calc(${width}ch + ${column === sortedColumn ? 32 : 16}px)`)
+        .join(' ');
     return { gridTemplateColumns: `${rowNumberGutterWidth(table.rows.length)} ${columns}` };
-}
-
-function TableRow({
-    cells,
-    columnWidths,
-    numericColumns,
-    rowIndex,
-    style,
-}: {
-    cells: readonly string[];
-    columnWidths: readonly number[];
-    numericColumns: readonly boolean[];
-    rowIndex: number;
-    style: CSSProperties;
-}) {
-    return (
-        <div
-            aria-rowindex={rowIndex + 2}
-            className="absolute top-0 left-0 grid min-w-full border-b border-border"
-            role="row"
-            style={style}
-        >
-            <span
-                className="sticky left-0 border-r border-border bg-background px-2 text-right leading-6 whitespace-nowrap text-muted tabular-nums"
-                role="rowheader"
-            >
-                {rowIndex + 1}
-            </span>
-            {cells.map((cell, column) => {
-                const content = (
-                    <span
-                        // Columns are positional and never reorder, so the index is the cell's identity.
-                        key={column}
-                        className={cn(
-                            'truncate px-2 leading-6',
-                            numericColumns[column] && 'text-right tabular-nums',
-                        )}
-                        role="cell"
-                    >
-                        {cell}
-                    </span>
-                );
-                // Only a cell the column cuts off carries a tooltip: one per visible cell would mount a popup tree for
-                // every cell the virtualizer renders, to repeat text that is already fully on screen.
-                return isCellClipped(cell, columnWidths[column]) ? (
-                    <Tooltip key={column} content={cell}>
-                        {content}
-                    </Tooltip>
-                ) : (
-                    content
-                );
-            })}
-        </div>
-    );
 }
 
 /**
@@ -146,7 +98,25 @@ export function CsvPreview({
         () => parseDelimitedTable(deferredSource, path, t),
         [deferredSource, path, t],
     );
-    const template = useMemo(() => gridTemplate(table), [table]);
+    const filterReference = useRef<HTMLInputElement>(null);
+    const [sort, setSort] = useState<TableSort | undefined>(
+        () => readPreviewViewState(viewStateKey)?.tableSort ?? undefined,
+    );
+    const template = useMemo(() => gridTemplate(table, sort?.column), [sort?.column, table]);
+    const [filter, setFilter] = useState(
+        () => readPreviewViewState(viewStateKey)?.tableFilter ?? '',
+    );
+    const searchText = useMemo(() => tableRowSearchText(table.rows), [table]);
+    /**
+     * Deferred like the parse: a sort or filter over 50,000 rows renders in the background while the header click or
+     * the keystroke that asked for it paints immediately.
+     */
+    const deferredSort = useDeferredValue(sort);
+    const deferredFilter = useDeferredValue(filter);
+    const rowOrder = useMemo(
+        () => tableRowView(table, searchText, deferredSort, deferredFilter),
+        [deferredFilter, deferredSort, searchText, table],
+    );
     const warnings = [describeTableIssues(table, t), describeTableLimits(table, t)].filter(
         (message): message is string => message !== undefined,
     );
@@ -154,7 +124,7 @@ export function CsvPreview({
     // which is the library's documented, expected behavior.
     // eslint-disable-next-line react-hooks/incompatible-library -- see above
     const virtualizer = useVirtualizer({
-        count: table.rows.length,
+        count: rowOrder.length,
         estimateSize: () => ROW_HEIGHT,
         getScrollElement: () => scrollReference.current,
         initialOffset: () => readPreviewViewState(viewStateKey)?.scrollTop ?? 0,
@@ -162,6 +132,15 @@ export function CsvPreview({
         // The sticky header sits above the first row inside the same scroller.
         scrollMargin: ROW_HEIGHT,
     });
+    /**
+     * A new order or filter starts reading from the top, where its first rows are, and is remembered for this pane.
+     */
+    const changeView = (next: { tableSort?: TableSort | null; tableFilter?: string }) => {
+        if (next.tableSort !== undefined) setSort(next.tableSort ?? undefined);
+        if (next.tableFilter !== undefined) setFilter(next.tableFilter);
+        rememberPreviewViewState(viewStateKey, { ...next, scrollTop: 0 });
+        if (scrollReference.current) scrollReference.current.scrollTop = 0;
+    };
 
     /**
      * Restores the horizontal position too, before paint; the virtualizer's `initialOffset` owns the vertical one so
@@ -176,82 +155,92 @@ export function CsvPreview({
     }, [viewStateKey]);
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-background text-[12px] text-foreground">
+        // The filter takes Cmd+F from anywhere in the table, the way a find field does in an editor.
+        <div
+            className="flex h-full min-h-0 flex-col bg-background text-[12px] text-foreground"
+            onKeyDown={(event) => {
+                if (!event.metaKey || event.key.toLowerCase() !== 'f') return;
+                event.preventDefault();
+                filterReference.current?.focus();
+                filterReference.current?.select();
+            }}
+        >
             {warnings.length > 0 && <TableWarnings messages={warnings} path={path} t={t} />}
             {table.header.length === 0 ? (
                 <div className="empty-work flex min-h-0 flex-1 items-center justify-center text-muted">
                     {t('preview.table.noRows')}
                 </div>
             ) : (
-                // react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- rows are absolutely positioned by the virtualizer, which a native <table> layout cannot host.
-                <div
-                    ref={scrollReference}
-                    aria-colcount={table.header.length + 1}
-                    aria-label={t('preview.table.label')}
-                    aria-rowcount={table.rows.length + 1}
-                    className="min-h-0 flex-1 overflow-auto"
-                    role="table"
-                    onScroll={(event) =>
-                        rememberPreviewViewState(viewStateKey, {
-                            scrollTop: event.currentTarget.scrollTop,
-                            scrollLeft: event.currentTarget.scrollLeft,
-                        })
-                    }
-                >
-                    {/* Layout only: the header and body row groups below are the table's direct structure. */}
-                    <div className="w-max min-w-full" role="none">
-                        <div className="sticky top-0 z-10" role="rowgroup">
+                <>
+                    <div className="flex h-8 flex-none items-center bg-surface px-2">
+                        <CsvTableFilter
+                            inputRef={filterReference}
+                            value={filter}
+                            onChange={(value) => changeView({ tableFilter: value })}
+                        />
+                    </div>
+                    {/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- rows are absolutely positioned by the virtualizer, which a native <table> layout cannot host. */}
+                    <div
+                        ref={scrollReference}
+                        aria-colcount={table.header.length + 1}
+                        aria-label={t('preview.table.label')}
+                        aria-rowcount={rowOrder.length + 1}
+                        className="relative min-h-0 flex-1 overflow-auto"
+                        role="table"
+                        onScroll={(event) =>
+                            rememberPreviewViewState(viewStateKey, {
+                                scrollTop: event.currentTarget.scrollTop,
+                                scrollLeft: event.currentTarget.scrollLeft,
+                            })
+                        }
+                    >
+                        {/* Layout only: the header and body row groups below are the table's direct structure. */}
+                        <div className="w-max min-w-full" role="none">
+                            <div className="sticky top-0 z-10" role="rowgroup">
+                                <CsvTableHeader
+                                    header={table.header}
+                                    numericColumns={table.numericColumns}
+                                    sort={sort}
+                                    style={template}
+                                    onSort={(column) =>
+                                        changeView({
+                                            tableSort: nextTableSort(sort, column) ?? null,
+                                        })
+                                    }
+                                />
+                            </div>
                             <div
-                                aria-rowindex={1}
-                                className="grid min-w-full border-b border-border bg-background font-semibold"
-                                role="row"
-                                style={template}
+                                className="relative"
+                                role="rowgroup"
+                                style={{ height: virtualizer.getTotalSize() }}
                             >
-                                <span
-                                    className="sticky left-0 border-r border-border bg-background"
-                                    role="columnheader"
-                                >
-                                    <span className="sr-only">{t('preview.table.rowHeader')}</span>
-                                </span>
-                                {table.header.map((label, column) => (
-                                    <span
-                                        key={column}
-                                        className={cn(
-                                            'truncate px-2 leading-6',
-                                            table.numericColumns[column] && 'text-right',
-                                        )}
-                                        role="columnheader"
-                                    >
-                                        {label}
-                                    </span>
+                                {virtualizer.getVirtualItems().map((item) => (
+                                    <CsvTableRow
+                                        key={item.key}
+                                        cells={table.rows[rowOrder[item.index]]}
+                                        columnWidths={table.columnWidths}
+                                        numericColumns={table.numericColumns}
+                                        position={item.index}
+                                        sourceIndex={rowOrder[item.index]}
+                                        style={{
+                                            ...template,
+                                            height: ROW_HEIGHT,
+                                            transform: `translateY(${item.start - ROW_HEIGHT}px)`,
+                                        }}
+                                    />
                                 ))}
                             </div>
                         </div>
-                        <div
-                            className="relative"
-                            role="rowgroup"
-                            style={{ height: virtualizer.getTotalSize() }}
-                        >
-                            {virtualizer.getVirtualItems().map((item) => (
-                                <TableRow
-                                    key={item.key}
-                                    cells={table.rows[item.index]}
-                                    columnWidths={table.columnWidths}
-                                    numericColumns={table.numericColumns}
-                                    rowIndex={item.index}
-                                    style={{
-                                        ...template,
-                                        height: ROW_HEIGHT,
-                                        transform: `translateY(${item.start - ROW_HEIGHT}px)`,
-                                    }}
-                                />
-                            ))}
-                        </div>
+                        {rowOrder.length === 0 && table.rows.length > 0 && (
+                            <div className="empty-work absolute inset-x-0 top-12 text-center text-muted">
+                                {t('preview.table.noMatches')}
+                            </div>
+                        )}
                     </div>
-                </div>
+                </>
             )}
             <div className="flex h-6 flex-none items-center justify-center bg-surface text-[11px] text-muted tabular-nums">
-                {describeTableSize(table, t)}
+                {describeTableSize(table, t, rowOrder.length)}
             </div>
         </div>
     );
