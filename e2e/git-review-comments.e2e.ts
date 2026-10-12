@@ -249,7 +249,20 @@ test('Go to Next/Previous Review Comment jump between anchors in the open diff',
             await page.mouse.wheel(0, 600);
             await expect(bottomLine).toBeVisible({ timeout: 500 });
         }).toPass();
-        await bottomLine.click();
+        /**
+         * The comment lands on the cursor's line, so prove the click moved the cursor there before adding it. Smooth
+         * scrolling can still be settling when the line first becomes visible, and on a loaded three-worker runner a
+         * click once landed while the cursor stayed near the top, which put the comment outside the viewport.
+         */
+        const cursor = modified.locator('.cursors-layer .cursor').first();
+        await expect(async () => {
+            await bottomLine.click();
+            const [cursorBox, lineBox] = await Promise.all([
+                cursor.boundingBox(),
+                bottomLine.boundingBox(),
+            ]);
+            expect(Math.abs((cursorBox?.y ?? -100) - (lineBox?.y ?? 0))).toBeLessThan(4);
+        }).toPass();
         await page.keyboard.press('Meta+Shift+M');
         await page.getByRole('textbox', { name: 'Review comment' }).fill('Near the bottom');
         await page.getByRole('textbox', { name: 'Review comment' }).press('Meta+Enter');

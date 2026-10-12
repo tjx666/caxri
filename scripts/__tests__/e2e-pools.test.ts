@@ -4,11 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import {
-    clipboardCapabilitySpecs,
-    createE2EPoolPlan,
-    parallelSafeSpecs,
-} from '../../e2e/support/pools';
+import type { DesktopExclusiveReason } from '../../e2e/support/pools';
+import { createE2EPoolPlan, desktopExclusiveSpecs } from '../../e2e/support/pools';
 import type { E2ETestReceipt } from '../reporters/e2e-receipt-reporter';
 import {
     assertE2EPoolReceipt,
@@ -112,8 +109,12 @@ describe('E2E pools', () => {
         );
     });
 
-    it('keeps unclassified and machine-global specs desktop-exclusive', () => {
-        const plan = createE2EPoolPlan(allSpecs, ['e2e/editor-dotfiles.e2e.ts']);
+    it('admits unclassified specs to parallel-safe and keeps only listed specs desktop-exclusive', () => {
+        const plan = createE2EPoolPlan(allSpecs, [
+            'e2e/file-operations.e2e.ts',
+            'e2e/process-explorer.e2e.ts',
+            'e2e/screencast.e2e.ts',
+        ]);
 
         expect(plan.parallelSafe).toEqual(['e2e/editor-dotfiles.e2e.ts']);
         expect(plan.desktopExclusive).toEqual([
@@ -126,27 +127,27 @@ describe('E2E pools', () => {
         );
     });
 
-    it('rejects duplicate or unknown parallel-safe classifications', () => {
+    it('rejects duplicate or unknown desktop-exclusive classifications', () => {
         expect(() =>
-            createE2EPoolPlan(allSpecs, [
-                'e2e/editor-dotfiles.e2e.ts',
-                'e2e/editor-dotfiles.e2e.ts',
-            ]),
-        ).toThrow('Duplicate parallel-safe E2E spec');
+            createE2EPoolPlan(allSpecs, ['e2e/screencast.e2e.ts', 'e2e/screencast.e2e.ts']),
+        ).toThrow('Duplicate desktop-exclusive E2E spec');
         expect(() => createE2EPoolPlan(allSpecs, ['e2e/missing.e2e.ts'])).toThrow(
-            'Unknown parallel-safe E2E spec',
+            'Unknown desktop-exclusive E2E spec',
         );
     });
 
-    it('never classifies known machine-global or lifecycle-sensitive specs as parallel-safe', () => {
+    it('never admits known machine-global or lifecycle-sensitive specs to parallel-safe', () => {
         for (const path of [
             'e2e/bug-report.e2e.ts',
             'e2e/codex-compaction.e2e.ts',
             'e2e/desktop-server.e2e.ts',
+            'e2e/editor-find.e2e.ts',
             'e2e/editor.performance.e2e.ts',
             'e2e/extensions.e2e.ts',
             'e2e/failure-isolation.e2e.ts',
             'e2e/file-operations.e2e.ts',
+            'e2e/logs-panel.e2e.ts',
+            'e2e/menu-keybinding-recovery.e2e.ts',
             'e2e/server-platform.e2e.ts',
             'e2e/process-explorer-recovery.e2e.ts',
             'e2e/process-explorer.e2e.ts',
@@ -162,35 +163,56 @@ describe('E2E pools', () => {
             'e2e/workbench-recovery.e2e.ts',
             'e2e/workbench-root.e2e.ts',
         ]) {
-            expect(parallelSafeSpecs, path).not.toContain(path);
+            expect(Object.keys(desktopExclusiveSpecs), path).toContain(path);
         }
     });
 
-    it('keeps every declared clipboard capability spec desktop-exclusive', () => {
-        expect(new Set(clipboardCapabilitySpecs).size).toBe(clipboardCapabilitySpecs.length);
-        for (const path of clipboardCapabilitySpecs) {
-            expect(parallelSafeSpecs, path).not.toContain(path);
+    it('records a distinct, explained reason set for every desktop-exclusive spec', () => {
+        for (const [path, { reasons, why }] of Object.entries(desktopExclusiveSpecs)) {
+            expect(new Set(reasons).size, path).toBe(reasons.length);
+            expect(why.trim().length, path).toBeGreaterThan(10);
         }
     });
 
     /**
-     * The allowlist above only protects a spec it actually names, so a spec that requests the capability without being
-     * listed is unguarded, exactly how `editor-git-actions`, `file-preview`, and `project-path-actions` went three
-     * entries stale. Derive the truth from the specs and require the list to match it.
+     * New specs default to the parallel pool, so the capabilities the source itself declares are what keep one out of
+     * it. Deriving them in both directions catches a spec that requests one without being listed (it would also fail at
+     * launch inside the pool) and an entry whose capability the spec no longer requests (a stale reason that keeps a
+     * now-parallel-safe spec on one worker). A hand-maintained capability list once fell three entries behind this
+     * way.
      */
-    it('lists every spec that requests the clipboard capability', async () => {
+    it('derives mechanical exclusion reasons from the spec sources in both directions', async () => {
+        const mechanical: Record<
+            Extract<DesktopExclusiveReason, 'clipboard' | 'gpu' | 'visible-window'>,
+            RegExp
+        > = {
+            'clipboard': /clipboard:\s*true/u,
+            'gpu': /gpuMode:\s*'enabled'/u,
+            'visible-window': /windowMode:\s*'visible'/u,
+        };
         const directory = new URL('../../e2e/', import.meta.url);
         const names = (await readdir(directory)).filter((name) => name.endsWith('.e2e.ts'));
-        const requesting: string[] = [];
+        const sources = new Map<string, string>();
         for (const name of names) {
             // eslint-disable-next-line no-await-in-loop -- bounded read of one spec directory
-            const source = await readFile(new URL(name, directory), 'utf8');
-            if (/clipboard:\s*true/u.test(source)) requesting.push(`e2e/${name}`);
+            sources.set(`e2e/${name}`, await readFile(new URL(name, directory), 'utf8'));
         }
+        const sorted = (paths: Iterable<string>) =>
+            [...paths].toSorted((left, right) => left.localeCompare(right));
 
-        expect(requesting.toSorted((left, right) => left.localeCompare(right))).toStrictEqual(
-            [...clipboardCapabilitySpecs].toSorted((left, right) => left.localeCompare(right)),
-        );
+        for (const [reason, pattern] of Object.entries(mechanical)) {
+            const requesting = [...sources].filter(([, source]) => pattern.test(source));
+            const declared = Object.entries(desktopExclusiveSpecs).filter(([, { reasons }]) =>
+                reasons.includes(reason as DesktopExclusiveReason),
+            );
+            expect(sorted(declared.map(([path]) => path)), reason).toStrictEqual(
+                sorted(requesting.map(([path]) => path)),
+            );
+        }
+        for (const [path, { reasons }] of Object.entries(desktopExclusiveSpecs)) {
+            if (reasons.includes('opt-in-only'))
+                expect(sources.get(path), path).toMatch(/test\.skip\(/u);
+        }
     });
 
     it('partitions the current repository manifest without duplicates or omissions', async () => {
@@ -200,14 +222,16 @@ describe('E2E pools', () => {
             .toSorted((left, right) => left.localeCompare(right));
         const plan = createE2EPoolPlan(repoSpecs);
 
-        expect(plan.parallelSafe).toHaveLength(parallelSafeSpecs.length);
+        expect(plan.desktopExclusive).toEqual(
+            Object.keys(desktopExclusiveSpecs).toSorted((left, right) => left.localeCompare(right)),
+        );
         expect(plan.desktopExclusive.length + plan.parallelSafe.length).toBe(repoSpecs.length);
         expect(
             [...plan.desktopExclusive, ...plan.parallelSafe].toSorted((left, right) =>
                 left.localeCompare(right),
             ),
         ).toEqual(repoSpecs);
-        expect(parallelSafeSpecs).toContain('e2e/settings-parallel-safe.e2e.ts');
+        expect(plan.parallelSafe).toContain('e2e/settings-parallel-safe.e2e.ts');
         expect(plan.desktopExclusive).toContain('e2e/settings.e2e.ts');
         expect(plan.parallelSafeInvocations).toEqual([{ specs: plan.parallelSafe }]);
         expect(plan.desktopExclusiveInvocations).toEqual([{ specs: plan.desktopExclusive }]);
