@@ -12,7 +12,6 @@ import { connectDesktopWithCredential } from '@caxri/client/supervise';
 import { computeBuildFingerprint } from '@caxri/system';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { AskpassBridge } from '../askpass';
 import { parseSshDestination } from '../destination';
 import type { RemoteArchitecture, RemoteLayerDescriptor } from '../remote-layers';
 import { readRemoteLayer } from '../remote-layers';
@@ -20,8 +19,9 @@ import { parseRemoteResult } from '../remote-scripts';
 import type { RemoteStateUpdate } from '../remote-server-supervisor';
 import { RemoteServerSupervisor } from '../remote-server-supervisor';
 import type { SshConnectionOptions } from '../ssh-connection';
-import { SshConnection, SshConnectionError } from '../ssh-connection';
+import { SshConnection } from '../ssh-connection';
 import { makeShortTemporaryDirectory } from './support/remote-fixtures';
+import { isSshIntegrationEnabled, labConfigFile, labDestination } from './support/ssh-lab';
 
 const execFileAsync = promisify(execFile);
 
@@ -38,9 +38,6 @@ const execFileAsync = promisify(execFile);
  * `CAXRI_SSH_INTEGRATION_RUNTIME_SOURCE` asserts how the cold install obtained Node: `remote-download` when the host
  * reaches nodejs.org, `local-upload` when its egress is blocked. `CAXRI_SSH_INTEGRATION_REPORT=<file>` writes timings.
  */
-const isEnabled = process.env.CAXRI_SSH_INTEGRATION === '1';
-const configFile = process.env.CAXRI_SSH_CONFIG;
-const destination = process.env.CAXRI_SSH_DESTINATION ?? 'caxri-lab';
 const expectedRuntimeSource = process.env.CAXRI_SSH_INTEGRATION_RUNTIME_SOURCE;
 const layersRoot = resolve(import.meta.dirname, '../../../../../server/dist/remote');
 const localBundles = resolve(import.meta.dirname, '../../../../../server/dist/bundles');
@@ -103,7 +100,7 @@ async function waitFor(isDone: () => boolean, timeoutMs: number, label: string):
     }
 }
 
-describe.skipIf(!isEnabled)('remote SSH Host (integration)', () => {
+describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () => {
     let root: string;
     let control: SshConnection | undefined;
     let architecture: RemoteArchitecture;
@@ -135,8 +132,8 @@ describe.skipIf(!isEnabled)('remote SSH Host (integration)', () => {
         let stdinBytes = 0;
         const supervisor = new RemoteServerSupervisor({
             askpass: () => Promise.resolve(null),
-            ...(configFile !== undefined && { configFile }),
-            destination,
+            ...(labConfigFile !== undefined && { configFile: labConfigFile }),
+            destination: labDestination,
             electronExecutable: process.execPath,
             logger: {
                 write: (_level, event, options) => {
@@ -228,9 +225,9 @@ describe.skipIf(!isEnabled)('remote SSH Host (integration)', () => {
             throw new Error(`No remote Server layers in ${layersRoot}; build apps/server first`);
         root = await makeShortTemporaryDirectory('int');
         control = new SshConnection({
-            ...(configFile !== undefined && { configFile }),
+            ...(labConfigFile !== undefined && { configFile: labConfigFile }),
             controlDirectory: join(root, 'reset'),
-            destination: parseSshDestination(destination),
+            destination: parseSshDestination(labDestination),
         });
         await control.start();
         await control.exec(RESET_SCRIPT, { timeoutMs: 30_000 });
@@ -312,12 +309,12 @@ describe.skipIf(!isEnabled)('remote SSH Host (integration)', () => {
         });
         const stateIndex = first.states.length;
         await execFileAsync('ssh', [
-            ...(configFile === undefined ? [] : ['-F', configFile]),
+            ...(labConfigFile === undefined ? [] : ['-F', labConfigFile]),
             '-o',
             `ControlPath=${transport?.controlPath ?? ''}`,
             '-O',
             'exit',
-            destination,
+            labDestination,
         ]);
         await waitFor(
             () => first.states.slice(stateIndex).some((state) => state.phase === 'reconnecting'),
@@ -466,125 +463,4 @@ describe.skipIf(!isEnabled)('remote SSH Host (integration)', () => {
         },
         2 * 60_000,
     );
-});
-
-/**
- * Real OpenSSH prompts through the askpass bridge. The lab's identity is copied and re-encrypted with a passphrase, and
- * a fresh `known_hosts` with `StrictHostKeyChecking ask` makes OpenSSH ask about the host key first. The user's own SSH
- * files are never read: everything is derived from `ssh -G` against `CAXRI_SSH_CONFIG`.
- */
-describe.skipIf(!isEnabled)('remote SSH askpass (integration)', () => {
-    const PASSPHRASE = 'integration passphrase';
-    let root: string;
-    let host: { hostName: string; identityFile: string; port: string; user: string };
-
-    beforeAll(async () => {
-        root = await makeShortTemporaryDirectory('askpass');
-        const { stdout } = await execFileAsync('ssh', [
-            ...(configFile === undefined ? [] : ['-F', configFile]),
-            '-G',
-            destination,
-        ]);
-        const options = new Map<string, string>();
-        for (const line of stdout.split('\n')) {
-            const separator = line.indexOf(' ');
-            if (separator > 0 && !options.has(line.slice(0, separator)))
-                options.set(line.slice(0, separator), line.slice(separator + 1));
-        }
-        host = {
-            hostName: options.get('hostname') ?? '',
-            identityFile: options.get('identityfile') ?? '',
-            port: options.get('port') ?? '22',
-            user: options.get('user') ?? '',
-        };
-        const key = join(root, 'key');
-        await writeFile(key, await readFile(host.identityFile), { mode: 0o600 });
-        await execFileAsync('ssh-keygen', ['-q', '-p', '-P', '', '-N', PASSPHRASE, '-f', key]);
-    }, 60_000);
-
-    afterAll(async () => {
-        if (root) await rm(root, { force: true, recursive: true });
-    });
-
-    async function writeConfig(name: string): Promise<string> {
-        const path = join(root, `${name}.config`);
-        await writeFile(
-            path,
-            [
-                'Host askpass-lab',
-                `  HostName ${host.hostName}`,
-                `  Port ${host.port}`,
-                `  User ${host.user}`,
-                `  IdentityFile ${join(root, 'key')}`,
-                '  IdentitiesOnly yes',
-                '  PreferredAuthentications publickey',
-                '  StrictHostKeyChecking ask',
-                `  UserKnownHostsFile ${join(root, `${name}.known_hosts`)}`,
-                '',
-            ].join('\n'),
-        );
-        return path;
-    }
-
-    async function connect(
-        config: string,
-        answer: (kind: string) => string | null,
-    ): Promise<{ error?: unknown; kinds: string[]; ms: number }> {
-        const kinds: string[] = [];
-        const bridge = await AskpassBridge.create({
-            directory: join(root, 'ctl'),
-            electronExecutable: process.execPath,
-            handler: (request) => {
-                kinds.push(request.kind);
-                return Promise.resolve(answer(request.kind));
-            },
-        });
-        const connection = new SshConnection({
-            configFile: config,
-            controlDirectory: join(root, 'ctl'),
-            destination: parseSshDestination('askpass-lab'),
-            environment: bridge.environment(),
-        });
-        const startedAt = Date.now();
-        let error: unknown;
-        try {
-            await connection.start();
-            const { stdout } = await connection.exec('echo connected', { timeoutMs: 10_000 });
-            expect(stdout).toContain('connected');
-        } catch (error_) {
-            error = error_;
-        }
-        const ms = Date.now() - startedAt;
-        await connection.stop();
-        await bridge.close();
-        return { ms, kinds, ...(error !== undefined && { error }) };
-    }
-
-    it('asks to confirm a new host key, then for the key passphrase', async () => {
-        const config = await writeConfig('accept');
-        const result = await connect(config, (kind) => (kind === 'confirm' ? 'yes' : PASSPHRASE));
-        expect(result.error).toBeUndefined();
-        expect(result.kinds).toEqual(['confirm', 'secret']);
-        // The accepted key was recorded, so the next connection only asks for the passphrase.
-        const again = await connect(config, () => PASSPHRASE);
-        expect(again.error).toBeUndefined();
-        expect(again.kinds).toEqual(['secret']);
-    }, 60_000);
-
-    it('classifies a wrong passphrase as authentication', async () => {
-        const config = await writeConfig('wrong');
-        const result = await connect(config, (kind) => (kind === 'confirm' ? 'yes' : 'wrong'));
-        expect(result.error).toBeInstanceOf(SshConnectionError);
-        expect((result.error as SshConnectionError).reason).toBe('authentication');
-        expect(result.kinds[0]).toBe('confirm');
-        expect(result.kinds.slice(1).every((kind) => kind === 'secret')).toBe(true);
-    }, 60_000);
-
-    it('classifies a refused host key as hostKey', async () => {
-        const config = await writeConfig('refuse');
-        const result = await connect(config, () => null);
-        expect(result.error).toBeInstanceOf(SshConnectionError);
-        expect((result.error as SshConnectionError).reason).toBe('hostKey');
-        expect(result.kinds).toEqual(['confirm']);
-    }, 60_000);
 });
