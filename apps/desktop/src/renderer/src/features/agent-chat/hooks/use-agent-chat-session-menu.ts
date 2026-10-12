@@ -99,6 +99,9 @@ export function useAgentChatSessionMenu({
                 : { start: current.length, end: current.length };
         const inserted = draftWithInsertion(current, range.start, range.end, reference);
         setDraft(() => inserted.draft);
+        // A programmatic draft change fires no select event; without this the stale caret still sits inside the
+        // inserted `@<path>` and reopens the list on its "No Sessions match" row.
+        setCaret(inserted.caret);
         requestAnimationFrame(() => {
             textarea.focus();
             textarea.setSelectionRange(inserted.caret, inserted.caret);
