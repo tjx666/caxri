@@ -8,6 +8,7 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { openSession } from '../session/session-commands';
 import { canOpenUsageSession } from './usage-metrics';
+import { usageSessionTitle } from './usage-presentation';
 
 /**
  * A Most expensive Sessions title. A Session that still exists in the PrimarySidebar is a button that switches to it;
@@ -17,25 +18,26 @@ import { canOpenUsageSession } from './usage-metrics';
 export function UsageSessionTitle({ row }: { row: UsageSessionRow }) {
     const { t } = useTranslation();
     const reference = useRef<HTMLElement>(null);
-    const isClipped = useIsOverflowing(reference, row.title);
+    const title = usageSessionTitle(t, row);
+    const isClipped = useIsOverflowing(reference, title);
     const canOpen = canOpenUsageSession(row);
     const className = cn('min-w-0 truncate', (row.isDeleted || row.isOutsideCaxri) && 'text-muted');
     return (
-        <Tooltip content={row.title} disabled={!isClipped}>
+        <Tooltip content={title} disabled={!isClipped}>
             {canOpen ? (
                 <button
                     ref={(element) => {
                         reference.current = element;
                     }}
                     type="button"
-                    aria-label={t('usage.sessions.open', { title: row.title })}
+                    aria-label={t('usage.sessions.open', { title })}
                     className={cn(
                         className,
                         'cursor-pointer rounded-sm border-0 bg-transparent p-0 text-left text-[12px] text-foreground hover:underline focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                     )}
                     onClick={() => openSession(row.sessionId)}
                 >
-                    {row.title}
+                    {title}
                 </button>
             ) : (
                 <span
@@ -44,7 +46,7 @@ export function UsageSessionTitle({ row }: { row: UsageSessionRow }) {
                     }}
                     className={className}
                 >
-                    {row.title}
+                    {title}
                 </span>
             )}
         </Tooltip>
