@@ -369,7 +369,12 @@ export function AgentChatComposer({
                                     isEditing: edit.isEditing,
                                     isTurnRunning,
                                     nextQueuedId:
-                                        hasContent || edit.isEditing ? undefined : nextQueuedId,
+                                        hasContent ||
+                                        isSending ||
+                                        edit.isEditing ||
+                                        pendingQueue.length > 0
+                                            ? undefined
+                                            : nextQueuedId,
                                 },
                             );
                             if (!action) return;
