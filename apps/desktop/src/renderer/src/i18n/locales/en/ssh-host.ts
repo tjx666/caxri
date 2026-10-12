@@ -52,11 +52,14 @@ export const sshHost = {
     'sshHost.failure.launchFailed': 'Caxri Server was installed but did not start on the SSH Host.',
     'sshHost.failure.profileInUse':
         'Another computer that shares your home folder is running Caxri Server with the same data. Stop that Server, or wait a minute after it exits, then reconnect.',
+    'sshHost.failure.takenOver':
+        'Another Caxri window connected to this SSH Host and took over its Server. Terminals and Agents keep running there. Choose Use Here to continue in this window; the other window then disconnects.',
     'sshHost.failure.cancelled': 'The connection was cancelled.',
     'sshHost.failure.connectionLost':
         'The connection to the SSH Host dropped. Terminals and Agents keep running there and reappear when you reconnect.',
     'sshHost.failure.unknown': 'Something went wrong while connecting to the SSH Host.',
     'sshHost.reconnect': 'Reconnect',
+    'sshHost.useHere': 'Use Here',
     'sshHost.closeWindow': 'Close Window',
     'sshHost.reconnect.failed': 'Unable to reconnect to the SSH Host',
 

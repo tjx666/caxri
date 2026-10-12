@@ -17,6 +17,7 @@ import {
     installProgressPercent,
     isConnectionBusy,
     isConnectionOverlayVisible,
+    reconnectLabelKey,
 } from './connection-status';
 import { reconnectSshHost } from './ssh-host-commands';
 
@@ -111,7 +112,7 @@ function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) 
                             // eslint-disable-next-line no-void -- reconnectSshHost reports its own failure through a toast
                             onClick={() => void reconnectSshHost()}
                         >
-                            {t('sshHost.reconnect')}
+                            {t(reconnectLabelKey(environment))}
                         </Button>
                     )}
                 </div>

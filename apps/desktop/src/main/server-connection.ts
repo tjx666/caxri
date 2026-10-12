@@ -19,16 +19,10 @@ import type {
     ServerOperationArguments,
     ServerOperationResult,
 } from '@caxri/protocol';
-import {
-    CaxriError,
-    errorMessage,
-    isCaxriMethod,
-    isConcurrentRead,
-    isDesktopServerOperation,
-} from '@caxri/protocol';
+import { CaxriError, errorMessage, isCaxriMethod, isDesktopServerOperation } from '@caxri/protocol';
 import { computeBuildFingerprint, logEventCatalog } from '@caxri/system';
 
-import { activeDesktopCommand } from './desktop-command-scope';
+import { desktopCommandCallbackError } from './desktop-command-scope';
 import type { DesktopServerConnectionOptions, DesktopServerSupervisor } from './server-attachment';
 import { connectDesktopAttachment, waitForServerExit } from './server-attachment';
 import { buildServerLaunchEnvironment } from './server-launch-environment';
@@ -427,42 +421,6 @@ export class DesktopServerConnection extends EventTarget {
             : new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host');
     }
 
-    /**
-     * Refuses an ordinary Server request issued from inside a Desktop command handler, where it can only deadlock; see
-     * `desktop-command-scope.ts`. `forward` is deliberately not guarded: it carries a Renderer-originated request that
-     * already owns a request id, so it is unreachable from a handler.
-     *
-     * A read is exempt because the deadlock is an ordering fact, not a re-entrancy one: Server Core settles a read
-     * outside the connection's ordered admission lane (`isConcurrentRead`), so it never queues behind the command being
-     * serviced and answers while that command is still open. Refusing reads too would break a path Main already depends
-     * on: the `focus` and `open` commands reach `openMainWindow`, which reads `app.windowState.get` to restore the
-     * window's saved geometry, and a refusal there silently substitutes the hardcoded default size and then persists it
-     * over the user's own on the next close.
-     */
-    private desktopCommandCallbackError(method: string): CaxriError | undefined {
-        const command = activeDesktopCommand();
-        if (command === undefined || isConcurrentRead(method)) return undefined;
-        this.options.logger.write(
-            'error',
-            logEventCatalog.serverConnection.desktopCommandCallbackRejected,
-            {
-                fields: {
-                    method,
-                    operation: command,
-                    /**
-                     * Closed set; today a handler can only be refused for this one cause, and a second cause gets its
-                     * own member rather than widening this one.
-                     */
-                    reason: 'ordinaryRequestFromDesktopCommand',
-                },
-            },
-        );
-        return new CaxriError(
-            'INTERNAL',
-            `The ${command} Desktop command handler requested ${method} from Caxri Host. A Desktop command handler may only use its own target lane; an ordinary request queues behind the command it is servicing and deadlocks both sides.`,
-        );
-    }
-
     private disposeLifecycle(): void {
         if (this.lifecycle.status !== 'disposed')
             this.lifecycle = transitionServerConnection(this.lifecycle, { type: 'dispose' });
@@ -521,10 +479,15 @@ export class DesktopServerConnection extends EventTarget {
      * Retries after the supervisor stopped on its own: an initial attachment that failed returns to `idle`, and a
      * reconnect loop exits once the supervisor reports `isFailed()`. An SSH Host supervisor does that when OpenSSH
      * needs the user (a password or a changed host key), so the user's Reconnect has to re-arm whichever attempt
-     * stopped.
+     * stopped. It is also the only way back from a lease another Desktop replaced: the reconnect loop then takes it
+     * back.
      */
     resume(): Promise<void> {
         if (this.lifecycle.status === 'idle') return this.start();
+        this.lifecycle = transitionServerConnection(this.lifecycle, {
+            type: 'reclaim',
+            atMs: Date.now(),
+        });
         if (this.lifecycle.status === 'backoff') {
             this.ensureReconnectLoop();
             return this.reconnectTask ?? Promise.resolve();
@@ -546,7 +509,7 @@ export class DesktopServerConnection extends EventTarget {
         method: M,
         ...arguments_: ServerOperationArguments<M>
     ): Promise<ServerOperationResult<M>> {
-        const callbackError = this.desktopCommandCallbackError(method);
+        const callbackError = desktopCommandCallbackError(method, this.options.logger);
         if (callbackError) return Promise.reject(callbackError);
         const attached = this.client;
         if (!attached) return Promise.reject(this.disconnectedRequestError());
