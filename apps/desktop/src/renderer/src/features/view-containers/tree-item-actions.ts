@@ -46,15 +46,20 @@ async function sendTreeItemPromptToAgent(
     command: TreeItemAction['command'],
     feedback?: TreeItemAction['feedback'],
 ): Promise<void> {
-    const failure = feedback?.failure ?? `Unable to run ${command.title}`;
+    const failure =
+        feedback?.failure ??
+        translate('viewContainers.commands.runFailed', { title: command.title });
     const prompt = agentPromptText(command.arguments?.[0]);
     if (!prompt) {
-        pushToast('error', `${failure}. The prompt is missing.`);
+        pushToast('error', translate('viewContainers.commands.promptMissing', { failure }));
         return;
     }
     try {
         const agentName = await sendPromptToSessionAgent(prompt);
-        pushToast('success', `Sent to ${agentName}`);
+        pushToast(
+            'success',
+            translate('viewContainers.commands.sentToAgent', { agent: agentName }),
+        );
     } catch (error) {
         if (!isCancelledRequest(error)) pushToast('error', actionFailureMessage(error, failure));
     }

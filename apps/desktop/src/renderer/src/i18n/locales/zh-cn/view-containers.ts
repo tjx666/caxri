@@ -30,6 +30,8 @@ export const viewContainers: TranslatedNamespace<typeof source> = {
     'viewContainers.extensionTree.stateSaveFailed': '无法保存扩展树状态',
     'viewContainers.commands.runFailed': '无法运行“{{title}}”',
     'viewContainers.commands.linkMissing': '无法运行“{{title}}”。缺少链接。',
+    'viewContainers.commands.promptMissing': '{{failure}}。缺少提示词。',
+    'viewContainers.commands.sentToAgent': '已发送给 {{agent}}',
     'viewContainers.commands.loadFailed': '无法加载扩展命令',
     'viewContainers.commands.unknown': '未知命令：{{commandId}}',
     'viewContainers.builtin.files': '文件',

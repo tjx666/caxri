@@ -163,6 +163,9 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.resourceAlert.message':
         '资源占用过高：{{subject}} 正在使用 {{memory}} 内存和 {{cpu}} CPU。',
     'terminal.resourceAlert.stop': '停止 {{subject}}',
+    'terminal.agentPrompt.tooLong': '提示词过长，无法发送给 Agent',
+    'terminal.agentPrompt.noAgent': '请先在此会话中启动一个 Agent',
+    'terminal.agentPrompt.notReady': '{{agent}} 尚未准备好接收输入',
     'terminal.toastAction.notOpen': '该终端已不再打开。',
     'terminal.toastAction.alreadyRestarted': '该终端已被重启。',
     'terminal.toastAction.processChanged': '该终端已不再运行占用过多资源的进程。',

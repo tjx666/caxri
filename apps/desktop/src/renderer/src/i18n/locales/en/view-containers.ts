@@ -35,6 +35,8 @@ export const viewContainers = {
     'viewContainers.extensionTree.stateSaveFailed': 'Extension tree state could not be saved',
     'viewContainers.commands.runFailed': 'Unable to run {{title}}',
     'viewContainers.commands.linkMissing': 'Unable to run {{title}}. The link is missing.',
+    'viewContainers.commands.promptMissing': '{{failure}}. The prompt is missing.',
+    'viewContainers.commands.sentToAgent': 'Sent to {{agent}}',
     'viewContainers.commands.loadFailed': 'Unable to load extension commands',
     'viewContainers.commands.unknown': 'Unknown command: {{commandId}}',
     // Built-in container and view titles, translated by id (see view-container-labels.ts)
