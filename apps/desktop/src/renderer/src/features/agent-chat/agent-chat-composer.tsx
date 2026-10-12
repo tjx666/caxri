@@ -237,109 +237,125 @@ export function AgentChatComposer({
                 onAction={focusInput}
                 onEdit={restoreQueued}
             />
-            <form
-                className={cn(
-                    'relative flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) focus-within:border-muted',
-                    fileInput.isDragOver && 'border-accent focus-within:border-accent',
-                )}
-                onSubmit={(event) => {
-                    event.preventDefault();
-                    // The Send button disables itself while the message is in flight, which would drop its focus.
-                    focusInput();
-                    // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                    void submit();
-                }}
-            >
-                <AgentChatActivityBar
-                    activity={activity}
-                    showsDeliveryHint={isTurnRunning && draft.trim().length > 0}
-                    onStop={stopAndFocus}
-                />
-                <AgentChatEditBar edit={edit.bar} />
-                {!activity && !edit.isEditing && snapshot?.usage && (
-                    <AgentChatContextAlerts
-                        isContinuing={isContinuing}
-                        usage={snapshot.usage}
-                        onCompact={compact}
-                        onContinueInNewChat={continueInNewChat}
+            {/*
+             * The suggestion menus anchor to this wrapper rather than the form, so they open above the strip too.
+             */}
+            <div className="relative">
+                {/*
+                 * The strip sits on the card's top edge, inset from its corners like a tab, so the Chat's state reads as
+                 * separate from the draft. Its last row's hairline overlaps the card's top border; with no row it collapses
+                 * to `contents`, keeping the Activity bar's live region announced without drawing an empty tab.
+                 */}
+                <div
+                    className="mx-3 -mb-px overflow-hidden rounded-t-lg border border-b-0 border-solid border-border bg-surface not-has-[[data-agent-chat-composer-strip-row]]:contents"
+                    data-agent-chat-composer-strip=""
+                >
+                    <AgentChatActivityBar
+                        activity={activity}
+                        showsDeliveryHint={isTurnRunning && draft.trim().length > 0}
+                        onStop={stopAndFocus}
                     />
-                )}
-                <AgentChatSuggestionMenu
-                    commandMenu={menu}
-                    sessionMenu={sessionMenu}
-                    onChooseCommand={(index) => choose(menu.matches[index])}
-                />
-                {images.hasAttachmentRow && (
-                    <AgentChatAttachmentList
-                        attachments={images.attachments}
-                        pendingCount={images.readingCount}
-                        onRemove={(id) => {
-                            images.remove(id);
+                    <AgentChatEditBar edit={edit.bar} />
+                    {!activity && !edit.isEditing && snapshot?.usage && (
+                        <AgentChatContextAlerts
+                            isContinuing={isContinuing}
+                            usage={snapshot.usage}
+                            onCompact={compact}
+                            onContinueInNewChat={continueInNewChat}
+                        />
+                    )}
+                </div>
+                <form
+                    className={cn(
+                        'flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) focus-within:border-muted',
+                        fileInput.isDragOver && 'border-accent focus-within:border-accent',
+                    )}
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        // The Send button disables itself while the message is in flight, which would drop its focus.
+                        focusInput();
+                        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
+                        void submit();
+                    }}
+                >
+                    <AgentChatSuggestionMenu
+                        commandMenu={menu}
+                        sessionMenu={sessionMenu}
+                        onChooseCommand={(index) => choose(menu.matches[index])}
+                    />
+                    {images.hasAttachmentRow && (
+                        <AgentChatAttachmentList
+                            attachments={images.attachments}
+                            pendingCount={images.readingCount}
+                            onRemove={(id) => {
+                                images.remove(id);
+                                focusInput();
+                            }}
+                        />
+                    )}
+                    <Textarea
+                        {...(sessionMenu.inputAria ?? menu.inputAria)}
+                        aria-label="Message"
+                        className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
+                        maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
+                        placeholder={sendAction.placeholder}
+                        ref={inputReference}
+                        rows={1}
+                        value={draft}
+                        onChange={(event) => {
+                            const { value } = event.target;
+                            setDraft(() => value);
+                            sessionMenu.trackCaret(event.target);
+                        }}
+                        onBlur={() => setInputFocused(false)}
+                        onFocus={() => setInputFocused(true)}
+                        onSelect={(event) => sessionMenu.trackCaret(event.currentTarget)}
+                        onKeyDown={(event) => {
+                            if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen))
+                                return;
+                            if (menu.didHandleKey(event, { choose, complete })) return;
+                            if (sessionMenu.didHandleKey(event)) return;
+                            const action = agentChatComposerKeyAction(
+                                {
+                                    key: event.key,
+                                    altKey: event.altKey,
+                                    ctrlKey: event.ctrlKey,
+                                    isComposing: event.nativeEvent.isComposing,
+                                    metaKey: event.metaKey,
+                                    repeat: event.repeat,
+                                    shiftKey: event.shiftKey,
+                                },
+                                { isBusy, isEditing: edit.isEditing, isTurnRunning },
+                            );
+                            if (!action) return;
+                            event.preventDefault();
+                            if (action.kind === 'stop') stop();
+                            else if (action.kind === 'cancelEdit') edit.cancel();
+                            // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
+                            else void submit(action.delivery);
+                        }}
+                        onPaste={fileInput.onPaste}
+                    />
+                    <AgentChatComposerActions
+                        canAttachImages={supportsImages}
+                        canSaveProjectDefault={canSaveProjectDefault}
+                        isAttaching={isAttaching}
+                        isSendable={isSendable}
+                        isStopping={isStopping}
+                        onCompact={compact}
+                        onPick={(files) => {
+                            fileInput.pick(files);
                             focusInput();
                         }}
+                        onStop={stopAndFocus}
+                        sendAction={sendAction}
+                        sendTooltip={sendTooltip}
+                        showsStop={isTurnRunning && !hasContent}
+                        snapshot={snapshot}
+                        terminalId={terminalId}
                     />
-                )}
-                <Textarea
-                    {...(sessionMenu.inputAria ?? menu.inputAria)}
-                    aria-label="Message"
-                    className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
-                    maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
-                    placeholder={sendAction.placeholder}
-                    ref={inputReference}
-                    rows={1}
-                    value={draft}
-                    onChange={(event) => {
-                        const { value } = event.target;
-                        setDraft(() => value);
-                        sessionMenu.trackCaret(event.target);
-                    }}
-                    onBlur={() => setInputFocused(false)}
-                    onFocus={() => setInputFocused(true)}
-                    onSelect={(event) => sessionMenu.trackCaret(event.currentTarget)}
-                    onKeyDown={(event) => {
-                        if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen)) return;
-                        if (menu.didHandleKey(event, { choose, complete })) return;
-                        if (sessionMenu.didHandleKey(event)) return;
-                        const action = agentChatComposerKeyAction(
-                            {
-                                key: event.key,
-                                altKey: event.altKey,
-                                ctrlKey: event.ctrlKey,
-                                isComposing: event.nativeEvent.isComposing,
-                                metaKey: event.metaKey,
-                                repeat: event.repeat,
-                                shiftKey: event.shiftKey,
-                            },
-                            { isBusy, isEditing: edit.isEditing, isTurnRunning },
-                        );
-                        if (!action) return;
-                        event.preventDefault();
-                        if (action.kind === 'stop') stop();
-                        else if (action.kind === 'cancelEdit') edit.cancel();
-                        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                        else void submit(action.delivery);
-                    }}
-                    onPaste={fileInput.onPaste}
-                />
-                <AgentChatComposerActions
-                    canAttachImages={supportsImages}
-                    canSaveProjectDefault={canSaveProjectDefault}
-                    isAttaching={isAttaching}
-                    isSendable={isSendable}
-                    isStopping={isStopping}
-                    onCompact={compact}
-                    onPick={(files) => {
-                        fileInput.pick(files);
-                        focusInput();
-                    }}
-                    onStop={stopAndFocus}
-                    sendAction={sendAction}
-                    sendTooltip={sendTooltip}
-                    showsStop={isTurnRunning && !hasContent}
-                    snapshot={snapshot}
-                    terminalId={terminalId}
-                />
-            </form>
+                </form>
+            </div>
         </div>
     );
 }

@@ -14,8 +14,8 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 }
 
 /**
- * The composer's first row while the Chat starts, works, or waits on the user. It sits inside the card, above a
- * hairline, so the composer keeps one rounded outline instead of growing a tab on top. A working turn shows its verb
+ * The composer strip's row while the Chat starts, works, or waits on the user. The strip sits on top of the card rather
+ * than inside it, so the Chat's state never reads as part of what the user is typing. A working turn shows its verb
  * under a sweeping highlight and how long it has run, so a long turn reads as progress rather than a stall. The polite
  * live region stays mounted so transitions between starting, working, and waiting are announced, while the ticking time
  * never is. The Esc hint is also clickable, so pointing at it gives feedback instead of reading as dead text. While a
@@ -43,6 +43,7 @@ export function AgentChatActivityBar({
                 <div
                     aria-hidden="true"
                     className="flex h-8 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
+                    data-agent-chat-composer-strip-row=""
                 >
                     {activity.kind === 'waiting' ? (
                         <MessageCircleQuestionMark className="size-3.5 shrink-0 text-warning" />

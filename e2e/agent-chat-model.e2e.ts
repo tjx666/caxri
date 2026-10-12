@@ -60,10 +60,13 @@ test('a Codex Chat switches its model and effort and shows the context it uses',
         await page.keyboard.press('Escape');
         await expect(menu).toBeHidden();
 
-        // A running turn keeps its status row inside the composer card.
+        // A running turn shows its status row in the strip on top of the composer card, not inside it.
         await message.fill('slow please');
         await message.press('Enter');
-        await expect(chat.getByText('Esc to stop')).toBeVisible();
+        await expect(
+            chat.locator('[data-agent-chat-composer-strip]').getByText('Esc to stop'),
+        ).toBeVisible();
+        await expect(chat.locator('form').getByText('Esc to stop')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-working-composer.png') });
         await message.press('Escape');
         await expect(chat.getByText('Esc to stop')).toBeHidden();
