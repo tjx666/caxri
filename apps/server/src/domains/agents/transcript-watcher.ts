@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 
 import type { ServerEvent } from '@caxri/protocol';
 
-import type { WatchHandle, WatchHub } from '../watch-hub';
+import type { WatchHandle, WatchHub } from '../watch';
 import type { AgentTranscriptLocation } from './transcript-security';
 import { resolveSafeAgentTranscriptPath } from './transcript-security';
 

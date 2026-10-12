@@ -1,7 +1,7 @@
 import { readlink, realpath } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 
-import type { WatchHandle, WatchHub } from '../../watch-hub';
+import type { WatchHandle, WatchHub } from '../../watch';
 
 const CONFIG_FALLBACK_POLL_INTERVAL_MS = 30_000;
 /**

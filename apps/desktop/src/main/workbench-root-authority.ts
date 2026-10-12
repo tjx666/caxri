@@ -151,10 +151,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 truncated: resolved.truncated,
             };
         if (isRemote && resolved.status === 'external')
-            throw new CaxriError(
-                'UNAVAILABLE',
-                'Files outside every Project on an SSH Host cannot be opened yet',
-            );
+            return { canceled: true as const, reason: 'outside_projects' as const };
         if (resolved.status === 'external') {
             if (!resolved.trusted) {
                 const decision = await confirmExternalOpen(resolved.path);

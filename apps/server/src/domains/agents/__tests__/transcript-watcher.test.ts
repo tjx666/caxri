@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { WatchHub } from '../../watch-hub';
+import { WatchHub } from '../../watch';
 import { AgentTranscriptWatcher } from '../transcript-watcher';
 
 type SubscribeCallback = Parameters<typeof parcelWatcher.subscribe>[1];

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { WatchHub } from '../../watch-hub';
+import { WatchHub } from '../../watch';
 import { ExternalLinkWatcher } from '../external-link-watcher';
 
 afterEach(() => {

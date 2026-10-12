@@ -48,6 +48,12 @@ export const terminalFileLinkRefusalReasonSchema = z.enum([
      * The Project row resolved by Server Core was gone by the time Main read the bootstrap state.
      */
     'project_gone',
+    /**
+     * An SSH Host window resolved the link outside every Project. Opening it would need the local external-file
+     * snapshot flow, which reads this Mac's disk, so a remote window refuses it until the SSH Host serves external
+     * files.
+     */
+    'outside_projects',
 ]);
 
 export type TerminalFileLinkRefusalReason = z.infer<typeof terminalFileLinkRefusalReasonSchema>;

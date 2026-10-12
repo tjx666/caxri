@@ -25,7 +25,7 @@ import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
 import type { DomainDependencies } from '../domain-services';
 import { SessionAutoNamingService, SessionRenameService } from '../session';
-import type { WatchHub } from '../watch-hub';
+import type { WatchHub } from '../watch';
 import type { WorkbenchRootService } from '../workbench';
 import * as provenance from '../workbench';
 

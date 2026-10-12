@@ -90,6 +90,8 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.links.commit.accessibleName': '显示 Git 提交 {{reference}}',
     'terminal.links.commit.detail': 'Git 提交',
     'terminal.links.commit.hint': '⌘ 点击以在 Git 中显示提交 {{reference}}',
+    'terminal.links.refusal.outsideProjects':
+        'SSH Host 窗口只能打开项目内的文件。请先把该文件所在的文件夹添加为项目。',
     'terminal.links.refusal.projectGone': '该文件所属的项目已不在 Caxri 中。',
     'terminal.links.refusal.worktreeProjectUnbound':
         '该文件位于一个未被任何会话用作工作台根目录的 Git Worktree 中。请先在该 Worktree 中继续一个会话。',

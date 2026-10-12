@@ -8,7 +8,7 @@ import { isMidTurnSignal, isStandaloneEscape } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { agentCommanderIdentity } from '../db';
 import { isPtyTerminal } from '../pty-guard';
-import type { WatchHandle, WatchHub } from '../watch-hub';
+import type { WatchHandle, WatchHub } from '../watch';
 import type { TerminalExecutionPort } from './execution-port';
 import type { TerminalManager } from './manager';
 import type { TerminalLifecycleCause } from './manager-types';

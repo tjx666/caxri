@@ -1,6 +1,6 @@
 import parcelWatcher from '@parcel/watcher';
 
-import { WatchHub } from '../../domains/watch-hub';
+import { WatchHub } from '../../domains/watch';
 
 const DEFAULT_EVENT_GATE_TIMEOUT_MS = 5_000;
 

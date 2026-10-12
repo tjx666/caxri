@@ -37,6 +37,7 @@ import { useSessionMruSwitcherLifecycle } from './features/session/use-session-m
 import { useSessionNavigationHistory } from './features/session/use-session-navigation-history';
 import { useSettingsTabOpener } from './features/settings/settings-tab-opener';
 import { ConnectSshHostDialog } from './features/ssh-host/connect-ssh-host-dialog';
+import { subscribeFileWatchLimitAlerts } from './features/ssh-host/file-watch-limit-alert';
 import { SshHostFolderPickerDialog } from './features/ssh-host/ssh-host-folder-picker-dialog';
 import { SshHostLayer } from './features/ssh-host/ssh-host-layer';
 import { StatusBar } from './features/status-bar/status-bar';
@@ -148,6 +149,7 @@ export function App() {
     );
 
     useEffect(() => subscribeEnvironment(), []);
+    useEffect(() => subscribeFileWatchLimitAlerts(), []);
     useRuntimeAttachment();
     useStartupLoaderRemoval(isAttached);
     useSettingsTabOpener();

@@ -7,7 +7,7 @@ import { mapWithConcurrency, StructuredLogger } from '@caxri/system';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
-import { WatchHub } from '../../watch-hub';
+import { WatchHub } from '../../watch';
 import { FileService } from '../service';
 
 const cleanup: Array<() => Promise<void>> = [];

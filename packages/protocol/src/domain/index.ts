@@ -19,6 +19,7 @@ export * from './external-editor-tab.js';
 export * from './file-contract.js';
 export * from './file-preview.js';
 export * from './file-search.js';
+export * from './file-watch.js';
 export * from './git-diff.js';
 export * from './git-review-contract.js';
 export * from './line-count-format.js';

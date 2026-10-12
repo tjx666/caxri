@@ -2,7 +2,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
 import { describe, expect, it, vi } from 'vitest';
 
-import { WatchHub } from '../../watch-hub';
+import { WatchHub } from '../../watch';
 import type { GitMetadataWatcherOptions } from '../metadata-watcher';
 import { GitMetadataWatcher } from '../metadata-watcher';
 

@@ -77,7 +77,8 @@ describe('remote window menu', () => {
         focus(sshWindow);
         expect(enabled('diagnostics.export')).toBe(false);
         expect(enabled('processExplorer.open')).toBe(false);
-        expect(enabled('pathBrowser.open')).toBe(false);
+        // Open File by Path browses the SSH Host's Project through the remote Server, so it stays enabled.
+        expect(enabled('pathBrowser.open')).toBe(true);
         expect(enabled('commandPalette.open')).toBe(true);
         expect(enabled('remote.connect')).toBe(true);
 
