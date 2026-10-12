@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatDayBreaks, agentChatDayLabel, agentChatMessageTime } from '../agent-chat-time';
+import {
+    agentChatDayBreaks,
+    agentChatDayLabel,
+    agentChatLastDay,
+    agentChatMessageTime,
+} from '../agent-chat-time';
 import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 
 const at = (month: number, day: number, hour: number, minute = 0, year = 2026): number =>
@@ -23,6 +28,13 @@ describe('agentChatDayLabel', () => {
 });
 
 describe('agentChatDayBreaks', () => {
+    it('continues the day of the history rendered above it', () => {
+        const earlier = [userEntry('a', at(10, 10, 9))];
+        const timeline = [userEntry('b', at(10, 10, 20)), userEntry('c', at(10, 11, 8))];
+        const breaks = agentChatDayBreaks(timeline, agentChatLastDay(earlier));
+        expect(breaks.keys().toArray()).toEqual(['c']);
+    });
+
     it('breaks before the first dated message and each one that starts a new day', () => {
         const breaks = agentChatDayBreaks([
             userEntry('undated'),

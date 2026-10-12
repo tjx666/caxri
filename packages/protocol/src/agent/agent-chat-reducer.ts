@@ -29,7 +29,10 @@ export function emptyAgentChatSnapshot(terminalId: string): AgentChatSnapshot {
     };
 }
 
-function itemTextLength(item: AgentChatItem): number {
+/**
+ * What one item counts against the projection's aggregate text budget.
+ */
+export function agentChatItemTextLength(item: AgentChatItem): number {
     switch (item.type) {
         case 'userMessage': {
             return (
@@ -120,10 +123,10 @@ function budgetItems(
         isTruncated = true;
     }
     let total = 0;
-    for (const item of kept) total += itemTextLength(item);
+    for (const item of kept) total += agentChatItemTextLength(item);
     let dropCount = 0;
     while (total > maxText && dropCount < kept.length - 1) {
-        total -= itemTextLength(kept[dropCount]);
+        total -= agentChatItemTextLength(kept[dropCount]);
         dropCount += 1;
     }
     if (dropCount > 0) {
@@ -207,6 +210,7 @@ export function applyAgentChatOperation(
             if (state.turns !== undefined) next.turns = state.turns;
             if (state.requests !== undefined) next.requests = state.requests;
             if (state.truncated !== undefined) next.truncated = state.truncated;
+            if (state.historyId !== undefined) next.historyId = state.historyId;
             if (state.failure !== undefined) next.failure = state.failure ?? undefined;
             if (state.activeTurnId !== undefined)
                 next.activeTurnId = state.activeTurnId ?? undefined;

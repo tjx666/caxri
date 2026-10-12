@@ -11,6 +11,7 @@ import { commandPolicy } from '../transport/method-spec.js';
 import {
     agentChatCommandSchema,
     agentChatEffortSchema,
+    agentChatHistoryPageSchema,
     agentChatImageMediaTypeSchema,
     agentChatModelSchema,
     agentChatQueuedMessageSchema,
@@ -100,6 +101,16 @@ export const agentChatMethods = {
         ...commandPolicy('server', 'read'),
         params: z.strictObject(terminalTarget),
         result: agentChatSnapshotSchema,
+    },
+    /**
+     * Returns the page of history right before `beforeItemId`, the oldest item the Client holds (the projection's first
+     * item, or the first item of the last page read). Read from the history Server Core keeps once items leave the
+     * projection, then from the provider's own record. An unknown `beforeItemId` returns an empty page.
+     */
+    'agentChat.readHistory': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({ ...terminalTarget, beforeItemId: z.string().min(1).max(200) }),
+        result: agentChatHistoryPageSchema,
     },
     /**
      * Starts a turn with the user's message and any attached images. While a turn runs, the message is queued or steers

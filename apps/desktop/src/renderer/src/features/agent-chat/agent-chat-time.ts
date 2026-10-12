@@ -47,22 +47,40 @@ export function agentChatDayLabel(timestamp: number, now: number): string {
 }
 
 /**
+ * The day of the last dated user message in `timeline`, which the timeline rendered below it continues.
+ */
+export function agentChatLastDay(timeline: readonly AgentChatTimelineEntry[]): number | undefined {
+    const last = timeline.findLast(
+        (entry) =>
+            entry.kind === 'item' &&
+            entry.item.type === 'userMessage' &&
+            entry.item.createdAt !== undefined,
+    );
+    return last?.kind === 'item' && last.item.createdAt !== undefined
+        ? startOfDay(last.item.createdAt)
+        : undefined;
+}
+
+/**
  * The user messages that open a new day of the conversation, keyed by item id with the time to label the break by. The
  * first dated message always opens one, so a conversation says when it began, the way the Codex app heads its
- * transcript; a message without a time neither gets a break nor starts a day.
+ * transcript; a message without a time neither gets a break nor starts a day. `previousDay` is the day of the timeline
+ * rendered above this one ({@link agentChatLastDay}), so a timeline that continues another opens a day only where the
+ * day really changes.
  */
 export function agentChatDayBreaks(
     timeline: readonly AgentChatTimelineEntry[],
+    previousDay?: number,
 ): ReadonlyMap<string, number> {
     const breaks = new Map<string, number>();
-    let previousDay: number | undefined;
+    let day = previousDay;
     for (const entry of timeline) {
         if (entry.kind !== 'item' || entry.item.type !== 'userMessage') continue;
         const { createdAt } = entry.item;
         if (createdAt === undefined) continue;
-        const day = startOfDay(createdAt);
-        if (day !== previousDay) breaks.set(entry.item.id, createdAt);
-        previousDay = day;
+        const next = startOfDay(createdAt);
+        if (next !== day) breaks.set(entry.item.id, createdAt);
+        day = next;
     }
     return breaks;
 }

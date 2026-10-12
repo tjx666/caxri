@@ -19,6 +19,7 @@ export function createAgentChatHandlers(
     | 'agentChat.fork'
     | 'agentChat.interrupt'
     | 'agentChat.read'
+    | 'agentChat.readHistory'
     | 'agentChat.readImage'
     | 'agentChat.readTask'
     | 'agentChat.removeQueued'
@@ -101,6 +102,8 @@ export function createAgentChatHandlers(
         },
         'agentChat.readImage': ({ terminalId, itemId, index }) =>
             readChatImage(records, terminalId, itemId, index),
+        'agentChat.readHistory': ({ terminalId, beforeItemId }) =>
+            agentChat.readHistory(terminalId, beforeItemId),
         'agentChat.readTask': ({ terminalId, taskId }) => agentChat.readTask(terminalId, taskId),
         'agentChat.stopTask': async ({ terminalId, taskId }) => {
             await agentChat.stopTask(terminalId, taskId);

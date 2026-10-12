@@ -25,11 +25,6 @@ import { settleClaudeToolItem } from './claude-tool-results';
 
 type Json = Record<string, unknown>;
 
-/**
- * History loaded on resume is capped by turns; the shared reducer also enforces the item and byte budgets.
- */
-const MAX_RESUMED_TURNS = 100;
-
 interface HistoryState {
     /**
      * Reads a subagent's own transcript, whose records are all sidechain records.
@@ -294,8 +289,10 @@ export function claudeRewindPoint(
 /**
  * Operations that replace the projection with a resumed Claude Code session, read from the tail of its JSONL
  * transcript. Sidechains (subagents), injected harness records, and branches a rewind left behind are skipped; a
- * visible user prompt opens a turn. Every resumed turn is finished: a resume never re-enters a turn the previous
- * process was running. `resumeAt` ends the history at that record, for the restart right after a rewind.
+ * visible user prompt opens a turn. The whole tail is replayed: what the projection's budget evicts stays in Server
+ * Core's history archive, and `truncated` marks a tail that stops short of the transcript's start. Every resumed turn
+ * is finished: a resume never re-enters a turn the previous process was running. `resumeAt` ends the history at that
+ * record, for the restart right after a rewind.
  */
 export function claudeHistoryOperations(
     transcript: string,
@@ -304,25 +301,37 @@ export function claudeHistoryOperations(
 ): AgentChatPatchOperation[] {
     const state = readHistory(transcript, false, resumeAt);
     const { turns, items, plan } = state;
-    const keptTurns = turns.slice(-MAX_RESUMED_TURNS);
-    const droppedTurns = new Set(
-        turns.slice(0, turns.length - keptTurns.length).map((turn) => turn.id),
-    );
     const operations: AgentChatPatchOperation[] = [{ op: 'reset' }];
-    for (const item of items.values()) {
-        if (item.turnId && droppedTurns.has(item.turnId)) continue;
+    for (const item of items.values())
         operations.push({ op: 'upsertItem', item: closeDanglingItem(item) ?? item });
-    }
     operations.push({
         op: 'state',
         state: {
-            turns: keptTurns,
+            turns,
             activeTurnId: null,
-            ...((isTailTruncated || droppedTurns.size > 0) && { truncated: true }),
+            ...(isTailTruncated && { truncated: true }),
             ...(plan && { plan }),
         },
     });
     return operations;
+}
+
+/**
+ * Every item and turn of a Claude Code session's main conversation, oldest first, for paging back through history the
+ * projection no longer holds. Each turn is finished, as in {@link claudeHistoryOperations}.
+ */
+export function claudeHistoryItems(transcript: string): {
+    items: AgentChatItem[];
+    turns: AgentChatTurn[];
+} {
+    const { turns, items } = readHistory(transcript, false);
+    return {
+        items: items
+            .values()
+            .map((item) => closeDanglingItem(item) ?? item)
+            .toArray(),
+        turns,
+    };
 }
 
 /**

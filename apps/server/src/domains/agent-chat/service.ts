@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+    AgentChatHistoryPage,
     AgentChatMessageInput,
     AgentChatModelRequest,
     AgentChatPermissionRequest,
@@ -10,8 +11,8 @@ import type {
     TerminalRecord,
 } from '@caxri/protocol';
 import {
+    agentChatHistoryPageSchema,
     agentChatSnapshotSchema,
-    agentChatTaskSnapshotSchema,
     agentProviderCatalog,
     CaxriError,
     resolveAgentChatModelChange,
@@ -26,6 +27,7 @@ import type { ChatExitHost } from './chat-exit';
 import { abandonChatStart, handleChatExit } from './chat-exit';
 import type { CreateForkSession } from './chat-fork';
 import { forkChat } from './chat-fork';
+import { readChatHistoryPage } from './chat-history';
 import { isAgentChatCommandListed } from './chat-items';
 import {
     chatLifecycleHost,
@@ -43,6 +45,7 @@ import { restoreChatFiles, rewindChat } from './chat-rewind';
 import { chatSessionLogCallbacks } from './chat-session-logs';
 import type { ChatState, ChatStateDelivery, ChatTerminal } from './chat-states';
 import { ChatStates } from './chat-states';
+import { readChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**
@@ -401,33 +404,29 @@ export class AgentChatService {
     }
 
     /**
-     * Returns a task's own projection: the live one, or one rebuilt from the provider's record for a task this process
-     * never saw (a resumed conversation, an evicted projection).
+     * Returns the page of history before `beforeItemId`. Reading history never starts a provider process.
      */
-    async readTask(terminalId: string, taskId: string): Promise<AgentChatTaskSnapshot> {
+    async readHistory(terminalId: string, beforeItemId: string): Promise<AgentChatHistoryPage> {
         requireChatTerminal(this.options.database, terminalId);
         const state = this.states.open(terminalId);
         state.projection.flush();
-        const live = state.projection.tasks.resolve(taskId);
-        const listed = state.projection.snapshot.tasks?.find(
-            (task) => task.id === taskId || task.itemId === taskId,
+        return agentChatHistoryPageSchema.parse(
+            await readChatHistoryPage(this.options, state.projection, beforeItemId),
         );
-        // Opening a running shell's tab confirms the provider still runs it; the list patch follows.
-        if (listed?.kind === 'shell' && listed.status === 'running' && state.session?.isOpen)
-            // eslint-disable-next-line no-void -- best effort: an unreadable list leaves the tasks as they are
-            void state.session.refreshTasks?.().catch(() => {});
-        if (live) return agentChatTaskSnapshotSchema.parse(live);
-        let session: AgentChatProviderSession;
-        try {
-            session = await this.ensureStarted(terminalId, state);
-        } catch {
-            throw new CaxriError('NOT_FOUND', 'This task is no longer available');
-        }
-        const history = await session.readTaskHistory(taskId);
-        const current = this.states.get(terminalId);
-        if (!history || current !== state)
-            throw new CaxriError('NOT_FOUND', 'This task is no longer available');
-        return agentChatTaskSnapshotSchema.parse(state.projection.tasks.install(history));
+    }
+
+    /**
+     * Returns a task's own projection; see {@link readChatTask}.
+     */
+    readTask(terminalId: string, taskId: string): Promise<AgentChatTaskSnapshot> {
+        requireChatTerminal(this.options.database, terminalId);
+        const state = this.states.open(terminalId);
+        return readChatTask(
+            state,
+            taskId,
+            () => this.ensureStarted(terminalId, state),
+            () => this.states.get(terminalId) === state,
+        );
     }
 
     async stopTask(terminalId: string, taskId: string): Promise<void> {
