@@ -1,8 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import process from 'node:process';
+import { join } from 'node:path';
 
 import type {
     AgentHookHealth,
@@ -19,7 +17,7 @@ import {
     isCaxriError,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, mapWithConcurrency, unixSocketPath } from '@caxri/system';
+import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
 import { atomicWrite, atomicWriteUserConfig } from '../../atomic-file';
 import { WatchHub } from '../../watch-hub';
@@ -48,7 +46,8 @@ import { withAgentHookInstallLock } from './install-lock';
 import { HookLaunchRegistry } from './launch-registry';
 import { parseProfileIntents, serializeProfileIntents } from './profile-intents';
 import type { HookWireAttention } from './server';
-import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
+import { AgentHookServer } from './server';
+import { prepareAgentHookSocketPath } from './socket-path';
 import { AgentHookTelemetry } from './telemetry';
 
 const CONFIG_WATCH_SETTLE_MS = 100;
@@ -609,15 +608,7 @@ export class AgentHookManager {
             this.bridgePath = await this.withInstallLock(() =>
                 stageAgentHookBridge(this.options.sharedPath!),
             );
-            /**
-             * The socket may land outside `tmpdir()` when that directory is too deep for the `sun_path` limit, so the
-             * stale-socket sweep must follow it rather than assume the temp root.
-             */
-            const socketPath = unixSocketPath(
-                tmpdir(),
-                `caxri-hooks-${this.profileId}-${process.pid}.sock`,
-            );
-            await pruneStaleAgentHookSockets(dirname(socketPath), this.profileId);
+            const socketPath = await prepareAgentHookSocketPath(this.profileId);
             this.server = new AgentHookServer(
                 socketPath,
                 this.schemaVersions,

@@ -81,6 +81,8 @@ export const core: TranslatedNamespace<typeof source> = {
 
     'core.automaticNaming.sandboxBoundaryConflict':
         '{{subject}}：项目沙箱边界阻止了自动命名。请选择更具体的项目文件夹，然后重启 Agent。',
+    'core.automaticNaming.sandboxUnavailable':
+        '{{subject}}：自动命名需要这台机器安装 bubblewrap（bwrap）。安装后请重启 Agent。',
     'core.automaticNaming.unverifiedPaths':
         '{{subject}}：无法验证沙箱路径，自动命名不可用。请更正路径后重启 Agent。',
 

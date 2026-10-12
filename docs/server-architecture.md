@@ -171,6 +171,20 @@ One shared Extension Host owns trusted Extension objects, activation, Extension 
 PTY, Desktop bridge, or React component. This is fault isolation, not a sandbox for malicious code.
 Agent provider adapters remain privileged Server internals and are not ordinary Extensions.
 
+The Extension Host starts only when it is needed: when a Desktop attaches or a request first needs
+an Extension (`apps/server/src/core/extensions/host-start-gate.ts`). A Server that only a CLI,
+Mobile, or Agent Endpoint talks to, or an SSH Host Server between Desktop sessions, never forks it
+(about 33 MB of resident memory). `extension_host.ready` records the closed start trigger.
+
+### Memory footprint
+
+Server bundles are emitted as ASCII-only JavaScript (`codegen.asciiOnly` plus a build guard in
+`apps/server/vite.config.ts`). V8 stores a script containing any non-ASCII character as two-byte
+source, so one stray `…` doubled the bundle's in-memory size; the guard fails the build instead of
+letting that regress silently. Rarely used dependencies (theme plist/YAML parsing, the diagnostics
+archiver) are loaded on first use. Together these cut Server Core's idle footprint on macOS from
+about 88 MB to 66 MB and its JavaScript from about 7.0 MB to 4.8 MB.
+
 ## Client architecture
 
 `packages/client` is the only shared public Client implementation. Its root is a narrow browser-safe

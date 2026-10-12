@@ -1,5 +1,3 @@
-import process from 'node:process';
-
 import type { RecoveringEventClient, ServerConnectionState } from '@caxri/client';
 import {
     createRecoveringEventClient,
@@ -12,17 +10,10 @@ import type {
     ServerLaunchOptions,
     ServerSupervisionEvent,
 } from '@caxri/client/supervise';
-import {
-    connectDesktopToServer,
-    resolveServerArtifact,
-    ServerArtifactSupervisor,
-} from '@caxri/client/supervise';
+import { resolveServerArtifact, ServerArtifactSupervisor } from '@caxri/client/supervise';
 import type {
     CaxriMethod,
     DesktopLeaseRevocationReason,
-    DesktopOperation,
-    DesktopTargetPayload,
-    ServerDesktopLaunch,
     ServerEvent,
     ServerOperation,
     ServerOperationArguments,
@@ -35,26 +26,14 @@ import {
     isConcurrentRead,
     isDesktopServerOperation,
 } from '@caxri/protocol';
-import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import { computeBuildFingerprint, logEventCatalog } from '@caxri/system';
 
-import { activeDesktopCommand, runDesktopCommand } from './desktop-command-scope';
+import { activeDesktopCommand } from './desktop-command-scope';
+import type { DesktopServerConnectionOptions, DesktopServerSupervisor } from './server-attachment';
+import { connectDesktopAttachment, waitForServerExit } from './server-attachment';
 import { buildServerLaunchEnvironment } from './server-launch-environment';
 import type { ServerBuildIdentity } from './server-staleness';
 import { isServerBuildStale } from './server-staleness';
-
-type DesktopCommandHandler = (
-    operation: DesktopOperation,
-    consumeTarget: () => Promise<DesktopTargetPayload>,
-) => Promise<unknown>;
-
-export interface DesktopServerSupervisor {
-    ensure(timeoutMs?: number): Promise<ServerClient>;
-    isFailed(): boolean;
-    onLifecycle(listener: (event: ServerSupervisionEvent) => void): () => void;
-    releaseProcess(pid: number): void;
-    reportProcessLoss(pid: number): boolean;
-}
 
 interface UntypedServerClient {
     request(method: CaxriMethod, parameters?: unknown): Promise<unknown>;
@@ -66,39 +45,6 @@ interface UntypedServerClient {
     requestWithId(id: string, method: CaxriMethod, parameters?: unknown): Promise<unknown>;
 }
 
-export interface DesktopServerConnectionOptions {
-    agentHooksPath?: string;
-    /**
-     * This Desktop build's commit/version identity, compared against `host.status` to replace a detached Server still
-     * running an older build. The `buildId` half is never passed in: it is a content fingerprint of the on-disk Server
-     * artifact bundles computed per connection attempt (see `computeBuildFingerprint`), because a build-time identifier
-     * baked into the window bundle diverges from the Server artifact during development.
-     */
-    buildIdentity: ServerBuildIdentity;
-    /**
-     * Test seam for the on-disk bundle fingerprint; production uses `computeBuildFingerprint`.
-     */
-    computeBuildId?: (outputDirectory: string) => Promise<string | undefined>;
-    /**
-     * Test seam for the shared artifact supervision contract.
-     */
-    createServerSupervisor?: (
-        userDataPath: string,
-        launchOptions: ServerLaunchOptions,
-    ) => DesktopServerSupervisor;
-    cliPath: string;
-    currentDirectory: string;
-    desktopId: string;
-    desktopLaunch: ServerDesktopLaunch;
-    e2eAgentPolicy?: E2EAgentPolicy;
-    handleCommand: DesktopCommandHandler;
-    logger: StructuredLogger;
-    serverArtifactRoot: string;
-    userDataPath: string;
-}
-
-const SERVER_REPLACEMENT_EXIT_TIMEOUT_MS = 10_000;
-
 /**
  * How long an outage may be treated as the reconnect window; see {@link DesktopServerConnection.isRecovering}. The case
  * this classification exists for is a sleep/wake reattach, which settles in seconds, but the bound is sized against the
@@ -109,24 +55,6 @@ const SERVER_REPLACEMENT_EXIT_TIMEOUT_MS = 10_000;
  * forever.
  */
 const RECOVERY_WINDOW_MS = 120_000;
-
-/**
- * Waits for a stopped Server process to disappear so `ensureServer` re-discovery cannot race the old manifest. Signal 0
- * only probes liveness; an `ESRCH` throw means the process is gone. On timeout the caller simply proceeds; the final
- * attempt downgrades a still-stale Server to a warning.
- */
-async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-        try {
-            process.kill(pid, 0);
-        } catch {
-            return;
-        }
-        // eslint-disable-next-line no-await-in-loop -- sequential liveness polling by design
-        await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-}
 
 /**
  * Desktop-side client facade for typed Server operations and recovery.
@@ -199,14 +127,7 @@ export class DesktopServerConnection extends EventTarget {
         serverIdentity ??= await this.attachToCurrentServer(true);
         if (serverIdentity === undefined)
             throw new CaxriError('UNAVAILABLE', 'Replacement Caxri Host still reports stale code');
-        const client = await connectDesktopToServer(
-            this.options.userDataPath,
-            this.options.desktopId,
-            (operation, consumeTarget) =>
-                runDesktopCommand(operation, () =>
-                    this.options.handleCommand(operation, consumeTarget),
-                ),
-        );
+        const client = await connectDesktopAttachment(this.options);
         this.client = client;
         client.onClose((reason, closeCode) => this.handleConnectionLoss(client, reason, closeCode));
         const connectionIdentity = client.welcome.connection;
@@ -336,7 +257,7 @@ export class DesktopServerConnection extends EventTarget {
                     this.hasReplacedStaleServer = true;
                     await operator.request('host.stop', { confirmLivePtys: true });
                     this.serverSupervisor.releaseProcess(status.pid);
-                    await waitForProcessExit(status.pid, SERVER_REPLACEMENT_EXIT_TIMEOUT_MS);
+                    await waitForServerExit(this.serverSupervisor, status.pid);
                     return undefined;
                 }
             }
@@ -597,6 +518,21 @@ export class DesktopServerConnection extends EventTarget {
     }
 
     /**
+     * Retries after the supervisor stopped on its own: an initial attachment that failed returns to `idle`, and a
+     * reconnect loop exits once the supervisor reports `isFailed()`. An SSH Host supervisor does that when OpenSSH
+     * needs the user (a password or a changed host key), so the user's Reconnect has to re-arm whichever attempt
+     * stopped.
+     */
+    resume(): Promise<void> {
+        if (this.lifecycle.status === 'idle') return this.start();
+        if (this.lifecycle.status === 'backoff') {
+            this.ensureReconnectLoop();
+            return this.reconnectTask ?? Promise.resolve();
+        }
+        return this.starting ?? Promise.resolve();
+    }
+
+    /**
      * Subscribes to Server protocol events; returns an unsubscribe function.
      */
     onEvent(listener: (event: ServerEvent) => void): () => void {
@@ -694,7 +630,7 @@ export class DesktopServerConnection extends EventTarget {
                 await client.request('host.stop', { confirmLivePtys: true });
                 if (pid !== undefined) {
                     this.serverSupervisor.releaseProcess(pid);
-                    await waitForProcessExit(pid, SERVER_REPLACEMENT_EXIT_TIMEOUT_MS);
+                    await waitForServerExit(this.serverSupervisor, pid);
                 }
             } catch (error) {
                 didHostStopFail = true;

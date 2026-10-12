@@ -1,9 +1,14 @@
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
     foregroundAgentProcessIdsFromProcessList,
     foregroundAgentProviderFromProcessList,
     openFilesFromLsofOutput,
+    openFilesFromProcFileSystem,
 } from '../process-detection';
 
 describe('Shell foreground Agent detection', () => {
@@ -96,5 +101,39 @@ describe('Shell foreground Agent detection', () => {
                 pid: 201,
             },
         ]);
+    });
+});
+
+describe('Linux open-file probe', () => {
+    it('reads file paths and access modes from /proc and skips non-file descriptors', async () => {
+        const procRoot = await mkdtemp(join(tmpdir(), 'caxri-proc-'));
+        try {
+            const process = join(procRoot, '42');
+            await mkdir(join(process, 'fd'), { recursive: true });
+            await mkdir(join(process, 'fdinfo'));
+            const entries = [
+                ['3', '/home/dev/.codex/sessions/rollout-1.jsonl', '0100001'],
+                ['4', '/home/dev/notes.txt', '0100000'],
+                ['5', '/home/dev/state.db', '0100002'],
+                ['6', 'socket:[12345]', '02'],
+            ] as const;
+            await Promise.all(
+                entries.map(async ([descriptor, target, flags]) => {
+                    await symlink(target, join(process, 'fd', descriptor));
+                    await writeFile(
+                        join(process, 'fdinfo', descriptor),
+                        `pos:\t0\nflags:\t${flags}\nmnt_id:\t1\n`,
+                    );
+                }),
+            );
+            const files = await openFilesFromProcFileSystem([42, 43], procRoot);
+            expect(files.toSorted((left, right) => left.path.localeCompare(right.path))).toEqual([
+                { access: 'w', path: '/home/dev/.codex/sessions/rollout-1.jsonl', pid: 42 },
+                { access: 'r', path: '/home/dev/notes.txt', pid: 42 },
+                { access: 'u', path: '/home/dev/state.db', pid: 42 },
+            ]);
+        } finally {
+            await rm(procRoot, { recursive: true, force: true });
+        }
     });
 });

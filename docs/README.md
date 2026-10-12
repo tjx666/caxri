@@ -44,6 +44,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [process-explorer.md](process-explorer.md)                         | Process Explorer, resource thresholds, and runaway alerts      |
 | [provider-messaging.md](provider-messaging.md)                     | Peer Inbox provider-messaging support and the verified matrix  |
 | [quality-toolchain.md](quality-toolchain.md)                       | Unified mechanical-quality tooling                             |
+| [remote-ssh.md](remote-ssh.md)                                     | SSH Host windows: connect, install, lifecycle, remote layers   |
 | [renderer-performance.md](renderer-performance.md)                 | Renderer performance observability                             |
 | [secondary-sidebar-trees.md](secondary-sidebar-trees.md)           | Files/Source Control/extension tree rendering                  |
 | [self-hosted-runner.md](self-hosted-runner.md)                     | Self-hosted macOS CI/release runner                            |
@@ -84,6 +85,7 @@ rewritten, only superseded.
 | [0011](adr/0011-required-merge-guards.md)                     | A required `guards` check replaces direct pushes to `main` |
 | [0012](adr/0012-agent-chat-surface.md)                        | Agent Chat: a structured Terminal surface beside the PTY   |
 | [0013](adr/0013-editable-external-documents.md)               | Editable external documents through a Main-issued registry |
+| [0014](adr/0014-ssh-remote-server.md)                         | SSH Hosts run their own Server over system OpenSSH         |
 
 ## Historical
 

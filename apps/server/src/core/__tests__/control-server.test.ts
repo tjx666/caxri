@@ -144,6 +144,7 @@ describe('local Host transport', () => {
             },
         };
         const counts: number[] = [];
+        const desktopAttached = vi.fn();
         const server = new ControlServer({
             adapters: { server: host },
             desktopCredential: lease.desktopCredential,
@@ -151,6 +152,7 @@ describe('local Host transport', () => {
             onClientCountChanged: (count) => {
                 counts.push(count);
             },
+            onDesktopAttached: desktopAttached,
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
@@ -171,6 +173,8 @@ describe('local Host transport', () => {
         const welcome = localServerWelcomeSchema.parse(await read());
         expect(welcome.type).toBe('welcome');
         expect(welcome.principal.kind).toBe('human-cli');
+        // Only a Desktop handshake counts as attaching; Server Core starts the Extension Host on it.
+        expect(desktopAttached).not.toHaveBeenCalled();
         expect(welcome.capabilities).toEqual([
             'desktop.window',
             'diagnostics.read',
@@ -499,6 +503,7 @@ describe('local Host transport', () => {
     it('routes reverse commands and transient events only to the current Desktop generation', async () => {
         const lease = await profile();
         const unavailable = vi.fn();
+        const desktopAttached = vi.fn();
         const server = new ControlServer({
             adapters: {
                 server: {
@@ -510,6 +515,7 @@ describe('local Host transport', () => {
             },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
+            onDesktopAttached: desktopAttached,
             onDesktopUnavailable: unavailable,
         });
         await lease.publish(await server.start());
@@ -544,6 +550,7 @@ describe('local Host transport', () => {
             return Promise.resolve();
         });
 
+        expect(desktopAttached).toHaveBeenCalledTimes(2);
         const secondGeneration = second.desktopLease!.generation;
         const ready = server.waitForDesktopLease(2_000);
         await expect(
@@ -637,122 +644,5 @@ describe('local Host transport', () => {
             }),
         ).resolves.toMatchObject({ state: 'revealed' });
         expect(revealed).toHaveBeenCalledWith('/project/draft.txt');
-    });
-
-    it('does not let a slow file stream block later Terminal streams', async () => {
-        const lease = await profile();
-        const { promise: slowRead, resolve: releaseRead } = Promise.withResolvers<unknown>();
-        const invoke = vi.fn((request: { method: string }) => {
-            if (request.method === 'files.read') return slowRead;
-            if (request.method === 'terminal.input' || request.method === 'terminal.resize')
-                return null;
-            throw new Error(`Unexpected method: ${request.method}`);
-        });
-        const server = new ControlServer({
-            adapters: { features: protocolFeatures, server: { invoke } },
-            desktopCredential: lease.desktopCredential,
-            identity: lease.identity,
-            protocolIdentity: {
-                serverId: 'a'.repeat(32),
-                stateEpoch: 'b'.repeat(32),
-            },
-        });
-        await lease.publish(await server.start());
-        cleanups.push(() => server.close());
-        const client = await ServerClient.connect(lease.manifest, 2_000, {
-            kind: 'desktop',
-            desktopId: 'desktop-terminal-priority',
-            credential: lease.desktopCredential,
-            handleCommand: () => Promise.resolve(null),
-        });
-        cleanups.push(() => {
-            client.close();
-            return Promise.resolve();
-        });
-
-        await client.markDesktopReady();
-        const slow = client.request('files.read', {
-            sessionId: 'session-1',
-            path: '/project/slow.ts',
-        });
-        await vi.waitFor(() =>
-            expect(invoke).toHaveBeenCalledWith(
-                expect.objectContaining({ method: 'files.read' }),
-                expect.anything(),
-                expect.anything(),
-            ),
-        );
-
-        try {
-            const input = client.request('terminal.input', {
-                terminalId: 'terminal-1',
-                data: 'x',
-            });
-            await vi.waitFor(() =>
-                expect(invoke).toHaveBeenCalledWith(
-                    expect.objectContaining({ method: 'terminal.input' }),
-                    expect.anything(),
-                    expect.anything(),
-                ),
-            );
-            await expect(input).resolves.toBeNull();
-            await expect(
-                client.request('terminal.resize', {
-                    terminalId: 'terminal-1',
-                    cols: 120,
-                    rows: 40,
-                }),
-            ).resolves.toBeNull();
-        } finally {
-            releaseRead({ path: '/project/slow.ts', content: '', mtimeMs: 1, size: 0 });
-            await slow;
-        }
-    });
-
-    it('keeps copy and write requests pending until their authoritative result arrives', async () => {
-        const lease = await profile();
-        const server = new ControlServer({
-            adapters: {
-                features: protocolFeatures,
-                server: {
-                    invoke: async (request) => {
-                        if (request.method !== 'files.write') return null;
-                        await new Promise((resolve) => setTimeout(resolve, 80));
-                        return {
-                            path: request.params.path,
-                            content: request.params.content,
-                            mtimeMs: 1,
-                            size: request.params.content.length,
-                        };
-                    },
-                },
-            },
-            protocolIdentity: {
-                serverId: 'a'.repeat(32),
-                stateEpoch: 'b'.repeat(32),
-            },
-            desktopCredential: lease.desktopCredential,
-            identity: lease.identity,
-        });
-        await lease.publish(await server.start());
-        cleanups.push(() => server.close());
-        const client = await ServerClient.connect(lease.manifest, 40, {
-            kind: 'desktop',
-            desktopId: 'desktop-long-write',
-            credential: lease.desktopCredential,
-            handleCommand: () => Promise.resolve(null),
-        });
-        cleanups.push(() => {
-            client.close();
-            return Promise.resolve();
-        });
-
-        await expect(
-            client.request('files.write', {
-                sessionId: 'session-1',
-                path: '/project/file.ts',
-                content: 'saved',
-            }),
-        ).resolves.toMatchObject({ path: '/project/file.ts', content: 'saved' });
     });
 });

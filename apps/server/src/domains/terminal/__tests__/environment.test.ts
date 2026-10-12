@@ -32,4 +32,10 @@ describe('terminalEnvironment', () => {
         expect(environment).not.toHaveProperty('OPENAI_API_KEY');
         expect(environment).not.toHaveProperty('npm_config_token');
     });
+
+    it('gives a locale-less Linux Terminal a UTF-8 locale without overriding a configured one', () => {
+        expect(terminalEnvironment({ PATH: '/usr/bin' }, 'linux').LANG).toBe('C.UTF-8');
+        expect(terminalEnvironment({ LC_ALL: 'de_DE.UTF-8' }, 'linux').LANG).toBeUndefined();
+        expect(terminalEnvironment({ PATH: '/usr/bin' }, 'darwin').LANG).toBeUndefined();
+    });
 });

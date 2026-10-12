@@ -1,20 +1,36 @@
+import { constants } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve } from 'node:path';
+import process from 'node:process';
 
-import { CaxriError, isCaxriError } from '@caxri/protocol';
+import type { LowCostSandboxFailureReason } from '@caxri/protocol';
+import { CaxriError, isCaxriError, lowCostSandboxFailureReasonSchema } from '@caxri/protocol';
+import { isAccessible } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
 
-export const MACOS_SANDBOX_EXECUTABLE = '/usr/bin/sandbox-exec';
+const MACOS_SANDBOX_EXECUTABLE = '/usr/bin/sandbox-exec';
+/**
+ * Distribution packages install bubblewrap here; Ubuntu's AppArmor policy only grants unprivileged user namespaces to
+ * this packaged path, so a copy elsewhere on `PATH` is deliberately not searched.
+ */
+const LINUX_SANDBOX_EXECUTABLES = ['/usr/bin/bwrap', '/bin/bwrap'] as const;
+
+/**
+ * The host sandbox wrapper: run `executable` with `arguments` prepended to the provider's own argv.
+ */
+export interface LowCostSandboxLaunch {
+    arguments: readonly string[];
+    executable: string;
+}
 
 export function lowCostSandboxFailureReason(
     error: unknown,
-): 'sandboxBoundaryConflict' | 'sandboxPathUnavailable' | undefined {
+): LowCostSandboxFailureReason | undefined {
     if (!isCaxriError(error)) return undefined;
     const reason = error.details?.reason;
-    return reason === 'sandboxBoundaryConflict' || reason === 'sandboxPathUnavailable'
-        ? reason
-        : undefined;
+    const parsed = lowCostSandboxFailureReasonSchema.safeParse(reason);
+    return parsed.success ? parsed.data : undefined;
 }
 
 /**
@@ -53,7 +69,16 @@ export async function prepareLowCostSandbox(options: {
     executable: string;
     isolatedDirectory: string;
     instructionNames: readonly string[];
-}): Promise<string> {
+    platform?: NodeJS.Platform;
+}): Promise<LowCostSandboxLaunch> {
+    const platform = options.platform ?? process.platform;
+    const linuxSandbox = platform === 'linux' ? await linuxSandboxExecutable() : undefined;
+    if (platform !== 'darwin' && !linuxSandbox)
+        throw new CaxriError(
+            'UNAVAILABLE',
+            'Low-cost generation needs bubblewrap (bwrap) on this machine.',
+            { reason: 'sandboxUnavailable' },
+        );
     try {
         const [project, config, executable, isolated] = await Promise.all([
             realpath(options.projectDirectory),
@@ -80,17 +105,36 @@ export async function prepareLowCostSandbox(options: {
             options.instructionNames.map(async (name) => {
                 const entry = join(config, name);
                 try {
-                    return [entry, await realpath(entry)];
+                    return { paths: [entry, await realpath(entry)], exists: true };
                 } catch (error) {
                     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-                    return [entry];
+                    return { paths: [entry], exists: false };
                 }
             }),
         );
-        return lowCostSandboxProfile({
-            literals: [...new Set(entries.flat())],
-            subpaths: [project],
-        });
+        if (linuxSandbox)
+            return {
+                executable: linuxSandbox,
+                arguments: bubblewrapArguments({
+                    // A bind mount needs an existing target, and an absent file has nothing to read anyway.
+                    literals: [
+                        ...new Set(
+                            entries.filter((entry) => entry.exists).flatMap((entry) => entry.paths),
+                        ),
+                    ],
+                    subpaths: [project],
+                }),
+            };
+        return {
+            executable: MACOS_SANDBOX_EXECUTABLE,
+            arguments: [
+                '-p',
+                lowCostSandboxProfile({
+                    literals: [...new Set(entries.flatMap((entry) => entry.paths))],
+                    subpaths: [project],
+                }),
+            ],
+        };
     } catch (error) {
         if (lowCostSandboxFailureReason(error)) throw error;
         // Native path errors can expose provider configuration paths; retain only the closed failure reason.
@@ -132,4 +176,30 @@ function lowCostSandboxProfile(denials: LowCostSandboxDenials): string {
         ...denials.subpaths.map((path) => `(deny file-read* (subpath ${JSON.stringify(path)}))`),
         ...denials.literals.map((path) => `(deny file-read* (literal ${JSON.stringify(path)}))`),
     ].join(' ');
+}
+
+async function linuxSandboxExecutable(): Promise<string | undefined> {
+    for (const candidate of LINUX_SANDBOX_EXECUTABLES) {
+        // Ordered probe: the first installed path wins.
+        // eslint-disable-next-line no-await-in-loop -- ordered probe, see comment above
+        if (await isAccessible(candidate, constants.X_OK)) return candidate;
+    }
+    return undefined;
+}
+
+/**
+ * The Linux equivalent of {@link lowCostSandboxProfile}: keep the host filesystem as-is, hide each denied directory
+ * behind an empty tmpfs, and replace each denied file with `/dev/null`. `--die-with-parent` ties the sandbox to the
+ * Server so a timed-out generation cannot outlive it.
+ */
+function bubblewrapArguments(denials: LowCostSandboxDenials): string[] {
+    return [
+        '--dev-bind',
+        '/',
+        '/',
+        ...denials.subpaths.flatMap((path) => ['--tmpfs', path]),
+        ...denials.literals.flatMap((path) => ['--ro-bind', '/dev/null', path]),
+        '--die-with-parent',
+        '--',
+    ];
 }

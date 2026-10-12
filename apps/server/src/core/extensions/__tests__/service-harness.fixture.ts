@@ -169,6 +169,8 @@ export const supervisorModule = {
             return Promise.resolve();
         }
 
+        markCoreStopping() {}
+
         shutdown() {
             return Promise.resolve();
         }

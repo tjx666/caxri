@@ -1,11 +1,12 @@
 import type { FileEntry } from '@caxri/protocol';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../../lib/caxri', () => ({ caxri: { request: vi.fn() } }));
 
 import type { ContextMenuEntries } from '../../../../lib/context-menu';
 import { serializeContextMenu } from '../../../../lib/context-menu';
 import { useDialogStore } from '../../../../stores/dialogs';
+import { useEnvironmentStore } from '../../../../stores/environment';
 import { fileOperationBusyReason, pasteDisabledReason } from '../file-operation-state';
 import type { FileTreeItemMenuOptions } from '../file-tree-item-menu';
 import { fileTreeItemMenu } from '../file-tree-item-menu';
@@ -41,6 +42,10 @@ const directory: FileEntry = { kind: 'directory', name: 'src', path: '/project/s
 const file: FileEntry = { kind: 'file', name: 'notes.txt', path: '/project/notes.txt' };
 
 describe('fileTreeItemMenu', () => {
+    beforeEach(() => {
+        useEnvironmentStore.setState({ state: { kind: 'local' } });
+    });
+
     it('offers create entries only on a directory and default-app only on a file', () => {
         const directoryLabels = labels(fileTreeItemMenu(options(directory)));
         expect(directoryLabels).toEqual([
@@ -66,6 +71,23 @@ describe('fileTreeItemMenu', () => {
         expect(fileLabels).toContain('Open with Default App');
         expect(fileLabels).not.toContain('New File');
         expect(fileLabels).not.toContain('Find in Folder…');
+    });
+
+    it('drops the entries that hand the file to this Mac in an SSH Host window', () => {
+        useEnvironmentStore.setState({
+            state: {
+                kind: 'ssh',
+                destination: 'devbox',
+                phase: 'connected',
+                needsUserAction: false,
+            },
+        });
+        const fileLabels = labels(fileTreeItemMenu(options(file)));
+        expect(fileLabels).not.toContain('Open with Default App');
+        expect(fileLabels).not.toContain('Reveal in Finder');
+        expect(fileLabels).not.toContain('Move to Trash');
+        expect(fileLabels).toContain('Open in Terminal');
+        expect(fileLabels.at(-1)).toBe('Rename');
     });
 
     it('opens Project search scoped to the directory while keeping the previous query', () => {

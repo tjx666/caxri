@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ShellIntegrationService } from '../shell-integration';
+import { managedAgentShellExecutable, ShellIntegrationService } from '../shell-integration';
 
 const temporaryDirectories: string[] = [];
 
@@ -193,5 +193,13 @@ describe('ShellIntegrationService', () => {
 
         await expect(ShellIntegrationService.create(directory)).rejects.toThrow();
         expect(await readFile(target, 'utf8')).toBe('keep me');
+    });
+});
+
+describe('managedAgentShellExecutable', () => {
+    it('keeps an integrated shell and falls back to a shell the platform actually ships', () => {
+        expect(managedAgentShellExecutable('/usr/bin/bash', 'linux')).toBe('/usr/bin/bash');
+        expect(managedAgentShellExecutable('/usr/bin/fish', 'linux')).toBe('/bin/bash');
+        expect(managedAgentShellExecutable('/opt/homebrew/bin/fish', 'darwin')).toBe('/bin/zsh');
     });
 });
