@@ -42,6 +42,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.session.openAgentsInChat.description':
         '新 Agent 以对话而非终端的形式启动。Shell 始终在终端中打开。“新建会话”和“新建终端”菜单也可切换此项。',
 
+    'settings.agentChat.longPasteThreshold.title': '对话长文本粘贴阈值',
+    'settings.agentChat.longPasteThreshold.description':
+        '粘贴到对话中的较长文本会保存为本地文件并在消息中引用，避免日志或转储淹没消息。调高此值即可原样粘贴这类文本；一条消息放不下的文本仍会保存为文件。',
+
     'settings.workbench.newWorktreeBehavior.title': '新 Worktree 行为',
     'settings.workbench.newWorktreeBehavior.description':
         '选择是否跟随检测到的 Worktree。“自动继续”会直接授权新的 Worktree 文件夹，不再询问。',

@@ -49,9 +49,10 @@ export const MAX_AGENT_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
  */
 export const MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES = 20 * 1024 * 1024;
 /**
- * Pasted text longer than this (in UTF-16 code units, what the input counts) is saved to a file the message cites
- * instead of landing in the input, following T3 Code's 32 KiB pasted-text attachment. A paste that would push the
- * message past {@link MAX_AGENT_CHAT_MESSAGE_LENGTH} is saved too, since the input would otherwise cut it.
+ * The default `agentChat.longPasteThreshold`: pasted text longer than this (in UTF-16 code units, what the input
+ * counts) is saved to a file the message cites instead of landing in the input, following T3 Code's 32 KiB pasted-text
+ * attachment. A paste that would push the message past {@link MAX_AGENT_CHAT_MESSAGE_LENGTH} is saved too, whatever the
+ * setting, since the input would otherwise cut it.
  */
 export const AGENT_CHAT_LONG_PASTE_THRESHOLD = 32 * 1024;
 /**
