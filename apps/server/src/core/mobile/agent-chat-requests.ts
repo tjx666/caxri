@@ -6,6 +6,8 @@ import type {
     ServerRequest,
 } from '@caxri/protocol';
 import {
+    agentChatMethods,
+    canMobileAgentChatSend,
     CaxriError,
     MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH,
     windowAgentChatSnapshotForMobile,
@@ -27,7 +29,8 @@ export type MobileAgentChatRequest = Extract<
             | 'mobile.agentChat.configure'
             | 'mobile.agentChat.removeQueued'
             | 'mobile.agentChat.sendQueuedNow'
-            | 'mobile.agentChat.resumeQueue';
+            | 'mobile.agentChat.resumeQueue'
+            | 'mobile.agentChat.takeQueued';
     }
 >;
 
@@ -134,7 +137,12 @@ export async function invokeMobileAgentChatRequest(
     domainService: ServerDomainService,
     forwardOperation: MobileOperationForwarder | undefined,
     reauthorize: () => unknown,
-): Promise<AgentChatSnapshot | (ImageData & { chunkIndex: number; chunkCount: number }) | null> {
+): Promise<
+    | AgentChatSnapshot
+    | (ImageData & { chunkIndex: number; chunkCount: number })
+    | { text: string }
+    | null
+> {
     if (!forwardOperation)
         throw new CaxriError('UNAVAILABLE', 'Agent Chat is unavailable to paired devices');
     const forward = forwardOperation;
@@ -284,6 +292,24 @@ export async function invokeMobileAgentChatRequest(
         case 'mobile.agentChat.resumeQueue': {
             await forward({ method: 'agentChat.resumeQueue', params: { terminalId } });
             return null;
+        }
+        case 'mobile.agentChat.takeQueued': {
+            /**
+             * The full text is checked before Core takes the message, so one the phone could not send again stays
+             * queued for Desktop. Queued text never changes, so this read cannot disagree with the take; a message that
+             * leaves the queue in between still fails the take with `CONFLICT`.
+             */
+            const { id } = request.params;
+            const { queue } = await domainService.request('agentChat.read', { terminalId });
+            const entry = queue?.find((candidate) => candidate.id === id);
+            if (!entry) throw new CaxriError('CONFLICT', 'This message is no longer queued');
+            if (!canMobileAgentChatSend(entry.text))
+                throw new CaxriError('VALIDATION', 'This message is too long to edit on a phone');
+            reauthorize();
+            const taken = agentChatMethods['agentChat.takeQueued'].result.parse(
+                await forward({ method: 'agentChat.takeQueued', params: { terminalId, id } }),
+            );
+            return { text: taken.text };
         }
         case 'mobile.agentChat.retry': {
             /**

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     AGENT_CHAT_QUEUE_ERRORS,
     agentChatQueueEntries,
+    agentChatQueueFailure,
     agentChatQueueHeader,
     currentQueueError,
     didRunOptimisticQueueAction,
@@ -98,8 +99,8 @@ describe('currentQueueError', () => {
 describe('didRunOptimisticQueueAction', () => {
     const harness = (perform: (id: string) => Promise<void>) => {
         const hidden = new Set<string>();
-        const reportError = vi.fn<(message: string | null) => void>();
-        const run = (action: 'remove' | 'sendNow') =>
+        const reportError = vi.fn<(message: string | null, failure?: string) => void>();
+        const run = (action: 'remove' | 'sendNow' | 'edit') =>
             didRunOptimisticQueueAction({
                 action,
                 hide: (id) => hidden.add(id),
@@ -130,10 +131,47 @@ describe('didRunOptimisticQueueAction', () => {
         const remove = harness(failing);
         await expect(remove.run('remove')).resolves.toBe(false);
         expect(remove.hidden.has('a')).toBe(false);
-        expect(remove.reportError).toHaveBeenLastCalledWith(AGENT_CHAT_QUEUE_ERRORS.remove);
+        expect(remove.reportError).toHaveBeenLastCalledWith(
+            AGENT_CHAT_QUEUE_ERRORS.remove,
+            'other',
+        );
         const steer = harness(failing);
         await steer.run('sendNow');
-        expect(steer.reportError).toHaveBeenLastCalledWith(AGENT_CHAT_QUEUE_ERRORS.sendNow);
+        expect(steer.reportError).toHaveBeenLastCalledWith(
+            AGENT_CHAT_QUEUE_ERRORS.sendNow,
+            'other',
+        );
+    });
+
+    it('tells an Edit whose message already left the queue apart from one worth retrying', async () => {
+        const refusing = (code: string) =>
+            harness(async () => {
+                throw Object.assign(new Error('refused'), { code });
+            });
+        const gone = refusing('CONFLICT');
+        await expect(gone.run('edit')).resolves.toBe(false);
+        expect(gone.reportError).toHaveBeenLastCalledWith(AGENT_CHAT_QUEUE_ERRORS.edit, 'gone');
+        const tooLong = refusing('VALIDATION');
+        await tooLong.run('edit');
+        expect(tooLong.reportError).toHaveBeenLastCalledWith(
+            AGENT_CHAT_QUEUE_ERRORS.edit,
+            'tooLong',
+        );
+        const offline = harness(async () => {
+            throw new Error('offline');
+        });
+        await offline.run('edit');
+        expect(offline.reportError).toHaveBeenLastCalledWith(AGENT_CHAT_QUEUE_ERRORS.edit, 'other');
+        expect(offline.hidden.has('a')).toBe(false);
+    });
+});
+
+describe('agentChatQueueFailure', () => {
+    it('reads a refusal as too long only for Edit, the one action that checks the phone send bound', () => {
+        expect(agentChatQueueFailure('edit', 'VALIDATION')).toBe('tooLong');
+        expect(agentChatQueueFailure('sendNow', 'VALIDATION')).toBe('other');
+        expect(agentChatQueueFailure('remove', 'CONFLICT')).toBe('gone');
+        expect(agentChatQueueFailure('edit', undefined)).toBe('other');
     });
 });
 

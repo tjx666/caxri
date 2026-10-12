@@ -261,6 +261,18 @@ export const agentChatMethods = {
         result: z.null(),
     },
     /**
+     * Takes a queued message back for editing: removes it and returns its full text (a command as `/name arguments`) in
+     * one step, so a message the queue sends meanwhile is never both sent and back in the composer. Clients that hold
+     * only a preview of the queue (the phone) get the whole text here. A message that already left the queue fails with
+     * `CONFLICT`; one carrying images stays queued and fails with `VALIDATION`, since images never return to a
+     * composer.
+     */
+    'agentChat.takeQueued': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({ ...terminalTarget, id: agentChatQueuedMessageSchema.shape.id }),
+        result: z.strictObject({ text: agentChatQueuedMessageSchema.shape.text }),
+    },
+    /**
      * Sends a queued message now: it steers the running turn, or starts a turn when the Chat is idle.
      */
     'agentChat.sendQueuedNow': {

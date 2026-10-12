@@ -253,6 +253,7 @@ export const AgentChatView = ({
     enterFrom,
     isConnected,
     isHandedOff,
+    onEditQueued,
     provider,
     theme,
 }: {
@@ -272,6 +273,10 @@ export const AgentChatView = ({
      * cannot resume a Session, and Retry restarts only a failed Chat.
      */
     isHandedOff: boolean;
+    /**
+     * Puts a queued message's full text, taken back by its Edit, into the composer draft.
+     */
+    onEditQueued: (text: string) => void;
     provider: string;
     theme: MobileTheme;
 }) => {
@@ -386,7 +391,12 @@ export const AgentChatView = ({
                 theme={theme}
             />
             <AgentChatActivity chat={chat} provider={provider} theme={theme} />
-            <AgentChatQueueList canAct={canActOnQueue} chat={chat} theme={theme} />
+            <AgentChatQueueList
+                canAct={canActOnQueue}
+                chat={chat}
+                onEdit={onEditQueued}
+                theme={theme}
+            />
         </View>
     );
 };

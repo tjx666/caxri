@@ -40,6 +40,7 @@ import {
 import { chatPermissionToStore, switchChatPermission } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
+import * as queueActions from './chat-queue-actions';
 import type { ChatRewindRequest } from './chat-rewind';
 import { restoreChatFiles, rewindChat } from './chat-rewind';
 import { chatSessionLogCallbacks } from './chat-session-logs';
@@ -261,6 +262,11 @@ export class AgentChatService {
         };
     }
 
+    private queueHost(): queueActions.ChatQueueActionsHost {
+        const { options, states } = this;
+        return { options, states, enqueue: (id, deliver) => this.enqueue(id, deliver) };
+    }
+
     private enqueue(terminalId: string, deliver: ChatStateDelivery): Promise<void> {
         requireChatTerminal(this.options.database, terminalId);
         return this.enqueueOn(terminalId, this.states.open(terminalId), deliver);
@@ -440,29 +446,23 @@ export class AgentChatService {
         await state.session.stopTask(task.id);
     }
 
+    /**
+     * The queue card's actions; see `chat-queue-actions.ts`.
+     */
     removeQueued(terminalId: string, id: string): void {
-        requireChatTerminal(this.options.database, terminalId);
-        const state = this.states.get(terminalId);
-        if (!state) throw new CaxriError('CONFLICT', 'This message is no longer queued');
-        state.followUps.remove(id, 'removed');
+        queueActions.removeQueued(this.queueHost(), terminalId, id);
     }
 
-    /**
-     * Sends one queued message ahead of the rest: it steers the running turn, or starts a turn when the Chat is idle.
-     */
-    async sendQueuedNow(terminalId: string, id: string): Promise<void> {
-        await this.enqueue(terminalId, async (session, state) => {
-            const entry = state.followUps.entry(id);
-            const isSteering = Boolean(state.projection.snapshot.activeTurnId);
-            if (isSteering && entry.kind === 'command')
-                throw new CaxriError('CONFLICT', 'A command cannot join a running turn');
-            await state.followUps.sendNow(session, id, isSteering ? 'steered' : 'queued');
-        });
+    takeQueued(terminalId: string, id: string): { text: string } {
+        return queueActions.takeQueued(this.queueHost(), terminalId, id);
+    }
+
+    sendQueuedNow(terminalId: string, id: string): Promise<void> {
+        return queueActions.sendQueuedNow(this.queueHost(), terminalId, id);
     }
 
     resumeQueue(terminalId: string): void {
-        requireChatTerminal(this.options.database, terminalId);
-        this.states.get(terminalId)?.followUps.resume();
+        queueActions.resumeQueue(this.queueHost(), terminalId);
     }
 
     respond(terminalId: string, requestId: string, response: AgentChatResponse): void {

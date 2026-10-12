@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     Platform,
     Pressable,
@@ -12,7 +13,14 @@ import {
 } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
-import { CornerDownLeft, Image as ImageIcon, Pause, Play, Trash2 } from 'lucide-react-native';
+import {
+    CornerDownLeft,
+    Image as ImageIcon,
+    Pause,
+    Pencil,
+    Play,
+    Trash2,
+} from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
@@ -80,19 +88,26 @@ const QueueHeader = ({
 );
 
 /**
- * One queued follow-up: up to two lines of preview, its command and image count, then Steer (or Send now) and Delete.
- * Swiping the row left deletes it too, like dismissing a message in a chat list; the Delete button stays for readers
- * who do not swipe and for the screen reader.
+ * Desktop's reason a message with images has no Edit, shown when the disabled button is tapped.
+ */
+const IMAGES_UNSUPPORTED = 'Messages with images cannot be edited';
+
+/**
+ * One queued follow-up: up to two lines of preview, its command and image count, then Steer (or Send now), Edit, and
+ * Delete. Swiping the row left deletes it too, like dismissing a message in a chat list; the Delete button stays for
+ * readers who do not swipe and for the screen reader.
  */
 const QueueRow = ({
     canAct: canActOnQueue,
     entry,
+    onEdit,
     onRemove,
     onSendNow,
     theme,
 }: {
     canAct: boolean;
     entry: AgentChatQueueRow;
+    onEdit: (id: string) => Promise<boolean>;
     onRemove: (id: string) => Promise<boolean>;
     onSendNow: (id: string) => Promise<boolean>;
     theme: MobileTheme;
@@ -196,6 +211,35 @@ const QueueRow = ({
                             </Text>
                         </Pressable>
                         <IconButton
+                            accessibilityHint={
+                                isPending
+                                    ? 'Available once the message is queued.'
+                                    : entry.canEdit
+                                      ? undefined
+                                      : IMAGES_UNSUPPORTED
+                            }
+                            accessibilityLabel="Edit queued message"
+                            color={theme.muted}
+                            disabled={isPending || !entry.canEdit}
+                            icon={Pencil}
+                            onDisabledPress={
+                                isPending
+                                    ? undefined
+                                    : () =>
+                                          Alert.alert(
+                                              "This message can't be edited",
+                                              IMAGES_UNSUPPORTED,
+                                          )
+                            }
+                            onPress={() => {
+                                // eslint-disable-next-line no-void -- The queue card reports a failed edit itself.
+                                void onEdit(entry.id);
+                            }}
+                            size={18}
+                            testID="agent-chat-queue-edit"
+                            theme={theme}
+                        />
+                        <IconButton
                             accessibilityLabel="Delete queued message"
                             color={theme.muted}
                             disabled={isPending}
@@ -214,13 +258,14 @@ const QueueRow = ({
 
 /**
  * The follow-up messages waiting for the running turn, as one card docked above the composer, like Desktop's queue.
- * Each can be deleted or sent now (steering the running turn); after Stop the queue pauses, and the header offers
- * Resume. Editing stays on the computer, since the phone holds only a preview. A device that cannot send sees the card
- * without actions.
+ * Each can be sent now (steering the running turn), edited, or deleted; after Stop the queue pauses, and the header
+ * offers Resume. Edit takes the message out of the queue and hands its full text to `onEdit`, the composer draft. A
+ * device that cannot send sees the card without actions.
  */
 export const AgentChatQueueList = ({
     canAct,
     chat,
+    onEdit,
     theme,
 }: {
     /**
@@ -228,21 +273,23 @@ export const AgentChatQueueList = ({
      */
     canAct: boolean;
     chat: AgentChatController;
+    onEdit: (text: string) => void;
     theme: MobileTheme;
 }) => {
-    const { entries, error, header, isResuming, remove, resume, sendNow } =
-        useAgentChatQueueActions(chat);
+    const { edit, entries, error, header, isResuming, remove, resume, sendNow } =
+        useAgentChatQueueActions(chat, onEdit);
     const renderRow = useCallback(
         ({ item }: ListRenderItemInfo<AgentChatQueueRow>) => (
             <QueueRow
                 canAct={canAct}
                 entry={item}
+                onEdit={edit}
                 onRemove={remove}
                 onSendNow={sendNow}
                 theme={theme}
             />
         ),
-        [canAct, remove, sendNow, theme],
+        [canAct, edit, remove, sendNow, theme],
     );
     // An entry that failed to delete because it already left the queue leaves nothing to explain the error against.
     if (!header) return null;

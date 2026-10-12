@@ -20,13 +20,12 @@ describe('agentChatQueueEntries', () => {
             preview: 'Then run the tests',
             sendNowLabel: 'Steer',
             canEdit: true,
-            editText: 'Then run the tests',
         });
         expect(withImages).toMatchObject({ imageLabel: '2 images', canEdit: false });
         expect(command).toMatchObject({
             commandLabel: '/compact',
             canSendNow: false,
-            editText: '/compact keep the plan',
+            canEdit: true,
         });
         expect(agentChatQueueEntries(undefined, false)).toEqual([]);
     });

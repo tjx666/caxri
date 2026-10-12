@@ -80,7 +80,7 @@ function domainFixture(options: {
 const invoke = (
     request: MobileAgentChatRequest,
     domain: ReturnType<typeof domainFixture>,
-    forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null),
+    forward: (operation: unknown) => Promise<unknown> = vi.fn(async () => null),
 ) => invokeMobileAgentChatRequest(request, principal, domain.domainService, forward, () => {});
 
 describe('mobile Agent Chat requests', () => {
@@ -409,6 +409,10 @@ describe('mobile Agent Chat requests', () => {
                 params: { terminalId: 'terminal-1', id: 'queued-1' },
             },
             { method: 'mobile.agentChat.resumeQueue', params: { terminalId: 'terminal-1' } },
+            {
+                method: 'mobile.agentChat.takeQueued',
+                params: { terminalId: 'terminal-1', id: 'queued-1' },
+            },
         ];
         await Promise.all(
             requests.flatMap((request) => [
@@ -420,6 +424,59 @@ describe('mobile Agent Chat requests', () => {
                 }),
             ]),
         );
+        expect(forward).not.toHaveBeenCalled();
+    });
+
+    it('takes a queued message back with its full text, checking it fits a phone send first', async () => {
+        const long = 'x'.repeat(500);
+        const snapshot: AgentChatSnapshot = {
+            ...chatSnapshot('ready'),
+            queue: [
+                { id: 'queued-long', text: long },
+                { id: 'queued-huge', text: 'y'.repeat(20_000) },
+            ],
+        };
+        const forward = vi.fn<(operation: unknown) => Promise<unknown>>(async () => ({
+            text: long,
+        }));
+        const domain = domainFixture({ surface: 'chat', snapshot });
+        await expect(
+            invoke(
+                {
+                    method: 'mobile.agentChat.takeQueued',
+                    params: { terminalId: 'terminal-1', id: 'queued-long' },
+                },
+                domain,
+                forward,
+            ),
+        ).resolves.toEqual({ text: long });
+        expect(forward).toHaveBeenCalledWith({
+            method: 'agentChat.takeQueued',
+            params: { terminalId: 'terminal-1', id: 'queued-long' },
+        });
+
+        forward.mockClear();
+        await expect(
+            invoke(
+                {
+                    method: 'mobile.agentChat.takeQueued',
+                    params: { terminalId: 'terminal-1', id: 'queued-huge' },
+                },
+                domain,
+                forward,
+            ),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        await expect(
+            invoke(
+                {
+                    method: 'mobile.agentChat.takeQueued',
+                    params: { terminalId: 'terminal-1', id: 'queued-gone' },
+                },
+                domain,
+                forward,
+            ),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        // Both stay queued: nothing reaches Core's take.
         expect(forward).not.toHaveBeenCalled();
     });
 
@@ -479,6 +536,7 @@ describe('mobile Agent Chat requests', () => {
             'mobile.agentChat.removeQueued',
             'mobile.agentChat.sendQueuedNow',
             'mobile.agentChat.resumeQueue',
+            'mobile.agentChat.takeQueued',
         ]) {
             expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(false);
             expect(isMobileGatewayMethodAllowedForRole('reply', method)).toBe(true);
