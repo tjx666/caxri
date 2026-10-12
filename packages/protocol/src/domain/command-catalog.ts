@@ -442,7 +442,6 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'View',
         description: 'Browse the selected Project and open a file',
         nativeMenu: { menu: 'view', group: 1, order: 0 },
-        when: 'localMachine',
     },
     {
         id: 'commandPalette.open',
