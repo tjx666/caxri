@@ -315,10 +315,6 @@ export class ChatProjection {
     }
 
     /**
-     * Drops pending patches so none reaches Clients after a replacement chain began. Returns the revision the next
-     * projection of this Chat starts from.
-     */
-    /**
      * Takes over what a restart replaced: the provider rebuilds history into this new projection, and Server Core's own
      * `answered` notices exist only in the replaced one.
      */
@@ -326,6 +322,10 @@ export class ChatProjection {
         this.replacedItems = previous.snapshot.items;
     }
 
+    /**
+     * Drops pending patches so none reaches Clients after a replacement chain began. Returns the revision the next
+     * projection of this Chat starts from.
+     */
     retire(): number {
         if (this.flushTimer) clearTimeout(this.flushTimer);
         this.flushTimer = undefined;
