@@ -105,6 +105,7 @@ function CommanderInboxList({
             ) : (
                 <div
                     className="commander-inbox min-h-0 flex-1 overflow-auto px-2 pb-2"
+                    data-keeps-keyboard-focus="true"
                     ref={listReference}
                 >
                     {sections.map((section) => (
