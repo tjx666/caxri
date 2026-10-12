@@ -175,6 +175,13 @@ export interface SourceControlProviderModel {
      * Short trailing status of the description row, such as unsynced commit counts (`↑2 ↓1`) or `detached`.
      */
     descriptionBadge?: string;
+    /**
+     * `id` of the entry in `actions` that clicking `descriptionBadge` runs, such as syncing the unsynced commits the
+     * badge counts. The provider names the action because only it knows which badge is actionable; the Renderer never
+     * matches a provider-specific command id. Omit it when the badge is status only (`detached`). The badge does
+     * nothing while the referenced action is disabled.
+     */
+    descriptionBadgeActionId?: string;
     descriptionAccessibilityLabel: string;
     descriptionTooltip: string;
     /**

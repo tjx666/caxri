@@ -370,7 +370,7 @@ const sourceControlExternalLinkSchema = z.object({
     label: z.string().min(1).max(1_024),
 });
 
-const sourceControlProviderModelSchema = z.object({
+const sourceControlProviderModelFieldsSchema = z.object({
     id: treeItemIdSchema,
     label: z.string().min(1).max(1_024),
     kindLabel: z.string().min(1).max(1_024).optional(),
@@ -397,6 +397,13 @@ const sourceControlProviderModelSchema = z.object({
      * Short trailing status of the description row, such as unsynced commit counts (`↑2 ↓1`) or `detached`.
      */
     descriptionBadge: z.string().min(1).max(64).optional(),
+    /**
+     * `id` of the entry in `actions` that clicking `descriptionBadge` runs, such as syncing the unsynced commits the
+     * badge counts. The provider names the action because only it knows which badge is actionable; the Renderer never
+     * matches a provider-specific command id. Omit it when the badge is status only (`detached`). The badge does
+     * nothing while the referenced action is disabled.
+     */
+    descriptionBadgeActionId: treeItemIdSchema.optional(),
     descriptionAccessibilityLabel: z.string().min(1).max(4_096),
     descriptionTooltip: z.string().min(1).max(4_096),
     /**
@@ -426,6 +433,18 @@ const sourceControlProviderModelSchema = z.object({
     groups: z.array(sourceControlGroupSchema).max(64),
     history: sourceControlHistoryDescriptorSchema.optional(),
 });
+
+const sourceControlProviderModelSchema = sourceControlProviderModelFieldsSchema.refine(
+    (provider) =>
+        provider.descriptionBadgeActionId === undefined ||
+        (provider.descriptionBadge !== undefined &&
+            provider.actions.some(({ id }) => id === provider.descriptionBadgeActionId)),
+    {
+        message:
+            'descriptionBadgeActionId must name one of the provider actions and needs a descriptionBadge',
+        path: ['descriptionBadgeActionId'],
+    },
+);
 
 const sourceControlModeSchema = z.object({
     id: treeItemIdSchema,

@@ -228,7 +228,10 @@ execute through revision-bound action capabilities. Renderer understands only ge
 snapshot/history/details/action operations and generic effects such as open-editor, toast, and
 refresh. A provider may also publish one `externalLink`, which the Renderer opens in the default
 browser on an Alt-activated row instead of routing through the action registry; there is no
-Extension Host work behind it. Resource identity remains stable and bounded independently from full Git paths.
+Extension Host work behind it. A provider whose branch row badge is actionable names the action it
+runs with `descriptionBadgeActionId`, the `id` of one of that provider's `actions`: the Git extension
+points its unsynced-commit badge (`↑2 ↓1`) at its Sync action, and the Renderer resolves the badge by
+that id rather than by matching a Git command id. Resource identity remains stable and bounded independently from full Git paths.
 Git also bounds path-derived labels, tooltips, accessibility text, and tree paths to the controlled
 surface contract. An encoded diff URI that exceeds the generic open-editor limit is omitted instead
 of invalidating the whole snapshot; destructive action arguments retain the full Server-authorized
