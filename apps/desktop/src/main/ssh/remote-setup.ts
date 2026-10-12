@@ -52,6 +52,19 @@ export function toFailure(error: unknown): { message: string; reason: RemoteFail
     return { message: errorMessage(error, 'Unknown error').slice(0, 2000), reason: 'unknown' };
 }
 
+/**
+ * The line that says why a remote Server failed to start: the last uncaught error header (`CaxriError: A Host already
+ * owns this profile`) rather than the `Node.js vX` line Node prints after the stack. Falls back to the last line for
+ * output that is not a Node crash.
+ */
+export function launchFailureDetail(text: string): string {
+    const header = text
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .findLast((line) => /^(?:[A-Z]\w*)?Error(?: \[\w+\])?: \S/u.test(line));
+    return header?.slice(0, 2000) ?? lastLine(text);
+}
+
 export function lastLine(text: string): string {
     return (
         text
