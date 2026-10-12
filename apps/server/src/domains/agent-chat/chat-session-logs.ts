@@ -5,12 +5,15 @@ import type { AgentChatServiceOptions } from './service-options';
 
 /**
  * The provider session callbacks that only write a log event for one Chat Terminal: finished turns, rejected protocol
- * traffic, and delivery checks after an unanswered request.
+ * traffic, delivery checks after an unanswered request, and a fork the provider could not release.
  */
 export function chatSessionLogCallbacks(
     { logger }: Pick<AgentChatServiceOptions, 'logger'>,
     terminalId: string,
-): Pick<AgentChatSessionHost, 'onDeliveryChecked' | 'onProtocolRejected' | 'onTurnFinished'> {
+): Pick<
+    AgentChatSessionHost,
+    'onDeliveryChecked' | 'onForkReleaseFailed' | 'onProtocolRejected' | 'onTurnFinished'
+> {
     return {
         onTurnFinished: (status, durationMs) =>
             logger.write('info', logEventCatalog.agentChat.turnFinished, {
@@ -26,5 +29,9 @@ export function chatSessionLogCallbacks(
                 logEventCatalog.agentChat.deliveryChecked,
                 { fields: { terminalId, method, outcome } },
             ),
+        onForkReleaseFailed: (reason) =>
+            logger.write('debug', logEventCatalog.agentChat.forkReleaseFailed, {
+                fields: { terminalId, reason },
+            }),
     };
 }

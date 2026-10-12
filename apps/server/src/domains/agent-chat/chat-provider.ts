@@ -180,6 +180,10 @@ export interface AgentChatSessionHost {
      * A turn request timed out and the session checked whether the provider recorded the input anyway.
      */
     onDeliveryChecked(method: string, outcome: 'delivered' | 'unknown'): void;
+    /**
+     * The provider forked the conversation but could not release the fork it also loaded. The fork itself succeeded.
+     */
+    onForkReleaseFailed(reason: ChatForkReleaseFailure): void;
     onExit(exit: AgentChatExit): void;
     /**
      * Bounded tail of the bound Agent Session's on-disk transcript, for a provider whose resume does not return history
@@ -216,6 +220,12 @@ export interface ChatFork {
     agentSessionId: string | undefined;
     skippedRecords?: number;
 }
+
+/**
+ * Why a provider could not release a fork it loaded (Codex `thread/unsubscribe`): it answered with an error, the
+ * request timed out, or the provider stopped before it answered.
+ */
+export type ChatForkReleaseFailure = 'rejected' | 'stopped' | 'timedOut';
 
 /**
  * Where "Fork from here" cuts: just before the user message that started `turnId`, so the fork holds the turns before

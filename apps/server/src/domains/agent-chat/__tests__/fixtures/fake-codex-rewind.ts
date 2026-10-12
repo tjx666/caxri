@@ -1,6 +1,7 @@
 /**
  * The fake Codex app-server's `thread/revert`, which "Edit from here" uses to drop the turns after an earlier message,
- * and `thread/fork`, which "Fork from here" uses to copy the turns before one into a new thread.
+ * `thread/fork`, which "Fork from here" uses to copy the turns before one into a new thread, and the
+ * `thread/unsubscribe` that releases the fork.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -63,4 +64,13 @@ export function forkThread(
         `${JSON.stringify({ threadId: thread.id, forkedId: forked.id, kept: index })}\n`,
     );
     return { result: { thread: { id: forked.id, turns: [] } } };
+}
+
+/**
+ * Answers `thread/unsubscribe`, or fails it when the test created `unsubscribe-fails` in the state directory.
+ */
+export function unsubscribeThread(stateDirectory: string): Json {
+    return fs.existsSync(path.join(stateDirectory, 'unsubscribe-fails'))
+        ? { error: { code: -32600, message: 'thread is not loaded' } }
+        : { result: { status: 'unsubscribed' } };
 }

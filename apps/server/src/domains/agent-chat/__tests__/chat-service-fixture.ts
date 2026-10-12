@@ -139,6 +139,13 @@ export async function fixture(
         await mkdir(stateDirectory, { recursive: true });
         await writeFile(join(stateDirectory, `${threadId}.writer-held`), '');
     };
+    /**
+     * Makes the fake Codex answer `thread/unsubscribe` with an error.
+     */
+    const failCodexUnsubscribe = async () => {
+        await mkdir(stateDirectory, { recursive: true });
+        await writeFile(join(stateDirectory, 'unsubscribe-fails'), '');
+    };
     const sessionOpens = async () =>
         (await readFile(join(grokStateDirectory, 'session-opens.jsonl'), 'utf8'))
             .trim()
@@ -182,6 +189,7 @@ export async function fixture(
         until,
         threadOpens,
         holdCodexThreadWriter,
+        failCodexUnsubscribe,
         sessionOpens,
     };
 }

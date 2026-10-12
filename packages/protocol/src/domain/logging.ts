@@ -78,10 +78,16 @@ export const logEventCatalog = {
         /**
          * One "Fork from here" with a closed `outcome` (`forked`, `refused`, `failed`), the error `code` when it did
          * not fork, the provider, the turns the fork keeps, `skippedRecords` (the malformed transcript lines a provider
-         * that reads its own record skipped, Claude Code only, else null), and the duration through creating the new
-         * Session. Never carries message text or paths.
+         * that reads its own record skipped, Claude Code only, else null), whether a failure left the provider's forked
+         * record `orphaned` (written, but no Session opens it), and the duration through creating the new Session.
+         * Never carries message text or paths.
          */
         forked: 'agent_chat.forked',
+        /**
+         * A fork succeeded but the provider could not release the forked conversation it also loaded (Codex
+         * `thread/unsubscribe`), with a closed `reason` (`rejected`, `timedOut`, `stopped`).
+         */
+        forkReleaseFailed: 'agent_chat.fork_release_failed',
         /**
          * One "Restore code to here" with a closed `outcome` (`restored`, `refused`, `failed`), a closed `reason` for a
          * refusal or capability failure (`capability`, `turnRunning`, `notTurnStart`, `unknownMessage`, else null), the
