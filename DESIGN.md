@@ -210,7 +210,9 @@ may use unitless `1.45` or `1.5` line height; compact uppercase headings may use
   different axis.
 - Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
   Settings fields/buttons, and 44px palette/path input.
-- Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. `rounded-full` is
+- Radius: 8px controls (buttons, selects, toggles, text fields), matching the Codex app's roughly
+  quarter-height rounding; a 24px compact field takes 6px so it does not read as a pill. 6px
+  cards/list selection, 8px dialogs and palette. `rounded-full` is
   reserved for intrinsically circular shapes: activity dots, the drag insertion line's leading
   cap, and the Switch track/thumb. The Agent Chat composer is the one other sanctioned exception,
   copying the Codex app's composer: its `+`, its Plan chip, its model picker pill, its 28px primary
