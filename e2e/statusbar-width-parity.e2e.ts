@@ -48,9 +48,12 @@ const NARROW_SLACK = 4;
 const PROJECT_NAME = 'width-project-with-a-deliberately-long-folder-name';
 const BRANCH_NAME = 'feat/width-with-a-deliberately-long-branch-name';
 
+/**
+ * A dropped chip stays mounted, invisible and off screen, so the bar can keep measuring it; dropped means hidden.
+ */
 async function expectChip(chip: Locator, isVisible: boolean): Promise<void> {
     if (isVisible) await expect(chip).toBeVisible();
-    else await expect(chip).toHaveCount(0);
+    else await expect(chip).toBeHidden();
 }
 
 test('Status Bar drops the lowest-priority chips as the window narrows', async () => {
@@ -215,9 +218,7 @@ exec /bin/zsh -l
             } else {
                 await expectChip(childProcesses, false);
             }
-            const shown = await Promise.all(
-                dropOrder.map(async (chip) => (await chip.count()) > 0),
-            );
+            const shown = await Promise.all(dropOrder.map(async (chip) => chip.isVisible()));
             for (const [index, isShown] of shown.entries())
                 if (isShown) expect(shown.slice(index + 1).every(Boolean)).toBe(true);
             // Never dropped: the Project, branch, and change counter have no other home in the bar.

@@ -156,69 +156,65 @@ function TerminalUsageStatus({
     const isHigh = isTerminalResourceUsageHigh(usage);
     return (
         <>
-            {showMemory && (
-                <PriorityChipSlot chip="memory">
-                    <StatusItem
-                        ariaLabel={t(
-                            isHigh
-                                ? 'statusBar.terminal.memoryHighAriaLabel'
-                                : 'statusBar.terminal.memoryAriaLabel',
-                            { memory: memoryLabel },
-                        )}
-                        className={cn(isHigh && 'text-danger')}
-                        icon={<MemoryStick />}
-                        title={
-                            <StructuredTooltip
-                                title={
-                                    isHigh
-                                        ? t('statusBar.terminal.highResourceUse', {
-                                              memory: memoryLabel,
-                                              cpu: cpuLabel,
-                                          })
-                                        : t('statusBar.terminal.memory', { memory: memoryLabel })
-                                }
-                                notes={[
-                                    t('statusBar.terminal.memoryNote', { cpu: cpuLabel }),
-                                    ...(isHigh
-                                        ? [
-                                              t('statusBar.terminal.memoryThreshold', {
-                                                  memory: formatMemoryMb(
-                                                      TERMINAL_RESOURCE_ALERT_THRESHOLDS.memoryMb,
-                                                  ),
-                                                  cpu: TERMINAL_RESOURCE_ALERT_THRESHOLDS.cpuPercent,
-                                              }),
-                                          ]
-                                        : []),
-                                ]}
-                                hint={t('statusBar.terminal.clickToOpenProcessExplorer')}
-                            />
-                        }
-                        onClick={openProcessExplorer}
-                    >
-                        {memoryLabel}
-                    </StatusItem>
-                </PriorityChipSlot>
-            )}
-            {showChildProcessCount && (
-                <PriorityChipSlot chip="childProcessCount">
-                    <StatusItem
-                        ariaLabel={t('statusBar.terminal.childProcessAriaLabel', {
-                            label: childLabel,
-                        })}
-                        icon={<Workflow />}
-                        title={
-                            <StructuredTooltip
-                                title={childLabel}
-                                notes={[t('statusBar.terminal.childProcessNote')]}
-                                hint={t('statusBar.terminal.clickToOpenProcessExplorer')}
-                            />
-                        }
-                        onClick={openProcessExplorer}
-                    >
-                        {usage.childProcessCount}
-                    </StatusItem>
-                </PriorityChipSlot>
-            )}
+            <PriorityChipSlot chip="memory" isHidden={!showMemory}>
+                <StatusItem
+                    ariaLabel={t(
+                        isHigh
+                            ? 'statusBar.terminal.memoryHighAriaLabel'
+                            : 'statusBar.terminal.memoryAriaLabel',
+                        { memory: memoryLabel },
+                    )}
+                    className={cn(isHigh && 'text-danger')}
+                    icon={<MemoryStick />}
+                    title={
+                        <StructuredTooltip
+                            title={
+                                isHigh
+                                    ? t('statusBar.terminal.highResourceUse', {
+                                          memory: memoryLabel,
+                                          cpu: cpuLabel,
+                                      })
+                                    : t('statusBar.terminal.memory', { memory: memoryLabel })
+                            }
+                            notes={[
+                                t('statusBar.terminal.memoryNote', { cpu: cpuLabel }),
+                                ...(isHigh
+                                    ? [
+                                          t('statusBar.terminal.memoryThreshold', {
+                                              memory: formatMemoryMb(
+                                                  TERMINAL_RESOURCE_ALERT_THRESHOLDS.memoryMb,
+                                              ),
+                                              cpu: TERMINAL_RESOURCE_ALERT_THRESHOLDS.cpuPercent,
+                                          }),
+                                      ]
+                                    : []),
+                            ]}
+                            hint={t('statusBar.terminal.clickToOpenProcessExplorer')}
+                        />
+                    }
+                    onClick={openProcessExplorer}
+                >
+                    {memoryLabel}
+                </StatusItem>
+            </PriorityChipSlot>
+            <PriorityChipSlot chip="childProcessCount" isHidden={!showChildProcessCount}>
+                <StatusItem
+                    ariaLabel={t('statusBar.terminal.childProcessAriaLabel', {
+                        label: childLabel,
+                    })}
+                    icon={<Workflow />}
+                    title={
+                        <StructuredTooltip
+                            title={childLabel}
+                            notes={[t('statusBar.terminal.childProcessNote')]}
+                            hint={t('statusBar.terminal.clickToOpenProcessExplorer')}
+                        />
+                    }
+                    onClick={openProcessExplorer}
+                >
+                    {usage.childProcessCount}
+                </StatusItem>
+            </PriorityChipSlot>
         </>
     );
 }
@@ -249,16 +245,12 @@ export function ActiveTerminalStatus({
         <>
             <TerminalRendererStatus terminalId={terminalId} />
             <TerminalProgressStatus terminalId={terminalId} />
-            {showAgentThroughput && (
-                <PriorityChipSlot chip="agentThroughput">
-                    <AgentThroughputStatus terminalId={terminalId} />
-                </PriorityChipSlot>
-            )}
-            {showAgentUsage && (
-                <PriorityChipSlot chip="agentUsage">
-                    <AgentUsageStatus terminalId={terminalId} />
-                </PriorityChipSlot>
-            )}
+            <PriorityChipSlot chip="agentThroughput" isHidden={!showAgentThroughput}>
+                <AgentThroughputStatus terminalId={terminalId} />
+            </PriorityChipSlot>
+            <PriorityChipSlot chip="agentUsage" isHidden={!showAgentUsage}>
+                <AgentUsageStatus terminalId={terminalId} />
+            </PriorityChipSlot>
             <TerminalUsageStatus
                 showChildProcessCount={showChildProcessCount}
                 showMemory={showMemory}
