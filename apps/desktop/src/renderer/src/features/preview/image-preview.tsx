@@ -22,6 +22,27 @@ function basename(path: string): string {
 }
 
 /**
+ * Reads one image and reports its settled state unless the read was abandoned meanwhile. Resolves to the object URL the
+ * read created (revoked by the caller when the read is replaced) and never rejects: a failure becomes the failed
+ * state.
+ */
+async function readImage(
+    sessionId: string,
+    path: string,
+    signal: AbortSignal,
+    report: (state: ImageState) => void,
+): Promise<string | undefined> {
+    try {
+        const objectUrl = await readAssetObjectUrl(sessionId, path, signal);
+        if (!signal.aborted) report({ status: 'ready', objectUrl });
+        return objectUrl;
+    } catch (error) {
+        if (!signal.aborted) report({ status: 'failed', error });
+        return undefined;
+    }
+}
+
+/**
  * Reads the image once per path, per retry, and per rewrite of the file on disk. A settled result is tagged with the
  * read it answers, so a new read shows as loading on the very render that requested it. The object URL belongs to the
  * read and is revoked when the next read replaces it or the view unmounts.
@@ -38,22 +59,13 @@ function useImageObjectUrl(
 
     useEffect(() => {
         const controller = new AbortController();
-        let objectUrl: string | undefined;
-        const read = async (): Promise<void> => {
-            try {
-                objectUrl = await readAssetObjectUrl(sessionId, path, controller.signal);
-                if (controller.signal.aborted) URL.revokeObjectURL(objectUrl);
-                else setResult({ key: requestKey, state: { status: 'ready', objectUrl } });
-            } catch (error) {
-                if (!controller.signal.aborted)
-                    setResult({ key: requestKey, state: { status: 'failed', error } });
-            }
-        };
-        // eslint-disable-next-line no-void -- every failure is caught above and becomes the failed state
-        void read();
+        const read = readImage(sessionId, path, controller.signal, (state) =>
+            setResult({ key: requestKey, state }),
+        );
         return () => {
             controller.abort();
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            // eslint-disable-next-line no-void -- the read never rejects; see readImage
+            void read.then((objectUrl) => objectUrl && URL.revokeObjectURL(objectUrl));
         };
     }, [path, requestKey, sessionId]);
 
