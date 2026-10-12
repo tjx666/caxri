@@ -86,6 +86,10 @@ export const terminalReferencePreviewSchema = z.discriminatedUnion('kind', [
         author: z.string().max(1_024),
         createdAt: z.number().int().nonnegative(),
         isDraft: z.boolean(),
+        /**
+         * A merged pull request; GitHub reports it as `closed` in `state`.
+         */
+        isMerged: z.boolean(),
         isPullRequest: z.boolean(),
         number: z.number().int().positive(),
         state: z.string().min(1).max(64),

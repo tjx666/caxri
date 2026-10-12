@@ -121,6 +121,7 @@ async function githubPreview(
                 author: reference.author,
                 createdAt: reference.createdAt,
                 isDraft: reference.isDraft,
+                isMerged: reference.isMerged,
                 isPullRequest: reference.isPullRequest,
                 number: reference.number,
                 state: reference.state,

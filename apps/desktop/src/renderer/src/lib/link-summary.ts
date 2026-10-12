@@ -1,3 +1,5 @@
+import type { TerminalReferencePreview } from '@caxri/protocol';
+
 /**
  * What a web link points at, read from its URL alone so a hover card has something to show before Main reads the page
  * (see `links.preview`). A GitHub link names its repository and the issue or pull request number, the way the Codex
@@ -16,6 +18,10 @@ export interface LinkSummary {
      * What a GitHub link opens, so its card can show the matching glyph.
      */
     kind?: 'pull' | 'issue' | 'discussion' | 'repository';
+    /**
+     * The issue or pull request a numbered GitHub link opens, so a transcript can ask for its state.
+     */
+    reference?: { owner: string; repo: string; number: number };
     /**
      * Whether the host's own favicon can load under the Renderer's `img-src https:` policy.
      */
@@ -40,7 +46,9 @@ export function isGitHubHost(host: string): boolean {
     return host === 'github.com' || host.endsWith('.github.com');
 }
 
-function githubSummary(segments: readonly string[]): Pick<LinkSummary, 'detail' | 'kind'> {
+function githubSummary(
+    segments: readonly string[],
+): Pick<LinkSummary, 'detail' | 'kind' | 'reference'> {
     const [owner, repo, section, number] = segments;
     if (!owner) return {};
     if (!repo) return { detail: owner };
@@ -49,7 +57,12 @@ function githubSummary(segments: readonly string[]): Pick<LinkSummary, 'detail' 
         section && Object.hasOwn(GITHUB_NUMBERED, section)
             ? GITHUB_NUMBERED[section as keyof typeof GITHUB_NUMBERED]
             : undefined;
-    if (kind && number && /^\d+$/u.test(number)) return { detail: `${name} · #${number}`, kind };
+    if (kind && number && /^\d+$/u.test(number))
+        return {
+            detail: `${name} · #${number}`,
+            kind,
+            ...(kind !== 'discussion' && { reference: { owner, repo, number: Number(number) } }),
+        };
     return { detail: name, kind: 'repository' };
 }
 
@@ -68,4 +81,17 @@ export function linkSummary(href: string): LinkSummary | undefined {
     const detail =
         segments.length > 0 || url.search ? safeDecode(`${url.pathname}${url.search}`) : undefined;
     return { host, ...(detail && { detail }), isSecure };
+}
+
+/**
+ * The lifecycle a pull request link's icon shows, read from the Server's reference preview. `undefined` while the state
+ * is unknown (still loading, not a pull request, or GitHub could not answer), so the icon falls back to a plain one.
+ */
+export function pullRequestLinkState(
+    preview: TerminalReferencePreview | undefined,
+): 'closed' | 'draft' | 'merged' | 'open' | undefined {
+    if (preview?.kind !== 'github' || !preview.isPullRequest) return undefined;
+    if (preview.isMerged) return 'merged';
+    if (preview.state === 'closed') return 'closed';
+    return preview.isDraft ? 'draft' : 'open';
 }
