@@ -7,6 +7,7 @@ import {
     usePinnedSessionRevealStore,
 } from '../../session/pinned-session-reveal';
 import { primarySidebarPinnedRowId } from '../primary-sidebar-tree';
+import { scrollPrimarySidebarRowIntoView } from '../scroll-primary-sidebar-row';
 
 /**
  * Answers a successful pin (`requestPinnedSessionReveal`): opens the Pinned group and its window down to the new row,
@@ -32,15 +33,7 @@ export function usePinnedSessionReveal({
         settlePinnedSessionReveal(`Pinned ${session.displayTitle}`);
         expandPinned();
         revealSession(session.id);
-        const rowId = primarySidebarPinnedRowId(session.id);
-        // Two frames: the expanded group and the widened window render first, then the row exists to scroll to.
-        requestAnimationFrame(() =>
-            requestAnimationFrame(() =>
-                document
-                    .querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`)
-                    ?.scrollIntoView({ block: 'nearest' }),
-            ),
-        );
+        scrollPrimarySidebarRowIntoView(primarySidebarPinnedRowId(session.id));
     }, [expandPinned, pinnedSessions, request, revealSession]);
     return announcement;
 }

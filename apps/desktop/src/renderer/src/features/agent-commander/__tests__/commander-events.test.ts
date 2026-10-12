@@ -168,6 +168,21 @@ describe('commanderEventEffect', () => {
         });
     });
 
+    it("mirrors this window's fullscreen state and ignores the Workbench window's", () => {
+        expect(
+            commanderEventEffect(
+                event('window.fullScreen', { window: 'agentCommander', isFullScreen: true }),
+                identity,
+            ).isFullScreen,
+        ).toBe(true);
+        expect(
+            commanderEventEffect(
+                event('window.fullScreen', { window: 'workbench', isFullScreen: true }),
+                identity,
+            ).isFullScreen,
+        ).toBeUndefined();
+    });
+
     it('ignores UI commands, which belong to the Workbench window', () => {
         const none = {
             board: false,

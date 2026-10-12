@@ -2,10 +2,11 @@ import type { ReactNode } from 'react';
 
 import { MessageSquareWarning, PanelLeft, Power } from 'lucide-react';
 
+import { CaxriLogo } from '../../components/caxri-logo';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
-import { useProjectById, useTerminal } from '../../stores/selectors';
+import { useIsFullScreen, useProjectById, useTerminal } from '../../stores/selectors';
 import { AgentSurfaceToggle } from '../terminal/agent-surface-toggle';
 import { canSwitchTerminalSurface } from '../terminal/terminal-surface-commands';
 import { setCommanderBoardVisible, useCommanderBoardUiStore } from './commander-board-store';
@@ -17,9 +18,10 @@ import { useCommanderInbox } from './hooks/use-commander-inbox';
 
 /**
  * The window's whole title bar, and its drag region. Its left padding clears the macOS `hiddenInset` traffic lights,
- * the same zoom-aware clearance the Workbench's collapsed header uses. The column toggles follow the layout from left
- * to right (Sessions, then Needs you), and the Workbench tab rail's `Terminal | Chat` switch sits beside Stop, so the
- * Commander opens as either surface with the same control and shortcut.
+ * the same zoom-aware clearance the Workbench's collapsed header uses; in fullscreen the traffic lights are gone, so
+ * the clearance gives way to the logo, as it does in the Workbench's sidebar header. The column toggles follow the
+ * layout from left to right (Sessions, then Needs you), and the Workbench tab rail's `Terminal | Chat` switch sits
+ * beside Stop, so the Commander opens as either surface with the same control and shortcut.
  */
 export function AgentCommanderHeader() {
     const workspacePath = useAgentCommanderStore((state) => state.workspacePath);
@@ -28,8 +30,15 @@ export function AgentCommanderHeader() {
     const projectTitle = useProjectById(projectId)?.displayTitle;
     const terminal = useTerminal(terminalId ?? '');
     const isBoardVisible = useCommanderBoardUiStore((state) => state.isVisible);
+    const isFullScreen = useIsFullScreen();
     return (
-        <header className="agent-commander-header flex h-11 flex-none items-center gap-2 bg-surface pr-3 pl-(--traffic-light-clearance) [-webkit-app-region:drag]">
+        <header
+            className={cn(
+                'agent-commander-header flex h-11 flex-none items-center gap-2 bg-surface pr-3 [-webkit-app-region:drag]',
+                isFullScreen ? 'pl-3' : 'pl-(--traffic-light-clearance)',
+            )}
+        >
+            {isFullScreen && <CaxriLogo />}
             <h1 className="m-0 flex-none text-[13px] font-medium">Agent Commander</h1>
             {workspacePath && (
                 /*

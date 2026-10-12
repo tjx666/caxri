@@ -69,6 +69,9 @@ credentials are already in the environment, and output is JSON.
   \`Fix login retry loop\`, never a generic label like "delegated task". Use one Session per task. Save the returned delegation ID and \`sessionId\`. You may delegate only
   into Sessions you created; \`--session <sessionId>\` targets one of them again, and \`commander session create
   --project <projectId>\` creates an empty one, which you rarely need.
+- \`commander session archive <sessionId>\` archives a Session you created, for example when the user asks to clean
+  up finished tasks. It stops that Session's Agent and the user can restore it from Archived Sessions; Sessions you
+  did not create are refused.
 - \`agent delegate presets --project <projectId> --session <sessionId>\` lists the delegation presets you may use in
   a Session you created.
 - \`agent delegate status <id>\` and \`agent delegate result <id>\` read one task. \`agent delegate wait <id> [<id>...]

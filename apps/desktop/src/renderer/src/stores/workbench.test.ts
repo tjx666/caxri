@@ -32,15 +32,11 @@ vi.mock(import('./notifications'), async (importOriginal) => ({
 
 import { toastActionHandlers } from '../commands/toast-actions';
 import { useNotificationStore } from './notifications';
+import { registerSessionCommandConvergence } from './session-command-convergence';
 import { useSessionViewStore } from './session-view';
 import { configureToastActions } from './toast-actions';
 import { dismissToast, getToasts } from './toasts';
-import {
-    refreshWorkbench,
-    registerSessionCommandConvergence,
-    subscribeWorkbenchEvents,
-    useWorkbenchStore,
-} from './workbench';
+import { refreshWorkbench, subscribeWorkbenchEvents, useWorkbenchStore } from './workbench';
 
 function eventHandlers() {
     return { onCommand: vi.fn(), onDesktopOpen: vi.fn(), onSettingsTarget: vi.fn() };
@@ -433,15 +429,19 @@ describe('workbench Runtime events', () => {
         },
     );
 
-    it('mirrors the native window fullscreen state', () => {
+    it('mirrors the Workbench window fullscreen state and ignores the Agent Commander window', () => {
         const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
         expect(useWorkbenchStore.getState().isFullScreen).toBe(false);
 
-        mocks.emit({ event: 'window.fullScreen', payload: { isFullScreen: true } });
-        expect(useWorkbenchStore.getState().isFullScreen).toBe(true);
-
-        mocks.emit({ event: 'window.fullScreen', payload: { isFullScreen: false } });
-        expect(useWorkbenchStore.getState().isFullScreen).toBe(false);
+        // The Agent Commander window's own state also reaches this Renderer and must not move the Workbench chrome.
+        for (const [window, isFullScreen, expected] of [
+            ['workbench', true, true],
+            ['agentCommander', false, true],
+            ['workbench', false, false],
+        ] as const) {
+            mocks.emit({ event: 'window.fullScreen', payload: { window, isFullScreen } });
+            expect(useWorkbenchStore.getState().isFullScreen).toBe(expected);
+        }
         unsubscribe();
     });
 

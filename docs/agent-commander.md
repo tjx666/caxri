@@ -39,6 +39,12 @@ bringing it forward, so the Commander zooms in place. Zoom is the one command a 
 dialog does not block (`allowBehindModal`), so an open dialog the user cannot see never swallows
 it. The Process Explorer follows the same app-wide zoom, the same way.
 
+The window reports its own macOS fullscreen state as `window.fullScreen` with
+`window: 'agentCommander'`; the Workbench publishes the same event as `window: 'workbench'`, and
+each Renderer applies only its own because both receive every durable event. In fullscreen the
+title bar drops the traffic-light clearance and shows the Caxri logo, like the Workbench sidebar
+header.
+
 Closing the window leaves the Commander running, so the user reopens it often. The controller
 records the window's bounds after each move and resize and on close, and reopens it there for the
 rest of the app run. That bounds/open state also survives an app restart: `app.auxiliaryWindowState`
@@ -590,6 +596,12 @@ Settings writes are never implied.
   top-level Project without changing the Workbench selection, and records the Session as a
   Commander Session. Once the Commander owns 1,000 existing Sessions it refuses with `CAPACITY`
   rather than disowning the oldest, which may still run a task; deleting Sessions frees room.
+- `commander.session.archive` requires `commander`. It archives one Commander Session through the
+  same `session.archive` path as the sidebar: its Terminals and Chats are parked, and the user can
+  restore it from Archived Sessions. Any other Session, including the user's own and the
+  Commander's hidden one, is refused with `NOT_FOUND`, because the Commander has no control
+  authority over Sessions it did not create. Archiving does not remove the Session from the
+  Commander's record, so a restored Session can receive delegations again.
 - `agent.delegation.create` and `agent.delegation.presets` skip Server Core's Project-scope check
   only for a `commander` Agent principal. The delegation domain then admits the request only when
   all of these hold:
@@ -607,8 +619,8 @@ Settings writes are never implied.
   working for every task it delegated earlier. Any other Agent's tasks stay fenced to the exact
   generation that created them.
 
-The human CLI owner also holds `commander`, so an operator can read the board or create a Commander
-Session from a shell.
+The human CLI owner also holds `commander`, so an operator can read the board or create or archive a
+Commander Session from a shell.
 
 ## CLI
 
@@ -620,6 +632,7 @@ caxri commander task list --all --json
 caxri agent delegate create --project <project-id> --new-session --title <title> --prompt-file task.md --provider codex --json
 caxri agent delegate create --project <project-id> --session <session-id> --prompt-file task.md --resume <delegation-id> --json
 caxri commander session create --project <project-id> --json
+caxri commander session archive <session-id> --json
 ```
 
 `--new-session` is the Commander's normal way to dispatch. It creates the Commander Session inside
@@ -637,7 +650,8 @@ without a task.
 
 Inside the Commander Terminal, the Commander calls the version-matched CLI through
 `node "$CAXRI_CLI_PATH"` using its Endpoint credentials. A human owner is asked to confirm
-`commander session create`; the Commander's own call needs no confirmation. See [CLI](cli.md) and
+`commander session create` and `commander session archive`; the Commander's own call needs no
+confirmation. See [CLI](cli.md) and
 [Agent delegation](agent-delegation.md).
 
 ## Known limits and follow-ups

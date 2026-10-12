@@ -50,6 +50,45 @@ test('manual Project collapse persists across an app relaunch', async () => {
     }
 });
 
+test('selecting a Session from outside the sidebar expands its manually collapsed Project', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-reveal-e2e-'));
+    const root = join(testDirectory, 'project');
+    await mkdir(root);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const firstSessionId = await createProjectSession(running.page);
+        const { projects } = await pageRequest<{ projects: Array<{ id: string }> }>(
+            running.page,
+            'app.bootstrap',
+        );
+        const { session: second } = await pageRequest<{ session: { id: string } }>(
+            running.page,
+            'session.create',
+            { projectId: projects[0].id, defaultAgent: null },
+        );
+        const heading = running.page.locator('.project-heading');
+        await heading.getByRole('button', { name: 'Collapse project' }).click();
+        await expect(heading.getByRole('button', { name: 'Expand project' })).toBeVisible();
+
+        // The Agent Commander board, a notification, and history navigation all select through the Server like this.
+        await pageRequest(running.page, 'session.select', { sessionId: firstSessionId });
+        await expect(heading.getByRole('button', { name: 'Collapse project' })).toBeVisible();
+        await expect(running.page.locator(`[data-row-id="${firstSessionId}"]`)).toBeVisible();
+
+        // Collapsing again around the same selection is the user's decision and holds until the selection changes.
+        await heading.getByRole('button', { name: 'Collapse project' }).click();
+        await expect(heading.getByRole('button', { name: 'Expand project' })).toBeVisible();
+        await pageRequest(running.page, 'session.select', { sessionId: second.id });
+        await expect(heading.getByRole('button', { name: 'Collapse project' })).toBeVisible();
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('auto-collapse protects active, running, unread, and manually expanded Projects', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-auto-collapse-e2e-'));
     const userData = join(testDirectory, 'user-data');

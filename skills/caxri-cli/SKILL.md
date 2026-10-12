@@ -167,6 +167,14 @@ caxri commander board --json
 caxri commander session create --project project-1 --json
 ```
 
+When the user asks to clean up finished work, archive a Session you created with
+`commander session archive`. It is reversible: the Session's Agent is parked and the user restores it
+from Archived Sessions. Sessions you did not create are refused:
+
+```bash
+caxri commander session archive session-1 --json
+```
+
 The Commander's task ledger is durable product state, not notes it has to remember to keep. Record
 a request when it is accepted, link the delegation that carries it, and close it when it settles; a
 delegation started without a task gets one recorded automatically:
