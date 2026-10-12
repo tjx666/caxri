@@ -42,6 +42,7 @@ export function AgentChatContextAlerts({
     return (
         <div
             className="flex h-8 min-w-0 items-center gap-3 border-0 border-b border-solid border-border px-3 text-[12px]"
+            data-agent-chat-composer-strip-row=""
             role="status"
         >
             {alerts.cache && (
