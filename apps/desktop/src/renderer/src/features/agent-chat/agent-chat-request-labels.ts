@@ -77,10 +77,10 @@ export function agentChatLocalizedApprovalChoices(
     }));
 }
 
-type AgentToolActionKind = Exclude<AgentToolKind, 'mcp' | 'other'>;
+type AgentToolActionKind = Exclude<AgentToolKind, 'browser' | 'computer' | 'mcp' | 'other'>;
 
 const isActionKind = (kind: AgentToolKind): kind is AgentToolActionKind =>
-    kind !== 'mcp' && kind !== 'other';
+    kind !== 'browser' && kind !== 'computer' && kind !== 'mcp' && kind !== 'other';
 
 function toolRequestTitle(request: { name: string; summary?: string }, t: Translate): string {
     const presentation = describeAgentTool(request);
