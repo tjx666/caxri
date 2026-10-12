@@ -124,7 +124,8 @@ function SiteFavicon({ className, origin }: { className: string; origin: string 
             className={cn(
                 className,
                 'rounded-xs',
-                favicon.isFetchedAfterMount && 'motion-safe:animate-in motion-safe:fade-in-0',
+                favicon.isFetchedAfterMount &&
+                    'motion-safe:animate-in motion-safe:fade-in-0 duration-(--motion-overlay-enter) ease-(--motion-ease-enter)',
             )}
             src={dataUrl}
         />

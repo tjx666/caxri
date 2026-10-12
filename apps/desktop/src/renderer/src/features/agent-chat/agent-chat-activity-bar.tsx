@@ -83,7 +83,7 @@ export function AgentChatActivityBar({
                          */
                         <button
                             className={cn(
-                                '-mr-1.5 shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-[11px] text-muted transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated hover:text-foreground',
+                                '-mr-1.5 shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-[11px] text-muted transition-colors hover:bg-elevated hover:text-foreground',
                                 !showsDeliveryHint && 'ml-auto',
                             )}
                             tabIndex={-1}

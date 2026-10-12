@@ -143,6 +143,7 @@
      * fallbacks, tests) resolves them via `motionDurationMs` in `lib/motion.ts`. Never
      * restate one of these values as a literal elsewhere.
      */
+    --motion-feedback: 120ms;
     --motion-expand: 180ms;
     --motion-collapse: 130ms;
     --motion-tab-enter: 140ms;
@@ -152,10 +153,30 @@
     --motion-overlay-exit: 100ms;
     --motion-compaction-pulse: 1800ms;
     --motion-activity-shimmer: 2200ms;
-    /* Decelerating "settle" curve for spatial reveals; standard ease-out/in elsewhere. */
+    /* Decelerating "settle" curve for spatial reveals (disclosures, the chrome tab indicator). */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
-    --motion-ease-enter: ease-out;
-    --motion-ease-exit: ease-in;
+    /*
+     * Enter and feedback curve (easeOutQuint). The keyword `ease-out` (0, 0, 0.58, 1) spends the
+     * first third of a 150ms run barely moving, which reads as input lag; this curve covers ~80% of
+     * the distance in the first third and spends the rest settling, so an element answers the
+     * pointer at once and still lands softly.
+     */
+    --motion-ease-enter: cubic-bezier(0.23, 1, 0.32, 1);
+    /* Exit curve (accelerate): leaves in place for a beat, then gets out of the way. */
+    --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/*
+ * Every bare Tailwind `transition-*` utility (hover color, hover-revealed row actions, focus ring,
+ * switch thumb) reads its timing from these two runtime variables, so state feedback shares
+ * `--motion-feedback` without each call site restating `duration-*`/`ease-*`. Overridden on
+ * `:root` rather than in `@theme`, because `theme.css` stays the only theme bootstrap; this
+ * unlayered rule beats Tailwind's theme-layer default. Workbench-only: Process Explorer does not
+ * load these tokens and keeps Tailwind's defaults.
+ */
+:root {
+    --default-transition-duration: var(--motion-feedback);
+    --default-transition-timing-function: var(--motion-ease-enter);
 }
 
 @keyframes compaction-pulse {
