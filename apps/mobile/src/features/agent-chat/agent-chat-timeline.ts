@@ -158,10 +158,12 @@ function finishedTurnEntries(
  * a run of items sharing a `turnId` is one turn. Only a finished turn (not running and not the active one) folds and
  * gets artifacts, so a running turn stays live and never claims a result it has not reached. `expandedTurnIds` names
  * the finished turns the user unfolded; the list owns it rather than a row, so a recycled row never carries another
- * turn's state.
+ * turn's state. When the window cut older items (`truncated`), the oldest turn may be missing its start, so it shows no
+ * artifacts rather than an incomplete summary.
  */
 export function buildAgentChatTimeline(
-    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>,
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'> &
+        Partial<Pick<AgentChatSnapshot, 'truncated'>>,
     expandedTurnIds: ReadonlySet<string> = new Set(),
 ): AgentChatTimelineEntry[] {
     const { activeTurnId, items, turns } = snapshot;
@@ -179,12 +181,13 @@ export function buildAgentChatTimeline(
         const segment = items.slice(start, end);
         const visible = segment.filter((item) => isAgentChatItemVisible(item));
         const turn = turnId === undefined ? undefined : finished.get(turnId);
+        const isComplete = start > 0 || snapshot.truncated !== true;
         entries.push(
             ...(turn
                 ? finishedTurnEntries(
                       visible,
                       turn,
-                      collectAgentChatTurnArtifacts(turn.id, segment),
+                      isComplete ? collectAgentChatTurnArtifacts(turn.id, segment) : undefined,
                       expandedTurnIds.has(turn.id),
                   )
                 : groupEntries(visible)),

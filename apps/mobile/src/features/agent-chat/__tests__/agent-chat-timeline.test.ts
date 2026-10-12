@@ -165,6 +165,27 @@ describe('buildAgentChatTimeline', () => {
         ).toEqual(['turn:t1', 'artifacts:t1']);
     });
 
+    it('shows no artifacts for the oldest turn when the window cut its start', () => {
+        const fileChange = (id: string, turnId: string): AgentChatItem => ({
+            id,
+            turnId,
+            type: 'fileChange',
+            status: 'completed',
+            changes: [{ path: 'a.ts', kind: 'update', diff: '@@ -1 +1 @@\n-a\n+b' }],
+        });
+        const timeline: Timeline = {
+            items: [fileChange('f1', 't1'), fileChange('f2', 't2')],
+            turns: [
+                { id: 't1', status: 'completed' },
+                { id: 't2', status: 'completed' },
+            ],
+        };
+        expect(ids(timeline)).toEqual(['turn:t1', 'artifacts:t1', 'turn:t2', 'artifacts:t2']);
+        expect(
+            buildAgentChatTimeline({ ...timeline, truncated: true }).map((entry) => entry.id),
+        ).toEqual(['turn:t1', 'turn:t2', 'artifacts:t2']);
+    });
+
     it('gives a running or active turn neither artifacts nor a footer', () => {
         const items: AgentChatItem[] = [
             {
