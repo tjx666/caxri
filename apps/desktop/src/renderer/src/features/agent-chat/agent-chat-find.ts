@@ -46,11 +46,12 @@ export function locateAgentChatFindMatch(
 }
 
 /**
- * `3/12`, `0/0` when nothing matches, and nothing before a query is typed.
+ * `3/12`, `No results` when nothing matches (the Terminal's find bar words it the same), and nothing before a query is
+ * typed.
  */
 export function agentChatFindCountLabel(query: string, count: number, activeIndex: number): string {
     if (!query) return '';
-    if (count === 0) return '0/0';
+    if (count === 0) return 'No results';
     return `${activeIndex + 1}/${count}`;
 }
 

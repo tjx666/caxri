@@ -48,10 +48,11 @@ export function useAgentChatUserMessageMenu({
     const edit = useAgentChatEdit();
     const [isForking, setIsForking] = useState(false);
     const fork = (): void => {
-        if (!edit || isForking) return;
+        const run = edit?.fork?.run;
+        if (!run || isForking) return;
         setIsForking(true);
         // eslint-disable-next-line no-void -- `forkAgentChat` reports its own failure through a toast
-        void edit.fork(id, text).finally(() => setIsForking(false));
+        void run(id, text).finally(() => setIsForking(false));
     };
     const onContextMenu = useContextMenu(() => {
         const selectedText = selectionInside(container.current);
@@ -59,7 +60,7 @@ export function useAgentChatUserMessageMenu({
             text,
             selectedText,
             edit: edit?.availability(id),
-            fork: edit?.forkAvailability(id),
+            fork: edit?.fork?.availability(id),
             restore: edit?.restore?.availability(id),
             isForking,
             onCopy: (value) => copyFromMenu(value, value !== text),

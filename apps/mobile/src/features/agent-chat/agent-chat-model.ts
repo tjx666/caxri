@@ -6,7 +6,7 @@ import type {
     AgentChatSnapshot,
     AgentTimelineItem,
 } from '@caxri/protocol';
-import { agentChatWaitingText, agentProviderCatalog } from '@caxri/protocol';
+import { agentChatWaitingText, agentProviderCatalog, sentenceStartProvider } from '@caxri/protocol';
 
 import { mobileAgentDisplayName } from '../sessions/agent-display-name';
 import type { MobileTerminal } from '../sessions/session-model';
@@ -46,55 +46,10 @@ export const canAttachAgentChatImages = (
 };
 
 /**
- * The provider name at the start of a sentence. Catalog names are already capitalized; only the providerless fallback
- * (`the Agent`) needs its first letter raised.
- */
-export const sentenceStartProvider = (provider: string): string =>
-    provider.charAt(0).toUpperCase() + provider.slice(1);
-
-/**
  * Why a Chat composer's attach button is disabled for a provider that takes no images in a Chat (Grok Build).
  */
 export const agentChatImagesUnsupportedReason = (provider: string): string =>
     `${sentenceStartProvider(provider)} can't read images in a Chat.`;
-
-/**
- * The same closed failure copy the Desktop Chat pane shows; provider text never selects the message. `canRetry` is
- * false on a view-only device, which has no Retry button, so the copy names the access it needs instead of asking it to
- * retry.
- */
-export const agentChatFailureMessage = (
-    reason: AgentChatFailureReason,
-    provider: string,
-    canRetry = true,
-): string => {
-    const subject = sentenceStartProvider(provider);
-    switch (reason) {
-        case 'executable_not_found': {
-            return `${subject} is not installed or is not on your computer's PATH. Install it on your computer.`;
-        }
-        case 'spawn_failed': {
-            return `${subject} could not be started on your computer.`;
-        }
-        case 'handshake_failed': {
-            return `${subject} started but did not respond.`;
-        }
-        case 'process_exited': {
-            return canRetry
-                ? `${subject} stopped unexpectedly. Retry to resume the conversation.`
-                : `${subject} stopped unexpectedly. Reply access is required to retry.`;
-        }
-        case 'resume_failed': {
-            return 'The previous conversation could not be resumed.';
-        }
-        case 'conversation_in_use': {
-            return `This conversation is open in another ${provider} app or window on your computer.`;
-        }
-        case 'unsupported_version': {
-            return `This ${provider} version does not support Chat. Update it on your computer.`;
-        }
-    }
-};
 
 /**
  * Whether Retry can fix a failure from the phone. A missing or outdated provider fails the same way again until someone
@@ -287,28 +242,6 @@ export const agentChatApprovalFiles = (
     if (request.kind !== 'fileChange' || !request.itemId) return [];
     const item = items.find((candidate) => candidate.id === request.itemId);
     return item?.type === 'fileChange' ? item.changes.map((change) => change.path) : [];
-};
-
-/**
- * Builds a question response. A typed answer replaces the chosen option for its question; an unanswered question is
- * omitted, and `isComplete` tells the card whether every question has an answer yet.
- */
-export const agentChatQuestionAnswers = (
-    request: Extract<AgentChatRequest, { kind: 'question' }>,
-    selected: Readonly<Record<string, string | undefined>>,
-    other: Readonly<Record<string, string | undefined>>,
-): { answers: Record<string, string[]>; isComplete: boolean } => {
-    const answers: Record<string, string[]> = {};
-    for (const question of request.questions) {
-        const typed = other[question.id]?.trim();
-        const chosen = selected[question.id];
-        if (typed) answers[question.id] = [typed];
-        else if (chosen) answers[question.id] = [chosen];
-    }
-    return {
-        answers,
-        isComplete: request.questions.every((question) => Object.hasOwn(answers, question.id)),
-    };
 };
 
 /**

@@ -42,8 +42,20 @@ replaced session's late reports are dropped. Shared pieces:
 | Claude Code | `claude-chat-session.ts` | Claude Agent SDK streaming input over the user's own `claude` CLI  |
 | Grok Build  | `grok-chat-session.ts`   | ACP (Agent Client Protocol) v1 over `grok agent --no-leader stdio` |
 
-Adding a provider means a driver, its item mapping, its launch-settings translation, and a fake
-CLI fixture; the service, reducer, and pane do not change.
+Adding a provider means:
+
+- a driver registered in `chat-drivers.ts`;
+- its item mapping;
+- its launch-settings translation;
+- its permission mapping and opening settings in `<provider>-permissions.ts` (the level table in
+  each direction, kept apart from the provider-neutral helpers in `chat-permissions.ts`), with the
+  levels it offers declared in `agentChatPermissionCapabilities`;
+- its catalog capability row in `packages/protocol/src/agent/agents.ts` (`chat`,
+  `chatRewindFiles`), which `chat-drivers.test.ts` checks against the driver: a session has
+  `restoreFiles` exactly when `chatRewindFiles` is true;
+- a fake CLI fixture.
+
+The service, reducer, and pane do not change.
 
 ## Surface and identity
 
@@ -465,6 +477,9 @@ draft first and then selects it, so the new composer mounts with the text.
 - The new Session's Chat Terminal is bound to the forked Agent Session before it starts, so its
   start is an ordinary resume. File checkpoints stay with the source: an edit in the fork can
   revert only files its own turns changed.
+- The new Chat keeps the source Chat's stored permission level and plan mode, so a fork of a Chat
+  narrowed to Ask for approval or Read only, or running in plan mode, never starts broader. A source that stored
+  no choice leaves the fork on the Project default, like any new Chat.
 
 | Provider    | Fork                                                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -474,8 +489,11 @@ draft first and then selects it, so the new composer mounts with the text.
 
 The Agent SDK resolves Claude's settings folder from Server Core's environment, once per process,
 while each Chat runs Claude Code with its own environment, so `forkClaudeSession` hands
-`forkSession` a session store over that Chat's `CLAUDE_CONFIG_DIR` transcripts. Mobile does not
-offer the action.
+`forkSession` a session store over that Chat's `CLAUDE_CONFIG_DIR` transcripts. Like the SDK's own
+loader, the store skips a transcript line that is not valid JSON (a truncated trailing line, a
+corrupt record) and counts it for `agent_chat.forked`. The SDK needs the whole session, so a
+transcript above 256 MiB is refused with `CAPACITY` before it is read. Mobile does not offer the
+action.
 
 ## Approvals and questions
 
@@ -921,10 +939,14 @@ mid-Chat differs per provider:
 Chat's level and plan mode for that provider on its Project; once the Chat matches the saved
 default the row reads "Project default" and stays checked. While the level is Custom it stays
 visible but disabled with `Choose a level to save it as the default`, since a default must name a
-level. The default is stored (`projects.chat_defaults`, `project.setChatDefault`). A new Chat copies it at
-creation, and so does a Terminal switched to Chat for the first time; a Chat that already has a
+level. The Agent Commander window omits the row (`AgentChatHostCapabilities`). The default is stored
+(`projects.chat_defaults`, `project.setChatDefault`). A new Chat copies it at creation, except a
+"Fork from here" Chat, which inherits its source Chat's stored choice and falls back to the default
+only when the source stored none. A Terminal switched to Chat for the first time copies the default
+too; a Chat that already has a
 choice keeps it, and changing the default never touches existing Chats. Without a default, a new
-Chat follows its provider's launch settings.
+Chat follows its provider's launch settings. The Agent Commander window omits the row: its Chat
+runs under the Commander policy, which refuses Project writes.
 
 ## Lifecycle signals
 
@@ -945,10 +967,15 @@ requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (st
 `terminal.surface_switched` (closed outcome, both surfaces, duration), `agent_chat.queue_changed`
 (closed reason and queue depth), `agent_chat.delivery_checked` (request method and closed outcome
 `delivered` or `unknown` after a turn request timed out), `agent_chat.task_finished` (task kind, final status,
-background flag, duration), and `agent_chat.rewound` (closed outcome `rewound`, `refused`, or
-`failed`, provider, whether files were reverted, turns removed, duration), and `agent_chat.forked`
-(closed outcome `forked`, `refused`, or `failed`, the error code when it did not fork, provider,
-turns kept, duration). None of them carries
+background flag, duration), `agent_chat.rewound` (closed outcome `rewound`, `refused`, `failed`,
+or `resendFailed` when the record was rewound but the restart or the edited message's send failed;
+closed reason `capability`, `turnRunning`, `notTurnStart`, or `unknownMessage`; the error code;
+provider, whether files were reverted, turns removed, duration through the restart and send),
+`agent_chat.files_restored` (closed outcome `restored`, `refused`, or `failed`, the same closed
+reason, the error code, provider, turns whose file changes were undone, duration), and
+`agent_chat.forked` (closed outcome `forked`, `refused`, or `failed`, the error code when it did not
+fork, provider, turns kept, malformed transcript lines skipped (Claude Code only), duration). A refusal names its reason; a driver that lacks file restore
+although its catalog entry offers it logs `failed` with reason `capability`. None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
 ## Testing

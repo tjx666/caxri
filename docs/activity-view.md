@@ -19,9 +19,9 @@ for one column.
 
 Switch with the to-do list button in the side bar header, `Cmd+Alt+U`, or the Command Palette
 entry **View: Toggle Activity**. The icon pictures a queue of work rather than a notification: the
-Status Bar already ends in a bell holding app notifications, and an inbox is the Agent Inbox view's
-icon. The button carries the number of Sessions with Unread Attention, so the tally is legible
-while the tree is showing, which is exactly when the queue is unmounted.
+Status Bar already ends in a bell holding app notifications, and an inbox tray marks the Peer
+Inbox's held peer messages. The button carries the number of Sessions with Unread Attention, so the
+tally is legible while the tree is showing, which is exactly when the queue is unmounted.
 `Cmd+Shift+N` jumps to the next Session that needs you, revealing the queue on the way so the user
 can see what else is in line.
 

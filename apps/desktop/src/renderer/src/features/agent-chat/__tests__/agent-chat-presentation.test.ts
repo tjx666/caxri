@@ -1,5 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { emptyAgentChatSnapshot } from '@caxri/protocol';
+import { agentChatFailureMessage, emptyAgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { getTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
@@ -11,9 +11,7 @@ import {
     agentChatEmptyHint,
     agentChatEmptyMessage,
     agentChatEscapeAction,
-    agentChatFailureMessage,
     agentChatPlanProgress,
-    agentChatQuestionAnswers,
     agentChatRecoveryNotice,
     agentChatResumeFailureDetail,
     agentChatSendAction,
@@ -114,7 +112,10 @@ describe('agentChatRecoveryNotice', () => {
             ),
         ).toEqual({
             kind: 'failed',
-            message: agentChatFailureMessage('spawn_failed', 'Codex'),
+            message: agentChatFailureMessage('spawn_failed', {
+                providerName: 'Codex',
+                surface: 'desktop',
+            }),
             detail: 'EACCES',
             recovery: 'restart',
         });
@@ -268,17 +269,6 @@ describe('agentChatSubmitDelivery', () => {
     });
 });
 
-describe('agentChatQuestionAnswers', () => {
-    it('prefers typed Other text over a chosen option and omits unanswered questions', () => {
-        expect(
-            agentChatQuestionAnswers(
-                { q1: 'Yes', q2: 'No', q3: undefined },
-                { q2: '  Later  ', q4: ' '.repeat(3) },
-            ),
-        ).toEqual({ q1: ['Yes'], q2: ['Later'] });
-    });
-});
-
 describe('withOccurrenceKeys', () => {
     it('keys entries by content and numbers repeated values', () => {
         expect(
@@ -428,20 +418,15 @@ describe('agentChatRecoveryNotice for a conversation that could not be resumed',
         );
         expect(notice).toEqual({
             kind: 'failed',
-            message: agentChatFailureMessage('resume_failed', 'Claude'),
+            message: agentChatFailureMessage('resume_failed', {
+                providerName: 'Claude',
+                surface: 'desktop',
+            }),
             detail: agentChatResumeFailureDetail('Claude'),
             recovery: 'restart',
             canOpenAsTerminal: true,
         });
         expect(notice?.detail).not.toContain('could not be resumed');
-    });
-});
-
-describe('agentChatFailureMessage', () => {
-    it('names the Chat provider', () => {
-        expect(agentChatFailureMessage('process_exited', 'Claude')).toBe(
-            'Claude stopped unexpectedly. Retry to resume the conversation.',
-        );
     });
 });
 

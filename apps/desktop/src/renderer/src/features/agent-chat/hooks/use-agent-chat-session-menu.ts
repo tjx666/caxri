@@ -1,19 +1,21 @@
 import type { KeyboardEvent, RefObject } from 'react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
+import {
+    mentionAtCaret,
+    suggestionMenuKeyAction,
+    suggestionOptionId,
+} from '../../../lib/suggestion-options';
 import { useProjects, useSessions } from '../../../stores/selectors';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
 import { searchSessionReferences } from '../../session/session-reference';
 import { prepareSessionReference } from '../../session/session-reference-commands';
 import { draftWithInsertion } from '../agent-chat-drafts';
-import { agentChatMenuKeyAction } from '../agent-chat-slash-commands';
 import {
-    agentChatMentionAt,
     agentChatSessionEmptyText,
     agentChatSessionPreparingText,
     agentChatSessionSuggestion,
     agentChatSessionSuggestions,
-    agentChatSuggestionOptionId,
 } from '../agent-chat-suggestions';
 
 /**
@@ -49,7 +51,7 @@ export function useAgentChatSessionMenu({
     const [caret, setCaret] = useState(draft.length);
     const sessions = useSessions();
     const projects = useProjects();
-    const mention = agentChatMentionAt(draft, caret);
+    const mention = mentionAtCaret(draft, caret);
     const [dismissedDraft, setDismissedDraft] = useState<string>();
     /**
      * The title of the Session whose reference is being written, or `undefined` when none is.
@@ -72,7 +74,7 @@ export function useAgentChatSessionMenu({
         active.query === mention?.query ? Math.min(active.index, candidates.length - 1) : 0;
     const activeCandidate = isOpen ? candidates[activeIndex] : undefined;
     const activeOptionId = activeCandidate
-        ? agentChatSuggestionOptionId(listId, agentChatSessionSuggestion(activeCandidate).key)
+        ? suggestionOptionId(listId, agentChatSessionSuggestion(activeCandidate).key)
         : undefined;
     useEffect(() => {
         if (!activeOptionId) return;
@@ -150,7 +152,7 @@ export function useAgentChatSessionMenu({
                 return true;
             }
             if (!isOpen) return false;
-            const action = agentChatMenuKeyAction(event);
+            const action = suggestionMenuKeyAction(event);
             // With no row to choose, only Escape is the list's; Enter still sends the draft.
             if (!action || (action !== 'dismiss' && !activeCandidate)) return false;
             event.preventDefault();

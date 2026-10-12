@@ -1,48 +1,14 @@
 import type {
-    AgentChatFailureReason,
     AgentChatItem,
     AgentChatItemStatus,
     AgentChatPlan,
     AgentChatSnapshot,
     ProcessState,
 } from '@caxri/protocol';
-import { agentChatWaitingText } from '@caxri/protocol';
+import { agentChatFailureMessage, agentChatWaitingText } from '@caxri/protocol';
 
 import { projectRelativePath } from '../../lib/file-path';
 import { getTerminalExitPresentation } from '../terminal/terminal-exit-presentation';
-
-/**
- * User-facing copy for each closed failure reason. Provider text never selects the message; `detail` is shown beside it
- * only as supporting context. `providerName` is the provider catalog's display name.
- */
-export function agentChatFailureMessage(
-    reason: AgentChatFailureReason,
-    providerName: string,
-): string {
-    switch (reason) {
-        case 'executable_not_found': {
-            return `${providerName} is not installed or is not on your PATH. Install it, then retry.`;
-        }
-        case 'spawn_failed': {
-            return `${providerName} could not be started. Retry, or check that the ${providerName} CLI runs in a terminal.`;
-        }
-        case 'handshake_failed': {
-            return `${providerName} started but did not respond. Retry, or update the ${providerName} CLI.`;
-        }
-        case 'process_exited': {
-            return `${providerName} stopped unexpectedly. Retry to resume the conversation.`;
-        }
-        case 'resume_failed': {
-            return 'The previous conversation could not be resumed.';
-        }
-        case 'conversation_in_use': {
-            return `This conversation is open in another ${providerName} app or window.`;
-        }
-        case 'unsupported_version': {
-            return `This ${providerName} version does not support Chat. Update the ${providerName} CLI.`;
-        }
-    }
-}
 
 /**
  * Whether the composer accepts a message. A stopped Chat resumes its Agent Session on the next message, a starting one
@@ -62,7 +28,8 @@ export function canSendAgentChatMessage(
 /**
  * The placeholder an empty transcript shows, or `undefined` while it should stay blank (still loading or starting). A
  * detached Chat dropped its projection when it stopped, so after a remount it has nothing to show until the Session
- * resumes; saying so, as the phone does, keeps the blank transcript from reading as lost history.
+ * resumes; saying so keeps the blank transcript from reading as lost history. The phone words its own empty copy
+ * (`agentChatEmptyMessage` in the mobile Chat model) because it cannot resume the Session itself.
  */
 export function agentChatEmptyMessage(
     snapshot: Pick<AgentChatSnapshot, 'items' | 'status'> | undefined,
@@ -151,7 +118,10 @@ export function agentChatRecoveryNotice(
     if (snapshot.failure.reason === 'conversation_in_use')
         return {
             kind: 'inUse',
-            message: agentChatFailureMessage('conversation_in_use', providerName),
+            message: agentChatFailureMessage('conversation_in_use', {
+                providerName,
+                surface: 'desktop',
+            }),
             // The provider's own detail only restates the heading, so the body names the way out instead.
             detail: 'Close it there, then retry.',
             recovery,
@@ -159,14 +129,17 @@ export function agentChatRecoveryNotice(
     if (snapshot.failure.reason === 'resume_failed')
         return {
             kind: 'failed',
-            message: agentChatFailureMessage('resume_failed', providerName),
+            message: agentChatFailureMessage('resume_failed', { providerName, surface: 'desktop' }),
             detail: agentChatResumeFailureDetail(providerName),
             recovery,
             canOpenAsTerminal: true,
         };
     return {
         kind: 'failed',
-        message: agentChatFailureMessage(snapshot.failure.reason, providerName),
+        message: agentChatFailureMessage(snapshot.failure.reason, {
+            providerName,
+            surface: 'desktop',
+        }),
         ...(snapshot.failure.detail && { detail: snapshot.failure.detail }),
         recovery,
     };
@@ -498,25 +471,6 @@ export function agentChatCommandCwd(
     const relative = projectRelativePath(cwd, projectRoot);
     if (relative === '.') return undefined;
     return relative ?? cwd;
-}
-
-/**
- * Builds the `answers` response for a question request. A typed "Other" answer replaces the chosen option for that
- * question; a question left unanswered is omitted, and the provider decides how to treat it.
- */
-export function agentChatQuestionAnswers(
-    selected: Readonly<Record<string, string | undefined>>,
-    other: Readonly<Record<string, string | undefined>>,
-): Record<string, string[]> {
-    const answers: Record<string, string[]> = {};
-    const questionIds = new Set([...Object.keys(selected), ...Object.keys(other)]);
-    for (const id of questionIds) {
-        const typed = other[id]?.trim();
-        const chosen = selected[id];
-        if (typed) answers[id] = [typed];
-        else if (chosen) answers[id] = [chosen];
-    }
-    return answers;
 }
 
 /**

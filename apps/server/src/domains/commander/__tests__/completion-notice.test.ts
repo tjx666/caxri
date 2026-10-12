@@ -7,6 +7,7 @@ import {
     CommanderCompletionNotifier,
 } from '../completion-notice';
 import { formatCommanderResumePrompt } from '../notice-text';
+import { commanderRowReader } from './commander-rows-fake';
 import { pendingStore } from './pending-notices-fake';
 
 function receipt(overrides: Partial<AgentDelegationReceipt> = {}): AgentDelegationReceipt {
@@ -79,6 +80,23 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
     };
 }
 
+/**
+ * A Commander that owns `session-1` on `COMMANDER_TERMINAL_ID`, idle, over the given pending-notice store.
+ */
+function commanderDatabase(commanderPendingNotices: ReturnType<typeof pendingStore>) {
+    return {
+        agentCommanderRows: () => ({
+            terminalId: COMMANDER_TERMINAL_ID,
+            sessionIds: ['session-1'],
+            projectId: 'commander-project',
+            sessionId: 'commander-session',
+        }),
+        ...commanderRowReader(() => COMMANDER_TERMINAL_ID),
+        getSession: () => session(),
+        commanderPendingNotices,
+    };
+}
+
 function signal(overrides: Partial<AgentLifecycleSignal> & Pick<AgentLifecycleSignal, 'phase'>) {
     return {
         launchId: 'launch-1',
@@ -124,6 +142,7 @@ function fixture(): Fixture {
                           sessionId: 'commander-session',
                       }
                     : undefined,
+            ...commanderRowReader(() => state.rows.terminalId),
             getSession: () => state.session,
             commanderPendingNotices: state.notices,
         },
@@ -392,16 +411,7 @@ describe('CommanderCompletionNotifier', () => {
     it('logs a delivery-failed event, and never a delivered event, when the write is rejected', () => {
         const logger = { write: vi.fn() };
         const rejecting = new CommanderCompletionNotifier({
-            database: {
-                agentCommanderRows: () => ({
-                    terminalId: COMMANDER_TERMINAL_ID,
-                    sessionIds: ['session-1'],
-                    projectId: 'commander-project',
-                    sessionId: 'commander-session',
-                }),
-                getSession: () => session(),
-                commanderPendingNotices: pendingStore(),
-            },
+            database: commanderDatabase(pendingStore()),
             hasIdleProof: () => true,
             inputEpoch: () => 0,
             logger: logger as never,
@@ -426,16 +436,7 @@ describe('CommanderCompletionNotifier', () => {
         const logger = { write: vi.fn() };
         let epoch = 0;
         const notifier = new CommanderCompletionNotifier({
-            database: {
-                agentCommanderRows: () => ({
-                    terminalId: COMMANDER_TERMINAL_ID,
-                    sessionIds: ['session-1'],
-                    projectId: 'commander-project',
-                    sessionId: 'commander-session',
-                }),
-                getSession: () => session(),
-                commanderPendingNotices: pendingStore(),
-            },
+            database: commanderDatabase(pendingStore()),
             hasIdleProof: () => true,
             inputEpoch: () => epoch,
             logger: logger as never,
@@ -482,16 +483,7 @@ describe('CommanderCompletionNotifier', () => {
         expect(f.notices.list()).toHaveLength(2); // the delegation and the running turn's marker
 
         const restarted = new CommanderCompletionNotifier({
-            database: {
-                agentCommanderRows: () => ({
-                    terminalId: COMMANDER_TERMINAL_ID,
-                    sessionIds: ['session-1'],
-                    projectId: 'commander-project',
-                    sessionId: 'commander-session',
-                }),
-                getSession: () => session(),
-                commanderPendingNotices: f.notices,
-            },
+            database: commanderDatabase(f.notices),
             hasIdleProof: () => true,
             inputEpoch: () => 0,
             write: () => true,

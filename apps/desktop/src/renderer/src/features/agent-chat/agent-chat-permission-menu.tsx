@@ -38,12 +38,18 @@ const TRIGGER_CLASS_NAME =
  * notes it, and the trigger adds `from next turn` until that turn ends. Launch settings no level matches read as a
  * checked "Custom" row. "Use as Project default" saves the current choice for the Project's new Chats of this provider,
  * shows as a checked "Project default" once saved, and stays visible but disabled, with the reason, while the level is
- * Custom; see `docs/agent-chat.md`.
+ * Custom; see `docs/agent-chat.md`. The Agent Commander window omits it, because Main's Commander policy refuses
+ * Project writes.
  */
 export function AgentChatPermissionMenu({
+    canSaveProjectDefault,
     snapshot: reported,
     terminalId,
 }: {
+    /**
+     * Whether the host can save a Project default (`AgentChatHostCapabilities`).
+     */
+    canSaveProjectDefault: boolean;
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'permissionMode' | 'planMode'> | undefined;
     terminalId: string;
 }) {
@@ -88,7 +94,7 @@ export function AgentChatPermissionMenu({
                     }}
                     onPlanModeChange={(isOn) => configure({ planMode: isOn })}
                 />
-                {project && (
+                {canSaveProjectDefault && project && (
                     <>
                         <MenuSeparator />
                         <ProjectDefaultItem

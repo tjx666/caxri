@@ -14,11 +14,9 @@ import {
     agentChatComposerSubmission,
     agentChatDisabledReason,
     agentChatEmptyMessage,
-    agentChatFailureMessage,
     agentChatImageCounts,
     agentChatImagesUnsupportedReason,
     agentChatProviderName,
-    agentChatQuestionAnswers,
     agentChatRequestBlockedReason,
     agentChatTimelineItems,
     canAttachAgentChatImages,
@@ -26,7 +24,6 @@ import {
     isAgentChatHandedOff,
     isAgentChatStopping,
     isAgentChatTerminal,
-    sentenceStartProvider,
 } from '../agent-chat-model';
 
 const base: AgentChatSnapshot = {
@@ -197,30 +194,6 @@ describe('Agent Chat model', () => {
         ).toEqual(['src/a.ts']);
     });
 
-    it('prefers a typed answer and reports incomplete questions', () => {
-        const request: Extract<AgentChatRequest, { kind: 'question' }> = {
-            id: 'q',
-            kind: 'question',
-            questions: [
-                {
-                    id: 'a',
-                    header: 'Pick',
-                    question: 'Which?',
-                    options: [{ label: 'One', description: '' }],
-                    allowsOther: true,
-                },
-                { id: 'b', header: 'Reason', question: 'Why?', options: [], allowsOther: true },
-            ],
-        };
-        expect(agentChatQuestionAnswers(request, { a: 'One' }, {})).toEqual({
-            answers: { a: ['One'] },
-            isComplete: false,
-        });
-        expect(
-            agentChatQuestionAnswers(request, { a: 'One' }, { a: ' Two ', b: 'Because' }),
-        ).toEqual({ answers: { a: ['Two'], b: ['Because'] }, isComplete: true });
-    });
-
     it('explains why the composer is unavailable, leaving a failed Chat to its banner', () => {
         expect(
             agentChatComposerAvailability({
@@ -246,7 +219,6 @@ describe('Agent Chat model', () => {
                 snapshot: base,
             }),
         ).toEqual({ isEnabled: true });
-        expect(agentChatFailureMessage('executable_not_found', 'Codex')).toMatch(/Codex/u);
     });
 
     it('names the model, not sending, when the model cannot be changed', () => {
@@ -262,23 +234,12 @@ describe('Agent Chat model', () => {
         ).toBe('Reply access is required to change the model.');
     });
 
-    it('asks only a device that can retry to retry a stopped provider', () => {
-        expect(agentChatFailureMessage('process_exited', 'Claude')).toBe(
-            'Claude stopped unexpectedly. Retry to resume the conversation.',
-        );
-        expect(agentChatFailureMessage('process_exited', 'Claude', false)).toBe(
-            'Claude stopped unexpectedly. Reply access is required to retry.',
-        );
-    });
-
-    it('starts a sentence with a capital when the provider falls back to the Agent', () => {
-        expect(sentenceStartProvider('the Agent')).toBe('The Agent');
-        expect(sentenceStartProvider('Codex')).toBe('Codex');
+    it('starts the unsupported-images reason with a capital for the providerless fallback', () => {
         expect(agentChatImagesUnsupportedReason('Grok Build')).toBe(
             "Grok Build can't read images in a Chat.",
         );
-        expect(agentChatFailureMessage('spawn_failed', 'the Agent')).toBe(
-            'The Agent could not be started on your computer.',
+        expect(agentChatImagesUnsupportedReason('the Agent')).toBe(
+            "The Agent can't read images in a Chat.",
         );
     });
 
@@ -292,12 +253,6 @@ describe('Agent Chat model', () => {
             'resume_failed',
         ] as const)
             expect(isAgentChatFailureRetryable(reason)).toBe(true);
-        expect(agentChatFailureMessage('executable_not_found', 'Codex')).toMatch(
-            /Install it on your computer\./u,
-        );
-        expect(agentChatFailureMessage('unsupported_version', 'Codex')).toMatch(
-            /Update it on your computer\./u,
-        );
     });
 
     it('blocks answering a request without control access or a connection', () => {

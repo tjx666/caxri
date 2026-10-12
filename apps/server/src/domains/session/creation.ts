@@ -7,6 +7,21 @@ import type { DomainHandlers } from '../domain-services';
 import type { TerminalManager, TerminalSuspensionService } from '../terminal';
 import { terminalDirectoryIdentity } from '../terminal';
 
+/**
+ * A "Fork from here" Chat keeps the source Chat's stored permission level and plan mode in place of the Project default
+ * it was created with, so a fork of a narrowed Chat stays as narrow as its source. A source that stored no choice (no
+ * level and plan mode off, the same columns as none) leaves the fork on the current Project default.
+ */
+export function inheritChatPermission(
+    database: CaxriDatabase,
+    sourceTerminalId: string,
+    terminalId: string,
+): void {
+    const stored = database.getChatPermission(sourceTerminalId);
+    if (stored && (stored.permissionMode !== undefined || stored.planMode))
+        database.setChatPermission(terminalId, stored);
+}
+
 export function createSessionCreator(dependencies: {
     coordinator: Pick<AgentCoordinator, 'prepareTerminalStart' | 'probeTerminal'>;
     database: CaxriDatabase;
@@ -42,16 +57,17 @@ export function createSessionCreator(dependencies: {
         kind: TerminalKind,
         cwd: string,
         selection: 'select' | 'preserve',
-        agentSessionId: string | undefined,
+        fork: { agentSessionId: string | undefined; sourceTerminalId: string } | undefined,
     ): {
         session: ReturnType<CaxriDatabase['createSession']>['session'];
         terminal: TerminalRecord;
     } => {
         const { session } = database.createSession(projectId, null, undefined, { selection });
         const terminal = database.createTerminal(session.id, kind, cwd, 'chat');
+        if (fork) inheritChatPermission(database, fork.sourceTerminalId, terminal.id);
         // Bound before the start, which then resumes the forked record instead of opening a new conversation.
-        if (agentSessionId && kind !== 'shell')
-            database.rebindAgentSession(terminal.id, kind, agentSessionId);
+        if (kind !== 'shell' && fork?.agentSessionId)
+            database.rebindAgentSession(terminal.id, kind, fork.agentSessionId);
         startChat(terminal.id);
         return { session, terminal };
     };
@@ -62,9 +78,10 @@ export function createSessionCreator(dependencies: {
         signal?: AbortSignal,
         surface: TerminalSurface = 'pty',
         /**
-         * A "Fork from here" Chat: the source Chat's cwd (already authorized for it), and the forked Agent Session.
+         * A "Fork from here" Chat: the source Chat's cwd (already authorized for it), the forked Agent Session, and the
+         * source Chat Terminal whose stored permission level and plan mode the fork inherits.
          */
-        fork?: { cwd: string; agentSessionId: string | undefined },
+        fork?: { cwd: string; agentSessionId: string | undefined; sourceTerminalId: string },
     ) => {
         if (signal?.aborted) throw new CaxriError('CANCELLED', 'Session creation was canceled');
         const chatAgent = surface === 'chat' ? defaultAgent : null;
@@ -86,7 +103,7 @@ export function createSessionCreator(dependencies: {
          */
         if (signal?.aborted) throw new CaxriError('CANCELLED', 'Session creation was canceled');
         const created = chatAgent
-            ? createChatSession(projectId, chatAgent, cwd!, selection, fork?.agentSessionId)
+            ? createChatSession(projectId, chatAgent, cwd!, selection, fork)
             : database.createSession(projectId, defaultAgent, cwd, { selection });
         let launchError: { code: 'TERMINAL_START_FAILED'; message: string } | undefined;
         if (!chatAgent && created.terminal) {

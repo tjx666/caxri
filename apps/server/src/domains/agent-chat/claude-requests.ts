@@ -4,11 +4,11 @@ import type {
     PermissionResult,
     PermissionUpdate,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentChatRequest } from '@caxri/protocol';
+import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { answeredNotice, clip, questionAnswers } from './chat-items';
-import type { AgentChatResponse, AgentChatSessionHost } from './chat-provider';
+import type { AgentChatSessionHost } from './chat-provider';
 import { claudeQuestionAnswers, mapClaudeApproval, mapClaudeQuestion } from './claude-items';
 
 const DECLINED_MESSAGE = 'The user declined this action.';

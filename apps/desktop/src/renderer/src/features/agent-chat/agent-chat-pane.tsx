@@ -23,6 +23,8 @@ import { AgentChatComposer } from './agent-chat-composer';
 import { AgentChatDock } from './agent-chat-dock';
 import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatFindScope } from './agent-chat-find-scope';
+import type { AgentChatHost } from './agent-chat-host';
+import { agentChatHostCapabilities } from './agent-chat-host';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatMessageRail } from './agent-chat-message-rail';
 import { AgentChatDayBreak } from './agent-chat-message-time';
@@ -59,6 +61,7 @@ import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
  */
 export function AgentChatPane({
     ariaLabel,
+    host,
     isShown,
     providerName,
     supportsImages,
@@ -66,6 +69,10 @@ export function AgentChatPane({
     terminalId,
 }: {
     ariaLabel: string;
+    /**
+     * The window mounting the Chat; its `agentChatHostCapabilities` gate "Fork from here" and "Use as Project default".
+     */
+    host: AgentChatHost;
     /**
      * Whether the Chat is on screen in the active pane, so mounting it is the user activating it.
      */
@@ -89,10 +96,11 @@ export function AgentChatPane({
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
+    const { canFork, canSaveProjectDefault } = agentChatHostCapabilities(host);
     const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
         terminalId,
         snapshot,
-        { providerName, supportsRewindFiles },
+        { canFork, providerName, supportsRewindFiles },
     );
     const {
         scrollReference,
@@ -320,6 +328,7 @@ export function AgentChatPane({
                 activity={agentChatActivity(snapshot, providerName, {
                     hasConversation: Boolean(terminal?.agentSessionId),
                 })}
+                canSaveProjectDefault={canSaveProjectDefault}
                 sendBlock={agentChatSendBlock(snapshot, processState)}
                 commands={snapshot?.commands}
                 dropHandlersReference={composerDrop}

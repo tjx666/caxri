@@ -6,6 +6,7 @@ import { logEventCatalog } from '@caxri/system';
 import type { AgentLifecycleSignal } from '../agents';
 import { isStandaloneEscape } from '../agents';
 import type { CaxriDatabase } from '../db';
+import { agentCommanderIdentity } from '../db';
 import { isPtyTerminal } from '../pty-guard';
 import type { WatchHandle, WatchHub } from '../watch-hub';
 import type { TerminalExecutionPort } from './execution-port';
@@ -120,7 +121,7 @@ export class TerminalSuspensionService {
          * The Agent Commander's Session is never selected in the Workbench, so without this exemption it would always
          * look abandoned; its Terminal is supervised by its own window instead.
          */
-        const commanderSessionId = database.agentCommanderRows()?.sessionId;
+        const commanderSessionId = agentCommanderIdentity(database)?.sessionId;
         for (const terminalId of this.parked.keys())
             if (!database.getTerminal(terminalId)) this.parked.delete(terminalId);
         const decisions = decideTerminalSuspensions({
