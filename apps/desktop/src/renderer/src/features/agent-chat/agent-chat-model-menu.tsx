@@ -89,7 +89,7 @@ export function AgentChatModelMenu({
         >
             <PopoverTrigger
                 aria-label={ariaLabel}
-                className={`${LABEL_CLASS_NAME} h-7 shrink cursor-pointer rounded-full border-0 bg-transparent px-2.5 transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated`}
+                className={`${LABEL_CLASS_NAME} h-7 shrink cursor-pointer rounded-full border-0 bg-transparent px-2.5 transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated`}
             >
                 {isOpen && view === 'effort' ? (
                     <span className="truncate">{t('agentChat.model.chooseEffort')}</span>

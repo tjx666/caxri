@@ -87,7 +87,7 @@ export function WebLink({
                         {summary.host}
                     </span>
                     <button
-                        className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[12px] text-foreground transition-colors duration-150 hover:bg-surface focus-visible:outline focus-visible:outline-accent"
+                        className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[12px] text-foreground transition-colors hover:bg-surface focus-visible:outline focus-visible:outline-accent"
                         type="button"
                         onClick={() => onOpen(href)}
                     >
@@ -131,7 +131,7 @@ function PagePreview({ href, summary }: { href: string; summary: LinkSummary }) 
                 <img
                     alt=""
                     className={cn(
-                        'motion-safe:animate-in motion-safe:fade-in-0 block aspect-[1.91/1] w-full border-t border-border bg-background object-cover',
+                        'motion-safe:animate-in motion-safe:fade-in-0 block aspect-[1.91/1] w-full border-t border-border bg-background object-cover duration-(--motion-overlay-enter) ease-(--motion-ease-enter)',
                         imageState !== 'loaded' && 'hidden',
                     )}
                     src={imageUrl}

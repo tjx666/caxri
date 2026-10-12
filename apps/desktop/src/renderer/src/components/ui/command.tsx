@@ -26,7 +26,7 @@ export function CommandInput({
                 // Density and type size match the `palette` tier in `ui/input.tsx`
                 // (44px, 13px text); the bottom-hairline chrome instead of a full
                 // border box is specific to sitting flush at the top of the palette.
-                'h-11 w-full border-0 border-b border-border bg-background px-4 text-[13px] text-foreground transition-[border-color,box-shadow] duration-150 ease-out outline-none placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+                'h-11 w-full border-0 border-b border-border bg-background px-4 text-[13px] text-foreground transition-[border-color,box-shadow] outline-none placeholder:text-muted focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
                 className,
             )}
             {...properties}

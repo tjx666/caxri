@@ -75,7 +75,7 @@ function ScrollFade({ edge, fill }: { edge: 'end' | 'start'; fill: ScrollFadeFil
         <div
             aria-hidden="true"
             className={cn(
-                'pointer-events-none absolute inset-y-0 z-[4] w-6 to-transparent motion-safe:transition-opacity motion-safe:duration-150',
+                'pointer-events-none absolute inset-y-0 z-[4] w-6 to-transparent motion-safe:transition-opacity',
                 edge === 'start' ? 'left-0 bg-gradient-to-r' : 'right-0 bg-gradient-to-l',
                 SCROLL_FADE_FILL_CLASS_NAME[fill],
             )}
