@@ -37,8 +37,7 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.terminal.previousCommand': '将当前终端滚动到上一条命令的边界',
     'commands.description.terminal.nextCommand': '将当前终端滚动到下一条命令的边界',
     'commands.description.workbench.action.terminal.sendSequence': '将配置的文本直接发送到当前终端',
-    'commands.description.terminal.restart':
-        '重启当前 Shell，或重启当前 Agent 并恢复其对话（重启 Agent）',
+    'commands.description.terminal.restart': '重启当前 Shell，或重启当前 Agent 并恢复其对话',
     'commands.description.terminal.startNewAgentSession':
         '以新对话重启当前 Agent，而不是恢复当前对话',
     'commands.description.terminal.switchAgentSurface':
