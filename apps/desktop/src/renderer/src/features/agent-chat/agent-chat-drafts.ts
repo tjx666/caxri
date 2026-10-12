@@ -3,9 +3,11 @@ import { debounce } from 'es-toolkit';
 
 import { translate } from '../../i18n';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { useEnvironmentStore } from '../../stores/environment';
 import {
+    agentChatAttachmentDatabaseName,
     createAgentChatAttachmentPersistence,
-    indexedDatabaseAgentChatAttachmentBackend as indexedDatabaseAgentChatAttachmentBackend,
+    indexedDatabaseAgentChatAttachmentBackend,
 } from './agent-chat-attachment-persistence';
 import type { AgentChatEdit } from './agent-chat-edit';
 import { readAgentChatEdit, retainAgentChatEdits, writeAgentChatEdit } from './agent-chat-edit';
@@ -127,7 +129,9 @@ const attachmentPersistence =
     typeof indexedDB === 'undefined'
         ? undefined
         : createAgentChatAttachmentPersistence({
-              backend: indexedDatabaseAgentChatAttachmentBackend(),
+              backend: indexedDatabaseAgentChatAttachmentBackend(() =>
+                  agentChatAttachmentDatabaseName(useEnvironmentStore.getState().state),
+              ),
           });
 const attachmentHydration: { started: boolean } = { started: false };
 

@@ -1,4 +1,4 @@
-import type { AgentChatImageInput } from '@caxri/protocol';
+import type { AgentChatImageInput, EnvironmentState } from '@caxri/protocol';
 import { agentChatImageInputSchema } from '@caxri/protocol';
 
 /**
@@ -209,6 +209,21 @@ export function createAgentChatAttachmentPersistence({
 }
 
 const DATABASE_NAME = 'caxri-agent-chat';
+
+/**
+ * The IndexedDB database for one environment's Chats. Every Workbench window (local or SSH Host) loads the same
+ * `file://` origin and so shares IndexedDB, while each window retains only its own environment's Chat Terminals; one
+ * shared database would let a window delete every other environment's unsent images as unretained. An SSH Host window
+ * is keyed by its destination, which names one window since aliases of one account reuse it. A window whose environment
+ * is not known yet (the Agent Commander window never reads it, and only ever shows local Chats) uses the local
+ * database: Main answers the environment before the Server attaches, so a Workbench window knows it before any Chat
+ * composer exists.
+ */
+export function agentChatAttachmentDatabaseName(environment: EnvironmentState | undefined): string {
+    return environment?.kind === 'ssh'
+        ? `${DATABASE_NAME}:ssh:${environment.destination}`
+        : DATABASE_NAME;
+}
 const STORE_NAME = 'composer-attachments';
 
 function requestResult<Result>(request: IDBRequest<Result>): Promise<Result> {
@@ -219,14 +234,16 @@ function requestResult<Result>(request: IDBRequest<Result>): Promise<Result> {
 }
 
 /**
- * The Renderer's IndexedDB store, opened on first use so loading the module never touches storage. A write resolves
- * once its transaction committed.
+ * The Renderer's IndexedDB store, opened on first use so loading the module never touches storage; `databaseName` is
+ * read at that moment (see `agentChatAttachmentDatabaseName`). A write resolves once its transaction committed.
  */
-export function indexedDatabaseAgentChatAttachmentBackend(): AgentChatAttachmentBackend {
+export function indexedDatabaseAgentChatAttachmentBackend(
+    databaseName: () => string,
+): AgentChatAttachmentBackend {
     const opened: { database?: Promise<IDBDatabase> } = {};
     const objectStore = async (mode: IDBTransactionMode): Promise<IDBObjectStore> => {
         opened.database ??= (() => {
-            const request = indexedDB.open(DATABASE_NAME, 1);
+            const request = indexedDB.open(databaseName(), 1);
             request.addEventListener('upgradeneeded', () => {
                 request.result.createObjectStore(STORE_NAME, { keyPath: 'terminalId' });
             });

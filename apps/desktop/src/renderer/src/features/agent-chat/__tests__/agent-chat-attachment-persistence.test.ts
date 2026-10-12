@@ -7,6 +7,7 @@ import type {
 } from '../agent-chat-attachment-persistence';
 import {
     agentChatAttachmentCharacters,
+    agentChatAttachmentDatabaseName,
     agentChatAttachmentEvictions,
     createAgentChatAttachmentPersistence,
     parsePersistedAgentChatAttachments,
@@ -46,6 +47,23 @@ function clock() {
         return time;
     };
 }
+
+describe('agentChatAttachmentDatabaseName', () => {
+    it('gives each SSH Host its own database so windows never prune each other', () => {
+        const ssh = (destination: string) => ({
+            destination,
+            kind: 'ssh' as const,
+            needsUserAction: false,
+            phase: 'connected' as const,
+        });
+        const local = agentChatAttachmentDatabaseName({ kind: 'local' });
+        expect(agentChatAttachmentDatabaseName(undefined)).toBe(local);
+        expect(agentChatAttachmentDatabaseName(ssh('devbox'))).not.toBe(local);
+        expect(agentChatAttachmentDatabaseName(ssh('devbox'))).not.toBe(
+            agentChatAttachmentDatabaseName(ssh('buildbox')),
+        );
+    });
+});
 
 describe('parsePersistedAgentChatAttachments', () => {
     it('keeps valid attachments and drops malformed ones one by one', () => {
