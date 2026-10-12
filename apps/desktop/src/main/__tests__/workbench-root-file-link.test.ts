@@ -297,6 +297,29 @@ describe('openTerminalFileLink', () => {
         expect(request.mock.calls.map(([method]) => method)).toEqual(['terminal.fileLink.resolve']);
     });
 
+    it('refuses an external file in an SSH Host window with a reason instead of reading this Mac', async () => {
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'external',
+                    path: '/home/dev/outside/notes.ts',
+                    sourceSessionId: 'source-session',
+                    trusted: true,
+                });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ environment: 'ssh', getServer: server(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/outside/notes.ts',
+            }),
+        ).resolves.toEqual({ canceled: true, reason: 'outside_projects' });
+        expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
+        expect(request.mock.calls.map(([method]) => method)).toEqual(['terminal.fileLink.resolve']);
+    });
+
     it('opens a trusted external file without prompting', async () => {
         const externalRoot = await temporaryDirectory('caxri-external-');
         const externalFile = join(externalRoot, 'notes.ts');

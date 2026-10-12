@@ -52,6 +52,7 @@ export function workbenchRootHarness(dialog: ElectronDialogMock) {
     );
 
     function authority(options: {
+        environment?: 'local' | 'ssh';
         focusWindow?: () => Promise<void>;
         getServer?: DesktopServerConnection;
         grants?: ProjectRootGrants;
@@ -62,6 +63,7 @@ export function workbenchRootHarness(dialog: ElectronDialogMock) {
         return {
             grants,
             instance: createWorkbenchRootAuthority({
+                environment: options.environment,
                 focusWindow: options.focusWindow ?? (() => Promise.resolve()),
                 getServer: () => options.getServer ?? unusedServer,
                 getWindow: () => options.window as never,
