@@ -40,6 +40,25 @@ export function agentChatAnchoredScrollTop(
     return Math.max(scrollTop + currentOffset - anchoredOffset, 0);
 }
 
+/**
+ * How far below the view's top the latest user message rests once the view reaches the end.
+ */
+const AGENT_CHAT_TURN_TOP_GAP_PX = 16;
+
+/**
+ * The empty space kept below the latest turn so it can rest at the top of the view, as ChatGPT and the Codex app show a
+ * sent message: `turnHeight` runs from that turn's user message to the end of the content. A reply then grows into the
+ * space instead of pushing the message up from the bottom, and once it outgrows the view the space is gone and
+ * following the end takes over.
+ */
+export function agentChatTurnSpacerHeight(
+    viewHeight: number,
+    turnHeight: number,
+    topGap = AGENT_CHAT_TURN_TOP_GAP_PX,
+): number {
+    return Math.max(viewHeight - turnHeight - topGap, 0);
+}
+
 function offsetInView(view: HTMLElement, element: HTMLElement): number {
     return element.getBoundingClientRect().top - view.getBoundingClientRect().top;
 }
@@ -49,16 +68,25 @@ function offsetInView(view: HTMLElement, element: HTMLElement): number {
  * read history. `revision` changes with every streamed patch, so following is re-applied after each layout; a resize of
  * the content (an expanded tool row, a narrower pane re-wrapping text) moves the end without a new revision, so the
  * content is observed too. So is the scroll view itself: a dock below it growing shrinks the view without changing the
- * content, and the end must stay in sight. `isFollowing` drives the "Jump to latest" control shown while reading
- * history.
+ * content, and the end must stay in sight. With `turnSelector` (the Chat's user messages), the space below the latest
+ * turn keeps it at the top of the view at the end, so a sent message rises to the top and its reply fills in below it.
+ * `isFollowing` drives the "Jump to latest" control shown while reading history.
  *
  * Expanding or collapsing a row is the user reading, not the conversation moving: `anchor` stops following and keeps
  * the clicked row where it is while the disclosure animates, instead of pinning the end and sliding the row away.
  * Following resumes once a later revision finds the view at the end, or on Jump to latest.
  */
-export function useAgentChatScroll(revision: number | undefined): {
+export function useAgentChatScroll(
+    revision: number | undefined,
+    { turnSelector }: { turnSelector?: string } = {},
+): {
     scrollReference: RefObject<HTMLDivElement | null>;
     contentReference: RefObject<HTMLDivElement | null>;
+    /**
+     * An empty element after the content, sized by {@link agentChatTurnSpacerHeight} when `turnSelector` is given. It
+     * sits outside the observed content so resizing it never re-triggers a layout pass.
+     */
+    spacerReference: RefObject<HTMLDivElement | null>;
     isFollowing: boolean;
     onScroll: () => void;
     jumpToLatest: () => void;
@@ -74,6 +102,7 @@ export function useAgentChatScroll(revision: number | undefined): {
 } {
     const scrollReference = useRef<HTMLDivElement | null>(null);
     const contentReference = useRef<HTMLDivElement | null>(null);
+    const spacerReference = useRef<HTMLDivElement | null>(null);
     const isFollowingReference = useRef(true);
     const [isFollowing, setFollowing] = useState(true);
     const anchorReference = useRef<{ element: HTMLElement; offset: number; until: number }>(
@@ -82,6 +111,19 @@ export function useAgentChatScroll(revision: number | undefined): {
     const pin = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;
+        const content = contentReference.current;
+        const spacer = spacerReference.current;
+        if (turnSelector && content && spacer) {
+            const turns = content.querySelectorAll<HTMLElement>(turnSelector);
+            const turn = turns.item(turns.length - 1) as HTMLElement | null;
+            const height = turn
+                ? agentChatTurnSpacerHeight(
+                      element.clientHeight,
+                      content.getBoundingClientRect().bottom - turn.getBoundingClientRect().top,
+                  )
+                : 0;
+            spacer.style.height = `${height}px`;
+        }
         const anchored = anchorReference.current;
         if (anchored && (performance.now() > anchored.until || !anchored.element.isConnected))
             anchorReference.current = undefined;
@@ -95,7 +137,7 @@ export function useAgentChatScroll(revision: number | undefined): {
         }
         const top = agentChatFollowScrollTop(element, isFollowingReference.current);
         if (top !== null) element.scrollTop = top;
-    }, []);
+    }, [turnSelector]);
     const onScroll = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;
@@ -149,6 +191,7 @@ export function useAgentChatScroll(revision: number | undefined): {
     return {
         scrollReference,
         contentReference,
+        spacerReference,
         isFollowing,
         onScroll,
         jumpToLatest,

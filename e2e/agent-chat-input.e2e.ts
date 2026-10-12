@@ -198,7 +198,7 @@ test('a Codex Chat attaches picked files and saves a long paste to a file', asyn
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
         await expect(message).toBeVisible();
-        await expect(chat.getByRole('button', { name: 'Attach files' })).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Add files and more' })).toBeVisible();
 
         // The picker is the native open panel, so the spec hands its input the chosen files instead of driving it.
         await chat.locator('input[type="file"]').setInputFiles([...shots, notes]);

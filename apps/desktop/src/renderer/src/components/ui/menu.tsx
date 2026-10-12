@@ -79,7 +79,8 @@ export function MenuItem({ className, ...properties }: MenuPrimitive.Item.Props)
 
 /**
  * A menu row that toggles a preference in place. It keeps the menu open (Base UI's default for checkbox items) so the
- * user sees the rest of the menu update before choosing an item; the check sits where an item's icon would.
+ * user sees the rest of the menu update before choosing an item. The check trails the row, as macOS menus and the Codex
+ * app place it, so a row's leading icon and label stay where every other row's are.
  */
 export function MenuCheckboxItem({
     children,
@@ -95,12 +96,12 @@ export function MenuCheckboxItem({
             )}
             {...properties}
         >
-            <span className="flex size-3.5 shrink-0 items-center justify-center">
+            {children}
+            <span className="ml-auto flex size-3.5 shrink-0 items-center justify-center text-muted">
                 <MenuPrimitive.CheckboxItemIndicator>
                     <Check size={14} />
                 </MenuPrimitive.CheckboxItemIndicator>
             </span>
-            {children}
         </MenuPrimitive.CheckboxItem>
     );
 }
@@ -134,8 +135,8 @@ export function MenuRadioGroup(properties: MenuPrimitive.RadioGroup.Props) {
 }
 
 /**
- * One choice of a {@link MenuRadioGroup}, laid out like {@link MenuCheckboxItem} so a menu mixing both keeps one column
- * for its checks.
+ * One choice of a {@link MenuRadioGroup}, laid out like {@link MenuCheckboxItem} so a menu mixing both keeps one trailing
+ * column for its checks.
  */
 export function MenuRadioItem({
     children,
@@ -151,12 +152,12 @@ export function MenuRadioItem({
             )}
             {...properties}
         >
-            <span className="flex size-3.5 shrink-0 items-center justify-center">
+            {children}
+            <span className="ml-auto flex size-3.5 shrink-0 items-center justify-center text-muted">
                 <MenuPrimitive.RadioItemIndicator>
                     <Check size={14} />
                 </MenuPrimitive.RadioItemIndicator>
             </span>
-            {children}
         </MenuPrimitive.RadioItem>
     );
 }
