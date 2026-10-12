@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { UsageDay } from '@caxri/protocol';
 import { shiftLocalDate } from '@caxri/protocol';
@@ -206,6 +206,15 @@ export function UsageActivityCard({
     const [view, setView] = useState<ActivityView>('daily');
     const [metric, setMetric] = useState<UsageMetric>('tokens');
     const [hover, setHover] = useState<HoverTarget>();
+    const chartReference = useRef<HTMLDivElement>(null);
+    /**
+     * The chart runs oldest to newest, so a pane narrower than the year scrolls it to the newest weeks: the ones a user
+     * opens the page to see. Each view lays out anew, so switching views lands on the newest weeks again.
+     */
+    useLayoutEffect(() => {
+        const chart = chartReference.current;
+        if (chart) chart.scrollLeft = chart.scrollWidth;
+    }, [view]);
     const weeks = useMemo(
         () => buildHeatmap(t, activity, today, metric),
         [t, activity, today, metric],
@@ -276,6 +285,7 @@ export function UsageActivityCard({
                 </div>
             </div>
             <div
+                ref={chartReference}
                 className="mt-3 overflow-x-auto rounded-sm focus-visible:outline focus-visible:outline-accent"
                 role="img"
                 aria-label={chartLabel}
@@ -304,9 +314,10 @@ export function UsageActivityCard({
                     </div>
                 </div>
             </div>
-            <div className="mt-3 flex min-h-5 items-center justify-between gap-3 text-[11px] text-muted">
+            {/* Wraps so a narrow pane puts the legend under the summary instead of clipping the summary. */}
+            <div className="mt-3 flex min-h-5 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-muted">
                 {/* Not a live region: it changes on every pointer move, and the chart's own label carries the summary. */}
-                <span className="truncate">
+                <span className="min-w-0">
                     {hover ? (
                         <>
                             <span className="text-foreground">{hover.label}</span> · {hover.detail}

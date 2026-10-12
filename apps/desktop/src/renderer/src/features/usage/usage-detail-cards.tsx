@@ -19,6 +19,7 @@ import {
     usageCostDisplay,
     usageSessionCount,
 } from './usage-metrics';
+import { UsageModelName } from './usage-model-name';
 import { usageRowStatusLabel, usageShare, usageShareBasis } from './usage-presentation';
 import { UsageSessionTitle } from './usage-session-title';
 import {
@@ -70,50 +71,54 @@ function ModelsCard({ report }: { report: UsageReport }) {
             {report.models.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">{t('usage.models.empty')}</p>
             ) : (
-                <table className="w-full table-fixed border-collapse">
-                    <thead>
-                        <tr>
-                            <th className={tableHeadClass}>{t('usage.models.model')}</th>
-                            {MODEL_COLUMNS.map((label) => (
-                                <th key={label} className={cn(numericHeadClass, 'w-20')}>
-                                    {t(label)}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {report.models.slice(0, MODEL_ROWS).map((row) => (
-                            <tr key={`${row.provider}:${row.model}`}>
-                                <td className={cellClass}>
-                                    <span className="flex min-w-0 items-center gap-2">
-                                        <AgentIdentityIcon identity={row.provider} size={12} />
-                                        <span className="truncate font-mono text-[11px]">
-                                            {row.model}
-                                        </span>
-                                    </span>
-                                </td>
-                                <td className={numericCellClass}>
-                                    {formatTokens(row.tokens.input)}
-                                </td>
-                                <td className={numericCellClass}>
-                                    {formatTokens(row.tokens.output)}
-                                </td>
-                                <td className={numericCellClass}>
-                                    {formatTokens(row.tokens.cacheRead + row.tokens.cacheWrite)}
-                                </td>
-                                <td className={numericCellClass}>
-                                    {row.isPriced ? (
-                                        formatUsd(row.costUsd)
-                                    ) : (
-                                        <span className="text-muted">
-                                            {t('usage.cost.noPrice')}
-                                        </span>
-                                    )}
-                                </td>
+                /*
+                 * The model column keeps at least 10rem beside the four figures, so a narrow pane scrolls the table
+                 * sideways instead of clipping every model name to the same couple of characters.
+                 */
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[30rem] table-fixed border-collapse">
+                        <thead>
+                            <tr>
+                                <th className={tableHeadClass}>{t('usage.models.model')}</th>
+                                {MODEL_COLUMNS.map((label) => (
+                                    <th key={label} className={cn(numericHeadClass, 'w-20')}>
+                                        {t(label)}
+                                    </th>
+                                ))}
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {report.models.slice(0, MODEL_ROWS).map((row) => (
+                                <tr key={`${row.provider}:${row.model}`}>
+                                    <td className={cellClass}>
+                                        <span className="flex min-w-0 items-center gap-2">
+                                            <AgentIdentityIcon identity={row.provider} size={12} />
+                                            <UsageModelName model={row.model} />
+                                        </span>
+                                    </td>
+                                    <td className={numericCellClass}>
+                                        {formatTokens(row.tokens.input)}
+                                    </td>
+                                    <td className={numericCellClass}>
+                                        {formatTokens(row.tokens.output)}
+                                    </td>
+                                    <td className={numericCellClass}>
+                                        {formatTokens(row.tokens.cacheRead + row.tokens.cacheWrite)}
+                                    </td>
+                                    <td className={numericCellClass}>
+                                        {row.isPriced ? (
+                                            formatUsd(row.costUsd)
+                                        ) : (
+                                            <span className="text-muted">
+                                                {t('usage.cost.noPrice')}
+                                            </span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             )}
         </ReportCard>
     );
@@ -191,80 +196,95 @@ function SessionsCard({ report }: { report: UsageReport }) {
             {rows.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">{t('usage.sessions.empty')}</p>
             ) : (
-                <table className="w-full table-fixed border-collapse">
-                    <thead>
-                        <tr>
-                            <th className={tableHeadClass}>{t('usage.sessions.session')}</th>
-                            <th className={cn(tableHeadClass, 'w-40')}>
-                                {t('usage.sessions.project')}
-                            </th>
-                            <th className={cn(numericHeadClass, 'w-20')}>{t('usage.tokens')}</th>
-                            <th className={cn(numericHeadClass, 'w-24')}>
-                                {t('usage.agentTime.title')}
-                            </th>
-                            <th className={cn(numericHeadClass, 'w-20')}>
-                                {t('usage.cost.title')}
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {rows.map((row) => (
-                            <tr key={row.sessionId}>
-                                <td className={cellClass}>
-                                    <span className="flex min-w-0 items-center gap-2">
-                                        <span className="flex flex-none items-center gap-1">
-                                            {row.providers.map((provider) => (
-                                                <AgentIdentityIcon
-                                                    key={provider}
-                                                    identity={provider}
+                /*
+                 * Like the Models table: the title column keeps at least 10rem beside the fixed columns, and a narrow pane
+                 * scrolls the table sideways instead of folding the header and pushing the last column past the card.
+                 */
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[36rem] table-fixed border-collapse">
+                        <thead>
+                            <tr>
+                                <th className={tableHeadClass}>{t('usage.sessions.session')}</th>
+                                <th className={cn(tableHeadClass, 'w-40')}>
+                                    {t('usage.sessions.project')}
+                                </th>
+                                <th className={cn(numericHeadClass, 'w-20')}>
+                                    {t('usage.tokens')}
+                                </th>
+                                <th className={cn(numericHeadClass, 'w-24')}>
+                                    {t('usage.agentTime.title')}
+                                </th>
+                                <th className={cn(numericHeadClass, 'w-20')}>
+                                    {t('usage.cost.title')}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row) => (
+                                <tr key={row.sessionId}>
+                                    <td className={cellClass}>
+                                        <span className="flex min-w-0 items-center gap-2">
+                                            <span className="flex flex-none items-center gap-1">
+                                                {row.providers.map((provider) => (
+                                                    <AgentIdentityIcon
+                                                        key={provider}
+                                                        identity={provider}
+                                                        size={12}
+                                                    />
+                                                ))}
+                                            </span>
+                                            <UsageSessionTitle row={row} />
+                                            {/* The text twin of the muted title, as on the Projects card. */}
+                                            {usageRowStatusLabel(t, {
+                                                ...row,
+                                                kind: 'session',
+                                            }) && (
+                                                <span className="flex-none text-[11px] text-muted">
+                                                    {usageRowStatusLabel(t, {
+                                                        ...row,
+                                                        kind: 'session',
+                                                    })}
+                                                </span>
+                                            )}
+                                            {row.isArchived && (
+                                                <Archive
+                                                    aria-label={t('usage.sessions.archived')}
+                                                    className="flex-none text-muted"
                                                     size={12}
                                                 />
-                                            ))}
+                                            )}
+                                            {row.pullRequestsMerged > 0 && (
+                                                <span
+                                                    aria-label={countLabel(
+                                                        t,
+                                                        row.pullRequestsMerged,
+                                                        'mergedPullRequest',
+                                                    )}
+                                                    className="flex flex-none items-center gap-0.5 text-[11px] text-merged"
+                                                >
+                                                    <GitMerge aria-hidden="true" size={12} />
+                                                    {row.pullRequestsMerged}
+                                                </span>
+                                            )}
                                         </span>
-                                        <UsageSessionTitle row={row} />
-                                        {/* The text twin of the muted title, as on the Projects card. */}
-                                        {usageRowStatusLabel(t, { ...row, kind: 'session' }) && (
-                                            <span className="flex-none text-[11px] text-muted">
-                                                {usageRowStatusLabel(t, {
-                                                    ...row,
-                                                    kind: 'session',
-                                                })}
-                                            </span>
-                                        )}
-                                        {row.isArchived && (
-                                            <Archive
-                                                aria-label={t('usage.sessions.archived')}
-                                                className="flex-none text-muted"
-                                                size={12}
-                                            />
-                                        )}
-                                        {row.pullRequestsMerged > 0 && (
-                                            <span
-                                                aria-label={countLabel(
-                                                    t,
-                                                    row.pullRequestsMerged,
-                                                    'mergedPullRequest',
-                                                )}
-                                                className="flex flex-none items-center gap-0.5 text-[11px] text-merged"
-                                            >
-                                                <GitMerge aria-hidden="true" size={12} />
-                                                {row.pullRequestsMerged}
-                                            </span>
-                                        )}
-                                    </span>
-                                </td>
-                                <td className={cn(cellClass, 'text-muted')}>{row.projectTitle}</td>
-                                <td className={numericCellClass}>{formatTokens(row.tokens)}</td>
-                                <td className={numericCellClass}>
-                                    {localizedDuration(row.activeMs, t)}
-                                </td>
-                                <td className={numericCellClass}>
-                                    <UsageCost display={rowCost(report, row.costUsd, row.tokens)} />
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                                    </td>
+                                    <td className={cn(cellClass, 'text-muted')}>
+                                        {row.projectTitle}
+                                    </td>
+                                    <td className={numericCellClass}>{formatTokens(row.tokens)}</td>
+                                    <td className={numericCellClass}>
+                                        {localizedDuration(row.activeMs, t)}
+                                    </td>
+                                    <td className={numericCellClass}>
+                                        <UsageCost
+                                            display={rowCost(report, row.costUsd, row.tokens)}
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             )}
         </ReportCard>
     );
