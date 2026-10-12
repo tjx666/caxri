@@ -1033,7 +1033,11 @@ mid-Chat differs per provider:
   `--permission-mode plan` is not carried over; plan mode is only the composer's toggle.
 - **Grok Build** fixes its permission at launch, so a level switch restarts the Agent on the same
   conversation (`session/load`) with the new options. A running turn would be cut short, so the
-  switch fails with `CONFLICT` until it finishes.
+  switch fails with `CONFLICT` until it finishes. Input sent while the switch is pending waits for
+  the restart and reaches the new process, never the one being stopped.
+
+A Chat with no provider process (stopped or failed) only saves a switch and shows it; the next start
+launches with it, so the switch never starts the provider by itself.
 
 **Project default.** The menu's last row is a checkbox item. "Use as Project default" saves the
 Chat's level and plan mode for that provider on its Project; once the Chat matches the saved

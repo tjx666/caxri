@@ -216,4 +216,50 @@ describe('Agent Chat permission level with a fake Grok Build agent', () => {
             code: 'VALIDATION',
         });
     });
+
+    it('delivers a message sent right after a switch to the restarted agent', async () => {
+        const { service, sessionOpens, terminal, until } = await fixture({ provider: 'grok' });
+        await service.send(terminal.id, { text: 'hello' });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+
+        // The Client does not wait for the switch before sending.
+        await Promise.all([
+            service.setPermission(terminal.id, { permissionMode: 'fullAccess' }),
+            service.send(terminal.id, { text: 'slow' }),
+        ]);
+        // A long turn: one that reached the old process would be cut short by the restart and lost from its record.
+        const running = await until(
+            (snapshot) =>
+                snapshot.status === 'ready' &&
+                snapshot.permissionMode === 'fullAccess' &&
+                snapshot.turns.length === 2 &&
+                snapshot.items.filter((item) => item.type === 'agentMessage').length === 2,
+        );
+        expect(running.turns.map((turn) => turn.status)).toEqual(['completed', 'running']);
+        const opens = await sessionOpens();
+        expect(opens).toHaveLength(2);
+        expect(opens.at(-1)?.method).toBe('session/load');
+        expect(opens.at(-1)?.args).toContain('--always-approve');
+    });
+
+    it('saves a switch on a Chat that is not running and starts it once with the new level', async () => {
+        const { database, service, sessionOpens, spawnProcess, terminal, until } = await fixture({
+            provider: 'grok',
+        });
+
+        await service.setPermission(terminal.id, { permissionMode: 'fullAccess' });
+        expect(spawnProcess).not.toHaveBeenCalled();
+        expect(database.getChatPermission(terminal.id)).toEqual({
+            permissionMode: 'fullAccess',
+            planMode: false,
+        });
+
+        await until(
+            (snapshot) => snapshot.status === 'ready' && snapshot.permissionMode === 'fullAccess',
+        );
+        expect(spawnProcess).toHaveBeenCalledTimes(1);
+        const opens = await sessionOpens();
+        expect(opens).toHaveLength(1);
+        expect(opens[0]?.args).toContain('--always-approve');
+    });
 });
