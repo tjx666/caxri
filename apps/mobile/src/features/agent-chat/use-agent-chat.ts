@@ -216,6 +216,21 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * Runs one of the provider's listed slash commands; during a turn Core queues it, since a command cannot join a
+     * turn.
+     */
+    const runCommand = useCallback(
+        async (command: { name: string; arguments?: string }): Promise<void> => {
+            if (terminalId === null) return;
+            await request('mobile.agentChat.runCommand', {
+                terminalId,
+                name: command.name,
+                ...(command.arguments !== undefined && { arguments: command.arguments }),
+            });
+        },
+        [request, terminalId],
+    );
     const interrupt = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
         await request('mobile.agentChat.interrupt', { terminalId });
@@ -303,6 +318,7 @@ export const useAgentChat = ({
         respond,
         restart,
         resumeQueue,
+        runCommand,
         send,
         sendQueuedNow,
         takeQueued,

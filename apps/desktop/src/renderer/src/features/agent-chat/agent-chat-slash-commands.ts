@@ -4,20 +4,11 @@ import { translate } from '../../i18n';
 import { searchAgentActions } from '../agent-actions/agent-action-search';
 
 /**
- * Slash-command and skill parsing for the Chat composer. Runnable commands are the provider's own
- * (`AgentChatSnapshot.commands`), so the composer never runs a command the provider did not report.
+ * The Desktop Chat composer's slash-command and skill menu. Runnable commands are the provider's own
+ * (`AgentChatSnapshot.commands`); reading a draft as a command is shared with the phone (`parseAgentChatCommand`).
  */
 
 const MAX_SUGGESTIONS = 50;
-
-/**
- * The name being typed while the draft is still a bare `/name` or `$name` with nothing after it; `undefined` once the
- * user has typed a space or anything that is not an invocation. Either prefix searches commands and skills alike, so a
- * user does not need to know which one the provider spells with `$`.
- */
-export function agentChatSlashQuery(draft: string): string | undefined {
-    return /^[/$]([\w:.-]*)$/u.exec(draft)?.[1];
-}
 
 /**
  * What the composer menu offers: the provider's runnable Chat commands, then the skills the Agent Commands & Skills
@@ -88,20 +79,6 @@ export function agentChatSkillDiscoveryNotice(state: {
     return state.isLoading
         ? { text: translate('agentChat.slash.loadingSkills'), isLoading: true }
         : undefined;
-}
-
-/**
- * The command a submitted draft runs: `/name` or `/name arguments` where `name` is listed. Any other draft, including
- * an unknown `/word`, is sent as an ordinary message.
- */
-export function parseAgentChatCommand(
-    draft: string,
-    commands: readonly AgentChatCommand[] | undefined,
-): { name: string; arguments?: string } | undefined {
-    const match = /^\/([\w:.-]+)(?:\s([\s\S]*))?$/u.exec(draft.trim());
-    if (!match || !commands?.some((command) => command.name === match[1])) return undefined;
-    const arguments_ = match[2]?.trim();
-    return { name: match[1], ...(arguments_ && { arguments: arguments_ }) };
 }
 
 /**

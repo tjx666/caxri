@@ -881,6 +881,15 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   accepted. The phone also settles on the bounded copies it receives, matching the part a clipped
   text kept. A pending queue row on the phone offers no actions until Core has queued it. Slash
   commands, edits, and rewinds on Desktop still wait for Core, since Core can refuse them.
+- Slash commands: typing `/` at the start of the phone's Chat draft lists the snapshot's `commands`
+  whose name contains what follows (at most six rows; no list when the provider reported none).
+  A command without `argumentHint` runs when tapped; one with arguments fills the draft with
+  `/name` for the user to finish. Submitting a draft that names a listed command calls
+  `mobile.agentChat.runCommand`, which forwards `agentChat.runCommand` after the same checks as
+  `send`, with its arguments held to the 16 KiB a phone may send; during a turn Core queues the
+  command; like Desktop's, the command waits for Core instead of showing optimistically. Draft parsing (`agentChatSlashQuery`, `parseAgentChatCommand`) lives in
+  `packages/protocol/src/agent/agent-chat-commands.ts`, shared with Desktop. `$` skills stay a
+  Desktop menu.
 
 ## Images and slash commands
 
@@ -1175,6 +1184,6 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
 plan mode, reasoning effort picker, and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
-Chat shows no plan or context usage yet, cannot run slash commands, does not show background tasks,
+Chat shows no plan or context usage yet, does not list `$` skills, does not show background tasks,
 cannot edit or fork from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.
