@@ -41,8 +41,12 @@ export function appendCodexTimelineRecord(
     const timestamp = timelineTimestamp(record.timestamp);
     const payload = timelineObject(record.payload);
     if (record.type === 'event_msg') {
-        if (payload?.type === 'task_complete' || payload?.type === 'turn_aborted')
-            builder.addBoundary(offset, 0, undefined, timestamp);
+        // `turn_aborted` covers every turn that ended early (the user interrupted it, or a new turn replaced it), so
+        // the phone says it stopped rather than that it finished.
+        if (payload?.type === 'task_complete')
+            builder.addBoundary(offset, 0, undefined, timestamp, 'completed');
+        else if (payload?.type === 'turn_aborted')
+            builder.addBoundary(offset, 0, undefined, timestamp, 'interrupted');
         return;
     }
     if (!payload || record.type !== 'response_item') return;

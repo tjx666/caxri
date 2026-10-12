@@ -1,7 +1,25 @@
 import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
-import { summarizeAgentToolGroup } from '@caxri/protocol';
+import { agentChatTurnLabel, summarizeAgentToolGroup } from '@caxri/protocol';
+
+import { agentChatTurnTone } from '../agent-chat/agent-chat-timeline';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
+type TurnBoundary = Extract<AgentTimelineItem, { type: 'turnBoundary' }>;
+
+/**
+ * The caption and tone of a terminal Agent's turn divider, in the words and tones an Agent Chat footer uses (`Worked
+ * for 4s`, `Stopped after 4s`, `Failed`). A boundary whose record does not say how the turn ended reads as completed
+ * work.
+ */
+export const conversationTurnDivider = (
+    boundary: Pick<TurnBoundary, 'durationMs' | 'outcome'>,
+): { label: string; tone: 'danger' | 'muted' | 'warning' } => {
+    const status = boundary.outcome ?? 'completed';
+    return {
+        label: agentChatTurnLabel({ durationMs: boundary.durationMs, status }),
+        tone: agentChatTurnTone(status),
+    };
+};
 
 export type ConversationAvailability =
     MobileTimelineReadResult['status'] | 'loading' | 'error' | 'stale';
