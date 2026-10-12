@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatQueueEntries } from '../agent-chat-queue';
+import { agentChatNextQueuedId, agentChatQueueEntries } from '../agent-chat-queue';
 
 describe('agentChatQueueEntries', () => {
     it('adds Edit to the shared row, except for a message carrying images', () => {
@@ -49,5 +49,29 @@ describe('agentChatQueueEntries', () => {
             canEdit: false,
             canSendNow: false,
         });
+    });
+});
+
+describe('agentChatNextQueuedId', () => {
+    const command = {
+        id: 'c1',
+        text: '/compact',
+        command: { name: 'compact' },
+    };
+
+    it('picks the head of the queue, unless a running turn makes that command wait', () => {
+        expect(agentChatNextQueuedId(undefined, true)).toBeUndefined();
+        expect(agentChatNextQueuedId([], false)).toBeUndefined();
+        expect(
+            agentChatNextQueuedId(
+                [
+                    { id: 'm1', text: 'first' },
+                    { id: 'm2', text: 'second' },
+                ],
+                true,
+            ),
+        ).toBe('m1');
+        expect(agentChatNextQueuedId([command, { id: 'm1', text: 'later' }], true)).toBeUndefined();
+        expect(agentChatNextQueuedId([command], false)).toBe('c1');
     });
 });

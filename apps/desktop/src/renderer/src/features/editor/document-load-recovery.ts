@@ -5,6 +5,7 @@ import {
     openExternalDocumentWithDefaultApp,
     openFileWithDefaultApp,
 } from '../../lib/desktop-file-actions';
+import { isLocalOnlyAvailable } from '../../stores/environment';
 
 /**
  * The one action a failed document or preview load offers. Retrying only helps when the failure can go away by itself
@@ -41,16 +42,19 @@ function openDocumentWithDefaultApp(path: string): void {
 }
 
 /**
- * The `EditorLoadFailure` action props for a recovery: its label plus what pressing it does.
+ * The `EditorLoadFailure` action props for a recovery: its label plus what pressing it does. An SSH Host window cannot
+ * hand a file on the SSH Host to an application on this Mac, so there the recovery falls back to Retry.
  */
 export function documentLoadRecoveryAction(
     recovery: DocumentLoadRecovery,
     path: string,
     retry: () => void,
     t: Translate,
+    canOpenLocally = isLocalOnlyAvailable(),
 ): { actionLabel: string; onAction: () => void } {
+    const effective = recovery === 'openWithDefaultApp' && !canOpenLocally ? 'retry' : recovery;
     return {
-        actionLabel: t(documentLoadRecoveryLabels[recovery]),
-        onAction: recovery === 'retry' ? retry : () => openDocumentWithDefaultApp(path),
+        actionLabel: t(documentLoadRecoveryLabels[effective]),
+        onAction: effective === 'retry' ? retry : () => openDocumentWithDefaultApp(path),
     };
 }

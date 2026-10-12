@@ -91,6 +91,9 @@ export const agentChatComposer = {
     'agentChat.model.triggerEffort': ', {{effort}} effort',
     'agentChat.model.triggerUltracode': ', ultracode on',
     'agentChat.model.ultracodeDescription': 'Multi-agent workflows at any effort',
+    'agentChat.model.triggerFast': ', Fast mode on',
+    'agentChat.model.fast': 'Fast',
+    'agentChat.model.fastDescription': 'Faster responses, increased usage',
     'agentChat.model.effort.none': 'None',
     'agentChat.model.effort.minimal': 'Minimal',
     'agentChat.model.effort.low': 'Low',
@@ -102,6 +105,8 @@ export const agentChatComposer = {
     'agentChat.model.switchEffortFailed': 'Unable to switch the effort',
     'agentChat.model.ultracodeOnFailed': 'Unable to turn on Ultracode',
     'agentChat.model.ultracodeOffFailed': 'Unable to turn off Ultracode',
+    'agentChat.model.fastOnFailed': 'Unable to turn on Fast mode',
+    'agentChat.model.fastOffFailed': 'Unable to turn off Fast mode',
 
     'agentChat.permission.permissions': 'Permissions',
     'agentChat.permission.triggerLabel': 'Permissions: {{label}}',

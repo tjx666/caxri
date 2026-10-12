@@ -99,7 +99,7 @@ export function agentChatSettledChunks(
         const cached = built.get(first);
         if (cached && isSameList(cached.items, chunkItems) && isSameList(cached.turns, chunkTurns))
             return cached.chunk;
-        const entries = buildAgentChatTimeline(chunkItems, chunkTurns, undefined, false);
+        const entries = buildAgentChatTimeline(chunkItems, chunkTurns, undefined);
         const chunk = { key: first.id, entries, lastDay: agentChatLastDay(entries) };
         built.set(first, { items: chunkItems, turns: chunkTurns, chunk });
         return chunk;

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentProviderLowCostGenerationContext } from '../../contract';
-import { MACOS_SANDBOX_EXECUTABLE, prepareLowCostSandbox } from '../../low-cost-sandbox';
+import { prepareLowCostSandbox } from '../../low-cost-sandbox';
 import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import { runAgentTextCommand } from '../../text-generation';
 import { resolveClaudeConfigDirectory } from './paths';
@@ -27,7 +27,7 @@ export async function generateClaudeLowCostText(
     assertAgentRenameVersion('claude', context.version, CLAUDE_LOW_COST_GENERATION_MINIMUM_VERSION);
     const isolatedDirectory = await mkdtemp(join(tmpdir(), 'caxri-claude-text-'));
     try {
-        const profile = await prepareLowCostSandbox({
+        const sandbox = await prepareLowCostSandbox({
             projectDirectory: context.cwd,
             configDirectory: resolveClaudeConfigDirectory(context.environment),
             executable: context.executable,
@@ -36,8 +36,7 @@ export async function generateClaudeLowCostText(
         });
         return await runAgentTextCommand({
             arguments: [
-                '-p',
-                profile,
+                ...sandbox.arguments,
                 context.executable,
                 '--print',
                 '--model',
@@ -62,7 +61,7 @@ export async function generateClaudeLowCostText(
             ],
             cwd: isolatedDirectory,
             environment: await agentCommandEnvironment(context.environment),
-            executable: MACOS_SANDBOX_EXECUTABLE,
+            executable: sandbox.executable,
             input: context.prompt,
             limits: timeoutMs === undefined ? undefined : { timeoutMs },
             operation,

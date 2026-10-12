@@ -23,15 +23,19 @@ import { createIntrospectionServices } from './introspection';
 import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobile';
 import { createOrderingHandlers } from './ordering-handlers';
 import { createSessionParkingHandlers, createTerminateAllHandler } from './parking-handlers';
-import { createProjectHidingHandlers, resolveOwnerProjectRoot } from './project';
+import {
+    createProjectFolderBrowser,
+    createProjectHidingHandlers,
+    resolveOwnerProjectRoot,
+} from './project';
 import { createRootServices } from './root-services';
 import { createServiceHandlers } from './service-handlers';
 import {
     createSessionAgentRuntimeHandlers,
     createSessionCreationHandlers,
     createSessionCreator,
+    createSessionSelectionHandlers,
     SessionCompaction,
-    SessionSelectionQueue,
 } from './session';
 import { createStatusServices } from './status-service-creation';
 import {
@@ -373,7 +377,6 @@ export async function createDomainServices(
         terminals,
         workingDirectory: userDataPath,
     });
-    const sessionSelections = new SessionSelectionQueue();
     let isClosed = false;
     async function close(): Promise<void> {
         if (isClosed) return;
@@ -445,6 +448,7 @@ export async function createDomainServices(
             introspection.records.project(query, principal),
         ...createOrderingHandlers({ database, sendFullStateChange }),
         ...createProjectHidingHandlers({ ...sessionParking, bootstrapState: snapshots.bootstrap }),
+        ...createProjectFolderBrowser(),
         ...createSessionCreationHandlers(database, createSessionForProject),
         ...createMobileDomainHandlers({
             autoAllow: agentRuntime,
@@ -461,17 +465,17 @@ export async function createDomainServices(
             timeline,
             transcripts,
         }),
-        'session.select': ({ sessionId }) =>
-            sessionSelections.run(async () => {
-                await workbenchRoots.validateSession(sessionId);
-                database.selectSession(sessionId);
-                terminalSuspension.observeSelection();
-                observeSelectedSession(sessionId);
-                restoreInterruptedTerminalsInBackground(sessionId);
-                coordinator.probeSessionPrimaryAgent(sessionId);
-                sendFullStateChange('session.select');
-                return database.getSession(sessionId)!;
-            }),
+        ...createSessionSelectionHandlers({
+            agentChat,
+            coordinator,
+            database,
+            mobileTerminalMutations,
+            observeSelectedSession,
+            restoreInterruptedTerminalsInBackground,
+            sendFullStateChange,
+            terminalSuspension,
+            workbenchRoots,
+        }),
         'session.markRead': ({ sessionId, attentionEpoch }) => {
             const result = database.markSessionAttentionRead(sessionId, attentionEpoch);
             if (result.acknowledged)
@@ -489,22 +493,6 @@ export async function createDomainServices(
         'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
             sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
         ...createSessionParkingHandlers(sessionParking),
-        // Under `session.detach`'s Session lock: a resume sent mid-detach relaunches everything it handed over.
-        'session.resume': ({ sessionId }) =>
-            sessionSelections.run(() =>
-                mobileTerminalMutations.runSessions([sessionId], async () => {
-                    await workbenchRoots.validateSession(sessionId);
-                    database.selectSession(sessionId);
-                    terminalSuspension.observeSelection();
-                    observeSelectedSession(sessionId);
-                    // Detached Chats and PTY Agents both relaunch here, on the Agent Sessions they handed over.
-                    agentChat.resumeSession(sessionId);
-                    restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
-                    coordinator.probeSessionPrimaryAgent(sessionId);
-                    sendFullStateChange('session.resume');
-                    return database.getSession(sessionId)!;
-                }),
-            ),
         ...createSessionAgentRuntimeHandlers(agentRuntime),
         ...createDeletionHandlers({
             database,

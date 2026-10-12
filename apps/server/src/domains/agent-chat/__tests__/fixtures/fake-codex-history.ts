@@ -28,7 +28,7 @@ export function wireTurn(turn: FakeTurn): Json {
 }
 
 /**
- * The thread, model, and effort `thread/start` and `thread/resume` answer with.
+ * The thread, model, effort, and service tier `thread/start` and `thread/resume` answer with.
  */
 export function threadResponse(thread: FakeThread): Json {
     return {
@@ -40,6 +40,7 @@ export function threadResponse(thread: FakeThread): Json {
         },
         model: thread.model ?? 'fake-codex-model',
         reasoningEffort: thread.effort ?? null,
+        serviceTier: thread.serviceTier ?? null,
         collaborationMode: thread.collaborationMode
             ? {
                   mode: thread.collaborationMode,

@@ -427,8 +427,10 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
   persisted across Server Core restarts.
 - In the composer, Enter queues during a turn and Cmd+Enter steers. Queued entries form one list
   above the composer, each with Edit (back into the composer), Delete, and Steer or Send now; a
-  paused queue says so in the list header with Resume. A phone queues the same way; see
-  [Mobile](#mobile).
+  paused queue says so in the list header with Resume. Enter (or Cmd+Enter) in an empty composer
+  sends the head of the queue now, as its Steer or Send now would, and the placeholder says so while
+  one waits; a slash command at the head during a turn still waits. A phone queues the same way;
+  see [Mobile](#mobile).
 - Compaction (Codex `contextCompaction`, Claude Code `status: 'compacting'`) sets the snapshot's
   `operation` to `compacting` and raises `compactionStarted`; input sent meanwhile is queued. The
   `/compact` user bubble is hidden because the compaction notice already represents it.
@@ -636,10 +638,13 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   hides a sub-second duration through `formatNoticeableDuration`.
 - Replies render Markdown through the shared `@caxri/markdown` block tree
   ([`components/markdown/`](../apps/desktop/src/renderer/src/components/markdown/markdown-blocks.tsx)):
-  leveled headings, nested and task lists, quotes, tables with Copy table (Markdown plus HTML), and
-  fenced code with a header (language, word-wrap toggle, Copy code) painted by Monaco's colorizer
-  once the fence closes. A reply offers Copy message only while the pointer is over it (or focus reaches the button), after
-  it finishes, followed by the time the reply began.
+  leveled headings, nested and task lists, quotes with a hover Copy quote (the quote's text without
+  its `>` markers, `blocksPlainText`), tables with Copy table (Markdown plus HTML), and fenced code
+  with a header (language, word-wrap toggle, Copy code) painted by Monaco's colorizer once the
+  fence closes. Under a finished reply, Copy message and the time the reply began mount only while
+  the pointer is over the reply or focus is inside it, the latest reply included
+  (`agent-chat-reply-frame.tsx`); the row keeps its height, so revealing it never shifts the
+  transcript.
 - Message times follow the Codex app. A centered day break (`Today 17:59`, `Yesterday 09:12`,
   `Oct 3 17:59`) heads the first user message of each day. Under a user message, a hover row shows
   its time and Copy message; the row keeps its height, so revealing it never shifts the transcript.
@@ -1000,6 +1005,23 @@ switching to a model that does not accept the current effort falls back to that 
 or, for a model that names none, to the strongest effort it accepts that does not exceed the
 current one.
 A running turn keeps the model it started with.
+
+Fast mode is a separate toggle below the efforts, as in the Codex app and Claude Code's `/fast`. A
+model offers it when its `models` entry carries `fast` (with the provider's description, if any),
+and the snapshot's `fast` reports whether it is on; it is present only when the provider reports
+the state. `agentChat.configure { fast }` switches it, Server Core rejects turning it on for a model
+without it, and switching to such a model turns it off. The trigger then reads "Fast" beside the
+model.
+
+- **Codex**: a model offers Fast when `model/list` lists a `priority` (or `fast`) service tier,
+  falling back to the deprecated `additionalSpeedTiers`. The toggle rides on the next `turn/start`
+  as `serviceTier: "priority"`, or `"default"` to turn it off (a null tier would keep the thread's
+  saved one), and `thread/start` and `thread/resume` report it back after a restart.
+- **Claude Code**: a model offers Fast when its `supportsFastMode` is true. The SDK reports
+  `fast_mode_state` on the `initialize` response, the init message, and every `result`; `cooldown`
+  counts as on. When it reports a plan, policy, or provider block (any `fast_mode_disabled_reason`
+  other than `sdk_opt_in_required` or `pending`) the toggle is withdrawn. A switch applies in place
+  through `applyFlagSettings { fastMode }`.
 
 - **Codex** lists models with `model/list` after the thread opens; a Codex that cannot list them
   still chats, and the composer then shows the model as plain text. `thread/start` and

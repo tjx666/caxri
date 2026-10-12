@@ -28,6 +28,7 @@ export type TransientServerEvent = Extract<
             | 'commanderInbox.changed'
             | 'desktop.openRequested'
             | 'editor.unsavedRequest'
+            | 'environment.changed'
             | 'externalDocument.changed'
             | 'host.connectionChanged'
             | 'gpu.recoveryRequested'
@@ -73,6 +74,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      */
     'commanderInbox.changed',
     'desktop.openRequested',
+    /**
+     * Connection phase and askpass prompts belong to one Main-owned SSH session; a reloaded Renderer reads the current
+     * state through `environment.get`, and a replayed prompt would answer a helper that already gave up.
+     */
+    'environment.changed',
     /**
      * One quit or close decision in flight: replaying it to a later Renderer generation would answer a prompt that
      * already timed out.

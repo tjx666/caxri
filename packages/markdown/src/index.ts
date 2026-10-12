@@ -10,7 +10,7 @@ export type {
 } from './markdown-blocks.js';
 export { parseMarkdownBlocks } from './markdown-blocks.js';
 export { isSameMarkdownTree } from './markdown-equality.js';
-export { inlinePlainText, tableToHtml, tableToMarkdown } from './markdown-text.js';
+export { blocksPlainText, inlinePlainText, tableToHtml, tableToMarkdown } from './markdown-text.js';
 export type { ProseWebLink } from './prose-web-links.js';
 export { proseWebLinks } from './prose-web-links.js';
 export { renderMarkdown } from './render-markdown.js';

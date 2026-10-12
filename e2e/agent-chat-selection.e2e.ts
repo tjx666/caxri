@@ -34,7 +34,9 @@ test('a Chat selects and copies only message text', async ({}, testInfo) => {
         await message.press('Enter');
         const reply = chat.getByText('Hello from fake Codex. You said: hi there', { exact: true });
         await expect(reply).toBeVisible();
-        // The reply's action row, chrome under the reply text that a selectable transcript would take along.
+        // The reply's action row, chrome under the reply text that a selectable transcript would take along. It mounts
+        // only while the reply is hovered.
+        await reply.hover();
         const time = chat.locator('[data-agent-chat-reply] time');
         const timeText = (await time.textContent()) ?? '';
         expect(timeText).not.toBe('');

@@ -25,6 +25,11 @@ import type { CatalogExtensionState } from './catalog';
 import { buildViewCatalog } from './catalog';
 import type { DiscoveredExtension } from './discovery';
 import { discoverExtensions } from './discovery';
+import { extensionFailure } from './failure';
+import type { ExtensionGrant } from './host-api-access';
+import { grantsForExtension, projectStatusForExtension } from './host-api-access';
+import type { ExtensionHostStartTrigger } from './host-start-gate';
+import { ExtensionHostStartGate } from './host-start-gate';
 import type { CatalogChangedEvent, TreeChangedEvent, ViewChangedEvent } from './service-events';
 import { projectExtensionHostViewEvent, subscribeExtensionEvent } from './service-events';
 import { ExtensionHostSupervisor } from './supervisor';
@@ -70,61 +75,6 @@ export interface ExtensionServiceOptions {
     ): Promise<unknown>;
 }
 
-function extensionFailure(error: unknown): ExtensionError {
-    const code =
-        typeof error === 'object' && error !== null && 'code' in error
-            ? String(error.code)
-            : 'ACTIVATION_FAILED';
-    const allowed: Array<ExtensionError['code']> = [
-        'MANIFEST_INVALID',
-        'ENGINE_INCOMPATIBLE',
-        'DUPLICATE_ID',
-        'COMMONJS_ENTRY_UNSUPPORTED',
-        'COMMONJS_API_UNSUPPORTED',
-        'ELECTRON_IMPORT_DENIED',
-        'API_IMPORT_UNOWNED',
-        'ACTIVATION_FAILED',
-        'PROVIDER_MISSING',
-        'PROVIDER_FAILED',
-        'PROVIDER_TIMEOUT',
-        'PROVIDER_CAPACITY',
-        'PAYLOAD_TOO_LARGE',
-        'CAPABILITY_DENIED',
-        'PROJECT_SCOPE_DENIED',
-        'GENERATION_EXPIRED',
-        'EXTENSION_HOST_UNAVAILABLE',
-    ];
-    return {
-        code: allowed.includes(code as ExtensionError['code'])
-            ? (code as ExtensionError['code'])
-            : 'ACTIVATION_FAILED',
-        message: (error instanceof Error ? error.message : String(error)).slice(0, 2_048),
-    };
-}
-
-export function projectStatusForExtension(
-    summary: ProjectStatusSummary,
-): ExtensionProjectStatusSummary {
-    return {
-        ...summary,
-        repositories: summary.repositories.map((repo) => {
-            const projected = { ...repo };
-            Reflect.deleteProperty(projected, 'rootPath');
-            return projected;
-        }),
-    };
-}
-
-export function grantsForExtension(extension: DiscoveredExtension): ExtensionCapability[] {
-    return extension.source === 'bundled' ? extension.manifest.caxri.capabilities : [];
-}
-
-interface ExtensionGrant {
-    apiToken: string;
-    capabilities: Set<ExtensionCapability>;
-    projectIds: Set<string>;
-}
-
 /**
  * Owns manifest discovery, actual grants, the unique descriptor catalog, and Extension Host RPC.
  */
@@ -137,6 +87,7 @@ export class ExtensionService extends EventTarget {
     private readonly grants = new Map<string, ExtensionGrant>();
     private revision = 0;
     private supervisor?: ExtensionHostSupervisor;
+    private readonly hostStartGate = new ExtensionHostStartGate();
     private projectIds: string[] = [];
 
     constructor(private readonly options: ExtensionServiceOptions) {
@@ -382,6 +333,21 @@ export class ExtensionService extends EventTarget {
         return extensionForView(viewId, this.catalog(), this.discovered);
     }
 
+    /**
+     * Supervisor for a request that needs a live Extension Host; its `request` forks the child if it is not running.
+     */
+    private requireSupervisor(): ExtensionHostSupervisor | undefined {
+        if (this.supervisor) this.hostStartGate.markRequested();
+        return this.supervisor;
+    }
+
+    /**
+     * Supervisor for a context-change notification, or `undefined` while the Host has never been started.
+     */
+    private startedSupervisor(): ExtensionHostSupervisor | undefined {
+        return this.hostStartGate.hasStarted ? this.supervisor : undefined;
+    }
+
     private activate(extension: DiscoveredExtension, reason: string): Promise<void> {
         const generation = this.states.get(extension.extensionId)!.generation;
         /**
@@ -405,7 +371,7 @@ export class ExtensionService extends EventTarget {
         });
         await this.rebuildCatalog(extension.extensionId);
         try {
-            await this.supervisor?.request('activate', {
+            await this.requireSupervisor()?.request('activate', {
                 extensionId: extension.extensionId,
                 generation: state.generation,
                 reason,
@@ -439,7 +405,13 @@ export class ExtensionService extends EventTarget {
         }
     }
 
-    async start(): Promise<void> {
+    /**
+     * Discovers Extensions, publishes the catalog, and prepares supervision. With `deferHost`, the Extension Host child
+     * is not forked yet: it starts on {@link startHost} (Server Core calls it when a Desktop attaches) or on the first
+     * request that needs it. A Server with no client, such as a detached remote Server waiting for Desktop to attach
+     * over SSH, then does not keep an idle Extension Host resident.
+     */
+    async start(options: { deferHost?: boolean } = {}): Promise<void> {
         this.projectIds = await this.options.projectIds();
         const result = await discoverExtensions({
             roots: this.options.extensionRoots,
@@ -496,7 +468,9 @@ export class ExtensionService extends EventTarget {
             );
         });
         this.supervisor.onStart(() => {
-            this.options.logger.write('info', logEventCatalog.extensionHost.ready);
+            this.options.logger.write('info', logEventCatalog.extensionHost.ready, {
+                fields: { trigger: this.hostStartGate.takeReadyTrigger() },
+            });
             for (const [extensionId, state] of this.states)
                 if (state.lifecycle === 'crashed')
                     this.states.set(extensionId, {
@@ -515,14 +489,28 @@ export class ExtensionService extends EventTarget {
                 ),
             );
         });
-        try {
-            await this.supervisor.start();
-        } catch (error) {
-            this.options.logger.write('error', logEventCatalog.extensionHost.startFailed, {
-                fields: { message: error instanceof Error ? error.message : String(error) },
-            });
-            await this.rebuildCatalog();
-        }
+        if (!options.deferHost) await this.startHost('core-start');
+    }
+
+    /**
+     * Forks the Extension Host once. A failed first start is logged and reflected in the catalog; later requests retry
+     * through the supervisor's own start path, as before.
+     */
+    startHost(
+        trigger: Extract<ExtensionHostStartTrigger, 'core-start' | 'desktop-attached'>,
+    ): Promise<void> {
+        const supervisor = this.supervisor;
+        if (!supervisor) return Promise.resolve();
+        return this.hostStartGate.start(trigger, async () => {
+            try {
+                await supervisor.start();
+            } catch (error) {
+                this.options.logger.write('error', logEventCatalog.extensionHost.startFailed, {
+                    fields: { message: error instanceof Error ? error.message : String(error) },
+                });
+                await this.rebuildCatalog();
+            }
+        });
     }
 
     catalog(): ViewCatalogSnapshot {
@@ -546,7 +534,7 @@ export class ExtensionService extends EventTarget {
         const generation = this.states.get(extension.extensionId)!.generation;
         const result = await requestTreeChildren(
             async (request) =>
-                (await this.supervisor?.request('treeChildren', {
+                (await this.requireSupervisor()?.request('treeChildren', {
                     extensionId: extension.extensionId,
                     generation,
                     ...request,
@@ -582,7 +570,7 @@ export class ExtensionService extends EventTarget {
         const generation = this.states.get(extension.extensionId)!.generation;
         let result: unknown;
         try {
-            result = await this.supervisor?.request('viewOperation', {
+            result = await this.requireSupervisor()?.request('viewOperation', {
                 extensionId: extension.extensionId,
                 generation,
                 ...parameters,
@@ -637,7 +625,7 @@ export class ExtensionService extends EventTarget {
         const extension = this.discovered.find((item) => item.extensionId === extensionId)!;
         await this.activate(extension, `onCommand:${commandId}`);
         // The Extension Host is a separate process, so its result is revalidated here.
-        const result = await this.supervisor?.request('executeCommand', {
+        const result = await this.requireSupervisor()?.request('executeCommand', {
             extensionId: extension.extensionId,
             generation: this.states.get(extension.extensionId)!.generation,
             commandId,
@@ -648,19 +636,21 @@ export class ExtensionService extends EventTarget {
     }
 
     async cancel(requestId: string): Promise<{ cancelled: boolean }> {
-        return (await this.supervisor?.request('cancel', { requestId })) as { cancelled: boolean };
+        const supervisor = this.startedSupervisor();
+        if (!supervisor) return { cancelled: false };
+        return (await supervisor.request('cancel', { requestId })) as { cancelled: boolean };
     }
 
     async activeContextChanged(context: ExtensionViewEventContext): Promise<void> {
-        await this.supervisor?.request('activeContextChanged', { context });
+        await this.startedSupervisor()?.request('activeContextChanged', { context });
     }
 
     async gitChanged(context: ExtensionViewEventContext): Promise<void> {
-        await this.supervisor?.request('gitChanged', { context });
+        await this.startedSupervisor()?.request('gitChanged', { context });
     }
 
     async projectStatusChanged(context: ExtensionViewEventContext): Promise<void> {
-        await this.supervisor?.request('projectStatusChanged', { context });
+        await this.startedSupervisor()?.request('projectStatusChanged', { context });
     }
 
     async retry(extensionId: string): Promise<{ accepted: boolean; error?: ExtensionError }> {
@@ -689,7 +679,7 @@ export class ExtensionService extends EventTarget {
             }
             this.applyDiscovery(result, true);
             try {
-                await this.supervisor?.restart();
+                await this.requireSupervisor()?.restart();
                 await this.rebuildCatalog(extensionId);
                 return { accepted: true };
             } catch (error) {
@@ -712,7 +702,7 @@ export class ExtensionService extends EventTarget {
             });
         for (const grant of this.grants.values()) grant.apiToken = randomUUID();
         try {
-            await this.supervisor?.restart();
+            await this.requireSupervisor()?.restart();
             await this.rebuildCatalog(extensionId);
             return { accepted: true };
         } catch (error) {
@@ -748,6 +738,7 @@ export class ExtensionService extends EventTarget {
      * before {@link shutdown} runs is treated as teardown rather than a crash to restart.
      */
     markCoreStopping(): void {
+        this.hostStartGate.markCoreStopping();
         this.supervisor?.markCoreStopping();
     }
 

@@ -57,6 +57,10 @@ export const agentChatTimeline = {
     'agentChat.message.queueSteerTooltip': 'Queue (Enter) · Steer (⌘Enter)',
     'agentChat.message.queuePlaceholder': 'Queue a follow-up',
     'agentChat.message.queueSteerPlaceholder': 'Queue a follow-up (⌘Enter to steer)',
+    'agentChat.message.steerQueuedPlaceholder':
+        'Enter to steer the queued message, or type a follow-up',
+    'agentChat.message.sendQueuedPlaceholder':
+        'Enter to send the queued message, or type a new one',
     'agentChat.message.planPlaceholder': 'Describe what to plan…',
     'agentChat.message.placeholder': 'Message {{provider}}',
     'agentChat.message.sendBlockedLoading': 'Chat loading…',

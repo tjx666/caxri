@@ -45,10 +45,16 @@ export function recordThreadOpen(method: string, parameters: Record<string, unkn
 }
 
 /**
- * Appends the permission and collaboration-mode fields of one `turn/start` to `turn-starts.jsonl`.
+ * Appends the permission, collaboration-mode, and service-tier fields of one `turn/start` to `turn-starts.jsonl`.
  */
 export function recordTurnStart(parameters: Record<string, unknown>) {
-    const fields = ['approvalPolicy', 'approvalsReviewer', 'sandboxPolicy', 'collaborationMode'];
+    const fields = [
+        'approvalPolicy',
+        'approvalsReviewer',
+        'sandboxPolicy',
+        'collaborationMode',
+        'serviceTier',
+    ];
     const entry = Object.fromEntries(
         fields.flatMap((field) => (field in parameters ? [[field, parameters[field]]] : [])),
     );

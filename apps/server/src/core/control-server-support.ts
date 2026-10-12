@@ -500,6 +500,10 @@ export interface ControlServerOptions {
      */
     protocolIdentity?: { serverId: string; stateEpoch: string };
     onClientCountChanged?(count: number, event: 'connected' | 'disconnected' | 'reset'): void;
+    /**
+     * A Desktop completed its handshake with a capability lease, as opposed to an operator, CLI, or Agent client.
+     */
+    onDesktopAttached?(): void;
     onDesktopUnavailable?(): void;
     /**
      * Test-only fault injector called after command execution and durable receipt storage, but before the transport can

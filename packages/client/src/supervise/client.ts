@@ -51,14 +51,13 @@ import WebSocket from 'ws';
 
 import { BinaryStreamClient } from './binary-stream-client';
 import type { PendingRequest, ServerClientCredential } from './client-support';
-import { controlMessageText } from './client-support';
-import { discoverDesktopCredential, discoverServerManifest, MAX_MANIFEST_BYTES } from './discovery';
+import { controlMessageText, DEFAULT_TIMEOUT_MS } from './client-support';
+import { MAX_MANIFEST_BYTES } from './discovery';
 
 // Re-exported so `@caxri/client/supervise` consumers keep importing this type from `client.js`, unchanged by the
 // `client-support.js` split.
 export type { ServerClientCredential } from './client-support';
 
-const DEFAULT_TIMEOUT_MS = 15_000;
 /**
  * Interval between background Desktop lease renewals. Kept well under Server Core's `DESKTOP_LEASE_MS` (60s,
  * `apps/server/src/core/control-server-support.ts`) so a normally running Desktop renews several times per lease
@@ -663,34 +662,4 @@ export class ServerClient {
         );
         this.socket.close(1000);
     }
-}
-export async function connectToServer(
-    userDataPath: string,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-    credential?: Extract<
-        ServerClientCredential,
-        { kind: 'operator' | 'agent' | 'delegation-client' }
-    >,
-): Promise<ServerClient> {
-    return ServerClient.connect(
-        await discoverServerManifest(userDataPath),
-        timeoutMs,
-        credential ?? { kind: 'operator' },
-    );
-}
-
-export async function connectDesktopToServer(
-    userDataPath: string,
-    desktopId: string,
-    handleCommand: Extract<ServerClientCredential, { kind: 'desktop' }>['handleCommand'],
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-): Promise<ServerClient> {
-    const manifest = await discoverServerManifest(userDataPath);
-    const credential = await discoverDesktopCredential(userDataPath, manifest);
-    return ServerClient.connect(manifest, timeoutMs, {
-        kind: 'desktop',
-        desktopId,
-        credential,
-        handleCommand,
-    });
 }
