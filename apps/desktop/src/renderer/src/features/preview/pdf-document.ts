@@ -17,7 +17,7 @@ const INITIAL_SCALE = 'page-width';
 const FIT_PRESETS: ReadonlySet<string> = new Set(['page-width', 'page-fit', 'auto']);
 
 const shared = {
-    worker: undefined as Worker | undefined,
+    worker: undefined as pdfjs.PDFWorker | undefined,
     viewerModule: undefined as Promise<typeof PdfViewerModule> | undefined,
 };
 
@@ -35,11 +35,17 @@ function loadViewerModule(): Promise<typeof PdfViewerModule> {
 /**
  * One pdf.js worker for every open PDF. Vite bundles it as an ordinary module worker, the same way Monaco's workers
  * load, so it starts from `'self'` under the Renderer CSP in both the dev server and the packaged `file://` page.
- * Documents share it through `workerPort`, and destroying one document never terminates it.
+ *
+ * Every document is handed this one `PDFWorker` explicitly instead of through `GlobalWorkerOptions.workerPort`. With
+ * the global port, pdf.js makes each loading task co-own a cached `PDFWorker` for that port: `destroy()` marks it as
+ * being destroyed for the whole worker round trip, and a document opened meanwhile (switching from one PDF to the next)
+ * fails with "the worker is being destroyed" instead of its own result. A worker passed in by the caller is never
+ * touched by a task's `destroy()`, so destroying one document cannot affect another.
  */
-function ensureWorker(): void {
-    shared.worker ??= new PdfWorker();
-    pdfjs.GlobalWorkerOptions.workerPort = shared.worker;
+function sharedWorker(): pdfjs.PDFWorker {
+    // `create` rather than the constructor: pdf.js types the constructor's `port` as `null`.
+    shared.worker ??= pdfjs.PDFWorker.create({ port: new PdfWorker() });
+    return shared.worker;
 }
 
 /**
@@ -47,9 +53,9 @@ function ensureWorker(): void {
  * itself, so it has no URL to reach the filesystem or the network with.
  */
 export function loadPdfDocument(data: Uint8Array): PDFDocumentLoadingTask {
-    ensureWorker();
     return pdfjs.getDocument({
         data,
+        worker: sharedWorker(),
         // Built-in CMaps, fonts, and decoders come from the bundle, never from a URL (see `pdf-binary-data.ts`).
         BinaryDataFactory: InlinePdfBinaryDataFactory,
         useWorkerFetch: false,
