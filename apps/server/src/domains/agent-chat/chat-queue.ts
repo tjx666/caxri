@@ -264,6 +264,10 @@ export class ChatFollowUpQueue {
     }
 
     private async dispatchNext(): Promise<void> {
+        /**
+         * Set inside the delivery callback; held in an object because narrowing cannot see that assignment.
+         */
+        const outcome = { isDelivered: false };
         try {
             await this.host.enqueue(async (session) => {
                 this.isDispatching = false;
@@ -275,6 +279,7 @@ export class ChatFollowUpQueue {
                 try {
                     await deliverQueuedInput(session, mergeBatch(batch), 'queued');
                     this.log('dispatched', batch.length);
+                    outcome.isDelivered = true;
                 } catch (error) {
                     if (this.isRetired) return;
                     // Keep the inputs and stop the queue, so a failure the user has not seen never drops or repeats them.
@@ -290,6 +295,12 @@ export class ChatFollowUpQueue {
         } finally {
             this.isDispatching = false;
         }
+        // The turn this input started may already have ended while the delivery was in flight (a turn start response
+        // and its completion read from one stdout chunk). That projection change was dropped by `isDispatching`, and
+        // nothing else would advance the queue, so check again. `dispatch` re-reads `isIdle`, so a running turn still
+        // holds the next entry back. Only after a confirmed delivery: a failure paused the queue, and a Chat whose
+        // provider could not start must not retry in a loop.
+        if (outcome.isDelivered) this.dispatch();
     }
 
     /**
