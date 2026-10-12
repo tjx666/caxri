@@ -1,8 +1,8 @@
 import type { CommanderInboxItem } from '@caxri/protocol';
 import { X } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
-import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { describeFailure } from '../../stores/toasts';
 import { commanderInboxSections, inboxReplyTarget } from './commander-inbox';
@@ -50,9 +50,11 @@ export function CommanderInboxView() {
                 </div>
             )}
             {!data && !inbox.isError && (
-                <div className="commander-inbox-status flex min-h-0 flex-1 items-center justify-center p-6 text-muted">
-                    <Spinner />
-                </div>
+                <LoadingSkeleton
+                    variant="list"
+                    className="commander-inbox-status min-h-0 flex-1 py-1"
+                    label="Loading Inbox…"
+                />
             )}
             {data && <CommanderInboxList generatedAt={data.generatedAt} items={data.items} />}
         </>

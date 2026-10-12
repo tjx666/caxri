@@ -5,6 +5,7 @@ import type { ViewContainerId, ViewContainerLocation } from '@caxri/protocol';
 import { AlertTriangle } from 'lucide-react';
 
 import { ChromeTabPanel } from '../../components/chrome-tabs';
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { PanelHeader } from '../../components/panel-header';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
@@ -46,10 +47,11 @@ export function ViewContainerSurface({
     const catalogQuery = useCaxriQuery('viewContainers.catalog', {});
     if (catalogQuery.isPending)
         return (
-            <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-muted">
-                <Spinner aria-hidden="true" size={15} style={{ width: 15, height: 15 }} /> Loading
-                views…
-            </div>
+            <LoadingSkeleton
+                variant="list"
+                className="min-h-0 flex-1 py-1"
+                label="Loading views…"
+            />
         );
     if (catalogQuery.isError)
         return (

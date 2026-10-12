@@ -1,7 +1,11 @@
 import type { TreeItemDto } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { flattenVisibleRows } from '../extension-tree-rows';
+import {
+    flattenVisibleRows,
+    loadingPlaceholderRowCount,
+    ROOT_LOADING_SKELETON_ROWS,
+} from '../extension-tree-rows';
 
 const ROOT = 'root';
 
@@ -105,5 +109,23 @@ describe('flattenVisibleRows', () => {
         const after = flatten(children, new Set(['a']), before);
         expect(after[0]).not.toBe(before[0]);
         expect(after[2]).toBe(before[1]);
+    });
+});
+
+describe('loadingPlaceholderRowCount', () => {
+    it('fills the view on its first load and keeps a nested branch to one row', () => {
+        const rows = flatten(
+            new Map([[ROOT, [item('folder', 'expanded')]]]),
+            new Set(['folder']),
+            undefined,
+            { loading: new Set(['folder']) },
+        );
+        const nested = rows.find((row) => row.kind === 'loading');
+        expect(nested && loadingPlaceholderRowCount(nested)).toBe(1);
+        const [root] = flatten(new Map(), new Set(), undefined, { loading: new Set([ROOT]) });
+        expect(root.kind === 'loading' && loadingPlaceholderRowCount(root)).toBe(
+            ROOT_LOADING_SKELETON_ROWS,
+        );
+        expect(loadingPlaceholderRowCount({ kind: 'empty', depth: 0, parentHandle: ROOT })).toBe(1);
     });
 });
