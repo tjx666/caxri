@@ -37,6 +37,10 @@ import {
     AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
     isAgentChatMessageRailShown,
 } from './agent-chat-rail-marks';
+import {
+    AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS,
+    onAgentChatTranscriptKeyDown,
+} from './agent-chat-reply-navigation';
 import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import { agentChatTimelineEntryKey } from './agent-chat-timeline';
@@ -223,12 +227,14 @@ export function AgentChatPane({
                         it without a pointer. `aria-live` is off because a log is polite by default, which would read
                         every streamed token aloud; `AgentChatTurnAnnouncer` owns what is announced. */}
                     <div
+                        aria-keyshortcuts={AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS}
                         aria-label={t('agentChat.timeline.transcriptLabel')}
                         aria-live="off"
                         className="h-full overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent"
                         ref={scrollReference}
                         role="log"
                         tabIndex={0}
+                        onKeyDown={onAgentChatTranscriptKeyDown}
                         onScroll={onScroll}
                     >
                         <div
