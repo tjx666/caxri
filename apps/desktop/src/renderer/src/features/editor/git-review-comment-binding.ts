@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 
 import type { editor as MonacoEditor } from 'monaco-editor';
 
-import { translate } from '../../i18n';
+import { translate, useLocaleStore } from '../../i18n';
 import { monaco } from '../../lib/monaco';
 import { subscribeCaxriQuery } from '../../queries/client';
 import type { BoundGitReviewCommentEditor, ReviewEditorScope } from './git-review-bound-editors';
@@ -152,13 +152,21 @@ export function bindGitReviewCommentEditor(
      * `packages/protocol`'s default keybindings, so it is rebindable in Settings and discoverable in the Command
      * Palette instead of being a Monaco-only shortcut invisible to both. The context-menu entry stays, since Monaco has
      * no other way to surface an editor action there.
+     *
+     * Monaco fixes an action's label when it is added, so a language change re-adds the action under its new label.
      */
-    editor.addAction({
-        id: 'caxri.addReviewComment',
-        label: translate('editor.review.addComment'),
-        contextMenuGroupId: 'navigation',
-        contextMenuOrder: 1,
-        run: () => add(),
+    const addMenuAction = () =>
+        editor.addAction({
+            id: 'caxri.addReviewComment',
+            label: translate('editor.review.addComment'),
+            contextMenuGroupId: 'navigation',
+            contextMenuOrder: 1,
+            run: () => add(),
+        });
+    let menuAction = addMenuAction();
+    const unsubscribeLocale = useLocaleStore.subscribe(() => {
+        menuAction.dispose();
+        menuAction = addMenuAction();
     });
     const focus = editor.onDidFocusEditorText(() => {
         setActiveGitReviewComment({
@@ -234,6 +242,8 @@ export function bindGitReviewCommentEditor(
     );
     return () => {
         unsubscribe();
+        unsubscribeLocale();
+        menuAction.dispose();
         unregister();
         focus.dispose();
         clearActiveGitReviewComment(editor);

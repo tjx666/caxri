@@ -1,12 +1,9 @@
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 
-import type { AppLocale } from '@caxri/protocol';
-import { resolveAppLocale } from '@desktop-shared/i18n/locale';
 import ConfigProvider from '@lobehub/ui/es/ConfigProvider/index';
 import * as m from 'motion/react-m';
 
-import { systemLanguages } from './locale';
 import { useLocaleStore } from './locale-store';
 import { lobeResources } from './resources';
 
@@ -17,26 +14,16 @@ import { lobeResources } from './resources';
  */
 const LOBE_CONFIG = { globalFocusRing: false } as const;
 
-interface I18nProviderProperties {
-    /**
-     * The `workbench.language` setting. `null` follows the system language, and so does `undefined`: Settings not
-     * loaded yet, or a window that never loads them (Process Explorer).
-     */
-    preference: AppLocale | null | undefined;
-    children: ReactNode;
-}
-
 /**
- * Supplies the active locale to `useTranslation()` and mirrors it into the module-level store `translate()` reads, plus
- * `<html lang>` so the platform (spell check, hyphenation, screen readers) agrees with the rendered text.
+ * Supplies the active locale from `useLocaleStore` to `useTranslation()`, plus `<html lang>` so the platform (spell
+ * check, hyphenation, screen readers) agrees with the rendered text.
  *
- * Takes the preference as a prop rather than reading the Workbench store so stores can import `translate()` from this
- * module's barrel without an import cycle.
+ * The locale store is the only source, so `useTranslation()` and `translate()` never disagree within one render.
+ * Windows that load Settings keep it in step with `syncWorkbenchLocale()`.
  */
-export function I18nProvider({ preference, children }: I18nProviderProperties) {
-    const locale = resolveAppLocale(preference, systemLanguages());
+export function I18nProvider({ children }: { children: ReactNode }) {
+    const locale = useLocaleStore((state) => state.locale);
     useEffect(() => {
-        useLocaleStore.setState({ locale });
         document.documentElement.lang = locale;
     }, [locale]);
     return (

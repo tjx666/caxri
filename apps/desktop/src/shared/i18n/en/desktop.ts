@@ -185,6 +185,9 @@ export const desktop = {
     'desktop.externalFile.trustFolder': 'Trust Folder and Open',
     'desktop.chooseProjectFolder': 'Choose a Project folder',
 
+    'desktop.fallback.thisProject': 'this Project',
+    'desktop.fallback.thisSession': 'this Session',
+
     'desktop.reset.title': 'Caxri requires a local reset',
     'desktop.reset.intro':
         'This pre-release build does not migrate unpublished Host protocols. Quit Caxri, preview the reset plan, then apply it:',
