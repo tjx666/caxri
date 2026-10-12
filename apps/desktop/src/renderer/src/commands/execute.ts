@@ -4,6 +4,11 @@ import type { CommandId } from '@caxri/protocol';
 import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
+import {
+    canRunAgentChatComposerCommand,
+    runAgentChatComposerCommand,
+} from '../features/agent-chat/agent-chat-composer-commands';
+import { takeBackFromCommander } from '../features/agent-commander/commander-handover-commands';
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
@@ -203,6 +208,10 @@ function closeTerminalTabOrArchiveSession(terminalId: string): void {
 // registry's `run(context, arguments_)` contract (see `./registry`) is synchronous, so none of
 // these can be awaited by their caller anyway.
 const commandContext: CommandContext = {
+    agentChat: {
+        canRun: (command) => canRunAgentChatComposerCommand(activeTerminalId(), command),
+        run: (command) => runAgentChatComposerCommand(activeTerminalId(), command),
+    },
     agentActions: {
         canOpen: () => Boolean(activeAgentTerminal()),
         open: () => {
@@ -244,6 +253,10 @@ const commandContext: CommandContext = {
         resumeSelected: resumeSelectedSession,
         selectAdjacent: selectAdjacentSession,
         switchMru: switchMruSession,
+        takeBackSelectedFromCommander: () => {
+            const session = getSelectedSession();
+            if (session) takeBackFromCommander(session.id);
+        },
     },
     terminal: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -403,9 +416,13 @@ const commandContext: CommandContext = {
         },
         openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),
         /**
-         * Opens the picker with nothing selected; a Session row's menu is the entry that preselects one Session.
+         * Opens the picker with the selected Session already checked, like its row menu's Hand Over. The picker lists
+         * only Sessions the Commander does not manage, so a managed one stays unchecked.
          */
-        openCommanderHandover: () => openCommanderHandover(),
+        openCommanderHandover: () => {
+            const session = getSelectedSession();
+            openCommanderHandover(session ? [session.id] : []);
+        },
         // eslint-disable-next-line no-void -- floating-promise discard: seeding never rejects
         openProjectSearch: () => void openSeededProjectSearch(),
         openPathBrowser: () => {

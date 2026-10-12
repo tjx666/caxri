@@ -161,6 +161,7 @@ export const appSettingsSchema = z.object({
         .nullable()
         .default(spec['session.defaultAgent'].default),
     'session.openAgentsInChat': booleanField(spec['session.openAgentsInChat']),
+    'agentChat.longPasteThreshold': integerField(spec['agentChat.longPasteThreshold']),
     'workbench.newWorktreeBehavior': z
         .enum(enumValues(spec['workbench.newWorktreeBehavior'].options))
         .default(spec['workbench.newWorktreeBehavior'].default),

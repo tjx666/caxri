@@ -9,7 +9,7 @@ import { cn } from '@/lib/utilities';
  * `--accent` for the single focus indicator/primary buttons, not toggle chrome.
  */
 const toggleVariants = cva(
-    'inline-flex cursor-pointer items-center justify-center gap-1 rounded border border-transparent text-muted transition-[background-color,color] outline-none hover:bg-elevated hover:text-foreground focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-pressed:bg-elevated data-pressed:text-foreground',
+    'inline-flex cursor-pointer items-center justify-center gap-1 rounded-lg border border-transparent text-muted transition-[background-color,color] outline-none hover:bg-elevated hover:text-foreground focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 data-pressed:bg-elevated data-pressed:text-foreground',
     {
         variants: {
             size: {

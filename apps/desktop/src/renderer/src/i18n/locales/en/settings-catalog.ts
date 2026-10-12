@@ -45,6 +45,10 @@ export const settingsCatalog = {
     'settings.session.openAgentsInChat.description':
         'Starts new Agents as a Chat instead of a Terminal. Shell always opens in a Terminal. The New Session and New Terminal menus toggle this too.',
 
+    'settings.agentChat.longPasteThreshold.title': 'Chat long paste threshold',
+    'settings.agentChat.longPasteThreshold.description':
+        'Longer text pasted into a Chat is saved to a local file and the message cites it, so a log or a dump does not bury the message. Raise it to paste such text as is; text that would not fit in one message is still saved to a file.',
+
     'settings.workbench.newWorktreeBehavior.title': 'New worktree behavior',
     'settings.workbench.newWorktreeBehavior.description':
         'Choose whether to follow detected worktrees. Continue automatically authorizes new worktree folders without asking.',

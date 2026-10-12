@@ -3,15 +3,16 @@ import { useEffect, useState } from 'react';
 import { delay } from 'es-toolkit';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
 
-import { loadPdfDocument } from './pdf-document';
-import type { PdfFailure } from './pdf-failure';
-import { describePdfFailure } from './pdf-failure';
-import type { PdfReadCause, PdfSettledRead } from './pdf-reload';
-import { PDF_FAILURE_CONFIRM_MS, pdfReadFailureAction, shownPdfRead } from './pdf-reload';
-import { readAssetBytes } from './preview-asset-client';
+import { loadPdfDocument } from '../pdf-document';
+import type { PdfFailure, PdfPasswordPrompt } from '../pdf-failure';
+import { describePdfFailure, pdfPasswordPrompt } from '../pdf-failure';
+import type { PdfReadCause, PdfSettledRead } from '../pdf-reload';
+import { PDF_FAILURE_CONFIRM_MS, pdfReadFailureAction, shownPdfRead } from '../pdf-reload';
+import { readAssetBytes } from '../preview-asset-client';
 import { usePreviewSourceRevision } from './use-preview-source-revision';
 
 export type PdfDocumentState =
+    | PdfPasswordPrompt
     | { status: 'failed'; failure: PdfFailure }
     | { status: 'loading' }
     | { status: 'ready'; document: PDFDocumentProxy };
@@ -22,10 +23,15 @@ interface PdfReadRequest {
      */
     id: number;
     cause: PdfReadCause;
+    /**
+     * The password the reader entered for `source`. It lives only in this hook's state, so it is forgotten with the
+     * view and never persisted; later reads of the same file (a disk reload, Retry) reuse it.
+     */
+    password?: { source: string; value: string };
 }
 
 /**
- * /** A settled read also carries the loading task of a document it parsed, which owns that document.
+ * A settled read also carries the loading task of a document it parsed, which owns that document.
  */
 type SettledRead = PdfSettledRead<PdfDocumentState> & { task?: PDFDocumentLoadingTask };
 
@@ -33,7 +39,8 @@ type SettledRead = PdfSettledRead<PdfDocumentState> & { task?: PDFDocumentLoadin
  * Reads a PDF through `files.readAsset` and parses it when the tab opens, on Retry, and again whenever the file is
  * rewritten on disk (`usePreviewSourceRevision`). A reload the disk caused keeps the previous document on screen until
  * the new one parses (see `shownPdfRead`), and confirms a failed read once before showing it (see
- * `pdfReadFailureAction`).
+ * `pdfReadFailureAction`). A protected PDF settles as the password form; `submitPassword` reads the file again with the
+ * password, keeping the form on screen until pdf.js accepts or rejects it.
  *
  * The hook owns every document it parses. The settled one lives until a later read settles or the view unmounts, which
  * is what lets a reload keep showing it; a read still in flight when it is superseded is aborted, and a document it
@@ -43,7 +50,15 @@ export function usePdfDocument(
     sessionId: string,
     workbenchProjectId: string | undefined,
     path: string,
-): { state: PdfDocumentState; retry: () => void } {
+): {
+    state: PdfDocumentState;
+    /**
+     * A password attempt is reading the file, while the password form stays on screen.
+     */
+    isCheckingPassword: boolean;
+    retry: () => void;
+    submitPassword: (password: string) => void;
+} {
     const source = `${sessionId}\0${path}`;
     const [request, setRequest] = useState<PdfReadRequest>({ id: 0, cause: 'open' });
     const [settled, setSettled] = useState<SettledRead>();
@@ -52,7 +67,7 @@ export function usePdfDocument(
     const [readRevision, setReadRevision] = useState(revision);
     if (readRevision !== revision) {
         setReadRevision(revision);
-        setRequest((current) => ({ id: current.id + 1, cause: 'disk' }));
+        setRequest((current) => ({ ...current, id: current.id + 1, cause: 'disk' }));
     }
 
     useEffect(() => {
@@ -78,17 +93,28 @@ export function usePdfDocument(
             if (isSuperseded()) return;
             // A newer change or a Retry already replaced this request; its own read decides.
             setRequest((current) =>
-                current === request ? { id: current.id + 1, cause: 'confirm' } : current,
+                current === request
+                    ? { ...current, id: current.id + 1, cause: 'confirm' }
+                    : current,
             );
         };
         const open = async (): Promise<void> => {
             try {
                 const bytes = await readAssetBytes(sessionId, path, controller.signal);
                 if (isSuperseded()) return;
-                task = loadPdfDocument(bytes);
+                task = loadPdfDocument(
+                    bytes,
+                    request.password?.source === source ? request.password.value : undefined,
+                );
                 const document = await task.promise;
                 settle({ status: 'ready', document }, task);
             } catch (error) {
+                // A protected file asks for its password on every cause: no rewrite in progress explains it away.
+                const prompt = pdfPasswordPrompt(error, request.cause, request.id);
+                if (prompt) {
+                    settle(prompt);
+                    return;
+                }
                 if (pdfReadFailureAction(request.cause) !== 'confirm') {
                     settle({ status: 'failed', failure: describePdfFailure(error) });
                     return;
@@ -128,6 +154,13 @@ export function usePdfDocument(
         state: shownPdfRead(settled, { source, request: request.id, cause: request.cause }) ?? {
             status: 'loading',
         },
-        retry: () => setRequest((current) => ({ id: current.id + 1, cause: 'open' })),
+        isCheckingPassword: request.cause === 'password' && settled?.request !== request.id,
+        retry: () => setRequest((current) => ({ ...current, id: current.id + 1, cause: 'open' })),
+        submitPassword: (value) =>
+            setRequest((current) => ({
+                id: current.id + 1,
+                cause: 'password',
+                password: { source, value },
+            })),
     };
 }

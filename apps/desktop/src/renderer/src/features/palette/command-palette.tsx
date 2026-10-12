@@ -1,7 +1,7 @@
 import type { ViewCatalogSnapshot } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
 
-import { executeCommand } from '../../commands/execute';
+import { executeCommand, isCommandAvailable } from '../../commands/execute';
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import {
     Command,
@@ -33,6 +33,7 @@ import { didExecuteViewCatalogCommand } from '../view-containers/view-container-
 import { useActivePaneTab } from '../workbench/pane-actions';
 import type { CommandTitleContext } from './command-palette-commands';
 import {
+    commanderPaletteWhenContext,
     getDynamicCommandPaletteValue,
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
@@ -163,7 +164,21 @@ function CommandPaletteBody() {
     };
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     const isRemote = useIsRemote();
+    /**
+     * Read fresh on each open, as the Session row menu does: the Commander takes and returns Sessions without a
+     * Workbench record change. The cache entry is the one the Session row markers share.
+     */
+    const managedSessionIds = useCaxriQuery(
+        'commander.managedSessions',
+        {},
+        { enabled: isLocalOnlyAvailable, staleTime: 0 },
+    ).data?.sessionIds;
     const whenContext = {
+        ...commanderPaletteWhenContext({
+            isLocalOnlyAvailable,
+            managedSessionIds,
+            selectedSessionId: selectedSession?.id,
+        }),
         localMachine: isLocalOnlyAvailable,
         sshHost: isRemote,
         sessionHasLiveAgent:
@@ -174,6 +189,13 @@ function CommandPaletteBody() {
         sessionHasPullRequest:
             selectedSession !== undefined &&
             pullRequests?.pullRequests[selectedSession.id] !== undefined,
+        /**
+         * Read once as the palette opens: the active tab cannot change while the palette holds focus, and the composer
+         * registers its controls before the user can reach the palette.
+         */
+        agentChatModels: isCommandAvailable('agentChat.changeModel'),
+        agentChatPermissionModes: isCommandAvailable('agentChat.changePermissionMode'),
+        agentChatPlanMode: isCommandAvailable('agentChat.togglePlanMode'),
     };
     return (
         <>

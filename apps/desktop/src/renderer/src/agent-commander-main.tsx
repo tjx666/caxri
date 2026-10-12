@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 import { ErrorBoundary } from './components/error-boundary';
+import { configureAgentChatAttachmentsForCommander } from './features/agent-chat/agent-chat-drafts';
 import { AgentCommanderApp } from './features/agent-commander/agent-commander-app';
 import { readAgentCommanderWorkbench } from './features/agent-commander/commander-client';
 import { configureCommanderTerminalHost } from './features/agent-commander/commander-commands';
@@ -31,6 +32,7 @@ syncWorkbenchLocale();
 configureWorkbenchSnapshotSource(readAgentCommanderWorkbench);
 configureCommanderToastActions();
 configureCommanderTerminalHost();
+configureAgentChatAttachmentsForCommander();
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>

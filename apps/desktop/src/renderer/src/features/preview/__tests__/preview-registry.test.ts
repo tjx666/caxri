@@ -1,6 +1,13 @@
+import type { PaneLayout } from '@caxri/protocol';
+import { filePreviewTabPath } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { canPreviewPath, previewerForPath, shouldOpenAsPreview } from '../preview-registry';
+import {
+    canPreviewPath,
+    previewerForPath,
+    previewOnlyTabPath,
+    shouldOpenAsPreview,
+} from '../preview-registry';
 
 describe('previewerForPath', () => {
     it('routes every registered Markdown extension to the Markdown view', () => {
@@ -43,5 +50,39 @@ describe('previewerForPath', () => {
     it('opens a PDF straight into its preview because it has no text form', () => {
         expect(shouldOpenAsPreview('/p/docs/Manual.PDF')).toBe(true);
         expect(shouldOpenAsPreview('/p/src/index.ts')).toBe(false);
+    });
+});
+
+describe('previewOnlyTabPath', () => {
+    const layoutWith = (...paths: string[]): PaneLayout => ({
+        root: {
+            type: 'pane',
+            id: 'pane-1',
+            tabs: paths.map((path, index) => ({
+                id: `tab-${index}`,
+                resource: { kind: 'file', path },
+            })),
+            activeTabId: 'tab-0',
+        },
+        activePaneId: 'pane-1',
+    });
+
+    it('opens a format with no text form straight into its preview', () => {
+        expect(previewOnlyTabPath('/p/manual.pdf', undefined)).toBe(
+            filePreviewTabPath('/p/manual.pdf'),
+        );
+    });
+
+    it('reuses the no-preview tab an earlier binary read opened', () => {
+        const layout = layoutWith(filePreviewTabPath('/p/sample.bin'));
+        expect(previewOnlyTabPath('/p/sample.bin', layout)).toBe(
+            filePreviewTabPath('/p/sample.bin'),
+        );
+        expect(previewOnlyTabPath('/p/other.bin', layout)).toBeUndefined();
+    });
+
+    it('reads a text-backed format as source even when its preview is open', () => {
+        const layout = layoutWith(filePreviewTabPath('/p/README.md'));
+        expect(previewOnlyTabPath('/p/README.md', layout)).toBeUndefined();
     });
 });

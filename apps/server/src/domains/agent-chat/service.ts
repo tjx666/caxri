@@ -11,7 +11,6 @@ import type {
     TerminalRecord,
 } from '@caxri/protocol';
 import {
-    agentChatHistoryPageSchema,
     agentChatSnapshotSchema,
     agentProviderCatalog,
     CaxriError,
@@ -21,13 +20,14 @@ import { assertE2EAgentChatInput, logEventCatalog, readE2EAgentPolicy } from '@c
 
 import { AgentRunAutonomy } from '../agents';
 import { SingleFlight } from '../single-flight';
+import { readChatContext } from './chat-context';
 import { agentChatDrivers } from './chat-drivers';
 import { ChatEndpointLease } from './chat-endpoint-lease';
 import type { ChatExitHost } from './chat-exit';
 import { abandonChatStart, handleChatExit } from './chat-exit';
 import type { CreateForkSession } from './chat-fork';
 import { forkChat } from './chat-fork';
-import { readChatHistoryPage } from './chat-history';
+import { readChatTerminalHistory } from './chat-history';
 import { isAgentChatCommandListed } from './chat-items';
 import {
     chatLifecycleHost,
@@ -37,7 +37,7 @@ import {
     readChatTranscript,
     requireChatTerminal,
 } from './chat-launch';
-import { ChatPermissionSwitches, saveReportedChatPermission } from './chat-permission-switch';
+import { ChatPermissionSwitches, chatReportedStateHost } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import type { ChatRewindRequest } from './chat-rewind';
@@ -210,14 +210,12 @@ export class AgentChatService {
                         if (event.phase === 'turnStarted') state.resumeAt = undefined;
                     },
                 }),
-                onSessionBound: (agentSessionId) => {
-                    if (!isCurrent()) return;
-                    if (database.rebindAgentSession(terminalId, provider, agentSessionId))
-                        this.states.publish(terminalId);
-                },
-                onPermissionChanged: (permission) => {
-                    if (isCurrent()) saveReportedChatPermission(database, terminalId, permission);
-                },
+                ...chatReportedStateHost(database, {
+                    terminalId,
+                    provider,
+                    isCurrent,
+                    onRebound: () => this.states.publish(terminalId),
+                }),
                 ...chatSessionLogCallbacks(this.options, terminalId),
                 onExit: (exit) =>
                     handleChatExit(this.exitHost(), terminalId, provider, state, launchId, exit),
@@ -406,15 +404,10 @@ export class AgentChatService {
     }
 
     /**
-     * Returns the page of history before `beforeItemId`. Reading history never starts a provider process.
+     * Returns the page of history before `beforeItemId`; see {@link readChatTerminalHistory}.
      */
-    async readHistory(terminalId: string, beforeItemId: string): Promise<AgentChatHistoryPage> {
-        requireChatTerminal(this.options.database, terminalId);
-        const state = this.states.open(terminalId);
-        state.projection.flush();
-        return agentChatHistoryPageSchema.parse(
-            await readChatHistoryPage(this.options, state.projection, beforeItemId),
-        );
+    readHistory(terminalId: string, beforeItemId: string): Promise<AgentChatHistoryPage> {
+        return readChatTerminalHistory(this.options, this.states, terminalId, beforeItemId);
     }
 
     /**
@@ -429,6 +422,13 @@ export class AgentChatService {
             () => this.ensureStarted(terminalId, state),
             () => this.states.get(terminalId) === state,
         );
+    }
+
+    /**
+     * Returns the Context tab's report; see {@link readChatContext}.
+     */
+    readContext(terminalId: string) {
+        return readChatContext(this.options, terminalId, this.states.get(terminalId)?.session);
     }
 
     async stopTask(terminalId: string, taskId: string): Promise<void> {

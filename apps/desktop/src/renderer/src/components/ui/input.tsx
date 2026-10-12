@@ -12,16 +12,17 @@ const inputVariants = cva(
         variants: {
             appearance: {
                 default:
-                    'rounded border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)]',
-                workbench: 'rounded border-border bg-background',
-                inline: 'rounded border-border bg-surface',
+                    'rounded-lg border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)]',
+                workbench: 'rounded-lg border-border bg-background',
+                inline: 'rounded-lg border-border bg-surface',
                 embedded:
                     'h-full rounded-none border-0 bg-transparent p-0 focus-visible:border-transparent focus-visible:shadow-none',
             },
             size: {
                 standard: 'h-9 px-2 text-[13px]',
                 dense: 'h-7 px-2 text-[12px]',
-                compact: 'h-6 px-1 text-[12px]',
+                // 8px would turn a 24px field into a pill; keep the same height-to-radius ratio instead.
+                compact: 'h-6 rounded-md px-1 text-[12px]',
                 palette: 'h-11 px-2 text-[13px]',
             },
         },
@@ -34,8 +35,8 @@ const inputGroupVariants = cva(
     {
         variants: {
             appearance: {
-                default: 'rounded bg-[color-mix(in_srgb,var(--border)_30%,transparent)]',
-                workbench: 'rounded bg-background',
+                default: 'rounded-lg bg-[color-mix(in_srgb,var(--border)_30%,transparent)]',
+                workbench: 'rounded-lg bg-background',
                 toolbar:
                     'rounded-none border-x-0 border-t-0 bg-background focus-within:shadow-none',
             },

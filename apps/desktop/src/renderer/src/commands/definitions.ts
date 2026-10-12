@@ -63,6 +63,27 @@ export const commandDefinitions: CommandDefinition[] = [
         when: (context) => context.agentActions.canOpen(),
     }),
     /**
+     * The Chat composer's menus and plan toggle fire from its focused input, the surface they serve. Elsewhere,
+     * including an editor where `Cmd+/` and `Cmd+.` mean something else, `when` is false and the key falls through
+     * untouched.
+     */
+    fromCatalog('agentChat.changeModel', (context) => context.agentChat.run('changeModel'), {
+        allowInEditable: true,
+        when: (context) => context.agentChat.canRun('changeModel'),
+    }),
+    fromCatalog(
+        'agentChat.changePermissionMode',
+        (context) => context.agentChat.run('changePermissionMode'),
+        {
+            allowInEditable: true,
+            when: (context) => context.agentChat.canRun('changePermissionMode'),
+        },
+    ),
+    fromCatalog('agentChat.togglePlanMode', (context) => context.agentChat.run('togglePlanMode'), {
+        allowInEditable: true,
+        when: (context) => context.agentChat.canRun('togglePlanMode'),
+    }),
+    /**
      * `Cmd+O` must work from anywhere, including a focused Terminal or editor: it opens a native folder dialog and
      * types nothing into the editable surface.
      */
@@ -384,6 +405,11 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('agentCommander.handOver', (context) => context.dialogs.openCommanderHandover(), {
         when: (context) => context.remote.isLocalOnlyAvailable(),
     }),
+    fromCatalog(
+        'agentCommander.takeBack',
+        (context) => context.session.takeBackSelectedFromCommander(),
+        { when: (context) => context.remote.isLocalOnlyAvailable() },
+    ),
     fromCatalog(
         'developer.toggleScreencastMode',
         (context) => context.developer.toggleScreencastMode(),

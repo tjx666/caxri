@@ -122,7 +122,6 @@ export const statusBar = {
         '{{count}} peer message is waiting for your approval. Click to review the oldest one.',
     'statusBar.peerApproval.descriptionOther':
         '{{count}} peer messages are waiting for your approval. Click to review the oldest one.',
-    'statusBar.permissionAutoAllow.label': 'Always Allow',
     'statusBar.permissionAutoAllow.description':
         'Always allow is on for this Session: every Agent permission request is allowed automatically. Click to turn it off.',
     'statusBar.remoteDebugging.wherePipe': 'through a pipe opened by whatever started Caxri',
@@ -130,8 +129,6 @@ export const statusBar = {
     'statusBar.remoteDebugging.whereLoopback': 'on a loopback port',
     'statusBar.remoteDebugging.consequence':
         'Anything that connects can read every window and act as you; nothing on another machine can reach it.',
-    'statusBar.remoteDebugging.pipeText': 'Debug pipe',
-    'statusBar.remoteDebugging.portText': 'Debug port',
     'statusBar.remoteDebugging.description':
         'Caxri accepts debugging connections {{where}}. {{consequence}} Click to open the setting.',
     'statusBar.remoteDebugging.title': 'Accepting debugging connections',
@@ -163,7 +160,6 @@ export const statusBar = {
     'statusBar.pullRequest.unavailable.network': 'PR offline',
     'statusBar.pullRequest.unavailable.tls': 'PR TLS error',
     'statusBar.pullRequest.unavailable.other': 'PR unknown',
-    'statusBar.screencast.label': 'Screencast',
     'statusBar.screencast.description':
         'Screencast Mode is on — click to turn it off. It overlays click ripples and keystroke hints for recording; it does not hide or redact anything already on screen.',
     'statusBar.workbenchRoot.authorizeTitle': 'Authorize worktree?',

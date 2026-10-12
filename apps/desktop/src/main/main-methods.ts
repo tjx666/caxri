@@ -20,6 +20,7 @@ import { app, clipboard, ClipboardItem, dialog, nativeImage, net, shell } from '
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
 import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
+import { selectAgentChatPaths } from './agent-chat-path-picker';
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import { createAgentProviderStatus, createE2EStatusPageFetch } from './agent-provider-status';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
@@ -242,6 +243,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return linkPreview(request.params.url);
             case 'dialog.selectDirectory':
                 return options.workbenchRootAuthority.selectProjectFolder();
+            case 'dialog.selectPaths':
+                return selectAgentChatPaths(mainWindow, request.params);
             case 'pathBrowser.start':
                 return options.workbenchRootAuthority.pathBrowser.start(request.params);
             case 'pathBrowser.browse':

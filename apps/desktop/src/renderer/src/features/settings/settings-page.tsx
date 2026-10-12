@@ -21,6 +21,7 @@ import { agentProviderForSubcategory, useSettingsRegistry } from './settings-reg
 import type { SettingsListItem } from './settings-search';
 import { buildSettingsList, countRowsByCategory, filterSettingsRows } from './settings-search';
 import { SettingsSearchInput } from './settings-search-input';
+import { settingsActiveAnchor, settingsAnchorOf } from './settings-toc';
 import { rowResetAction } from './settings-values';
 
 export interface SettingsPageProperties {
@@ -54,13 +55,12 @@ export interface SettingsPageProperties {
 }
 
 /**
- * Anchor id a TOC entry scrolls to: a category id, or `category:subcategory`.
+ * A hovered entry gets a lighter wash than the current one, which also takes a heavier weight, so the entry under the
+ * pointer never reads as a second current location.
  */
-const anchorOf = (item: SettingsListItem): string | undefined => {
-    if (item.kind === 'category') return item.category.id;
-    if (item.kind === 'subcategory') return `${item.categoryId}:${item.title}`;
-    return undefined;
-};
+const TOC_ENTRY_CLASS =
+    'flex h-7 w-full cursor-pointer items-center rounded border-0 bg-transparent px-2 text-left text-[12px] text-muted hover:bg-elevated/50 hover:text-foreground';
+const TOC_ACTIVE_CLASS = 'bg-elevated font-medium text-foreground hover:bg-elevated';
 
 interface SettingsTocProperties {
     categories: SettingsCategory[];
@@ -87,17 +87,17 @@ function SettingsToc({
                 {categories.map((category) => {
                     const count = counts[category.id] ?? 0;
                     if (searching && count === 0) return null;
-                    const isActive =
-                        activeAnchor === category.id ||
-                        (activeAnchor?.startsWith(`${category.id}:`) ?? false);
+                    // A subcategory carries the location on its own, so `aria-current` names exactly one entry.
+                    const isActive = activeAnchor === category.id;
                     return (
                         <li key={category.id}>
                             <button
                                 type="button"
                                 aria-current={isActive ? 'location' : undefined}
                                 className={cn(
-                                    'flex h-7 w-full cursor-pointer items-center justify-between gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground',
-                                    isActive && 'bg-elevated text-foreground',
+                                    TOC_ENTRY_CLASS,
+                                    'justify-between gap-2',
+                                    isActive && TOC_ACTIVE_CLASS,
                                 )}
                                 onClick={() => onNavigate(category.id)}
                             >
@@ -124,9 +124,9 @@ function SettingsToc({
                                                             : undefined
                                                     }
                                                     className={cn(
-                                                        'flex h-7 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 pl-6 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground',
-                                                        activeAnchor === anchor &&
-                                                            'bg-elevated text-foreground',
+                                                        TOC_ENTRY_CLASS,
+                                                        'gap-2 pl-6',
+                                                        activeAnchor === anchor && TOC_ACTIVE_CLASS,
                                                     )}
                                                     onClick={() => onNavigate(anchor)}
                                                 >
@@ -210,23 +210,43 @@ export function SettingsPage(properties: SettingsPageProperties) {
         overscan: 8,
     });
 
-    // Scroll-spy: the anchor owning the first item in the viewport drives the TOC highlight.
     const virtualItems = virtualizer.getVirtualItems();
     const scrollOffset = virtualizer.scrollOffset ?? 0;
-    const activeAnchor = useMemo(() => {
-        const topItem = virtualItems.find((item) => item.end > scrollOffset) ?? virtualItems.at(0);
-        if (topItem === undefined) return;
-        for (let index = topItem.index; index >= 0; index -= 1) {
-            const item = list[index];
-            if (item.kind === 'subcategory' || item.kind === 'category') return anchorOf(item);
-            if (item.row.subcategory) return `${item.row.category}:${item.row.subcategory}`;
-        }
-        return list[0] ? anchorOf(list[0]) : undefined;
-    }, [list, scrollOffset, virtualItems]);
+    const spiedAnchor = useMemo(
+        () => settingsActiveAnchor(list, virtualItems, scrollOffset),
+        [list, scrollOffset, virtualItems],
+    );
+    /**
+     * The TOC entry the user clicked stays current until they scroll the list themselves. Scroll-spy alone cannot hold
+     * it: a short last section such as Agent or Grok Build can never reach the top of the viewport, so the section
+     * above it would keep the highlight.
+     */
+    const [pinnedAnchor, setPinnedAnchor] = useState<{ anchor: string; requests: string }>();
+    /**
+     * A focus request that arrives later scrolls to its own row, so it releases the pin the same way user scrolling
+     * does: the pin only holds while the requests it was set under are still the latest ones.
+     */
+    const focusRequests = [
+        trustedDomainsFocusRequestId,
+        properties.agentActionsFocusRequest?.id,
+        properties.agentExecutableFocusRequest?.id,
+        properties.gitExclusionsFocusRequestId,
+        properties.rowFocusRequest?.id,
+        properties.notificationsFocusRequestId,
+    ].join(':');
+    const activeAnchor =
+        pinnedAnchor?.requests === focusRequests ? pinnedAnchor.anchor : spiedAnchor;
+    const releasePinnedAnchor = (): void => setPinnedAnchor(undefined);
+    const changeQuery = (next: string): void => {
+        setPinnedAnchor(undefined);
+        setQuery(next);
+    };
 
     const navigate = (anchor: string): void => {
-        const index = list.findIndex((item) => anchorOf(item) === anchor);
-        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
+        const index = list.findIndex((item) => settingsAnchorOf(item) === anchor);
+        if (index === -1) return;
+        setPinnedAnchor({ anchor, requests: focusRequests });
+        virtualizer.scrollToIndex(index, { align: 'start' });
     };
 
     // A `trusted-domains` open request scrolls the row into view; the mounted editor then grabs
@@ -339,7 +359,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
                     clearTooltip={t('settings.page.clearSearch')}
                     clearLabel={t('settings.page.clearSearchLabel')}
                     value={query}
-                    onChange={setQuery}
+                    onChange={changeQuery}
                 />
                 {isSearching && (
                     <p className="mt-2 mb-0 text-[11px] text-muted" role="status">
@@ -358,7 +378,17 @@ export function SettingsPage(properties: SettingsPageProperties) {
                     searching={isSearching}
                     onNavigate={navigate}
                 />
-                <div ref={scrollParentReference} className="min-h-0 overflow-y-auto pr-2 pb-6 pl-1">
+                {/* Wheel, touch, keyboard, and scrollbar drags are the user's own scrolling; programmatic scrolls are not. */}
+                <div
+                    ref={scrollParentReference}
+                    className="min-h-0 overflow-y-auto pr-2 pb-6 pl-1"
+                    onKeyDown={releasePinnedAnchor}
+                    onPointerDown={(event) => {
+                        if (event.target === event.currentTarget) releasePinnedAnchor();
+                    }}
+                    onTouchMove={releasePinnedAnchor}
+                    onWheel={releasePinnedAnchor}
+                >
                     {list.length === 0 ? (
                         <p className="px-3 py-6 text-center text-[12px] text-muted">
                             {t('settings.page.noMatches', { query: query.trim() })}

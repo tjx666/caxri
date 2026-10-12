@@ -7,8 +7,8 @@ import { StatusItem } from './status-item';
 
 /**
  * Screencast Mode has no other persistent cue while active; see `screencast.ts`'s `toggleScreencastMode` for the paired
- * toast. Muted tokens keep it quiet per DESIGN.md's status bar redline (only degraded Server state earns a loud chip);
- * clicking replays the same toggle command a keybinding or the command palette would run.
+ * toast. Muted and icon-only per DESIGN.md's status bar redline (only a degraded Caxri earns a coloured or worded
+ * chip); clicking replays the same toggle command a keybinding or the command palette would run.
  */
 const screencastChipClassName = 'text-muted';
 
@@ -29,8 +29,6 @@ export function ScreencastModeChip() {
             title={t('statusBar.screencast.description')}
             className={screencastChipClassName}
             onClick={() => executeCommand('developer.toggleScreencastMode')}
-        >
-            {t('statusBar.screencast.label')}
-        </StatusItem>
+        />
     );
 }

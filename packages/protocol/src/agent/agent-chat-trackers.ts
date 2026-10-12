@@ -236,17 +236,68 @@ function firstUnquotedMatch(command: string, pattern: RegExp): RegExpExecArray |
 }
 
 /**
+ * The command starting at `index`, up to the unquoted operator that ends it, and whether that operator is `||`: a
+ * fallback that runs only when this command fails.
+ */
+function commandUntilEnd(command: string, index: number): { text: string; hasFallback: boolean } {
+    let quote: '"' | "'" | undefined;
+    for (let position = index; position < command.length; position += 1) {
+        const char = command.charAt(position);
+        if (char === '\\' && quote !== "'") position += 1;
+        else if (quote === undefined && (char === '"' || char === "'")) quote = char;
+        else if (char === quote) quote = undefined;
+        else if (quote === undefined && COMMAND_END.has(char))
+            return {
+                text: command.slice(index, position),
+                hasFallback: char === '|' && command.charAt(position + 1) === '|',
+            };
+    }
+    return { text: command.slice(index), hasFallback: false };
+}
+
+/**
+ * Gh's error when a pull request for the branch already exists; it prints the existing pull request's URL with it.
+ */
+const GH_ALREADY_EXISTS = /\balready exists\b/u;
+const DISCARDS_STDERR = /(?:^|\s)(?:2|&)>\s*\/dev\/null\b/u;
+
+/**
+ * Whether a printed URL may have come from the `||` fallback of a create rather than from the create itself, as in `gh
+ * pr create ... || gh pr view --json url`: the create failed because the pull request exists (gh says so), or its error
+ * was discarded and nothing tells the two apart. Both exit 0 and print a URL.
+ */
+function canBeFallbackUrl(
+    segment: { text: string; hasFallback: boolean },
+    output: string,
+): boolean {
+    return (
+        segment.hasFallback &&
+        (GH_ALREADY_EXISTS.test(output) || DISCARDS_STDERR.test(segment.text))
+    );
+}
+
+/**
  * `gh pr create`, `gh pr edit`, `gh issue create`, or `gh issue edit` that printed the URL of what it touched. The
- * title and body come from the command's own flags; an edit that changed neither still names the pull request or
- * issue.
+ * title and body come from the command's own flags; an edit that changed neither still names the pull request or issue.
+ * A create is skipped when its `||` fallback may have printed the URL instead, so the next `gh` call (an edit in that
+ * fallback) decides the card, or there is none.
  */
 function commandTrackerArtifact(item: CommandItem): AgentChatTrackerArtifact | undefined {
     if (item.status !== 'completed') return undefined;
     const command = unwrapShellCommand(item.command);
-    const match = firstUnquotedMatch(command, GH_TRACKER_COMMAND);
     const url = Array.from(item.output.matchAll(GITHUB_URL)).at(-1)?.[0];
     const target = url && githubUrlArtifact(url);
-    if (!match || !target) return undefined;
+    if (!target) return undefined;
+    let match: RegExpExecArray | undefined;
+    for (const candidate of command.matchAll(GH_TRACKER_COMMAND)) {
+        if (isQuotedAt(command, candidate.index)) continue;
+        const isCreate = candidate[1] === 'create';
+        if (isCreate && canBeFallbackUrl(commandUntilEnd(command, candidate.index), item.output))
+            continue;
+        match = candidate;
+        break;
+    }
+    if (!match) return undefined;
     const words = agentChatTrackerShellWords(command.slice(match.index));
     const title = flagValue(words, '--title', '-t');
     const body = flagValue(words, '--body', '-b');

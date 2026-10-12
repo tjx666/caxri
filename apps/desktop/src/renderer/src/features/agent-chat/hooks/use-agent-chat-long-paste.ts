@@ -1,7 +1,10 @@
 import type { ClipboardEvent } from 'react';
 import { useState } from 'react';
 
+import { defaultAppSettings } from '@caxri/protocol';
+
 import { translate } from '../../../i18n';
+import { useSettings } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
 import { longPasteFailureMessage } from '../../terminal/terminal-long-paste';
 import { saveAgentChatLongPaste } from '../agent-chat-commands';
@@ -29,6 +32,7 @@ export function useAgentChatLongPaste({
     terminalId: string;
 }) {
     const [savingCount, setSavingCount] = useState(0);
+    const threshold = (useSettings() ?? defaultAppSettings)['agentChat.longPasteThreshold'];
     const save = async (content: string, range: AgentChatPasteRange): Promise<void> => {
         setSavingCount((count) => count + 1);
         const reference = await saveAgentChatLongPaste(terminalId, content);
@@ -48,6 +52,7 @@ export function useAgentChatLongPaste({
                 currentLength: value.length,
                 pasted,
                 selectedLength: selectionEnd - selectionStart,
+                threshold,
             });
             if (disposition === 'inline') return false;
             event.preventDefault();

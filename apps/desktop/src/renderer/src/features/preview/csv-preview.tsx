@@ -1,5 +1,4 @@
-import type { CSSProperties } from 'react';
-import { useDeferredValue, useLayoutEffect, useMemo, useRef } from 'react';
+import { useDeferredValue, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TriangleAlert } from 'lucide-react';
@@ -8,83 +7,43 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
-import { cn } from '../../lib/utilities';
-import type { DelimitedTable } from './csv-table';
+import { columnLeftEdge } from './csv-column-width';
+import type { TableSort } from './csv-row-view';
+import { nextTableSort, tableRowSearchText, tableRowView } from './csv-row-view';
 import {
     describeTableIssues,
     describeTableLimits,
     describeTableSize,
     isCellClipped,
     parseDelimitedTable,
-    rowNumberGutterWidth,
+    TABLE_HEADER_HEIGHT,
+    TABLE_ROW_HEIGHT,
 } from './csv-table';
+import { CsvTableBody } from './csv-table-body';
+import { CsvTableFilter } from './csv-table-filter';
+import { CsvTableHeader } from './csv-table-header';
+import type { TableCellPosition } from './csv-table-selection';
+import { isCellInBounds, nextTableKeyboardSelection } from './csv-table-selection';
+import { useCsvColumnWidths } from './hooks/use-csv-column-widths';
+import { useCsvTableClipboard } from './hooks/use-csv-table-clipboard';
+import { useCsvTableSelection } from './hooks/use-csv-table-selection';
 import { openPreviewSource } from './preview-commands';
 import { readPreviewViewState, rememberPreviewViewState } from './preview-view-state';
 
-const ROW_HEIGHT = 24;
-
 /**
- * One grid template for the header and every row, so columns line up without measuring the DOM: the row-number gutter
- * sized to the largest row number, then each column at its estimated width plus the cell's horizontal padding. Every
- * row is its own grid, so no track may depend on that row's content.
+ * The table cell an event happened in: its view row and its column, or `column: undefined` for the row-number gutter.
  */
-function gridTemplate(table: DelimitedTable): CSSProperties {
-    const columns = table.columnWidths.map((width) => `calc(${width}ch + 16px)`).join(' ');
-    return { gridTemplateColumns: `${rowNumberGutterWidth(table.rows.length)} ${columns}` };
-}
-
-function TableRow({
-    cells,
-    columnWidths,
-    numericColumns,
-    rowIndex,
-    style,
-}: {
-    cells: readonly string[];
-    columnWidths: readonly number[];
-    numericColumns: readonly boolean[];
-    rowIndex: number;
-    style: CSSProperties;
-}) {
-    return (
-        <div
-            aria-rowindex={rowIndex + 2}
-            className="absolute top-0 left-0 grid min-w-full border-b border-border"
-            role="row"
-            style={style}
-        >
-            <span
-                className="sticky left-0 border-r border-border bg-background px-2 text-right leading-6 whitespace-nowrap text-muted tabular-nums"
-                role="rowheader"
-            >
-                {rowIndex + 1}
-            </span>
-            {cells.map((cell, column) => {
-                const content = (
-                    <span
-                        // Columns are positional and never reorder, so the index is the cell's identity.
-                        key={column}
-                        className={cn(
-                            'truncate px-2 leading-6',
-                            numericColumns[column] && 'text-right tabular-nums',
-                        )}
-                        role="cell"
-                    >
-                        {cell}
-                    </span>
-                );
-                // Only a cell the column cuts off carries a tooltip: one per visible cell would mount a popup tree for
-                // every cell the virtualizer renders, to repeat text that is already fully on screen.
-                return isCellClipped(cell, columnWidths[column]) ? (
-                    <Tooltip key={column} content={cell}>
-                        {content}
-                    </Tooltip>
-                ) : (
-                    content
-                );
-            })}
-        </div>
-    );
+function tableCellAt(target: EventTarget): (TableCellPosition & { isGutter: boolean }) | undefined {
+    if (!(target instanceof Element)) return undefined;
+    const cell = target.closest<HTMLElement>('[role="gridcell"], [role="rowheader"]');
+    const row = cell?.closest<HTMLElement>('[data-position]');
+    if (!cell || !row) return undefined;
+    const isGutter = cell.getAttribute('role') === 'rowheader';
+    return {
+        row: Number(row.dataset.position),
+        column: isGutter ? 0 : Number(cell.dataset.column),
+        isGutter,
+    };
 }
 
 /**
@@ -123,6 +82,47 @@ function TableWarnings({
 }
 
 /**
+ * The full text of the clipped active cell, below it, while the keyboard moves through the table: the keyboard's
+ * counterpart of the hover tooltip a clipped cell shows the pointer, styled the same. The grid keeps focus (the cell is
+ * only its active descendant), so the tooltip itself, which opens on its trigger's own focus, cannot serve here. Screen
+ * readers already read the cell in full, since the truncation is visual only.
+ */
+function ActiveCellText({
+    cell,
+    isAbove,
+    isClipped,
+    left,
+    top,
+}: {
+    cell: string | undefined;
+    /**
+     * Opens above the cell instead of below, for the last rows, where below would run past the end of the table.
+     */
+    isAbove: boolean;
+    isClipped: boolean;
+    left: number;
+    /**
+     * The cell's top edge in the table's scroll content.
+     */
+    top: number;
+}) {
+    if (!isClipped || cell === undefined) return null;
+    return (
+        <div
+            aria-hidden="true"
+            className="pointer-events-none absolute z-20 max-w-80 rounded-md bg-elevated px-2.5 py-1.5 text-[12px] wrap-anywhere whitespace-pre-line text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]"
+            style={
+                isAbove
+                    ? { left, top: top - 4, transform: 'translateY(-100%)' }
+                    : { left, top: top + TABLE_ROW_HEIGHT + 4 }
+            }
+        >
+            {cell}
+        </div>
+    );
+}
+
+/**
  * The table reading view for CSV and TSV.
  *
  * Parsing runs on the deferred source, so typing in the editor beside it never waits on a re-split. Only the rows in
@@ -146,7 +146,53 @@ export function CsvPreview({
         () => parseDelimitedTable(deferredSource, path, t),
         [deferredSource, path, t],
     );
-    const template = useMemo(() => gridTemplate(table), [table]);
+    const filterReference = useRef<HTMLInputElement>(null);
+    const [sort, setSort] = useState<TableSort | undefined>(
+        () => readPreviewViewState(viewStateKey)?.tableSort ?? undefined,
+    );
+    const [filter, setFilter] = useState(
+        () => readPreviewViewState(viewStateKey)?.tableFilter ?? '',
+    );
+    const searchText = useMemo(() => tableRowSearchText(table.rows), [table]);
+    /**
+     * Deferred like the parse: a sort or filter over 50,000 rows renders in the background while the header click or
+     * the keystroke that asked for it paints immediately.
+     */
+    const deferredSort = useDeferredValue(sort);
+    const deferredFilter = useDeferredValue(filter);
+    const rowOrder = useMemo(
+        () => tableRowView(table, searchText, deferredSort, deferredFilter),
+        [deferredFilter, deferredSort, searchText, table],
+    );
+    const {
+        autoFitColumn,
+        chProbeReference,
+        clipWidths,
+        columnPixelWidths,
+        gutterWidth,
+        resizeColumn,
+        revealCell,
+        template,
+    } = useCsvColumnWidths({ sortColumn: sort?.column, table, viewStateKey });
+    const tableBounds = { rows: rowOrder.length, columns: table.header.length };
+    const { select, selectAt, selection, selectionBounds } = useCsvTableSelection({
+        bounds: tableBounds,
+        filter: deferredFilter,
+        sort: deferredSort,
+        viewStateKey,
+    });
+    /**
+     * The cell the keyboard acts on: the selection's focus, or the first cell before anything is selected.
+     */
+    const activeCell = selection?.focus ?? { row: 0, column: 0 };
+    const activeCellId = `${useId()}-active-cell`;
+    const [isTableFocused, setIsTableFocused] = useState(false);
+    /**
+     * Set by a navigation key and cleared by a pointer press, so the clipped-cell popup below follows the keyboard and
+     * never lingers after a click, where the hover tooltip already serves the pointer.
+     */
+    const [isKeyboardActive, setIsKeyboardActive] = useState(false);
+    const { copySelection, openCellMenu } = useCsvTableClipboard({ rowOrder, selection, table });
     const warnings = [describeTableIssues(table, t), describeTableLimits(table, t)].filter(
         (message): message is string => message !== undefined,
     );
@@ -154,14 +200,23 @@ export function CsvPreview({
     // which is the library's documented, expected behavior.
     // eslint-disable-next-line react-hooks/incompatible-library -- see above
     const virtualizer = useVirtualizer({
-        count: table.rows.length,
-        estimateSize: () => ROW_HEIGHT,
+        count: rowOrder.length,
+        estimateSize: () => TABLE_ROW_HEIGHT,
         getScrollElement: () => scrollReference.current,
         initialOffset: () => readPreviewViewState(viewStateKey)?.scrollTop ?? 0,
         overscan: 12,
         // The sticky header sits above the first row inside the same scroller.
-        scrollMargin: ROW_HEIGHT,
+        scrollMargin: TABLE_HEADER_HEIGHT,
     });
+    /**
+     * A new order or filter starts reading from the top, where its first rows are, and is remembered for this pane.
+     */
+    const changeView = (next: { tableSort?: TableSort | null; tableFilter?: string }) => {
+        if (next.tableSort !== undefined) setSort(next.tableSort ?? undefined);
+        if (next.tableFilter !== undefined) setFilter(next.tableFilter);
+        rememberPreviewViewState(viewStateKey, { ...next, scrollTop: 0 });
+        if (scrollReference.current) scrollReference.current.scrollTop = 0;
+    };
 
     /**
      * Restores the horizontal position too, before paint; the virtualizer's `initialOffset` owns the vertical one so
@@ -176,82 +231,174 @@ export function CsvPreview({
     }, [viewStateKey]);
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-background text-[12px] text-foreground">
+        // The filter takes Cmd+F from anywhere in the table, the way a find field does in an editor.
+        <div
+            className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background text-[12px] text-foreground"
+            onKeyDown={(event) => {
+                if (!event.metaKey || event.key.toLowerCase() !== 'f') return;
+                event.preventDefault();
+                filterReference.current?.focus();
+                filterReference.current?.select();
+            }}
+        >
+            {/* Measures one `ch` of the table font, so a column fitted or resized in pixels matches its `ch` estimate. */}
+            <span
+                ref={chProbeReference}
+                aria-hidden="true"
+                className="pointer-events-none invisible absolute top-0 left-0 h-0 w-[100ch]"
+            />
             {warnings.length > 0 && <TableWarnings messages={warnings} path={path} t={t} />}
             {table.header.length === 0 ? (
                 <div className="empty-work flex min-h-0 flex-1 items-center justify-center text-muted">
                     {t('preview.table.noRows')}
                 </div>
             ) : (
-                // react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- rows are absolutely positioned by the virtualizer, which a native <table> layout cannot host.
-                <div
-                    ref={scrollReference}
-                    aria-colcount={table.header.length + 1}
-                    aria-label={t('preview.table.label')}
-                    aria-rowcount={table.rows.length + 1}
-                    className="min-h-0 flex-1 overflow-auto"
-                    role="table"
-                    onScroll={(event) =>
-                        rememberPreviewViewState(viewStateKey, {
-                            scrollTop: event.currentTarget.scrollTop,
-                            scrollLeft: event.currentTarget.scrollLeft,
-                        })
-                    }
-                >
-                    {/* Layout only: the header and body row groups below are the table's direct structure. */}
-                    <div className="w-max min-w-full" role="none">
-                        <div className="sticky top-0 z-10" role="rowgroup">
-                            <div
-                                aria-rowindex={1}
-                                className="grid min-w-full border-b border-border bg-background font-semibold"
-                                role="row"
-                                style={template}
-                            >
-                                <span
-                                    className="sticky left-0 border-r border-border bg-background"
-                                    role="columnheader"
-                                >
-                                    <span className="sr-only">{t('preview.table.rowHeader')}</span>
-                                </span>
-                                {table.header.map((label, column) => (
-                                    <span
-                                        key={column}
-                                        className={cn(
-                                            'truncate px-2 leading-6',
-                                            table.numericColumns[column] && 'text-right',
-                                        )}
-                                        role="columnheader"
-                                    >
-                                        {label}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                        <div
-                            className="relative"
-                            role="rowgroup"
-                            style={{ height: virtualizer.getTotalSize() }}
-                        >
-                            {virtualizer.getVirtualItems().map((item) => (
-                                <TableRow
-                                    key={item.key}
-                                    cells={table.rows[item.index]}
-                                    columnWidths={table.columnWidths}
-                                    numericColumns={table.numericColumns}
-                                    rowIndex={item.index}
-                                    style={{
-                                        ...template,
-                                        height: ROW_HEIGHT,
-                                        transform: `translateY(${item.start - ROW_HEIGHT}px)`,
-                                    }}
-                                />
-                            ))}
-                        </div>
+                <>
+                    <div className="flex h-8 flex-none items-center bg-surface px-2">
+                        <CsvTableFilter
+                            inputRef={filterReference}
+                            value={filter}
+                            onChange={(value) => changeView({ tableFilter: value })}
+                        />
                     </div>
-                </div>
+                    {/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- rows are absolutely positioned by the virtualizer, which a native <table> layout cannot host. */}
+                    <div
+                        ref={scrollReference}
+                        aria-colcount={table.header.length + 1}
+                        aria-label={t('preview.table.label')}
+                        aria-activedescendant={
+                            isTableFocused && rowOrder.length > 0 ? activeCellId : undefined
+                        }
+                        aria-multiselectable
+                        aria-rowcount={rowOrder.length + 1}
+                        className="group/table relative min-h-0 flex-1 overflow-auto outline-none"
+                        role="grid"
+                        // One tab stop: the grid keeps focus and names the active cell through `aria-activedescendant`,
+                        // because the virtualizer unmounts rows (and any focused cell in them) as they scroll away.
+                        tabIndex={0}
+                        onBlur={(event) => {
+                            if (event.target === event.currentTarget) setIsTableFocused(false);
+                        }}
+                        onFocus={(event) => {
+                            if (event.target === event.currentTarget) setIsTableFocused(true);
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.target !== event.currentTarget) return;
+                            const pageSize = Math.floor(
+                                (event.currentTarget.clientHeight - TABLE_HEADER_HEIGHT) /
+                                    TABLE_ROW_HEIGHT,
+                            );
+                            const moved = nextTableKeyboardSelection(
+                                selection,
+                                event,
+                                tableBounds,
+                                pageSize,
+                            );
+                            if (moved) {
+                                event.preventDefault();
+                                select(moved);
+                                setIsKeyboardActive(true);
+                                revealCell(event.currentTarget, moved.focus);
+                                return;
+                            }
+                            if (!selection) return;
+                            if (event.key === 'Escape') {
+                                select(undefined);
+                                return;
+                            }
+                            if (!event.metaKey || event.key.toLowerCase() !== 'c') return;
+                            event.preventDefault();
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard; tryCommand reports a failure itself
+                            void copySelection(selection);
+                        }}
+                        onScroll={(event) =>
+                            rememberPreviewViewState(viewStateKey, {
+                                scrollTop: event.currentTarget.scrollTop,
+                                scrollLeft: event.currentTarget.scrollLeft,
+                            })
+                        }
+                    >
+                        {/* Layout only: the header and body row groups below are the table's direct structure. */}
+                        <div className="w-max min-w-full" role="none">
+                            <div className="sticky top-0 z-10" role="rowgroup">
+                                <CsvTableHeader
+                                    columnPixelWidths={columnPixelWidths}
+                                    header={table.header}
+                                    numericColumns={table.numericColumns}
+                                    sort={sort}
+                                    style={template}
+                                    onAutoFit={autoFitColumn}
+                                    onResize={(column, width) => resizeColumn(column, width, false)}
+                                    onResizeCommit={(column, width) =>
+                                        resizeColumn(column, width, true)
+                                    }
+                                    onSort={(column) =>
+                                        changeView({
+                                            tableSort: nextTableSort(sort, column) ?? null,
+                                        })
+                                    }
+                                />
+                            </div>
+                            <CsvTableBody
+                                activeCell={activeCell}
+                                activeCellId={activeCellId}
+                                clipWidths={clipWidths}
+                                items={virtualizer.getVirtualItems()}
+                                rowOrder={rowOrder}
+                                selectionBounds={selectionBounds}
+                                table={table}
+                                template={template}
+                                totalSize={virtualizer.getTotalSize()}
+                                onContextMenu={(event) => {
+                                    const position = tableCellAt(event.target);
+                                    if (!position) return;
+                                    // A right click outside the selection selects the cell under it first.
+                                    if (
+                                        !isCellInBounds(
+                                            selectionBounds,
+                                            position.row,
+                                            position.column,
+                                        )
+                                    )
+                                        selectAt(position, false);
+                                    openCellMenu(event, position);
+                                }}
+                                onPointerDown={(event) => {
+                                    setIsKeyboardActive(false);
+                                    if (event.button !== 0) return;
+                                    selectAt(tableCellAt(event.target), event.shiftKey);
+                                }}
+                            />
+                            {isTableFocused && isKeyboardActive && (
+                                <ActiveCellText
+                                    cell={table.rows[rowOrder[activeCell.row]]?.[activeCell.column]}
+                                    isClipped={isCellClipped(
+                                        table.rows[rowOrder[activeCell.row]]?.[activeCell.column] ??
+                                            '',
+                                        clipWidths[activeCell.column],
+                                    )}
+                                    left={columnLeftEdge(
+                                        gutterWidth,
+                                        columnPixelWidths,
+                                        activeCell.column,
+                                    )}
+                                    isAbove={
+                                        activeCell.row >= 4 && activeCell.row >= rowOrder.length - 4
+                                    }
+                                    top={TABLE_HEADER_HEIGHT + activeCell.row * TABLE_ROW_HEIGHT}
+                                />
+                            )}
+                        </div>
+                        {rowOrder.length === 0 && table.rows.length > 0 && (
+                            <div className="empty-work absolute inset-x-0 top-12 text-center text-muted">
+                                {t('preview.table.noMatches')}
+                            </div>
+                        )}
+                    </div>
+                </>
             )}
             <div className="flex h-6 flex-none items-center justify-center bg-surface text-[11px] text-muted tabular-nums">
-                {describeTableSize(table, t)}
+                {describeTableSize(table, t, rowOrder.length)}
             </div>
         </div>
     );

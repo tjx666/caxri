@@ -108,6 +108,39 @@
     color: transparent;
 }
 
+/**
+ * Find matches, which pdf.js wraps in `.highlight` spans (`.selected` for the current one, `begin`/`middle`/`end` for a
+ * match spanning text runs). The text layer is transparent over the canvas, so the fill is translucent to keep the
+ * rendered glyphs readable. The warning tone matches the Terminal and Chat find bars and keeps the accent free for the
+ * screen's one focus indicator.
+ */
+.caxri-pdf-preview .textLayer .highlight {
+    margin: -1px;
+    padding: 1px;
+    border-radius: 4px;
+    background-color: color-mix(in srgb, var(--warning) 30%, transparent);
+}
+
+.caxri-pdf-preview .textLayer .highlight.appended {
+    position: initial;
+}
+
+.caxri-pdf-preview .textLayer .highlight.begin {
+    border-radius: 4px 0 0 4px;
+}
+
+.caxri-pdf-preview .textLayer .highlight.end {
+    border-radius: 0 4px 4px 0;
+}
+
+.caxri-pdf-preview .textLayer .highlight.middle {
+    border-radius: 0;
+}
+
+.caxri-pdf-preview .textLayer .highlight.selected {
+    background-color: color-mix(in srgb, var(--warning) 65%, transparent);
+}
+
 .caxri-pdf-preview .textLayer br::selection {
     background: transparent;
 }

@@ -111,9 +111,18 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
      * A Project file reaches its source and Finder; an external or virtual document has no file either action can open.
      */
     const projectFilePath = isVirtualEditorTabPath(tab.path) ? undefined : tab.path;
+    /**
+     * Opening a file reaches a preview tab with no previewer only after its read found binary content (issue #1921), so
+     * there is no editable source to offer; Finder is the way forward.
+     */
     if (!previewer)
         return (
-            <PreviewEmptyState title={t('preview.unavailable')} path={projectFilePath} showReveal />
+            <PreviewEmptyState
+                title={t('preview.unavailable')}
+                path={projectFilePath}
+                showReveal
+                showSource={false}
+            />
         );
     const viewStateKey = previewViewStateKey(session.id, paneId, tab.path);
     const textSurface = (render: (document: EditorDocument) => ReactNode) => (
@@ -131,6 +140,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
                 <ImagePreview
                     path={tab.path}
                     sessionId={session.id}
+                    viewStateKey={viewStateKey}
                     workbenchProjectId={session.workbenchProjectId}
                 />
             );
@@ -174,6 +184,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
                     source={document.content}
                     sourcePath={projectFilePath}
                     theme={theme}
+                    viewStateKey={viewStateKey}
                 />
             ));
         }

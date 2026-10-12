@@ -24,6 +24,7 @@ export const agentChatComposer = {
     'agentChat.add.tooltip': 'Add files and more',
     'agentChat.add.add': 'Add',
     'agentChat.add.files': 'Files',
+    'agentChat.add.filesAndFolders': 'Files and folders',
     'agentChat.add.goal': 'Goal',
     'agentChat.add.goalDescription': 'Set a goal the Agent keeps working toward',
     'agentChat.add.turnOffPlanMode': 'Turn off plan mode',

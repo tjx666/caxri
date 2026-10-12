@@ -283,6 +283,21 @@ export function agentChatImageFiles(files: Iterable<File>): File[] {
     return [...files].filter((file) => file.type.startsWith('image/'));
 }
 
+/**
+ * An image `dialog.selectPaths` read for the composer, as the `File` a drop of it would have carried, so a pick takes
+ * the same validation, resizing, and thumbnail route as a drop. It is named after the file's last path segment.
+ */
+export function agentChatPickedImageFile(
+    path: string,
+    image: { base64: string; mediaType: AgentChatImageMediaType },
+): File {
+    const binary = atob(image.base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1)
+        bytes[index] = binary.codePointAt(index) ?? 0;
+    return new File([bytes], path.split('/').at(-1) ?? path, { type: image.mediaType });
+}
+
 async function blobToBase64(blob: Blob): Promise<string> {
     const bytes = new Uint8Array(await blob.arrayBuffer());
     let binary = '';

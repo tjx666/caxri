@@ -1,8 +1,4 @@
-import {
-    AGENT_CHAT_LONG_PASTE_THRESHOLD,
-    isLongPasteWithinLimit,
-    MAX_AGENT_CHAT_MESSAGE_LENGTH,
-} from '@caxri/protocol';
+import { isLongPasteWithinLimit, MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 
 /**
  * What a text paste into the composer does: land in the input, be saved to a file the message cites, or be refused
@@ -19,20 +15,23 @@ const LONG_PASTE_REFERENCE_ALLOWANCE = 2048;
 
 /**
  * Decides where `pasted` goes when it replaces a selection of `selectedLength` in a draft of `currentLength`. Text past
- * {@link AGENT_CHAT_LONG_PASTE_THRESHOLD} becomes a file so a log or a dump does not bury the message, and so does any
- * paste the message limit would otherwise cut, since the textarea's `maxLength` drops the overflow silently.
+ * `threshold` (`agentChat.longPasteThreshold`) becomes a file so a log or a dump does not bury the message, and so does
+ * any paste the message limit would otherwise cut, since the textarea's `maxLength` drops the overflow silently.
+ * Raising the threshold is how a user pastes long text as is; it never lets a paste past the message limit be cut.
  */
 export function agentChatPasteDisposition({
     currentLength,
     pasted,
     selectedLength,
+    threshold,
 }: {
     currentLength: number;
     pasted: string;
     selectedLength: number;
+    threshold: number;
 }): AgentChatPasteDisposition {
     if (
-        pasted.length <= AGENT_CHAT_LONG_PASTE_THRESHOLD &&
+        pasted.length <= threshold &&
         currentLength - selectedLength + pasted.length <= MAX_AGENT_CHAT_MESSAGE_LENGTH
     )
         return 'inline';

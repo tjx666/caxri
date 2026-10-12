@@ -183,6 +183,7 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.diagnosticsExport.title': '导出诊断信息',
     'desktop.diagnosticsExport.zipArchive': 'ZIP 压缩包',
     'desktop.chooseProjectFolder': '选择项目文件夹',
+    'desktop.chooseChatFilesAndFolders': '添加文件和文件夹',
 
     'desktop.fallback.thisProject': '此项目',
     'desktop.fallback.thisSession': '此会话',

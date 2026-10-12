@@ -22,18 +22,21 @@ import { agentChatAttachLabel } from './agent-chat-presentation';
 const ROW_CLASS_NAME = 'h-auto min-h-8 gap-2.5 py-1.5 text-[13px]';
 
 /**
- * The composer's leading `+`, after the Codex app's: one menu of what the next message can carry. Under Add, Files
- * opens the system file picker (Chromium's file input is the native macOS open panel, and each picked `File` carries
- * its bytes for an image attachment and, through the preload, its path for a path reference, so a pick takes the same
- * route as a drop); Goal, only while the provider reports a goal command, turns the draft into that command; Plan mode
- * toggles the provider's plan mode. Under Sessions, the most recently opened Sessions with an Agent conversation can be
- * cited the way the `@` list cites them. Every row is a capability this Chat already has; the menu only gathers them.
+ * The composer's leading `+`, after the Codex app's: one menu of what the next message can carry. Under Add, Files and
+ * folders opens the native macOS open panel through Main (`onPickPaths`), which takes several files and folders at
+ * once: images attach and everything else, folders included, is cited by path. Chromium's file input cannot pick a
+ * folder together with files, so it remains only in an SSH Host window, as Files, whose Agent cannot read this Mac's
+ * paths anyway but can still take a picked image (each picked `File` carries its bytes, so that pick takes a drop's
+ * route); Goal, only while the provider reports a goal command, turns the draft into that command; Plan mode toggles
+ * the provider's plan mode. Under Sessions, the most recently opened Sessions with an Agent conversation can be cited
+ * the way the `@` list cites them. Every row is a capability this Chat already has; the menu only gathers them.
  */
 export function AgentChatAddMenu({
     canAttachImages,
     isBusy,
     onGoal,
     onPick,
+    onPickPaths,
     onReferenceSession,
     planMode,
     sessions,
@@ -51,6 +54,11 @@ export function AgentChatAddMenu({
      */
     onGoal: (() => void) | undefined;
     onPick: (files: File[]) => void;
+    /**
+     * Opens the panel for files and folders together, or `undefined` in an SSH Host window, which keeps the file-only
+     * picker.
+     */
+    onPickPaths: (() => void) | undefined;
     onReferenceSession: (candidate: SessionReferenceCandidate) => void;
     /**
      * The provider's plan mode, or `undefined` for a provider without one.
@@ -89,12 +97,18 @@ export function AgentChatAddMenu({
                         <MenuGroupLabel>{t('agentChat.add.add')}</MenuGroupLabel>
                         <MenuItem
                             className={ROW_CLASS_NAME}
-                            onClick={() => inputReference.current?.click()}
+                            onClick={onPickPaths ?? (() => inputReference.current?.click())}
                         >
                             <Paperclip className="size-4 shrink-0 text-muted" />
-                            <span className="shrink-0">{t('agentChat.add.files')}</span>
+                            <span className="shrink-0">
+                                {t(
+                                    onPickPaths
+                                        ? 'agentChat.add.filesAndFolders'
+                                        : 'agentChat.add.files',
+                                )}
+                            </span>
                             <span className="truncate text-muted">
-                                {agentChatAttachLabel(canAttachImages, t)}
+                                {agentChatAttachLabel(canAttachImages, Boolean(onPickPaths), t)}
                             </span>
                         </MenuItem>
                         {onGoal && (

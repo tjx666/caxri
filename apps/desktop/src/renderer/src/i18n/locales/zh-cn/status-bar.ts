@@ -119,7 +119,6 @@ export const statusBar: TranslatedNamespace<typeof source> = {
         '有 {{count}} 条对等消息正在等待你批准。点击查看最早的一条。',
     'statusBar.peerApproval.descriptionOther':
         '有 {{count}} 条对等消息正在等待你批准。点击查看最早的一条。',
-    'statusBar.permissionAutoAllow.label': '始终允许',
     'statusBar.permissionAutoAllow.description':
         '此会话已开启“始终允许”：所有 Agent 权限请求都会被自动允许。点击可关闭。',
     'statusBar.remoteDebugging.wherePipe': '通过启动 Caxri 的程序所打开的管道',
@@ -127,8 +126,6 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.remoteDebugging.whereLoopback': '在一个本地回环端口上',
     'statusBar.remoteDebugging.consequence':
         '任何连接方都能读取所有窗口并以你的身份操作；其他机器无法访问。',
-    'statusBar.remoteDebugging.pipeText': '调试管道',
-    'statusBar.remoteDebugging.portText': '调试端口',
     'statusBar.remoteDebugging.description':
         'Caxri 正{{where}}接受调试连接。{{consequence}}点击打开该设置。',
     'statusBar.remoteDebugging.title': '正在接受调试连接',
@@ -160,7 +157,6 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.pullRequest.unavailable.network': 'PR 离线',
     'statusBar.pullRequest.unavailable.tls': 'PR TLS 错误',
     'statusBar.pullRequest.unavailable.other': 'PR 未知',
-    'statusBar.screencast.label': '录屏',
     'statusBar.screencast.description':
         '录屏模式已开启，点击可关闭。它会叠加点击波纹和按键提示以便录制，但不会隐藏或遮盖屏幕上已有的任何内容。',
     'statusBar.workbenchRoot.authorizeTitle': '授权 Worktree？',

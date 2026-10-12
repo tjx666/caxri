@@ -1,11 +1,17 @@
 import type { FocusEvent, ReactNode } from 'react';
 import { useState } from 'react';
 
+import { AGENT_CHAT_NAVIGABLE_REPLY_ATTRIBUTE } from './agent-chat-reply-navigation';
+
 /**
  * A reply with an action row that mounts only while the pointer is over the reply or keyboard focus is inside it, so a
  * long transcript does not keep a Copy button, a tooltip, and a ticking time under every reply. The row's height stays
  * reserved, so revealing it never shifts the transcript. The hover state lives here rather than in the reply: the reply
  * text arrives as `children`, which React reuses unchanged when only this frame re-renders.
+ *
+ * A reply with actions is focusable from script only, so the keyboard reaches its Copy without a Tab stop per reply:
+ * `Option+ArrowUp`/`Option+ArrowDown` in the transcript focus a reply (`onAgentChatTranscriptKeyDown`), which mounts
+ * the row, and Tab continues into it.
  */
 export function AgentChatReplyFrame({
     actions,
@@ -22,6 +28,8 @@ export function AgentChatReplyFrame({
     };
     return (
         <div
+            {...(actions !== null && { [AGENT_CHAT_NAVIGABLE_REPLY_ATTRIBUTE]: '', tabIndex: -1 })}
+            className="rounded-sm outline-none focus-visible:outline focus-visible:outline-offset-4 focus-visible:outline-accent"
             data-agent-chat-reply=""
             onBlur={onBlur}
             onFocus={() => setFocusWithin(true)}
