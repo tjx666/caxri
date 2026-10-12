@@ -6,8 +6,8 @@ import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utilities';
 
 /**
- * Radius 4 for controls, transitions only the background (DESIGN.md "Spacing and radius"). Variants map 1:1 to the
- * pre-Tailwind `.button-*` classes so behavior is unchanged.
+ * Radius 8 for controls, as the Codex app rounds its buttons, transitions only the background (DESIGN.md "Spacing and
+ * radius"). Variants map 1:1 to the pre-Tailwind `.button-*` classes so behavior is unchanged.
  *
  * Every hover response is gated on `enabled:`: a disabled button still matches `:hover` in CSS even though Chromium
  * dispatches no pointer events to it, so an ungated hover fill advertises an action the control cannot perform.
@@ -18,7 +18,7 @@ import { cn } from '@/lib/utilities';
  * never match such a button, so the dimming and the hover gate are mirrored onto the attribute.
  */
 const buttonVariants = cva(
-    'inline-flex cursor-pointer items-center justify-center gap-2 rounded border border-transparent transition-[background] disabled:cursor-not-allowed disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45',
+    'inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-transparent transition-[background] disabled:cursor-not-allowed disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45',
     {
         variants: {
             variant: {
