@@ -445,7 +445,10 @@ dropping it with the edited text, while a sent edit already carries it and bring
 set-aside draft. The edited message keeps a quiet `--muted` outline, leaving the accent to the edit
 bar. Sending calls
 `agentChat.rewind`, which rewinds the provider's own record to just before the message and sends
-the draft in its place as one request; a later resume shows the same shorter conversation. The edit
+the draft in its place as one request; a later resume shows the same shorter conversation. As with
+a message, the composer does not wait for the answer: once any confirmation below is accepted, the
+edit bar closes and the set-aside draft comes back while Send says it is sending, and a refused
+rewind reports why and reopens the edit with the sent text and images. The edit
 survives switching tabs and restarting Caxri, like a draft: the edit (message id, the revert choice,
 and the set-aside draft) is mirrored to device-local `localStorage` (`caxri.agent-chat.edits`,
 bounded to the 50 newest edits), so a restart never brings back the earlier message's text as an
@@ -898,7 +901,9 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
 - `agentChat.runCommand` runs a listed command with optional arguments and rejects anything the
   Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Tab or
   Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when
-  chosen; one that does is completed so its arguments can be typed.
+  chosen; one that does is completed so its arguments can be typed. A command leaves the input as
+  soon as it runs, as a message does, while Send says it is sending; if Server Core refuses it, a
+  toast says why and the command text comes back into the input.
 - **Session references.** Typing `@` at the start of a word lists other Sessions with an Agent
   conversation, searched by title. Choosing one replaces the typed `@word` with a reference to a
   condensed copy of that conversation; see
