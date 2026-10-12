@@ -63,7 +63,16 @@ export interface AgentChatPermissionOption {
     description?: string;
     isSelected: boolean;
     isFullAccess: boolean;
+    /**
+     * The row's `testID` in kebab case (`agent-chat-permission-full-access`). Android exposes a `testID` as a resource
+     * ID, and the sanitized Acceptance semantics only report lower-case IDs, so a camel-case level would be
+     * untappable.
+     */
+    testID: string;
 }
+
+const permissionOptionTestID = (value: AgentChatPermissionMode | 'custom'): string =>
+    `agent-chat-permission-${value.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`)}`;
 
 /**
  * The sheet's levels: the ones the provider runs natively, least permissive first, with the Desktop menu's names and
@@ -84,6 +93,7 @@ export const agentChatPermissionOptions = (
                       description: 'Launch settings decide; choose a level to override them',
                       isSelected: true,
                       isFullAccess: false,
+                      testID: permissionOptionTestID('custom'),
                   },
               ]
             : [];
@@ -97,6 +107,7 @@ export const agentChatPermissionOptions = (
                 ...(description && { description }),
                 isSelected: mode === current,
                 isFullAccess: mode === 'fullAccess',
+                testID: permissionOptionTestID(mode),
             };
         }),
     ];
