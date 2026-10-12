@@ -294,6 +294,12 @@ the CPU reading and the threshold, so a runaway Agent is visible before its aler
 An Agent Terminal also shows its Agent's output speed (`62 tok/s`) once the Agent's transcript has a
 measured response. It is a persistent gauge, not a transient Agent operation, so it lives here. It
 carries no threshold colour: the number is measured, and what counts as slow is the reader's call.
+The one colour it can carry is the provider's: while the Agent's provider reports maintenance or
+degraded performance a `--warning` dot marks the gauge glyph's top-right corner, and a partial or
+major outage marks it `--danger`. The dot is drawn into the glyph, so the chip keeps its width as it
+comes and goes, and the chip's accessible name ends with the same status in words
+(`API status: Partial outage`). An operational provider, an unread or unreadable status page, and a
+provider without one show no dot.
 The hover card breaks it down by last response, turn, and Agent Session (the turn row folds into the
 Agent Session row while both cover the same responses), lists provider incidents as at most one line
 plus `+N more`, charts the recent responses, and states the method (see `docs/agent-throughput.md`).

@@ -15,15 +15,27 @@ const STATUS_LABELS: Record<AgentProviderServiceStatus, string> = {
     majorOutage: 'Major outage',
 };
 
+type ProviderStatusTone = 'danger' | 'success' | 'warning';
+
 /**
- * DESIGN.md status-dot tokens: green while operational, amber while slow or in planned maintenance, red while down.
+ * DESIGN.md status-dot tokens: green while operational, amber while slow or in planned maintenance, red while down. The
+ * one mapping behind both the Agent status tab's dots and the status-bar chip's alert dot.
  */
-const STATUS_DOT_CLASS_NAMES: Record<AgentProviderServiceStatus, string> = {
-    operational: 'bg-success',
-    maintenance: 'bg-warning',
-    degraded: 'bg-warning',
-    partialOutage: 'bg-danger',
-    majorOutage: 'bg-danger',
+const STATUS_TONES: Record<AgentProviderServiceStatus, ProviderStatusTone> = {
+    operational: 'success',
+    maintenance: 'warning',
+    degraded: 'warning',
+    partialOutage: 'danger',
+    majorOutage: 'danger',
+};
+
+/**
+ * Literal class names, because Tailwind only generates utilities it can find spelled out in source.
+ */
+const TONE_DOT_CLASS_NAMES: Record<ProviderStatusTone, string> = {
+    success: 'bg-success',
+    warning: 'bg-warning',
+    danger: 'bg-danger',
 };
 
 const FAILURE_LABELS: Record<AgentProviderStatusFailureReason, string> = {
@@ -37,7 +49,34 @@ export function providerServiceStatusLabel(status: AgentProviderServiceStatus): 
 }
 
 export function providerStatusDotClassName(status: AgentProviderServiceStatus): string {
-    return STATUS_DOT_CLASS_NAMES[status];
+    return TONE_DOT_CLASS_NAMES[STATUS_TONES[status]];
+}
+
+/**
+ * The alert a provider reading raises on the status-bar throughput chip, and the words that stand in for its color.
+ */
+export interface ProviderStatusAlert {
+    /**
+     * `API status: Partial outage`, the accessible twin of the dot. It reuses the tooltip row's `API status` label so
+     * the spoken name and the hover card name the same fact the same way.
+     */
+    label: string;
+    tone: Exclude<ProviderStatusTone, 'success'>;
+}
+
+/**
+ * Only a reading that says something is wrong raises a dot: `warning` for maintenance or degraded performance, `danger`
+ * for a partial or major outage. An operational provider, a first read still pending (`undefined`), a provider without
+ * a status page (`null`), and a status page Caxri could not read (`unavailable`, which is no evidence of an incident)
+ * all leave the chip unmarked.
+ */
+export function providerStatusAlert(
+    status: AgentProviderStatus | null | undefined,
+): ProviderStatusAlert | undefined {
+    if (status?.state !== 'available') return undefined;
+    const tone = STATUS_TONES[status.status];
+    if (tone === 'success') return undefined;
+    return { label: `API status: ${providerServiceStatusLabel(status.status)}`, tone };
 }
 
 /**
@@ -78,14 +117,6 @@ export function summarizeIncidents<T>(incidents: readonly T[]): {
 } {
     const more = incidents.length - 1;
     return { first: incidents[0], moreLabel: more > 0 ? `+${more} more` : undefined };
-}
-
-/**
- * True while the provider's own status page reports anything other than Operational. A status page that could not be
- * read is unknown, not disrupted.
- */
-export function isProviderStatusDisrupted(status: AgentProviderStatus | null | undefined): boolean {
-    return status?.state === 'available' && status.status !== 'operational';
 }
 
 /**
