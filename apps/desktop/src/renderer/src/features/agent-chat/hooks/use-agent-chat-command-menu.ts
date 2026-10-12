@@ -26,15 +26,18 @@ const DISCOVERY_STALE_MS = 30_000;
  * skill` row when nothing matches, so a typo reads as a miss instead of the list silently vanishing. Escape dismisses
  * the list for the current draft only: any edit brings it back, including clearing the box and typing the same `/`
  * again. Skills are discovered only once the user starts an invocation, and the provider's commands show while
- * discovery runs or when it fails; `skillNotice` says why skills are missing until discovery answers.
+ * discovery runs or when it fails; `skillNotice` says why skills are missing until discovery answers. The list shows
+ * only while the input has focus, so it never stays over another surface the user moved to.
  */
 export function useAgentChatCommandMenu({
     commands,
     draft,
+    isInputFocused,
     terminalId,
 }: {
     commands: readonly AgentChatCommand[] | undefined;
     draft: string;
+    isInputFocused: boolean;
     terminalId: string;
 }) {
     const listId = useId();
@@ -66,7 +69,7 @@ export function useAgentChatCommandMenu({
         query === undefined
             ? []
             : filterAgentChatActions(actions, query, draft.startsWith('$') ? '$' : '/');
-    const isOpen = query !== undefined && dismissedDraft !== draft;
+    const isOpen = query !== undefined && dismissedDraft !== draft && isInputFocused;
     const activeIndex =
         active.query === query ? Math.min(active.index, Math.max(matches.length - 1, 0)) : 0;
     const activeCommand = isOpen ? matches[activeIndex] : undefined;

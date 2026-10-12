@@ -41,12 +41,22 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
             /Full access/,
         ]);
         await menu.getByRole('menuitemradio', { name: /Read only/ }).click();
+        // Picking a level closes the menu; reopen it for plan mode and the Project default.
+        await expect(menu).toBeHidden();
         await expect(picker).toHaveAccessibleName('Permissions: Read only');
+        await picker.click();
         await menu.getByRole('menuitemcheckbox', { name: /Plan mode/ }).click();
         await expect(picker).toHaveAccessibleName('Permissions: Read only, plan mode on');
         await page.screenshot({ path: testInfo.outputPath('codex-chat-permission-menu.png') });
-        await menu.getByRole('menuitem', { name: 'Use as Project default' }).click();
-        await expect(menu.getByRole('menuitem', { name: 'Project default' })).toBeDisabled();
+        const projectDefault = menu.getByRole('menuitemcheckbox', {
+            name: 'Use as Project default',
+        });
+        await expect(projectDefault).not.toBeChecked();
+        await projectDefault.click();
+        // Once saved, the row reads as the checked Project default.
+        await expect(
+            menu.getByRole('menuitemcheckbox', { name: 'Project default', exact: true }),
+        ).toBeChecked();
         await page.keyboard.press('Escape');
         await expect(menu).toBeHidden();
 

@@ -12,10 +12,10 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { switchBranch } from './branch-commands';
+import { useStatusBarPickerRequest } from './hooks/use-status-bar-picker-request';
 import { PickerQueryStatus } from './picker-query-status';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
-import { useStatusBarPickerRequest } from './use-status-bar-picker-request';
 
 export function BranchPicker({
     branch,
@@ -136,7 +136,8 @@ export function BranchPicker({
                     }
                     className={cn(
                         statusItemClassName,
-                        'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
+                        // Capped rather than shrinking, so the bar can measure its natural width (`chip-priority.ts`).
+                        'h-5 w-auto max-w-60 flex-none justify-start px-[5px] text-[11px]',
                     )}
                 >
                     {switching ? (

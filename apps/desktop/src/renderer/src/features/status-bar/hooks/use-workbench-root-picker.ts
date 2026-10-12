@@ -2,9 +2,9 @@ import { useState } from 'react';
 
 import type { WorkbenchRootOption } from '@caxri/protocol';
 
-import { useCaxriQuery } from '../../queries/client';
+import { useCaxriQuery } from '../../../queries/client';
+import { selectWorkbenchRoot } from '../workbench-root-commands';
 import { useStatusBarPickerRequest } from './use-status-bar-picker-request';
-import { selectWorkbenchRoot } from './workbench-root-commands';
 
 export function useWorkbenchRootPicker(sessionId: string) {
     const [open, setOpen] = useState(false);

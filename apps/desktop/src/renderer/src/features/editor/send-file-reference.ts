@@ -11,12 +11,8 @@ import {
 } from '../../stores/selectors';
 import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
-import {
-    activateTerminal,
-    focusTerminalById,
-    sendTerminalSequence,
-    whenTerminalAttached,
-} from '../terminal/terminal-commands';
+import { activateTerminal, sendTerminalSequence } from '../terminal/terminal-commands';
+import { focusTerminalById, whenTerminalAttached } from '../terminal/terminal-pane-handlers';
 import { getActivePaneId, getActivePaneTab } from '../workbench/pane-actions';
 import { editorStatusKey, useEditorStatusStore } from './editor-status';
 import { chooseReferenceTerminal, formatFileReference } from './file-reference';

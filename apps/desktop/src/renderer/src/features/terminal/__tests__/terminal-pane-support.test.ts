@@ -25,8 +25,8 @@ vi.mock('../terminal-link-hint', async (importOriginal) => ({
 }));
 
 import { dismissToast, getToasts } from '../../../stores/toasts';
-import { canSendTerminalInput, didPasteIntoTerminal } from '../terminal-commands';
 import { TERMINAL_DEFAULT_WORD_SEPARATORS } from '../terminal-file-candidate';
+import { canSendTerminalInput, didPasteIntoTerminal } from '../terminal-pane-handlers';
 import { configureTerminalPaneHost, terminalPaneHost } from '../terminal-pane-host';
 import {
     opaqueSearchColor,

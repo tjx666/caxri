@@ -14,6 +14,15 @@ import type { PaneSplitSide, TerminalKind, TerminalSurface } from '@caxri/protoc
  */
 export interface ToastActionParameters {
     'diagnostics.copyFailure': { text: string };
+    /**
+     * Re-applies unsaved buffers a newer disk state replaced. Carries only the documents' identity: the discarded text
+     * stays in the editor feature's own stash, because a follow-up must never hold a document body.
+     */
+    'editor.restoreDiscardedChanges': {
+        sessionId: string;
+        workbenchProjectId: string;
+        paths: string[];
+    };
     'editor.retrySave': {
         sessionId: string;
         /**
@@ -90,6 +99,7 @@ export type ToastAction = {
  */
 export const toastActionLabels: Record<ToastActionId, string> = {
     'diagnostics.copyFailure': 'Copy details',
+    'editor.restoreDiscardedChanges': 'Restore My Changes',
     'editor.retrySave': 'Retry',
     'github.open': 'Open on GitHub',
     'processExplorer.open': 'View details',

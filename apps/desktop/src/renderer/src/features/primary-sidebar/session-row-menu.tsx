@@ -16,16 +16,18 @@ import { fetchCaxriQuery } from '../../queries/client';
 import { getBootstrap } from '../../stores/selectors';
 import { revokePermissionAutoAllow } from '../session/permission-auto-allow-commands';
 import {
-    archiveSession,
     copyAgentSessionId,
     copyAgentTranscriptPath,
-    deleteSession,
     detachSession,
     hasDetachedAgentTerminal,
     hasLiveAgentTerminal,
+    resumeSession,
+} from '../session/session-agent-commands';
+import { archiveSession } from '../session/session-archive-commands';
+import {
+    deleteSession,
     openProjectInExternalEditor,
     openSessionPullRequest,
-    resumeSession,
     setSessionPinned,
 } from '../session/session-commands';
 import { agentRestartMenuEntry } from '../terminal/agent-restart-commands';
@@ -34,7 +36,20 @@ import {
     isAgentConversationResumable,
     terminalSurfaceMenuEntry,
 } from '../terminal/terminal-surface-commands';
+import { getActivePaneTab } from '../workbench/pane-actions';
 import { canSuggestSessionTitle } from './session-rename-draft';
+
+/**
+ * Whether `terminalId` is the active pane's tab in the selected Session, the Terminal every Terminal shortcut acts on.
+ */
+function isActiveTerminal(terminalId: string | undefined): boolean {
+    const resource = getActivePaneTab()?.resource;
+    return (
+        terminalId !== undefined &&
+        resource?.kind === 'terminal' &&
+        resource.terminalId === terminalId
+    );
+}
 
 /**
  * Right-click menu for one Session row. Every entry acts on the clicked row (not the selected Session), so the handlers
@@ -170,6 +185,12 @@ async function sessionRowMenu({
     const missingConversationReason = primaryTerminal?.provider
         ? NO_CONVERSATION_REASON
         : NO_AGENT_REASON;
+    /**
+     * `terminal.switchAgentSurface` and `terminal.restart` act on the active Terminal, while these entries act on the
+     * clicked row's Primary Agent. Their key hints show only when the two are the same Terminal, so a row other than
+     * the selected one never advertises a chord that would act somewhere else.
+     */
+    const isPrimaryTerminalActive = isActiveTerminal(primaryTerminal?.id);
     const [isAutoAllowGranted, isResumable] = await Promise.all([
         isPermissionAutoAllowGranted(session.id),
         isAgentConversationResumable(primaryTerminal),
@@ -229,8 +250,8 @@ async function sessionRowMenu({
          * asking), so they must not reach Agents the user did not point at. Each Agent Terminal's own tab menu acts on
          * that one.
          */
-        primaryTerminal && terminalSurfaceMenuEntry(primaryTerminal),
-        agentRestartMenuEntry(primaryTerminal, missingConversationReason),
+        primaryTerminal && terminalSurfaceMenuEntry(primaryTerminal, isPrimaryTerminalActive),
+        agentRestartMenuEntry(primaryTerminal, missingConversationReason, isPrimaryTerminalActive),
         detached
             ? { label: 'Resume Agent', onSelect: () => resumeSession(session.id) }
             : {
@@ -240,7 +261,7 @@ async function sessionRowMenu({
                   onSelect: () => detachSession(session.id),
               },
         isAutoAllowGranted && {
-            label: 'Turn Off Always Allow in this Session',
+            label: 'Turn Off Always Allow in This Session',
             onSelect: () => revokePermissionAutoAllow(session.id),
         },
         CONTEXT_MENU_SEPARATOR,
@@ -256,7 +277,7 @@ async function sessionRowMenu({
         },
         CONTEXT_MENU_SEPARATOR,
         {
-            label: 'Copy Agent Session ID',
+            label: 'Copy Conversation ID',
             disabled: !agentSessionId,
             disabledReason: missingConversationReason,
             onSelect: () => agentSessionId && copyAgentSessionId(agentSessionId),

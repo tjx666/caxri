@@ -75,13 +75,13 @@ describe('windowClosePrompt', () => {
     it('asks to close the window and names the running Terminals and Chats, not the Server', () => {
         expect(windowClosePrompt(1)).toMatchObject({
             title: 'Close this window?',
-            message: '1 Terminal or Chat is still running.',
+            message: 'Close this window while 1 Terminal or Chat is running?',
             buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
             cancelId: 2,
             defaultId: 2,
         });
         const prompt = windowClosePrompt(3);
-        expect(prompt.message).toBe('3 Terminals or Chats are still running.');
+        expect(prompt.message).toBe('Close this window while 3 Terminals or Chats are running?');
         expect(prompt.detail).toContain('keeps them running in the background');
         expect(prompt.detail).not.toContain('Server');
     });

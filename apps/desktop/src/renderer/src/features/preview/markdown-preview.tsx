@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 
 import { renderMarkdown } from '@caxri/markdown';
 import type { ThemeTokens } from '@caxri/protocol';
@@ -10,6 +10,7 @@ import { createPreviewLinkHandler } from './markdown-links';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
 import { followSourceScroll } from './markdown-scroll-follow';
 import type { PreviewAssetSource } from './preview-asset-client';
+import { readPreviewViewState, rememberPreviewViewState } from './preview-view-state';
 
 export interface MarkdownPreviewProperties {
     sessionId: string;
@@ -28,6 +29,11 @@ export interface MarkdownPreviewProperties {
     projectRoot: string;
     source: string;
     theme: ThemeTokens;
+    /**
+     * Identity of this preview in this pane, under which its scroll position survives a tab switch (see
+     * `preview-view-state.ts`).
+     */
+    viewStateKey: string;
 }
 
 /**
@@ -48,9 +54,14 @@ export function MarkdownPreview({
     projectRoot,
     source,
     theme,
+    viewStateKey,
 }: MarkdownPreviewProperties) {
     const containerReference = useRef<HTMLDivElement>(null);
-    const scrollTopReference = useRef(0);
+    /**
+     * Seeded once from the position this pane last showed, so returning to the tab lands where the reader left it.
+     */
+    const [restoredScrollTop] = useState(() => readPreviewViewState(viewStateKey)?.scrollTop);
+    const scrollTopReference = useRef(restoredScrollTop ?? 0);
     const deferredSource = useDeferredValue(source);
     const rendered = useMemo(() => {
         const result = renderMarkdown(deferredSource, { documentPath, projectRoot });
@@ -99,7 +110,13 @@ export function MarkdownPreview({
         decorateCodeBlocks(container, rendered.codeBlocks, theme, controller.signal);
         // eslint-disable-next-line no-void -- diagram failures are rendered in their own placeholders
         void renderDiagrams(container, rendered.diagrams, theme, controller.signal);
-        const shouldRevealLastPosition = followedPathReference.current !== documentPath;
+        /**
+         * A remembered preview position is more specific than the editor's last line, so it wins on the first attach;
+         * the editor still drives the preview from the next source scroll on.
+         */
+        const shouldRevealLastPosition =
+            followedPathReference.current !== documentPath &&
+            (followedPathReference.current !== undefined || restoredScrollTop === undefined);
         followedPathReference.current = documentPath;
         const stopFollowing = followSourceScroll(container, documentPath, {
             shouldRevealLastPosition,
@@ -109,7 +126,7 @@ export function MarkdownPreview({
             stopFollowing();
             releaseImages();
         };
-    }, [assetSource, documentPath, rendered, theme]);
+    }, [assetSource, documentPath, rendered, restoredScrollTop, theme]);
 
     return (
         <div
@@ -117,6 +134,7 @@ export function MarkdownPreview({
             ref={containerReference}
             onScroll={(event) => {
                 scrollTopReference.current = event.currentTarget.scrollTop;
+                rememberPreviewViewState(viewStateKey, { scrollTop: scrollTopReference.current });
             }}
             // Sanitized immediately above by `sanitizeMarkdownHtml`; the engine emits untrusted HTML by design.
             dangerouslySetInnerHTML={{ __html: rendered.html }}

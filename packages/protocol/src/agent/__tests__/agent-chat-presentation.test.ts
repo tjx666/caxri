@@ -26,7 +26,7 @@ describe('agentChatFailureMessage', () => {
         );
         expect(desktop('resume_failed')).toBe('The previous conversation could not be resumed.');
         expect(desktop('conversation_in_use')).toBe(
-            'This conversation is open in another Codex app or window. Close it there, then retry.',
+            'This conversation is open in another Codex app or window.',
         );
         expect(desktop('unsupported_version')).toBe(
             'This Codex version does not support Chat. Update the Codex CLI.',

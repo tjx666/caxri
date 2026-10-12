@@ -322,8 +322,10 @@ describe('DocumentService', () => {
             const path = join(root, 'huge.png');
             await writeFile(path, Buffer.alloc(MAX_PREVIEW_ASSET_BYTES + 1));
 
+            // The ceiling reads in megabytes, the unit a reader compares against the size Finder shows.
             await expect(service(path).readAsset('session-1', path)).rejects.toMatchObject({
                 code: 'CAPACITY',
+                message: 'File exceeds the 8.0 MB preview limit',
             });
         });
 

@@ -51,6 +51,14 @@ describe('documentTabPresentation', () => {
             labelTooltip: '/project/a.md',
         });
     });
+    it('drops the Preview prefix for a format whose preview is its only view', () => {
+        expect(documentTabPresentation(filePreviewTabPath('/project/manual.pdf'), {}).label).toBe(
+            'manual.pdf',
+        );
+        expect(documentTabPresentation(filePreviewTabPath('/project/a.md'), {}).label).toBe(
+            'Preview: a.md',
+        );
+    });
     it('gives a repeated external filename its parent directory as a detail', () => {
         const path = externalEditorTabPath('external-1', 'README.md');
         expect(

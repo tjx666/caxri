@@ -64,11 +64,16 @@ test('Open Usage asks for a Project first, then opens the Usage tab and switches
         await usage.getByRole('button', { name: '7D' }).click();
         await expect(usage.getByText('No Agent usage yet')).toBeVisible();
 
-        // This Mac adds the conversation run outside Caxri, grouped outside every Project.
-        await usage.getByRole('button', { name: 'This Mac' }).click();
+        // This Mac adds the conversation run outside Caxri, grouped outside every Project. The empty Caxri report offers
+        // the same scope switch as a button, so that is the path exercised here.
+        await usage.getByRole('button', { name: 'Show This Mac', exact: true }).click();
+        await expect(usage.getByRole('button', { name: 'This Mac', exact: true })).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
         await expect(usage.getByText('Outside Caxri', { exact: true }).first()).toBeVisible();
         await expect(usage.getByText('Across 0 Sessions + 1 outside')).toBeVisible();
-        await usage.getByRole('button', { name: 'Caxri' }).click();
+        await usage.getByRole('button', { name: 'Caxri', exact: true }).click();
         await expect(usage.getByText('No Agent usage yet')).toBeVisible();
     } finally {
         await running.app.close();

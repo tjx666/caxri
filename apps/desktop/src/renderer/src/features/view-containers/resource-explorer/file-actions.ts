@@ -431,10 +431,11 @@ export async function didTrashFile(
     );
     await invalidateDirectory(client, parentDirectoryPath(result.path));
     /**
-     * One persistent card keeps the confirmed loss of unsaved edits visible without duplicating success feedback.
+     * One persistent card keeps the confirmed loss of unsaved edits visible without duplicating success feedback. It is
+     * a warning when edits were lost: the move succeeded, but the user should not read the card as all-clear.
      */
     pushToast(
-        'success',
+        hasUnsavedChanges ? 'warning' : 'success',
         hasUnsavedChanges
             ? `Moved '${result.name}' to Trash. Unsaved changes were discarded; only the last saved version can be restored.`
             : `Moved '${result.name}' to Trash`,

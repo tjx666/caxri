@@ -8,7 +8,9 @@ import {
     markUncertainSessionsChecked,
     NEW_SESSION_AGENT_ORDER,
     newSessionAgentReason,
+    newSessionDefaultSurface,
     newSessionSurface,
+    newSessionSurfaceDescription,
     selectedNewSessionProject,
     sortNewSessionProjects,
 } from '../new-session-model';
@@ -127,5 +129,21 @@ describe('New Session surface', () => {
     it('hides the choice for a Shell or no Agent, which always open in a Terminal', () => {
         expect(newSessionSurface('chat', 'shell', true)).toBeNull();
         expect(newSessionSurface('chat', null, true)).toBeNull();
+    });
+});
+
+describe('New Session surface descriptions', () => {
+    it('reads the default from the computer setting once it is known', () => {
+        expect(newSessionDefaultSurface(undefined)).toBeNull();
+        expect(newSessionDefaultSurface(true)).toBe('chat');
+        expect(newSessionDefaultSurface(false)).toBe('pty');
+    });
+
+    it('explains each surface in one line and marks the default', () => {
+        expect(newSessionSurfaceDescription('chat', 'chat')).toBe(
+            'Replies as readable messages · Default',
+        );
+        expect(newSessionSurfaceDescription('pty', 'chat')).toBe("The Agent's own terminal screen");
+        expect(newSessionSurfaceDescription('pty', null)).toBe("The Agent's own terminal screen");
     });
 });

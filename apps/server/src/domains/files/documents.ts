@@ -9,6 +9,7 @@ import type { FileAsset, FileDocument, ServerOperationResult } from '@caxri/prot
 import { CaxriError, previewAssetByteLimit, previewAssetMediaType } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
+import { formatBytes } from '@caxri/utils';
 
 import type { ResolvedSessionPath } from '../project';
 
@@ -164,7 +165,7 @@ export class DocumentService {
             if (openedStats.size > this.maxFileBytes())
                 throw new CaxriError(
                     'CAPACITY',
-                    `File exceeds the ${this.maxFileBytes()} byte safety limit`,
+                    `File exceeds the ${formatBytes(this.maxFileBytes())} safety limit`,
                 );
             const buffer = await file.readFile(signal ? { signal } : undefined);
             if (buffer.subarray(0, 8_192).includes(0))
@@ -220,7 +221,10 @@ export class DocumentService {
                 );
             const limit = previewAssetByteLimit(mediaType);
             if (openedStats.size > limit)
-                throw new CaxriError('CAPACITY', `Asset exceeds the ${limit} byte preview limit`);
+                throw new CaxriError(
+                    'CAPACITY',
+                    `File exceeds the ${formatBytes(limit)} preview limit`,
+                );
             const buffer = await file.readFile(signal ? { signal } : undefined);
             return {
                 path: resolved.workspacePath ?? resolved.path,

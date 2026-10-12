@@ -16,10 +16,10 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
+import { useWorkbenchRootPicker } from './hooks/use-workbench-root-picker';
 import { PickerQueryStatus } from './picker-query-status';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
-import { useWorkbenchRootPicker } from './use-workbench-root-picker';
 import {
     conversationWorkbenchRoots,
     visibleWorkbenchRoots,
@@ -162,7 +162,8 @@ function WorkbenchRootTrigger({
                 }
                 className={cn(
                     statusItemClassName,
-                    'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
+                    // Capped rather than shrinking, so the bar can measure its natural width (`chip-priority.ts`).
+                    'h-5 w-auto max-w-60 flex-none justify-start px-[5px] text-[11px]',
                 )}
             >
                 {isSwitching ? (

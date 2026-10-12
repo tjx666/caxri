@@ -21,7 +21,7 @@ import { getSessionState, useSessionState } from '../../stores/selectors';
 import { patchSessionState } from '../../stores/workbench';
 import { supersedePendingFileOpens } from '../editor/editor-open-intent';
 import { workTabId } from '../tabs/work-tab-accessibility';
-import { focusTerminalById } from '../terminal/terminal-commands';
+import { focusTerminalById } from '../terminal/terminal-pane-handlers';
 
 /**
  * The single write path for every Workbench layout mutation. Callers describe the edit with the pure reducer in

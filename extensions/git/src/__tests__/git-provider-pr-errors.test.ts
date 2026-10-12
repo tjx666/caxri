@@ -6,7 +6,7 @@ import { createHarness, repo, scopeId } from './git-provider.fixture';
 describe('pull request error presentation', () => {
     it.each([
         [GitPullRequestErrorMessage.missingCommits, GitPullRequestErrorMessage.missingCommits],
-        ['untrusted remote stderr', 'Unable to load pull request changes.'],
+        ['untrusted remote stderr', 'Unable to load pull request changes. Refresh to retry.'],
     ])(
         'only exposes safe messages and clears the error after refresh: %s',
         async (message, expected) => {

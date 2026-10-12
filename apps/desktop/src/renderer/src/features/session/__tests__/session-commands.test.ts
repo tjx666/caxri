@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryClient } from '../../../queries/client';
 import type { ToastKind, ToastOptions } from '../../../stores/toasts';
@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => {
         askAgentForProject: vi.fn(),
         caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
         closeCreateSessionMenu: vi.fn(),
-        copyFilePath: vi.fn(() => Promise.resolve()),
         dropSessions: vi.fn(),
         getBootstrap: vi.fn(),
         openCreateSessionMenu: vi.fn(),
@@ -48,12 +47,10 @@ const mocks = vi.hoisted(() => {
                 }
             },
         ),
-        writeText: vi.fn(() => Promise.resolve()),
     };
 });
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
-vi.mock('../../../lib/copy-file-path', () => ({ copyFilePath: mocks.copyFilePath }));
 vi.mock('../../../lib/external-link', () => ({ openExternalUrl: mocks.openExternalUrl }));
 vi.mock('../../../queries/client', () => ({
     caxriQueryKey: (method: string, parameters: unknown) => [method, parameters],
@@ -102,10 +99,6 @@ vi.mock('../../../stores/workbench', () => ({
 }));
 
 import {
-    archiveSelectedSession,
-    archiveSession,
-    copyAgentSessionId,
-    copyAgentTranscriptPath,
     deleteSelectedSession,
     deleteSession,
     didReorderPinnedSession,
@@ -120,18 +113,13 @@ import {
     selectAdjacentSession,
     selectProject,
     setSessionPinned,
-    unarchiveSession,
-    unarchiveSessions,
 } from '../session-commands';
 
 describe('Session actions', () => {
     beforeEach(() => {
-        vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } });
         mocks.askAgentForProject.mockClear();
         mocks.caxriRequest.mockClear();
-        mocks.copyFilePath.mockClear();
         mocks.pushToast.mockClear();
-        mocks.writeText.mockClear();
         mocks.dropSessions.mockClear();
         mocks.getBootstrap.mockReset();
         mocks.getQueryData.mockReset();
@@ -149,52 +137,6 @@ describe('Session actions', () => {
         mocks.pendingProjectId = undefined;
         mocks.pendingRoot = undefined;
         mocks.primarySidebarVisible = true;
-    });
-
-    afterEach(() => {
-        vi.unstubAllGlobals();
-    });
-
-    it('copies the Agent conversation id rather than the Caxri Session row id', async () => {
-        copyAgentSessionId('01a08fbe-2b76-7ae2-8c0e-8a11262ac36d');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.writeText).toHaveBeenCalledWith('01a08fbe-2b76-7ae2-8c0e-8a11262ac36d');
-        expect(mocks.pushToast).toHaveBeenCalledWith('success', 'Agent Session ID copied');
-    });
-
-    it('asks the Runtime for the transcript path without reading the transcript', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({
-            path: '/Users/me/.codex/sessions/2026/09/11/rollout-01a08fbe.jsonl',
-            exists: true,
-            truncated: false,
-        });
-
-        copyAgentTranscriptPath('terminal-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.agentTranscript', {
-            terminalId: 'terminal-1',
-            withContent: false,
-        });
-        expect(mocks.copyFilePath).toHaveBeenCalledWith(
-            '/Users/me/.codex/sessions/2026/09/11/rollout-01a08fbe.jsonl',
-        );
-    });
-
-    it('copies nothing when the Agent keeps no on-disk transcript', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce(null);
-
-        copyAgentTranscriptPath('terminal-1');
-        // `tryCommand` swallows the throw and reports it, so the user-visible evidence is the toast rather than a
-        // rejected promise: the caller discards the promise on purpose and would otherwise surface nothing.
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.pushToast).toHaveBeenCalledWith(
-            'error',
-            'Unable to copy the transcript path: This Agent keeps no on-disk transcript',
-        );
-        expect(mocks.copyFilePath).not.toHaveBeenCalled();
     });
 
     it('opens the selected Session pull request from the sidebar snapshot without refetching', () => {
@@ -537,137 +479,6 @@ describe('Session actions', () => {
 
         expect(mocks.caxriRequest).not.toHaveBeenCalled();
         expect(mocks.tryCommand).not.toHaveBeenCalled();
-    });
-
-    it('records an archive as an undoable info notice naming the Session', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
-
-        archiveSession('session-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.archive', {
-            sessionId: 'session-1',
-        });
-        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
-        expect(mocks.pushToast).toHaveBeenCalledOnce();
-        const [kind, message, options] = mocks.pushToast.mock.calls[0] ?? [];
-        expect(kind).toBe('info');
-        expect(message).toBe('Archived "api-fix"');
-        expect(options?.action).toEqual({
-            id: 'session.unarchive',
-            params: { sessionId: 'session-1' },
-            // A screen reader browsing the history by button hears only labels, so each Undo names its Session.
-            accessibleLabel: 'Undo archiving api-fix',
-        });
-        // Archiving is reversible, so the notice takes the ordinary four-second expiry.
-        expect(options?.persist).toBeUndefined();
-    });
-
-    /**
-     * Undo asks for `unchanged` rather than the default `top` an explicit restore uses: it reverses one archive, so the
-     * row has to come back where it was instead of jumping over an order the user arranged by dragging.
-     */
-    it('restores the archived Session in place when the notice Undo action is used', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
-
-        // What the notification center replays for `session.unarchive`.
-        unarchiveSession('session-1', 'unchanged');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenLastCalledWith('session.unarchive', {
-            placement: 'unchanged',
-            sessionId: 'session-1',
-        });
-        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
-    });
-
-    it('reports a stale Undo as an error instead of throwing out of the notice', async () => {
-        // The Session was deleted, or the window navigated away, after the notice was raised.
-        mocks.caxriRequest.mockRejectedValueOnce(new Error('Session not found'));
-
-        expect(() => unarchiveSession('session-1', 'unchanged')).not.toThrow();
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.pushToast).toHaveBeenLastCalledWith(
-            'error',
-            'Session restore failed: Session not found',
-        );
-    });
-
-    it('stays silent when the archive request itself fails', async () => {
-        mocks.caxriRequest.mockRejectedValueOnce(new Error('Server is not ready'));
-
-        archiveSession('session-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith(
-            'error',
-            'Session archive failed: Server is not ready',
-        );
-    });
-
-    it('archives the selected Session through the same notice path', async () => {
-        mocks.getSelectedSession.mockReturnValue({ id: 'session-2' });
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-2', displayTitle: 'docs' });
-
-        archiveSelectedSession();
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.archive', {
-            sessionId: 'session-2',
-        });
-        expect(mocks.pushToast).toHaveBeenCalledWith('info', 'Archived "docs"', expect.anything());
-    });
-
-    it('records an explicit restore as a named notice, the way an archive is recorded', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
-
-        unarchiveSession('session-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.unarchive', {
-            placement: 'top',
-            sessionId: 'session-1',
-        });
-        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
-        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith('info', 'Restored "api-fix"');
-    });
-
-    it('leaves the archive notice Undo silent, since that notice already named the Session', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
-
-        unarchiveSession('session-1', 'unchanged');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.pushToast).not.toHaveBeenCalled();
-    });
-
-    it('stays silent when the restore request itself fails', async () => {
-        mocks.caxriRequest.mockRejectedValueOnce(new Error('Server is not ready'));
-
-        unarchiveSession('session-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith(
-            'error',
-            'Session restore failed: Server is not ready',
-        );
-    });
-
-    it('counts a batch restore and reports what the Server actually restored', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce([
-            { id: 'session-1', displayTitle: 'api-fix' },
-            { id: 'session-2', displayTitle: 'docs' },
-        ]);
-
-        unarchiveSessions(['session-1', 'session-2', 'session-3']);
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.unarchiveMany', {
-            placement: 'top',
-            sessionIds: ['session-1', 'session-2', 'session-3'],
-        });
-        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith('info', 'Restored 2 Sessions');
     });
 
     it('opens the Session a row double-click names, and leaves an open one alone', async () => {

@@ -121,10 +121,10 @@ export const AttentionPermissionActions = ({
         >
             <Text style={[styles.actionLabel, { color: theme.text }]}>{ALWAYS_ALLOW_LABEL}</Text>
         </Pressable>
+        {/* The caption sits under the button it explains, so it does not repeat the button's name or scope. */}
         <Text style={{ color: theme.muted, fontSize: 12 }}>
-            {ALWAYS_ALLOW_LABEL} approves this and every later permission request in this Session
-            automatically, until it is turned off or the Agent restarts. Agent questions still ask
-            you.
+            Approves this and every later permission request until it is turned off or the Agent
+            restarts. Agent questions still ask you.
         </Text>
     </View>
 );
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         flex: 1,
         justifyContent: 'center',
-        minHeight: 44,
+        minHeight: 48,
         paddingHorizontal: 12,
     },
     actionLabel: { fontSize: 15, fontWeight: '700' },

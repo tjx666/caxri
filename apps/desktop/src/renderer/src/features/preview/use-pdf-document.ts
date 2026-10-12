@@ -6,6 +6,7 @@ import { loadPdfDocument } from './pdf-document';
 import type { PdfFailure } from './pdf-failure';
 import { describePdfFailure } from './pdf-failure';
 import { readAssetBytes } from './preview-asset-client';
+import { usePreviewSourceRevision } from './use-preview-source-revision';
 
 export type PdfDocumentState =
     | { status: 'failed'; failure: PdfFailure }
@@ -13,13 +14,14 @@ export type PdfDocumentState =
     | { status: 'ready'; document: PDFDocumentProxy };
 
 /**
- * Reads a PDF through `files.readAsset` and parses it, once per path and per retry.
+ * Reads a PDF through `files.readAsset` and parses it, once per path, per retry, and per rewrite of the file on disk.
  *
  * The document is owned by this hook: unmounting, switching paths, or retrying destroys the loading task, which ends
  * the document and releases its pages in the shared worker. A read that is still in flight is aborted instead.
  */
 export function usePdfDocument(
     sessionId: string,
+    workbenchProjectId: string | undefined,
     path: string,
 ): { state: PdfDocumentState; retry: () => void } {
     const [attempt, setAttempt] = useState(0);
@@ -27,7 +29,8 @@ export function usePdfDocument(
      * A settled result is tagged with the read it answers, so a new path or a retry reads as loading on the very render
      * that requested it, without resetting state from inside the effect.
      */
-    const requestKey = `${sessionId}\0${path}\0${attempt}`;
+    const revision = usePreviewSourceRevision(workbenchProjectId, path);
+    const requestKey = `${sessionId}\0${path}\0${attempt}\0${revision}`;
     const [result, setResult] = useState<{ key: string; state: PdfDocumentState }>();
 
     useEffect(() => {

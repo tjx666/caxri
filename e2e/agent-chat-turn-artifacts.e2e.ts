@@ -81,13 +81,12 @@ test('a finished Codex turn shows its edited files with Undo and the pull reques
         await page.screenshot({ path: testInfo.outputPath('turn-artifacts-hover.png') });
         await page.mouse.move(0, 0);
 
-        await changes.getByRole('button', { name: 'View changes', exact: true }).click();
-        await expect(
-            changes.getByRole('button', { name: 'Hide changes', exact: true }),
-        ).toBeVisible();
+        // The counts are the card's one inline toggle: clicking them discloses every diff in place.
+        await changes.getByRole('button', { name: /^View changes, / }).click();
+        await expect(changes.getByRole('button', { name: /^Hide changes, / })).toBeVisible();
         await expect(changes.getByText('Call `greet(name)`.')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('turn-artifacts-expanded.png') });
-        await changes.getByRole('button', { name: 'Hide changes', exact: true }).click();
+        await changes.getByRole('button', { name: /^Hide changes, / }).click();
 
         await pull.click();
         await expect

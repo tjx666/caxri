@@ -46,20 +46,31 @@ export function agentChatEmptyMessage(
 /**
  * The `meta` line under an empty, ready Chat's invitation, naming the composer gestures nobody finds by looking: the
  * `/` and `$` menus, attaching (images only when the provider takes them; any other file is inserted as its path), and
- * Shift+Enter.
+ * Shift+Enter. Either sigil opens the same list of commands and skills (`agentChatSlashQuery`), `$` leading with
+ * skills, so the hint does not promise `$` only skills.
  */
 export function agentChatEmptyHint(canAttachImages: boolean): string {
     const files = canAttachImages ? 'paste or drop images and files' : 'drop files to insert paths';
-    return `Type / for commands, $ for skills · ${files} · ⇧Enter for a new line`;
+    return `Type / or $ for commands and skills · ${files} · ⇧Enter for a new line`;
+}
+
+/**
+ * The Attach button's name and tooltip. A picked image attaches only when the provider takes images; any other file is
+ * inserted into the message as its path, so the button says both.
+ */
+export function agentChatAttachLabel(canAttachImages: boolean): string {
+    return canAttachImages ? 'Attach images or insert file paths' : 'Insert file paths';
 }
 
 /**
  * Why the Chat cannot continue here, for the banner above the composer. `recovery` is what its one action does:
  * `restart` relaunches the provider on its bound conversation, which clears a failure and ends a hand-over; `reload`
- * reads a projection that never loaded again.
+ * reads a projection that never loaded again. `inUse` is a conversation another client of the provider holds open: like
+ * `detached` it is not a fault, so it reads in the neutral tone, while its action is a retry after the user closes the
+ * other client.
  */
 export interface AgentChatRecoveryNotice {
-    kind: 'detached' | 'failed';
+    kind: 'detached' | 'failed' | 'inUse';
     message: string;
     detail?: string;
     recovery: 'reload' | 'restart';
@@ -104,6 +115,17 @@ export function agentChatRecoveryNotice(
     const recovery = isFailed ? 'restart' : 'reload';
     if (!snapshot?.failure)
         return { kind: 'failed', message: 'The conversation could not be loaded.', recovery };
+    if (snapshot.failure.reason === 'conversation_in_use')
+        return {
+            kind: 'inUse',
+            message: agentChatFailureMessage('conversation_in_use', {
+                providerName,
+                surface: 'desktop',
+            }),
+            // The provider's own detail only restates the heading, so the body names the way out instead.
+            detail: 'Close it there, then retry.',
+            recovery,
+        };
     if (snapshot.failure.reason === 'resume_failed')
         return {
             kind: 'failed',
@@ -267,10 +289,11 @@ export function agentChatSubmitDelivery(
 
 /**
  * The composer's send affordance for the Chat's state: while a turn runs, Enter queues and Cmd+Enter steers; while the
- * Chat is otherwise busy (compacting, or draining the queue) a message waits its turn.
+ * Chat is otherwise busy (compacting, or draining the queue) a message waits its turn. An idle Chat in plan mode asks
+ * for what to plan, since the next message starts a plan rather than changes.
  */
 export function agentChatSendAction(
-    state: { isTurnRunning: boolean; isBusy: boolean },
+    state: { isTurnRunning: boolean; isBusy: boolean; isPlanMode?: boolean },
     providerName: string,
 ): { label: 'Send' | 'Queue message'; tooltip: string; placeholder: string } {
     if (state.isTurnRunning)
@@ -285,7 +308,11 @@ export function agentChatSendAction(
             tooltip: 'Queue (Enter)',
             placeholder: 'Queue a follow-up',
         };
-    return { label: 'Send', tooltip: 'Send (Enter)', placeholder: `Message ${providerName}` };
+    return {
+        label: 'Send',
+        tooltip: 'Send (Enter)',
+        placeholder: state.isPlanMode ? 'Describe what to plan…' : `Message ${providerName}`,
+    };
 }
 
 /**
@@ -310,6 +337,10 @@ export function agentChatSendTooltip(
         block: ReturnType<typeof agentChatSendBlock>;
         hasContent: boolean;
         isAttaching: boolean;
+        /**
+         * A Session chosen from the `@` list is being condensed into a reference file.
+         */
+        isPreparingReference?: boolean;
         isSending: boolean;
     },
 ): string {
@@ -327,6 +358,7 @@ export function agentChatSendTooltip(
             break;
         }
     }
+    if (state.isPreparingReference) return 'Preparing Session reference…';
     if (state.isAttaching) return 'Attaching…';
     if (state.isSending) return 'Sending…';
     if (!state.hasContent) return 'Type a message to send';

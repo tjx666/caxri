@@ -39,12 +39,8 @@ import {
     untitledArchivedSessionIds,
     visibleArchivedSessionIds,
 } from './archived-sessions';
-import {
-    deleteSession,
-    deleteSessions,
-    unarchiveSession,
-    unarchiveSessions,
-} from './session-commands';
+import { unarchiveSession, unarchiveSessions } from './session-archive-commands';
+import { deleteSession, deleteSessions } from './session-commands';
 
 const NO_RECORDS: never[] = [];
 const EMPTY_SELECTION: ReadonlySet<string> = new Set();

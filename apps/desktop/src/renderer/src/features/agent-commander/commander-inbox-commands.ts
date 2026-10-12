@@ -4,6 +4,7 @@ import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { showConfirm } from '../../stores/confirmations';
 import { pushToast, tryCommand } from '../../stores/toasts';
+import { runCommanderInboxAction } from './commander-inbox-store';
 
 export const COMMANDER_INBOX_QUERY_PARAMETERS = {};
 
@@ -29,6 +30,19 @@ export function replyToCommanderInboxItem(
         'Unable to send the reply',
         () => caxri.request('commander.inbox.reply', { id: itemId, body }),
         { refresh: invalidateCommanderInbox },
+    );
+}
+
+/**
+ * Sends one of the answer options the Commander offered, exactly as written, as the reply to its question: the same
+ * request the composer sends for a typed answer.
+ */
+export async function answerCommanderInboxItem(
+    item: CommanderInboxItem,
+    option: string,
+): Promise<void> {
+    await runCommanderInboxAction(item.id, 'answer', () =>
+        replyToCommanderInboxItem(item.id, option),
     );
 }
 
@@ -62,10 +76,13 @@ export async function mergeCommanderInboxItem(item: CommanderInboxItem): Promise
         confirmLabel: 'Merge',
     });
     if (!isConfirmed) return;
-    const result = await tryCommand(
-        'Unable to merge this pull request',
-        () => caxri.request('commander.inbox.merge', { id: item.id, revision: item.revision }),
-        { refresh: invalidateCommanderInbox },
+    // The merge waits on GitHub, so the card shows it pending from the confirmation until the reply.
+    const result = await runCommanderInboxAction(item.id, 'merge', () =>
+        tryCommand(
+            'Unable to merge this pull request',
+            () => caxri.request('commander.inbox.merge', { id: item.id, revision: item.revision }),
+            { refresh: invalidateCommanderInbox },
+        ),
     );
     if (result)
         pushToast(

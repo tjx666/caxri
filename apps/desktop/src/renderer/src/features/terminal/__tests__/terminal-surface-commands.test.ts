@@ -95,6 +95,12 @@ describe('terminalSurfaceMenuEntry', () => {
     it('has no entry for a Shell', () => {
         expect(terminalSurfaceMenuEntry(agentTerminal('shell'))).toBeUndefined();
     });
+
+    it('drops the key hint for a menu whose target is not the active Terminal', () => {
+        const entry = terminalSurfaceMenuEntry(agentTerminal('codex'), false);
+        expect(entry).toMatchObject({ label: 'Open as Chat' });
+        expect(entry).not.toHaveProperty('shortcut', 'cmd+shift+j');
+    });
 });
 
 describe('switchTerminalSurface', () => {

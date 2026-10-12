@@ -5,6 +5,14 @@ export const MERGE_PULL_REQUEST_COMMAND = 'caxri.project-status.mergePullRequest
 export const MERGE_CURRENT_PULL_REQUEST_COMMAND = 'caxri.project-status.mergeCurrentPullRequest';
 const MERGE_PULL_REQUEST_TITLE = 'Merge Pull Request';
 
+/**
+ * How the merge method is picked, stated before the click. Server Core reads the repository's allowed methods only when
+ * the merge runs (`chooseMergeMethod`, squash first), so the row cannot name the exact method yet; it names the policy
+ * instead, and the success toast names the method actually used.
+ */
+const MERGE_METHOD_NOTE =
+    'Squash and merge when the repository allows it, otherwise a merge commit, then rebase.';
+
 type PullRequest = NonNullable<ProjectStatusRepository['pullRequest']>;
 
 /**
@@ -129,7 +137,13 @@ const blockerTones: Record<Exclude<MergeBlocker, 'conflicting'>, TreeItemActionT
 function mergeButtonPresentation(
     blocker: Exclude<MergeBlocker, 'conflicting'> | undefined,
 ): Pick<TreeItemAction, 'icon' | 'label' | 'tone' | 'tooltip'> {
-    if (!blocker) return { icon: new ThemeIcon('git-merge'), label: 'Merge', tone: 'success' };
+    if (!blocker)
+        return {
+            icon: new ThemeIcon('git-merge'),
+            label: 'Merge',
+            tone: 'success',
+            tooltip: MERGE_METHOD_NOTE,
+        };
     return {
         icon: new ThemeIcon('git-merge'),
         tone: blockerTones[blocker],
@@ -160,13 +174,13 @@ function unmergeableAction(
             : 'Has conflicts. Resolve them on GitHub.',
         confirmation: isDraft
             ? {
-                  title: `Pull request #${pullRequest.number} is a draft`,
+                  title: `Open draft pull request #${pullRequest.number} on GitHub?`,
                   message:
                       "GitHub can't merge a draft pull request. Mark it ready for review on GitHub, then merge it here.",
                   confirmLabel: 'Open on GitHub',
               }
             : {
-                  title: `Pull request #${pullRequest.number} has conflicts`,
+                  title: `Resolve conflicts in #${pullRequest.number} on GitHub?`,
                   message:
                       "GitHub can't merge it until the conflicts with its base branch are resolved. Resolve them on GitHub, then merge it here.",
                   confirmLabel: 'Open on GitHub',
@@ -181,7 +195,8 @@ function unmergeableAction(
  * or running checks, unmet protection, a stale base) asks first.
  *
  * The merge method is chosen by Server Core from the repository's allowed methods only when the merge runs, so neither
- * the button nor the confirmation can name it yet; they say "Merge".
+ * the button nor the confirmation can name it yet; both state the selection order ({@link MERGE_METHOD_NOTE}). Merging
+ * past failed checks is labelled `Merge Anyway`, so the button names the override rather than the ordinary action.
  */
 export function mergePullRequestAction(
     repo: Pick<ProjectStatusRepository, 'id'>,
@@ -212,8 +227,8 @@ export function mergePullRequestAction(
         ...(reason && {
             confirmation: {
                 title: `Merge pull request #${pullRequest.number}?`,
-                message: `${reason} A merged pull request cannot be undone from Caxri.`,
-                confirmLabel: 'Merge',
+                message: `${reason} ${MERGE_METHOD_NOTE} A merged pull request cannot be undone from Caxri.`,
+                confirmLabel: blocker === 'checks-failed' ? 'Merge Anyway' : 'Merge',
             },
         }),
         feedback: {

@@ -1,6 +1,6 @@
 import { useId } from 'react';
 
-import { Undo2, X } from 'lucide-react';
+import { Pencil, X } from 'lucide-react';
 
 import { Checkbox } from '../../components/ui/checkbox';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -8,7 +8,8 @@ import { agentChatEditCaption } from './agent-chat-edit';
 
 /**
  * The composer's first row while "Edit from here" is in progress, in the activity bar's shape: how much of the
- * conversation sending replaces, whether it also reverts the files those turns changed, and Cancel (or Escape). A
+ * conversation sending replaces, whether it also reverts the files those turns changed, and Cancel. Its tooltip names
+ * Escape only while Escape cancels: during a running turn Escape stops the turn instead (`agentChatEscapeAction`). A
  * provider that cannot restore files keeps the choice visible but disabled, with the reason on hover, so the user
  * learns why only the conversation rewinds. Renders nothing while no edit is in progress (`edit` is `undefined`).
  */
@@ -18,6 +19,11 @@ export function AgentChatEditBar({ edit }: { edit: AgentChatEditBarProperties | 
 }
 
 export interface AgentChatEditBarProperties {
+    /**
+     * The key that cancels the edit right now, shown in Cancel's tooltip; `undefined` while Escape stops a running
+     * turn.
+     */
+    cancelShortcut: 'escape' | undefined;
     /**
      * Why the provider cannot revert files, or `undefined` when it can.
      */
@@ -29,6 +35,7 @@ export interface AgentChatEditBarProperties {
 }
 
 function EditBar({
+    cancelShortcut,
     filesUnsupportedReason,
     removedTurns,
     shouldRestoreFiles,
@@ -42,7 +49,7 @@ function EditBar({
             className="flex h-8 min-w-0 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
             data-agent-chat-edit-bar=""
         >
-            <Undo2 aria-hidden className="size-3.5 shrink-0 text-accent" />
+            <Pencil aria-hidden className="size-3.5 shrink-0 text-accent" />
             <span className="min-w-0 truncate" role="status">
                 {agentChatEditCaption(removedTurns)}
             </span>
@@ -64,7 +71,7 @@ function EditBar({
                     </label>
                 </span>
             </Tooltip>
-            <Tooltip content="Cancel edit" shortcut="escape">
+            <Tooltip content="Cancel edit" shortcut={cancelShortcut}>
                 <button
                     aria-label="Cancel edit"
                     className="-mr-1.5 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent"

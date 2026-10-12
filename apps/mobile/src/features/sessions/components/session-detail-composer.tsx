@@ -152,7 +152,7 @@ export const SessionDetailComposer = ({
     const { byteLength, canSubmit, delivery, disabledReason, showStop, submit, updateDraft } =
         useSessionComposer({
             attachmentIds: images.readyIds,
-            hasPendingAttachment: images.hasUnsentAttachment,
+            attachmentWaitReason: images.waitReason,
             onAttachmentsSent: images.clear,
             deviceRole,
             draft,
@@ -183,19 +183,21 @@ export const SessionDetailComposer = ({
             />
             <View style={styles.composerRow}>
                 {deviceRole === 'reply' || deviceRole === 'control' ? (
-                    <IconButton
-                        accessibilityHint={
-                            images.canAdd ? undefined : 'Up to 3 images per message.'
-                        }
-                        accessibilityLabel="Attach image"
-                        color={theme.muted}
-                        disabled={!images.canAdd}
-                        icon={Paperclip}
-                        onPress={() => setChoosingImage(true)}
-                        size={22}
-                        testID="session-attach-image"
-                        theme={theme}
-                    />
+                    <View style={styles.attachSlot}>
+                        <IconButton
+                            accessibilityHint={
+                                images.canAdd ? undefined : 'Up to 3 images per message.'
+                            }
+                            accessibilityLabel="Attach image"
+                            color={theme.muted}
+                            disabled={!images.canAdd}
+                            icon={Paperclip}
+                            onPress={() => setChoosingImage(true)}
+                            size={22}
+                            testID="session-attach-image"
+                            theme={theme}
+                        />
+                    </View>
                 ) : null}
                 <SessionComposerInput
                     delivery={delivery}

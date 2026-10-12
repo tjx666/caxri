@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react';
 
-import { archiveSession } from '../session/session-commands';
+import { archiveSession } from '../session/session-archive-commands';
 import type { PrimarySidebarTreeRow, PrimarySidebarVerticalKey } from './primary-sidebar-tree';
 import {
     nextPrimarySidebarRowId,

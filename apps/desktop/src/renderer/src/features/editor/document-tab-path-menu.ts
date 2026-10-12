@@ -11,7 +11,8 @@ import {
 } from '../../lib/desktop-file-actions';
 import { parentDirectoryPath } from '../../lib/file-path';
 import { readCommandShortcut } from '../../lib/keybindings';
-import { openFilePreview } from '../preview/preview-commands';
+import type { PreviewTabSwitch } from '../preview/preview-commands';
+import { openFilePreview, openPreviewSource } from '../preview/preview-commands';
 import type {
     DocumentTabDesktopTarget,
     DocumentTabPathResolution,
@@ -29,16 +30,17 @@ export function documentTabPathMenu({
     resolution,
     unavailableReason,
     externalDocumentId,
-    previewPath,
+    previewSwitch,
 }: {
     resolution?: DocumentTabPathResolution;
     unavailableReason: string;
     externalDocumentId?: string;
     /**
-     * The file a preview of this tab would show, when a previewer claims it. Absent for every other tab, which hides
-     * the item instead of disabling it: "cannot preview a `.ts` file" is not a state worth explaining.
+     * The view switch this tab offers (`previewTabSwitch`): Open Preview from a source tab a previewer claims, Open
+     * Source from a preview tab. Absent for every other tab, which hides the item instead of disabling it: "cannot
+     * preview a `.ts` file" is not a state worth explaining.
      */
-    previewPath?: string;
+    previewSwitch?: PreviewTabSwitch;
 }): ContextMenuEntries {
     const desktop = documentTabDesktopActionState(resolution, {
         externalDocumentId,
@@ -46,13 +48,18 @@ export function documentTabPathMenu({
     });
     const target = desktop.target;
     return [
-        ...(previewPath
+        ...(previewSwitch
             ? [
-                  {
-                      label: 'Open Preview',
-                      shortcut: readCommandShortcut('editor.openPreview'),
-                      onSelect: () => openFilePreview(previewPath),
-                  },
+                  previewSwitch.kind === 'openSource'
+                      ? {
+                            label: 'Open Source',
+                            onSelect: () => openPreviewSource(previewSwitch.path),
+                        }
+                      : {
+                            label: 'Open Preview',
+                            shortcut: readCommandShortcut('editor.openPreview'),
+                            onSelect: () => openFilePreview(previewSwitch.path),
+                        },
                   CONTEXT_MENU_SEPARATOR,
               ]
             : []),

@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AgentAvatar } from '../../../components/agent-icon';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
-import { sessionAgeLabel, sessionAgentLabel } from '../session-row-model';
+import { sessionAgeLabel, sessionAgentLabel, sessionStateLabel } from '../session-row-model';
 import { SessionStatusGlyph } from './session-status-glyph';
 
 const styles = StyleSheet.create({
@@ -29,6 +29,7 @@ export const SessionRow = ({
     now,
     onLongPress,
     onPress,
+    savedAt,
     selected,
     session,
     showProject,
@@ -40,6 +41,10 @@ export const SessionRow = ({
      */
     onLongPress?: (session: MobileSessionItem) => void;
     onPress: (sessionId: string) => void;
+    /**
+     * When the list is the copy saved on this phone, so the row's state is only as fresh as that copy.
+     */
+    savedAt: number | null;
     selected: boolean;
     session: MobileSessionItem;
     /**
@@ -50,10 +55,11 @@ export const SessionRow = ({
 }) => {
     const handlePress = useCallback(() => onPress(session.id), [onPress, session.id]);
     const age = sessionAgeLabel(session.lastOpenedAt, now);
+    const stateLabel = sessionStateLabel(session.stateLabel, savedAt, now);
     return (
         <Pressable
             accessibilityHint="Opens this Session."
-            accessibilityLabel={`${session.displayTitle}, ${sessionAgentLabel(session)}, ${session.stateLabel}`}
+            accessibilityLabel={`${session.displayTitle}, ${sessionAgentLabel(session)}, ${stateLabel}`}
             accessibilityActions={
                 onLongPress ? [{ name: 'longpress', label: 'Session actions' }] : undefined
             }
@@ -88,7 +94,12 @@ export const SessionRow = ({
                 </Text>
             </View>
             <View style={styles.status}>
-                <SessionStatusGlyph session={session} theme={theme} />
+                <SessionStatusGlyph
+                    isSaved={savedAt !== null}
+                    label={stateLabel}
+                    session={session}
+                    theme={theme}
+                />
             </View>
         </Pressable>
     );

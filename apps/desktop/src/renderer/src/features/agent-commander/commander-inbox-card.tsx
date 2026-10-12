@@ -8,12 +8,17 @@ import { ExternalLink, GitMerge, MessageSquareReply, SquareArrowOutUpRight } fro
 
 import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
 import { Button } from '../../components/ui/button';
+import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { openCommanderPullRequest, revealCommanderSession } from './commander-commands';
 import { commanderInboxMergeState } from './commander-inbox';
-import { dismissCommanderInboxItem, mergeCommanderInboxItem } from './commander-inbox-commands';
-import { chooseCommanderInboxReplyTarget } from './commander-inbox-store';
+import {
+    answerCommanderInboxItem,
+    dismissCommanderInboxItem,
+    mergeCommanderInboxItem,
+} from './commander-inbox-commands';
+import { chooseCommanderInboxReplyTarget, useCommanderInboxUiStore } from './commander-inbox-store';
 
 const TONE_CLASS_NAMES = {
     danger: 'text-danger',
@@ -39,9 +44,14 @@ export function CommanderInboxCard({
     return (
         <li
             className={cn(
-                'commander-inbox-item flex flex-col gap-1.5 rounded-md border border-border bg-background p-2',
-                isTarget && 'border-accent',
+                'commander-inbox-item flex flex-col gap-1.5 rounded-md border border-border p-2',
+                /*
+                 * The reply target is a persistent selection, not focus, so it takes the raised `--elevated` fill
+                 * instead of the accent DESIGN.md reserves for the one focus indicator.
+                 */
+                isTarget ? 'bg-elevated' : 'bg-background',
             )}
+            data-inbox-target={isTarget || undefined}
             data-inbox-kind={item.kind}
             data-inbox-item-id={item.id}
         >
@@ -91,13 +101,7 @@ export function CommanderInboxCard({
                     <MarkdownBlocks blocks={blocks} onOpenUrl={openCommanderPullRequest} />
                 </div>
             )}
-            {item.options.length > 0 && (
-                <ol className="commander-inbox-options flex list-decimal flex-col gap-0.5 pl-5 text-[12px]">
-                    {item.options.map((option) => (
-                        <li key={option}>{option}</li>
-                    ))}
-                </ol>
-            )}
+            {item.options.length > 0 && <CommanderInboxOptions item={item} />}
             {item.replies.length > 0 && (
                 <ul className="commander-inbox-replies flex flex-col gap-1 border-l-2 border-border pl-2">
                     {item.replies.map((reply) => (
@@ -125,26 +129,75 @@ export function CommanderInboxCard({
     );
 }
 
+/**
+ * The answers the Commander offered, each a button that sends it as the reply. The composer below stays the way to
+ * answer anything else.
+ */
+function CommanderInboxOptions({ item }: { item: CommanderInboxItem }) {
+    const isAnswering = useCommanderInboxUiStore(
+        (state) => state.pendingActions[item.id] === 'answer',
+    );
+    return (
+        <div
+            aria-busy={isAnswering}
+            aria-label="Answers"
+            className="commander-inbox-options flex flex-wrap gap-1"
+            role="group"
+        >
+            {item.options.map((option) => (
+                <Button
+                    key={option}
+                    className="commander-inbox-option h-auto min-h-6 max-w-full py-0.5 text-left whitespace-normal"
+                    disabled={isAnswering}
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                        // Fire-and-forget: the reply command reports its own failure through a toast.
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                        void answerCommanderInboxItem(item, option);
+                    }}
+                >
+                    {option}
+                </Button>
+            ))}
+        </div>
+    );
+}
+
 function CommanderInboxActions({ item }: { item: CommanderInboxItem }) {
     const merge = item.kind === 'merge' ? commanderInboxMergeState(item) : undefined;
+    const isMerging = useCommanderInboxUiStore(
+        (state) => state.pendingActions[item.id] === 'merge',
+    );
     return (
         <div className="commander-inbox-actions flex flex-wrap items-center gap-1">
             {merge && (
-                <Tooltip content={merge.reason ?? 'Merge the commit the Commander verified'}>
+                <Tooltip
+                    content={
+                        isMerging
+                            ? 'Merging…'
+                            : (merge.reason ?? 'Merge the commit the Commander verified')
+                    }
+                >
                     <span>
                         <Button
+                            aria-busy={isMerging}
                             size="sm"
                             variant="default"
                             className="commander-inbox-merge"
-                            disabled={!merge.canMerge}
+                            disabled={!merge.canMerge || isMerging}
                             onClick={() => {
                                 // Fire-and-forget: the merge command reports its own failure through a toast.
                                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                                 void mergeCommanderInboxItem(item);
                             }}
                         >
-                            <GitMerge size={13} />
-                            Merge
+                            {isMerging ? (
+                                <Spinner aria-hidden="true" className="size-[13px]" />
+                            ) : (
+                                <GitMerge size={13} />
+                            )}
+                            {isMerging ? 'Merging…' : 'Merge'}
                         </Button>
                     </span>
                 </Tooltip>

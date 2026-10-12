@@ -4,7 +4,7 @@ import { AndroidConfig, withAndroidManifest, withInfoPlist } from 'expo/config-p
 type AndroidManifest = Parameters<typeof AndroidConfig.Manifest.getMainApplicationOrThrow>[0];
 
 const LOCAL_NETWORK_DESCRIPTION =
-    'Allow Caxri to connect securely to your Mac on the local network.';
+    'Allow Caxri to connect securely to your computer on the local network.';
 
 /**
  * Caxri's LAN transport uses `ws://` because TLS certificates cannot name a changing private IP. The application

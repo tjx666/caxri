@@ -27,3 +27,31 @@ export const savedAgeLabel = (savedAt: number, now: number): string => {
     const age = sessionAgeLabel(savedAt, now);
     return age === 'now' ? 'saved just now' : `saved ${age} ago`;
 };
+
+/**
+ * A Session's state for the screen reader. On a saved copy it says how old that state is, because a Session shown as
+ * working may have finished since (`Working, as of 5m ago`).
+ */
+export const sessionStateLabel = (
+    stateLabel: string,
+    savedAt: number | null,
+    now: number,
+): string => {
+    if (savedAt === null) return stateLabel;
+    const age = sessionAgeLabel(savedAt, now);
+    return `${stateLabel}, as of ${age === 'now' ? 'just now' : `${age} ago`}`;
+};
+
+/**
+ * Which mark the Session status slot shows. A saved copy cannot know a Session is still running, so it never spins:
+ * `running-saved` is a still glyph.
+ */
+export const sessionStatusGlyphKind = (
+    session: Pick<MobileSessionItem, 'hasUnread' | 'lastActivityState'>,
+    isSaved: boolean,
+): 'attention' | 'running' | 'running-saved' | 'failed' | null => {
+    if (session.hasUnread) return 'attention';
+    if (session.lastActivityState === 'running') return isSaved ? 'running-saved' : 'running';
+    if (session.lastActivityState === 'failed') return 'failed';
+    return null;
+};

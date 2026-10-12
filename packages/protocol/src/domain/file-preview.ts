@@ -44,7 +44,13 @@ export function filePreviewExtension(path: string): string {
     return dot <= 0 ? '' : name.slice(dot + 1).toLowerCase();
 }
 
-export function filePreviewTabLabel(path: string): string {
+/**
+ * The preview tab's label. `Preview:` tells a preview apart from the source tab of the same file; a format whose only
+ * view is the preview (a PDF) has no source tab to be told apart from, so the caller drops the prefix with `isOnlyView`
+ * and the tab reads as the bare filename.
+ */
+export function filePreviewTabLabel(path: string, options: { isOnlyView?: boolean } = {}): string {
     const external = parseExternalEditorTab(path);
-    return `Preview: ${external ? external.name : path.slice(path.lastIndexOf('/') + 1)}`;
+    const name = external ? external.name : path.slice(path.lastIndexOf('/') + 1);
+    return options.isOnlyView ? name : `Preview: ${name}`;
 }

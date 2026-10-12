@@ -79,3 +79,28 @@ export function summarizeIncidents<T>(incidents: readonly T[]): {
     const more = incidents.length - 1;
     return { first: incidents[0], moreLabel: more > 0 ? `+${more} more` : undefined };
 }
+
+/**
+ * True while the provider's own status page reports anything other than Operational. A status page that could not be
+ * read is unknown, not disrupted.
+ */
+export function isProviderStatusDisrupted(status: AgentProviderStatus | null | undefined): boolean {
+    return status?.state === 'available' && status.status !== 'operational';
+}
+
+/**
+ * Which branch a provider-status surface renders: `none` for a provider without a status page, `checking` while the
+ * first read is in flight, `failed` when that read failed before any reading arrived (so the surface offers Retry
+ * instead of saying "Checking" forever), and `ready` once a reading exists. A failed background refresh keeps the last
+ * reading on screen.
+ */
+export type ProviderStatusView = 'none' | 'checking' | 'failed' | 'ready';
+
+export function providerStatusView(
+    status: AgentProviderStatus | null | undefined,
+    isError: boolean,
+): ProviderStatusView {
+    if (status === null) return 'none';
+    if (status) return 'ready';
+    return isError ? 'failed' : 'checking';
+}

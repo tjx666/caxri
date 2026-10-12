@@ -132,7 +132,9 @@ export function NewTerminalButton({
                          * reports either the same way for a native `<button>`. Hovering still opens the list (the
                          * `openOnHover` trigger above), which this veto never sees because that request's reason is
                          * `trigger-hover`, not `trigger-press`. Canceling here keeps Base UI from opening the popup at
-                         * all, so there is no flash of a list that immediately closes.
+                         * all, so there is no flash of a list that immediately closes. The keyboard path to the list is
+                         * ArrowDown (or ArrowUp) on the focused +: Base UI's menu trigger opens on it with reason
+                         * `list-navigation`, which this veto lets through.
                          */
                         if (open && details.reason === 'trigger-press') {
                             details.cancel();

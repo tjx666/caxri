@@ -61,7 +61,7 @@ function desktopFailureMessage(reason: AgentChatFailureReason, provider: string)
             return 'The previous conversation could not be resumed.';
         }
         case 'conversation_in_use': {
-            return `This conversation is open in another ${provider} app or window. Close it there, then retry.`;
+            return `This conversation is open in another ${provider} app or window.`;
         }
         case 'unsupported_version': {
             return `This ${provider} version does not support Chat. Update the ${provider} CLI.`;

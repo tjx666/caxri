@@ -1,10 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useTerminal } from '../../stores/selectors';
 import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
 import {
-    registerTerminalFocusHandler,
     RESTART_AGENT_FAILED,
     restartTerminal,
     restartTerminalWithRecovery,
@@ -12,6 +12,7 @@ import {
 import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
 import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
+import { registerTerminalFocusHandler } from '../terminal/terminal-pane-handlers';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import {
     canSwitchTerminalSurface,
@@ -35,7 +36,7 @@ import {
     agentChatSendBlock,
     isAgentChatBusy,
 } from './agent-chat-presentation';
-import { agentChatRailMarks } from './agent-chat-rail-marks';
+import { agentChatRailMarks, isAgentChatMessageRailShown } from './agent-chat-rail-marks';
 import { announceAgentChatSelectionCopy } from './agent-chat-selection-copy';
 import { agentChatDayBreaks } from './agent-chat-time';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
@@ -188,8 +189,12 @@ export function AgentChatPane({
          */
         focusComposer();
         if (recoveryNotice?.recovery === 'restart') {
-            // A failed Chat has no turn left to stop, so its Retry restarts without the running-turn confirmation.
-            if (recoveryNotice.kind === 'failed')
+            /**
+             * Only a hand-over can still have a turn running elsewhere. A failed Chat, or one whose conversation is
+             * open in another client, has no turn left to stop, so its Retry restarts without the running-turn
+             * confirmation.
+             */
+            if (recoveryNotice.kind !== 'detached')
                 restartTerminalWithRecovery(terminalId, RESTART_AGENT_FAILED);
             else restartTerminal(terminalId);
         }
@@ -220,7 +225,11 @@ export function AgentChatPane({
                         onScroll={onScroll}
                     >
                         <div
-                            className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none"
+                            className={cn(
+                                'mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none',
+                                // The rail sits at `left-1` and is 20px wide; 28px clears it with the usual gap.
+                                isAgentChatMessageRailShown(railMarks) && 'pl-7',
+                            )}
                             ref={contentReference}
                             onCopy={announceAgentChatSelectionCopy}
                         >

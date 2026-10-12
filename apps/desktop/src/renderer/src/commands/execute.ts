@@ -9,6 +9,7 @@ import {
 } from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
+import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
 import {
     closeDocumentTabs,
@@ -44,17 +45,21 @@ import { openSeededProjectSearch } from '../features/project-search/project-sear
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import { deleteProject, hideSelectedProject } from '../features/session/project-removal-commands';
 import {
+    detachSelectedSession,
+    resumeSelectedSession,
+} from '../features/session/session-agent-commands';
+import {
     archiveSelectedSession,
     archiveSession,
+    openArchivedSessions,
+} from '../features/session/session-archive-commands';
+import {
     canNavigateSessionHistory,
     deleteSelectedSession,
-    detachSelectedSession,
     moveTerminalToNewSession,
     navigateSessionHistory,
-    openArchivedSessions,
     openSelectedProjectInExternalEditor,
     openSelectedSessionPullRequest,
-    resumeSelectedSession,
     selectAdjacentSession,
     switchMruSession,
 } from '../features/session/session-commands';
@@ -80,18 +85,20 @@ import {
 } from '../features/status-bar/status-bar-picker-commands';
 import { cycleActiveTab } from '../features/tabs/tab-navigation';
 import {
-    clearActiveTerminal,
     closeTerminal,
-    copyActiveTerminalSelection,
     createDefaultTerminal,
-    findInActiveTerminal,
-    hasActiveTerminalSelection,
-    navigateActiveTerminalCommand,
     restartActiveTerminal,
     sendTerminalSequence,
     startNewAgentSession,
 } from '../features/terminal/terminal-commands';
 import { openTerminalLinkPicker } from '../features/terminal/terminal-link-actions';
+import {
+    clearActiveTerminal,
+    copyActiveTerminalSelection,
+    findInActiveTerminal,
+    hasActiveTerminalSelection,
+    navigateActiveTerminalCommand,
+} from '../features/terminal/terminal-pane-handlers';
 import {
     canSwitchTerminalSurface,
     switchTerminalToOtherSurface,
@@ -410,12 +417,8 @@ const commandContext: CommandContext = {
                 caxri.request('agentCommander.open'),
             );
         },
-        stopAgentCommander: () => {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void tryCommand('Unable to stop Agent Commander', () =>
-                caxri.request('agentCommander.stop'),
-            );
-        },
+        // eslint-disable-next-line no-void -- the stop reports its own failures through toasts
+        stopAgentCommander: () => void stopCommanderFromWorkbench(),
         openProcessExplorer,
         // eslint-disable-next-line no-void -- floating-promise discard: the step reports failure via its own toast
         zoom: (step) => void stepWindowZoom(step),

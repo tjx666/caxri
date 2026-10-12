@@ -168,9 +168,13 @@ pane's own Open Settings. Any other follow-up keeps the fail-closed answer.
 
 While the Commander runs, the Workbench status bar shows a muted `Commander` chip with its state
 (`starting`, `working`, `needs input`, or `idle`) from `commander.status`; clicking it opens the
-window. A stopped Commander shows no chip. **View > Stop Agent Commander** (also in the Command
+window. A stopped Commander shows no chip. While the Inbox holds open items, a second muted chip
+reads `1 needs you` or `N need you` and opens the window; it is never hidden for width, because the
+main window has no other trace that the Commander is waiting on the owner. **View > Stop Agent Commander** (also in the Command
 Palette) and the window's **Stop** button run `agentCommander.stop`: Main closes the window, then
-calls `commander.stop`. Main logs a failed stop as `agent_commander.stop_failed` with its error
+calls `commander.stop`. Every entry asks **Stop the running turn?** (**Stop and Close**) first while the
+Commander is working; the menu and the Command Palette run in the Workbench, which reads
+`commander.status` because it cannot see the Commander's Terminal. Main logs a failed stop as `agent_commander.stop_failed` with its error
 code.
 
 ## Server model
@@ -278,7 +282,9 @@ Session and back; the choice is remembered in the window's local storage
 Commander itself still sees the whole Workbench.
 
 Each row favors icons over words so the Project name keeps its width. The first line holds the
-activity glyph, the Session title, the Commander task's status icon, and the relative update time.
+activity glyph (a live turn draws the PrimarySidebar's monochrome running arc in `--muted`, not a
+green spinner, so the same Session reads the same in both windows and a board of busy Agents does
+not turn into a wall of green), the Session title, the Commander task's status icon, and the relative update time.
 The second line holds the Agent's color icon, the Project name, an icon for a non-running process
 (exited, failed, interrupted, starting, or suspended; a detached Terminal shows none), and the pull
 request as `#N` with a checks icon (passed, failed, or pending). Every icon carries a tooltip and
@@ -376,13 +382,17 @@ the `agent delegate create` call the Commander is still waiting on, so the CLI a
 The Commander Inbox is what the Commander explicitly raised for the owner: pull requests it
 verified as ready to merge, and questions only the owner can answer. The Agent Commander window
 shows it as the right-side "Needs you" column (toggled from the header, open-item count on the
-toggle). It is never inferred from Terminal output or Session state: an item exists only because
+toggle in the `--badge` tokens rather than the accent). The header names the Commander's Project and
+keeps the full workspace path in its tooltip. The reply target card takes the raised `--elevated`
+fill, not an accent border, because it is a persistent selection rather than focus. It is never inferred from Terminal output or Session state: an item exists only because
 the Commander ran `commander inbox add`, so the owner can trust that everything there is waiting on
 them, including after they were away from the computer.
 
 **Kinds.** `merge` names a pull request URL and the head commit (`--head`, the `headRefOid` the
 Commander verified). `decision` is a product or scope choice, optionally with numbered `--option`s.
-`hands` is a step that needs the owner physically, such as a login or a device. Questions sort
+`hands` is a step that needs the owner physically, such as a login or a device. A card renders a
+question's options as buttons: pressing one sends that option, exactly as written, as the reply,
+and the composer stays the way to answer anything else. Questions sort
 above pull requests, because a question blocks the Commander while a ready pull request only waits.
 
 **Storage.** Items and replies live in `commander_inbox_items` and `commander_inbox_replies`
@@ -397,7 +407,9 @@ context only, without a foreign key, so an item outlives an archived Session.
 the Commander replaced the report meanwhile, when the item is stale, or when a merge is already in
 flight, then runs `gh pr merge --match-head-commit <verified head>` with the repository's preferred
 method. GitHub therefore refuses if anything landed after the Commander's verification. Pending or
-failing checks do not disable Merge: branch protection decides that on the merge itself.
+failing checks do not disable Merge: branch protection decides that on the merge itself. From the
+confirmation until the reply, the button reads `Merging…` and refuses a second press; an option
+button is likewise disabled while its answer is in flight.
 
 **GitHub reconcile.** Every 60 seconds, serially and single-flight to protect the shared `gh`
 quota, the Server reads each open `merge` item's pull request. A head other than the verified one

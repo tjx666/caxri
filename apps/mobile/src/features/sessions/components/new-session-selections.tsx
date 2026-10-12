@@ -8,7 +8,11 @@ import { AgentGlyph } from '../../../components/agent-icon';
 import type { MobileTheme } from '../../../theme/tokens';
 import { mobileAgentDisplayName } from '../agent-display-name';
 import type { NewSessionViewState } from '../hooks/use-new-session';
-import { NEW_SESSION_AGENT_ORDER, newSessionAgentReason } from '../new-session-model';
+import {
+    NEW_SESSION_AGENT_ORDER,
+    newSessionAgentReason,
+    newSessionSurfaceDescription,
+} from '../new-session-model';
 import { NewSessionChoice } from './new-session-choice';
 import { newSessionStyles as styles } from './new-session-styles';
 
@@ -31,12 +35,12 @@ const NewSessionAgentChoice = ({
     });
     return (
         <NewSessionChoice
+            detail={reason}
             disabled={disabled}
             isCompact
             label={mobileAgentDisplayName(kind)}
             leading={<AgentGlyph kind={kind} size={20} theme={theme} />}
             onPress={() => state.setNewSessionAgent(kind)}
-            reason={reason}
             selected={!disabled && state.selectedAgent === kind}
             testID={`new-session-agent-${kind}`}
             theme={theme}
@@ -60,6 +64,7 @@ const NewSessionSurfaceGroup = ({
             <Text style={[styles.groupLabel, { color: theme.muted }]}>Open as</Text>
             <View style={styles.agentGrid}>
                 <NewSessionChoice
+                    detail={newSessionSurfaceDescription('chat', state.defaultSurface)}
                     isCompact
                     label="Chat"
                     leading={<MessageSquare color={theme.muted} size={18} />}
@@ -69,6 +74,7 @@ const NewSessionSurfaceGroup = ({
                     theme={theme}
                 />
                 <NewSessionChoice
+                    detail={newSessionSurfaceDescription('pty', state.defaultSurface)}
                     isCompact
                     label="Terminal"
                     leading={<SquareTerminal color={theme.muted} size={18} />}

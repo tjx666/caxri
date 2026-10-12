@@ -70,6 +70,7 @@ export const SelectedSessionDetail = ({
             onMarkRead={markRead}
             onRefresh={refresh}
             onSegmentChange={(next) => setSegment(selected.id, next, conversation.segment)}
+            savedAt={sessions.savedAt}
             segment={conversation.segment}
             session={selected}
             theme={theme}

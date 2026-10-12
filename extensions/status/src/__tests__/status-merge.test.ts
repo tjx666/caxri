@@ -52,6 +52,8 @@ describe('Status panel merge action', () => {
         });
         expect(action.icon.id).toBe('git-merge');
         expect(action).toMatchObject({ label: 'Merge', tone: 'success' });
+        // The method is picked when the merge runs, so the button states the selection order up front.
+        expect(action.tooltip).toContain('Squash and merge');
         expect(action.confirmation).toBeUndefined();
         expect(action.feedback).toEqual({
             success: 'Merged #42',
@@ -97,9 +99,14 @@ describe('Status panel merge action', () => {
 
         expect(confirmation).toMatchObject({
             title: 'Merge pull request #42?',
-            confirmLabel: 'Merge',
+            // Merging past failed checks names the override; every other blocker settles or may be refused by GitHub.
+            confirmLabel:
+                'state' in pullRequest && pullRequest.state === 'failure'
+                    ? 'Merge Anyway'
+                    : 'Merge',
         });
         expect(confirmation?.message).toContain(reason);
+        expect(confirmation?.message).toContain('Squash and merge when the repository allows it');
     });
 
     it.each([
@@ -121,8 +128,8 @@ describe('Status panel merge action', () => {
     });
 
     it.each([
-        [{ mergeState: 'conflicting' }, 'danger', 'has conflicts'],
-        [{ lifecycle: 'draft' }, 'neutral', 'is a draft'],
+        [{ mergeState: 'conflicting' }, 'danger', 'Resolve conflicts in #42 on GitHub?'],
+        [{ lifecycle: 'draft' }, 'neutral', 'Open draft pull request #42 on GitHub?'],
     ] as const)(
         'keeps an explaining button for %o that opens GitHub instead of merging',
         (pullRequest, tone, title) => {

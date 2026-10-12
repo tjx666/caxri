@@ -270,9 +270,10 @@ function WorkTabLabel({
                      * would push its own close button out of reach, so it stops 6rem short of the scrolling rail's
                      * `@container` (icon, padding, close). Terminal labels keep their full width. Only the scrolling
                      * rail is a container: the sticky rail sizes to its own tabs, and inline-size containment would
-                     * collapse it to nothing.
+                     * collapse it to nothing. The 8rem floor keeps a narrow editor group from cutting every title to a
+                     * few letters ("Cla", "s"): below it the rail scrolls, as DESIGN.md asks, instead of crushing labels.
                      */
-                    'tab-label max-w-[calc(100cqw-6rem)] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap group-data-[fill=true]:max-w-none',
+                    'tab-label max-w-[max(calc(100cqw-6rem),8rem)] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap group-data-[fill=true]:max-w-none',
                     preview && 'italic',
                     /*
                      * Overrides the tab's own muted/foreground color, including on the inactive tabs: the point of

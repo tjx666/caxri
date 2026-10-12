@@ -304,7 +304,7 @@ test('quit can cancel, keep one live Agent for reconnection, or stop its complet
             cancelId: 2,
             defaultId: 1,
             detail: QUIT_DETAIL,
-            message: '1 task is still running.',
+            message: 'Quit Caxri while 1 task is running?',
             title: 'Quit Caxri?',
             type: 'warning',
         });
@@ -379,7 +379,7 @@ test('quit can cancel, keep one live Agent for reconnection, or stop its complet
             detail:
                 `${QUIT_DETAIL}\n\n1 other client is connected to Caxri Server. ` +
                 'Stopping will disconnect it.',
-            message: '1 task is still running.',
+            message: 'Quit Caxri while 1 task is running?',
             title: 'Quit Caxri?',
             type: 'warning',
         });

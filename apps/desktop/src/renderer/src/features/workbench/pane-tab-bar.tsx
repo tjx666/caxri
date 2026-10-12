@@ -26,7 +26,7 @@ import {
 import { documentTabPathMenu } from '../editor/document-tab-path-menu';
 import { GitReviewTabBadge } from '../editor/git-review-tab-badge';
 import { useDocumentTabPresentation } from '../editor/hooks/use-document-tab-presentation';
-import { previewSourcePath } from '../preview/preview-commands';
+import { previewTabSwitch } from '../preview/preview-commands';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from '../tabs/work-tab-accessibility';
@@ -132,7 +132,7 @@ function DocumentPaneTab({
                               resolution,
                               unavailableReason: pathMenu.unavailableReason,
                               externalDocumentId: pathMenu.externalDocumentId,
-                              previewPath: previewSourcePath(path),
+                              previewSwitch: previewTabSwitch(path),
                           })
                         : undefined,
                 })

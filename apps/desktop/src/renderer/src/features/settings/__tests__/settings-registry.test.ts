@@ -1,4 +1,4 @@
-import { settingsSpec } from '@caxri/protocol';
+import { settingsSpec, settingsSpecByKey } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { settingsRows, titleNamedBindings } from '../settings-registry';
@@ -34,5 +34,22 @@ describe('settingsRows', () => {
 
     it('keeps row ids unique so the virtualized list can key on them', () => {
         expect(new Set(settingsRows.map((row) => row.id)).size).toBe(settingsRows.length);
+    });
+
+    it('makes every dependent row depend on a boolean switch in its own category', () => {
+        const dependents = settingsRows.filter((row) => row.enabledBy !== undefined);
+        expect(dependents.map((row) => row.id)).toContain('terminal.idleSuspension.afterMinutes');
+        for (const row of dependents) {
+            const parent = settingsSpecByKey[row.enabledBy!];
+            expect(parent.kind).toBe('boolean');
+            expect(parent.category).toBe(row.category);
+        }
+    });
+
+    it('lists the Agent suspension settings under Agents', () => {
+        const categories = settingsRows
+            .filter((row) => row.id.startsWith('terminal.') && row.id.includes('uspen'))
+            .map((row) => row.category);
+        expect(categories).toEqual(['agents', 'agents', 'agents']);
     });
 });

@@ -231,7 +231,9 @@
 
 .caxri-markdown-diagram {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
     padding: 12px;
     border-radius: var(--radius-md);
     background: var(--surface);
@@ -240,6 +242,20 @@
 .caxri-markdown-diagram svg {
     max-width: 100%;
     height: auto;
+}
+
+/*
+ * A `.mmd` file is the whole tab, and the view around it scrolls. Plain centering would push the left edge of a diagram
+ * wider than a narrow side pane out of the scrollable area; `safe` falls back to start alignment so every node stays
+ * reachable by scrolling.
+ */
+.caxri-mermaid-file-diagram {
+    align-items: safe center;
+}
+
+/* The last diagram that rendered, kept while the source does not parse; the error below it says why it is stale. */
+.caxri-markdown-diagram.is-stale > svg {
+    opacity: 0.4;
 }
 
 .caxri-markdown-diagram-error {

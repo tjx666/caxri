@@ -15,15 +15,16 @@ binary bytes come from, and how the PDF engine loads its data inside a `file://`
 
 ## Using it
 
-| Action                               | How                                                                                |
-| ------------------------------------ | ---------------------------------------------------------------------------------- |
-| Open a preview for the active editor | `Cmd+Shift+V`, or **Editor: Open Preview**                                         |
-| Open it beside the source            | **Editor: Open Preview to the Side**, or the eye icon at the right of the tab rail |
-| Open it from a tab or the explorer   | Right-click the editor tab or the file in Files → **Open Preview**                 |
-| Copy a fenced code block             | Hover the block, click the copy button                                             |
-| Jump to a heading                    | Click an in-page link                                                              |
-| Follow a link to another document    | Click it: Caxri opens that file as a new editor tab                                |
-| Follow an external link              | Click it: opens in the system browser                                              |
+| Action                               | How                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------ |
+| Open a preview for the active editor | `Cmd+Shift+V`, or **Editor: Open Preview**                                           |
+| Open it beside the source            | **Editor: Open Preview to the Side**, or the eye icon at the right of the tab rail   |
+| Open it from a tab or the explorer   | Right-click the editor tab or the file in Files → **Open Preview**                   |
+| Go from a preview back to its source | The file icon at the right of the tab rail, or right-click the tab → **Open Source** |
+| Copy a fenced code block             | Hover the block, click the copy button                                               |
+| Jump to a heading                    | Click an in-page link                                                                |
+| Follow a link to another document    | Click it: Caxri opens that file as a new editor tab                                  |
+| Follow an external link              | Click it: opens in the system browser                                                |
 
 A Markdown file opened from outside every Project (an external document) previews too, rendered
 from the editor's buffer. Its relative images and links resolve against the document's own folder
@@ -35,14 +36,30 @@ Double-clicking a Markdown, SVG, CSV/TSV, or Mermaid file in the explorer still 
 Those formats are readable as text, so the preview stays an explicit command; VS Code makes the
 same call with `priority.textEditor: 'option'`. A PDF has no useful text form, so it registers
 `defaultView: 'preview'`: every open path (Files, Quick Open, a Terminal link) lands on its preview
-tab without attempting a text read, and nothing else about the surface changes.
+tab without attempting a text read, and nothing else about the surface changes. Because a PDF tab
+is the file's only view, its tab is titled with the bare file name; a preview of a text format
+keeps the `Preview:` prefix so it stays distinct from the source tab beside it. On a preview tab
+the rail action and the tab menu offer **Open Source** instead of opening another preview; a PDF
+has no source, so it offers neither.
 Moving a file or folder to the Trash closes its preview tabs along with its source tabs.
 
 Edits re-render live. The preview follows the source editor's scroll position one way: scrolling
-the editor moves the preview, and scrolling the preview does not move the editor. A failed source
-read replaces the loading state with a readable cause and a keyboard-accessible **Retry** button.
-The editor and Markdown preview share the read-attempt lifecycle; switching Session, Workbench
-Root, or file discards the old failure, and late results cannot overwrite the current attempt.
+the editor moves the preview, and scrolling the preview does not move the editor. Every preview
+shows the same **Loading preview…** label while it reads, whatever the format, so one wait never
+reads as two steps. A failed read replaces the loading state with a readable cause and one
+keyboard-accessible action chosen from the error's structured code
+([`document-load-recovery.ts`](../apps/desktop/src/renderer/src/features/editor/document-load-recovery.ts)):
+**Retry** for a failure that can go away (a missing file, an interrupted read), and **Open with
+Default App** for one that fails the same way every time (a file over a size ceiling, reported as
+`CAPACITY` with the limit in MB, or a damaged or protected PDF). The editor and Markdown preview
+share the read-attempt lifecycle; switching Session, Workbench Root, or file discards the old
+failure, and late results cannot overwrite the current attempt.
+
+Markdown, CSV/TSV, and PDF previews remember where they were per pane and file
+([`preview-view-state.ts`](../apps/desktop/src/renderer/src/features/preview/preview-view-state.ts),
+a bounded in-memory LRU like the editor's view state): switching to another tab and back returns to
+the same scroll position, and a PDF to the same page and zoom. The memory does not survive a
+restart. The same file previewed in two panes keeps two positions.
 
 Markdown support is CommonMark plus GitHub task lists, linkified bare URLs, heading anchors,
 `mermaid` diagrams, and the raw inline HTML real READMEs depend on (`<details>`, centered banners).
@@ -63,15 +80,22 @@ Smart typography is deliberately off, so what you typed is what you see.
 The view is a continuous scroll of pages rendered by
 [pdf.js](https://github.com/mozilla/pdf.js) (`pdfjs-dist`) onto canvases, with a text layer so
 text is selectable and copyable, and link annotations so internal links jump and `http(s)` /
-`mailto` links open in the system browser. A toolbar above the pages shows **Page N of M** and
-offers Zoom Out, Zoom In, and Fit Width; `Ctrl` + wheel (trackpad pinch) zooms around the pointer.
-Zoom is clamped to 25% to 500%, and a document opens at page width, which it keeps as the pane
-resizes until the user picks another zoom. Pages keep their own colors in every theme; only the
+`mailto` links open in the system browser. The toolbar above the pages has a page field (type a
+number and press Enter to jump; Escape restores the current page) followed by the page count, Zoom
+Out and Zoom In, and the zoom percentage, which opens a menu of Fit Width, Fit Page, and fixed
+scales from 50% to 300%. `Ctrl` + wheel (trackpad pinch) zooms around the pointer. Zoom is clamped
+to 25% to 500%, and a document opens at page width; a fit keeps following the pane as it resizes
+until the user picks a fixed zoom. A screen reader hears the page and zoom after a jump or zoom
+from the toolbar, not at every page boundary while scrolling. Pages keep their own colors in every
+theme, with a hairline `--border` edge so a white page stays distinct from a light theme; only the
 chrome and the gap between pages follow the Caxri theme, the way every PDF reader treats paper.
 
 A damaged or non-PDF file, a password-protected one, and one over 32 MiB each show a readable cause
-with **Retry**. The bytes are read once when the tab opens; the view does not follow later changes
-on disk (Retry, or reopening the tab, reads it again).
+with **Open with Default App**; a read failure keeps **Retry**. When the file is rewritten on disk
+(a save from another app, an Agent regenerating it), the view reads it again after the burst of
+watcher events settles and returns to the same page and zoom. A watcher batch that overflowed its
+per-file list does not trigger a re-read, because re-reading every open PDF on a large checkout
+costs more than the rare stale view; reopening the tab reads the file again.
 
 Electron's built-in Chromium viewer was the other option. It needs `plugins: true` plus an
 `object-src` / `frame-src` CSP opening, renders inside its own frame where the theme cannot reach,
@@ -101,17 +125,29 @@ The table parses the editor's buffer with [Papa Parse](https://www.papaparse.com
 fields, escaped quotes, delimiters inside quotes, and line breaks inside a quoted field follow
 RFC 4180, and edits in the source pane re-render the table. `.tsv` splits on tabs; `.csv` guesses
 among comma, tab, pipe, and semicolon. The first record is the header. Rows are virtualized, so a
-50,000-row file scrolls like a short one; numeric columns align right with tabular figures. A
-footer reports the row and column count. When parsing stops at the row or column cap, or the parser
-reports a malformed record, a warning bar above the table says so and names the first bad row.
+50,000-row file scrolls like a short one; numeric columns align right with tabular figures. The
+row-number gutter widens with the largest row number, and a cell cut off by its column shows its
+full value in a tooltip on hover. A footer reports the row and column count. When parsing stops at
+the row or column cap, or the parser reports a malformed record, a warning bar above the table says
+so (naming the first bad row) and offers **Open Source**, since the table is then not the whole
+file. The table exposes ARIA `table`, `rowgroup`, `row`, `columnheader`, and `cell` roles.
 
 ### Mermaid
 
 A `.mmd` or `.mermaid` file is one diagram rendered through the same path as a `mermaid` fence in
 the Markdown preview (`renderMermaidDiagram`), so both share theme colors, the render permit, the
-cache, and the error presentation: a syntax error shows the parser's message in place of the
-diagram until the source parses again. The source is deferred, so typing re-lays out the diagram
-at low priority.
+cache, and the error presentation. A syntax error keeps the last diagram that rendered, dimmed,
+with the parser's message below it, until the source parses again; a diagram that never parsed
+shows the message alone. The diagram is a `figure`, not an `img`, so the message is readable by a
+screen reader. The source is deferred, so typing re-lays out the diagram at low priority, and a
+diagram wider than the pane scrolls rather than losing its left edge.
+
+### SVG
+
+An SVG preview reads the file through `files.readAsset` into its own object URL, and reads it again
+when the file is rewritten on disk. A failed read shows the cause with the same recovery choice as
+every other preview (**Retry**, or **Open with Default App** over the 8 MiB limit). The image's
+alternative text is the file name.
 
 ## How a preview tab is addressed
 

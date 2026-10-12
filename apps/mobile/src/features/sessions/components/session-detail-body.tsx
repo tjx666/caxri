@@ -76,6 +76,7 @@ const SessionConversationPane = ({
             <ConversationView
                 canSend={deviceRole === 'reply' || deviceRole === 'control'}
                 enterFrom={enterFrom}
+                isConnected={isConnected}
                 onRetry={timeline.refresh}
                 theme={theme}
                 timeline={timeline}

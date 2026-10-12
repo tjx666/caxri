@@ -678,7 +678,7 @@ describe('GitProvider', () => {
             } else expect(updated.providers[0]?.groups[0]?.resources).toEqual([]);
             if (outcome === 'error') {
                 expect(updated.providers[0]?.groups[0]?.emptyMessage).toBe(
-                    'Unable to load pull request changes.',
+                    'Unable to load pull request changes. Refresh to retry.',
                 );
             }
             expect(updated.providers[0]?.groups[0]?.label).not.toBe('PR #42 Changes');

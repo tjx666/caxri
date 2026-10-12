@@ -109,10 +109,10 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
 
         await pasteImage(message);
         const attached = chat.getByRole('list', { name: 'Attached images' });
-        await expect(attached.getByRole('button', { name: 'Remove image 1' })).toBeVisible();
+        await expect(attached.getByRole('button', { name: 'Remove screenshot.png' })).toBeVisible();
         // A drop anywhere on the Chat, here the empty transcript far above the input, attaches like one on the composer.
         await dropImage(chat.getByText('Send a message to start working with Codex.'));
-        await expect(attached.getByRole('button', { name: 'Remove image 2' })).toBeVisible();
+        await expect(attached.getByRole('button', { name: 'Remove pixel.png' })).toBeVisible();
         // An image over the 5 MB limit is resized under it and attached, not refused.
         expect(await pasteOversizedImage(message)).toBeGreaterThan(5 * 1024 * 1024);
         await expect(
@@ -265,7 +265,7 @@ test("a Claude Code Chat sends an image, restores its preview on resume, and off
         await expect(message).toHaveAttribute('placeholder', 'Message Claude');
 
         await pasteImage(message);
-        await expect(chat.getByRole('button', { name: 'Remove image 1' })).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Remove screenshot.png' })).toBeVisible();
         // An image alone is a message.
         await message.press('Enter');
         await expect(chat.getByText('Received 1 image.')).toBeVisible();

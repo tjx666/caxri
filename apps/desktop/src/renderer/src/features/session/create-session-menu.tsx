@@ -186,14 +186,11 @@ function SessionCreationMenu({
                 )}
                 <MenuSeparator />
                 {/**
-                 * Deliberately quieter than the Terminal choices above: skipping the Terminal is an escape hatch, not a peer of the
-                 * real options.
+                 * Set apart by its separator and a muted icon: skipping the Terminal is an escape hatch, not a peer of the real
+                 * options. Its label keeps the normal foreground, since muted text on an enabled item reads as disabled.
                  */}
-                <MenuItem
-                    className="text-muted"
-                    onClick={() => chooseSessionTerminalKind(project.id, null)}
-                >
-                    <SquareDashed size={14} />
+                <MenuItem onClick={() => chooseSessionTerminalKind(project.id, null)}>
+                    <SquareDashed className="text-muted" size={14} />
                     <span className="flex-1 truncate">Start without a Terminal</span>
                 </MenuItem>
                 <MenuSeparator />

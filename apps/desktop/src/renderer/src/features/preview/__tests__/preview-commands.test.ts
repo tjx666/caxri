@@ -24,6 +24,7 @@ const {
     openFilePreview,
     openFilePreviewToSide,
     previewSourcePath,
+    previewTabSwitch,
 } = await import('../preview-commands');
 
 function fileTab(path: string): PaneTab {
@@ -93,6 +94,27 @@ describe('previewSourcePath', () => {
         expect(previewSourcePath(filePreviewTabPath(external))).toBe(external);
         expect(previewSourcePath(externalEditorTabPath('doc-2', 'badge.svg'))).toBeUndefined();
         expect(previewSourcePath(externalEditorTabPath('doc-3', 'notes.txt'))).toBeUndefined();
+    });
+});
+
+describe('previewTabSwitch', () => {
+    it('offers the preview from a source tab and the source from a preview tab', () => {
+        expect(previewTabSwitch('/p/README.md')).toEqual({
+            kind: 'openPreview',
+            path: '/p/README.md',
+        });
+        expect(previewTabSwitch(filePreviewTabPath('/p/README.md'))).toEqual({
+            kind: 'openSource',
+            path: '/p/README.md',
+        });
+    });
+
+    it('offers no source for a PDF, whose source would reopen the same preview', () => {
+        expect(previewTabSwitch(filePreviewTabPath('/p/manual.pdf'))).toBeUndefined();
+    });
+
+    it('offers nothing for a file no previewer claims', () => {
+        expect(previewTabSwitch('/p/src/index.ts')).toBeUndefined();
     });
 });
 

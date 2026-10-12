@@ -12,6 +12,7 @@ import {
     availableNewSessionAgent,
     canCreateNewSession,
     markUncertainSessionsChecked,
+    newSessionDefaultSurface,
     newSessionSurface,
     selectedNewSessionProject,
     sortNewSessionProjects,
@@ -58,10 +59,11 @@ export const useNewSession = () => {
     });
     const agents = availability.data?.agents ?? [];
     const selectedAgent = availableNewSessionAgent(newSessionSelection.agent, agents);
+    const defaultSurface = newSessionDefaultSurface(availability.data?.openAgentsInChat);
     const selectedSurface = newSessionSurface(
         newSessionSelection.surface,
         selectedAgent,
-        availability.data?.openAgentsInChat ?? false,
+        defaultSurface === 'chat',
     );
     const canCreate = canCreateNewSession({
         agent: selectedAgent,
@@ -165,6 +167,7 @@ export const useNewSession = () => {
         checkSessions,
         create,
         createState: newSessionCreateState,
+        defaultSurface,
         deviceRole: sessions.deviceRole,
         hostId,
         isAvailabilityLoading: availability.isPending || availability.isFetching,

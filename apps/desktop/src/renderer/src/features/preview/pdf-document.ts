@@ -6,6 +6,8 @@ import type * as PdfViewerModule from 'pdfjs-dist/web/pdf_viewer.mjs';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import { InlinePdfBinaryDataFactory } from './pdf-binary-data';
+import type { PdfZoomChoice } from './pdf-toolbar-model';
+import { clampPdfPageNumber } from './pdf-toolbar-model';
 
 /**
  * Zoom bounds and the fit the viewer opens at. `page-width` matches how a reader opens a PDF in a narrow editor pane:
@@ -15,6 +17,16 @@ const MIN_SCALE = 0.25;
 const MAX_SCALE = 5;
 const INITIAL_SCALE = 'page-width';
 const FIT_PRESETS: ReadonlySet<string> = new Set(['page-width', 'page-fit', 'auto']);
+
+/**
+ * What a remembered view needs to be shown again: the zoom as pdf.js's scale value, and the scroll offset or, when the
+ * offset cannot apply (a different zoom produced different page heights), the page.
+ */
+export interface PdfRestoredView {
+    pageNumber?: number;
+    scaleValue?: string;
+    scrollTop?: number;
+}
 
 const shared = {
     worker: undefined as pdfjs.PDFWorker | undefined,
@@ -70,12 +82,20 @@ export interface PdfViewState {
      * Current zoom as a fraction, 1 being the page's natural size.
      */
     scale: number;
+    /**
+     * Pdf.js's scale value: a fit preset (`page-width`, `page-fit`) while one is in force, else the numeric scale.
+     */
+    scaleValue: string;
 }
 
 export interface PdfViewerSession {
     zoomIn(): void;
     zoomOut(): void;
-    fitWidth(): void;
+    setZoom(choice: PdfZoomChoice): void;
+    /**
+     * Scrolls the page to the top of the view. Out-of-range numbers are clamped to the document.
+     */
+    goToPage(pageNumber: number): void;
     dispose(): void;
 }
 
@@ -103,11 +123,17 @@ export async function createPdfViewerSession({
     viewerElement,
     document,
     onViewChange,
+    restored,
 }: {
     container: HTMLDivElement;
     viewerElement: HTMLDivElement;
     document: PDFDocumentProxy;
     onViewChange: (state: PdfViewState) => void;
+    /**
+     * Where this pane last showed the document, so a tab switch or a reload after the file changed on disk returns to
+     * the same page and zoom instead of page 1 at page width.
+     */
+    restored?: PdfRestoredView;
 }): Promise<PdfViewerSession> {
     const { EventBus, PDFLinkService, PDFViewer } = await loadViewerModule();
     const abort = new AbortController();
@@ -134,9 +160,26 @@ export async function createPdfViewerSession({
             pageNumber: viewer.currentPageNumber,
             pageCount: document.numPages,
             scale: viewer.currentScale,
+            scaleValue: viewer.currentScaleValue,
         });
     eventBus.on('pagesinit', () => {
-        viewer.currentScaleValue = INITIAL_SCALE;
+        viewer.currentScaleValue = restored?.scaleValue ?? INITIAL_SCALE;
+        /**
+         * The offset is exact when the zoom and pane width match what produced it, which is the tab-switch case; a page
+         * that the restored offset does not land on means the layout changed (another pane width, a shorter document),
+         * and the page is the better promise. pdf.js only re-reads the visible page on its next animation frame, so
+         * `update()` refreshes `currentPageNumber` from the restored offset before the comparison.
+         */
+        if (restored?.scrollTop !== undefined) {
+            container.scrollTop = restored.scrollTop;
+            viewer.update();
+        }
+        if (restored?.pageNumber !== undefined && viewer.currentPageNumber !== restored.pageNumber)
+            viewer.currentPageNumber = clampPdfPageNumber(
+                restored.pageNumber,
+                document.numPages,
+                1,
+            );
         report();
     });
     eventBus.on('pagechanging', report);
@@ -181,8 +224,16 @@ export async function createPdfViewerSession({
             if (viewer.currentScale > MIN_SCALE) viewer.decreaseScale();
             viewer.currentScale = clamp(viewer.currentScale);
         },
-        fitWidth: () => {
-            viewer.currentScaleValue = INITIAL_SCALE;
+        setZoom: (choice) => {
+            if (typeof choice === 'number') viewer.currentScale = clamp(choice);
+            else viewer.currentScaleValue = choice;
+        },
+        goToPage: (pageNumber) => {
+            viewer.currentPageNumber = clampPdfPageNumber(
+                pageNumber,
+                document.numPages,
+                viewer.currentPageNumber,
+            );
         },
         dispose: () => {
             resize.disconnect();

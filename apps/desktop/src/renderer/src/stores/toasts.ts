@@ -68,6 +68,11 @@ export interface ToastOptions {
      */
     persist?: boolean;
     /**
+     * Takes a `persist` notice away once its action succeeds, for an action that resolves what the notice reports (such
+     * as restoring the discarded changes) and could not run a second time. A refused action keeps the notice.
+     */
+    dismissOnSuccess?: boolean;
+    /**
      * Optional immediate follow-up rendered as a keyboard-accessible button. Carried as an identity plus plain data
      * rather than a callback, so the notification center can still offer it after this toast has expired.
      */
@@ -98,11 +103,12 @@ function toastButtonLabel(action: ToastAction): ReactNode {
  * Runs a follow-up from a live toast. Even a four-second-old offer can already be stale: the Session it targets may
  * have been closed between the failure and the click, so the live button revalidates exactly like the history one.
  */
-function runLiveToastAction(action: ToastAction): void {
+function didRunLiveToastAction(action: ToastAction): boolean {
     const reason = runToastAction(action);
     // Kept out of the history: the sentence only makes sense next to the click it answers, and on its own in the
     // notification center it would read as an event that happened by itself.
     if (reason) pushToast('error', reason, { history: false });
+    return reason === undefined;
 }
 
 /**
@@ -189,13 +195,18 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
                 // opens a confirmation the user can still cancel, and deleting the card first would leave Cancel with no
                 // way back to the offer.
                 if (options.persist) event.preventDefault();
-                if (options.action) runLiveToastAction(options.action);
+                if (
+                    options.action &&
+                    didRunLiveToastAction(options.action) &&
+                    options.dismissOnSuccess
+                )
+                    toast.dismiss(toastId);
             },
         },
         cancel: options?.secondaryAction && {
             label: toastButtonLabel(options.secondaryAction),
             onClick: () => {
-                if (options.secondaryAction) runLiveToastAction(options.secondaryAction);
+                if (options.secondaryAction) didRunLiveToastAction(options.secondaryAction);
             },
         },
     });

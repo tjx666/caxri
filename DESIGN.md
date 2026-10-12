@@ -272,14 +272,21 @@ whatever a person would say out loud about it, so the Linear chip leads with `AB
 acceptance (which has only an opaque id) spends its width on the passed-check tally in the colour
 of the current verdict, and keeps the subject, round, and provenance on the hover card. A link Caxri
 recognized but could not read is `unknown`: `--muted` and not clickable, because it has no
-destination and must not look like it does. When the window is too narrow for all of them they drop
+destination and must not look like it does. When the bar's content does not fit, whole chips drop
 one at a time, lowest first: child-process count, memory, Agent output speed, Agent conversation
-usage, Linear issue, acceptance, pull request.
+usage, Linear issue, acceptance, pull request. A chip's label is never truncated. The decision is by
+measured width, not fixed window breakpoints, because which chips are present (an Agent's two chips,
+a Commander chip, a debugging disclosure) changes how much room the rest needs; a hidden chip
+returns once the width it last occupied fits again. Everything else (the bell, degraded and update
+chips, Terminal progress, the debugging disclosure, the Commander chips including `N need you`,
+pending peer approvals, the change counter, and the Project root and branch pickers) is never
+dropped; the pickers cap their own width instead.
 Acceptance outranks Linear because it reports whether the current work passed, which changes what
 the reviewer does next; the pull request survives longest because it is the branch's identity.
 The right side follows the active tab: a normal file shows
 current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
-process-tree memory, and child count. The memory chip turns `--danger` while that Terminal's tree is
+process-tree memory, and child count. Terminal progress takes an hourglass (`Hourglass`), because
+`Gauge` belongs to the Agent output-speed chip that sits beside it. The memory chip turns `--danger` while that Terminal's tree is
 above the shared resource-alert thresholds (see `docs/process-explorer.md`), and its tooltip names
 the CPU reading and the threshold, so a runaway Agent is visible before its alert toast fires.
 An Agent Terminal also shows its Agent's output speed (`62 tok/s`) once the Agent's transcript has a
@@ -589,6 +596,8 @@ Tabs fill the full 44px rail height. Document tabs fit their full labels; Termin
 remaining width with their full displayed content as the minimum. Crowded bars scroll rather than
 truncating Terminal labels or imposing a fixed filename cap; the one exception is a single document
 label longer than the whole bar, which truncates 6rem short of it so its own close button stays in view.
+That cap never drops below 8rem: in a narrow editor group the strip scrolls instead of cutting every
+title to a few letters.
 While the whole workbench holds exactly one tab across every
 pane, that tab drops the accent top border: an "active" marker distinguishes nothing when there is
 nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + reserves
@@ -599,15 +608,17 @@ suffix (`Chat`, `Default`, or `Chat · Default`) and the foot toggle reads `Alwa
 Chat`, the same as in the New Session menu. Pressing it (pointer click or keyboard activation) instead creates a Terminal
 running whichever Agent the Session's own primary Terminal is currently running, so the press clones
 the conversation already in front of the user instead of asking again; that icon's tooltip names the
-Agent and surface it will create ("New Codex Chat", "New Claude Code Terminal") and shows ⌘T only
+Agent and surface it will create ("New Codex Chat", "New Claude Terminal") and shows ⌘T only
 when `terminal.new` would create that same Agent on the same surface: a press that clones a live
 Agent other than the default gets no shortcut chip, which would promise what ⌘T does not do. It falls back to `session.defaultAgent`
 when that primary Terminal is a plain shell or has exited, and to opening the Agent list (with no
 tooltip, since there is nothing yet to name) when neither resolves. Either way the chosen Agent
 starts as another Terminal in the same Session. With two or more tabs, + stays visible and keeps the
 same behavior. An Agent tab's Terminal | Chat toggle (`Open as Terminal or Chat`) is always visible
-while the active tab can switch, faint at rest and solid on bar hover, focus, or while a switch is
-pending; its pressed segment adds a `--border` to the shared Toggle fill, so it never reads like the
+while the active tab can switch, quiet at rest and full strength on bar hover, focus, or while a
+switch is pending. At rest only the pressed segment's icon dims to `--muted` like its neighbour;
+the control is never faded with opacity, which also faded its border below the non-text contrast a
+control outline needs; its pressed segment adds a `--border` to the shared Toggle fill, so it never reads like the
 hovered one. The + sits before the toggle, next to the tabs, so revealing it on hover grows the strip
 toward the tabs and never moves the toggle out from under the pointer. An external file whose name repeats among the Session's open external files shows the
 shortest parent path that tells it apart in `meta` `--muted` after its label (VS Code's tab
@@ -1009,12 +1020,19 @@ the top-right corner; clicking one previews the full image in a dialog, and an i
 noticeably long to read holds a placeholder tile with a spinner, so a disabled Send has a visible
 cause), a borderless auto-growing textarea, and one action row, right-aligned in
 `--muted`: Attach files (a paperclip ghost icon that turns into a spinner while picked images are
-read or a long paste is saved; pasting or dropping is the common path, so the picker does not claim
-the leading corner), the context meter (a 14px ring that fills with the share of the window in use,
-its percentage beside it, `--warning` from 60% and `--danger` from 85%; a `meter` and a Tab stop
-whose hover card gives the token breakdown and, when the provider has a compact command, a Compact
-button) and the model picker (the model's name and
-the next turn's effort, opening a menu of models with their descriptions and the current model's
+read, a long paste is saved, or an `@` Session reference is written; its tooltip says what a pick
+does for this provider, `Attach images or insert file paths` or `Insert file paths`; pasting or
+dropping is the common path, so the picker does not claim the leading corner), the context meter (a
+14px ring that fills with the share of the window in use, its percentage beside it, `--warning`
+from 60% and `--danger` from 85%; a `meter` and a Tab stop whose popover gives the token breakdown
+and, when the provider has a compact command, a Compact button; hovering opens it as a preview, and
+Enter, Space, or a click opens it with focus inside so Tab reaches Compact; a preview card opened by
+focus would close as soon as focus left the ring), the permission picker (a shield, the level's
+name, a `--warning` shield for full access, `Plan` in `--foreground` while plan mode is on, and,
+for a provider that applies a switch only from the next turn (Codex), a `from next turn` caption
+while a turn runs), and the model picker (the model's name and
+the next turn's effort, with `Ultracode` in `--foreground` like `Plan` while that mode is on,
+opening a menu of models with their descriptions and the current model's
 efforts; choosing a model keeps the menu open so its efforts show, choosing an effort closes it, and
 a spinner replaces the chevron until the switch is confirmed), and a single primary action slot: a 28px `--foreground`
 circle holding a `--background` up arrow for Send (a return arrow while the message would queue), or
@@ -1025,8 +1043,13 @@ image…`, `Type a message to send`, or the recovery row to use). While the Chat
 the message and the placeholder says so (`Queue a follow-up (⌘Enter to steer)`); Cmd+Enter steers it
 into the running turn instead, and once a draft is typed the status row names both keys (`Enter to
 queue · ⌘Enter to steer`). Typing `/` or `$` opens the suggestion list above the card under
-`Commands` and `Skills` headings, with a `meta` footer naming the keys; a query with no match keeps
-it open on a `No matching command or skill` row. Queued
+`Commands` and `Skills` headings, with a `meta` footer naming the keys and ending in `Esc to
+dismiss` (a list with no row to choose offers only `Esc to dismiss`, never an Enter that would send
+the draft); a query with no match keeps it open on a `No matching command or skill` row. Typing `@`
+opens the same kind of list of other Sessions to cite, each with its Project; a title more than one
+row shares adds when that Session was last opened (`· 3h`), a query with no match reads `No Sessions
+match`, and after a choice the list becomes one spinner row (`Preparing “Title”…`) until the
+reference is written, while Enter waits. Both lists show only while the input has focus. Queued
 messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
 Delete, and Send now (Steer while a turn runs); after a stopped turn a `Queue paused` row with
 Resume heads them. The dock above the card (recovery row, plan, requests, and task strip) is capped
@@ -1105,10 +1128,14 @@ turn's final reply keeps Copy visible in `--muted`, rising to `--foreground` on 
 reply shows it only on hover or keyboard focus, in a row that keeps its height. Between the final
 reply and Copy, a finished turn shows what it left behind as `--surface` cards with a 36px
 `--background` glyph tile: `Edited 3 files` over the turn's `+N -M` (hovered, the counts become
-`View changes ↗` and preview the diffs), a ghost Undo and a secondary View changes, then one row per
-file with its directory in `--muted` and its name in `--foreground`; then one card per pull request
-or issue the turn created or edited, with the GitHub or Linear mark, the title, a monospace
-`owner/repo#N` or `ENG-12`, the body's first line, and `Created pull request` at the end. A screen
+`View changes` or `Hide changes` and preview the diffs; with its always-visible chevron it is the
+card's single expand toggle, and it carries no external arrow because nothing leaves the Chat), a
+ghost Undo, and a labeled secondary Review (the one action that opens something else: the whole
+turn as one commentable diff in a side tab), then one row per file with its directory in `--muted`
+and its name in `--foreground`, each disclosing its own diff; then one card per pull request or
+issue the turn created or edited, with the GitHub or Linear mark, the title, a monospace
+`owner/repo#N` or `ENG-12`, the body's first line, and `Created pull request` with a trailing
+external arrow at the end, since that card opens the browser. A screen
 reader hears `Reply ready`, `Turn failed`, or `Stopped` when a turn ends. A Chat that keeps only the
 recent part of a long conversation opens with a `meta` line saying so, since the provider still has
 all of it, and Open as Terminal. `Jump to latest`

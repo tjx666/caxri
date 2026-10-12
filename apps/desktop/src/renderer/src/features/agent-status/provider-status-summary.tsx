@@ -48,10 +48,21 @@ function IncidentLine({ incidents }: { incidents: readonly AgentProviderStatusIn
 /**
  * The status-bar card's `API status` value: the watched components' state in one line, then the first open incident on
  * one truncated line with a `+N more` count; the Agent status tab lists them all. `undefined` is the first read still
- * in flight.
+ * in flight, or a first read that failed when `isError` is set.
  */
-export function ProviderStatusSummary({ status }: { status: AgentProviderStatus | undefined }) {
-    if (!status) return <span className="text-muted">Checking…</span>;
+export function ProviderStatusSummary({
+    isError = false,
+    status,
+}: {
+    isError?: boolean;
+    status: AgentProviderStatus | undefined;
+}) {
+    if (!status)
+        return (
+            <span className="text-muted">
+                {isError ? 'Could not read the status page' : 'Checking…'}
+            </span>
+        );
     if (status.state === 'unavailable')
         return <span className="text-muted">{providerStatusFailureLabel(status.reason)}</span>;
     return (

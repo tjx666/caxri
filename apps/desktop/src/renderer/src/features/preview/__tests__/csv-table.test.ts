@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
     cellDisplayWidth,
     describeTableIssues,
+    describeTableLimits,
     describeTableSize,
+    isCellClipped,
     MAX_TABLE_COLUMNS,
     MAX_TABLE_ROWS,
     parseDelimitedTable,
+    rowNumberGutterWidth,
 } from '../csv-table';
 
 describe('parseDelimitedTable', () => {
@@ -107,14 +110,29 @@ describe('cellDisplayWidth', () => {
 });
 
 describe('table descriptions', () => {
-    it('summarizes size and the bounds that cut the table off', () => {
-        expect(describeTableSize(parseDelimitedTable('a\n1\n', '/p/one.csv'))).toBe(
-            '1 row × 1 column',
-        );
+    it('summarizes size, and warns separately about the bounds that cut the table off', () => {
+        const one = parseDelimitedTable('a\n1\n', '/p/one.csv');
+        expect(describeTableSize(one)).toBe('1 row × 1 column');
+        expect(describeTableLimits(one)).toBeUndefined();
         const rows = Array.from({ length: MAX_TABLE_ROWS + 1 }, () => '1,2').join('\n');
-        expect(describeTableSize(parseDelimitedTable(`a,b\n${rows}\n`, '/p/tall.csv'))).toBe(
-            '50,000 rows × 2 columns (first 50,000 rows shown)',
+        const tall = parseDelimitedTable(`a,b\n${rows}\n`, '/p/tall.csv');
+        expect(describeTableSize(tall)).toBe('50,000 rows × 2 columns');
+        expect(describeTableLimits(tall)).toBe('Only the first 50,000 rows are shown.');
+        expect(describeTableLimits({ ...tall, truncatedColumns: true })).toBe(
+            'Only the first 50,000 rows and 256 columns are shown.',
         );
+    });
+
+    it('sizes the row-number gutter for the largest row number', () => {
+        expect(rowNumberGutterWidth(9)).toBe('calc(2ch + 19px)');
+        expect(rowNumberGutterWidth(100)).toBe('calc(3ch + 19px)');
+        expect(rowNumberGutterWidth(50_000)).toBe('calc(5ch + 19px)');
+    });
+
+    it('flags cells wider than their column or holding a line break', () => {
+        expect(isCellClipped('short', 10)).toBe(false);
+        expect(isCellClipped('x'.repeat(41), 40)).toBe(true);
+        expect(isCellClipped('said "hi"\nthen left', 40)).toBe(true);
     });
 
     it('names the first parse issue and counts the rest', () => {

@@ -1,118 +1,94 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ChipVisibility } from '../chip-priority';
-import { CHIP_PRIORITY_BREAKPOINTS, resolveChipVisibility } from '../chip-priority';
+import type { ChipFit, DroppableChip, HiddenChips } from '../chip-priority';
+import {
+    CHIP_DROP_ORDER,
+    chipVisibility,
+    isSameHiddenChips,
+    NO_HIDDEN_CHIPS,
+    resolveHiddenChips,
+} from '../chip-priority';
 
-const ALL_VISIBLE: ChipVisibility = {
-    acceptance: true,
-    agentThroughput: true,
-    agentUsage: true,
-    childProcessCount: true,
-    linearIssue: true,
-    memory: true,
-    pullRequest: true,
-};
+/**
+ * A bar whose never-hide items need `fixed` px, with every droppable chip `width` px wide.
+ */
+function fit(available: number, fixed: number, width = 50): ChipFit {
+    const rendered = Object.fromEntries(CHIP_DROP_ORDER.map((chip) => [chip, width])) as Record<
+        DroppableChip,
+        number
+    >;
+    return { available, required: fixed + width * CHIP_DROP_ORDER.length, rendered };
+}
 
-describe('status bar chip priority resolution', () => {
-    it('shows every chip at ample width', () => {
-        expect(resolveChipVisibility(1200)).toEqual(ALL_VISIBLE);
+function hiddenKeys(hidden: HiddenChips): DroppableChip[] {
+    return hidden.keys().toArray();
+}
+
+/**
+ * The chips a fresh bar hides at `available` px with `fixed` px of never-hide items.
+ */
+function hiddenAt(available: number, fixed: number): DroppableChip[] {
+    return hiddenKeys(resolveHiddenChips(fit(available, fixed), NO_HIDDEN_CHIPS));
+}
+
+describe('resolveHiddenChips', () => {
+    it('hides nothing while the content fits', () => {
+        expect(hiddenAt(1_000, 600)).toEqual([]);
+        expect(hiddenAt(950, 600)).toEqual([]);
     });
 
-    it('treats an unmeasured (zero or negative) width as fully visible', () => {
-        expect(resolveChipVisibility(0)).toEqual(ALL_VISIBLE);
-        expect(resolveChipVisibility(-1)).toEqual(ALL_VISIBLE);
+    it('drops whole chips lowest priority first until the content fits', () => {
+        expect(hiddenAt(949, 600)).toEqual(['childProcessCount']);
+        expect(hiddenAt(860, 600)).toEqual(['childProcessCount', 'memory']);
+        expect(hiddenAt(600, 600)).toEqual(CHIP_DROP_ORDER);
     });
 
-    it('drops the child-process count chip first', () => {
-        const width = CHIP_PRIORITY_BREAKPOINTS.childProcessCount - 1;
-        expect(resolveChipVisibility(width)).toEqual({
-            ...ALL_VISIBLE,
-            childProcessCount: false,
-        });
+    it('keeps every chip hidden but never truncates when even the never-hide items overflow', () => {
+        expect(hiddenAt(400, 600)).toEqual(CHIP_DROP_ORDER);
     });
 
-    it('drops memory next, after child-process count is already hidden', () => {
-        const width = CHIP_PRIORITY_BREAKPOINTS.memory - 1;
-        expect(resolveChipVisibility(width)).toEqual({
-            ...ALL_VISIBLE,
-            childProcessCount: false,
-            memory: false,
-        });
+    it('brings a hidden chip back once its remembered width fits again', () => {
+        const hidden = resolveHiddenChips(fit(949, 600), NO_HIDDEN_CHIPS);
+        // The hidden chip is no longer rendered: the bar now measures 50px narrower.
+        const rendered: ChipFit['rendered'] = { ...fit(0, 0).rendered };
+        delete rendered.childProcessCount;
+        const narrower: ChipFit = { available: 949, required: 600 + 50 * 6, rendered };
+        expect(hiddenKeys(resolveHiddenChips(narrower, hidden))).toEqual(['childProcessCount']);
+        expect(hiddenKeys(resolveHiddenChips({ ...narrower, available: 950 }, hidden))).toEqual([]);
     });
 
-    it('drops the Agent output speed after memory', () => {
-        const width = CHIP_PRIORITY_BREAKPOINTS.agentThroughput - 1;
-        expect(resolveChipVisibility(width)).toEqual({
-            ...ALL_VISIBLE,
-            agentThroughput: false,
-            childProcessCount: false,
-            memory: false,
-        });
+    it('never hides a chip that renders nothing, since that frees no room', () => {
+        const result = resolveHiddenChips(
+            { available: 700, required: 760, rendered: { memory: 80 } },
+            NO_HIDDEN_CHIPS,
+        );
+        expect(hiddenKeys(result)).toEqual(['memory']);
     });
 
-    it('drops the conversation usage after the output speed', () => {
-        const width = CHIP_PRIORITY_BREAKPOINTS.agentUsage - 1;
-        expect(resolveChipVisibility(width)).toEqual({
-            ...ALL_VISIBLE,
-            agentThroughput: false,
-            agentUsage: false,
-            childProcessCount: false,
-            memory: false,
-        });
+    it('counts a chip that grew while visible at its new width', () => {
+        const result = resolveHiddenChips(
+            { available: 700, required: 720, rendered: { childProcessCount: 30, memory: 90 } },
+            NO_HIDDEN_CHIPS,
+        );
+        expect(hiddenKeys(result)).toEqual(['childProcessCount']);
     });
+});
 
-    it('drops the Linear issue chip before the acceptance chip', () => {
-        const width = CHIP_PRIORITY_BREAKPOINTS.linearIssue - 1;
-        expect(resolveChipVisibility(width)).toEqual({
-            acceptance: true,
-            agentThroughput: false,
-            agentUsage: false,
-            childProcessCount: false,
-            linearIssue: false,
-            memory: false,
-            pullRequest: true,
-        });
+describe('isSameHiddenChips', () => {
+    it('compares which chips are hidden, not their remembered widths', () => {
+        expect(isSameHiddenChips(new Map([['memory', 50]]), new Map([['memory', 51]]))).toBe(true);
+        expect(isSameHiddenChips(new Map([['memory', 50]]), NO_HIDDEN_CHIPS)).toBe(false);
+        expect(
+            isSameHiddenChips(new Map([['memory', 50]]), new Map([['childProcessCount', 50]])),
+        ).toBe(false);
     });
+});
 
-    it('drops the acceptance chip before the pull request chip', () => {
-        const width = CHIP_PRIORITY_BREAKPOINTS.acceptance - 1;
-        expect(resolveChipVisibility(width)).toEqual({
-            acceptance: false,
-            agentThroughput: false,
-            agentUsage: false,
-            childProcessCount: false,
-            linearIssue: false,
-            memory: false,
-            pullRequest: true,
-        });
-    });
-
-    it('drops the pull request chip last of the seven', () => {
-        const width = CHIP_PRIORITY_BREAKPOINTS.pullRequest - 1;
-        expect(resolveChipVisibility(width)).toEqual({
-            acceptance: false,
-            agentThroughput: false,
-            agentUsage: false,
-            childProcessCount: false,
-            linearIssue: false,
-            memory: false,
-            pullRequest: false,
-        });
-    });
-
-    it('is monotonic: a narrower width never re-shows a chip a wider width hid', () => {
-        // Excludes the `<= 0` "unmeasured" sentinel, which is a special case (fully visible), not part
-        // of a real monotonically decreasing width sequence.
-        const widths = [
-            1200, 910, 900, 830, 800, 760, 752, 700, 680, 620, 610, 560, 545, 500, 480, 400, 1,
-        ];
-        let previous: ChipVisibility | undefined;
-        for (const width of widths) {
-            const current = resolveChipVisibility(width);
-            if (previous)
-                for (const chip of Object.keys(current) as Array<keyof ChipVisibility>)
-                    if (previous[chip] === false) expect(current[chip]).toBe(false);
-            previous = current;
-        }
+describe('chipVisibility', () => {
+    it('shows every chip that is not hidden', () => {
+        const visibility = chipVisibility(new Map([['memory', 50]]));
+        expect(visibility.memory).toBe(false);
+        expect(visibility.childProcessCount).toBe(true);
+        expect(visibility.pullRequest).toBe(true);
     });
 });

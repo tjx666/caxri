@@ -65,13 +65,19 @@ const styles = StyleSheet.create({
 const entryKey = (entry: SessionListEntry): string => entry.id;
 const entryType = (entry: SessionListEntry): SessionListEntry['type'] => entry.type;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- already this size before the connection-notice prop; splitting the Session list screen is its own refactor.
 export const SessionHome = ({
+    isConnectionNoticeShown,
     layout,
     now,
     onNewSession,
     onOpenSession,
     theme,
 }: {
+    /**
+     * Whether the app-wide connection banner above already explains why the list is not live.
+     */
+    isConnectionNoticeShown: boolean;
     layout: MobileLayoutMode;
     now: number;
     onNewSession: () => void;
@@ -209,6 +215,7 @@ export const SessionHome = ({
                             now={now}
                             onLongPress={deviceRole === 'control' ? openActions : undefined}
                             onPress={openSession}
+                            savedAt={savedAt}
                             selected={item.session.id === selectedId && layout !== 'phone'}
                             session={item.session}
                             showProject={activeProjectId === null}
@@ -237,6 +244,7 @@ export const SessionHome = ({
             openActions,
             openSession,
             openTerminal,
+            savedAt,
             selectedId,
             swipe.handleClose,
             swipe.handleDragStart,
@@ -276,6 +284,7 @@ export const SessionHome = ({
             <SessionHomeStatus
                 error={error}
                 hasLoaded={hasLoaded}
+                isConnectionNoticeShown={isConnectionNoticeShown}
                 isLoading={isLoading}
                 now={now}
                 onRetry={refresh}

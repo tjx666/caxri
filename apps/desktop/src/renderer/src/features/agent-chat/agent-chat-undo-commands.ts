@@ -7,7 +7,11 @@ import { createStore } from '../../lib/store';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import type { AgentChatEditedFile } from './agent-chat-turn-artifacts';
 import type { AgentChatUndoStep } from './agent-chat-undo';
-import { agentChatUndoFailureMessage, planAgentChatFileUndo } from './agent-chat-undo';
+import {
+    agentChatUndoFailureMessage,
+    agentChatUndoSuccessMessage,
+    planAgentChatFileUndo,
+} from './agent-chat-undo';
 
 type AgentChatUndoStatus = 'undoing' | 'undone';
 
@@ -110,7 +114,8 @@ async function applySteps(
  * Undoes every file change a finished turn made, all or nothing: each file is read and its undo planned first, and if
  * any file no longer holds what the turn left there, nothing is written and a toast names it. Files the turn created go
  * to the Trash (each behind the native confirmation) before any rewrite, so canceling that dialog leaves the rest
- * untouched. Paths go through Server Core's Session path authorization like any Editor save.
+ * untouched. Paths go through Server Core's Session path authorization like any Editor save. A complete Undo says so in
+ * a success toast and marks the turn `undone`, so its card stops offering Undo for the rest of this window's life.
  */
 export async function undoAgentChatTurn({
     sessionId,
@@ -150,7 +155,9 @@ export async function undoAgentChatTurn({
         if (applied.count > 0 && (applied.count < ordered.length || 'error' in applied))
             pushToast('warning', 'Undo stopped partway: some files were already restored.');
         if ('error' in applied) throw applied.error;
-        return applied.count === ordered.length;
+        const isComplete = applied.count === ordered.length;
+        if (isComplete) pushToast('success', agentChatUndoSuccessMessage(files.length));
+        return isComplete;
     });
     setStatus(key, isUndone === true ? 'undone' : undefined);
 }
