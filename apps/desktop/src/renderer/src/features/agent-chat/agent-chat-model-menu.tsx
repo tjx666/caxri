@@ -30,10 +30,10 @@ const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 
  * The model and reasoning effort the next turn uses, and the menu that switches them, as the Codex app and Claude Code
  * keep beside their input. Choosing a model keeps the menu open so its efforts show right away; choosing an effort
  * finishes the choice and closes it. The choice shows at once with a spinner beside it until the snapshot confirms it
- * (`AgentChatPendingSelection`), and reverts with a toast naming what failed. A provider that listed no models shows
- * the model it reported as plain text. As in the Codex app, the model name reads in the foreground color and the effort
- * stays muted beside it. Before Claude Code names its model, the menu checks the provider's `default` row and offers
- * its efforts, matching the trigger's "Default" (`agentChatMenuModel`).
+ * (`AgentChatPendingSelection` in `@caxri/protocol`), and reverts with a toast naming what failed. A provider that
+ * listed no models shows the model it reported as plain text. As in the Codex app, the model name reads in the
+ * foreground color and the effort stays muted beside it. Before Claude Code names its model, the menu checks the
+ * provider's `default` row and offers its efforts, matching the trigger's "Default" (`agentChatMenuModel`).
  *
  * Claude Code's ultracode is a toggle beside the effort rather than an effort level, as in its own `/effort` picker
  * since 2.1.284: it stays on at any effort. The row appears only while the provider offers it for the current model.
