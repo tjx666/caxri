@@ -7,7 +7,7 @@ on:
     branches: [main]
   # Rehearses only `linux-natives` on main without a release commit, so the GitHub-hosted manylinux build and its
   # artifacts are proven before a release depends on them. `release` keeps its `workflow_run` condition and is skipped.
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 concurrency:
   group: release-macos
