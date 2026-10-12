@@ -1,4 +1,5 @@
-import { filePreviewExtension } from '@caxri/protocol';
+import type { PaneLayout } from '@caxri/protocol';
+import { filePreviewExtension, filePreviewTabPath, findResourceTabs } from '@caxri/protocol';
 
 import type { TranslationKey } from '../../i18n';
 
@@ -53,4 +54,21 @@ export function canPreviewPath(path: string): boolean {
  */
 export function shouldOpenAsPreview(path: string): boolean {
     return previewerForPath(path)?.defaultView === 'preview';
+}
+
+/**
+ * The preview tab opening `path` lands on without a text read, if any: the preview of a format with no text form (a
+ * PDF), or the no-preview tab already open for a file an earlier read found binary, so opening it again only activates
+ * that tab instead of re-reading the bytes (https://github.com/tjx666/caxri/issues/1921).
+ */
+export function previewOnlyTabPath(
+    path: string,
+    paneLayout: PaneLayout | undefined,
+): string | undefined {
+    const tabPath = filePreviewTabPath(path);
+    if (shouldOpenAsPreview(path)) return tabPath;
+    if (!paneLayout || canPreviewPath(path)) return undefined;
+    return findResourceTabs(paneLayout, { kind: 'file', path: tabPath }).length > 0
+        ? tabPath
+        : undefined;
 }

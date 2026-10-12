@@ -86,7 +86,10 @@ export function terminalFilesInput(
     return terminalPathsInput(osFilePaths(files), terminal, workbenchRoot);
 }
 
-function terminalPathsInput(
+/**
+ * The text that cites `paths` (files or folders), spelled the way a drop of the same paths would be.
+ */
+export function terminalPathsInput(
     paths: readonly string[],
     terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd' | 'lastAgentProcessState'>,
     workbenchRoot: string | undefined,

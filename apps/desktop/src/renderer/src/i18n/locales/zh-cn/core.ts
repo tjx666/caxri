@@ -35,6 +35,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.markdown.taskTodo': '待办：',
 
     'core.spinner.loading': '加载中',
+    'core.command.suggestions': '建议',
 
     'core.diffStat.labelOne': '新增 {{additions}} 行，删除 {{deletions}} 行',
     'core.diffStat.labelOther': '新增 {{additions}} 行，删除 {{deletions}} 行',

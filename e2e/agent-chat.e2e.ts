@@ -154,6 +154,29 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(
             reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
         ).toHaveCount(1);
+        /**
+         * The keyboard reaches any reply's Copy without a Tab stop per reply: Option+ArrowUp in the transcript focuses
+         * the latest reply, which mounts its action row, the next one steps to an earlier reply, and Tab continues to
+         * its Copy.
+         */
+        await message.hover();
+        await chat.getByRole('log', { name: 'Conversation' }).focus();
+        await page.keyboard.press('Alt+ArrowUp');
+        await expect(reply('Explored the project.')).toBeFocused();
+        await expect(
+            reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
+        ).toBeVisible();
+        await page.keyboard.press('Alt+ArrowUp');
+        const earlierReply = reply('You chose Blue.');
+        await expect(earlierReply).toBeFocused();
+        await expect(
+            reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
+        ).toHaveCount(0);
+        await page.keyboard.press('Tab');
+        await expect(earlierReply.getByRole('button', { name: 'Copy message' })).toBeFocused();
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-reply-keyboard-copy.png') });
+        await page.keyboard.press('Enter');
+        await expect(earlierReply.getByRole('button', { name: 'Copied' })).toBeVisible();
         // A shell read reads as the file it read, the way the Codex app names exploration.
         const workGroup = chat.getByRole('button', {
             name: 'Read 10 files, ran 1 command, called 1 MCP tool',

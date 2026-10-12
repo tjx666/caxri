@@ -14,19 +14,40 @@ import {
 } from '../../lib/keybindings';
 import { useDialogStore } from '../../stores/dialogs';
 import { useWorkbenchStore } from '../../stores/workbench';
+import type { AgentChatComposerCommand } from '../agent-chat/agent-chat-composer-commands';
+import {
+    canRunAgentChatComposerCommand,
+    runAgentChatComposerCommand,
+} from '../agent-chat/agent-chat-composer-commands';
 import { restartActiveTerminal } from '../terminal/terminal-commands';
 import { openTerminalLinkPicker } from '../terminal/terminal-link-actions';
 import { clearActiveTerminal, findInActiveTerminal } from '../terminal/terminal-pane-handlers';
 import { switchTerminalToOtherSurface } from '../terminal/terminal-surface-commands';
 import { useAgentCommanderStore } from './commander-client';
 
+interface CommanderTerminalCommandEntry {
+    allowInEditable: boolean;
+    run: (terminalId: string) => void;
+    when?: (terminalId: string) => boolean;
+}
+
+function composerCommand(command: AgentChatComposerCommand): CommanderTerminalCommandEntry {
+    return {
+        allowInEditable: true,
+        run: (terminalId) => runAgentChatComposerCommand(terminalId, command),
+        when: (terminalId) => canRunAgentChatComposerCommand(terminalId, command),
+    };
+}
+
 /**
  * The commands this window runs from the keyboard: the Terminal actions its context menu offers, the Restart its exited
- * pane shows with this shortcut, and the `Terminal | Chat` switch its title bar offers. The native Edit menu already
- * owns Copy and Paste, and every other command belongs to the Workbench window. `allowInEditable` matches each
- * command's Workbench definition (`commands/definitions.ts`): Restart replaces the PTY, so it does not reach through a
- * focused Terminal or input. This window deliberately does not load the Workbench registry, so the values are a copy;
- * the parity test in `__tests__/commander-shortcuts.test.ts` fails when either table changes without the other.
+ * pane shows with this shortcut, the `Terminal | Chat` switch its title bar offers, and its Chat composer's model menu,
+ * permission menu, and plan toggle. The native Edit menu already owns Copy and Paste, and every other command belongs
+ * to the Workbench window. `allowInEditable` matches each command's Workbench definition (`commands/definitions.ts`):
+ * Restart replaces the PTY, so it does not reach through a focused Terminal or input. This window deliberately does not
+ * load the Workbench registry, so the values are a copy; the parity test in `__tests__/commander-shortcuts.test.ts`
+ * fails when either table changes without the other. A command with `when` leaves its chord to the focused surface
+ * while `when` is false, as the Workbench's does.
  */
 export const COMMANDER_TERMINAL_COMMANDS = {
     'terminal.clear': { allowInEditable: true, run: clearActiveTerminal },
@@ -34,14 +55,21 @@ export const COMMANDER_TERMINAL_COMMANDS = {
     'terminal.openDetectedLink': { allowInEditable: true, run: openTerminalLinkPicker },
     'terminal.restart': { allowInEditable: false, run: restartActiveTerminal },
     'terminal.switchAgentSurface': { allowInEditable: true, run: switchTerminalToOtherSurface },
-} satisfies Partial<
-    Record<CommandId, { allowInEditable: boolean; run: (terminalId: string) => void }>
->;
+    'agentChat.changeModel': composerCommand('changeModel'),
+    'agentChat.changePermissionMode': composerCommand('changePermissionMode'),
+    'agentChat.togglePlanMode': composerCommand('togglePlanMode'),
+} satisfies Partial<Record<CommandId, CommanderTerminalCommandEntry>>;
 
 type CommanderTerminalCommand = keyof typeof COMMANDER_TERMINAL_COMMANDS;
 
 function isCommanderTerminalCommand(command: string): command is CommanderTerminalCommand {
     return Object.hasOwn(COMMANDER_TERMINAL_COMMANDS, command);
+}
+
+function isCommanderCommandAvailable(command: string, terminalId: string): boolean {
+    if (!isCommanderTerminalCommand(command)) return false;
+    const entry: CommanderTerminalCommandEntry = COMMANDER_TERMINAL_COMMANDS[command];
+    return entry.when?.(terminalId) ?? true;
 }
 
 function isAllowedInEditable(command: string): boolean {
@@ -113,6 +141,11 @@ export function dispatchCommanderKeydown(
         outcome.kind === 'dispatch' &&
         isEditableEventTarget(event.target) &&
         !isAllowedInEditable(outcome.binding.command)
+    )
+        return;
+    if (
+        outcome.kind === 'dispatch' &&
+        !isCommanderCommandAvailable(outcome.binding.command, terminalId)
     )
         return;
     event.preventDefault();

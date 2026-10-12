@@ -15,6 +15,7 @@ export const agentChatPane: TranslatedNamespace<typeof source> = {
     'agentChat.commands.forkFailed': '无法分叉对话',
     'agentChat.commands.restoreFailed': '代码恢复失败',
     'agentChat.commands.runCommandFailed': '无法运行 /{{name}}',
+    'agentChat.commands.pickPathsFailed': '无法打开文件和文件夹选择窗口',
     'agentChat.commands.stopAgentFailed': '无法停止 Agent',
     'agentChat.commands.answerFailed': '无法回复 Agent',
     'agentChat.commands.saveProjectDefaultFailed': '无法保存项目默认设置',

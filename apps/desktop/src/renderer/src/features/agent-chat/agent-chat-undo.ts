@@ -10,8 +10,9 @@ import { translate } from '../../i18n';
  * - `changed`: the file no longer holds what the turn left there, so reversing the patch would overwrite later work.
  * - `missing`: a file the turn changed or created is gone.
  * - `exists`: a file the turn deleted has been created again.
+ * - `renamed`: the turn moved the file to another path, which Undo cannot move back yet.
  */
-export type AgentChatUndoFailure = 'truncated' | 'changed' | 'missing' | 'exists';
+export type AgentChatUndoFailure = 'truncated' | 'changed' | 'missing' | 'exists' | 'renamed';
 
 /**
  * What undoing one file does to disk: rewrite it, move a file the turn created to the Trash, or recreate a file the
@@ -190,6 +191,17 @@ function wholeContent(change: AgentChatFileChange): string {
     return lines.length > 0 ? `${lines.join('\n')}\n` : '';
 }
 
+/**
+ * The note Codex appends after a renamed file's diff (`format_file_change_diff` in codex-rs `item_builders.rs`). The
+ * change keeps the old path, so without it Undo would read the old path, find nothing, and blame a missing file. Read
+ * from the raw diff because a pure rename has no hunk, and the diff parser then reads the note as a context line.
+ */
+const MOVED_TO_NOTE = 'Moved to: ';
+
+const isRename = (change: AgentChatFileChange): boolean =>
+    change.kind === 'update' &&
+    (change.diff.trimEnd().split('\n').at(-1)?.startsWith(MOVED_TO_NOTE) ?? false);
+
 const isSameContent = (left: string, right: string): boolean =>
     left.replaceAll('\r\n', '\n').replace(/\n+$/u, '') ===
     right.replaceAll('\r\n', '\n').replace(/\n+$/u, '');
@@ -279,6 +291,7 @@ export function planAgentChatFileUndo(
         reason,
     });
     if (file.truncated) return fail('truncated');
+    if (file.changes.some(isRename)) return fail('renamed');
     const { path } = file;
     let content = current;
     for (const change of file.changes.toReversed()) {
@@ -315,7 +328,7 @@ export interface AgentChatRedoFile {
     after: string | undefined;
 }
 
-export type AgentChatRedoFailure = Exclude<AgentChatUndoFailure, 'truncated'>;
+export type AgentChatRedoFailure = Exclude<AgentChatUndoFailure, 'truncated' | 'renamed'>;
 
 export type AgentChatRedoPlan =
     | { ok: true; step: AgentChatUndoStep }

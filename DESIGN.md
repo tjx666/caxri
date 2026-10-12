@@ -1194,8 +1194,9 @@ line in the expanded view. A finished turn folds everything except the prompt, t
 notices behind one `Worked for 2m 1s` row with a bottom hairline; a failed or stopped turn's row
 (`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. A running
 row carries no trailing spinner: its shimmer and ticking time already say it runs. The most recent
-turn's final reply keeps Copy visible in `--muted`, rising to `--foreground` on hover; an earlier
-reply shows it only on hover or keyboard focus, in a row that keeps its height. Between the final
+turn's final reply, like every earlier one, shows Copy only on hover or keyboard focus, in a row
+that keeps its height. Replies add no Tab stops: `Option+ArrowUp`/`Option+ArrowDown` in the
+transcript focus the latest or the adjacent reply, revealing its row, and Tab reaches Copy. Between the final
 reply and Copy, a finished turn shows what it left behind as `--surface` cards with a 36px
 `--background` glyph tile: `Edited 3 files` over the turn's `+N -M` (hovered, the counts become
 `View changes` or `Hide changes` and preview the diffs; with its always-visible chevron it is the

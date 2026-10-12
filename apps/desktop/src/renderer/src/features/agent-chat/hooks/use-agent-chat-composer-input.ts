@@ -5,7 +5,11 @@ import type { TerminalRecord } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import { pushToast } from '../../../stores/toasts';
-import { terminalDropInput, terminalFilesInput } from '../../terminal/terminal-drop';
+import {
+    terminalDropInput,
+    terminalFilesInput,
+    terminalPathsInput,
+} from '../../terminal/terminal-drop';
 import { draftWithInsertion } from '../agent-chat-drafts';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
 import type { AgentChatDropHandlers } from './use-agent-chat-file-input';
@@ -75,10 +79,20 @@ export function useAgentChatComposerInput({
         if (files.length > 0) pushToast('warning', translate('agentChat.composer.fileHasNoPath'));
         return false;
     };
+    /**
+     * Paths picked in the native panel, files and folders alike, cited the same way. Returns whether it inserted
+     * anything.
+     */
+    const didInsertPickedPaths = (paths: readonly string[]): boolean => {
+        const input = terminal && terminalPathsInput(paths, terminal, workbenchRoot);
+        if (input) insertText(input);
+        return Boolean(input);
+    };
     const longPaste = useAgentChatLongPaste({ insert: insertText, terminalId });
     const fileInput = useAgentChatFileInput({
         add: images.add,
         didInsertPaths,
+        didInsertPickedPaths,
         isImageInputEnabled: supportsImages,
         providerName,
         takeLongPaste: longPaste.didTakePaste,

@@ -231,8 +231,12 @@ describe('agentChatEmptyHint', () => {
 
 describe('agentChatAttachLabel', () => {
     it('says a pick inserts paths, and attaches images only when the provider takes them', () => {
-        expect(agentChatAttachLabel(true)).toBe('Attach images or insert file paths');
-        expect(agentChatAttachLabel(false)).toBe('Insert file paths');
+        expect(agentChatAttachLabel(true, false)).toBe('Attach images or insert file paths');
+        expect(agentChatAttachLabel(false, false)).toBe('Insert file paths');
+        expect(agentChatAttachLabel(true, true)).toBe(
+            'Attach images or insert file and folder paths',
+        );
+        expect(agentChatAttachLabel(false, true)).toBe('Insert file and folder paths');
     });
 });
 

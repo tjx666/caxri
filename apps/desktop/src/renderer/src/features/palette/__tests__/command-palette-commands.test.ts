@@ -3,6 +3,7 @@ import { commandDefinitions } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    commanderPaletteWhenContext,
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
     isCommandVisibleInPalette,
@@ -62,7 +63,18 @@ describe('getPaletteExtensionCommands', () => {
 });
 
 describe('isCommandVisibleInPalette', () => {
-    const localWindow = { localMachine: true, sshHost: false };
+    const noChat = {
+        agentChatModels: false,
+        agentChatPermissionModes: false,
+        agentChatPlanMode: false,
+    };
+    const localWindow = {
+        commanderHandOverAvailable: true,
+        commanderTakeBackAvailable: false,
+        localMachine: true,
+        sshHost: false,
+        ...noChat,
+    };
     const detach = commandDefinitions.find((command) => command.id === 'session.detach');
     const resume = commandDefinitions.find((command) => command.id === 'session.resume');
     const openPullRequest = commandDefinitions.find(
@@ -84,7 +96,14 @@ describe('isCommandVisibleInPalette', () => {
             sessionHasDetachedAgent: false,
             sessionHasPullRequest: false,
         };
-        const sshHostWindow = { ...session, localMachine: false, sshHost: true };
+        const sshHostWindow = {
+            ...session,
+            ...noChat,
+            commanderHandOverAvailable: false,
+            commanderTakeBackAvailable: false,
+            localMachine: false,
+            sshHost: true,
+        };
         const local = { ...session, ...localWindow };
 
         expect(isCommandVisibleInPalette(processExplorer, local)).toBe(true);
@@ -93,6 +112,31 @@ describe('isCommandVisibleInPalette', () => {
         expect(isCommandVisibleInPalette(stopServer, sshHostWindow)).toBe(true);
         expect(isCommandVisibleInPalette(connect, local)).toBe(true);
         expect(isCommandVisibleInPalette(connect, sshHostWindow)).toBe(true);
+    });
+
+    it('offers each Chat composer command only while the active Chat offers its control', () => {
+        const session = {
+            sessionHasLiveAgent: true,
+            sessionHasDetachedAgent: false,
+            sessionHasPullRequest: false,
+        };
+        const chatCommands = {
+            agentChatModels: 'agentChat.changeModel',
+            agentChatPermissionModes: 'agentChat.changePermissionMode',
+            agentChatPlanMode: 'agentChat.togglePlanMode',
+        } as const;
+        for (const [predicate, id] of Object.entries(chatCommands)) {
+            const command = commandDefinitions.find((definition) => definition.id === id);
+            if (!command) throw new Error(`${id} is missing from the catalog`);
+            expect(isCommandVisibleInPalette(command, { ...session, ...localWindow })).toBe(false);
+            expect(
+                isCommandVisibleInPalette(command, {
+                    ...session,
+                    ...localWindow,
+                    [predicate]: true,
+                }),
+            ).toBe(true);
+        }
     });
 
     it('hides gated commands when the current session lacks the matching Agent Terminal', () => {
@@ -144,6 +188,82 @@ describe('isCommandVisibleInPalette', () => {
                 ...localWindow,
             }),
         ).toBe(false);
+    });
+});
+
+describe('commanderPaletteWhenContext', () => {
+    const handOver = commandDefinitions.find(({ id }) => id === 'agentCommander.handOver');
+    const takeBack = commandDefinitions.find(({ id }) => id === 'agentCommander.takeBack');
+    if (!handOver || !takeBack) throw new Error('Commander commands are missing from the catalog');
+    const visible = (context: ReturnType<typeof commanderPaletteWhenContext>) => {
+        const full = {
+            ...context,
+            agentChatModels: false,
+            agentChatPermissionModes: false,
+            agentChatPlanMode: false,
+            localMachine: true,
+            sessionHasDetachedAgent: false,
+            sessionHasLiveAgent: false,
+            sessionHasPullRequest: false,
+            sshHost: false,
+        };
+        return [handOver, takeBack]
+            .filter((command) => isCommandVisibleInPalette(command, full))
+            .map(({ id }) => id);
+    };
+
+    it('offers Hand Over for a Session the Commander does not manage, and Take Back once it does', () => {
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: true,
+                    managedSessionIds: ['other'],
+                    selectedSessionId: 'selected',
+                }),
+            ),
+        ).toEqual(['agentCommander.handOver']);
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: true,
+                    managedSessionIds: ['other', 'selected'],
+                    selectedSessionId: 'selected',
+                }),
+            ),
+        ).toEqual(['agentCommander.takeBack']);
+    });
+
+    it('offers Hand Over with no Session selected or before the managed set is read', () => {
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: true,
+                    managedSessionIds: ['other'],
+                    selectedSessionId: undefined,
+                }),
+            ),
+        ).toEqual(['agentCommander.handOver']);
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: true,
+                    managedSessionIds: undefined,
+                    selectedSessionId: 'selected',
+                }),
+            ),
+        ).toEqual(['agentCommander.handOver']);
+    });
+
+    it('offers neither in an SSH Host window', () => {
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: false,
+                    managedSessionIds: ['selected'],
+                    selectedSessionId: 'selected',
+                }),
+            ),
+        ).toEqual([]);
     });
 });
 

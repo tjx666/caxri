@@ -13,13 +13,3 @@
         transform: rotate(360deg);
     }
 }
-
-/*
- * Applied to `document.body` while a column resize handle is being dragged. A Tailwind utility on the handle cannot
- * reach the document, and without it a horizontal gesture paints a text selection across every header label and row it
- * crosses. Mirrors the workbench `panel-resize-active` rule in `styles.css`.
- */
-.process-resize-active {
-    cursor: col-resize;
-    user-select: none;
-}

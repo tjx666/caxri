@@ -6,8 +6,11 @@ import type * as PdfViewerModule from 'pdfjs-dist/web/pdf_viewer.mjs';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import { InlinePdfBinaryDataFactory } from './pdf-binary-data';
+import type { PdfFindResult, PdfFindStep } from './pdf-find';
+import { pdfFindEvent } from './pdf-find';
 import type { PdfZoomChoice } from './pdf-toolbar-model';
 import { clampPdfPageNumber } from './pdf-toolbar-model';
+import { pinchScaleFactor } from './preview-zoom';
 
 /**
  * Zoom bounds and the fit the viewer opens at. `page-width` matches how a reader opens a PDF in a narrow editor pane:
@@ -63,10 +66,14 @@ function sharedWorker(): pdfjs.PDFWorker {
 /**
  * Starts parsing a PDF from bytes the Renderer already read through `files.readAsset`. pdf.js never fetches the file
  * itself, so it has no URL to reach the filesystem or the network with.
+ *
+ * A protected PDF opened without its `password`, or with a wrong one, rejects with a `PasswordException` (see
+ * `pdfPasswordPrompt`). The password goes to the worker only, never into a log.
  */
-export function loadPdfDocument(data: Uint8Array): PDFDocumentLoadingTask {
+export function loadPdfDocument(data: Uint8Array, password?: string): PDFDocumentLoadingTask {
     return pdfjs.getDocument({
         data,
+        password,
         worker: sharedWorker(),
         // Built-in CMaps, fonts, and decoders come from the bundle, never from a URL (see `pdf-binary-data.ts`).
         BinaryDataFactory: InlinePdfBinaryDataFactory,
@@ -96,6 +103,14 @@ export interface PdfViewerSession {
      * Scrolls the page to the top of the view. Out-of-range numbers are clamped to the document.
      */
     goToPage(pageNumber: number): void;
+    /**
+     * Searches the document for `query`, highlighting every match and scrolling to the current one.
+     */
+    search(query: string, step: PdfFindStep): void;
+    /**
+     * Clears the match highlights when the find bar closes; the controller keeps the query for the next search.
+     */
+    closeFind(): void;
     dispose(): void;
 }
 
@@ -123,22 +138,30 @@ export async function createPdfViewerSession({
     viewerElement,
     document,
     onViewChange,
+    onFindChange,
     restored,
 }: {
     container: HTMLDivElement;
     viewerElement: HTMLDivElement;
     document: PDFDocumentProxy;
     onViewChange: (state: PdfViewState) => void;
+    onFindChange: (result: PdfFindResult) => void;
     /**
      * Where this pane last showed the document, so a tab switch or a reload after the file changed on disk returns to
      * the same page and zoom instead of page 1 at page width.
      */
     restored?: PdfRestoredView;
 }): Promise<PdfViewerSession> {
-    const { EventBus, PDFLinkService, PDFViewer } = await loadViewerModule();
+    const { EventBus, FindState, PDFFindController, PDFLinkService, PDFViewer } =
+        await loadViewerModule();
     const abort = new AbortController();
     const eventBus = new EventBus();
     const linkService = new PDFLinkService({ eventBus });
+    /**
+     * The viewer hands the document to the controller once its first page renders, and each page's text layer paints
+     * the controller's matches as `.highlight` spans (styled in `pdf-preview.css`).
+     */
+    const findController = new PDFFindController({ linkService, eventBus });
     /**
      * `abortSignal` is read by the pdf.js 6 viewer at runtime but missing from its `PDFViewerOptions` type. Without it
      * the viewer's own resize observer, container scroll watcher, and the text layer's document-level selection
@@ -149,6 +172,7 @@ export async function createPdfViewerSession({
         viewer: viewerElement,
         eventBus,
         linkService,
+        findController,
         removePageBorders: true,
         annotationMode: pdfjs.AnnotationMode.ENABLE,
         abortSignal: abort.signal,
@@ -191,6 +215,32 @@ export async function createPdfViewerSession({
     });
     eventBus.on('pagechanging', report);
     eventBus.on('scalechanging', report);
+    /**
+     * `updatefindcontrolstate` settles a search (found, not found, wrapped) or marks it pending;
+     * `updatefindmatchescount` streams the total while pages are still being searched, between those states.
+     */
+    let isFindPending = false;
+    eventBus.on(
+        'updatefindcontrolstate',
+        ({
+            state,
+            matchesCount,
+        }: {
+            state: number;
+            matchesCount: Omit<PdfFindResult, 'isPending'>;
+        }) => {
+            if (isDisposed) return;
+            isFindPending = state === FindState.PENDING;
+            onFindChange({ ...matchesCount, isPending: isFindPending });
+        },
+    );
+    eventBus.on(
+        'updatefindmatchescount',
+        ({ matchesCount }: { matchesCount: Omit<PdfFindResult, 'isPending'> }) => {
+            if (isDisposed) return;
+            onFindChange({ ...matchesCount, isPending: isFindPending });
+        },
+    );
     viewer.setDocument(document);
     linkService.setDocument(document);
 
@@ -205,7 +255,7 @@ export async function createPdfViewerSession({
             if (!event.ctrlKey) return;
             event.preventDefault();
             viewer.updateScale({
-                scaleFactor: Math.exp(-event.deltaY / 100),
+                scaleFactor: pinchScaleFactor(event.deltaY),
                 origin: [event.clientX, event.clientY],
             });
         },
@@ -241,6 +291,12 @@ export async function createPdfViewerSession({
                 document.numPages,
                 viewer.currentPageNumber,
             );
+        },
+        search: (query, step) => {
+            eventBus.dispatch('find', pdfFindEvent(query, step));
+        },
+        closeFind: () => {
+            eventBus.dispatch('findbarclose', { source: null });
         },
         dispose: () => {
             isDisposed = true;

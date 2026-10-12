@@ -454,7 +454,10 @@ dropping it with the edited text, while a sent edit already carries it and bring
 set-aside draft. The edited message keeps a quiet `--muted` outline, leaving the accent to the edit
 bar. Sending calls
 `agentChat.rewind`, which rewinds the provider's own record to just before the message and sends
-the draft in its place as one request; a later resume shows the same shorter conversation. The edit
+the draft in its place as one request; a later resume shows the same shorter conversation. As with
+a message, the composer does not wait for the answer: once any confirmation below is accepted, the
+edit bar closes and the set-aside draft comes back while Send says it is sending, and a refused
+rewind reports why and reopens the edit with the sent text and images. The edit
 survives switching tabs and restarting Caxri, like a draft: the edit (message id, the revert choice,
 and the set-aside draft) is mirrored to device-local `localStorage` (`caxri.agent-chat.edits`,
 bounded to the 50 newest edits), so a restart never brings back the earlier message's text as an
@@ -595,8 +598,11 @@ several callbacks can share one item, so the transport id is never the key.
 - The composer keeps an unsent draft per Chat across tab and Session switches and across a full
   restart, clears only the text that was actually sent, and treats Escape as Stop while a turn
   runs. The draft text is device-local Renderer state in `localStorage` (bounded to the 50 most
-  recently edited Chats), never sent to Server Core; attached images stay in memory only, because
-  a few encoded images would exhaust the storage quota. ArrowUp on an empty composer recalls the
+  recently edited Chats), never sent to Server Core. Attached images survive a restart too, in
+  device-local IndexedDB instead, because a few encoded images would exhaust the `localStorage`
+  quota (`agent-chat-attachment-persistence.ts`): at most 128 MB of encoded images across all
+  Chats, dropping the Chats whose images changed least recently first, deleted once the message
+  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer recalls the
   prompts this Chat sent, newest first, and ArrowDown walks forward and back to an empty input,
   like a shell. The history is read from the user messages in the Chat's projection, so it needs
   no storage of its own and reaches only as far back as the projection keeps (see
@@ -902,7 +908,7 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
 
 - **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 20 PNG,
   JPEG, GIF, or WebP images per message, at most 5 MB each and 20 MB together, pasted, dropped
-  anywhere on the Chat, or chosen with Files in the composer's `+` menu. 5 MB is the Anthropic
+  anywhere on the Chat, or chosen with Files and folders in the composer's `+` menu. 5 MB is the Anthropic
   API's per-image limit; 20 images stays under its stricter 2000 px dimension rule for requests with
   more than 20; and 20 MB keeps the worst-case payload where four full-size images already put it,
   inside the API's 32 MB request limit once base64 adds a third. Server Core enforces the same count
@@ -916,15 +922,22 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   position; no provider process is needed), makes the same thumbnail, and caches only the thumbnail.
   Codex history comes from its app-server, whose item ids name no on-disk record, so a resumed Codex
   image stays a placeholder, as does an image the transcript tail no longer reaches.
-- **Other files.** Files in `+` opens the system file picker (Chromium's file input, which is the
-  native open panel, so no Main dialog method is involved). A picked or dropped file that is not an
-  attachable image, and every file for a provider without image input such as Grok Build, is
+- **Other files and folders.** Files and folders in `+` opens the native open panel through
+  `dialog.selectPaths`, which takes several files and folders at once (Chromium's file input cannot
+  pick a folder together with files). It grants nothing, unlike the Project folder dialog, so a pick
+  never widens what a Project may reach. When the provider takes images, Main returns each picked
+  image's bytes (up to 64 MB across the pick) so it attaches as a dropped one would; a folder is
+  cited by path like any other file. An SSH Host window keeps Chromium's file-only picker as Files,
+  since a path on this Mac means nothing to an Agent on the SSH Host, while a picked image still
+  attaches. A picked or dropped file that is not an attachable image, and every file for a provider without image input such as Grok Build, is
   inserted at the caret as its path, relative to the Agent's directory and quoted the way a
   Terminal drop is. Every provider reads files from disk with its own tools, so a path is the one
   representation all three send paths share; no file contents are inlined.
-- **Long paste.** Pasted text longer than 32 KiB (`AGENT_CHAT_LONG_PASTE_THRESHOLD`, T3 Code's
-  pasted-text attachment size), or any paste the 100,000-character message limit would otherwise
-  cut, never enters the input. `agentChat.saveLongPaste` writes it through the same service and
+- **Long paste.** Pasted text longer than the `agentChat.longPasteThreshold` setting (default
+  32 KiB, `AGENT_CHAT_LONG_PASTE_THRESHOLD`, T3 Code's pasted-text attachment size), or any paste
+  the 100,000-character message limit would otherwise cut, never enters the input. Raising the
+  setting (up to the message limit) is how a user pastes a long log as is; a paste the message
+  cannot hold is still saved, never cut. `agentChat.saveLongPaste` writes it through the same service and
   owner-only, pruned file store as [Terminal long paste](low-cost-generation.md#terminal-long-paste),
   and the composer inserts that reference where the paste landed. Send waits while a save is in
   flight. A paste past the 16 MiB file limit is refused with the Terminal's message, and one whose
@@ -945,7 +958,9 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
 - `agentChat.runCommand` runs a listed command with optional arguments and rejects anything the
   Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Tab or
   Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when
-  chosen; one that does is completed so its arguments can be typed.
+  chosen; one that does is completed so its arguments can be typed. A command leaves the input as
+  soon as it runs, as a message does, while Send says it is sending; if Server Core refuses it, a
+  toast says why and the command text comes back into the input.
 - **Session references.** Typing `@` at the start of a word lists other Sessions with an Agent
   conversation, searched by title. Choosing one replaces the typed `@word` with a reference to a
   condensed copy of that conversation; see
@@ -1124,6 +1139,16 @@ checked `Custom (from launch settings)` row above the levels, so the trigger's "
 to point at. Picking a level closes the menu. Plan mode is switched from the composer's `+` menu, and
 a Plan chip beside `+` shows it is on and turns it off; both share the permission picker's optimistic
 selection. `planMode` is present only for a provider that has plan mode.
+
+The keyboard reaches the same controls from the focused composer: `agentChat.changeModel`
+(`cmd+/`) opens the model picker, `agentChat.changePermissionMode` (`cmd+.`) the permission menu,
+and `agentChat.togglePlanMode` (`cmd+alt+p`) flips plan mode, with the Plan chip as its only
+feedback. The first two follow Cursor's Agent input; Claude Code and Codex cycle modes with
+`shift+tab`, which moves focus here. Each composer registers only the controls its provider offers
+(`agent-chat-composer-commands.ts`), so a command is unavailable, hidden from the palette, and lets
+its chord through (an editor's `cmd+/` comment toggle, for example) on a Terminal surface, another
+tab, or a provider without that control. A menu opened this way returns focus to the composer when
+it closes. The Agent Commander window runs the same three commands for its Chat.
 
 A switch is saved on the Chat's Terminal (`terminals.chat_permission_mode`,
 `terminals.chat_plan_mode`), so a restart, resume, or app relaunch starts with it. A level the Chat

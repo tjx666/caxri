@@ -1,7 +1,9 @@
 import type { EnvironmentState, SshEnvironmentState } from '@caxri/protocol';
 
+import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import { createStore } from '../lib/store';
+import { pushToast } from './toasts';
 
 interface EnvironmentStoreState {
     /**
@@ -21,7 +23,7 @@ export const useEnvironmentStore = createStore<EnvironmentStoreState>('environme
 /**
  * Starts mirroring Main's environment state. It subscribes before reading so a change pushed while `environment.get` is
  * in flight is never lost, and once any event has arrived the slower read is discarded: an event is always at least as
- * new as the read it raced.
+ * new as the read it raced. It also explains a connect that Main answered by focusing this SSH Host window.
  */
 export function subscribeEnvironment(): () => void {
     /**
@@ -29,6 +31,13 @@ export function subscribeEnvironment(): () => void {
      */
     const subscription = { hasReceivedEvent: false, isActive: true };
     const unsubscribe = caxri.onEvent((event) => {
+        if (event.event === 'environment.connectionReused') {
+            pushToast(
+                'info',
+                translate('sshHost.connect.reused', { destination: event.payload.destination }),
+            );
+            return;
+        }
         if (event.event !== 'environment.changed') return;
         subscription.hasReceivedEvent = true;
         useEnvironmentStore.setState({ state: event.payload });

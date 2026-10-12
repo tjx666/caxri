@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { subscribePreviewSourceChanges } from './preview-source-changes';
+import { subscribePreviewSourceChanges } from '../preview-source-changes';
 
 /**
  * A counter that grows each time the file behind a binary preview (a PDF, an SVG) is rewritten on disk, by the user's

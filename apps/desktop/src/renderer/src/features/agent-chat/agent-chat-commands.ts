@@ -5,6 +5,7 @@ import type {
     AgentChatRequest,
     AgentChatResponse,
     AgentProvider,
+    MethodResult,
     TerminalRecord,
 } from '@caxri/protocol';
 import { agentChatAnsweredNotice, formatLongPasteReference } from '@caxri/protocol';
@@ -75,7 +76,9 @@ export function saveAgentChatLongPaste(
  * "Edit from here": rewinds the Chat to before message `itemId` and sends `message` in its place. Reverting files first
  * asks for confirmation in a native dialog, since it can discard the user's own edits; replacing more than one turn
  * without reverting files asks in the in-app confirmation (see {@link agentChatReplaceTurnsConfirm}). Declining either
- * sends nothing and keeps the draft. Resolves `true` once Server Core rewound the Chat and accepted the message.
+ * sends nothing and keeps the draft. `onConfirmed` runs once the user can no longer decline, right before the request,
+ * so the composer clears only for an edit that is actually sent. Resolves `true` once Server Core rewound the Chat and
+ * accepted the message.
  */
 export async function didRewindAgentChat(
     terminalId: string,
@@ -86,6 +89,7 @@ export async function didRewindAgentChat(
         providerName: string;
         removedTurns: number;
     },
+    onConfirmed: () => void,
 ): Promise<boolean> {
     let isSent = false;
     await tryCommand(translate('agentChat.commands.editFailed'), async () => {
@@ -98,6 +102,7 @@ export async function didRewindAgentChat(
             });
             if (!confirmed) return;
         }
+        onConfirmed();
         await caxri.request('agentChat.rewind', {
             terminalId,
             itemId: request.itemId,
@@ -411,4 +416,16 @@ export function recoverAgentChat(
     }
     // eslint-disable-next-line no-void -- the query owns the refetch result and error state
     void refetch();
+}
+
+/**
+ * Opens the native panel for the composer's `+` → Files and folders (`dialog.selectPaths`). Resolves the chosen paths,
+ * empty when the panel was dismissed, or `undefined` after a toast when it could not open.
+ */
+export function pickAgentChatPaths(
+    shouldReadImages: boolean,
+): Promise<MethodResult<'dialog.selectPaths'> | undefined> {
+    return tryCommand(translate('agentChat.commands.pickPathsFailed'), () =>
+        caxri.request('dialog.selectPaths', { shouldReadImages }),
+    );
 }

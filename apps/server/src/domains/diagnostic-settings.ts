@@ -151,6 +151,7 @@ const settingsProjection: SettingsProjection = {
     'notifications.agentRecovery': exportAsIs,
     'session.defaultAgent': exportAsIs,
     'session.openAgentsInChat': exportAsIs,
+    'agentChat.longPasteThreshold': exportAsIs,
     'workbench.newWorktreeBehavior': exportAsIs,
     'primarySidebar.autoCollapseProjects': exportAsIs,
     'window.zoomLevel': exportAsIs,

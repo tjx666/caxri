@@ -1,11 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
+import { useLocaleStore } from '../../../i18n/locale-store';
 import {
     LIMIT_WARNING_PERCENT,
     limitBarTone,
     pullRequestTileDetail,
     usageRowStatusLabel,
+    usageSessionTitle,
     usageShare,
     usageShareBasis,
 } from '../usage-presentation';
@@ -109,5 +111,38 @@ describe('usage row status labels', () => {
                 kind: 'session',
             }),
         ).toBeUndefined();
+    });
+});
+
+describe('session row title', () => {
+    const row = (title: string, flags: { isDeleted?: boolean; isOutsideCaxri?: boolean } = {}) => ({
+        title,
+        isDeleted: flags.isDeleted ?? false,
+        isOutsideCaxri: flags.isOutsideCaxri ?? false,
+    });
+
+    afterEach(() => {
+        useLocaleStore.setState({ locale: 'en' });
+    });
+
+    it('translates the unnamed placeholder and the deleted title into the UI language', () => {
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        expect(usageSessionTitle(translate, row('Untitled'))).toBe('未命名');
+        expect(usageSessionTitle(translate, row('Deleted Session', { isDeleted: true }))).toBe(
+            '已删除的会话',
+        );
+        useLocaleStore.setState({ locale: 'en' });
+        expect(usageSessionTitle(translate, row('Untitled'))).toBe('Untitled');
+        expect(usageSessionTitle(translate, row('Deleted Session', { isDeleted: true }))).toBe(
+            'Deleted Session',
+        );
+    });
+
+    it('keeps a named Session and an outside folder name as written', () => {
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        expect(usageSessionTitle(translate, row('Fix login flow'))).toBe('Fix login flow');
+        expect(usageSessionTitle(translate, row('Untitled', { isOutsideCaxri: true }))).toBe(
+            'Untitled',
+        );
     });
 });
