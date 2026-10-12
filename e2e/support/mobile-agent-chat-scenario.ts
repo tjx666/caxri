@@ -140,7 +140,7 @@ async function executeMobileAgentChatScenario(
         await waitForNoCheck(serial, 'agent-chat-request');
 
         // Several questions sit behind tabs; a tap answers and moves to the next unanswered question.
-        await sendFromPhone(serial, 'ask several questions');
+        await sendFromPhone(serial, 'askmany');
         await waitForCheck(serial, 'agent-chat-question-tab-2');
         await capture(environment, 'questions', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
