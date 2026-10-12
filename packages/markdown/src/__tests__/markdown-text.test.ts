@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { parseMarkdownBlocks } from '../markdown-blocks.js';
 import { isSameMarkdownTree } from '../markdown-equality.js';
-import { inlinePlainText, tableToHtml, tableToMarkdown } from '../markdown-text.js';
+import {
+    blocksPlainText,
+    inlinePlainText,
+    tableToHtml,
+    tableToMarkdown,
+} from '../markdown-text.js';
 
 const source = [
     '| Name | Size |',
@@ -49,5 +54,47 @@ describe('isSameMarkdownTree', () => {
         expect(isSameMarkdownTree(first, second)).toBe(true);
         expect(isSameMarkdownTree(first, edited)).toBe(false);
         expect(isSameMarkdownTree({ a: undefined }, { b: undefined })).toBe(false);
+    });
+});
+
+describe('blocksPlainText', () => {
+    const quoted = (markdown: string) => {
+        const [quote] = parseMarkdownBlocks(markdown, { tables: true });
+        if (quote?.type !== 'quote') throw new Error('expected a quote');
+        return blocksPlainText(quote.children);
+    };
+
+    it('copies a quote as its words, without the quote markers or inline formatting', () => {
+        expect(quoted('> Ship **it** with `bun`\n> today.')).toBe('Ship it with bun today.');
+    });
+
+    it('keeps paragraphs apart, hard breaks as line breaks, and lists with their markers', () => {
+        expect(
+            quoted(
+                [
+                    '> First line  ',
+                    '> second line',
+                    '>',
+                    '> 1. one',
+                    '>',
+                    '>    more',
+                    '> 2. two',
+                    '>',
+                    '> - [x] done',
+                    '>',
+                    '> > nested',
+                ].join('\n'),
+            ),
+        ).toBe(
+            ['First line\nsecond line', '1. one\n\n   more\n2. two', '- [x] done', 'nested'].join(
+                '\n\n',
+            ),
+        );
+    });
+
+    it("keeps a fenced block's code and a table as Markdown", () => {
+        expect(quoted('> ```ts\n> const a = 1;\n> ```\n>\n> | a |\n> | - |\n> | 1 |')).toBe(
+            'const a = 1;\n\n| a |\n| --- |\n| 1 |',
+        );
     });
 });

@@ -14,16 +14,18 @@ export function findAgentChatModel(
 }
 
 /**
- * A model, effort, or ultracode switch as a Client asks for it, by identifier.
+ * A model, effort, ultracode, or Fast mode switch as a Client asks for it, by identifier.
  */
 export interface AgentChatModelRequest {
     model?: string;
     effort?: string;
     ultracode?: boolean;
+    fast?: boolean;
 }
 
 /**
- * A validated model or effort switch, as a provider session applies it.
+ * A validated model or effort switch, as a provider session applies it. Only the keys that change are present, so an
+ * empty change means there is nothing to apply.
  */
 export interface AgentChatModelChange {
     /**
@@ -38,21 +40,48 @@ export interface AgentChatModelChange {
      * Turns Claude Code's ultracode on or off; absent when it should stay as it is.
      */
     ultracode?: boolean;
+    /**
+     * Turns Fast mode on or off; absent when it should stay as it is.
+     */
+    fast?: boolean;
 }
 
 /**
  * Validates a requested switch against what the provider listed, so a stale Client cannot send a model or effort the
  * provider never offered. Switching to a model that does not accept the current effort falls back to that model's
- * default, because a provider handed an effort its model rejects fails the next turn.
+ * default, because a provider handed an effort its model rejects fails the next turn. For the same reason, switching to
+ * a model without Fast mode turns it off.
  */
 export function resolveAgentChatModelChange(
-    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'ultracode'>,
+    snapshot: Pick<AgentChatSnapshot, 'effort' | 'fast' | 'model' | 'models' | 'ultracode'>,
     change: AgentChatModelRequest,
 ): AgentChatModelChange {
     if (change.ultracode !== undefined && snapshot.ultracode === undefined)
         throw new CaxriError('VALIDATION', 'Ultracode is not available in this Chat');
     const ultracode = change.ultracode === undefined ? {} : { ultracode: change.ultracode };
-    return { ...resolveModelAndEffort(snapshot, change), ...ultracode };
+    const resolved = resolveModelAndEffort(snapshot, change);
+    const fast = resolveFast(snapshot, change, resolved.model);
+    return { ...resolved, ...ultracode, ...(fast !== undefined && { fast }) };
+}
+
+/**
+ * The Fast mode a switch applies. Turning it on needs the provider to report Fast mode for this Chat at all, and a
+ * known target model to offer it; Claude Code names its model only with the first turn, so before that the provider's
+ * own report decides. Turning it off is always accepted.
+ */
+function resolveFast(
+    snapshot: Pick<AgentChatSnapshot, 'fast' | 'model' | 'models'>,
+    change: AgentChatModelRequest,
+    model: AgentChatModel | undefined,
+): boolean | undefined {
+    const target = model ?? findAgentChatModel(snapshot.models, snapshot.model);
+    const isOffered = target ? target.fast !== undefined : snapshot.model === undefined;
+    const isReported = snapshot.fast !== undefined;
+    if (change.fast === true && !(isReported && isOffered))
+        throw new CaxriError('VALIDATION', 'Fast mode is not available for this model');
+    if (change.fast !== undefined) return change.fast;
+    const isWithdrawn = model !== undefined && model.fast === undefined;
+    return isWithdrawn && snapshot.fast === true ? false : undefined;
 }
 
 function resolveModelAndEffort(

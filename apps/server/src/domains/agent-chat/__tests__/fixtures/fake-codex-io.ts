@@ -36,10 +36,11 @@ export interface FakeThread {
     turns: FakeTurn[];
     parentThreadId?: string;
     /**
-     * The model and effort the last `turn/start` named, which a resumed thread reports.
+     * The model, effort, and service tier the last `turn/start` named, which a resumed thread reports.
      */
     model?: string;
     effort?: string;
+    serviceTier?: string;
     /**
      * The collaboration mode the last `turn/start` named (`plan` or `default`), which a resumed thread reports.
      */
