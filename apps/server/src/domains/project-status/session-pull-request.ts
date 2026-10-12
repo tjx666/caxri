@@ -1,4 +1,8 @@
-import type { ProjectStatusOverview, PullRequestUnavailable } from '@caxri/protocol';
+import type {
+    ProjectStatusOverview,
+    PullRequestUnavailable,
+    SessionPullRequest,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -31,7 +35,13 @@ export type SessionPullRequestResolver = (
 export type PullRequestTarget =
     | { kind: 'branch' }
     | { kind: 'none'; unavailable?: PullRequestUnavailable }
-    | { kind: 'number'; number: number; owner: string; repo: string };
+    | {
+          kind: 'number';
+          number: number;
+          owner: string;
+          repo: string;
+          source: SessionPullRequest['source'];
+      };
 
 function sessionPullRequestTarget(
     resolution: SessionPullRequestResolution | undefined,
@@ -44,6 +54,7 @@ function sessionPullRequestTarget(
             number: reference.number,
             owner: reference.owner,
             repo: reference.repo,
+            source: resolution.value?.source ?? 'branch',
         };
     return { kind: 'none', ...(resolution.unavailable && { unavailable: resolution.unavailable }) };
 }
@@ -126,7 +137,16 @@ export async function loadOverviewPullRequest(
             ...(parsed?.number &&
                 parsed.title &&
                 parsed.url && {
-                    pullRequest: { number: parsed.number, title: parsed.title, url: parsed.url },
+                    pullRequest: {
+                        number: parsed.number,
+                        title: parsed.title,
+                        url: parsed.url,
+                        ...(parsed.headRefName && { headBranch: parsed.headRefName }),
+                        source:
+                            target.kind === 'number' && target.source === 'agent'
+                                ? ('conversation' as const)
+                                : ('branch' as const),
+                    },
                 }),
         };
     } catch (error) {

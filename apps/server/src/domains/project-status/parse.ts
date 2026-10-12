@@ -37,6 +37,7 @@ type GitHubCheck = z.infer<typeof githubCheckSchema>;
 
 export const githubPullRequestSchema = z.object({
     body: z.string().optional(),
+    headRefName: z.string().optional(),
     headRefOid: z.string().optional(),
     isDraft: z.boolean().optional(),
     mergeable: z.string().optional(),
@@ -267,6 +268,7 @@ export function parseGitHubPullRequest(
             hiddenCheckCount: rollup.length - visible.length,
             ...(raw.headRefOid &&
                 /^[\da-f]{40}$/.test(raw.headRefOid) && { headSha: raw.headRefOid }),
+            ...(raw.headRefName && { headBranch: raw.headRefName }),
             ...(mergeState && { mergeState }),
         },
     };

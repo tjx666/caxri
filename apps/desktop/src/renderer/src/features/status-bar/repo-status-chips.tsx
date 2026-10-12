@@ -10,7 +10,7 @@ import { diffStatLabel } from '../../lib/diff-stat-label';
 import { AcceptanceStatus } from './acceptance-status';
 import type { ChipVisibility } from './chip-priority';
 import { LinearIssueStatus } from './linear-issue-status';
-import { pullRequestUnavailableLabel } from './pull-request-status-label';
+import { pullRequestTooltip, pullRequestUnavailableLabel } from './pull-request-status-label';
 import { StatusInfo } from './status-info';
 import { PriorityChipSlot, StatusItem } from './status-item';
 
@@ -105,11 +105,7 @@ export function RepoStatusChips({
                             })}
                             title={
                                 <StructuredTooltip
-                                    eyebrow={t('statusBar.pullRequest.eyebrow', {
-                                        number: repo.pullRequest.number,
-                                    })}
-                                    title={repo.pullRequest.title}
-                                    hint={t('statusBar.pullRequest.hint')}
+                                    {...pullRequestTooltip(repo.pullRequest, repo.branch, t)}
                                 />
                             }
                         >

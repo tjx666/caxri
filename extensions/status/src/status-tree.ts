@@ -348,6 +348,14 @@ function buildRepoChildren(
         const lifecycleLabel = lifecycle?.label ?? 'Not reported';
         const children = pullRequestCheckNodes(prefix, pullRequest);
         const mergeAction = mergePullRequestAction(repo, pullRequest);
+        /**
+         * The row sits under the checked-out branch, so a pull request the Session's Agent opened from another worktree
+         * would read as that branch's. Naming its own branch only when they differ keeps the ordinary row unchanged.
+         */
+        const otherBranch =
+            pullRequest.headBranch && pullRequest.headBranch !== repo.branch
+                ? pullRequest.headBranch
+                : undefined;
         nodes.push(
             item(`${prefix}:pr`, `#${pullRequest.number} ${pullRequest.title}`, {
                 actions: mergeAction ? [mergeAction] : undefined,
@@ -369,6 +377,7 @@ function buildRepoChildren(
                         ? 'has conflicts'
                         : undefined,
                     checkLabel(pullRequest.state),
+                    otherBranch ? `from ${otherBranch}` : undefined,
                 ]
                     .filter(Boolean)
                     .join(', '),
@@ -376,6 +385,7 @@ function buildRepoChildren(
                 tooltip: {
                     badge: { label: lifecycleLabel, tone: lifecycle?.tone ?? 'neutral' },
                     rows: [
+                        ...(otherBranch ? [{ label: 'branch', value: otherBranch }] : []),
                         { label: 'checks', value: checkLabel(pullRequest.state) },
                         ...(pullRequest.lifecycle === 'open' && pullRequest.mergeState
                             ? [{ label: 'merge', value: mergeReadinessLabel(pullRequest) }]
