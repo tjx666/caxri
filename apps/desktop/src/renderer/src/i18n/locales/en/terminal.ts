@@ -171,6 +171,9 @@ export const terminal = {
     'terminal.resourceAlert.message':
         'High resource use: {{subject}} is using {{memory}} of memory and {{cpu}} CPU.',
     'terminal.resourceAlert.stop': 'Stop {{subject}}',
+    'terminal.agentPrompt.tooLong': 'The prompt is too long to send to an Agent',
+    'terminal.agentPrompt.noAgent': 'Start an Agent in this Session first',
+    'terminal.agentPrompt.notReady': '{{agent}} is not ready for input',
     'terminal.toastAction.notOpen': 'That Terminal is no longer open.',
     'terminal.toastAction.alreadyRestarted': 'That Terminal has already been restarted.',
     'terminal.toastAction.processChanged':
