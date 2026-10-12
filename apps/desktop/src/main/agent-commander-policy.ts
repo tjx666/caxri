@@ -16,7 +16,10 @@ import { z } from 'zod';
  * show. `agentChat.confirmRevertFiles` names no Terminal: it only asks the native confirmation before "Edit from here"
  * or "Restore code to here" reverts files and returns the answer, and the revert itself is a separate
  * `agentChat.rewind` or `agentChat.restoreFiles` admitted only for the Commander Terminal. It shares the Workbench's
- * Desktop principal, so this list is its only authority boundary.
+ * Desktop principal, so this list is its only authority boundary. The hand-over picker's `commander.conversations`,
+ * `commander.session.handOver`, and `commander.session.takeBack` are the user's own grant of Sessions to the Commander,
+ * the same requests the Workbench's Session menu sends; the Commander's Agent Endpoint still lacks the `agents.control`
+ * they require.
  */
 const ADMITTED_METHODS = new Set<string>([
     'agentCommander.openSettings',
@@ -24,12 +27,15 @@ const ADMITTED_METHODS = new Set<string>([
     'agentCommander.stop',
     'agentChat.confirmRevertFiles',
     'commander.board',
+    'commander.conversations',
     'commander.ensure',
     'commander.inbox.dismiss',
     'commander.inbox.list',
     'commander.inbox.merge',
     'commander.inbox.reply',
     'commander.inbox.show',
+    'commander.session.handOver',
+    'commander.session.takeBack',
     'commander.snapshot',
     'contextMenu.show',
     'events.recover',

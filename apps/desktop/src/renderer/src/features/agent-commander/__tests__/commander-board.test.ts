@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
     commanderBoardRowsInScope,
     commanderBoardSections,
+    commanderHandoverDescription,
     commanderPullRequestBadge,
     commanderRowPresentation,
     commanderTaskBadge,
@@ -452,5 +453,23 @@ describe('patchCommanderBoardPullRequests', () => {
                 new Set(['quiet', 'not-on-the-board']),
             ),
         ).toBe(before);
+    });
+});
+
+describe('commanderHandoverDescription', () => {
+    it('says whether a handed-over Session has a conversation the Commander can continue', () => {
+        expect(commanderHandoverDescription(undefined)).toBeUndefined();
+        expect(
+            commanderHandoverDescription({ handoverId: 'handover-1', state: 'continuable' }),
+        ).toMatch(/continue/i);
+        expect(
+            commanderHandoverDescription({
+                handoverId: 'handover-1',
+                state: 'ownership_only',
+                ownershipReason: 'agent_missing',
+            }),
+        ).not.toBe(
+            commanderHandoverDescription({ handoverId: 'handover-1', state: 'continuable' }),
+        );
     });
 });

@@ -16,6 +16,10 @@ import { translate } from '../i18n';
  * memory-only, but it is still somewhere source content must never land.
  */
 export interface ToastActionParameters {
+    /**
+     * Raises the Agent Commander window, for a notice about work just handed to it.
+     */
+    'agentCommander.open': undefined;
     'diagnostics.copyFailure': { text: string };
     /**
      * Re-applies unsaved buffers a newer disk state replaced. Carries only the documents' identity: the discarded text
@@ -102,6 +106,7 @@ export type ToastAction = {
  * translation keys and resolved where the button renders, so a language change relabels buttons already in history.
  */
 export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
+    'agentCommander.open': 'toasts.action.openAgentCommander',
     'diagnostics.copyFailure': 'toasts.action.copyDetails',
     'editor.restoreDiscardedChanges': 'toasts.action.restoreDiscardedChanges',
     'editor.retrySave': 'common.retry',

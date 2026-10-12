@@ -156,4 +156,65 @@ export const agentCommander = {
     'agentCommander.commands.stopTurnTitle': 'Stop the running turn?',
     'agentCommander.commands.stopTurnMessage':
         'Agent Commander is still working. Stopping it ends the current turn and closes its window. Tasks it delegated keep running.',
+    // Hand-over
+    'agentCommander.handover.open': 'Hand Over',
+    'agentCommander.handover.openTooltip':
+        'Hand your own Sessions, or Agent conversations started outside Caxri, to the Commander',
+    'agentCommander.handover.title': 'Hand Over to Agent Commander',
+    'agentCommander.handover.description':
+        'The Commander takes over what you pick and continues each Agent conversation where it stopped. Your note tells it what to do.',
+    'agentCommander.handover.sourceLabel': 'What to hand over',
+    'agentCommander.handover.sessionsTab': 'Sessions',
+    'agentCommander.handover.conversationsTab': 'Outside Caxri',
+    'agentCommander.handover.searchSessions': 'Search Sessions or Projects',
+    'agentCommander.handover.searchConversations': 'Search conversations or folders',
+    'agentCommander.handover.loadingSessions': 'Loading Sessions…',
+    'agentCommander.handover.loadingConversations':
+        'Looking for Claude Code, Codex, and Grok Build conversations…',
+    'agentCommander.handover.loadFailed':
+        'Unable to load this list. Close the dialog and try again.',
+    'agentCommander.handover.noMatches': 'Nothing matches your search.',
+    'agentCommander.handover.noSessions': 'Every Session is already with the Commander.',
+    'agentCommander.handover.noConversations':
+        'No Agent conversations from the last 30 days were found outside Caxri.',
+    'agentCommander.handover.selectGroup': 'Select all in {{group}}',
+    'agentCommander.handover.selectCandidate': 'Select {{title}}',
+    'agentCommander.handover.addsProject': 'Adds this folder as a Project',
+    'agentCommander.handover.mayBeOpen': 'May be open elsewhere',
+    'agentCommander.handover.mayBeOpenWarning':
+        'A conversation you picked was active in the last few minutes. If it is still open in another terminal, both copies will continue separately.',
+    'agentCommander.handover.untitledConversation': 'Untitled conversation',
+    'agentCommander.handover.refusedLine': 'Not handed over ({{count}}): {{reason}}',
+    'agentCommander.handover.noteLabel': 'Note for the Commander',
+    'agentCommander.handover.notePlaceholder':
+        'Optional: what the Commander should do, for example "finish the migration and open a pull request"',
+    'agentCommander.handover.takeBackHint': 'Typing into a handed-over Session takes it back.',
+    'agentCommander.handover.selectedCount': '{{count}} selected',
+    'agentCommander.handover.submit': 'Hand Over',
+    'agentCommander.handover.failed': 'Unable to hand over to Agent Commander',
+    'agentCommander.handover.noneAccepted': 'Nothing was handed over: {{reason}}',
+    'agentCommander.handover.partlyAccepted':
+        'Handed {{accepted}} to Agent Commander; {{refused}} could not be handed over',
+    'agentCommander.handover.acceptedOne': 'Handed 1 to Agent Commander',
+    'agentCommander.handover.acceptedOther': 'Handed {{count}} to Agent Commander',
+    'agentCommander.handover.takeBackFailed': 'Unable to take the Session back',
+    'agentCommander.handover.takenBack': 'Took the Session back from Agent Commander',
+    'agentCommander.handover.rejection.alreadyManaged': 'the Commander already manages it',
+    'agentCommander.handover.rejection.commanderSession': 'it is the Commander itself',
+    'agentCommander.handover.rejection.commanderUnavailable': 'Agent Commander is not set up',
+    'agentCommander.handover.rejection.conversationBound':
+        'a Caxri Terminal already has this conversation',
+    'agentCommander.handover.rejection.conversationMissing':
+        'the conversation or its folder no longer exists',
+    'agentCommander.handover.rejection.duplicate': 'it was picked twice',
+    'agentCommander.handover.rejection.ownershipCapacity':
+        'the Commander manages too many Sessions',
+    'agentCommander.handover.rejection.projectUnavailable': 'its Project is hidden or unavailable',
+    'agentCommander.handover.rejection.sessionArchived': 'the Session is archived',
+    'agentCommander.handover.rejection.sessionMissing': 'the Session no longer exists',
+    'agentCommander.handover.rejection.taskCapacity': 'the Commander has too many open tasks',
+    'agentCommander.board.handoverContinuable':
+        'Handed over by you. The Commander continues this conversation once its Agent is between turns.',
+    'agentCommander.board.handoverOwnershipOnly':
+        'Handed over by you. There is no Agent conversation to continue, so the Commander starts new work here.',
 } as const;

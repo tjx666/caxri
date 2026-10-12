@@ -461,6 +461,61 @@ on Desktop, and the phone has no Inbox notification. Bodies and older replies ar
 one mobile frame, and a `commanderInbox` subscription refreshes the screen live. Authorization and
 wire details are in [mobile authorization](mobile/authorization.md#commander-inbox-from-mobile).
 
+## Hand-over
+
+The user can give the Commander work that is already underway: Sessions they started themselves, and
+Agent conversations begun outside Caxri. Before hand-over the Commander could delegate only into
+Sessions it created, so a half-finished task in the user's own Session had to be restated from
+scratch.
+
+**Picking.** The Commander window's title bar **Hand Over** button opens a searchable, multi-select
+dialog (`commander-handover-dialog.tsx`); a Workbench Session's context menu opens the same dialog
+with that Session already selected, and offers **Take Back** instead once the Commander manages it.
+The dialog has two tabs that share one selection and one optional note:
+
+- **Sessions** lists every Workbench Session the Commander does not manage yet, grouped by Project,
+  newest first. A group checkbox selects the whole Project.
+- **Outside Caxri** lists Claude Code, Codex, and Grok Build conversations found in the providers'
+  own history folders (`apps/server/src/domains/agents/external-conversations.ts`): the last 30
+  days, at most 200, excluding any conversation a Caxri Terminal already binds. Discovery reads those
+  folders, so it runs only once the tab opens. Each conversation is grouped under the visible Project
+  whose root contains its working directory; one in no Project is grouped under its folder, which
+  hand-over adds as a new Project. A conversation whose transcript was written in the last two
+  minutes is marked as possibly still open elsewhere, because resuming it in Caxri would fork it;
+  no provider exposes a cheaper open-conversation signal the discovery uses yet.
+
+Search narrows what the list shows, never what stays selected. `commander.session.handOver` handles
+every entry on its own, so a refused entry (for example an archived Session, or a conversation that
+disappeared) never blocks the rest; the dialog keeps the refusals in view and the toast counts what
+was accepted. From the Workbench the request first runs `commander.ensure`, so handing over works
+before the user ever opened the Commander. `caxri commander session hand-over` and `take-back` are
+the human CLI equivalents; the Commander's own Endpoint cannot hand over or take back, because it
+lacks `agents.control`.
+
+**What hand-over records.** An accepted entry joins the Commander's ownership set, opens a ledger task
+carrying the user's note, and stores one hand-over record (`app_state` key `commanderHandovers`,
+`apps/server/src/domains/commander/handover-records.ts`). An outside conversation first becomes a
+new Session holding a parked Agent Terminal bound to that conversation; nothing launches until the
+Session is opened or the Commander continues it. The record is `continuable` when the Session's
+Agent has a provider conversation the Commander can resume, otherwise `ownership_only` with a closed
+reason (`agent_missing`, `chat_surface`, `provider_session_missing`, `provider_unsupported`); the
+Commander may still start new work there. The board marks the row with a hand icon until the first
+task continues it.
+
+**First continuation.** The Commander learns about a hand-over through the same content-free notice
+queue as delegation completions (see [Completion notices](#completion-notices)), with the hand-over
+ID. Its first task there is
+`agent delegate create --session <id> --prompt-file <path> --continue-handover <handover-id>`, which
+resumes that exact conversation instead of starting a fresh Agent, and consumes the record (see
+[Agent delegation](agent-delegation.md#follow-up-stop-and-recovery)). While the Agent is in a turn
+the request is refused; a hand-over of a busy Agent is announced as `ready` once that turn ends.
+Notices the Commander lost to a restart are queued again on its next launch.
+
+**Take-back.** Typing into a handed-over Agent Terminal takes the Session back at once: the user is
+working there again, and the Commander must not take the conversation over afterwards. The
+Session's menu and `commander session take-back` do the same explicitly. Taking back never stops an
+Agent; tasks the Commander already started keep their receipts.
+
 ## Observability
 
 Every step of a Commander workflow leaves a content-free log line in Server Core's
@@ -669,8 +724,9 @@ confirmation. See [CLI](cli.md) and
 - The Commander runs with the user's own Codex configuration, including its sandbox mode. Endpoint
   capabilities are product authorization, not a filesystem sandbox for processes of the same OS
   user.
-- The Commander delegates only into Sessions it created, normally with `--new-session`. It cannot
-  yet queue work into a user's Session.
+- The Commander delegates only into Sessions it manages: ones it created, normally with
+  `--new-session`, and ones the user [handed over](#hand-over). It cannot queue work into any other
+  Session of the user's.
 - Memory edits reach the Commander's embedded copy only on the next `commander.ensure`. Within a
   running conversation the Commander knows its own edits, and reads the files again when the user
   says they changed them.
