@@ -235,7 +235,11 @@ test('Agent Commander window reopens at its remembered bounds across an app rest
     await mkdir(root);
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
-        providers: { codex: {} },
+        /**
+         * A late banner reproduces the loaded runner of issue #1871, where the app quit before the Agent printed
+         * anything; the spec must wait for it instead of winning the race on a fast machine.
+         */
+        providers: { codex: { readinessDelayMs: 1_000 } },
     });
     let running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     const commanderBounds = () =>
@@ -255,6 +259,15 @@ test('Agent Commander window reopens at its remembered bounds across an app rest
                 ?.setBounds(bounds);
         }, moved);
         await expect.poll(commanderBounds).toEqual(moved);
+        /**
+         * The default quit choice is Quit and Stop Tasks, which ends the Commander Terminal as `stopped` by design, so
+         * the relaunched pane shows only the persisted scrollback. Quitting before the Agent's first output would
+         * persist an empty screen (issue #1871).
+         */
+        const opened = running.app.windows().find((page) => page !== running.page)!;
+        await expect(opened.locator('.terminal-pane .xterm-rows')).toContainText(
+            'Fake codex ready',
+        );
 
         // A real quit (not just closing the window) is what flushes `persistWindowState` at `before-quit`.
         await running.app.close();
@@ -263,6 +276,7 @@ test('Agent Commander window reopens at its remembered bounds across an app rest
         // The Commander was still open when the app quit, so it reopens on its own, at the bounds it was left at.
         await expect.poll(() => running.app.windows().length).toBe(2);
         await expect.poll(commanderBounds).toEqual(moved);
+        // The Terminal was stopped by the quit, not restored: this is its persisted scrollback.
         const commander = running.app.windows().find((page) => page !== running.page)!;
         await expect(commander.locator('.terminal-pane .xterm-rows')).toContainText(
             'Fake codex ready',

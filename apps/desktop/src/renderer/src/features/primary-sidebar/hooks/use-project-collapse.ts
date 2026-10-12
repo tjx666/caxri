@@ -118,7 +118,9 @@ export function useProjectCollapse(input: UseProjectCollapseInput) {
         (projectId: string): void => {
             // Reveals against the reconciled view for the same reason `toggleProject` does: an automatic collapse the
             // reconciliation already dropped is open on screen, and re-recording it would be a decision the user never
-            // made.
+            // made. An already open Project returns early: `disclosure` is a fresh reconciled object, so storing it
+            // would cost the whole PrimarySidebar a render on every Session selection (`useSelectedSessionReveal`).
+            if (!isProjectCollapsed(disclosure, projectId)) return;
             setStoredDisclosure(projectCollapseAfterReveal(disclosure, projectId));
         },
         [disclosure],
