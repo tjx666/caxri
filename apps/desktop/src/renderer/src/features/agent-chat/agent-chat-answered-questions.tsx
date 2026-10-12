@@ -77,8 +77,8 @@ export function AgentChatAnsweredQuestions({
             </button>
             {isExpanded && (
                 <dl className="m-0 mt-1 space-y-2 px-1 text-[12px] leading-5" id={detailId}>
-                    {answers.map(({ answer, question }, index) => (
-                        <div key={index}>
+                    {answers.map(({ answer, question }) => (
+                        <div key={question}>
                             <dt className="wrap-anywhere text-muted select-text">{question}</dt>
                             <dd
                                 className={cn(

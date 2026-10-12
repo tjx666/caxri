@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatQuestionResponse, questionOptionIndexForKey } from '../agent-chat-question-flow';
+import {
+    agentChatQuestionResponse,
+    questionOptionIndexForArrow,
+    questionOptionIndexForKey,
+} from '../agent-chat-question-flow';
 
 describe('questionOptionIndexForKey', () => {
     it('maps digits 1 to 9 onto existing options only', () => {
@@ -9,6 +13,17 @@ describe('questionOptionIndexForKey', () => {
         expect(questionOptionIndexForKey('3', 2)).toBeUndefined();
         expect(questionOptionIndexForKey('0', 2)).toBeUndefined();
         expect(questionOptionIndexForKey('a', 2)).toBeUndefined();
+    });
+});
+
+describe('questionOptionIndexForArrow', () => {
+    it('moves the selection with wrap-around and starts from the matching end', () => {
+        expect(questionOptionIndexForArrow('ArrowDown', -1, 3)).toBe(0);
+        expect(questionOptionIndexForArrow('ArrowUp', -1, 3)).toBe(2);
+        expect(questionOptionIndexForArrow('ArrowDown', 2, 3)).toBe(0);
+        expect(questionOptionIndexForArrow('ArrowUp', 0, 3)).toBe(2);
+        expect(questionOptionIndexForArrow('ArrowDown', 0, 0)).toBeUndefined();
+        expect(questionOptionIndexForArrow('Enter', 0, 3)).toBeUndefined();
     });
 });
 
