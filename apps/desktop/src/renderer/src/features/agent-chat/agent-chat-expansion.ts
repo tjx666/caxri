@@ -1,4 +1,5 @@
 import type { AgentChatWorkItem } from '@caxri/protocol';
+import { splitAgentChatWork } from '@caxri/protocol';
 import { notifyListeners } from '@caxri/utils';
 
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
@@ -70,4 +71,25 @@ export function isAgentChatExpanded(
     isDefaultExpanded: boolean,
 ): boolean {
     return explicit ?? isDefaultExpanded;
+}
+
+/**
+ * The disclosures to open so a finished turn shows one of its work rows: the turn's fold and, when the row settled into
+ * a `Ran N commands` summary group, that group. `isLive` is the same predicate the work group splits by (a row whose
+ * task still runs stays its own row), so the computed summary key matches the group actually rendered. Opening these
+ * explicitly, rather than relying on `hasExpandedItem`, also overrides a fold or group the user had collapsed before.
+ */
+export function agentChatRevealItemKeys(
+    entry: Extract<AgentChatTimelineEntry, { kind: 'turn' }>,
+    itemId: string,
+    isLive: (item: AgentChatWorkItem) => boolean,
+): string[] {
+    const keys = [agentChatTurnExpansionKey(entry.id)];
+    for (const child of entry.entries) {
+        if (child.kind !== 'work' || child.items.every((item) => item.id !== itemId)) continue;
+        const { summarized } = splitAgentChatWork(child.items, isLive);
+        if (summarized.some((item) => item.id === itemId))
+            keys.push(agentChatSummaryExpansionKey(summarized));
+    }
+    return keys;
 }
