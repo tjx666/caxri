@@ -11,7 +11,7 @@ import type { ChipVisibility } from './chip-priority';
 import { LinearIssueStatus } from './linear-issue-status';
 import { pullRequestUnavailableLabel } from './pull-request-status-label';
 import { StatusInfo } from './status-info';
-import { StatusItem } from './status-item';
+import { PriorityChipSlot, StatusItem } from './status-item';
 
 type Repo = NonNullable<ProjectStatusOverview['repository']>;
 
@@ -49,6 +49,7 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
                             ),
                         },
                     ]}
+                    notes={['Counts tracked files only; new untracked files are not included.']}
                     hint="Click to show in Git"
                 />
             }
@@ -78,38 +79,50 @@ export function RepoStatusChips({
 }) {
     return (
         <>
-            {repo.pullRequest && chipVisibility.pullRequest && (
-                <StatusItem
-                    icon={<GitPullRequest />}
-                    href={repo.pullRequest.url}
-                    ariaLabel={`Open pull request #${repo.pullRequest.number}`}
-                    title={
-                        <StructuredTooltip
-                            eyebrow={`Pull request #${repo.pullRequest.number}`}
-                            title={repo.pullRequest.title}
-                            hint="Click to open on GitHub"
-                        />
-                    }
-                >
-                    #{repo.pullRequest.number}
-                </StatusItem>
+            {chipVisibility.pullRequest && (
+                <PriorityChipSlot chip="pullRequest">
+                    {repo.pullRequest && (
+                        <StatusItem
+                            icon={<GitPullRequest />}
+                            href={repo.pullRequest.url}
+                            ariaLabel={`Open pull request #${repo.pullRequest.number}`}
+                            title={
+                                <StructuredTooltip
+                                    eyebrow={`Pull request #${repo.pullRequest.number}`}
+                                    title={repo.pullRequest.title}
+                                    hint="Click to open on GitHub"
+                                />
+                            }
+                        >
+                            #{repo.pullRequest.number}
+                        </StatusItem>
+                    )}
+                    {repo.pullRequestUnavailable && (
+                        <StatusInfo
+                            icon={<GitPullRequest />}
+                            ariaLabel={`${pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}. ${repo.pullRequestUnavailable.hint}`}
+                            title={repo.pullRequestUnavailable.hint}
+                            className="bg-elevated text-muted"
+                            focusable
+                        >
+                            {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}
+                        </StatusInfo>
+                    )}
+                </PriorityChipSlot>
             )}
-            {repo.pullRequestUnavailable && chipVisibility.pullRequest && (
-                <StatusInfo
-                    icon={<GitPullRequest />}
-                    ariaLabel={`${pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}. ${repo.pullRequestUnavailable.hint}`}
-                    title={repo.pullRequestUnavailable.hint}
-                    className="bg-elevated text-muted"
-                    focusable
-                >
-                    {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}
-                </StatusInfo>
+            {chipVisibility.linearIssue && (
+                <PriorityChipSlot chip="linearIssue">
+                    {repo.linearIssues.length > 0 && (
+                        <LinearIssueStatus issues={repo.linearIssues} />
+                    )}
+                </PriorityChipSlot>
             )}
-            {repo.linearIssues.length > 0 && chipVisibility.linearIssue && (
-                <LinearIssueStatus issues={repo.linearIssues} />
-            )}
-            {repo.acceptances.length > 0 && chipVisibility.acceptance && (
-                <AcceptanceStatus acceptances={repo.acceptances} />
+            {chipVisibility.acceptance && (
+                <PriorityChipSlot chip="acceptance">
+                    {repo.acceptances.length > 0 && (
+                        <AcceptanceStatus acceptances={repo.acceptances} />
+                    )}
+                </PriorityChipSlot>
             )}
             <RepoChangesStatus additions={repo.additions} deletions={repo.deletions} />
         </>

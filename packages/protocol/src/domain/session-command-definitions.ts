@@ -43,9 +43,11 @@ export const sessionCommandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'session.compactWarm',
-        title: 'Compact Sessions with Warm Cache',
+        title: 'Compact Recently Idle Sessions',
         category: 'Session',
-        description: 'Compact idle Sessions whose prompt cache is estimated to remain warm',
+        description:
+            'Compact the Agent conversations of Sessions that went idle recently, while compacting them is still cheap',
+        keywords: ['warm cache', 'prompt cache', 'compact', 'context'],
     },
     {
         id: 'session.detach',

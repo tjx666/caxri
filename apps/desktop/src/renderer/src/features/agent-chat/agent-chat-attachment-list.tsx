@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { AgentChatAttachment } from './agent-chat-drafts';
-import { agentChatAttachmentLabel } from './agent-chat-drafts';
+import { agentChatAttachmentLabel, agentChatAttachmentName } from './agent-chat-drafts';
 import { AGENT_CHAT_IMAGE_RESIZED_NOTE } from './agent-chat-images';
 
 /**
@@ -80,9 +80,10 @@ function AttachmentThumbnail({
 
 /**
  * Images attached to the message being written, each removable before it is sent. Removing one unmounts the button that
- * had focus, so the caller hands focus back to the message input. A resized image says so on hover and in its alt text,
- * since what is sent is not the original file. Clicking a thumbnail opens the full image in a dialog, since the 64px
- * chip is too small to check a screenshot before sending it.
+ * had focus, so the caller hands focus back to the message input. Remove names the image the way its preview does, by
+ * file name (`agentChatAttachmentName`). A resized image says so on hover and in its alt text, since what is sent is
+ * not the original file. Clicking a thumbnail opens the full image in a dialog, since the 64px chip is too small to
+ * check a screenshot before sending it.
  */
 export function AgentChatAttachmentList({
     attachments,
@@ -113,7 +114,7 @@ export function AgentChatAttachmentList({
                             onPreview={() => setPreviewId(attachment.id)}
                         />
                         <Button
-                            aria-label={`Remove image ${index + 1}`}
+                            aria-label={`Remove ${agentChatAttachmentName(attachment, index)}`}
                             className="absolute top-1 right-1 size-5 shadow-sm"
                             size="icon"
                             type="button"

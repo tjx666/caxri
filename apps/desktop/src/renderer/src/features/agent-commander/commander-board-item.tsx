@@ -22,12 +22,12 @@ import {
     ZapOff,
 } from 'lucide-react';
 
-import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
+import { RunningArc } from '../primary-sidebar/session-status-indicator';
 import type {
     CommanderChecksIconId,
     CommanderProcessIconId,
@@ -43,14 +43,16 @@ import { openCommanderPullRequest, revealCommanderSession } from './commander-co
 type IconComponent = ComponentType<{ size?: number }>;
 
 /**
- * The Activity view's glyph shapes, so a state looks the same in both windows.
+ * The Activity view's glyph shapes, so a state looks the same in both windows. A running turn draws the
+ * PrimarySidebar's running ring rather than the Activity view's spinner, because the board lists the same Sessions as
+ * the sidebar.
  */
 const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, IconComponent> = {
     check: CircleCheck,
     dashed: CircleDashed,
     hollow: Circle,
     question: CircleQuestionMark,
-    spinner: Spinner,
+    spinner: RunningArc,
     unplug: Unplug,
     x: CircleX,
 };

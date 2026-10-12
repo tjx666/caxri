@@ -2,7 +2,7 @@ import type { AgentActionRecentSettings } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
-import { canSendTerminalInput } from '../terminal/terminal-commands';
+import { canSendTerminalInput } from '../terminal/terminal-pane-handlers';
 import type { AgentActionTerminalInputStep } from './agent-action-input';
 
 /**

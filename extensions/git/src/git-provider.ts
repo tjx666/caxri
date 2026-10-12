@@ -14,7 +14,7 @@ import type {
 import caxri, { CancellationTokenSource, EventEmitter, GitPullRequestErrorMessage } from 'caxri';
 
 import { DetailQueue } from './detail-queue';
-import { canDetectPullRequest, hasDetectedPullRequest } from './pull-request-detection';
+import { canDetectPullRequest, shouldAutoSelectPullRequestMode } from './pull-request-detection';
 import {
     buildSourceControlHistoryDetails,
     buildSourceControlHistoryPage,
@@ -50,10 +50,10 @@ interface GitProviderScopeState {
     contentTimer?: ReturnType<typeof setTimeout>;
     diffExclude: Readonly<Record<string, boolean>>;
     /**
-     * Whether the user picked this scope's mode: a mode command, opening a commit, or a Renderer request that changes
-     * the mode the provider last returned. The first request's `preferredModeId` only restores the persisted mode and
-     * is not a choice, because the Renderer persists whatever mode the provider reported. Until a choice, a Working
-     * Tree scope moves to Pull Request mode once any repository's branch has a pull request.
+     * Whether this scope's mode is settled: a mode command, opening a commit, a Renderer request that changes the mode
+     * the provider last returned, or a first request restoring a persisted mode (reopening in Working Tree mode must
+     * land there). Until then, a clean Working Tree scope moves to Pull Request mode once any repository's branch has a
+     * pull request (see `shouldAutoSelectPullRequestMode`).
      */
     isModeChosen: boolean;
     /**
@@ -434,6 +434,7 @@ export class GitProvider implements SourceControlProvider {
     ): Promise<SourceControlViewModel> {
         assertNotCancelled(token);
         const state = this.stateFor(request.scopeId);
+        if (!state.hasProvidedView && isMode(request.preferredModeId)) state.isModeChosen = true;
         if (
             isMode(request.preferredModeId) &&
             request.preferredModeId !== state.mode &&
@@ -481,12 +482,9 @@ export class GitProvider implements SourceControlProvider {
         const detailErrors = new Map<string, true | string>();
         const repoIds = new Set(summary.repositories.map(({ id }) => id));
         this.pruneDetails(state, repoIds);
-        if (!state.isModeChosen && state.mode === 'working') {
-            for (const repo of summary.repositories)
-                if (canDetectPullRequest(repo)) this.loadPullRequest(state, repo);
-            if (hasDetectedPullRequest(summary.repositories, state.pullRequests))
-                state.mode = 'pull-request';
-        }
+        const load = (repo: GitRepositorySummary) => this.loadPullRequest(state, repo);
+        if (shouldAutoSelectPullRequestMode(state, summary.repositories, load))
+            state.mode = 'pull-request';
         for (const repo of summary.repositories) {
             if (state.mode === 'commit') {
                 this.loadCommitDetails(state, repo);

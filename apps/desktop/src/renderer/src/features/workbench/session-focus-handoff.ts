@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 import { isEditableEventTarget } from '../../lib/keybindings';
 import { useDialogStore } from '../../stores/dialogs';
-import { focusTerminalById } from '../terminal/terminal-commands';
+import { focusTerminalById } from '../terminal/terminal-pane-handlers';
 import { getActivePaneTab } from './pane-actions';
 
 /**

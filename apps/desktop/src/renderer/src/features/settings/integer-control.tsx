@@ -12,6 +12,10 @@ interface IntegerControlProperties {
     spec: IntegerSettingSpec;
     value: number;
     onChange: (value: number) => void;
+    /**
+     * Set while the setting this value depends on is off (see `SettingRowDescriptor.enabledBy`).
+     */
+    disabled?: boolean;
 }
 
 interface IntegerDraft {
@@ -32,7 +36,14 @@ interface IntegerDraft {
  * reset action are derived from the stored value, so nothing may reach the write channel that the settings schema will
  * refuse (DESIGN.md principle 9: a failed write must not be presented as a successful one).
  */
-export function IntegerControl({ id, label, spec, value, onChange }: IntegerControlProperties) {
+export function IntegerControl({
+    disabled,
+    id,
+    label,
+    spec,
+    value,
+    onChange,
+}: IntegerControlProperties) {
     const scale = spec.display?.scale ?? 1;
     const [draftState, setDraftState] = useState<IntegerDraft>(() => ({
         committed: value,
@@ -54,6 +65,7 @@ export function IntegerControl({ id, label, spec, value, onChange }: IntegerCont
                     aria-invalid={isInvalid}
                     aria-label={label}
                     className="bg-background pr-12"
+                    disabled={disabled}
                     max={spec.max / scale}
                     min={spec.min / scale}
                     step={spec.display?.step ?? 1}

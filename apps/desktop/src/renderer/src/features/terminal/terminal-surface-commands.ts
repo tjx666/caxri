@@ -42,15 +42,20 @@ function otherTerminalSurface(terminal: Pick<TerminalRecord, 'surface'>): Termin
 
 /**
  * The tab-menu entry that reopens an Agent Terminal on the other surface, or `undefined` for a Terminal that cannot
- * switch. It shows the shortcut of `terminal.switchAgentSurface`, which performs the same switch on the active tab.
+ * switch. It shows the shortcut of `terminal.switchAgentSurface`, which performs the same switch on the active tab; a
+ * menu whose target is not the active Terminal passes `shouldShowShortcut: false` so the hint never points at another
+ * tab.
  */
 export function terminalSurfaceMenuEntry(
     terminal: SurfaceSwitchTerminal,
+    shouldShowShortcut = true,
 ): ContextMenuEntry | undefined {
     if (!canSwitchTerminalSurface(terminal)) return undefined;
     return {
         label: surfaceLabels[otherTerminalSurface(terminal)],
-        shortcut: readCommandShortcut('terminal.switchAgentSurface'),
+        shortcut: shouldShowShortcut
+            ? readCommandShortcut('terminal.switchAgentSurface')
+            : undefined,
         onSelect: () => switchTerminalSurfaceTo(terminal, otherTerminalSurface(terminal)),
     };
 }

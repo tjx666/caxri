@@ -3,7 +3,9 @@ import type { AgentProvider } from '@caxri/protocol';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast, tryCommand } from '../../stores/toasts';
+import { confirmBeforeEndingTurn } from '../terminal/agent-turn-guard';
 import { configureTerminalPaneHost } from '../terminal/terminal-pane-host';
+import { useAgentCommanderStore } from './commander-client';
 
 /**
  * Hands a board row to the Workbench window: Main selects the Session there and raises that window. The Commander
@@ -47,11 +49,31 @@ export function configureCommanderTerminalHost(): void {
 
 /**
  * Main closes this window, then stops the Commander on the Server; a failure surfaces here before the window goes.
+ * Stopping ends the Commander's Agent Run, so a running turn asks first through the same question as Restart Agent.
  */
 export function stopCommander(): void {
-    // Fire-and-forget: tryCommand reports a failed stop through a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Unable to stop Agent Commander', () => caxri.request('agentCommander.stop'));
+    const failureTitle = 'Unable to stop Agent Commander';
+    const stop = (): void => {
+        // Fire-and-forget: tryCommand reports a failed stop through a toast.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void tryCommand(failureTitle, () => caxri.request('agentCommander.stop'));
+    };
+    const terminalId = useAgentCommanderStore.getState().identity?.terminalId;
+    if (!terminalId) {
+        stop();
+        return;
+    }
+    // eslint-disable-next-line no-void -- the confirmation and the stop report their own errors
+    void confirmBeforeEndingTurn(
+        terminalId,
+        {
+            confirmLabel: 'Stop and Close',
+            failureTitle,
+            outcome:
+                'Stopping the Commander ends the current turn and closes this window. Tasks it delegated keep running.',
+        },
+        stop,
+    );
 }
 
 export function openCommanderPullRequest(url: string): void {

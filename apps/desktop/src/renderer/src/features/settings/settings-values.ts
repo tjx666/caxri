@@ -8,7 +8,7 @@ import {
 } from '@caxri/protocol';
 import { isEqual } from 'es-toolkit';
 
-import type { SettingRowBinding } from './settings-registry';
+import type { SettingRowBinding, SettingRowDescriptor } from './settings-registry';
 
 /**
  * The read side every Settings row shares. `argvConfig` stays optional because the Main-owned boot config loads
@@ -17,6 +17,16 @@ import type { SettingRowBinding } from './settings-registry';
 export interface SettingsValueContext {
     settings: AppSettings;
     argvConfig?: ArgvConfig;
+}
+
+/**
+ * Whether a row's control accepts input: false while the switch it depends on (`enabledBy`) is off.
+ */
+export function isRowEnabled(
+    row: Pick<SettingRowDescriptor, 'enabledBy'>,
+    settings: AppSettings,
+): boolean {
+    return row.enabledBy === undefined || settings[row.enabledBy] === true;
 }
 
 /**

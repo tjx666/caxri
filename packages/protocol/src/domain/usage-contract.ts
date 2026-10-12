@@ -156,7 +156,8 @@ export type UsageLimit = z.infer<typeof usageLimitSchema>;
 /**
  * Running totals of the conversation bound to one Agent Terminal, for the status bar. Priced by the same rules as the
  * Usage page, but over that conversation's own transcript files only (forked or resumed history included, since the
- * conversation carries it). `limit` is the latest rate-limit snapshot that conversation recorded, Codex only.
+ * conversation carries it). `limit` is the newest rate-limit observation for the provider from any conversation or
+ * Usage report Server Core has read, not only this one, because a plan limit is account-wide; Codex only.
  */
 export const agentUsageReadoutSchema = z.object({
     provider: agentProvider,

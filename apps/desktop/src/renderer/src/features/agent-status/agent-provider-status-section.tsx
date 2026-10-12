@@ -12,6 +12,7 @@ import {
     incidentPhaseLabel,
     providerServiceStatusLabel,
     providerStatusFailureLabel,
+    providerStatusView,
 } from './agent-provider-status-label';
 import { ProviderStatusDot } from './provider-status-summary';
 
@@ -56,16 +57,35 @@ function IncidentItem({ incident }: { incident: AgentProviderStatusIncident }) {
 
 /**
  * The Agent status tab's provider report: each watched status-page component, the open incidents touching them, and a
- * link to the full page. `undefined` is the first read still in flight; null is a provider without a status page.
+ * link to the full page. `undefined` is the first read still in flight, or a first read that failed (`isError`); null
+ * is a provider without a status page.
  */
 export function AgentProviderStatusSection({
     agentName,
+    isError,
+    onRetry,
     status,
 }: {
     agentName: string;
+    isError: boolean;
+    onRetry: () => void;
     status: AgentProviderStatus | null | undefined;
 }) {
     const checkedAgo = useRelativeTime(status?.checkedAt);
+    const view = providerStatusView(status, isError);
+    if (view === 'failed')
+        return (
+            <ReportCard title="API status">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="m-0 text-[12px] text-muted">
+                        Caxri could not read {agentName}&apos;s status page.
+                    </p>
+                    <Button size="sm" variant="secondary" onClick={onRetry}>
+                        Retry
+                    </Button>
+                </div>
+            </ReportCard>
+        );
     if (status === null)
         return (
             <ReportCard title="API status">

@@ -1,4 +1,4 @@
-import type { AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatModel, AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
 import { findAgentChatModel } from '@caxri/protocol';
 
 /**
@@ -74,4 +74,17 @@ export function agentChatConfigureFailureMessage(change: AgentChatModelRequest):
     if (change.model !== undefined) return 'Unable to switch the model';
     if (change.effort !== undefined) return 'Unable to switch the effort';
     return change.ultracode ? 'Unable to turn on Ultracode' : 'Unable to turn off Ultracode';
+}
+
+/**
+ * The listed model the menu checks and offers efforts for. Claude Code names the model in use only with a turn's init
+ * message, so a new Chat reports none while the trigger already reads "Default" with the effort it will apply; the
+ * provider's `default` alias is that model, so the menu checks it and shows its efforts instead of an unchecked list.
+ */
+export function agentChatMenuModel(
+    snapshot: Pick<AgentChatSnapshot, 'model' | 'models'>,
+): AgentChatModel | undefined {
+    if (snapshot.model === undefined)
+        return snapshot.models?.find((candidate) => candidate.id === 'default');
+    return findAgentChatModel(snapshot.models, snapshot.model);
 }

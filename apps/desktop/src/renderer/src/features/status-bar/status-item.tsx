@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
+import type { DroppableChip } from './chip-priority';
 import { StatusTooltip } from './status-tooltip';
 
 /**
@@ -17,7 +18,20 @@ export const statusItemClassName =
     'statusbar-item inline-flex h-5 min-w-0 items-center gap-[5px] overflow-hidden rounded border-0 bg-transparent px-[5px] text-foreground tabular-nums no-underline cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--foreground)] [&>svg]:flex-none [&>svg]:size-[13px] [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
 
 /**
- * Same hover-tooltip contract as `StatusInfo`, for the clickable status-bar entries.
+ * The box `useChipVisibility` measures around a chip it may drop (see `chip-priority.ts`). It collapses while the chip
+ * renders nothing (`empty:hidden`), so an absent chip takes no flex gap and measures as absent.
+ */
+export function PriorityChipSlot({ chip, children }: { chip: DroppableChip; children: ReactNode }) {
+    return (
+        <span className="flex flex-none items-center empty:hidden" data-status-chip={chip}>
+            {children}
+        </span>
+    );
+}
+
+/**
+ * Same hover-tooltip contract as `StatusInfo`, for the clickable status-bar entries. `flex-none`: a status-bar item
+ * keeps its whole label, and the bar drops whole chips by priority instead (DESIGN.md status bar redline).
  */
 export function StatusItem({
     ariaLabel,
@@ -51,7 +65,7 @@ export function StatusItem({
         <StatusTooltip content={title} interactive={interactiveTitle}>
             {href ? (
                 <a
-                    className={cn(statusItemClassName, className)}
+                    className={cn(statusItemClassName, 'flex-none', className)}
                     href={href}
                     rel="noreferrer"
                     aria-label={ariaLabel}
@@ -68,7 +82,7 @@ export function StatusItem({
             ) : (
                 <button
                     type="button"
-                    className={cn(statusItemClassName, className)}
+                    className={cn(statusItemClassName, 'flex-none', className)}
                     aria-label={ariaLabel}
                     onClick={onClick}
                 >

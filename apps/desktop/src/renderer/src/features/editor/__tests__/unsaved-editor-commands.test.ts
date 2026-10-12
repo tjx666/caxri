@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: vi.fn(), onEvent: vi.fn() } }));
 
-import { listUnsavedEditorDocuments, unsavedEditorName } from '../unsaved-editor-commands';
+import {
+    listUnsavedEditorDocuments,
+    unreachableUnsavedEditorsMessage,
+    unsavedEditorName,
+    unsavedEditorNames,
+} from '../unsaved-editor-commands';
 
 function document(path: string, overrides: Partial<EditorDocument> = {}): EditorDocument {
     return { path, content: 'draft', dirty: true, mtimeMs: 1, size: 5, ...overrides };
@@ -54,5 +59,36 @@ describe('listUnsavedEditorDocuments', () => {
 describe('unsavedEditorName', () => {
     it('uses the file name, never the full path', () => {
         expect(unsavedEditorName('/project/src/greeting.ts')).toBe('greeting.ts');
+    });
+});
+
+describe('unsavedEditorNames', () => {
+    it('adds the parent folder only to names two unsaved files share, including unlisted ones', () => {
+        expect(
+            unsavedEditorNames(
+                ['/p/src/index.ts', '/p/README.md', '/p/lib/util.ts', '/p/lib/index.ts'],
+                3,
+            ),
+        ).toEqual(['index.ts (src)', 'README.md', 'util.ts']);
+    });
+});
+
+describe('unreachableUnsavedEditorsMessage', () => {
+    it('names the files and the dialog choice, not quitting or closing', () => {
+        expect(unreachableUnsavedEditorsMessage(['/p/notes.md'])).toBe(
+            "notes.md belongs to a Workbench Root that is not open. Switch back to it to save, or choose Don't Save.",
+        );
+        expect(unreachableUnsavedEditorsMessage(['/p/a.md', '/p/b.md'])).toMatch(
+            /^a\.md and b\.md belong to /u,
+        );
+        expect(
+            unreachableUnsavedEditorsMessage([
+                '/p/a.md',
+                '/p/b.md',
+                '/p/c.md',
+                '/p/d.md',
+                '/p/e.md',
+            ]),
+        ).toMatch(/^a\.md, b\.md, c\.md, and 2 more belong to /u);
     });
 });

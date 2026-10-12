@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it, onTestFinished } from 'vitest';
 
 import type { CaxriDatabase } from '../../db';
-import { LiveAgentUsage } from '../live-usage';
+import { LiveAgentUsage, newerUsageLimit } from '../live-usage';
 import type { ModelPrice } from '../pricing';
 
 const T0 = Date.parse('2026-03-01T10:00:00.000Z');
@@ -96,5 +96,43 @@ describe('LiveAgentUsage', () => {
             () => {},
         );
         expect(await empty.read('terminal-1')).toBeNull();
+    });
+
+    it('reports the newest account-wide limit observed anywhere, not only this conversation', async () => {
+        const { environment, directory } = await claudeProject();
+        await writeFile(join(directory, `${FIRST}.jsonl`), line('m1', 5));
+        const usage = new LiveAgentUsage(
+            boundTerminal({ agentSessionId: FIRST }),
+            environment,
+            () => {},
+            () => T0,
+        );
+        expect((await usage.read('terminal-1'))?.limit).toBeUndefined();
+
+        const older = {
+            provider: 'claude' as const,
+            observedAt: T0 - 60_000,
+            windows: [{ windowMinutes: 300, usedPercent: 20 }],
+        };
+        const newer = {
+            ...older,
+            observedAt: T0,
+            windows: [{ windowMinutes: 300, usedPercent: 64 }],
+        };
+        usage.observeLimits([newer]);
+        usage.observeLimits([older]);
+        expect((await usage.read('terminal-1'))?.limit).toEqual(newer);
+    });
+});
+
+describe('newerUsageLimit', () => {
+    const limit = (observedAt: number) => ({ provider: 'codex' as const, observedAt, windows: [] });
+
+    it('keeps the later observation and the current one on a tie', () => {
+        const current = limit(10);
+        expect(newerUsageLimit(undefined, current)).toBe(current);
+        expect(newerUsageLimit(current, limit(5))).toBe(current);
+        expect(newerUsageLimit(current, limit(10))).toBe(current);
+        expect(newerUsageLimit(current, limit(11)).observedAt).toBe(11);
     });
 });

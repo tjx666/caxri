@@ -5,15 +5,44 @@ const render = vi.fn<(id: string, source: string) => Promise<{ svg: string }>>()
 const initialize = vi.fn<(config: { themeVariables?: Record<string, string> }) => void>();
 vi.mock('mermaid', () => ({ default: { initialize, render } }));
 
+/**
+ * The slice of a diagram element the renderer touches: the SVG markup, the error paragraph appended after it, and the
+ * stale class. There is no DOM in this suite, so the element models only those three.
+ */
 class DiagramElement {
     html = '';
+    error: string | undefined;
+    readonly classes = new Set<string>();
+    readonly classList = {
+        remove: (name: string) => this.classes.delete(name),
+        toggle: (name: string, isOn: boolean) =>
+            isOn ? this.classes.add(name) : this.classes.delete(name),
+    };
+    readonly ownerDocument = {
+        createElement: () => ({ className: '', textContent: '' }),
+    };
 
     set innerHTML(value: string) {
         this.html = value;
+        this.error = undefined;
     }
 
     getHTML(): string {
         return this.html;
+    }
+
+    querySelector(selector: string) {
+        if (selector === ':scope > svg') return this.html.startsWith('<svg') ? {} : null;
+        return this.error === undefined ? null : { remove: () => (this.error = undefined) };
+    }
+
+    replaceChildren(): void {
+        this.html = '';
+        this.error = undefined;
+    }
+
+    append(child: { textContent: string }): void {
+        this.error = child.textContent;
     }
 }
 
@@ -121,5 +150,35 @@ describe('Markdown diagram scheduling', () => {
         await renderDiagrams(container, diagrams, edited, signal);
         expect(render).toHaveBeenCalledTimes(2);
         expect(initialize).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps the last good diagram, dimmed, under a parse error until the source parses again', async () => {
+        render.mockImplementation((_id, source) =>
+            source.includes('-->')
+                ? Promise.resolve({ svg: `<svg>${source}</svg>` })
+                : Promise.reject(new Error('Parse error on line 1')),
+        );
+        const { renderMermaidDiagram } = await import('../markdown-diagrams');
+        const element = new DiagramElement();
+        const target = element as unknown as HTMLElement;
+        const signal = new AbortController().signal;
+
+        await renderMermaidDiagram(target, 'graph LR; A', draculaTheme, signal);
+        expect(element.getHTML()).toBe('');
+        expect(element.error).toBe('Parse error on line 1');
+        expect(element.classes.has('is-stale')).toBe(false);
+
+        await renderMermaidDiagram(target, 'graph LR; A-->B', draculaTheme, signal);
+        expect(element.error).toBeUndefined();
+
+        await renderMermaidDiagram(target, 'graph LR; A-', draculaTheme, signal);
+        expect(element.getHTML()).toBe('<svg>graph LR; A-->B</svg>');
+        expect(element.error).toBe('Parse error on line 1');
+        expect(element.classes.has('is-stale')).toBe(true);
+
+        await renderMermaidDiagram(target, 'graph LR; A-->C', draculaTheme, signal);
+        expect(element.getHTML()).toBe('<svg>graph LR; A-->C</svg>');
+        expect(element.error).toBeUndefined();
+        expect(element.classes.has('is-stale')).toBe(false);
     });
 });

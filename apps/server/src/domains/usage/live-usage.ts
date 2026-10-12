@@ -1,4 +1,4 @@
-import type { AgentUsageReadout } from '@caxri/protocol';
+import type { AgentProvider, AgentUsageReadout, UsageLimit } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
 import type { AgentEnvironment, AgentTranscriptIdentity } from '../agents';
@@ -26,6 +26,17 @@ interface LiveScan {
 }
 
 /**
+ * The newer of two rate-limit observations for the same provider, keeping `current` on a tie so a repeated read does
+ * not churn the reference.
+ */
+export function newerUsageLimit(
+    current: UsageLimit | undefined,
+    candidate: UsageLimit,
+): UsageLimit {
+    return current && current.observedAt >= candidate.observedAt ? current : candidate;
+}
+
+/**
  * Keeps one {@link IncrementalUsageScan} per Agent Terminal so the status bar can poll the bound conversation's running
  * usage: each read parses only records appended since the previous one. A rebind to another conversation starts over.
  * Only token counts, model names, and rate-limit percentages are retained, never transcript content.
@@ -34,6 +45,13 @@ export class LiveAgentUsage {
     private readonly scans = new Map<string, LiveScan>();
     private readonly reads = new SingleFlight<string, AgentUsageReadout | null>();
     private readonly locator: UsageTranscriptLocator;
+    /**
+     * Newest rate-limit observation per provider from any source this process has read: every live conversation and
+     * every Usage report. A plan limit is account-wide, so the conversation in the active Terminal is not its owner;
+     * without this the status bar kept showing that conversation's last reading after another conversation (or the
+     * Usage page, reading every transcript) had already seen a newer one.
+     */
+    private readonly latestLimits = new Map<AgentProvider, UsageLimit>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -66,16 +84,29 @@ export class LiveAgentUsage {
         const record = state.scan.toRecord();
         if (record.tokens.length === 0) return null;
         const summary = summarizeUsage(record, this.priceOf);
+        if (record.rateLimits)
+            this.observeLimits([{ provider: identity.provider, ...record.rateLimits }]);
+        const limit = this.latestLimits.get(identity.provider);
         return {
             provider: identity.provider,
             tokens: summary.tokens,
             costUsd: summary.costUsd,
             models: record.models,
             unpricedModels: summary.unpricedModels,
-            ...(record.rateLimits && {
-                limit: { provider: identity.provider, ...record.rateLimits },
-            }),
+            ...(limit && { limit }),
         };
+    }
+
+    /**
+     * Records rate-limit observations read elsewhere (a Usage report over every transcript) so the next live read
+     * reports the newest one for its provider instead of its own conversation's older reading.
+     */
+    observeLimits(limits: readonly UsageLimit[]): void {
+        for (const limit of limits)
+            this.latestLimits.set(
+                limit.provider,
+                newerUsageLimit(this.latestLimits.get(limit.provider), limit),
+            );
     }
 
     async read(terminalId: string): Promise<AgentUsageReadout | null> {

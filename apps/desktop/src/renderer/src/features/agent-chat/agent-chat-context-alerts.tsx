@@ -7,6 +7,11 @@ import { agentChatContextAlerts } from './agent-chat-context';
 import { useClockTick } from './hooks/use-clock-tick';
 
 /**
+ * Both of the row's actions share one Button shape, so neither reads as the lesser choice by styling alone.
+ */
+const ACTION_CLASS = 'min-h-6 shrink-0 gap-1.5 px-1.5 text-[12px]';
+
+/**
  * The composer's first row while an idle Chat's context needs attention: the prompt cache expired, so the next reply
  * re-reads the whole conversation (`--muted`: a cost fact, not a fault), or the context is high enough to compact first
  * (`--danger`, with a Compact button when the provider reports a compact command). It takes the activity bar's place
@@ -62,22 +67,22 @@ export function AgentChatContextAlerts({
                 <span className="-mr-1.5 ml-auto flex shrink-0 items-center gap-1">
                     {alerts.cache && (
                         <Tooltip content="Open a new Chat that reads this conversation's transcript and continues the work. Your draft goes with it.">
-                            <button
+                            <Button
                                 aria-disabled={isContinuing || undefined}
-                                className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-0.5 text-[11px] text-muted transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) not-aria-disabled:hover:bg-elevated not-aria-disabled:hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
-                                type="button"
+                                className={ACTION_CLASS}
+                                size="sm"
+                                variant="secondary"
                                 onClick={onContinueInNewChat}
                             >
                                 <MessageSquarePlus aria-hidden className="size-3.5" />
                                 Continue in new Chat
-                            </button>
+                            </Button>
                         </Tooltip>
                     )}
                     {canCompact && (
                         <Button
-                            className="min-h-6 shrink-0 px-1.5 text-[12px]"
+                            className={ACTION_CLASS}
                             size="sm"
-                            type="button"
                             variant="secondary"
                             onClick={onCompact}
                         >

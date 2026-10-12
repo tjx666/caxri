@@ -15,19 +15,12 @@ import {
     MIN_DELEGATION_DEPTH,
     settingsSpecByKey,
 } from '@caxri/protocol';
-import { Archive, Info, RotateCcw } from 'lucide-react';
+import { Archive } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
-import {
-    Field,
-    FieldContent,
-    FieldDescription,
-    FieldLabel,
-    FieldTitle,
-} from '../../components/ui/field';
+import { FieldDescription } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
-import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
@@ -40,10 +33,12 @@ import { MobileAccessForm } from './mobile-access-form';
 import { hookHealthCaption, hookHealthTone, isHookAdapterAvailable } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
+import { SettingRowChrome } from './setting-row-chrome';
 import { isFullWidthRow } from './setting-row-layout';
 import type { SettingRowDescriptor } from './settings-registry';
 import type { SettingsValueContext } from './settings-values';
 import {
+    isRowEnabled,
     isRowModified,
     isRowResettable,
     withProviderAutonomyField,
@@ -71,113 +66,6 @@ export interface SettingRowProperties {
     agentSkillHealth?: AgentSkillHealth;
     trustedDomainsFocusRequestId?: number;
     handlers: SettingRowHandlers;
-}
-
-interface RowChromeProperties {
-    row: SettingRowDescriptor;
-    modified: boolean;
-    resettable: boolean;
-    onReset: () => void;
-    /**
-     * Rendered right of the label block (horizontal rows) or under it (full-width rows).
-     */
-    control: ReactNode;
-    /**
-     * Optional live status caption under the description (hook health).
-     */
-    status?: ReactNode;
-    /**
-     * A full-width row's own on/off switch, kept at the row's right end like every other toggle in Settings while its
-     * expanded fields stay below. Without this the switch fell under the description and left-aligned, so one screen
-     * showed the same control in two places.
-     */
-    toggle?: ReactNode;
-    fullWidth: boolean;
-    labelFor?: string;
-}
-
-function RowChrome({
-    row,
-    modified,
-    resettable,
-    onReset,
-    control,
-    status,
-    toggle,
-    fullWidth,
-    labelFor,
-}: RowChromeProperties) {
-    const labelBlock = (
-        <FieldContent>
-            <span className="flex items-center gap-1.5">
-                {labelFor ? (
-                    <FieldLabel htmlFor={labelFor}>{row.title}</FieldLabel>
-                ) : (
-                    <FieldTitle>{row.title}</FieldTitle>
-                )}
-                {modified && resettable && (
-                    <Tooltip content="Reset to default">
-                        <Button
-                            aria-label={`Reset ${row.accessibleTitle} to default`}
-                            className="size-5 min-h-0 p-0 text-muted opacity-0 group-focus-within/setting:opacity-100 group-hover/setting:opacity-100 hover:text-foreground"
-                            size="icon"
-                            variant="ghost"
-                            onClick={onReset}
-                        >
-                            <RotateCcw size={12} />
-                        </Button>
-                    </Tooltip>
-                )}
-                {row.detail && (
-                    <Tooltip content={row.detail}>
-                        <Button
-                            aria-label={`More about ${row.accessibleTitle}`}
-                            className="size-5 min-h-0 p-0 text-muted hover:text-foreground"
-                            size="icon"
-                            variant="ghost"
-                        >
-                            <Info size={12} />
-                        </Button>
-                    </Tooltip>
-                )}
-            </span>
-            {row.description && (
-                <FieldDescription className="max-w-xl">{row.description}</FieldDescription>
-            )}
-            {status}
-        </FieldContent>
-    );
-    return (
-        <div
-            data-setting-row={row.id}
-            className="group/setting relative rounded-md px-3 py-2 hover:bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)]"
-        >
-            {modified && (
-                <span
-                    aria-hidden="true"
-                    className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-[color-mix(in_srgb,var(--accent)_60%,transparent)]"
-                />
-            )}
-            {fullWidth ? (
-                <Field className="gap-2">
-                    {toggle ? (
-                        <div className="flex min-h-9 w-full items-start gap-4">
-                            {labelBlock}
-                            {toggle}
-                        </div>
-                    ) : (
-                        labelBlock
-                    )}
-                    {control}
-                </Field>
-            ) : (
-                <Field orientation="horizontal" className="min-h-9 items-start gap-4">
-                    {labelBlock}
-                    {control}
-                </Field>
-            )}
-        </div>
-    );
 }
 
 /**
@@ -211,6 +99,7 @@ function rowControl(properties: SettingRowProperties): {
     switch (binding.type) {
         case 'setting': {
             const spec = settingsSpecByKey[binding.key];
+            const isDisabled = !isRowEnabled(row, settings);
             if (spec.kind === 'boolean')
                 return {
                     labelFor: controlId,
@@ -220,6 +109,7 @@ function rowControl(properties: SettingRowProperties): {
                             aria-label={row.accessibleTitle}
                             checked={settings[binding.key] as boolean}
                             className="mt-0.5"
+                            disabled={isDisabled}
                             onCheckedChange={(checked) => onFieldChange(binding.key, checked)}
                         />
                     ),
@@ -229,6 +119,7 @@ function rowControl(properties: SettingRowProperties): {
                     labelFor: controlId,
                     control: (
                         <IntegerControl
+                            disabled={isDisabled}
                             id={controlId}
                             label={row.accessibleTitle}
                             spec={spec}
@@ -609,7 +500,7 @@ export function SettingRow(properties: SettingRowProperties) {
     const { row, context, handlers } = properties;
     const { control, status, toggle, labelFor } = rowControl(properties);
     return (
-        <RowChrome
+        <SettingRowChrome
             control={control}
             fullWidth={isFullWidthRow(row)}
             labelFor={labelFor}

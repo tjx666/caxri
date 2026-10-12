@@ -1,7 +1,7 @@
 import { agentTaskTabPath, agentTurnReviewTabPath } from '@caxri/protocol';
 
 import { openEditorTab } from '../editor/document-commands';
-import { focusTerminalById } from '../terminal/terminal-commands';
+import { focusTerminalById } from '../terminal/terminal-pane-handlers';
 import {
     findPaneTabId,
     getPaneLayout,

@@ -147,9 +147,7 @@ test('external link target changes refresh the editor and expanded directory', a
         await expect(editor.locator('.view-lines')).toContainText('initial external fixture');
         await writeFile(target, 'clean external replacement\n');
         await expect(editor.locator('.view-lines')).toContainText('clean external replacement');
-        const notice = running.page.getByText(
-            /reloaded from disk; external changes take precedence/,
-        );
+        const notice = running.page.getByText(/were replaced by changes on disk/);
         await expect(notice).not.toBeVisible();
         await editor.click();
         await running.page.keyboard.press('Meta+End');

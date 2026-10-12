@@ -89,7 +89,11 @@ const TIMELINE_EXPANDED_FILE_LIMIT = 3;
 /**
  * Output taller than this scrolls inside its block, so one long log never pushes the conversation off screen.
  */
-const OUTPUT_CLASS_NAME = 'max-h-80 overflow-y-auto';
+/**
+ * Output and command bodies are content in an otherwise `select-none` transcript, so they opt back into selection; the
+ * code view's header stays chrome.
+ */
+const OUTPUT_CLASS_NAME = 'max-h-80 overflow-y-auto select-text';
 
 /**
  * Work still running keeps its tool glyph and sweeps a highlight across its whole title instead of swapping in a
@@ -235,7 +239,7 @@ function WorkDetail({
         case 'reasoning': {
             return (
                 <AgentChatMessage
-                    className="text-muted"
+                    className="text-muted select-text"
                     isStreaming={item.streaming}
                     text={agentChatReasoningTitle(item.text).body}
                     onOpenFile={onOpenFile}
@@ -282,7 +286,7 @@ function WorkDetail({
             return (
                 <>
                     {item.summary && (
-                        <p className="m-0 font-mono text-[11px] wrap-anywhere whitespace-pre-wrap text-muted">
+                        <p className="m-0 font-mono text-[11px] wrap-anywhere whitespace-pre-wrap text-muted select-text">
                             {item.summary}
                         </p>
                     )}
@@ -298,12 +302,15 @@ function WorkDetail({
             );
         }
         case 'fileChange': {
+            // Diff text is selectable; the diff's own line-number and marker gutters stay `select-none`.
             return (
-                <AgentChatFileChanges
-                    changes={item.changes}
-                    expandAtMost={TIMELINE_EXPANDED_FILE_LIMIT}
-                    status={item.status}
-                />
+                <div className="select-text">
+                    <AgentChatFileChanges
+                        changes={item.changes}
+                        expandAtMost={TIMELINE_EXPANDED_FILE_LIMIT}
+                        status={item.status}
+                    />
+                </div>
             );
         }
     }

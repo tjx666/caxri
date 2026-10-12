@@ -24,6 +24,7 @@ import {
     burnRateCaption,
     computeStreaks,
     costTileDetail,
+    countLabel,
     formatHour,
     hasUnpricedProviderModel,
     isUsageUnpriced,
@@ -34,6 +35,12 @@ import {
     usageHourTooltip,
     usageSessionCount,
 } from './usage-metrics';
+import {
+    limitBarTone,
+    pullRequestTileDetail,
+    usageShare,
+    usageShareBasis,
+} from './usage-presentation';
 
 function KpiTiles({ report }: { report: UsageReport }) {
     const { totals } = report;
@@ -41,7 +48,9 @@ function KpiTiles({ report }: { report: UsageReport }) {
     const cacheRate = totals.tokens.total > 0 ? totals.tokens.cacheRead / totals.tokens.total : 0;
     const isUnpriced = isUsageUnpriced(report);
     return (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+        // Auto-fit against the pane, not the window: the Usage tab often sits in a narrow split while the window is wide,
+        // so viewport breakpoints kept six columns in a 600px pane and clipped every figure.
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-2">
             <StatTile
                 label="Est. API cost"
                 value={isUnpriced ? 'No price' : formatUsd(totals.costUsd)}
@@ -60,25 +69,30 @@ function KpiTiles({ report }: { report: UsageReport }) {
             <StatTile
                 label="Sessions"
                 value={`${totals.sessionsCreated.toLocaleString('en-US')} created`}
-                detail={`${totals.sessionsArchived} archived`}
+                detail={`${totals.sessionsArchived.toLocaleString('en-US')} archived`}
             />
             <StatTile
                 label="Pull requests"
-                value={`${totals.pullRequestsMerged} merged`}
+                value={`${totals.pullRequestsMerged.toLocaleString('en-US')} merged`}
                 detail={
                     // A comma, not ` · `: when the tile is narrow the second fact wraps, and a comma may end a line
                     // where a dangling middle dot read as a broken separator.
-                    <>
-                        <span className="whitespace-nowrap">{`+${formatLineCount(totals.linesAdded)} -${formatLineCount(totals.linesDeleted)} lines,`}</span>{' '}
-                        <span className="whitespace-nowrap">{`${totals.pullRequestsCreated} opened`}</span>
-                    </>
+                    pullRequestTileDetail(totals, formatLineCount).map((fact, index, facts) => (
+                        <span key={fact}>
+                            <span className="whitespace-nowrap">
+                                {fact}
+                                {index < facts.length - 1 && ','}
+                            </span>
+                            {index < facts.length - 1 && ' '}
+                        </span>
+                    ))
                 }
             />
             {/* Read from the trailing-year activity, like the Activity card, so the range selector does not move it. */}
             <StatTile
                 label="Streak (past year)"
-                value={`${streaks.current} ${streaks.current === 1 ? 'day' : 'days'}`}
-                detail={`Longest ${streaks.longest} ${streaks.longest === 1 ? 'day' : 'days'}`}
+                value={countLabel(streaks.current, 'day')}
+                detail={`Longest ${countLabel(streaks.longest, 'day')}`}
             />
         </div>
     );
@@ -183,6 +197,7 @@ function LimitWindowRow({
             </div>
             {/* A reset window's last percentage belongs to the window that ended, so its bar is dimmed, not dropped. */}
             <Progress
+                variant={limitBarTone(window.usedPercent) === 'warning' ? 'meterWarning' : 'meter'}
                 aria-label={
                     isReset ? `${name} limit, reset since last reported` : `${name} limit used`
                 }
@@ -238,7 +253,8 @@ function LimitsCard({ report }: { report: UsageReport }) {
 }
 
 function AgentsCard({ report }: { report: UsageReport }) {
-    const total = report.totals.costUsd;
+    const basis = usageShareBasis(report);
+    const total = { costUsd: report.totals.costUsd, tokens: report.totals.tokens.total };
     return (
         <ReportCard title="Agents">
             {report.providers.length === 0 ? (
@@ -261,7 +277,13 @@ function AgentsCard({ report }: { report: UsageReport }) {
                                     })}
                                 />
                             </div>
-                            <ShareBar share={total > 0 ? row.costUsd / total : 0} />
+                            <ShareBar
+                                share={usageShare(
+                                    { costUsd: row.costUsd, tokens: row.tokens.total },
+                                    total,
+                                    basis,
+                                )}
+                            />
                             <div className="flex justify-between gap-3 text-[11px] text-muted tabular-nums">
                                 <span>
                                     {formatTokens(row.tokens.total)} tokens ·{' '}
@@ -338,14 +360,15 @@ function HourOfDayCard({ report }: { report: UsageReport }) {
 export function UsageSections({ report }: { report: UsageReport }) {
     const hasLimits = report.limits.length > 0;
     return (
-        <div className="mx-auto grid max-w-6xl gap-3 p-4">
+        // A size container, so the two-column rows follow the pane's width rather than the window's.
+        <div className="@container mx-auto grid max-w-6xl gap-3 p-4">
             <KpiTiles report={report} />
             <UsageActivityCard activity={report.activity} today={report.today} />
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-3 @3xl:grid-cols-2">
                 <BurnCard report={report} />
                 <HourOfDayCard report={report} />
             </div>
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-3 @3xl:grid-cols-2">
                 <AgentsCard report={report} />
                 {hasLimits ? <LimitsCard report={report} /> : <InsightsCard report={report} />}
             </div>

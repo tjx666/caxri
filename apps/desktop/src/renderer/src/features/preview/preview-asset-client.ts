@@ -142,3 +142,19 @@ export async function readAssetBytes(
     const asset = await caxri.requestWithSignal('files.readAsset', signal, { sessionId, path });
     return decodeBase64(asset.base64);
 }
+
+/**
+ * Reads one image a preview tab shows as its whole content into an object URL the caller owns and must revoke.
+ *
+ * Unlike {@link acquireAsset}, a failure is thrown rather than turned into a placeholder: the tab has nothing else to
+ * show, so it needs the reason (a missing file, the size ceiling) to say what went wrong and which recovery helps. It
+ * also skips the shared cache, because a rewrite on disk has to produce a fresh read rather than the cached bytes.
+ */
+export async function readAssetObjectUrl(
+    sessionId: string,
+    path: string,
+    signal: AbortSignal,
+): Promise<string> {
+    const asset = await caxri.requestWithSignal('files.readAsset', signal, { sessionId, path });
+    return URL.createObjectURL(new Blob([decodeBase64(asset.base64)], { type: asset.mediaType }));
+}

@@ -1,12 +1,16 @@
 import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    AGENT_CHAT_EDITS_STORAGE_KEY,
     agentChatEditAvailability,
     agentChatEditCaption,
     agentChatEditRemovedTurns,
     agentChatForkAvailability,
     agentChatRestoreAvailability,
+    MAX_PERSISTED_AGENT_CHAT_EDITS,
+    parsePersistedAgentChatEdits,
+    persistableAgentChatEdits,
 } from '../agent-chat-edit';
 
 type EditSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>;
@@ -71,5 +75,77 @@ describe('Agent Chat edit from here', () => {
         expect(agentChatEditCaption(3)).toBe(
             'Editing an earlier message · 3 turns will be replaced',
         );
+    });
+});
+
+describe('Agent Chat edit persistence', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    /**
+     * Installs a `window` and `localStorage` under Vitest's `node` environment and loads a fresh copy of the module,
+     * the way a restarted Renderer starts from storage alone.
+     */
+    async function restart(storage: Map<string, string>) {
+        vi.stubGlobal('window', {});
+        vi.stubGlobal('localStorage', {
+            getItem: (key: string) => storage.get(key) ?? null,
+            setItem: (key: string, value: string) => storage.set(key, value),
+        });
+        vi.resetModules();
+        return import('../agent-chat-edit');
+    }
+
+    it('brings an edit and its held-back draft back after a restart, and forgets one that ended', async () => {
+        const storage = new Map<string, string>();
+        const first = await restart(storage);
+        first.writeAgentChatEdit('chat-a', {
+            itemId: 'u1',
+            restoreFiles: true,
+            previousDraft: 'half written',
+        });
+        first.writeAgentChatEdit('chat-b', {
+            itemId: 'u2',
+            restoreFiles: false,
+            previousDraft: '',
+        });
+
+        const restarted = await restart(storage);
+        expect(restarted.readAgentChatEdit('chat-a')).toEqual({
+            itemId: 'u1',
+            restoreFiles: true,
+            previousDraft: 'half written',
+        });
+        restarted.writeAgentChatEdit('chat-a', undefined);
+
+        const again = await restart(storage);
+        expect(again.readAgentChatEdit('chat-a')).toBeUndefined();
+        expect(again.readAgentChatEdit('chat-b')?.itemId).toBe('u2');
+    });
+
+    it('drops malformed entries instead of trusting them', () => {
+        const parsed = parsePersistedAgentChatEdits([
+            ['chat-a', { itemId: 'u1', restoreFiles: false, previousDraft: 'kept' }],
+            ['chat-b', { itemId: '', restoreFiles: false, previousDraft: '' }],
+            ['chat-c', { itemId: 'u3', restoreFiles: 'yes', previousDraft: '' }],
+            ['', { itemId: 'u4', restoreFiles: false, previousDraft: '' }],
+            ['chat-e', null],
+            'garbage',
+        ]);
+        expect(parsed.keys().toArray()).toEqual(['chat-a']);
+        expect(parsePersistedAgentChatEdits(undefined).size).toBe(0);
+        expect(AGENT_CHAT_EDITS_STORAGE_KEY).toBe('caxri.agent-chat.edits');
+    });
+
+    it('keeps only the newest edits within the bound', () => {
+        const edits = new Map(
+            Array.from({ length: MAX_PERSISTED_AGENT_CHAT_EDITS + 2 }, (_, index) => [
+                `chat-${index}`,
+                { itemId: `u${index}`, restoreFiles: false, previousDraft: '' },
+            ]),
+        );
+        const kept = persistableAgentChatEdits(edits);
+        expect(kept).toHaveLength(MAX_PERSISTED_AGENT_CHAT_EDITS);
+        expect(kept[0]?.[0]).toBe('chat-2');
+        expect(kept.at(-1)?.[0]).toBe(`chat-${MAX_PERSISTED_AGENT_CHAT_EDITS + 1}`);
     });
 });

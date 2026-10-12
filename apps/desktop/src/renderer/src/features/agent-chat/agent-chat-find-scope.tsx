@@ -5,8 +5,10 @@ import { AgentChatFindBar } from './agent-chat-find-bar';
 import { useAgentChatFind } from './hooks/use-agent-chat-find';
 
 /**
- * The conversation area with find in it: the bar over its top right, and the query its folded turns compare their text
- * with, so one that holds a match opens.
+ * The conversation area with find in it: the bar in a strip above it, which the conversation gives up its height to
+ * while find is open so no message hides under the bar, and the query its folded turns compare their text with, so one
+ * that holds a match opens. The area below the bar is the positioning box for the conversation's overlays (the message
+ * rail and Jump to latest).
  */
 export function AgentChatFindScope({
     children,
@@ -36,8 +38,10 @@ export function AgentChatFindScope({
     });
     return (
         <AgentChatFindQueryContext value={find.searched}>
-            {children}
-            {find.bar && <AgentChatFindBar {...find.bar} />}
+            <div className="flex h-full min-h-0 flex-col">
+                {find.bar && <AgentChatFindBar {...find.bar} />}
+                <div className="relative min-h-0 flex-1">{children}</div>
+            </div>
         </AgentChatFindQueryContext>
     );
 }

@@ -17,6 +17,10 @@ const mocks = vi.hoisted(() => ({
     writeText: vi.fn(),
 }));
 
+vi.mock('../features/editor/discarded-buffers', () => ({
+    discardedChangesUnavailableReason: vi.fn(),
+    restoreDiscardedChanges: vi.fn(),
+}));
 vi.mock('../features/editor/document-commands', () => ({
     retrySaveDocument: mocks.retrySaveDocument,
     saveRetryUnavailableReason: mocks.saveRetryUnavailableReason,
@@ -25,7 +29,7 @@ vi.mock('../features/gpu/gpu-commands', () => ({
     confirmTurnOffHardwareAcceleration: mocks.confirmTurnOffHardwareAcceleration,
     openHardwareAccelerationSettings: mocks.openHardwareAccelerationSettings,
 }));
-vi.mock('../features/session/session-commands', () => ({
+vi.mock('../features/session/session-archive-commands', () => ({
     unarchiveSession: mocks.unarchiveSession,
 }));
 vi.mock('../features/terminal/terminal-commands', () => ({

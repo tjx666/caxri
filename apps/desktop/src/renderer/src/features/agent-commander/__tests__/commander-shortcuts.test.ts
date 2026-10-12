@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ ran: [] as string[] }));
 
 vi.mock('../../terminal/terminal-commands', () => ({
+    restartActiveTerminal: (terminalId: string) => mocks.ran.push(`restart ${terminalId}`),
+}));
+vi.mock('../../terminal/terminal-pane-handlers', () => ({
     clearActiveTerminal: (terminalId: string) => mocks.ran.push(`clear ${terminalId}`),
     findInActiveTerminal: (terminalId: string) => mocks.ran.push(`find ${terminalId}`),
-    restartActiveTerminal: (terminalId: string) => mocks.ran.push(`restart ${terminalId}`),
 }));
 vi.mock('../../terminal/terminal-link-actions', () => ({
     openTerminalLinkPicker: (terminalId: string) => mocks.ran.push(`links ${terminalId}`),

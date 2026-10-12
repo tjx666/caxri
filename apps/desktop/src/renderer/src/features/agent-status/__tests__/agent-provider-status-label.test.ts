@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
     describeProviderStatus,
     incidentPhaseLabel,
+    isProviderStatusDisrupted,
     providerStatusFailureLabel,
+    providerStatusView,
     summarizeIncidents,
 } from '../agent-provider-status-label';
 
@@ -71,5 +73,33 @@ describe('incident lines', () => {
         expect(summarizeIncidents([])).toEqual({ first: undefined, moreLabel: undefined });
         expect(summarizeIncidents(['a'])).toEqual({ first: 'a', moreLabel: undefined });
         expect(summarizeIncidents(['a', 'b', 'c'])).toEqual({ first: 'a', moreLabel: '+2 more' });
+    });
+});
+
+describe('isProviderStatusDisrupted', () => {
+    it('is true only for a readable status page reporting a problem', () => {
+        expect(isProviderStatusDisrupted(available([], 'degraded'))).toBe(true);
+        expect(isProviderStatusDisrupted(available([], 'operational'))).toBe(false);
+        expect(isProviderStatusDisrupted(undefined)).toBe(false);
+        expect(isProviderStatusDisrupted(null)).toBe(false);
+        expect(
+            isProviderStatusDisrupted({
+                provider: 'codex',
+                pageName: 'OpenAI',
+                pageUrl: 'https://status.example.test',
+                checkedAt: 0,
+                state: 'unavailable',
+                reason: 'network',
+            }),
+        ).toBe(false);
+    });
+});
+
+describe('providerStatusView', () => {
+    it('offers a retry when the first read failed, and keeps a reading through a failed refresh', () => {
+        expect(providerStatusView(undefined, false)).toBe('checking');
+        expect(providerStatusView(undefined, true)).toBe('failed');
+        expect(providerStatusView(null, true)).toBe('none');
+        expect(providerStatusView(available([], 'operational'), true)).toBe('ready');
     });
 });

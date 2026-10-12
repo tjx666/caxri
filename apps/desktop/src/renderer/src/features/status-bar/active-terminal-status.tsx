@@ -1,7 +1,7 @@
 import { isTerminalResourceUsageHigh, TERMINAL_RESOURCE_ALERT_THRESHOLDS } from '@caxri/protocol';
 import {
     CircleAlert,
-    Gauge,
+    Hourglass,
     LoaderCircle,
     MemoryStick,
     Pause,
@@ -30,7 +30,7 @@ import {
 import { AgentThroughputStatus } from './agent-throughput-status';
 import { AgentUsageStatus } from './agent-usage-status';
 import { StatusInfo } from './status-info';
-import { StatusItem } from './status-item';
+import { PriorityChipSlot, StatusItem } from './status-item';
 
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
 
@@ -69,10 +69,14 @@ function TerminalRendererStatus({ terminalId }: { terminalId: string }) {
     );
 }
 
+/**
+ * `normal` progress takes an hourglass rather than a gauge: the gauge is the Agent output-speed chip's glyph, and the
+ * two chips sit side by side on an Agent Terminal.
+ */
 const progressIcons = {
     error: CircleAlert,
     indeterminate: LoaderCircle,
-    normal: Gauge,
+    normal: Hourglass,
     paused: Pause,
 } as const;
 
@@ -142,48 +146,52 @@ function TerminalUsageStatus({
     return (
         <>
             {showMemory && (
-                <StatusItem
-                    ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}${isHigh ? ', high resource use' : ''}`}
-                    className={cn(isHigh && 'text-danger')}
-                    icon={<MemoryStick />}
-                    title={
-                        <StructuredTooltip
-                            title={
-                                isHigh
-                                    ? `High resource use: ${memoryLabel}, ${cpuLabel} CPU`
-                                    : `Terminal memory: ${memoryLabel}`
-                            }
-                            notes={[
-                                `Resident memory of this Terminal's whole process tree; CPU ${cpuLabel}`,
-                                ...(isHigh
-                                    ? [
-                                          `Above ${formatMemoryMb(TERMINAL_RESOURCE_ALERT_THRESHOLDS.memoryMb)} memory or ${TERMINAL_RESOURCE_ALERT_THRESHOLDS.cpuPercent}% CPU`,
-                                      ]
-                                    : []),
-                            ]}
-                            hint="Click to open Process Explorer"
-                        />
-                    }
-                    onClick={openProcessExplorer}
-                >
-                    {memoryLabel}
-                </StatusItem>
+                <PriorityChipSlot chip="memory">
+                    <StatusItem
+                        ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}${isHigh ? ', high resource use' : ''}`}
+                        className={cn(isHigh && 'text-danger')}
+                        icon={<MemoryStick />}
+                        title={
+                            <StructuredTooltip
+                                title={
+                                    isHigh
+                                        ? `High resource use: ${memoryLabel}, ${cpuLabel} CPU`
+                                        : `Terminal memory: ${memoryLabel}`
+                                }
+                                notes={[
+                                    `Resident memory of this Terminal's whole process tree; CPU ${cpuLabel}`,
+                                    ...(isHigh
+                                        ? [
+                                              `Above ${formatMemoryMb(TERMINAL_RESOURCE_ALERT_THRESHOLDS.memoryMb)} memory or ${TERMINAL_RESOURCE_ALERT_THRESHOLDS.cpuPercent}% CPU`,
+                                          ]
+                                        : []),
+                                ]}
+                                hint="Click to open Process Explorer"
+                            />
+                        }
+                        onClick={openProcessExplorer}
+                    >
+                        {memoryLabel}
+                    </StatusItem>
+                </PriorityChipSlot>
             )}
             {showChildProcessCount && (
-                <StatusItem
-                    ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
-                    icon={<Workflow />}
-                    title={
-                        <StructuredTooltip
-                            title={childLabel}
-                            notes={['Running under this Terminal']}
-                            hint="Click to open Process Explorer"
-                        />
-                    }
-                    onClick={openProcessExplorer}
-                >
-                    {usage.childProcessCount}
-                </StatusItem>
+                <PriorityChipSlot chip="childProcessCount">
+                    <StatusItem
+                        ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
+                        icon={<Workflow />}
+                        title={
+                            <StructuredTooltip
+                                title={childLabel}
+                                notes={['Running under this Terminal']}
+                                hint="Click to open Process Explorer"
+                            />
+                        }
+                        onClick={openProcessExplorer}
+                    >
+                        {usage.childProcessCount}
+                    </StatusItem>
+                </PriorityChipSlot>
             )}
         </>
     );
@@ -215,8 +223,16 @@ export function ActiveTerminalStatus({
         <>
             <TerminalRendererStatus terminalId={terminalId} />
             <TerminalProgressStatus terminalId={terminalId} />
-            {showAgentThroughput && <AgentThroughputStatus terminalId={terminalId} />}
-            {showAgentUsage && <AgentUsageStatus terminalId={terminalId} />}
+            {showAgentThroughput && (
+                <PriorityChipSlot chip="agentThroughput">
+                    <AgentThroughputStatus terminalId={terminalId} />
+                </PriorityChipSlot>
+            )}
+            {showAgentUsage && (
+                <PriorityChipSlot chip="agentUsage">
+                    <AgentUsageStatus terminalId={terminalId} />
+                </PriorityChipSlot>
+            )}
             <TerminalUsageStatus
                 showChildProcessCount={showChildProcessCount}
                 showMemory={showMemory}

@@ -1,11 +1,8 @@
 import { caxri } from '../../lib/caxri';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { getBootstrap, getSessionState } from '../../stores/selectors';
-import {
-    activateTerminal,
-    focusTerminalById,
-    whenTerminalAttached,
-} from '../terminal/terminal-commands';
+import { activateTerminal } from '../terminal/terminal-commands';
+import { focusTerminalById, whenTerminalAttached } from '../terminal/terminal-pane-handlers';
 import { chooseReferenceTerminal } from './file-reference';
 
 export type GitReviewSendResult = { ok: true } | { ok: false; message: string };

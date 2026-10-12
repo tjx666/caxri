@@ -390,7 +390,7 @@ test('closing the window with only a Chat running asks first and Terminate stops
                 const value: unknown = Reflect.get(globalThis, '__caxriCloseConfirmMessage');
                 return typeof value === 'string' ? value : undefined;
             }),
-        ).toBe('1 Terminal or Chat is still running.');
+        ).toBe('Close this window while 1 Terminal or Chat is running?');
         const log = join(userData, 'logs', 'server-core.jsonl');
         await expect
             .poll(async () =>

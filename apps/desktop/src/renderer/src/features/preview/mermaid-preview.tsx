@@ -9,8 +9,8 @@ import { renderMermaidDiagram } from './markdown-diagrams';
  *
  * It renders through the same path as a `mermaid` fence in the Markdown preview, so the two never disagree on theme
  * colors or on how a syntax error reads. The source comes from the editor's buffer and is deferred, so typing in the
- * source pane re-lays out the diagram at low priority and a half-typed edge shows the parser's error in place until the
- * source parses again.
+ * source pane re-lays out the diagram at low priority. A half-typed edge keeps the last diagram that parsed, dimmed,
+ * with the parser's error below it, until the source parses again.
  */
 export function MermaidPreview({ source, theme }: { source: string; theme: ThemeTokens }) {
     const diagramReference = useRef<HTMLDivElement>(null);
@@ -31,12 +31,14 @@ export function MermaidPreview({ source, theme }: { source: string; theme: Theme
             {isEmpty ? (
                 <p className="text-muted">This diagram is empty.</p>
             ) : (
+                // A figure rather than an image: an image hides its children from assistive technology, and the
+                // parse error rendered inside it has to be readable.
                 <div
                     ref={diagramReference}
                     aria-label="Mermaid diagram"
-                    className="caxri-markdown-diagram"
+                    className="caxri-markdown-diagram caxri-mermaid-file-diagram"
                     data-testid="mermaid-preview"
-                    role="img"
+                    role="figure"
                 />
             )}
         </div>

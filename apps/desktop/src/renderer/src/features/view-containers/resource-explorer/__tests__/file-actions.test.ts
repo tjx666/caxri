@@ -337,7 +337,7 @@ describe('file action lifecycle', () => {
         });
         expect(getToasts()).toContainEqual(
             expect.objectContaining({
-                type: 'success',
+                type: 'warning',
                 duration: Infinity,
                 title: "Moved 'source.txt' to Trash. Unsaved changes were discarded; only the last saved version can be restored.",
             }),

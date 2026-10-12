@@ -1,18 +1,31 @@
 import type { AgentAction } from '@caxri/protocol';
+import { relativeTime } from '@caxri/utils';
+import { noop } from 'es-toolkit';
 
 import { Spinner } from '../../components/ui/spinner';
 import { cn } from '../../lib/utilities';
 import { agentChatMenuGroupHeading } from './agent-chat-slash-commands';
 import type { AgentChatSuggestion } from './agent-chat-suggestions';
-import { agentChatSuggestionOptionId } from './agent-chat-suggestions';
+import { agentChatSuggestionFooter, agentChatSuggestionOptionId } from './agent-chat-suggestions';
+import { useClockTick } from './hooks/use-clock-tick';
+
+/**
+ * When a same-titled Session was last opened, ticking once a minute in this leaf only.
+ */
+function OpenedTime({ openedAt }: { openedAt: number }) {
+    const now = useClockTick('minute');
+    return <span className="shrink-0 text-muted">· {relativeTime(openedAt, now, 'narrow')}</span>;
+}
 
 const GROUP_HEADING_CLASS_NAME = 'px-2 pt-1.5 pb-0.5 text-[11px] leading-4 text-muted';
 
 /**
  * Suggestions above the composer: the slash-command and skill list, and the `@` Sessions list. Focus stays in the
  * input, which drives the list through `aria-activedescendant`; the pointer can pick a row too. Rows match the command
- * palette's density and focus fill, under group headings, and a `meta` footer names the keys. A list with an
- * `emptyText` stays open on no match so a typo reads as a miss, and `notice` explains rows that are still missing.
+ * palette's density and focus fill, under group headings, and a `meta` footer names the keys
+ * (`agentChatSuggestionFooter`), offering only Escape when there is no row to choose. A list with an `emptyText` stays
+ * open on no match so a typo reads as a miss, and `notice` explains rows that are still missing or, with a spinner,
+ * work in progress.
  *
  * It is not a Base UI popup, because focus has to stay in the textarea while the arrow keys drive it, but it wears the
  * shared overlay surface (`--elevated`, the `--border` ring plus `--shadow` elevation the popover and tooltip use) and
@@ -33,7 +46,10 @@ function SuggestionList({
 }: {
     activeIndex: number;
     emptyText?: string;
-    footer: string;
+    /**
+     * Omitted while the list only reports progress and no key does anything in it.
+     */
+    footer?: string;
     /**
      * The visible group title a row starts, or `undefined` when it continues the group above it.
      */
@@ -92,6 +108,9 @@ function SuggestionList({
                                             {suggestion.description}
                                         </span>
                                     )}
+                                    {suggestion.openedAt !== undefined && (
+                                        <OpenedTime openedAt={suggestion.openedAt} />
+                                    )}
                                 </div>
                             </div>
                         );
@@ -115,12 +134,14 @@ function SuggestionList({
                     </div>
                 )}
             </div>
-            <div
-                aria-hidden
-                className="shrink-0 border-0 border-t border-solid border-border px-3 py-1 text-[11px] leading-4 text-muted"
-            >
-                {footer}
-            </div>
+            {footer && (
+                <div
+                    aria-hidden
+                    className="shrink-0 border-0 border-t border-solid border-border px-3 py-1 text-[11px] leading-4 text-muted"
+                >
+                    {footer}
+                </div>
+            )}
         </div>
     );
 }
@@ -135,7 +156,7 @@ interface SuggestionMenuState {
 
 /**
  * The composer's two lists, of which at most one shows: the slash-command list wins while open, otherwise the `@`
- * Sessions list.
+ * Sessions list, or its progress row while a chosen Session's reference is written.
  */
 export function AgentChatSuggestionMenu({
     commandMenu,
@@ -147,14 +168,18 @@ export function AgentChatSuggestionMenu({
         skillNotice: { text: string; isLoading: boolean } | undefined;
     };
     onChooseCommand: (index: number) => void;
-    sessionMenu: SuggestionMenuState & { chooseAt: (index: number) => void };
+    sessionMenu: SuggestionMenuState & {
+        chooseAt: (index: number) => void;
+        emptyText: string;
+        preparingText: string | undefined;
+    };
 }) {
     if (commandMenu.isOpen)
         return (
             <SuggestionList
                 activeIndex={commandMenu.activeIndex}
                 emptyText="No matching command or skill"
-                footer="↑↓ to move · Tab to complete · Enter to run"
+                footer={agentChatSuggestionFooter('commands', commandMenu.suggestions.length > 0)}
                 headingAt={(index) => agentChatMenuGroupHeading(commandMenu.matches, index)}
                 label="Commands and skills"
                 listId={commandMenu.listId}
@@ -164,11 +189,25 @@ export function AgentChatSuggestionMenu({
                 onHover={commandMenu.highlight}
             />
         );
+    if (sessionMenu.preparingText)
+        return (
+            <SuggestionList
+                activeIndex={-1}
+                headingAt={() => {}}
+                label="Sessions"
+                listId={sessionMenu.listId}
+                notice={{ text: sessionMenu.preparingText, isLoading: true }}
+                suggestions={[]}
+                onChoose={noop}
+                onHover={noop}
+            />
+        );
     if (!sessionMenu.isOpen) return null;
     return (
         <SuggestionList
             activeIndex={sessionMenu.activeIndex}
-            footer="↑↓ to move · Enter to cite"
+            emptyText={sessionMenu.emptyText}
+            footer={agentChatSuggestionFooter('sessions', sessionMenu.suggestions.length > 0)}
             headingAt={(index) => (index === 0 ? 'Sessions' : undefined)}
             label="Sessions"
             listId={sessionMenu.listId}

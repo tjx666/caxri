@@ -79,7 +79,7 @@ describe('commanderBoardSections', () => {
 });
 
 describe('commanderRowPresentation', () => {
-    it('tints a live turn green and names its Agent', () => {
+    it("draws a live turn in the sidebar's muted running vocabulary and names its Agent", () => {
         const presentation = commanderRowPresentation(
             row({ activityState: 'running', group: 'working' }),
         );
@@ -88,7 +88,7 @@ describe('commanderRowPresentation', () => {
             agentLabel: 'Codex',
             glyph: 'spinner',
             statePhrase: 'Working',
-            toneClassName: 'text-success',
+            toneClassName: 'text-muted',
         });
     });
 

@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import { useState } from 'react';
 
 import type { AgentChatCommand, AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
 import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
@@ -103,15 +104,15 @@ interface AgentChatComposerProperties {
  * Chat tints the whole pane with a one-line caption. While a turn runs and something is typed, the activity row says
  * what Enter and Cmd+Enter do, and Send wears the queue glyph. A disabled Send says why in its tooltip. A leading `/`
  * or `$` offers the provider's commands and the discovered skills, and a word that starts with `@` offers other
- * Sessions whose conversation the message can cite. It shares the timeline's centered column so the input lines up with
- * the conversation, and keeps the activity row, attachments, the input, and its actions inside one card so they read as
- * a single control. The action row picks the model and effort for the next turn and shows how full the context window
- * is. Clicking Send, Stop, or a chip or queue action hands focus back to the input, since each of those controls
- * disables or unmounts itself and would otherwise drop focus to the document body. The unsent text survives switching
- * Sessions and restarting Caxri, and ArrowUp on an empty input recalls the prompts this Chat already sent. "Edit from
- * here" on an earlier message (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it;
- * sending then rewinds the Chat to before that message and sends the draft in its place, and Escape or Cancel puts the
- * previous draft back.
+ * Sessions whose conversation the message can cite; both lists show only while the input has focus. It shares the
+ * timeline's centered column so the input lines up with the conversation, and keeps the activity row, attachments, the
+ * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
+ * for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands
+ * focus back to the input, since each of those controls disables or unmounts itself and would otherwise drop focus to
+ * the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input
+ * recalls the prompts this Chat already sent. "Edit from here" on an earlier message (`useAgentChatComposerEdit`) puts
+ * its text in the input and the edit bar above it; sending then rewinds the Chat to before that message and sends the
+ * draft in its place, and Escape or Cancel puts the previous draft back.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -138,15 +139,22 @@ export function AgentChatComposer({
     const terminal = useTerminal(terminalId);
     const workbenchRoot = usePaneViewSession()?.rootPath;
     const images = useAgentChatAttachments(terminalId);
+    /**
+     * The suggestion lists float over the card's top edge, so they show only while the input has focus: otherwise one
+     * left open stays over whatever the user moved to, such as the edit bar's controls.
+     */
+    const [isInputFocused, setInputFocused] = useState(false);
     const menu = useAgentChatCommandMenu({
         commands,
         draft,
+        isInputFocused,
         terminalId,
     });
     const sessionMenu = useAgentChatSessionMenu({
         currentSessionId: terminal?.sessionId,
         draft,
         inputReference,
+        isInputFocused,
         isSuppressed: menu.isOpen,
         setDraft,
     });
@@ -185,7 +193,8 @@ export function AgentChatComposer({
             },
             focusInput,
             images,
-            isAttaching,
+            // A Session chosen from the `@` list is not in the draft until its reference is written.
+            isAttaching: isAttaching || sessionMenu.isPreparing,
             onSent,
             setDraft,
             terminalId,
@@ -202,6 +211,7 @@ export function AgentChatComposer({
         block: sendBlock,
         hasContent,
         isAttaching,
+        isPreparingReference: sessionMenu.isPreparing,
         isSending,
     });
     const stopAndFocus = (): void => {
@@ -278,6 +288,8 @@ export function AgentChatComposer({
                         setDraft(() => value);
                         sessionMenu.trackCaret(event.target);
                     }}
+                    onBlur={() => setInputFocused(false)}
+                    onFocus={() => setInputFocused(true)}
                     onSelect={(event) => sessionMenu.trackCaret(event.currentTarget)}
                     onKeyDown={(event) => {
                         if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen)) return;
@@ -305,6 +317,7 @@ export function AgentChatComposer({
                     onPaste={fileInput.onPaste}
                 />
                 <AgentChatComposerActions
+                    canAttachImages={supportsImages}
                     isAttaching={isAttaching}
                     isSendable={isSendable}
                     isStopping={isStopping}

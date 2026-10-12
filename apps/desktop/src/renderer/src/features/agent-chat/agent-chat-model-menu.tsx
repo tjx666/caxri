@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { agentChatEffortLabel, agentChatModelLabel, findAgentChatModel } from '@caxri/protocol';
+import { agentChatEffortLabel, agentChatModelLabel } from '@caxri/protocol';
 import { ChevronDown } from 'lucide-react';
 
 import {
@@ -16,6 +16,7 @@ import {
     MenuTrigger,
 } from '../../components/ui/menu';
 import { Spinner } from '../../components/ui/spinner';
+import { agentChatMenuModel } from './agent-chat-model-selection';
 import { useAgentChatModelSelection } from './hooks/use-agent-chat-model-selection';
 
 const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 text-muted';
@@ -26,7 +27,8 @@ const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 
  * finishes the choice and closes it. The choice shows at once with a spinner beside it until the snapshot confirms it
  * (`AgentChatPendingSelection`), and reverts with a toast naming what failed. A provider that listed no models shows
  * the model it reported as plain text. As in the Codex app, the model name reads in the foreground color and the effort
- * stays muted beside it.
+ * stays muted beside it. Before Claude Code names its model, the menu checks the provider's `default` row and offers
+ * its efforts, matching the trigger's "Default" (`agentChatMenuModel`).
  *
  * Claude Code's ultracode is a toggle beside the effort rather than an effort level, as in its own `/effort` picker
  * since 2.1.284: it stays on at any effort. The row appears only while the provider offers it for the current model.
@@ -46,12 +48,13 @@ export function AgentChatModelMenu({
         <>
             <span className="truncate text-foreground">{label.model}</span>
             {label.effort && <span className="shrink-0">{label.effort}</span>}
-            {snapshot?.ultracode && <span className="shrink-0">Ultracode</span>}
+            {/* A mode word, set like the permission trigger's `Plan`. */}
+            {snapshot?.ultracode && <span className="shrink-0 text-foreground">Ultracode</span>}
         </>
     );
     const models = snapshot?.models;
     if (!models || models.length === 0) return <span className={LABEL_CLASS_NAME}>{text}</span>;
-    const current = findAgentChatModel(models, snapshot.model);
+    const current = agentChatMenuModel(snapshot);
     return (
         <Menu open={isOpen} onOpenChange={setOpen}>
             <MenuTrigger

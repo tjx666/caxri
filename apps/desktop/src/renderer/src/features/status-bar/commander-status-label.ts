@@ -32,3 +32,16 @@ export function commanderStatusChipCopy(
         description: `Agent Commander ${detail}. It keeps running after its window closes. Click to open it; stop it from View > Stop Agent Commander.`,
     };
 }
+
+/**
+ * The Inbox chip's copy for `count` open items, or undefined at zero: an empty Inbox holds no slot. The Inbox column is
+ * titled "Needs you" in the Agent Commander window, so the chip reuses that phrase.
+ */
+export function commanderInboxChipCopy(count: number): CommanderStatusChipCopy | undefined {
+    if (count <= 0) return undefined;
+    const items = count === 1 ? '1 item' : `${count.toLocaleString('en-US')} items`;
+    return {
+        text: `${count.toLocaleString('en-US')} ${count === 1 ? 'needs' : 'need'} you`,
+        description: `Open Agent Commander: ${items} in its Inbox ${count === 1 ? 'needs' : 'need'} your answer or merge.`,
+    };
+}

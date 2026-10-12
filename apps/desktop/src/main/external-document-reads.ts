@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve, sep } from 'node:path';
 
 import type { MethodResult } from '@caxri/protocol';
 import { CaxriError, previewAssetByteLimit, previewAssetMediaType } from '@caxri/protocol';
+import { formatBytes } from '@caxri/utils';
 
 import { authorizedExternalDocument, isExternalDocumentWriting } from './external-documents';
 import { readExternalFile, readExternalFileSnapshot } from './external-file-snapshot';
@@ -97,7 +98,10 @@ export async function readExternalDocumentAsset(
             );
         const limit = previewAssetByteLimit(mediaType);
         if (opened.size > limit)
-            throw new CaxriError('CAPACITY', `Asset exceeds the ${limit} byte preview limit`);
+            throw new CaxriError(
+                'CAPACITY',
+                `File exceeds the ${formatBytes(limit)} preview limit`,
+            );
         const buffer = await file.readFile();
         if (buffer.byteLength > limit)
             throw new CaxriError('CAPACITY', 'Asset grew past the preview limit while it was read');

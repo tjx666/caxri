@@ -63,9 +63,10 @@ export function AgentChatMessage({
  * one most likely to be taken away; an earlier reply's row appears only while the pointer is over it or keyboard focus
  * reaches it, so a scrolled transcript is not lined with copy icons. The row keeps its height either way, so revealing
  * it never shifts the transcript. Copy takes the Markdown source, which pastes back into an issue, a document, or
- * another Agent intact. The reply text is one of the two selectable surfaces in an otherwise `select-none` transcript
- * (see `announceAgentChatSelectionCopy`). A reply that ends a turn which changed files or filed an issue or pull
- * request carries those cards between its text and the action row, as the Codex app does.
+ * another Agent intact. The reply text is selectable in an otherwise `select-none` transcript, as are the user's
+ * messages, notice text, reasoning, and code and diff bodies (see `announceAgentChatSelectionCopy`). A reply that ends
+ * a turn which changed files or filed an issue or pull request carries those cards between its text and the action row,
+ * as the Codex app does.
  */
 export function AgentChatReply({
     artifacts,
@@ -124,7 +125,8 @@ export function AgentChatReply({
 /**
  * A notice in the transcript. An error is styled as one but is not a live `alert`: the timeline remounts its history on
  * every Chat switch and fold toggle, which would re-announce errors that happened long ago. A failure the user must act
- * on now lives in the dock's failure banner, which does announce.
+ * on now lives in the dock's failure banner, which does announce. Its text is selectable so an error can be copied into
+ * a search or an issue.
  */
 export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type: 'notice' }> }) {
     const isError = item.kind === 'error';
@@ -136,7 +138,7 @@ export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type:
             )}
         >
             {isError && <CircleAlert className="mt-0.5 size-3.5 shrink-0" />}
-            <span className="wrap-anywhere whitespace-pre-line">
+            <span className="wrap-anywhere whitespace-pre-line select-text">
                 {agentChatNoticeMessage(item)}
             </span>
         </div>

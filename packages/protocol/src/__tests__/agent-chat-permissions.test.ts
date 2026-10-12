@@ -5,6 +5,7 @@ import {
     agentChatPermissionModes,
     canAgentChatPlan,
     initialAgentChatPermission,
+    isAgentChatPermissionNextTurnOnly,
     resolveAgentChatPermissionChange,
 } from '../agent/agent-chat-permissions.js';
 import { methods } from '../registry/method-registry.js';
@@ -29,6 +30,13 @@ describe('Agent Chat permission levels', () => {
         expect(agentChatPermissionModeLabel('acceptEdits', 'claude')).toBe(
             agentChatPermissionModeLabel('acceptEdits'),
         );
+    });
+
+    it('says which providers apply a switch made during a turn only from the next turn', () => {
+        // Codex has no in-place request: the switch rides on the next `turn/start`.
+        expect(isAgentChatPermissionNextTurnOnly('codex')).toBe(true);
+        expect(isAgentChatPermissionNextTurnOnly('claude')).toBe(false);
+        expect(isAgentChatPermissionNextTurnOnly('grok')).toBe(false);
     });
 
     it('starts a Chat from the Project default, dropping what the provider lacks', () => {

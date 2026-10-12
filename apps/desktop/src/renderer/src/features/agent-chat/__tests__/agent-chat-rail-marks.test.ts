@@ -4,6 +4,7 @@ import {
     agentChatActiveRailIndex,
     agentChatRailMarks,
     agentChatRailPreview,
+    isAgentChatMessageRailShown,
 } from '../agent-chat-rail-marks';
 
 describe('agentChatRailMarks', () => {
@@ -40,5 +41,18 @@ describe('agentChatActiveRailIndex', () => {
         expect(agentChatActiveRailIndex(tops, 450, false)).toBe(1);
         expect(agentChatActiveRailIndex([100, 400], 50, false)).toBe(-1);
         expect(agentChatActiveRailIndex(tops, 450, true)).toBe(2);
+    });
+});
+
+describe('isAgentChatMessageRailShown', () => {
+    it('shows the rail from the second message, when there is somewhere to jump', () => {
+        expect(isAgentChatMessageRailShown([])).toBe(false);
+        expect(isAgentChatMessageRailShown([{ id: 'a', preview: 'one' }])).toBe(false);
+        expect(
+            isAgentChatMessageRailShown([
+                { id: 'a', preview: 'one' },
+                { id: 'b', preview: 'two' },
+            ]),
+        ).toBe(true);
     });
 });

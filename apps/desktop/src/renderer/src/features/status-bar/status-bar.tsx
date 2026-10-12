@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+
 import type {
     BootstrapState,
     CommandId,
@@ -6,7 +8,6 @@ import type {
 } from '@caxri/protocol';
 import { Monitor } from 'lucide-react';
 
-import { useContainerWidth } from '@/hooks/use-container-width';
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
@@ -22,8 +23,9 @@ import { shouldShowActiveFileStatus } from './active-file-status-target';
 import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
-import { resolveChipVisibility } from './chip-priority';
+import { CommanderInboxChip } from './commander-inbox-chip';
 import { CommanderStatusChip } from './commander-status-chip';
+import { useChipVisibility } from './hooks/use-chip-visibility';
 import { PeerApprovalChip } from './peer-approval-chip';
 import { PermissionAutoAllowChip } from './permission-auto-allow-chip';
 import { RemoteDebuggingChip } from './remote-debugging-chip';
@@ -157,8 +159,9 @@ function ActivePaneStatus({
 }
 
 /**
- * Everything that describes what the active Session is working on, left-aligned and first to shrink. Kept apart from
- * `StatusBar` so the footer's own layout is readable next to the pile of conditional chips.
+ * Everything that describes what the active Session is working on, left-aligned. Kept apart from `StatusBar` so the
+ * footer's own layout is readable next to the pile of conditional chips. It does not grow: `useChipVisibility` reads
+ * each region's `scrollWidth` as its natural width, which only holds for a region sized to its content.
  */
 function StatusBarContext({
     chipVisibility,
@@ -174,7 +177,7 @@ function StatusBarContext({
     workbenchProject?: ProjectRecord;
 }) {
     return (
-        <div className="statusbar-context flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
+        <div className="statusbar-context flex min-w-0 items-center gap-0.5 overflow-hidden">
             {/**
              * With a Session selected, the WorkbenchRootPicker below already names the same root (and its tooltip shows the same
              * rootPath), so a separate project chip would print the title twice; the chip only covers the no-Session state.
@@ -216,8 +219,8 @@ export function StatusBar() {
     const repo = overview?.repository;
     const serverStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
     const degraded = serverStatus ? DEGRADED_STATES[serverStatus] : undefined;
-    const [containerReference, containerWidth] = useContainerWidth<HTMLElement>();
-    const chipVisibility = resolveChipVisibility(containerWidth);
+    const containerReference = useRef<HTMLElement>(null);
+    const chipVisibility = useChipVisibility(containerReference);
     return (
         /**
          * `data-runtime-status` is the stable readiness signal: it is present in every visual state, including the
@@ -241,13 +244,13 @@ export function StatusBar() {
              * `min-w-0` lets this side actually shrink instead of pushing width past the window
              * edge: `<body>` has `overflow-x: hidden`, so a `flex-none` sibling here used to be
              * silently clipped below ~752px viewport width with no way to reach it. The chip-
-             * priority resolution above (`chip-priority.ts`) now hides the lowest-value chips first
-             * as the footer narrows, so information stays reachable without a scrollbar for every
-             * ordinary window width; `overflow-x-auto` stays only as the last-resort fallback for
-             * the pathological case where even the never-hide chips (degraded/runtime state and
-             * Terminal progress) don't fit.
+             * priority resolution above (`chip-priority.ts`) hides the lowest-value chips first
+             * whenever the content would not fit, so every item keeps its whole label;
+             * `overflow-x-auto` stays only as the last-resort fallback for the pathological case
+             * where even the never-hide chips don't fit. `ml-auto` keeps it right-aligned now that
+             * the context side no longer grows.
              */}
-            <div className="statusbar-actions flex min-w-0 shrink items-center gap-2 overflow-x-auto">
+            <div className="statusbar-actions ml-auto flex min-w-0 shrink items-center gap-2 overflow-x-auto">
                 {degraded && (
                     <Tooltip content={degraded.detail}>
                         <span className={cn(statusStateClassName, degraded.className)}>
@@ -258,6 +261,7 @@ export function StatusBar() {
                 <PeerApprovalChip />
                 <UpdateStatusChip />
                 <CommanderStatusChip />
+                <CommanderInboxChip />
                 <RemoteDebuggingChip />
                 <ScreencastModeChip />
                 <PermissionAutoAllowChip />

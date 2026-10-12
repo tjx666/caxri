@@ -10,6 +10,7 @@ import { pushToast } from '../../stores/toasts';
 import { ShareBar } from './share-bar';
 import { UsageCost } from './usage-cost';
 import { countLabel, topCaption, usageCostDisplay, usageSessionCount } from './usage-metrics';
+import { usageRowStatusLabel, usageShare, usageShareBasis } from './usage-presentation';
 import { UsageSessionTitle } from './usage-session-title';
 import {
     cellClass,
@@ -99,43 +100,55 @@ function ModelsCard({ report }: { report: UsageReport }) {
 
 function ProjectsCard({ report }: { report: UsageReport }) {
     const top = report.projects.slice(0, PROJECT_ROWS);
-    const total = report.totals.costUsd;
+    const basis = usageShareBasis(report);
+    const total = { costUsd: report.totals.costUsd, tokens: report.totals.tokens.total };
     return (
         <ReportCard title="Projects" caption={topCaption(top.length, report.projects.length)}>
             {top.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">No Project usage in this range.</p>
             ) : (
                 <div className="grid gap-3">
-                    {top.map((row) => (
-                        <div key={row.projectId} className="grid gap-1">
-                            <div className="flex items-center justify-between gap-3 text-[12px]">
-                                <span
-                                    className={cn(
-                                        'truncate',
-                                        (row.isRemoved || row.isOutsideCaxri) && 'text-muted',
-                                    )}
-                                >
-                                    {row.title}
-                                </span>
-                                <UsageCost
-                                    className="font-semibold"
-                                    display={rowCost(report, row.costUsd, row.tokens)}
-                                />
+                    {top.map((row) => {
+                        const status = usageRowStatusLabel({ ...row, kind: 'project' });
+                        return (
+                            <div key={row.projectId} className="grid gap-1">
+                                <div className="flex items-center justify-between gap-3 text-[12px]">
+                                    <span className="flex min-w-0 items-baseline gap-2">
+                                        <span
+                                            className={cn(
+                                                'truncate',
+                                                (row.isRemoved || row.isOutsideCaxri) &&
+                                                    'text-muted',
+                                            )}
+                                        >
+                                            {row.title}
+                                        </span>
+                                        {status && (
+                                            <span className="flex-none text-[11px] text-muted">
+                                                {status}
+                                            </span>
+                                        )}
+                                    </span>
+                                    <UsageCost
+                                        className="font-semibold"
+                                        display={rowCost(report, row.costUsd, row.tokens)}
+                                    />
+                                </div>
+                                <ShareBar share={usageShare(row, total, basis)} />
+                                <div className="flex justify-between gap-3 text-[11px] text-muted tabular-nums">
+                                    <span>
+                                        {formatTokens(row.tokens)} tokens ·{' '}
+                                        {usageSessionCount(row.sessions, row.isOutsideCaxri)}
+                                    </span>
+                                    <span>
+                                        {formatDuration(row.activeMs)}
+                                        {row.pullRequestsMerged > 0 &&
+                                            ` · ${countLabel(row.pullRequestsMerged, 'merged pull request')}`}
+                                    </span>
+                                </div>
                             </div>
-                            <ShareBar share={total > 0 ? row.costUsd / total : 0} />
-                            <div className="flex justify-between gap-3 text-[11px] text-muted tabular-nums">
-                                <span>
-                                    {formatTokens(row.tokens)} tokens ·{' '}
-                                    {usageSessionCount(row.sessions, row.isOutsideCaxri)}
-                                </span>
-                                <span>
-                                    {formatDuration(row.activeMs)}
-                                    {row.pullRequestsMerged > 0 &&
-                                        ` · ${countLabel(row.pullRequestsMerged, 'merged pull request')}`}
-                                </span>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </ReportCard>
@@ -177,6 +190,12 @@ function SessionsCard({ report }: { report: UsageReport }) {
                                             ))}
                                         </span>
                                         <UsageSessionTitle row={row} />
+                                        {/* The text twin of the muted title, as on the Projects card. */}
+                                        {usageRowStatusLabel({ ...row, kind: 'session' }) && (
+                                            <span className="flex-none text-[11px] text-muted">
+                                                {usageRowStatusLabel({ ...row, kind: 'session' })}
+                                            </span>
+                                        )}
                                         {row.isArchived && (
                                             <Archive
                                                 aria-label="Archived"
@@ -271,7 +290,7 @@ function PullRequestsCard({ report }: { report: UsageReport }) {
 export function UsageDetailCards({ report }: { report: UsageReport }) {
     return (
         <>
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-3 @3xl:grid-cols-2">
                 <ProjectsCard report={report} />
                 <PullRequestsCard report={report} />
             </div>

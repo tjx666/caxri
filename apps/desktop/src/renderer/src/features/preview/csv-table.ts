@@ -162,16 +162,45 @@ function countLabel(count: number, noun: string): string {
 }
 
 /**
- * The status line under the table: its size, and what the bounds cut off.
+ * The status line under the table: its size. What the bounds cut off is a warning, not a statistic, and is reported by
+ * {@link describeTableLimits} in the warning bar above the table.
  */
 export function describeTableSize(table: DelimitedTable): string {
-    const size = `${countLabel(table.rows.length, 'row')} × ${countLabel(table.header.length, 'column')}`;
-    const limits = [
-        table.truncatedRows && `first ${MAX_TABLE_ROWS.toLocaleString('en-US')} rows shown`,
-        table.truncatedColumns &&
-            `first ${MAX_TABLE_COLUMNS.toLocaleString('en-US')} columns shown`,
-    ].filter(Boolean);
-    return limits.length > 0 ? `${size} (${limits.join(', ')})` : size;
+    return `${countLabel(table.rows.length, 'row')} × ${countLabel(table.header.length, 'column')}`;
+}
+
+/**
+ * The warning-bar sentence when parsing stopped at a bound, so the reader knows the table is not the whole file.
+ */
+export function describeTableLimits(table: DelimitedTable): string | undefined {
+    const rows = `${MAX_TABLE_ROWS.toLocaleString('en-US')} rows`;
+    const columns = `${MAX_TABLE_COLUMNS.toLocaleString('en-US')} columns`;
+    if (table.truncatedRows && table.truncatedColumns)
+        return `Only the first ${rows} and ${columns} are shown.`;
+    if (table.truncatedRows) return `Only the first ${rows} are shown.`;
+    if (table.truncatedColumns) return `Only the first ${columns} are shown.`;
+    return undefined;
+}
+
+/**
+ * Width of the row-number gutter, from the digit count of the largest row number it shows.
+ *
+ * The 16px is the cell's horizontal padding, 1px is its right border (the cell is border-box, so the border is taken
+ * from the same track), and the extra 2px absorbs UI fonts whose tabular figures are a little wider than the `0` that
+ * defines `ch`. Without the border and slack, three-digit row numbers clip to "1…".
+ */
+export function rowNumberGutterWidth(rowCount: number): string {
+    const digits = Math.max(2, String(Math.max(1, rowCount)).length);
+    return `calc(${digits}ch + 19px)`;
+}
+
+/**
+ * Whether a cell's text does not fit its column, so the view offers the full value on hover. Estimated from the same
+ * display width the column was sized with, so no cell has to be measured; a value with a line break always counts,
+ * because the one-line cell shows it with the break collapsed.
+ */
+export function isCellClipped(value: string, columnWidth: number): boolean {
+    return value.includes('\n') || cellDisplayWidth(value) > columnWidth;
 }
 
 /**

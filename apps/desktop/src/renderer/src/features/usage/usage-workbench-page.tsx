@@ -60,10 +60,16 @@ function UsageBody({
     report,
     agent,
     onShowAllAgents,
+    onShowThisMac,
 }: {
     report: UsageReport;
     agent: AgentProvider | undefined;
     onShowAllAgents: () => void;
+    /**
+     * Present only in the Caxri scope: an empty Caxri report often sits beside Agent work run in a plain terminal, and
+     * the scope switch that reveals it is easy to miss in the header.
+     */
+    onShowThisMac?: () => void;
 }) {
     const empty = usageEmptyState(report, agent);
     if (empty?.kind === 'scanning')
@@ -95,6 +101,11 @@ function UsageBody({
                 <p className="m-0 max-w-[420px] text-[12px] text-muted">
                     Start an Agent in a Session; its tokens, cost, and pull requests show up here.
                 </p>
+                {onShowThisMac && (
+                    <Button size="sm" variant="secondary" onClick={onShowThisMac}>
+                        Show This Mac
+                    </Button>
+                )}
             </Empty>
         );
     return <UsageSections report={report} />;
@@ -225,6 +236,7 @@ export function UsageWorkbenchPage() {
                         agent={agent === ALL_AGENTS ? undefined : agent}
                         report={report}
                         onShowAllAgents={() => setAgent(ALL_AGENTS)}
+                        onShowThisMac={scope === 'caxri' ? () => setScope('all') : undefined}
                     />
                 ) : query.isError ? (
                     <Empty className="h-full">
