@@ -1,4 +1,5 @@
 import {
+    agentContextTabPath,
     agentStatusTabPath,
     agentTaskTabPath,
     agentTranscriptTabPath,
@@ -138,6 +139,19 @@ describe('documentTabPresentation', () => {
             labelTooltip: 'Codex Status',
         });
         expect(documentTabPresentation(path, {}).label).toBe('Agent Status');
+    });
+
+    it('labels a context tab and names its Terminal in the tooltip', () => {
+        expect(
+            documentTabPresentation(agentContextTabPath('terminal-1'), {
+                agentTerminalTitle: 'api-fix',
+            }),
+        ).toEqual({
+            fileIconName: undefined,
+            icon: 'agent-context',
+            label: 'Context',
+            labelTooltip: 'Context · api-fix',
+        });
     });
 
     it('tells two status tabs for the same Agent apart by their Terminal', () => {

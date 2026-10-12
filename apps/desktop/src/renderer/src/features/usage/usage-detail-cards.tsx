@@ -9,6 +9,7 @@ import {
     numericHeadClass,
     tableHeadClass,
 } from '../../components/report-table-classes';
+import { ShareBar } from '../../components/share-bar';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
@@ -16,7 +17,6 @@ import { openExternalUrl } from '../../lib/external-link';
 import { localizedDuration } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
-import { ShareBar } from './share-bar';
 import { UsageCost } from './usage-cost';
 import {
     countLabel,

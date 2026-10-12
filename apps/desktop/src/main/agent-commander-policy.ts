@@ -97,9 +97,11 @@ const SESSION_METHODS = new Set<string>(['session.updateState']);
  * admitted sets or here, so a new Chat request is classified on purpose instead of failing as `FORBIDDEN` in the
  * Commander window (the unit test walks the protocol registry). `agentChat.fork` opens a new Session in the Commander's
  * hidden system Project and selects it, and this window has no Workbench to show it; the window does not offer "Fork
- * from here". `project.setChatDefault` is not an `agentChat.*` method and stays refused with every other write.
+ * from here". `agentChat.readContext` feeds the Context tab, a Workbench editor tab this window cannot open, so it does
+ * not offer the meter's Details button either. `project.setChatDefault` is not an `agentChat.*` method and stays
+ * refused with every other write.
  */
-const REFUSED_AGENT_CHAT_METHODS = new Set<string>(['agentChat.fork']);
+const REFUSED_AGENT_CHAT_METHODS = new Set<string>(['agentChat.fork', 'agentChat.readContext']);
 
 /**
  * How the policy classifies `method`, or `undefined` when it names none of its sets (so it is refused by default).
