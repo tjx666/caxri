@@ -389,9 +389,11 @@ ended` row for the work that ended since the latest turn started, with a Dismiss
 
 ## Follow-up queue
 
-A message sent while a turn runs waits in Server Core's queue by default and goes out as its own
-turn once the Chat is idle, one turn at a time and in order; a message also waits behind earlier
-queued ones. `agentChat.send` with `delivery: 'steer'` instead adds it to the running turn (Codex
+A message sent while a turn runs waits in Server Core's queue by default and goes out once the Chat
+is idle, in order; a message also waits behind earlier queued ones. One dispatch joins the run of
+messages at the head of the queue into a single message (texts separated by a blank line, every
+image attached) and starts one turn for all of them, as far as one message may carry (text length,
+image count, combined image size); a queued slash command ends the run and takes a turn of its own. `agentChat.send` with `delivery: 'steer'` instead adds it to the running turn (Codex
 `turn/steer`, Claude Code `priority: 'next'`, Grok Build `_x.ai/interject`). A slash command issued during a turn is queued.
 User messages record how they arrived (`delivery: 'queued' | 'steered'`). The mark lives in the
 provider's own record, so a resume after a restart still shows it: Codex keeps it as the
@@ -404,7 +406,8 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
 - `agentChat.interrupt` pauses a non-empty queue (`queuePaused`) so stopping a turn never fires the
   next message by surprise; `agentChat.resumeQueue` continues it. `agentChat.removeQueued` drops an
   entry and `agentChat.sendQueuedNow` sends one ahead of the rest (steering a running turn; a
-  command cannot steer). A failed dispatch puts the entry back and pauses the queue.
+  command cannot steer). A failed dispatch puts every joined entry back in order and pauses the
+  queue.
 - A Codex `turn/start` or `turn/steer` that times out may still have started the turn, so Codex
   Chat checks before failing: the user message's `clientId` echo, or `thread/turns/list` over the
   newest turns. A recorded message counts as delivered. One it cannot confirm fails as delivery

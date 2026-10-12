@@ -4,13 +4,17 @@ import {
     agentChatAttachmentLabel,
     agentChatAttachmentName,
     appendToAgentChatDraft,
+    attachmentsWithReturned,
     draftAfterEditCancel,
     draftAfterSend,
     draftWithInsertion,
+    draftWithReturnedMessage,
     readAgentChatAttachments,
     readAgentChatDraft,
     retainAgentChatComposerState,
+    returnUnsentAgentChatMessage,
     subscribeAgentChatDraftAppends,
+    subscribeAgentChatUnsentReturns,
     writeAgentChatAttachments,
     writeAgentChatDraft,
 } from '../agent-chat-drafts';
@@ -115,6 +119,45 @@ describe('Agent Chat drafts', () => {
     it('names an attachment the same way for Remove, without the resized note', () => {
         expect(agentChatAttachmentName({ name: 'diagram.png' }, 0)).toBe('diagram.png');
         expect(agentChatAttachmentName({ name: '' }, 1)).toBe('Attachment 2');
+    });
+});
+
+describe('returning an unsent message', () => {
+    const image = (id: string) => ({
+        id,
+        image: { mediaType: 'image/png' as const, data: 'AAAA', thumbnail: '' },
+    });
+
+    it('puts the message back ahead of what was typed or attached since', () => {
+        expect(draftWithReturnedMessage('', 'queued')).toBe('queued');
+        expect(draftWithReturnedMessage('  ', 'queued')).toBe('queued');
+        expect(draftWithReturnedMessage('typed', 'queued')).toBe('queued\ntyped');
+        expect(
+            attachmentsWithReturned(
+                [image('later'), image('kept')],
+                [image('sent'), image('kept')],
+            ).map(({ id }) => id),
+        ).toEqual(['sent', 'later', 'kept']);
+    });
+
+    it('writes the stored composer state, or hands the message to the composer on screen', () => {
+        writeAgentChatDraft('chat-r', 'typed since');
+        writeAgentChatAttachments('chat-r', [image('later')]);
+        returnUnsentAgentChatMessage('chat-r', 'failed', [image('sent')]);
+        expect(readAgentChatDraft('chat-r')).toBe('failed\ntyped since');
+        expect(readAgentChatAttachments('chat-r').map(({ id }) => id)).toEqual(['sent', 'later']);
+
+        // A composer that mounted after the send read the stored state then; only it can merge what was typed since.
+        const received: Array<{ text: string; count: number }> = [];
+        const unsubscribe = subscribeAgentChatUnsentReturns('chat-r', (text, attachments) =>
+            received.push({ text, count: attachments.length }),
+        );
+        returnUnsentAgentChatMessage('chat-r', 'again', [image('other')]);
+        expect(received).toEqual([{ text: 'again', count: 1 }]);
+        expect(readAgentChatDraft('chat-r')).toBe('failed\ntyped since');
+        unsubscribe();
+        writeAgentChatDraft('chat-r', '');
+        writeAgentChatAttachments('chat-r', []);
     });
 });
 

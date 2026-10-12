@@ -5,11 +5,6 @@ import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useTerminal } from '../../stores/selectors';
 import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
-import {
-    RESTART_AGENT_FAILED,
-    restartTerminal,
-    restartTerminalWithRecovery,
-} from '../terminal/terminal-commands';
 import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
 import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
@@ -20,8 +15,10 @@ import {
     switchTerminalSurfaceTo,
 } from '../terminal/terminal-surface-commands';
 import { usePaneViewSession } from '../workbench/pane-view-session';
+import { recoverAgentChat } from './agent-chat-commands';
 import { AgentChatComposer } from './agent-chat-composer';
 import { AgentChatDock } from './agent-chat-dock';
+import { AgentChatEmptyState } from './agent-chat-empty-state';
 import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatFindScope } from './agent-chat-find-scope';
 import { AgentChatHistoryHead } from './agent-chat-history-head';
@@ -30,6 +27,7 @@ import { agentChatHostCapabilities } from './agent-chat-host';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatMessageRail } from './agent-chat-message-rail';
 import { AgentChatDayBreak } from './agent-chat-message-time';
+import { AgentChatPendingTimeline } from './agent-chat-pending-timeline';
 import {
     agentChatActivity,
     agentChatEmptyHint,
@@ -52,6 +50,7 @@ import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHistory } from './hooks/use-agent-chat-history';
 import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
+import { useAgentChatPending } from './hooks/use-agent-chat-pending';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
@@ -171,6 +170,7 @@ export function AgentChatPane({
         },
         [jumpTo, stopFollowing],
     );
+    const pending = useAgentChatPending(terminalId, snapshot);
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId);
     /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
@@ -199,18 +199,7 @@ export function AgentChatPane({
          * document body.
          */
         focusComposer();
-        if (recoveryNotice?.recovery === 'restart') {
-            /**
-             * Only a hand-over can still have a turn running elsewhere. A failed Chat, or one whose conversation is
-             * open in another client, has no turn left to stop, so its Retry restarts without the running-turn
-             * confirmation.
-             */
-            if (recoveryNotice.kind !== 'detached')
-                restartTerminalWithRecovery(terminalId, RESTART_AGENT_FAILED);
-            else restartTerminal(terminalId);
-        }
-        // eslint-disable-next-line no-void -- the query owns the refetch result and error state
-        else void query.refetch();
+        recoverAgentChat(terminalId, recoveryNotice, query.refetch);
     };
     return (
         <section
@@ -285,20 +274,21 @@ export function AgentChatPane({
                                                     </Fragment>
                                                 );
                                             })}
+                                            <AgentChatPendingTimeline
+                                                pending={pending}
+                                                onOpenFile={openFile}
+                                            />
                                         </AgentChatEditContext>
                                     </AgentChatTerminalContext>
                                 </AgentChatTaskLinksContext>
                             </AgentChatExpansionContext>
-                            {emptyMessage && (
-                                <div className="flex flex-col items-center gap-1.5 py-8 text-center">
-                                    <p className="m-0 text-[13px] text-muted">{emptyMessage}</p>
-                                    {processState !== 'detached' && (
-                                        <p className="m-0 text-[11px] leading-4 text-muted">
-                                            {agentChatEmptyHint(supportsImages, t)}
-                                        </p>
-                                    )}
-                                </div>
-                            )}
+                            <AgentChatEmptyState
+                                hint={
+                                    processState !== 'detached' &&
+                                    agentChatEmptyHint(supportsImages, t)
+                                }
+                                message={emptyMessage}
+                            />
                         </div>
                     </div>
                     <AgentChatMessageRail
@@ -314,6 +304,7 @@ export function AgentChatPane({
                 </AgentChatFindScope>
             </div>
             <AgentChatDock
+                answeredRequestIds={pending.answeredRequestIds}
                 projectRoot={projectRoot}
                 providerName={providerName}
                 recoveryNotice={recoveryNotice}
@@ -355,6 +346,7 @@ export function AgentChatPane({
                 isShown={isShown}
                 providerName={providerName}
                 onSent={jumpToLatest}
+                pendingQueue={pending.queue}
                 queue={snapshot?.queue}
                 snapshot={snapshot}
                 supportsImages={supportsImages}

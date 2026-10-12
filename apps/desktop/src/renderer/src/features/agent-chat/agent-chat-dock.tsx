@@ -68,6 +68,7 @@ function AgentChatRecoveryBanner({
  * approval or question, and the strip of subagents and background shells (running, or just ended).
  */
 export function AgentChatDock({
+    answeredRequestIds,
     projectRoot,
     providerName,
     recoveryNotice,
@@ -77,6 +78,10 @@ export function AgentChatDock({
     onOpenAsTerminal,
     onRecover,
 }: {
+    /**
+     * Requests the user answered whose answer the projection has not settled; their cards leave at once.
+     */
+    answeredRequestIds: ReadonlySet<string>;
     projectRoot: string | undefined;
     providerName: string;
     recoveryNotice: AgentChatRecoveryNotice | undefined;
@@ -100,21 +105,23 @@ export function AgentChatDock({
                     plan={dockedPlan.plan}
                 />
             )}
-            {snapshot?.requests.map((request) => (
-                <AgentChatRequestCard
-                    key={request.id}
-                    linkedItem={
-                        request.kind === 'question'
-                            ? undefined
-                            : snapshot.items.find((item) => item.id === request.itemId)
-                    }
-                    onAnswered={onAnswered}
-                    projectRoot={projectRoot}
-                    providerName={providerName}
-                    request={request}
-                    terminalId={terminalId}
-                />
-            ))}
+            {snapshot?.requests
+                .filter((request) => !answeredRequestIds.has(request.id))
+                .map((request) => (
+                    <AgentChatRequestCard
+                        key={request.id}
+                        linkedItem={
+                            request.kind === 'question'
+                                ? undefined
+                                : snapshot.items.find((item) => item.id === request.itemId)
+                        }
+                        onAnswered={onAnswered}
+                        projectRoot={projectRoot}
+                        providerName={providerName}
+                        request={request}
+                        terminalId={terminalId}
+                    />
+                ))}
             <AgentChatTaskStrip
                 latestTurnStartedAt={snapshot?.turns.at(-1)?.startedAt}
                 tasks={snapshot?.tasks}

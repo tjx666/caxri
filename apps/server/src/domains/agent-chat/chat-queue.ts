@@ -6,6 +6,8 @@ import type {
 } from '@caxri/protocol';
 import {
     CaxriError,
+    MAX_AGENT_CHAT_IMAGES,
+    MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
     MAX_AGENT_CHAT_QUEUE,
     MAX_AGENT_CHAT_QUEUE_TEXT_LENGTH,
@@ -81,6 +83,69 @@ function queueView(queue: readonly QueuedInput[]): AgentChatQueuedMessage[] {
     );
 }
 
+type QueuedMessage = Extract<QueuedInput, { kind: 'message' }>;
+
+/**
+ * Separates the messages one dispatch joins, so each still reads as its own paragraph.
+ */
+const MERGED_MESSAGE_SEPARATOR = '\n\n';
+
+/**
+ * The entries the next dispatch sends as one input: the run of messages at the head of the queue, as far as one message
+ * may carry (text length, image count, combined image size), or the command at the head on its own. Messages the user
+ * queued back to back answer the same turn, so they go out together instead of one turn each; a command cannot join a
+ * message and keeps its own turn.
+ */
+function dispatchBatch(entries: readonly QueuedInput[]): QueuedInput[] {
+    const [first] = entries;
+    if (first.kind === 'command') return [first];
+    const batch: QueuedMessage[] = [first];
+    let textLength = first.message.text.length;
+    let imageCount = first.message.images?.length ?? 0;
+    let imageLength = first.message.images?.reduce((sum, image) => sum + image.data.length, 0) ?? 0;
+    for (const entry of entries.slice(1)) {
+        if (entry.kind !== 'message') break;
+        const images = entry.message.images ?? [];
+        const nextTextLength =
+            textLength + MERGED_MESSAGE_SEPARATOR.length + entry.message.text.length;
+        const nextImageCount = imageCount + images.length;
+        const nextImageLength = images.reduce((sum, image) => sum + image.data.length, imageLength);
+        if (
+            nextTextLength > MAX_AGENT_CHAT_MESSAGE_LENGTH ||
+            nextImageCount > MAX_AGENT_CHAT_IMAGES ||
+            nextImageLength > MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH
+        )
+            break;
+        batch.push(entry);
+        textLength = nextTextLength;
+        imageCount = nextImageCount;
+        imageLength = nextImageLength;
+    }
+    return batch;
+}
+
+/**
+ * The one input a batch sends: a command as it is, or its messages joined in queue order with every image attached. An
+ * image-only message adds no blank paragraph.
+ */
+function mergeBatch(batch: readonly QueuedInput[]): QueuedInput {
+    const [first] = batch;
+    if (batch.length === 1) return first;
+    const messages = batch as readonly QueuedMessage[];
+    const images = messages.flatMap((entry) => entry.message.images ?? []);
+    return {
+        id: first.id,
+        kind: 'message',
+        message: {
+            text: messages
+                .map((entry) => entry.message.text)
+                .filter((text) => text.length > 0)
+                .join(MERGED_MESSAGE_SEPARATOR),
+            ...(images.length > 0 && { images }),
+        },
+    };
+}
+
 /**
  * What the queue needs from its Chat. `enqueue` is the Chat's serialized input chain, so a dispatched input stays in
  * order with inputs the user sends directly.
@@ -111,8 +176,9 @@ async function deliverQueuedInput(
 }
 
 /**
- * One Chat's follow-up queue: messages and commands sent while a turn runs, sent one turn at a time once the Chat is
- * idle. An interrupt pauses it so stopping a turn never fires the next message by surprise.
+ * One Chat's follow-up queue: messages and commands sent while a turn runs, sent once the Chat is idle. Consecutive
+ * messages go out together as one turn (see {@link dispatchBatch}); a command takes a turn of its own. An interrupt
+ * pauses it so stopping a turn never fires the next message by surprise.
  */
 export class ChatFollowUpQueue {
     private entries: QueuedInput[] = [];
@@ -136,11 +202,21 @@ export class ChatFollowUpQueue {
         ]);
     }
 
-    private log(reason: QueueChange): void {
+    /**
+     * `merged` is how many queued entries one dispatch joined into a single input.
+     */
+    private log(reason: QueueChange, merged?: number): void {
         this.host.logger.write(
             reason === 'dispatchFailed' || reason === 'deliveryUnknown' ? 'warn' : 'info',
             logEventCatalog.agentChat.queueChanged,
-            { fields: { terminalId: this.host.terminalId, reason, depth: this.entries.length } },
+            {
+                fields: {
+                    terminalId: this.host.terminalId,
+                    reason,
+                    depth: this.entries.length,
+                    ...(merged !== undefined && { merged }),
+                },
+            },
         );
     }
 
@@ -177,25 +253,35 @@ export class ChatFollowUpQueue {
         );
     }
 
+    /**
+     * Takes a dispatch batch out of the queue in one publish.
+     */
+    private take(batch: readonly QueuedInput[]): void {
+        const taken = new Set(batch);
+        this.entries = this.entries.filter((entry) => !taken.has(entry));
+        if (this.entries.length === 0) this.isPaused = false;
+        this.publish();
+    }
+
     private async dispatchNext(): Promise<void> {
         try {
             await this.host.enqueue(async (session) => {
                 this.isDispatching = false;
                 if (!this.isIdle()) return;
                 // `isIdle` guarantees a first entry.
-                const [entry] = this.entries;
+                const batch = dispatchBatch(this.entries);
                 this.isDispatching = true;
-                this.remove(entry.id);
+                this.take(batch);
                 try {
-                    await deliverQueuedInput(session, entry, 'queued');
-                    this.log('dispatched');
+                    await deliverQueuedInput(session, mergeBatch(batch), 'queued');
+                    this.log('dispatched', batch.length);
                 } catch (error) {
                     if (this.isRetired) return;
-                    // Keep the input and stop the queue, so a failure the user has not seen never drops or repeats it.
-                    this.entries.unshift(entry);
+                    // Keep the inputs and stop the queue, so a failure the user has not seen never drops or repeats them.
+                    this.entries.unshift(...batch);
                     this.isPaused = true;
-                    if (isDeliveryUnknown(error)) this.holdUnconfirmed(entry, error);
-                    else this.log('dispatchFailed');
+                    if (isDeliveryUnknown(error)) this.holdUnconfirmed(batch[0], error);
+                    else this.log('dispatchFailed', batch.length);
                     this.publish();
                 }
             });
@@ -303,7 +389,7 @@ export class ChatFollowUpQueue {
     /**
      * Sends the next queued input once the Chat is idle. Called after every projection change, so a turn ending, a
      * restart reaching `ready`, or a resume all advance the queue; only one dispatch is in flight at a time, and the
-     * turn it starts holds back the next one.
+     * turn it starts holds back the next one. A dispatch joins the run of messages at the head into one input.
      */
     dispatch(): void {
         if (this.isRetired || !this.isIdle()) return;

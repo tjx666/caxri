@@ -9,7 +9,7 @@ function userTexts(snapshot: AgentChatSnapshot): string[] {
 }
 
 describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
-    it('holds messages sent during a turn and sends them one turn at a time, in order', async () => {
+    it('holds messages sent during a turn and sends them together as the next turn, in order', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'slow please' });
         await until((snapshot) => snapshot.activeTurnId !== undefined);
@@ -30,15 +30,11 @@ describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
             (snapshot) =>
                 snapshot.queue?.length === 0 &&
                 !snapshot.activeTurnId &&
-                snapshot.turns.length === 3,
+                snapshot.turns.length === 2,
         );
-        expect(userTexts(drained)).toEqual(['slow please', 'hello first', 'hello second']);
+        expect(userTexts(drained)).toEqual(['slow please', 'hello first\n\nhello second']);
         expect(drained.queuePaused).toBe(false);
-        expect(drained.turns.map((turn) => turn.status)).toEqual([
-            'interrupted',
-            'completed',
-            'completed',
-        ]);
+        expect(drained.turns.map((turn) => turn.status)).toEqual(['interrupted', 'completed']);
     });
 
     it('keeps queued and steered marks on messages after a restart', async () => {

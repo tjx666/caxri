@@ -21,6 +21,7 @@ import { agentChatComposerKeyAction } from './agent-chat-composer-keys';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
+import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { agentChatSendBlock } from './agent-chat-presentation';
 import { agentChatSendTooltip } from './agent-chat-presentation';
 import { AgentChatQueueList } from './agent-chat-queue-list';
@@ -71,10 +72,14 @@ interface AgentChatComposerProperties {
      */
     isShown: boolean;
     /**
-     * Runs after Server Core accepted a message from this composer (sent, queued, or steered) or a slash command it
-     * ran; never after a failed or refused send. The pane uses it to scroll the timeline to the latest entry.
+     * Runs once a message left this composer (it shows as pending at once), or after Server Core accepted a slash
+     * command it ran. The pane uses it to scroll the timeline to the latest entry.
      */
     onSent?: () => void;
+    /**
+     * Messages sent to wait in the queue that the projection does not list yet (`agent-chat-pending.ts`).
+     */
+    pendingQueue: readonly AgentChatPendingMessage[];
     /**
      * The provider catalog's display name, for the placeholder and the toast that says it takes no images.
      */
@@ -140,6 +145,7 @@ export function AgentChatComposer({
     isQueuePaused,
     isShown,
     onSent,
+    pendingQueue,
     providerName,
     queue,
     sendBlock,
@@ -249,6 +255,7 @@ export function AgentChatComposer({
             <AgentChatQueueList
                 isPaused={isQueuePaused}
                 isTurnRunning={isTurnRunning}
+                pending={pendingQueue}
                 queue={queue}
                 terminalId={terminalId}
                 onAction={focusInput}

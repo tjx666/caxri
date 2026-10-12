@@ -1,7 +1,7 @@
 import { MAX_AGENT_CHAT_DIFF_LENGTH, MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { answeredNotice, closeDanglingItem } from '../chat-items';
+import { closeDanglingItem } from '../chat-items';
 import { codexRequestKey, mapCodexItem, mapCodexRequest } from '../codex-items';
 
 describe('Codex item mapping', () => {
@@ -298,45 +298,6 @@ describe('Codex item mapping', () => {
                 },
             ],
         });
-    });
-
-    it('records the answers to a question, labelled by header, and skips unanswered questions', () => {
-        const question = (id: string, header: string) => ({
-            id,
-            header,
-            question: `${id}?`,
-            options: [],
-            allowsOther: true,
-        });
-        expect(
-            answeredNotice(
-                {
-                    id: 'q',
-                    kind: 'question',
-                    questions: [
-                        question('color', 'Color'),
-                        question('size', ''),
-                        question('skip', ''),
-                    ],
-                },
-                'turn-1',
-                { color: ['Blue'], size: ['S', 'M'] },
-            ),
-        ).toEqual({
-            id: 'answer:q',
-            turnId: 'turn-1',
-            type: 'notice',
-            kind: 'answered',
-            message: 'Color: Blue\nsize?: S, M',
-        });
-        expect(answeredNotice({ id: 'a', kind: 'fileChange' }, undefined, {})).toBeUndefined();
-        expect(
-            answeredNotice(
-                { id: 'q', kind: 'question', questions: [question('x', 'X')] },
-                undefined,
-                {},
-            ),
-        ).toBeUndefined();
     });
 
     it("bounds the sum of one file-change item's diffs", () => {

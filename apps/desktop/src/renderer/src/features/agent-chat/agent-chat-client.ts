@@ -32,6 +32,13 @@ export async function readAgentChatSnapshot(terminalId: string): Promise<AgentCh
     );
 }
 
+/**
+ * The Chat's snapshot as the pane shows it right now, without a read: what a send decides from in the same tick.
+ */
+export function cachedAgentChatSnapshot(terminalId: string): AgentChatSnapshot | undefined {
+    return queryClient.getQueryData<AgentChatSnapshot>(agentChatQueryKey(terminalId));
+}
+
 function agentChatTaskQueryKey(terminalId: string, taskId: string) {
     return caxriQueryKey('agentChat.readTask', { terminalId, taskId });
 }

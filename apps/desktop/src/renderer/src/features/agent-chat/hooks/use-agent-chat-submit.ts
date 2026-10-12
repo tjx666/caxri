@@ -2,18 +2,26 @@ import { useState } from 'react';
 
 import type { AgentChatCommand } from '@caxri/protocol';
 
+import { cachedAgentChatSnapshot } from '../agent-chat-client';
 import {
     didRewindAgentChat,
     didRunAgentChatCommand,
     didSendAgentChatMessage,
 } from '../agent-chat-commands';
 import type { AgentChatAttachment } from '../agent-chat-drafts';
-import { draftAfterSend } from '../agent-chat-drafts';
+import { draftAfterSend, returnUnsentAgentChatMessage } from '../agent-chat-drafts';
+import {
+    dropAgentChatPendingMessage,
+    expireAgentChatPendingMessage,
+    showAgentChatPendingMessage,
+} from '../agent-chat-pending';
 import { parseAgentChatCommand } from '../agent-chat-slash-commands';
 
 /**
- * Sends the draft as a message with its images, or runs it when it names a listed slash command. Only what was actually
- * sent is cleared, so text typed or images attached while a send is in flight survive it.
+ * Sends the draft as a message with its images, or runs it when it names a listed slash command. A message leaves the
+ * composer at once and shows as pending where it will land (`agent-chat-pending.ts`); a failed send takes the pending
+ * row away and puts its text and images back. A command, an edit, and a rewind still wait for Server Core, and clear
+ * only what was actually sent, so text typed or images attached while they are in flight survive them.
  */
 export function useAgentChatSubmit({
     attachments,
@@ -27,7 +35,8 @@ export function useAgentChatSubmit({
     clearSent: (sent: readonly AgentChatAttachment[]) => void;
     commands: readonly AgentChatCommand[] | undefined;
     /**
-     * Runs after Server Core accepted a message (sent, queued, or steered) or a slash command, never after a failure.
+     * Runs once a message left the composer, or after Server Core accepted a slash command or an edit; never after a
+     * failure of those.
      */
     onSent?: () => void;
     setDraft: (update: (current: string) => string) => void;
@@ -57,27 +66,40 @@ export function useAgentChatSubmit({
      * `delivery` applies only while a turn runs (see `agentChat.send`); a slash command issued during a turn always
      * waits in the queue, because a command cannot join a running turn.
      */
-    const submit = (sent: string, delivery?: 'queue' | 'steer'): Promise<void> => {
+    const submit = async (sent: string, delivery?: 'queue' | 'steer'): Promise<void> => {
         const command = parseAgentChatCommand(sent, commands);
         if (command) return runCommand(sent, command);
         const sentAttachments = attachments;
-        return send(
-            () =>
-                didSendAgentChatMessage(
-                    terminalId,
-                    {
-                        text: sent,
-                        ...(sentAttachments.length > 0 && {
-                            images: sentAttachments.map((attachment) => attachment.image),
-                        }),
-                    },
-                    delivery,
-                ),
-            () => {
-                setDraft((current) => draftAfterSend(current, sent));
-                clearSent(sentAttachments);
+        const pendingId = showAgentChatPendingMessage(
+            terminalId,
+            cachedAgentChatSnapshot(terminalId),
+            {
+                text: sent,
+                images: sentAttachments.map((attachment) => ({
+                    thumbnail: attachment.image.thumbnail,
+                })),
+                delivery,
             },
         );
+        setDraft((current) => draftAfterSend(current, sent));
+        clearSent(sentAttachments);
+        onSent?.();
+        const isSent = await didSendAgentChatMessage(
+            terminalId,
+            {
+                text: sent,
+                ...(sentAttachments.length > 0 && {
+                    images: sentAttachments.map((attachment) => attachment.image),
+                }),
+            },
+            delivery,
+        );
+        if (isSent) {
+            expireAgentChatPendingMessage(terminalId, pendingId);
+            return;
+        }
+        dropAgentChatPendingMessage(terminalId, pendingId);
+        returnUnsentAgentChatMessage(terminalId, sent, sentAttachments);
     };
     /**
      * Sends the draft in place of an earlier message ("Edit from here"). It is always sent as a message, never run as a
