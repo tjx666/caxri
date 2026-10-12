@@ -2,7 +2,12 @@ import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 
 import type { PermissionAutoAllowStatus, Principal, ServerEvent } from '@caxri/protocol';
-import { CaxriError, MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from '@caxri/protocol';
+import {
+    CaxriError,
+    isBinaryFileReadError,
+    MOBILE_FILES_MAX_ENTRIES,
+    MOBILE_FILES_READ_MAX_BYTES,
+} from '@caxri/protocol';
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type {
@@ -311,17 +316,13 @@ export function createMobileDomainHandlers(options: {
             } catch (error) {
                 /**
                  * `DocumentService.read` throws rather than returning a discriminated result; mobile matches on the
-                 * exact codes it uses for a size limit and a binary sniff so every other failure (missing file,
-                 * concurrent modification, path denial) still propagates as a hard error instead of a soft status.
+                 * code it uses for a size limit and the stable reason of a binary sniff so every other failure (missing
+                 * file, concurrent modification, path denial) still propagates as a hard error instead of a soft
+                 * status.
                  */
                 if (error instanceof CaxriError && error.code === 'CAPACITY')
                     return { status: 'oversized' as const };
-                if (
-                    error instanceof CaxriError &&
-                    error.code === 'IO' &&
-                    error.message === 'Binary files cannot be opened in the editor'
-                )
-                    return { status: 'binary' as const };
+                if (isBinaryFileReadError(error)) return { status: 'binary' as const };
                 throw error;
             }
         },

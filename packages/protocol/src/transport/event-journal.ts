@@ -29,6 +29,7 @@ export type TransientServerEvent = Extract<
             | 'desktop.openRequested'
             | 'editor.unsavedRequest'
             | 'environment.changed'
+            | 'environment.connectionReused'
             | 'externalDocument.changed'
             | 'host.connectionChanged'
             | 'gpu.recoveryRequested'
@@ -79,6 +80,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * state through `environment.get`, and a replayed prompt would answer a helper that already gave up.
      */
     'environment.changed',
+    /**
+     * A notice about one connect attempt; a reloaded Renderer has no use for it.
+     */
+    'environment.connectionReused',
     /**
      * One quit or close decision in flight: replaying it to a later Renderer generation would answer a prompt that
      * already timed out.

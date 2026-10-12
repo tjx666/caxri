@@ -117,6 +117,7 @@ describe('table descriptions', () => {
         const rows = Array.from({ length: MAX_TABLE_ROWS + 1 }, () => '1,2').join('\n');
         const tall = parseDelimitedTable(`a,b\n${rows}\n`, '/p/tall.csv');
         expect(describeTableSize(tall)).toBe('50,000 rows × 2 columns');
+        expect(describeTableSize(tall, undefined, 1_234)).toBe('1,234 of 50,000 rows × 2 columns');
         expect(describeTableLimits(tall)).toBe('Only the first 50,000 rows are shown.');
         expect(describeTableLimits({ ...tall, truncatedColumns: true })).toBe(
             'Only the first 50,000 rows and 256 columns are shown.',

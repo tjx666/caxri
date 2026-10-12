@@ -1,29 +1,27 @@
 import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { describePdfFailure } from '../pdf-failure';
+import { describePdfFailure, pdfPasswordPrompt } from '../pdf-failure';
 
 /**
  * Stands in for pdf.js's exception classes, which the preview tells apart by `name` alone.
  */
 class NamedError extends Error {
-    constructor(name: string) {
+    constructor(
+        name: string,
+        readonly code?: number,
+    ) {
         super('pdf.js detail');
         this.name = name;
     }
 }
 
-function namedError(name: string): Error {
-    return new NamedError(name);
+function namedError(name: string, code?: number): Error {
+    return new NamedError(name, code);
 }
 
 describe('describePdfFailure', () => {
-    it('names the document problems a reader can act on', () => {
-        expect(describePdfFailure(namedError('PasswordException'))).toEqual({
-            reason: 'This PDF is password-protected, and protected PDFs cannot be previewed yet.',
-            tone: 'failed',
-            recovery: 'openWithDefaultApp',
-        });
+    it('names a damaged document', () => {
         expect(describePdfFailure(namedError('InvalidPDFException'))).toEqual({
             reason: 'This file is not a valid PDF, or it is damaged.',
             tone: 'failed',
@@ -48,5 +46,34 @@ describe('describePdfFailure', () => {
         expect(failure.reason).toMatch(/^Couldn't open this file/);
         // A missing file can come back, so a read failure keeps Retry.
         expect(failure.recovery).toBe('retry');
+    });
+});
+
+describe('pdfPasswordPrompt', () => {
+    const needPassword = namedError('PasswordException', 1);
+    const incorrectPassword = namedError('PasswordException', 2);
+
+    it('asks for a password instead of failing', () => {
+        expect(pdfPasswordPrompt(needPassword, 'open', 1)).toEqual({
+            status: 'password',
+            isIncorrect: false,
+            attempt: 1,
+        });
+        expect(pdfPasswordPrompt(needPassword, 'disk', 2)?.isIncorrect).toBe(false);
+    });
+
+    it('reports a wrong password only for the attempt the reader just made', () => {
+        expect(pdfPasswordPrompt(incorrectPassword, 'password', 3)).toEqual({
+            status: 'password',
+            isIncorrect: true,
+            attempt: 3,
+        });
+        // The file was rewritten with another password: the remembered one is stale, not mistyped.
+        expect(pdfPasswordPrompt(incorrectPassword, 'disk', 4)?.isIncorrect).toBe(false);
+    });
+
+    it('leaves every other error to describePdfFailure', () => {
+        expect(pdfPasswordPrompt(namedError('InvalidPDFException'), 'password', 1)).toBeUndefined();
+        expect(pdfPasswordPrompt(undefined, 'open', 1)).toBeUndefined();
     });
 });

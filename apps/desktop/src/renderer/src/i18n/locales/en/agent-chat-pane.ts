@@ -15,6 +15,7 @@ export const agentChatPane = {
     'agentChat.commands.forkFailed': 'Conversation could not be forked',
     'agentChat.commands.restoreFailed': 'Code could not be restored',
     'agentChat.commands.runCommandFailed': '/{{name}} could not run',
+    'agentChat.commands.pickPathsFailed': 'Files and folders could not be opened',
     'agentChat.commands.stopAgentFailed': 'Unable to stop the Agent',
     'agentChat.commands.answerFailed': 'Unable to answer the Agent',
     'agentChat.commands.saveProjectDefaultFailed': 'Unable to save the Project default',

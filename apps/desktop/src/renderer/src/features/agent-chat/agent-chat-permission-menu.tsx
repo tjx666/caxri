@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import type { AgentChatPermissionMode, AgentProvider } from '@caxri/protocol';
 import { agentChatPermissionModes } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
@@ -25,7 +23,9 @@ import {
     MenuTrigger,
 } from '../../components/ui/menu';
 import { Spinner } from '../../components/ui/spinner';
+import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useProjectById, useSessionById, useTerminal } from '../../stores/selectors';
 import { saveAgentChatProjectDefault } from './agent-chat-commands';
@@ -36,6 +36,7 @@ import {
     agentChatPermissionModeName,
     agentChatPermissionView,
 } from './agent-chat-permissions';
+import { useAgentChatComposerMenu } from './hooks/use-agent-chat-composer-command';
 import type { useAgentChatPermissionSelection } from './hooks/use-agent-chat-permission-selection';
 
 /**
@@ -69,7 +70,8 @@ const FULL_ACCESS_TRIGGER_CLASS_NAME =
  * turn ends. Launch settings no level matches read as a checked "Custom" row. "Use as Project default" saves the
  * current choice for the Project's new Chats of this provider, shows as a checked "Project default" once saved, and
  * stays visible but disabled, with the reason, while the level is Custom; see `docs/agent-chat.md`. The Agent Commander
- * window omits it, because Main's Commander policy refuses Project writes.
+ * window omits it, because Main's Commander policy refuses Project writes. `agentChat.changePermissionMode` opens it
+ * from the keyboard, and its tooltip names that shortcut.
  */
 export function AgentChatPermissionMenu({
     canSaveProjectDefault,
@@ -89,13 +91,21 @@ export function AgentChatPermissionMenu({
     terminalId: string;
 }) {
     const { t } = useTranslation();
-    const [isOpen, setOpen] = useState(false);
     const terminal = useTerminal(terminalId);
     const project = useProjectById(useSessionById(terminal?.sessionId)?.projectId);
     const { configure, isDeferred, isNextTurnOnly, isPending, snapshot } = selection;
     // A snapshot from before the Chat reported its permission has neither key.
-    if (!snapshot || !provider || !('permissionMode' in snapshot || 'planMode' in snapshot))
-        return null;
+    const isShown =
+        snapshot !== undefined &&
+        provider !== undefined &&
+        ('permissionMode' in snapshot || 'planMode' in snapshot);
+    const { finalFocus, isOpen, setOpen } = useAgentChatComposerMenu(
+        terminalId,
+        'changePermissionMode',
+        isShown,
+    );
+    const shortcut = useCommandShortcut('agentChat.changePermissionMode');
+    if (!isShown) return null;
     const view = agentChatPermissionView(snapshot, provider, project?.chatDefaults, {
         isDeferred,
     });
@@ -103,27 +113,36 @@ export function AgentChatPermissionMenu({
     const { projectDefault } = view;
     return (
         <Menu open={isOpen} onOpenChange={setOpen}>
-            <MenuTrigger
-                aria-label={view.ariaLabel}
-                className={cn(
-                    TRIGGER_CLASS_NAME,
-                    view.isFullAccess && FULL_ACCESS_TRIGGER_CLASS_NAME,
-                )}
-            >
-                <Icon className="size-3.5 shrink-0" />
-                <span className="truncate">{view.label}</span>
-                {view.pendingCaption && (
-                    <span className="truncate text-[11px] text-muted">{view.pendingCaption}</span>
-                )}
-                {isPending && (
-                    <Spinner
-                        aria-label={t('agentChat.model.switching')}
-                        className="size-3 shrink-0"
-                    />
-                )}
-            </MenuTrigger>
+            <Tooltip content={t('agentChat.permission.permissions')} shortcut={shortcut}>
+                <MenuTrigger
+                    aria-label={view.ariaLabel}
+                    className={cn(
+                        TRIGGER_CLASS_NAME,
+                        view.isFullAccess && FULL_ACCESS_TRIGGER_CLASS_NAME,
+                    )}
+                >
+                    <Icon className="size-3.5 shrink-0" />
+                    <span className="truncate">{view.label}</span>
+                    {view.pendingCaption && (
+                        <span className="truncate text-[11px] text-muted">
+                            {view.pendingCaption}
+                        </span>
+                    )}
+                    {isPending && (
+                        <Spinner
+                            aria-label={t('agentChat.model.switching')}
+                            className="size-3 shrink-0"
+                        />
+                    )}
+                </MenuTrigger>
+            </Tooltip>
             {/* The trigger sits at the composer's leading edge, so the menu opens aligned to its start. */}
-            <MenuContent align="start" className="max-w-80 min-w-60" side="top">
+            <MenuContent
+                align="start"
+                className="max-w-80 min-w-60"
+                finalFocus={finalFocus}
+                side="top"
+            >
                 <AgentChatPermissionMenuItems
                     isNextTurnOnly={isNextTurnOnly}
                     permissionMode={snapshot.permissionMode}

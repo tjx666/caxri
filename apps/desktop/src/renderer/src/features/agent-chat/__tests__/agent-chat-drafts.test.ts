@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     agentChatAttachmentLabel,
     agentChatAttachmentName,
     appendToAgentChatDraft,
     attachmentsWithReturned,
+    didDeliverAgentChatComposerInput,
     draftAfterEditCancel,
     draftAfterSend,
     draftWithInsertion,
@@ -173,5 +174,54 @@ describe('draftWithInsertion', () => {
         ['before\nafter', 7, { draft: 'before\na\nb\nafter', caret: 11 }],
     ])('sets a multi-line insertion into %j at %i on lines of its own', (draft, at, expected) => {
         expect(draftWithInsertion(draft, at, at, 'a\nb')).toEqual(expected);
+    });
+});
+
+describe('didDeliverAgentChatComposerInput', () => {
+    it('clears the composer before delivery settles, and keeps it clear once delivered', async () => {
+        const events: string[] = [];
+        const delivery = Promise.withResolvers<boolean>();
+        const delivered = didDeliverAgentChatComposerInput({
+            clear: () => events.push('clear'),
+            deliver: (clear) => {
+                clear();
+                return delivery.promise;
+            },
+            restore: () => events.push('restore'),
+        });
+        expect(events).toEqual(['clear']);
+        delivery.resolve(true);
+        await expect(delivered).resolves.toBe(true);
+        expect(events).toEqual(['clear']);
+    });
+
+    it('puts what it cleared back when delivery fails', async () => {
+        const events: string[] = [];
+        await expect(
+            didDeliverAgentChatComposerInput({
+                clear: () => events.push('clear'),
+                deliver: (clear) => {
+                    clear();
+                    clear();
+                    return Promise.resolve(false);
+                },
+                restore: () => events.push('restore'),
+            }),
+        ).resolves.toBe(false);
+        expect(events).toEqual(['clear', 'restore']);
+    });
+
+    it('leaves the composer alone when the user declined before anything was cleared', async () => {
+        const clear = vi.fn();
+        const restore = vi.fn();
+        await expect(
+            didDeliverAgentChatComposerInput({
+                clear,
+                deliver: () => Promise.resolve(false),
+                restore,
+            }),
+        ).resolves.toBe(false);
+        expect(clear).not.toHaveBeenCalled();
+        expect(restore).not.toHaveBeenCalled();
     });
 });

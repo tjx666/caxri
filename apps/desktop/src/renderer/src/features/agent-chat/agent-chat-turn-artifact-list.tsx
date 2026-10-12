@@ -11,7 +11,11 @@ export function AgentChatTurnArtifactList({ artifacts }: { artifacts: AgentChatT
     return (
         <div className="mt-3 flex flex-col gap-2">
             {artifacts.files.length > 0 && (
-                <AgentChatTurnChanges files={artifacts.files} turnId={artifacts.turnId} />
+                <AgentChatTurnChanges
+                    files={artifacts.files}
+                    isPartial={artifacts.isPartial === true}
+                    turnId={artifacts.turnId}
+                />
             )}
             {artifacts.trackers.map((artifact) => (
                 <AgentChatTrackerCard artifact={artifact} key={artifact.url} />

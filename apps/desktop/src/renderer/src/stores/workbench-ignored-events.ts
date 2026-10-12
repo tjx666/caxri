@@ -13,7 +13,7 @@ import type { ServerEvent } from '@caxri/protocol';
  *   `useAgentCommander`.
  * - `subscribeUnsavedEditorRequests` answers `editor.unsavedRequest`, and `subscribeExternalDocumentSync` handles
  *   `externalDocument.changed`.
- * - `environment.changed` goes to `subscribeEnvironment` in `stores/environment.ts`.
+ * - `environment.changed` and `environment.connectionReused` go to `subscribeEnvironment` in `stores/environment.ts`.
  */
 const WORKBENCH_IGNORED_EVENTS = [
     'agent.dispatch.changed',
@@ -28,6 +28,7 @@ const WORKBENCH_IGNORED_EVENTS = [
     'commanderInbox.changed',
     'editor.unsavedRequest',
     'environment.changed',
+    'environment.connectionReused',
     'externalDocument.changed',
     'files.changed',
     'files.operationChanged',

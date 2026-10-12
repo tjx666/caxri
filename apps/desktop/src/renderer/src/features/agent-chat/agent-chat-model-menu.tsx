@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatModelLabel } from '@caxri/protocol';
@@ -6,7 +6,9 @@ import { ChevronDown, Workflow, Zap } from 'lucide-react';
 
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Spinner } from '../../components/ui/spinner';
+import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { AgentChatEffortPanel } from './agent-chat-effort-panel';
 import { AgentChatModelList } from './agent-chat-model-list';
 import type { AgentChatModelPickerView } from './agent-chat-model-selection';
@@ -16,7 +18,15 @@ import {
     agentChatPickerOpeningView,
     isAgentChatFastOffered,
 } from './agent-chat-model-selection';
+import { useAgentChatComposerMenu } from './hooks/use-agent-chat-composer-command';
 import { useAgentChatModelSelection } from './hooks/use-agent-chat-model-selection';
+
+/**
+ * The control holding the current choice: the effort slider's thumb input, or the checked model row. A command-opened
+ * picker starts there, so arrows adjust the choice at once. Base UI's default first tabbable is the Fast toggle, whose
+ * focus-opened tooltip would swallow the first Escape.
+ */
+const CURRENT_CHOICE_SELECTOR = 'input[type="range"], [role="radio"][aria-checked="true"]';
 
 const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 text-muted';
 
@@ -37,6 +47,9 @@ const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 
  * Claude Code's own `/effort` picker since 2.1.284, and Fast mode is a separate speed tier at any effort, as Codex's
  * `/fast` and Claude Code's `/fast` keep it. Each appears only while the provider offers it for the current model, and
  * an active one leads the trigger as its icon, as the Codex app's Fast bolt does.
+ *
+ * `agentChat.changeModel` opens it from the keyboard while the provider lists models, and its tooltip names that
+ * shortcut.
  */
 export function AgentChatModelMenu({
     snapshot: reported,
@@ -47,23 +60,33 @@ export function AgentChatModelMenu({
     terminalId: string;
 }) {
     const { t } = useTranslation();
-    const [isOpen, setOpen] = useState(false);
     const [view, setView] = useState<AgentChatModelPickerView>('effort');
     const { configure, isPending, snapshot } = useAgentChatModelSelection(reported, terminalId);
     const label = agentChatModelLabel(snapshot);
+    const showOpeningView = (): void => {
+        if (!snapshot) return;
+        const model = agentChatMenuModel(snapshot);
+        const hasModes =
+            isAgentChatFastOffered(snapshot, model) || snapshot.ultracode !== undefined;
+        setView(agentChatPickerOpeningView(model, hasModes));
+    };
+    const popup = useRef<HTMLDivElement>(null);
+    const { finalFocus, isOpen, isOpenedByCommand, setOpen } = useAgentChatComposerMenu(
+        terminalId,
+        'changeModel',
+        Boolean(label) && (snapshot?.models?.length ?? 0) > 0,
+        showOpeningView,
+    );
+    const shortcut = useCommandShortcut('agentChat.changeModel');
     if (!label) return null;
     const { modelName, effortName, ariaLabel } = agentChatModelTriggerText(t, snapshot, label);
     const text = (
-        <>
-            {snapshot?.fast && (
-                <Zap aria-hidden className="size-3 shrink-0 fill-current text-foreground" />
-            )}
-            {snapshot?.ultracode && (
-                <Workflow aria-hidden className="size-3 shrink-0 text-foreground" />
-            )}
-            <span className="truncate text-foreground">{modelName}</span>
-            {effortName && <span className="shrink-0">{effortName}</span>}
-        </>
+        <ModelTriggerText
+            effortName={effortName}
+            isFast={snapshot?.fast === true}
+            isUltracode={snapshot?.ultracode === true}
+            modelName={modelName}
+        />
     );
     const models = snapshot?.models;
     if (!models || models.length === 0) return <span className={LABEL_CLASS_NAME}>{text}</span>;
@@ -78,34 +101,47 @@ export function AgentChatModelMenu({
         snapshot.ultracode === undefined
             ? undefined
             : { description: t('agentChat.model.ultracodeDescription'), isOn: snapshot.ultracode };
-    const hasModes = fast !== undefined || ultracode !== undefined;
     return (
         <Popover
             open={isOpen}
             onOpenChange={(open) => {
                 setOpen(open);
-                if (open) setView(agentChatPickerOpeningView(current, hasModes));
+                if (open) showOpeningView();
             }}
         >
-            <PopoverTrigger
-                aria-label={ariaLabel}
-                className={`${LABEL_CLASS_NAME} h-7 shrink cursor-pointer rounded-full border-0 bg-transparent px-2.5 transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated`}
+            <Tooltip content={t('agentChat.model.chooseModel')} shortcut={shortcut}>
+                <PopoverTrigger
+                    aria-label={ariaLabel}
+                    className={`${LABEL_CLASS_NAME} h-7 shrink cursor-pointer rounded-full border-0 bg-transparent px-2.5 transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated`}
+                >
+                    {isOpen && view === 'effort' ? (
+                        <span className="truncate">{t('agentChat.model.chooseEffort')}</span>
+                    ) : (
+                        text
+                    )}
+                    {isPending ? (
+                        <Spinner
+                            aria-label={t('agentChat.model.switching')}
+                            className="size-3 shrink-0"
+                        />
+                    ) : (
+                        <ChevronDown className="size-3 shrink-0" />
+                    )}
+                </PopoverTrigger>
+            </Tooltip>
+            <PopoverContent
+                align="end"
+                className="w-72"
+                finalFocus={finalFocus}
+                initialFocus={() =>
+                    (isOpenedByCommand()
+                        ? popup.current?.querySelector<HTMLElement>(CURRENT_CHOICE_SELECTOR)
+                        : undefined) ?? true
+                }
+                ref={popup}
+                side="top"
+                sideOffset={6}
             >
-                {isOpen && view === 'effort' ? (
-                    <span className="truncate">{t('agentChat.model.chooseEffort')}</span>
-                ) : (
-                    text
-                )}
-                {isPending ? (
-                    <Spinner
-                        aria-label={t('agentChat.model.switching')}
-                        className="size-3 shrink-0"
-                    />
-                ) : (
-                    <ChevronDown className="size-3 shrink-0" />
-                )}
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-72" side="top" sideOffset={6}>
                 {view === 'effort' ? (
                     <AgentChatEffortPanel
                         configure={configure}
@@ -134,5 +170,30 @@ export function AgentChatModelMenu({
                 )}
             </PopoverContent>
         </Popover>
+    );
+}
+
+/**
+ * The trigger's reading of the current choice: an active mode's icon first, then the model name in the foreground color
+ * and the effort muted beside it.
+ */
+function ModelTriggerText({
+    effortName,
+    isFast,
+    isUltracode,
+    modelName,
+}: {
+    effortName: string | undefined;
+    isFast: boolean;
+    isUltracode: boolean;
+    modelName: string;
+}) {
+    return (
+        <>
+            {isFast && <Zap aria-hidden className="size-3 shrink-0 fill-current text-foreground" />}
+            {isUltracode && <Workflow aria-hidden className="size-3 shrink-0 text-foreground" />}
+            <span className="truncate text-foreground">{modelName}</span>
+            {effortName && <span className="shrink-0">{effortName}</span>}
+        </>
     );
 }

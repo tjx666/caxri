@@ -191,6 +191,7 @@ export const effectfulCommandRecovery = {
     'agentCommander.revealSession': 'durable',
     'agentCommander.stop': 'durable',
     'dialog.selectDirectory': 'memory',
+    'dialog.selectPaths': 'memory',
     'agentChat.confirmRevertFiles': 'memory',
     'pathBrowser.start': 'memory',
     'pathBrowser.navigate': 'memory',

@@ -9,7 +9,10 @@ import {
     agentMessageReceiptSchema,
 } from '../agent/agent-inbox-contract.js';
 import { configurationSourceSchema as configSourceSchema } from '../configuration/configuration-contract.js';
-import { environmentStateSchema } from '../desktop/remote-environment-contract.js';
+import {
+    environmentStateSchema,
+    sshDestinationSchema,
+} from '../desktop/remote-environment-contract.js';
 import { commandIdSchema } from '../domain/commands.js';
 import {
     agentHookHealthMapSchema,
@@ -309,6 +312,11 @@ export const serverEventPayloads = {
      * `environment.get` reads the same value.
      */
     'environment.changed': environmentStateSchema,
+    /**
+     * Main focused this SSH Host window for a connect to `destination`, another spelling or `~/.ssh/config` alias that
+     * resolves to the same account, instead of opening a second window.
+     */
+    'environment.connectionReused': z.object({ destination: sshDestinationSchema }),
     /**
      * Main-originated resync signal after the Desktop↔Host connection dropped and re-attached (observed in production
      * on macOS sleep/wake). Transient events sent during the outage, PTY output above all, were never delivered and are

@@ -222,6 +222,7 @@ const artifactsCache = new WeakMap<
     {
         turnId: string;
         items: readonly AgentChatItem[];
+        isPartial: boolean;
         artifacts: AgentChatTurnArtifacts | undefined;
     }
 >();
@@ -229,18 +230,22 @@ const artifactsCache = new WeakMap<
 function turnArtifacts(
     turnId: string,
     items: readonly AgentChatItem[],
+    isPartial: boolean,
 ): AgentChatTurnArtifacts | undefined {
     const first = items.at(0);
     if (!first) return undefined;
     const cached = artifactsCache.get(first);
     if (
         cached?.turnId === turnId &&
+        cached.isPartial === isPartial &&
         cached.items.length === items.length &&
         cached.items.every((item, index) => item === items[index])
     )
         return cached.artifacts;
-    const artifacts = collectAgentChatTurnArtifacts(turnId, items);
-    artifactsCache.set(first, { turnId, items, artifacts });
+    const collected = collectAgentChatTurnArtifacts(turnId, items);
+    const artifacts =
+        collected && isPartial ? { ...collected, isPartial: true as const } : collected;
+    artifactsCache.set(first, { turnId, items, isPartial, artifacts });
     return artifacts;
 }
 
@@ -264,11 +269,15 @@ function withTurnArtifacts(
  * run of items sharing a `turnId` is one turn. A turn still running (or with no recorded end) stays expanded. Every
  * turn not running ends on its last reply, which is the only one marked `isFinalReply`; a running turn's latest reply
  * may still be followed by more work, so it is not marked until the turn ends.
+ *
+ * `isTruncated` says older items were dropped before `items`. The first turn then may have lost its start, so its
+ * artifacts are marked `isPartial` unless it still opens on its prompt.
  */
 export function buildAgentChatTimeline(
     items: readonly AgentChatItem[],
     turns: readonly AgentChatTurn[],
     activeTurnId: string | undefined,
+    isTruncated = false,
 ): AgentChatTimelineEntry[] {
     const finished = new Map(
         turns
@@ -295,7 +304,11 @@ export function buildAgentChatTimeline(
             ...(turn
                 ? withTurnArtifacts(
                       foldTurn(segment, turn, finalReplyId),
-                      turnArtifacts(turn.id, segment),
+                      turnArtifacts(
+                          turn.id,
+                          segment,
+                          start === 0 && isTruncated && segment[0]?.type !== 'userMessage',
+                      ),
                   )
                 : groupWork(segment, finalReplyId)),
         );
