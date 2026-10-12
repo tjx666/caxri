@@ -169,7 +169,9 @@ function CacheTimeline({
 }) {
     const { t } = useTranslation();
     const max = Math.max(1, ...points.map((point) => point.read + point.write + point.input));
-    const index = focusIndex ?? points.length - 1;
+    // Clamped because a refresh can shorten the history (the transcript tail drops old requests) while a column is
+    // still hovered.
+    const index = clamp(focusIndex ?? points.length - 1, 0, points.length - 1);
     const point = points[index];
     const focusedBreak = breaks.find((item) => item.index === index);
     const columnWidth = 100 / points.length;

@@ -251,19 +251,30 @@ type LiveClaudeContext =
 export class ClaudeContextTracker {
     private readonly ledger = new ClaudeContextLedger();
 
+    /**
+     * Issue order of reads. The meter's refresh and the tab's read often overlap and can answer out of order; the
+     * ledger only takes an answer newer than the last one it recorded, so a stale answer never reads as a change.
+     */
+    private issued = 0;
+    private recordedSequence = 0;
+
     private readonly refresh = new ClaudeContextRefresh(async () => {
         const live = this.live();
-        if (live)
-            await refreshClaudeContextDetails(live.query, live.host, live.isEnded, (response) =>
-                this.record(response),
-            );
+        if (!live) return;
+        const sequence = ++this.issued;
+        await refreshClaudeContextDetails(live.query, live.host, live.isEnded, (response) =>
+            this.record(response, sequence),
+        );
     });
 
     constructor(private readonly live: () => LiveClaudeContext) {}
 
-    private record(response: unknown): AgentChatContextComposition | undefined {
+    private record(response: unknown, sequence: number): AgentChatContextComposition | undefined {
         const composition = claudeContextComposition(response);
-        if (composition) this.ledger.record(composition, Date.now());
+        if (composition && sequence > this.recordedSequence) {
+            this.recordedSequence = sequence;
+            this.ledger.record(composition, Date.now());
+        }
         return composition;
     }
 
@@ -278,7 +289,8 @@ export class ClaudeContextTracker {
      * What fills the context now, item by item, with the changes noticed since the process started.
      */
     async read(query: Pick<Query, 'getContextUsage'>): Promise<ChatContextDetails> {
-        const composition = this.record(await readClaudeContextUsage(query));
+        const sequence = ++this.issued;
+        const composition = this.record(await readClaudeContextUsage(query), sequence);
         return { ...(composition && { composition }), changes: this.ledger.changes };
     }
 }
