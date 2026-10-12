@@ -34,3 +34,12 @@ export const lobeResources = {
 function flattenLobe(namespaces: Readonly<Record<string, Readonly<Record<string, string>>>>) {
     return Object.assign({}, ...Object.values(namespaces)) as Record<string, string>;
 }
+
+/**
+ * Narrows a key assembled at runtime from an open-ended id (a command registered by a feature module, an extension's
+ * contribution) whose translation may not exist. Prefer a template literal over a closed id union, which type-checks
+ * completeness instead; reach for this guard only when the id set is not a closed union.
+ */
+export function isTranslationKey(key: string): key is TranslationKey {
+    return Object.hasOwn(localeDictionaries.en, key);
+}

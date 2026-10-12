@@ -1,5 +1,6 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+
 import type { settings as source } from '../en/settings';
-import type { TranslatedNamespace } from '../types';
 
 export const settings: TranslatedNamespace<typeof source> = {
     'settings.workbench.language.title': '语言',

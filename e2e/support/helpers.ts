@@ -253,13 +253,12 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         lease = await beginDesktopLeaseHandoff(lease);
         app = await electron.launch({
             ...(executablePath && { executablePath }),
-            args: executablePath
-                ? gpuMode === 'enabled'
-                    ? []
-                    : ['--disable-gpu']
-                : gpuMode === 'enabled'
-                  ? ['apps/desktop']
-                  : ['apps/desktop', '--disable-gpu'],
+            // Specs assert English copy; pinning Chromium's locale keeps the system-following language English.
+            args: [
+                ...(executablePath ? [] : ['apps/desktop']),
+                ...(gpuMode === 'enabled' ? [] : ['--disable-gpu']),
+                '--lang=en-US',
+            ],
             cwd: projectRoot,
             env: launchEnvironment,
         });

@@ -1,4 +1,5 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+
 import type { updates as source } from '../en/updates';
-import type { TranslatedNamespace } from '../types';
 
 export const updates: TranslatedNamespace<typeof source> = {};

@@ -1,4 +1,5 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+
 import type { preview as source } from '../en/preview';
-import type { TranslatedNamespace } from '../types';
 
 export const preview: TranslatedNamespace<typeof source> = {};

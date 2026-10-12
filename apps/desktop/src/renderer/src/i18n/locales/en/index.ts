@@ -1,3 +1,5 @@
+import { commands } from '@desktop-shared/i18n/en/commands';
+
 import { agentActions } from './agent-actions';
 import { agentActivity } from './agent-activity';
 import { agentChat } from './agent-chat';
@@ -5,7 +7,6 @@ import { agentCommander } from './agent-commander';
 import { agentInbox } from './agent-inbox';
 import { agentStatus } from './agent-status';
 import { bugReport } from './bug-report';
-import { commands } from './commands';
 import { common } from './common';
 import { confirmations } from './confirmations';
 import { core } from './core';
