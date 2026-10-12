@@ -2,32 +2,53 @@ import type { CSSProperties } from 'react';
 
 import { ArrowDown, ArrowUp } from 'lucide-react';
 
+import { ColumnResizeHandle } from '../../components/column-resize-handle';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import { MAX_RESIZED_COLUMN_WIDTH, MIN_RESIZED_COLUMN_WIDTH } from './csv-column-width';
 import type { TableSort } from './csv-row-view';
 
 /**
+ * Pixels an Arrow key moves a focused column edge.
+ */
+const RESIZE_STEP = 16;
+
+/**
  * The pinned header row. Each column header is a button that cycles its sort (ascending, descending, file order) and
- * reports the current one through `aria-sort`, so the sort is reachable and announced from the keyboard.
+ * reports the current one through `aria-sort`, so the sort is reachable and announced from the keyboard. Its right edge
+ * resizes the column: drag it, step it with Arrow keys, or double-click it to fit the column's widest value.
  */
 export function CsvTableHeader({
+    columnPixelWidths,
     header,
     numericColumns,
     sort,
     style,
+    onAutoFit,
+    onResize,
+    onResizeCommit,
     onSort,
 }: {
+    /**
+     * Each column's current width in CSS pixels, where a resize starts from.
+     */
+    columnPixelWidths: readonly number[];
     header: readonly string[];
     numericColumns: readonly boolean[];
     sort: TableSort | undefined;
     style: CSSProperties;
+    onAutoFit: (column: number) => void;
+    onResize: (column: number, width: number) => void;
+    onResizeCommit: (column: number, width: number) => void;
     onSort: (column: number) => void;
 }) {
     const { t } = useTranslation();
     return (
+        // The row itself stays at the body's weight: its `ch` tracks resolve against its own font, and a bold row would
+        // make every header column wider than the body column under it. Only the labels are bold.
         <div
             aria-rowindex={1}
-            className="grid min-w-full border-b border-border bg-background font-semibold"
+            className="grid min-w-full border-b border-border bg-background"
             role="row"
             style={style}
         >
@@ -44,8 +65,10 @@ export function CsvTableHeader({
                     <span
                         // Columns are positional and never reorder, so the index is the header's identity.
                         key={column}
+                        // Named explicitly so the resize handle's label does not join the header's accessible name.
+                        aria-label={label}
                         aria-sort={direction ?? 'none'}
-                        className="min-w-0"
+                        className="relative min-w-0"
                         role="columnheader"
                     >
                         <button
@@ -65,6 +88,16 @@ export function CsvTableHeader({
                                 />
                             )}
                         </button>
+                        <ColumnResizeHandle
+                            label={t('preview.table.resizeColumn', { column: label })}
+                            max={MAX_RESIZED_COLUMN_WIDTH}
+                            min={MIN_RESIZED_COLUMN_WIDTH}
+                            step={RESIZE_STEP}
+                            width={columnPixelWidths[column]}
+                            onCommit={(width) => onResizeCommit(column, width)}
+                            onDragMove={(width) => onResize(column, width)}
+                            onReset={() => onAutoFit(column)}
+                        />
                     </span>
                 );
             })}
