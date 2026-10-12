@@ -1,5 +1,6 @@
 import {
     CaxriError,
+    commanderHandoverRequestSchema,
     commanderInboxAddSchema,
     commanderInboxKindIds,
     commanderTaskStatuses,
@@ -13,6 +14,31 @@ function sessionArchiveParameters(tokens: readonly string[]) {
     if (tokens.length !== 1 || tokens[0].startsWith('--'))
         throw new CaxriError('VALIDATION', 'commander session archive requires one <session-id>');
     return { sessionId: tokens[0] };
+}
+
+async function sessionHandOverParameters(tokens: readonly string[]) {
+    const sessionIds: string[] = [];
+    let notePath: string | undefined;
+    for (let index = 0; index < tokens.length; index += 1) {
+        const token = tokens[index];
+        if (token === '--note-file' && notePath === undefined && tokens[index + 1]) {
+            notePath = tokens[index + 1];
+            index += 1;
+        } else if (token.startsWith('-'))
+            throw new CaxriError('VALIDATION', `Unexpected argument: ${token.split('=', 1)[0]}`);
+        else sessionIds.push(token);
+    }
+    if (sessionIds.length === 0)
+        throw new CaxriError(
+            'VALIDATION',
+            'commander session hand-over requires at least one <session-id>',
+        );
+    return commanderHandoverRequestSchema.parse({
+        sessionIds,
+        ...(notePath && {
+            note: await readBoundedTextFile(notePath, 8_192, 'Hand-over note'),
+        }),
+    });
 }
 
 function sessionCreateParameters(tokens: readonly string[]) {
@@ -213,6 +239,33 @@ export const COMMANDER_COMMANDS: RemoteCommandDefinition[] = [
         usage: '<session-id>',
         ownerConfirmation: 'Archive this Agent Commander Session?',
         parseParams: sessionArchiveParameters,
+        quietIdKey: 'sessionId',
+    },
+    {
+        kind: 'remote',
+        path: ['commander', 'session', 'hand-over'],
+        method: 'commander.session.handOver',
+        summary:
+            'Hand your own Sessions to the Agent Commander; --note-file says what it should do there.',
+        usage: '<session-id>... [--note-file <path>]',
+        ownerConfirmation: 'Hand these Sessions to the Agent Commander?',
+        parseParams: sessionHandOverParameters,
+    },
+    {
+        kind: 'remote',
+        path: ['commander', 'session', 'take-back'],
+        method: 'commander.session.takeBack',
+        summary: 'Take a Session back from the Agent Commander; its Agents keep running.',
+        usage: '<session-id>',
+        ownerConfirmation: 'Take this Session back from the Agent Commander?',
+        parseParams: (tokens) => {
+            if (tokens.length !== 1 || tokens[0].startsWith('-'))
+                throw new CaxriError(
+                    'VALIDATION',
+                    'commander session take-back requires one <session-id>',
+                );
+            return { sessionId: tokens[0] };
+        },
         quietIdKey: 'sessionId',
     },
     {

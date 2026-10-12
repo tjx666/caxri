@@ -3,6 +3,7 @@ import type {
     AgentDelegationSettings,
     AgentLaunchSettings,
     AgentProvider,
+    CommanderHandoverTarget,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
@@ -62,6 +63,25 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
          * Removes a Commander Session the delegation just created but never used. Metadata only.
          */
         discard(sessionId: string): void;
+    };
+    /**
+     * The hand-overs the user gave the Agent Commander, for a `continueFromHandover` delegation. Optional so a unit
+     * test can omit the Commander.
+     */
+    commanderHandovers?: {
+        /**
+         * The conversation an unconsumed hand-over of this Session lets the Commander continue; throws when there is
+         * none.
+         */
+        target(handoverId: string, sessionId: string): CommanderHandoverTarget;
+        /**
+         * True while the handed-over Agent is in a turn or waiting on the user.
+         */
+        isBusy(sessionId: string, terminalId: string): boolean;
+        /**
+         * Marks the hand-over continued by this delegation and links its task, before the receipt is announced.
+         */
+        consume(handoverId: string, delegationId: string): void;
     };
     submissionTimeoutMs?: number;
     now?: () => number;

@@ -60,18 +60,18 @@ Always run the CLI as \`node "$CAXRI_CLI_PATH" <command>\`. Never use a globally
 credentials are already in the environment, and output is JSON.
 
 - \`commander board\` lists every visible Project and Session with its group (attention, working, waiting, failed,
-  finished, idle), Agent state, cached pull request, and, for Sessions you created, your current task there. Read it
+  finished, idle), Agent state, cached pull request, and, for Sessions you manage, your current task there and any hand-over you have not continued yet. Read it
   before answering any status question.
 - \`agent delegate create --project <projectId> --new-session --title <title> --prompt-file <path> --provider codex\`
   starts a task in a new Session of that Project, with its Agent Terminal already inside (or pass \`--preset <name>\`
   instead of \`--provider\`). \`--title\` is required and becomes the Session's name in the sidebar: name the concrete
   problem or outcome in the user's language, at most about 12 CJK characters or 6 words, such as \`告警阈值去抖\` or
   \`Fix login retry loop\`, never a generic label like "delegated task". Use one Session per task. Save the returned delegation ID and \`sessionId\`. You may delegate only
-  into Sessions you created; \`--session <sessionId>\` targets one of them again, and \`commander session create
+  into Sessions you created or the user handed you; \`--session <sessionId>\` targets one of them again, and \`commander session create
   --project <projectId>\` creates an empty one, which you rarely need.
-- \`commander session archive <sessionId>\` archives a Session you created, for example when the user asks to clean
-  up finished tasks. It stops that Session's Agent and the user can restore it from Archived Sessions; Sessions you
-  did not create are refused.
+- \`commander session archive <sessionId>\` archives a Session you manage, for example when the user asks to clean
+  up finished tasks. It stops that Session's Agent and the user can restore it from Archived Sessions; other Sessions
+  are refused.
 - \`agent delegate presets --project <projectId> --session <sessionId>\` lists the delegation presets you may use in
   a Session you created.
 - \`agent delegate status <id>\` and \`agent delegate result <id>\` read one task. \`agent delegate wait <id> [<id>...]
@@ -99,6 +99,28 @@ credentials are already in the environment, and output is JSON.
   \`commander task list\` and \`commander board\`, then continue the interrupted work unless the user stopped it on
   purpose, and report under Reporting.
 - \`commander inbox\` is where you raise what needs the user, under The Inbox below.
+
+## Handed-over Sessions
+
+The user can hand you Sessions they started themselves, or Agent conversations they began outside Caxri, which Caxri
+imports into a new Session first. Each becomes one of your Sessions with an open task in the ledger whose note holds
+what the user wants done. Caxri tells you with a line such as
+\`[Caxri notice] ... hand-over <handoverId> of Session <sessionId> is ready to continue\`:
+
+- Read the task with \`commander task list\` (the one whose Session matches) and the Session's state with
+  \`commander board\`.
+- \`ready to continue\`: start your first task there with
+  \`agent delegate create --project <projectId> --session <sessionId> --prompt-file <path> --continue-handover <handoverId>\`.
+  It continues that Session's own Agent conversation with its full history, so write the prompt as the next message
+  in that conversation, not as a fresh brief. Take no \`--provider\` or \`--preset\`: the conversation keeps its own.
+  Caxri links the delegation to the hand-over's task. Continue later work with \`--follow-up\` or \`--resume\` as
+  usual; the hand-over itself works once.
+- \`still in a turn\`: its Agent is busy. Wait for the \`ready to continue\` line; a continuation sent now is refused.
+- \`no conversation to continue\`: the Session has no Agent you can continue (none, a Chat, or one that never started a
+  conversation). Start a new task with \`--session <sessionId>\` and a provider or preset if the note asks for work.
+- With no note, ask the user in the Inbox what they want before you continue the conversation.
+- The user takes a Session back by typing into its Agent or choosing Take Back. It then leaves your Sessions and your
+  requests there are refused; do not try to continue it.
 
 ## Task ledger
 

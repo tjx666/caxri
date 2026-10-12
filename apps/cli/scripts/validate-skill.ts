@@ -63,11 +63,11 @@ function inlineCommandMentions(skill: string): CommandMention[] {
         .toArray();
 }
 
-export function validateSkillCommands(skill: string): {
+export async function validateSkillCommands(skill: string): Promise<{
     capabilityCount: number;
     commandCount: number;
     mentionCount: number;
-} {
+}> {
     const commandLines = skill
         .matchAll(/^caxri (.+)$/gmu)
         .map((match) => match[1])
@@ -78,7 +78,8 @@ export function validateSkillCommands(skill: string): {
         const parsed = parseCliArguments(tokenize(source));
         const command = findCliCommand(parsed.tokens);
         if (!command) throw new Error(`Skill references an unknown command: caxri ${source}`);
-        const parameters = command.parseParams(parsed.tokens.slice(command.path.length));
+        // eslint-disable-next-line no-await-in-loop -- examples are validated in order, so the first bad one is reported
+        const parameters = await command.parseParams(parsed.tokens.slice(command.path.length));
         if (command.kind === 'remote') {
             let requestParameters = parameters;
             if (command.method === 'agent.message.wait')
@@ -126,7 +127,7 @@ async function validateSkillFile(): Promise<void> {
         new URL('../../../skills/caxri-cli/SKILL.md', import.meta.url),
         'utf8',
     );
-    const result = validateSkillCommands(skill);
+    const result = await validateSkillCommands(skill);
     console.log(
         `Validated caxri-cli skill (${result.commandCount} commands, ${result.mentionCount} mentions, ${result.capabilityCount} capabilities)`,
     );
