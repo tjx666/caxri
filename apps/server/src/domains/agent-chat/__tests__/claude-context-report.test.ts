@@ -1,8 +1,12 @@
 import type { AgentChatContextComposition } from '@caxri/protocol';
-import { agentChatContextCompositionSchema } from '@caxri/protocol';
+import { agentChatContextChangeSchema, agentChatContextCompositionSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { claudeContextComposition, ClaudeContextLedger } from '../claude-context-report';
+import {
+    claudeContextComposition,
+    ClaudeContextLedger,
+    ClaudeContextTracker,
+} from '../claude-context-report';
 import { claudeContextRequests } from '../claude-context-requests';
 
 function assistant(
@@ -196,5 +200,49 @@ describe('ClaudeContextLedger', () => {
             { at: 2, kind: 'memoryChanged', names: ['/repo/CLAUDE.md'] },
             { at: 2, kind: 'systemToolsChanged', names: [], tokenDelta: 1_000 },
         ]);
+    });
+
+    it('keeps a deep memory file path within the change schema', () => {
+        const deep = `/${'nested/'.repeat(60)}CLAUDE.md`;
+        const ledger = new ClaudeContextLedger();
+        ledger.record(base, 1);
+        ledger.record({ ...base, memoryFiles: [{ path: deep, type: 'Project', tokens: 10 }] }, 2);
+
+        for (const change of ledger.changes)
+            expect(agentChatContextChangeSchema.parse(change)).toEqual(change);
+    });
+});
+
+describe('ClaudeContextTracker', () => {
+    function answer(tools: string[]) {
+        return {
+            totalTokens: 1_000,
+            rawMaxTokens: 200_000,
+            categories: [],
+            mcpTools: tools.map((name) => ({ name, serverName: 'docs', tokens: 10 })),
+        };
+    }
+
+    it('ignores an answer that arrives after a newer one', async () => {
+        const tracker = new ClaudeContextTracker(() => {});
+        await tracker.read({
+            getContextUsage: () => Promise.resolve(answer(['mcp__docs__a']) as never),
+        });
+        let releaseStale!: () => void;
+        const stale = tracker.read({
+            getContextUsage: () =>
+                new Promise((resolve) => {
+                    releaseStale = () => resolve(answer(['mcp__docs__a']) as never);
+                }),
+        });
+        const fresh = await tracker.read({
+            getContextUsage: () =>
+                Promise.resolve(answer(['mcp__docs__a', 'mcp__docs__b']) as never),
+        });
+        releaseStale();
+        const late = await stale;
+
+        expect(fresh.changes.map((change) => change.kind)).toEqual(['mcpToolsAdded']);
+        expect(late.changes.map((change) => change.kind)).toEqual(['mcpToolsAdded']);
     });
 });

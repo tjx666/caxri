@@ -156,7 +156,10 @@ export const agentChatContextChangeSchema = z.strictObject({
         'systemPromptChanged',
         'systemToolsChanged',
     ]),
-    names: z.array(toolName).max(50),
+    /**
+     * Tool, skill, or agent names, or memory file paths; bounded like a path so a deep `CLAUDE.md` fits.
+     */
+    names: z.array(filePath).max(50),
     /**
      * Signed token difference of a change that has no names, such as a longer system prompt.
      */
