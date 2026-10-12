@@ -207,6 +207,19 @@ test('Agent Commander restarts under its open window after Server Core restarts'
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     const status = () => pageRequest<CommanderStatus>(running.page, 'commander.status');
+    const readLaunches = async (): Promise<string[][]> => {
+        let text: string;
+        try {
+            text = await readFile(argumentsCapturePath, 'utf8');
+        } catch {
+            return [];
+        }
+        return text
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as string[]);
+    };
     try {
         await createShellSession(running.page);
         await pageRequest(running.page, 'agentCommander.open');
@@ -249,6 +262,12 @@ test('Agent Commander restarts under its open window after Server Core restarts'
             return isDeepStrictEqual(shown, stored);
         };
         await expect.poll(isCommanderStateSettled).toBe(true);
+        /**
+         * The attached pane only proves the PTY exists; the fake Codex records its argv once its own Node process
+         * starts, which a loaded runner can delay past the restart below. Wait for that launch first so the count after
+         * the restart measures the restore launch, not startup latency.
+         */
+        await expect.poll(readLaunches).toHaveLength(1);
 
         const before = await pageRequest<{ pid: number }>(running.page, 'host.status');
         process.kill(before.pid, 'SIGKILL');
@@ -278,18 +297,15 @@ test('Agent Commander restarts under its open window after Server Core restarts'
         await expect.poll(commanderTerminalState, { timeout: 30_000 }).toBe('running');
         await expect(commander.getByText('Interrupted by app shutdown')).toHaveCount(0);
         /**
-         * The Terminal Host outlives Server Core, so Codex keeps running rather than relaunching. Its one launch
-         * trusted the workspace for that process only, so it never stopped at Codex's folder-trust prompt. Restore and
-         * restart build their argv through the same planner call, covered by `launch-plan.test.ts`.
+         * The restart took the Commander's PTY with it, so the open window relaunched Codex
+         * (`docs/agent-commander.md`). That restore launch must trust the workspace exactly like the first one, or
+         * Codex would stop at its folder-trust prompt instead of coming back.
          */
         const workspace = await realpath(join(userData, 'agent-commander'));
         const trust = `projects={ ${JSON.stringify(workspace)} = { trust_level = "trusted" } }`;
-        const launches = (await readFile(argumentsCapturePath, 'utf8'))
-            .trim()
-            .split('\n')
-            .map((line) => JSON.parse(line) as string[]);
-        expect(launches).toHaveLength(1);
-        expect(launches[0][launches[0].indexOf(trust) - 1]).toBe('-c');
+        await expect.poll(readLaunches, { timeout: 30_000 }).toHaveLength(2);
+        const launches = await readLaunches();
+        for (const launch of launches) expect(launch[launch.indexOf(trust) - 1]).toBe('-c');
         await expect.poll(status).not.toEqual({ state: 'stopped' });
         await expect(running.page.locator('.commander-status-chip')).toContainText('Commander');
         await testInfo.attach('commander-after-server-restart', {
