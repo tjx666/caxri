@@ -29,8 +29,8 @@ export interface MobileAgentChatPendingState {
     messages: readonly MobileAgentChatPendingMessage[];
     answers: readonly AgentChatPendingAnswer[];
     /**
-     * Counts every message this phone sent into the Chat, so the timeline can follow the user's own send even when the
-     * message lands in the queue rather than at the end of the timeline.
+     * Counts every message and slash command this phone sent into the Chat, so the timeline can follow the user's own
+     * send even when the message lands in the queue rather than at the end of the timeline.
      */
     sendCount: number;
 }
@@ -105,6 +105,14 @@ export class AgentChatPendingStore {
             sendCount: current.sendCount + 1,
         }));
         return message.id;
+    }
+
+    /**
+     * Counts a slash command the user ran. It shows nothing optimistically, but its result (such as the compaction
+     * notice) lands at the end of the timeline, which must follow it like any other send.
+     */
+    countCommand(key: string): void {
+        this.update(key, (current) => ({ ...current, sendCount: current.sendCount + 1 }));
     }
 
     dropMessage(key: string, id: string): void {

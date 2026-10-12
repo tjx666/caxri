@@ -223,13 +223,14 @@ export const useAgentChat = ({
     const runCommand = useCallback(
         async (command: { name: string; arguments?: string }): Promise<void> => {
             if (terminalId === null) return;
+            if (pendingKey !== null) agentChatPendingStore.countCommand(pendingKey);
             await request('mobile.agentChat.runCommand', {
                 terminalId,
                 name: command.name,
                 ...(command.arguments !== undefined && { arguments: command.arguments }),
             });
         },
-        [request, terminalId],
+        [pendingKey, request, terminalId],
     );
     const interrupt = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
