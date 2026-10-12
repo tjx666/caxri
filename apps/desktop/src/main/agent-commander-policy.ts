@@ -54,6 +54,7 @@ const TERMINAL_METHODS = new Set<string>([
     'agentChat.configure',
     'agentChat.interrupt',
     'agentChat.read',
+    'agentChat.readHistory',
     'agentChat.readImage',
     'agentChat.readTask',
     'agentChat.removeQueued',

@@ -29,6 +29,12 @@ export const MAX_AGENT_CHAT_PATCH_OPERATIONS = 200;
  */
 export const MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH = 4 * 1024 * 1024;
 /**
+ * Bounds for one `agentChat.readHistory` page: the items older than what a Client holds, read from the history Server
+ * Core keeps beyond the live projection. A page always carries at least one item, so a single large item still pages.
+ */
+export const MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS = 200;
+export const MAX_AGENT_CHAT_HISTORY_PAGE_TEXT_LENGTH = 2 * 1024 * 1024;
+/**
  * Images one message may attach. Each is bounded by the smaller per-image limit the hosted providers accept (the
  * Anthropic API's 5 MB), so Caxri rejects an oversized image up front instead of letting the provider fail the turn.
  * The count stops at 20 because the Anthropic API lowers its per-image dimension limit from 8000 to 2000 pixels once a
@@ -390,9 +396,15 @@ export const agentChatSnapshotSchema = z.strictObject({
         })
         .optional(),
     /**
-     * True when older history exists than `items` holds.
+     * True when older history exists than `items` holds; `agentChat.readHistory` pages through it.
      */
     truncated: z.boolean(),
+    /**
+     * Identifies the history `items` continues. Server Core assigns a new one whenever the conversation is replaced
+     * (`reset`), so a Client discards older pages it read for a previous history instead of stitching them to this
+     * one.
+     */
+    historyId: z.string().min(1).max(100).optional(),
     items: z.array(agentChatItemSchema).max(MAX_AGENT_CHAT_ITEMS),
     turns: z.array(agentChatTurnSchema).max(MAX_AGENT_CHAT_ITEMS),
     activeTurnId: z.string().max(200).optional(),
@@ -471,6 +483,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 commands: agentChatSnapshotSchema.shape.commands.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),
                 truncated: agentChatSnapshotSchema.shape.truncated,
+                historyId: agentChatSnapshotSchema.shape.historyId.unwrap(),
                 operation: agentChatSnapshotSchema.shape.operation.unwrap().nullable(),
                 tasks: agentChatSnapshotSchema.shape.tasks.unwrap(),
                 queue: agentChatSnapshotSchema.shape.queue.unwrap(),
@@ -480,6 +493,19 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
     }),
     z.strictObject({ op: z.literal('reset') }),
 ]);
+
+/**
+ * One page of older history: the items right before the Client's oldest one, oldest first, with the turns they belong
+ * to. `hasMore` asks for the next page with this page's oldest item; once it is false, `truncated` says whether the
+ * conversation still goes back further than Chat can show (the provider's record is the only full copy).
+ */
+export const agentChatHistoryPageSchema = z.strictObject({
+    historyId: agentChatSnapshotSchema.shape.historyId.unwrap(),
+    items: z.array(agentChatItemSchema).max(MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS),
+    turns: z.array(agentChatTurnSchema).max(MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS),
+    hasMore: z.boolean(),
+    truncated: z.boolean(),
+});
 
 export const agentChatPatchSchema = z.strictObject({
     terminalId: identifierSchema,
@@ -558,6 +584,7 @@ export type AgentChatStatus = z.infer<typeof agentChatStatusSchema>;
 export type AgentChatSnapshot = z.infer<typeof agentChatSnapshotSchema>;
 export type AgentChatPatchOperation = z.infer<typeof agentChatPatchOperationSchema>;
 export type AgentChatPatch = z.infer<typeof agentChatPatchSchema>;
+export type AgentChatHistoryPage = z.infer<typeof agentChatHistoryPageSchema>;
 export type AgentChatCommand = z.infer<typeof agentChatCommandSchema>;
 export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;

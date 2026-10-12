@@ -13,6 +13,7 @@ export const coreForwardedMethods = [
     'agentChat.fork',
     'agentChat.interrupt',
     'agentChat.read',
+    'agentChat.readHistory',
     'agentChat.readImage',
     'agentChat.readTask',
     'agentChat.removeQueued',
