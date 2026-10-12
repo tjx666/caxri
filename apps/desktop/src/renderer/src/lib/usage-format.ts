@@ -40,6 +40,14 @@ export function localizedLimitWindowName(minutes: number, t: Translate = transla
 }
 
 /**
+ * Share of a rate-limit window still available, whole percent. Every surface states what is left rather than what is
+ * used, the way the Agent CLIs' own `/status` reads, since what is left is the figure a user plans the next turn by.
+ */
+export function remainingLimitPercent(usedPercent: number): number {
+    return Math.round(Math.min(100, Math.max(0, 100 - usedPercent)));
+}
+
+/**
  * When a rate-limit window resets, relative to `now` (`resets in 3h 20m`, `resets in 4d 2h`).
  */
 export function localizedLimitReset(at: number, now: number, t: Translate = translate): string {
