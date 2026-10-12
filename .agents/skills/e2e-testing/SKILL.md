@@ -9,9 +9,8 @@ Use the smallest real Electron workflow that proves the changed boundary.
 
 ## When a behavior earns an Electron workflow
 
-E2E specs launch a real Electron app under the repository desktop lease and mostly run serially,
-so each spec is expensive. Reserve them for failure modes that cannot exist below the desktop
-boundary:
+E2E specs launch a real Electron app under the repository desktop lease, so each spec is expensive.
+Reserve them for failure modes that cannot exist below the desktop boundary:
 
 - A user-visible flow spanning process boundaries (Renderer → IPC → Main/Runtime → back into the
   UI), where every layer can pass its unit tests while the wiring between them is wrong.
@@ -32,6 +31,16 @@ boundary:
 Everything else (pure computation, store state machines, invalidation predicates, protocol
 schemas) belongs to `unit-testing`. Before writing an E2E spec, ask whether the logic can be
 extracted below the boundary and tested there; if yes, extract it instead.
+
+## Pool classification
+
+A new spec joins CI's three-worker `parallel-safe` pool by default. When it holds the system
+clipboard, a visible window or GPU, OS window focus (a two-keystroke chord, `document.hasFocus()`
+attention), a wall-clock assertion such as a 4s toast it must catch, or machine processes, add it to
+`desktopExclusiveSpecs` in `e2e/support/pools.ts` with its reason in the same change. The reason
+enum, admission conditions, and the contract test that derives `clipboard: true`,
+`windowMode: 'visible'`, and `gpuMode: 'enabled'` from spec sources live there; split a spec when
+only some of its tests need the exclusive pool, as `agent-commander-workbench-handoff.e2e.ts` does.
 
 ## Focused workflow
 
