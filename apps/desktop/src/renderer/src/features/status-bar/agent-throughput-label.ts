@@ -1,4 +1,8 @@
-import type { AgentThroughputAggregate, AgentThroughputSample } from '@caxri/protocol';
+import type {
+    AgentThroughputAggregate,
+    AgentThroughputSample,
+    AgentThroughputSpeed,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
@@ -114,6 +118,26 @@ export function describeThroughputSample(
     t: Translate = translate,
 ): string {
     return describeThroughputAggregate({ ...sample, responseCount: 1 }, t);
+}
+
+/**
+ * `Fast`, `Standard`, or `Mode not recorded` when the transcript carries no tier for the response.
+ */
+export function throughputSpeedLabel(
+    speed: AgentThroughputSpeed | undefined,
+    t: Translate = translate,
+): string {
+    return t(`statusBar.throughput.speed.${speed ?? 'unknown'}`);
+}
+
+/**
+ * `gpt-5.6-sol · Fast`: which model answered, at which tier.
+ */
+export function describeThroughputVariant(
+    variant: Pick<AgentThroughputSample, 'model' | 'speed'>,
+    t: Translate = translate,
+): string {
+    return `${variant.model ?? t('statusBar.throughput.unknownModel')} · ${throughputSpeedLabel(variant.speed, t)}`;
 }
 
 export function agentThroughputMethodNote(t: Translate = translate): string {

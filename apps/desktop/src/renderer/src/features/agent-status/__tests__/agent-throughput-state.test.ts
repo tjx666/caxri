@@ -6,7 +6,7 @@ import { agentThroughputViewState } from '../agent-throughput-state';
 const empty = { outputTokens: 0, durationMs: 0, responseCount: 0 };
 
 function throughput(samples: AgentThroughput['samples']): AgentThroughput {
-    return { provider: 'claude', recent: empty, turn: empty, session: empty, samples };
+    return { provider: 'claude', recent: empty, turn: empty, session: empty, byModel: [], samples };
 }
 
 const sample = { outputTokens: 100, durationMs: 2_000, completedAt: 1 };

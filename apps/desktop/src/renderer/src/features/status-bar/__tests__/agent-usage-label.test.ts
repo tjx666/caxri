@@ -44,7 +44,8 @@ describe('agent usage chip label', () => {
             }),
             NOW,
         );
-        expect(label).toBe('1.2M · $3.40 · 5h 62%');
+        // 61.6% used leaves 38% of the 5-hour window.
+        expect(label).toBe('1.2M · $3.40 · 5h 38% left');
     });
 
     it('drops a window that already reset and leaves out cost when no model is priced', () => {
