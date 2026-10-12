@@ -11,14 +11,17 @@ import type { VisibleItemRow } from './extension-tree-rows';
 import type { TreeRowAction } from './extension-tree-state';
 import { pointerTreeRowAction } from './extension-tree-state';
 import { ExtensionTreeTooltip } from './extension-tree-tooltip';
+import type { useTreeItemActionRunner } from './hooks/use-tree-item-action-runner';
 
 export function ExtensionTreeRowContent({
+    actionRunner,
     actionsDescriptionId,
     dispatchRowAction,
     isRefreshing,
     row,
     rowElement,
 }: {
+    actionRunner: ReturnType<typeof useTreeItemActionRunner>;
     actionsDescriptionId: string;
     dispatchRowAction: (action: TreeRowAction) => void;
     isRefreshing: boolean;
@@ -77,6 +80,7 @@ export function ExtensionTreeRowContent({
             )}
             <ExtensionTreeTrailingIcon icon={row.item.trailingIcon} />
             <ExtensionTreeRowActions
+                actionRunner={actionRunner}
                 actions={row.item.actions}
                 descriptionId={actionsDescriptionId}
                 isCollapsedBranch={isCollapsible && !isExpanded}

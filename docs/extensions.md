@@ -387,6 +387,14 @@ Escape returns to the row. Enter or Space runs the focused action. The row's acc
 lists its actions, and the actions stay out of the Tab order until focus enters them, so the tree
 keeps one Tab stop. Rows without actions keep the plain tree keys.
 
+Right-clicking a row (or Control-clicking it), or pressing `Shift+F10` or the Menu key while it holds
+focus, opens a native context menu built only from what the row already exposes: the row's own
+`command` first, then its inline actions in button order, each labeled with its command title.
+Choosing an entry runs exactly what the matching click runs, an action's confirmation and feedback
+included (`extension-tree-row-menu.ts`). A row with neither, and a message row, opens no menu.
+Menu-only actions, VS Code's `contextValue` with `view/item/context`, are not part of the Extension
+API yet.
+
 The Status extension uses this for its pull request row: a merge action appears on an open pull
 request whose head is known and that GitHub does not report as conflicting (a draft or conflicting
 one gets the Open on GitHub explanation above instead). The palette command `Merge Pull Request for

@@ -9,8 +9,9 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { ExtensionTreeActionIcon } from './extension-tree-item-icon';
 import { extensionTreeActionsHint } from './extension-tree-navigation';
+import type { useTreeItemActionRunner } from './hooks/use-tree-item-action-runner';
 import type { TreeItemAction } from './tree-item-actions';
-import { runTreeItemAction, treeItemActionKeyIntent } from './tree-item-actions';
+import { treeItemActionKeyIntent } from './tree-item-actions';
 
 const labeledActionToneClassNames: Record<NonNullable<TreeItemAction['tone']>, string> = {
     danger: 'border-danger/40 bg-danger/10 text-danger',
@@ -48,16 +49,22 @@ function actionAccessibleName(action: TreeItemAction): string {
 function TreeItemActionButton({
     action,
     isRevealedOnHover,
+    isRunning,
     isTabStop,
+    onRun,
 }: {
     action: TreeItemAction;
     /**
      * Set for a plain icon action sharing a group that stays visible because of a labeled or toned sibling.
      */
     isRevealedOnHover: boolean;
+    /**
+     * The row is running this action, started from this button or from the row's context menu.
+     */
+    isRunning: boolean;
     isTabStop: boolean;
+    onRun: (action: TreeItemAction) => void;
 }) {
-    const [isRunning, setIsRunning] = useState(false);
     const isLabeled = action.label !== undefined;
     return (
         // A plain action's tooltip is hover only: the tree moves focus onto these buttons itself (Right from the row,
@@ -93,10 +100,7 @@ function TreeItemActionButton({
                     // The row behind the button activates its own command on click; an inline action must not also
                     // open the pull request.
                     event.stopPropagation();
-                    if (isRunning) return;
-                    setIsRunning(true);
-                    // eslint-disable-next-line no-void -- dispatch failures surface through the shared toast path
-                    void runTreeItemAction(action).finally(() => setIsRunning(false));
+                    onRun(action);
                 }}
                 onDoubleClick={(event) => event.stopPropagation()}
             >
@@ -149,11 +153,13 @@ function handleActionGroupKeyDown(
  * single row Tab stop.
  */
 export function ExtensionTreeRowActions({
+    actionRunner,
     actions,
     descriptionId,
     isCollapsedBranch,
     rowElement,
 }: {
+    actionRunner: ReturnType<typeof useTreeItemActionRunner>;
     actions: TreeItemDto['actions'];
     /**
      * Whether Right on the row would expand it before reaching the actions, which changes the spoken key hint.
@@ -195,8 +201,10 @@ export function ExtensionTreeRowActions({
                     <TreeItemActionButton
                         action={action}
                         isRevealedOnHover={hasPersistentAction && !isPersistentAction(action)}
+                        isRunning={actionRunner.runningCommandIds.has(action.command.id)}
                         isTabStop={focusedCommandId === action.command.id}
                         key={action.command.id}
+                        onRun={actionRunner.runAction}
                     />
                 ))}
             </span>
