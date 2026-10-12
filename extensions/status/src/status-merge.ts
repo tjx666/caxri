@@ -1,6 +1,8 @@
 import type { ProjectStatusRepository, TreeItemAction, TreeItemActionTone } from 'caxri';
 import { ThemeIcon } from 'caxri';
 
+import { resolveConflictsAction } from './status-agent-actions';
+
 export const MERGE_PULL_REQUEST_COMMAND = 'caxri.project-status.mergePullRequest';
 export const MERGE_CURRENT_PULL_REQUEST_COMMAND = 'caxri.project-status.mergeCurrentPullRequest';
 const MERGE_PULL_REQUEST_TITLE = 'Merge Pull Request';
@@ -152,15 +154,11 @@ function mergeButtonPresentation(
 }
 
 /**
- * A merge GitHub cannot perform at all (a draft, or a conflict with the base branch) keeps its button so the row still
- * answers "can I merge this?", but the button explains why not and offers the pull request on GitHub, where the user
- * resolves it. It never dispatches the merge command.
+ * A draft keeps its merge button so the row still answers "can I merge this?", but GitHub cannot merge a draft, so the
+ * button explains why and offers the pull request on GitHub, where the user marks it ready. It never dispatches the
+ * merge command.
  */
-function unmergeableAction(
-    pullRequest: PullRequest,
-    reason: 'conflicting' | 'draft',
-): TreeItemAction {
-    const isDraft = reason === 'draft';
+function draftAction(pullRequest: PullRequest): TreeItemAction {
     return {
         command: {
             command: 'caxri.openExternal',
@@ -168,29 +166,21 @@ function unmergeableAction(
             arguments: [pullRequest.url],
         },
         icon: new ThemeIcon('git-merge'),
-        tone: isDraft ? 'neutral' : 'danger',
-        tooltip: isDraft
-            ? "Draft pull requests can't be merged"
-            : 'Has conflicts. Resolve them on GitHub.',
-        confirmation: isDraft
-            ? {
-                  title: `Open draft pull request #${pullRequest.number} on GitHub?`,
-                  message:
-                      "GitHub can't merge a draft pull request. Mark it ready for review on GitHub, then merge it here.",
-                  confirmLabel: 'Open on GitHub',
-              }
-            : {
-                  title: `Resolve conflicts in #${pullRequest.number} on GitHub?`,
-                  message:
-                      "GitHub can't merge it until the conflicts with its base branch are resolved. Resolve them on GitHub, then merge it here.",
-                  confirmLabel: 'Open on GitHub',
-              },
+        tone: 'neutral',
+        tooltip: "Draft pull requests can't be merged",
+        confirmation: {
+            title: `Open draft pull request #${pullRequest.number} on GitHub?`,
+            message:
+                "GitHub can't merge a draft pull request. Mark it ready for review on GitHub, then merge it here.",
+            confirmLabel: 'Open on GitHub',
+        },
     };
 }
 
 /**
- * The PR row's inline merge button, for an open or draft pull request. A draft or a conflict gets the explaining button
- * from {@link unmergeableAction}. Otherwise the button needs the head Caxri knows, so the merge is pinned to it. A merge
+ * The PR row's inline merge button, for an open or draft pull request. A draft gets the explaining button from
+ * {@link draftAction}; a conflict, which GitHub would refuse to merge, gets the Agent's `Resolve` button instead, since
+ * resolving it is the next step. Otherwise the button needs the head Caxri knows, so the merge is pinned to it. A merge
  * with clean checks is a single click by design, with no confirmation; every other {@link mergeBlocker} reason (failing
  * or running checks, unmet protection, a stale base) asks first.
  *
@@ -199,13 +189,13 @@ function unmergeableAction(
  * past failed checks is labelled `Merge Anyway`, so the button names the override rather than the ordinary action.
  */
 export function mergePullRequestAction(
-    repo: Pick<ProjectStatusRepository, 'id'>,
+    repo: Pick<ProjectStatusRepository, 'branch' | 'defaultBranch' | 'id' | 'kind' | 'name'>,
     pullRequest: PullRequest,
 ): TreeItemAction | undefined {
-    if (pullRequest.lifecycle === 'draft') return unmergeableAction(pullRequest, 'draft');
+    if (pullRequest.lifecycle === 'draft') return draftAction(pullRequest);
     if (pullRequest.lifecycle !== 'open') return undefined;
     const blocker = mergeBlocker(pullRequest);
-    if (blocker === 'conflicting') return unmergeableAction(pullRequest, 'conflicting');
+    if (blocker === 'conflicting') return resolveConflictsAction(repo, pullRequest);
     if (!pullRequest.headSha) return undefined;
     const reason =
         blocker &&
@@ -268,7 +258,10 @@ export function currentBranchMerge(
         };
     const blocker = mergeBlocker(pullRequest);
     if (blocker === 'conflicting')
-        return { kind: 'refuse', message: `${label} has conflicts. Resolve them on GitHub first.` };
+        return {
+            kind: 'refuse',
+            message: `${label} has conflicts. Use Resolve in the Status panel to have the Agent rebase it.`,
+        };
     if (blocker)
         return {
             kind: 'refuse',

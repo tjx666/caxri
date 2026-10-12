@@ -24,6 +24,7 @@ import {
     Monitor,
     Package,
     Rocket,
+    Send,
     Shield,
     ShieldAlert,
     ShieldCheck,
@@ -99,6 +100,7 @@ const themeIcons = {
      * The acceptance report family. A shield is not a state glyph here: it says the row is a human sign-off rather than
      * a machine verdict, and only the interior symbol changes with the state.
      */
+    'send': Send,
     'shield': Shield,
     'shield-alert': ShieldAlert,
     'shield-check': ShieldCheck,

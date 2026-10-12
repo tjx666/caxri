@@ -2,13 +2,21 @@ import type { TreeItemDto } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
-import { pushToast } from '../../stores/toasts';
-import { dispatchExtensionViewAction } from './view-container-commands';
+import { isCancelledRequest, pushToast } from '../../stores/toasts';
+import { agentPromptText, sendPromptToSessionAgent } from '../terminal/agent-prompt-commands';
+import { actionFailureMessage, dispatchExtensionViewAction } from './view-container-commands';
 
 /**
  * The Workbench command a provider uses for "open this page", resolved here rather than in the Extension Host.
  */
 const OPEN_EXTERNAL_COMMAND = 'caxri.openExternal';
+
+/**
+ * The Workbench command a provider uses for "hand this prompt to the Agent", such as the Status panel's `Fix` for
+ * unresolved review comments. Extensions have no authority over Agents, so the Renderer resolves it: the prompt goes to
+ * the selected Session's Agent only because the user clicked the provider's button.
+ */
+const SEND_TO_AGENT_COMMAND = 'caxri.sendToAgent';
 
 export type TreeItemAction = NonNullable<TreeItemDto['actions']>[number];
 
@@ -30,9 +38,32 @@ export async function runTreeItemAction(action: TreeItemAction): Promise<void> {
 }
 
 /**
+ * Runs {@link SEND_TO_AGENT_COMMAND} with the action's feedback copy: the failure prefix is the provider's, and the
+ * success toast names the Agent that received the prompt, which only the Renderer knows.
+ */
+async function sendTreeItemPromptToAgent(
+    command: TreeItemAction['command'],
+    feedback?: TreeItemAction['feedback'],
+): Promise<void> {
+    const failure = feedback?.failure ?? `Unable to run ${command.title}`;
+    const prompt = agentPromptText(command.arguments?.[0]);
+    if (!prompt) {
+        pushToast('error', `${failure}. The prompt is missing.`);
+        return;
+    }
+    try {
+        const agentName = await sendPromptToSessionAgent(prompt);
+        pushToast('success', `Sent to ${agentName}`);
+    } catch (error) {
+        if (!isCancelledRequest(error)) pushToast('error', actionFailureMessage(error, failure));
+    }
+}
+
+/**
  * The one way a tree row's own command or an inline action's command runs: `caxri.openExternal` (a link row, or a
- * blocked merge's "Open on GitHub") opens the page in the Renderer without a round trip to the extension, and every
- * other command goes through the shared extension dispatcher with its toasts.
+ * blocked merge's "Open on GitHub") opens the page in the Renderer without a round trip to the extension,
+ * `caxri.sendToAgent` hands its prompt to the Session's Agent, and every other command goes through the shared
+ * extension dispatcher with its toasts.
  */
 export async function runTreeItemCommand(
     command: TreeItemAction['command'],
@@ -43,6 +74,10 @@ export async function runTreeItemCommand(
         if (typeof url === 'string')
             await openExternalUrl(url, (message) => pushToast('error', message));
         else pushToast('error', `Unable to run ${command.title}. The link is missing.`);
+        return;
+    }
+    if (command.id === SEND_TO_AGENT_COMMAND) {
+        await sendTreeItemPromptToAgent(command, feedback);
         return;
     }
     await dispatchExtensionViewAction(command.id, command.title, command.arguments ?? [], feedback);

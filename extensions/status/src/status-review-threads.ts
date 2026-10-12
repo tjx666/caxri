@@ -1,5 +1,6 @@
 import type { ProjectStatusRepository, TreeItemTooltipRow } from 'caxri';
 
+import { fixReviewCommentsAction } from './status-agent-actions';
 import type { StatusNode } from './status-item';
 import { item } from './status-item';
 import {
@@ -13,7 +14,7 @@ import { stateIcons } from './status-presentation';
 /**
  * Vscode-fe-helper's "Unresolved Comments" group: the review feedback a delivery still owes, one row per thread. The
  * group opens the pull request's conversation; each thread opens its own comment. Absent when nothing is unresolved, so
- * a clean pull request spends no row on it.
+ * a clean pull request spends no row on it. The group's `Fix` button sends every thread to the Session's Agent.
  */
 export function reviewThreadsNode(
     repo: ProjectStatusRepository,
@@ -46,6 +47,7 @@ export function reviewThreadsNode(
         icon: 'comment-unresolved',
         accessibilityLabel: `Unresolved Comments, ${summary}`,
         url: pullRequest.url,
+        actions: [fixReviewCommentsAction(repo, pullRequest, threads)],
         tooltip: {
             badge: { label: summary, tone: 'warning' },
             description: 'Open the pull request conversation; expand for individual threads.',

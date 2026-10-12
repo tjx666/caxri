@@ -127,25 +127,29 @@ describe('Status panel merge action', () => {
         expect(action?.tooltip).toBe(reason);
     });
 
-    it.each([
-        [{ mergeState: 'conflicting' }, 'danger', 'Resolve conflicts in #42 on GitHub?'],
-        [{ lifecycle: 'draft' }, 'neutral', 'Open draft pull request #42 on GitHub?'],
-    ] as const)(
-        'keeps an explaining button for %o that opens GitHub instead of merging',
-        (pullRequest, tone, title) => {
-            const row = pullRequestRow(pullRequest);
-            const action = row.actions?.[0];
-            expect(action).toMatchObject({
-                tone,
-                command: {
-                    command: 'caxri.openExternal',
-                    arguments: ['https://github.com/acme/widget/pull/42'],
-                },
-                confirmation: { confirmLabel: 'Open on GitHub' },
-            });
-            expect(action?.confirmation?.title).toContain(title);
-        },
-    );
+    it('keeps an explaining button for a draft that opens GitHub instead of merging', () => {
+        const action = pullRequestRow({ lifecycle: 'draft' }).actions?.[0];
+        expect(action).toMatchObject({
+            tone: 'neutral',
+            command: {
+                command: 'caxri.openExternal',
+                arguments: ['https://github.com/acme/widget/pull/42'],
+            },
+            confirmation: { confirmLabel: 'Open on GitHub' },
+        });
+        expect(action?.confirmation?.title).toContain('Open draft pull request #42 on GitHub?');
+    });
+
+    it("offers the Agent's Resolve button for a conflict instead of a merge GitHub would refuse", () => {
+        const action = pullRequestRow({ mergeState: 'conflicting' }).actions?.[0];
+        expect(action).toMatchObject({
+            label: 'Resolve',
+            tone: 'danger',
+            command: { command: 'caxri.sendToAgent', title: 'Resolve Conflicts with Agent' },
+        });
+        expect(action?.command.arguments?.[0]).toContain('rebase `feat/merge`');
+        expect(action?.confirmation).toBeUndefined();
+    });
 
     it('names a conflict in the row accessible label', () => {
         expect(
