@@ -58,12 +58,20 @@ export const remoteFailureReasons = [
     'missingTool',
     'installFailed',
     'launchFailed',
+    'profileInUse',
     'cancelled',
     'connectionLost',
     'unknown',
 ] as const;
 
 export const remoteFailureReasonSchema = z.enum(remoteFailureReasons);
+
+/**
+ * Prefix of the one stderr line a Server prints when a Server on another host sharing the home directory holds its
+ * profile, followed by ` host=<hostname>`. The SSH Host launch script reads it from the Server's stdio log to report
+ * `profileInUse` with the holder's name instead of a generic `launchFailed`.
+ */
+export const REMOTE_PROFILE_IN_USE_MARKER = 'CAXRI_PROFILE_IN_USE';
 export type RemoteFailureReason = z.infer<typeof remoteFailureReasonSchema>;
 
 export const remoteAskpassKindSchema = z.enum(['secret', 'confirm', 'text']);

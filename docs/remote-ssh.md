@@ -55,6 +55,11 @@ Renderer hides the matching commands through the `localMachine` command conditio
   Node runtime over SSH (slower, about 120 MB once).
 - Agent CLIs (Claude Code, Codex, Grok) installed and logged in on the SSH Host. Caxri does not
   manage remote credentials.
+- A home directory shared between hosts (NFS on cluster login nodes, for example) holds one
+  profile, so only one of those hosts runs a Server at a time. The Server on the other host refuses
+  to start and the window fails with `profileInUse`, naming the host that holds it. The owner renews
+  a lease in `profile/host/host-lease.json` every 15 s; once it stops renewing for 60 s (it exited
+  or crashed), another host takes over. The hosts' clocks must agree to within that margin.
 - On hosts whose `systemd-logind` sets `KillUserProcesses=yes`, the Server dies with the last SSH
   session unless lingering is enabled for the user: `sudo loginctl enable-linger "$USER"`.
 
@@ -112,7 +117,8 @@ container so they honor the glibc floor. Without Docker, point `CAXRI_LINUX_NATI
 exported elsewhere with
 `bun run apps/server/scripts/linux-target.ts export-natives --output <dir>`; the release workflow's
 `linux-natives` job does exactly this on Linux runners. A stale export fails the build instead of
-falling back.
+falling back. Running the Release workflow manually on `main` (`gh workflow run release.yml --ref
+main`) runs only that job, to rehearse the natives build before a release depends on it.
 
 ## Testing
 

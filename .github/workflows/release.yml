@@ -5,6 +5,9 @@ on:
     workflows: [CI]
     types: [completed]
     branches: [main]
+  # Rehearses only `linux-natives` on main without a release commit, so the GitHub-hosted manylinux build and its
+  # artifacts are proven before a release depends on them. `release` keeps its `workflow_run` condition and is skipped.
+  workflow_dispatch: {}
 
 concurrency:
   group: release-macos
@@ -18,13 +21,17 @@ jobs:
   linux-natives:
     name: Linux natives (${{ matrix.target }})
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
+      (github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'tjx666' &&
+      github.triggering_actor == 'tjx666') ||
+      (github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.actor.login == 'tjx666' &&
       github.event.workflow_run.triggering_actor.login == 'tjx666' &&
-      startsWith(github.event.workflow_run.display_title, 'release: v')
+      startsWith(github.event.workflow_run.display_title, 'release: v'))
     strategy:
       fail-fast: true
       matrix:
@@ -40,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
 
       - id: tool_versions

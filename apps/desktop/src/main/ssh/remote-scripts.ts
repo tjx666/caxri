@@ -1,3 +1,5 @@
+import { REMOTE_PROFILE_IN_USE_MARKER } from '@caxri/protocol';
+
 import {
     assertHex,
     assertPositiveInteger,
@@ -328,6 +330,12 @@ if [ -f "$caxri_build_dir/cli/caxri.cjs" ]; then
     CAXRI_CLI_PATH="$caxri_build_dir/cli/caxri.cjs"
     export CAXRI_CLI_PATH
 fi
+# Only lines this launch appends count, so a marker left by an earlier refused start cannot misreport this one.
+caxri_log_start=$(( $(wc -c < "$caxri_log" 2>/dev/null || echo 0) + 1 ))
+caxri_profile_holder() {
+    tail -c "+$caxri_log_start" "$caxri_log" 2>/dev/null | grep -a '^${REMOTE_PROFILE_IN_USE_MARKER} host=' | tail -n 1 |
+        sed 's/^${REMOTE_PROFILE_IN_USE_MARKER} host=//' | tr -cd 'A-Za-z0-9._-'
+}
 cd "$HOME"
 if command -v setsid >/dev/null 2>&1; then
     setsid nohup "$caxri_build_dir/runtime/caxri-server" < /dev/null >> "$caxri_log" 2>&1 &
@@ -345,6 +353,12 @@ while [ "$caxri_iteration" -lt ${readyIterations} ]; do
     # A started process that exits may have lost the profile lock to a Server another Desktop started at the same
     # moment, so its exit only fails the launch once no Server has appeared for a few more seconds.
     if ! kill -0 "$caxri_started" 2>/dev/null; then
+        # A Server on another host sharing this home holds the profile; waiting cannot change that.
+        caxri_holder=$(caxri_profile_holder)
+        if [ -n "$caxri_holder" ]; then
+            caxri_result outcome=profile-in-use "holder=$caxri_holder"
+            exit 33
+        fi
         caxri_gone=$((caxri_gone + 1))
         if [ "$caxri_gone" -ge 25 ]; then
             tail -n 5 "$caxri_log" >&2 2>/dev/null || true
