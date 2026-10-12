@@ -105,3 +105,32 @@ export function usageSessionTitle(
     if (row.isDeleted) return t('usage.sessions.deletedTitle');
     return sessionTitleForDisplay(row.title, t);
 }
+
+/**
+ * The title the Usage page's Session filter chip shows. The live Workbench Session wins; once it is gone the report's
+ * own row for the filtered Session is used, and the raw Session ID is the last resort. Titles are translated exactly as
+ * the PrimarySidebar and the Most expensive Sessions table translate them, so an unnamed Session reads the same
+ * everywhere; the Session ID is an identifier and stays as written.
+ */
+export function usageSessionFilterTitle(
+    t: Translate,
+    {
+        liveTitle,
+        reportRow,
+        sessionId,
+    }: {
+        /**
+         * The `displayTitle` of the Session in the Workbench, when it still exists there.
+         */
+        liveTitle: string | undefined;
+        /**
+         * The report's row for the filtered Session, when the report has loaded.
+         */
+        reportRow: Pick<UsageSessionRow, 'isDeleted' | 'isOutsideCaxri' | 'title'> | undefined;
+        sessionId: string;
+    },
+): string {
+    if (liveTitle !== undefined) return sessionTitleForDisplay(liveTitle, t);
+    if (reportRow) return usageSessionTitle(t, reportRow);
+    return sessionId;
+}
