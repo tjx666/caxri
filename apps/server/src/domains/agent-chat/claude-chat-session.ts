@@ -64,6 +64,7 @@ import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
 import { forkClaudeSession, restoreClaudeFiles, rewindClaudeSession } from './claude-rewind';
 import { claudeQueryOptions, claudeStartError } from './claude-session-open';
+import { withClaudeShellHooks } from './claude-shell-hooks';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
 import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './claude-system-notices';
@@ -447,6 +448,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
          * The SDK bundle is over a megabyte; load it with the first Claude Chat, not with Server Core.
          */
         const { query } = await import('@anthropic-ai/claude-agent-sdk');
+        const hooks = withClaudeShellHooks(this.effortHooks(), (event) =>
+            this.options.observeLifecycle(event),
+        );
         const stream = query({
             prompt: this.prompts,
             options: claudeQueryOptions({
@@ -457,7 +461,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 sessionId: this.sessionId,
                 spawn: (spawnOptions) => this.spawn(spawnOptions),
                 canUseTool: async (...arguments_) => this.requests.canUseTool(...arguments_),
-                hooks: this.effortHooks(),
+                hooks,
             }),
         });
         this.query = stream;

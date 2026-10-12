@@ -18,7 +18,12 @@ import {
     terminalDirectoryIdentity,
 } from '../terminal';
 import { agentChatDrivers } from './chat-drivers';
-import type { AgentChatExit, AgentChatTranscript } from './chat-provider';
+import type {
+    AgentChatExit,
+    AgentChatSessionHost,
+    AgentChatTranscript,
+    ChatLifecycleEvent,
+} from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -218,6 +223,32 @@ export function forwardChatLifecycle(
 ): void {
     // eslint-disable-next-line no-void -- lifecycle delivery is ordered by the coordinator, not by this caller.
     void observeChatLifecycle(options, signal);
+}
+
+/**
+ * The `lifecycle` and `observeLifecycle` members of a Chat host, scoped to one launch. Events from a superseded launch
+ * are dropped before they reach the shared lifecycle path.
+ */
+export function chatLifecycleHost(
+    options: Pick<AgentChatServiceOptions, 'logger' | 'observeLifecycleSignal'>,
+    scope: Pick<AgentLifecycleSignal, 'launchId' | 'provider' | 'terminalId'> & {
+        isCurrent: () => boolean;
+        onEvent: (event: ChatLifecycleEvent) => void;
+    },
+): Pick<AgentChatSessionHost, 'lifecycle' | 'observeLifecycle'> {
+    const { isCurrent, onEvent, ...identity } = scope;
+    return {
+        lifecycle: (event) => {
+            if (!isCurrent()) return;
+            onEvent(event);
+            forwardChatLifecycle(options, { ...event, ...identity });
+        },
+        observeLifecycle: async (event) => {
+            if (!isCurrent()) return;
+            onEvent(event);
+            await observeChatLifecycle(options, { ...event, ...identity });
+        },
+    };
 }
 
 async function observeChatLifecycle(

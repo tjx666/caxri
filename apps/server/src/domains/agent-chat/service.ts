@@ -28,9 +28,9 @@ import type { CreateForkSession } from './chat-fork';
 import { forkChat } from './chat-fork';
 import { isAgentChatCommandListed } from './chat-items';
 import {
+    chatLifecycleHost,
     chatStartFailure,
     didPersistChatStartFailure,
-    forwardChatLifecycle,
     prepareChatLaunch,
     readChatTranscript,
     requireChatTerminal,
@@ -188,17 +188,16 @@ export class AgentChatService {
                     if (isCurrent()) state.projection.applyTask(taskId, operations);
                 },
                 readTask: (taskId) => state.projection.tasks.get(taskId),
-                lifecycle: (event) => {
-                    if (!isCurrent()) return;
-                    // The first new turn writes past the resume point, so a later start resumes the newest record again.
-                    if (event.phase === 'turnStarted') state.resumeAt = undefined;
-                    forwardChatLifecycle(this.options, {
-                        ...event,
-                        launchId,
-                        provider,
-                        terminalId,
-                    });
-                },
+                ...chatLifecycleHost(this.options, {
+                    launchId,
+                    provider,
+                    terminalId,
+                    isCurrent,
+                    onEvent: (event) => {
+                        // The first new turn writes past the resume point, so a later start resumes the newest record again.
+                        if (event.phase === 'turnStarted') state.resumeAt = undefined;
+                    },
+                }),
                 onSessionBound: (agentSessionId) => {
                     if (!isCurrent()) return;
                     if (database.rebindAgentSession(terminalId, provider, agentSessionId))
