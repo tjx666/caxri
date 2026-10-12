@@ -355,6 +355,12 @@ going looking. It is a mode the build or the user chose, not a degradation, so i
 reports what the process is actually doing rather than what `argv.jsonc` now says, because turning the
 switch off leaves the channel open until the next launch (principle 9). Clicking it opens its setting.
 
+A standing mode in its normal state is icon-only: the debugging disclosure, Screencast Mode, and
+`Always Allow` show a glyph and keep their words on the accessible name and hover card. Visible
+words on the bar are reserved for a value (a count, a metric, a branch, a delivery id) and for an
+abnormal state (degraded, failed, waiting on the user), and even then stay a word or two; a mode
+name such as `Debug port` is neither and only spends rail width.
+
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips. Clickable `StatusItem` and read-only `StatusInfo` both set
 figures in `tabular-nums`, so a value that changes on every poll does not nudge its neighbours. A multi-fact status-bar tooltip uses the shared `StructuredTooltip`

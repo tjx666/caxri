@@ -32,7 +32,7 @@ interface WidthCapture {
  * - `wide` has room for everything, so every chip renders.
  * - `narrow` leaves room for the never-hidden items and less than one droppable chip, so at least the child-process count
  *   has to go. It is derived from the wide bar instead of fixed, because the never-hidden set depends on the host: the
- *   `Debug port` disclosure is always there under E2E, and a host without WebGL adds the Terminal's `Software` renderer
+ *   debugging disclosure is always there under E2E, and a host without WebGL adds the Terminal's `Software` renderer
  *   chip, which a fixed 656px window cannot fit next to the fixture's long Project and branch names.
  * - At both widths no item's label is truncated, nothing overflows its region, and any chip still shown outranks every
  *   chip already dropped.
