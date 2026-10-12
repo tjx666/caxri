@@ -68,7 +68,6 @@ export function AgentChatModelMenu({
     const models = snapshot?.models;
     if (!models || models.length === 0) return <span className={LABEL_CLASS_NAME}>{text}</span>;
     const current = agentChatMenuModel(snapshot);
-    const isFastOffered = isAgentChatFastOffered(snapshot, current);
     return (
         <Menu open={isOpen} onOpenChange={setOpen}>
             <MenuTrigger
@@ -132,27 +131,60 @@ export function AgentChatModelMenu({
                         </MenuGroup>
                     </>
                 )}
-                {(isFastOffered || snapshot.ultracode !== undefined) && <MenuSeparator />}
-                {isFastOffered && (
-                    <ModeItem
-                        description={
-                            current?.fast?.description ?? t('agentChat.model.fastDescription')
-                        }
-                        isOn={snapshot.fast === true}
-                        label={t('agentChat.model.fast')}
-                        onChange={(isOn) => configure({ fast: isOn })}
-                    />
-                )}
-                {snapshot.ultracode !== undefined && (
-                    <ModeItem
-                        description={t('agentChat.model.ultracodeDescription')}
-                        isOn={snapshot.ultracode}
-                        label="Ultracode"
-                        onChange={(isOn) => configure({ ultracode: isOn })}
-                    />
-                )}
+                <ModeItems
+                    configure={configure}
+                    fast={
+                        isAgentChatFastOffered(snapshot, current)
+                            ? {
+                                  description:
+                                      current?.fast?.description ??
+                                      t('agentChat.model.fastDescription'),
+                                  isOn: snapshot.fast === true,
+                              }
+                            : undefined
+                    }
+                    ultracode={snapshot.ultracode}
+                />
             </MenuContent>
         </Menu>
+    );
+}
+
+/**
+ * The mode toggles below the efforts, behind one separator: Fast mode when the current model offers it, then ultracode
+ * when the provider reports it.
+ */
+function ModeItems({
+    configure,
+    fast,
+    ultracode,
+}: {
+    configure: (change: { fast?: boolean; ultracode?: boolean }) => void;
+    fast: { description: string; isOn: boolean } | undefined;
+    ultracode: boolean | undefined;
+}) {
+    const { t } = useTranslation();
+    if (!fast && ultracode === undefined) return null;
+    return (
+        <>
+            <MenuSeparator />
+            {fast && (
+                <ModeItem
+                    description={fast.description}
+                    isOn={fast.isOn}
+                    label={t('agentChat.model.fast')}
+                    onChange={(isOn) => configure({ fast: isOn })}
+                />
+            )}
+            {ultracode !== undefined && (
+                <ModeItem
+                    description={t('agentChat.model.ultracodeDescription')}
+                    isOn={ultracode}
+                    label="Ultracode"
+                    onChange={(isOn) => configure({ ultracode: isOn })}
+                />
+            )}
+        </>
     );
 }
 
