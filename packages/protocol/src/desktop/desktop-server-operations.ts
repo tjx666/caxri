@@ -24,6 +24,7 @@ export const desktopServerOperationIds = [
     'mobile.device.revoke.apply',
     'files.authorizeTrash',
     'files.authorizeOpen',
+    'files.trashOnHost',
     'terminal.fileLink.resolve',
     'terminal.createInExternalDirectory',
     'terminal.detachAll',

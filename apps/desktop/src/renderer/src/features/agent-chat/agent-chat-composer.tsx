@@ -351,10 +351,12 @@ export function AgentChatComposer({
                             }}
                         />
                     )}
+                    {/* Starts three lines tall, as chat composers do, so an empty box still reads as the place to write
+                        a message rather than a one-line search field; it grows with the draft up to `max-h-48`. */}
                     <Textarea
                         {...(sessionMenu.inputAria ?? menu.inputAria)}
                         aria-label={t('agentChat.composer.message')}
-                        className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
+                        className="field-sizing-content max-h-48 min-h-18 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
                         maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
                         placeholder={agentChatComposerPlaceholder(
                             sendAction,

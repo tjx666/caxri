@@ -3,6 +3,7 @@ import { memo } from 'react';
 
 import type { AgentChatTurnArtifacts } from '@caxri/protocol';
 
+import { AgentChatAnsweredQuestions } from './agent-chat-answered-questions';
 import { AgentChatNotice, AgentChatReply } from './agent-chat-message';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
@@ -52,7 +53,11 @@ const AgentChatMessageItem = memo(
                 );
             }
             case 'notice': {
-                return <AgentChatNotice item={item} />;
+                return item.kind === 'answered' ? (
+                    <AgentChatAnsweredQuestions item={item} />
+                ) : (
+                    <AgentChatNotice item={item} />
+                );
             }
         }
     },

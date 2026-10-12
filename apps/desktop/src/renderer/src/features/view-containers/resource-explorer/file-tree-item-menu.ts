@@ -52,7 +52,8 @@ function findInFolder(directory: string, projectRoot: string): void {
  * The native right-click menu for one file-tree row, built when the menu opens. Every entry dispatches straight to the
  * same action functions and callbacks the row already computed; the file and terminal actions report their own failures
  * through `tryCommand`, so the menu does not handle their results. An SSH Host window drops the entries that hand the
- * file to this Mac (default app, Finder, Trash), since the file lives on the SSH Host.
+ * file to this Mac (default app, Finder), since the file lives on the SSH Host; Trash stays, because Main moves the
+ * entry into the SSH Host's own Trash.
  */
 export function fileTreeItemMenu({
     confirmTrash,
@@ -142,7 +143,7 @@ export function fileTreeItemMenu({
         },
         { label: translate('common.rename'), shortcut: 'enter', onSelect: startRename },
         CONTEXT_MENU_SEPARATOR,
-        isLocal && {
+        {
             label: translate('viewContainers.files.menu.moveToTrash'),
             shortcut: 'cmd+backspace',
             onSelect: confirmTrash,

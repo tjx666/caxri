@@ -156,6 +156,14 @@ export class AskpassBridge {
     }
 
     private readonly pending = new Set<AbortController>();
+    /**
+     * Answers given per secret prompt in the current connection attempt; see `beginAttempt`.
+     */
+    private readonly answeredSecrets = new Map<string, number>();
+    /**
+     * Set once the user cancels a prompt in the current connection attempt; see `beginAttempt`.
+     */
+    private isAttemptCancelled = false;
     private isClosed = false;
 
     private constructor(
@@ -207,7 +215,12 @@ export class AskpassBridge {
             socket.destroy();
             return;
         }
-        if (this.isClosed) {
+        /**
+         * OpenSSH treats a refused prompt as one failed try and asks again (a password up to `NumberOfPasswordPrompts`
+         * times, then the next authentication method), so after a cancel the rest of the attempt is refused unseen and
+         * Cancel stops the connection at once.
+         */
+        if (this.isClosed || this.isAttemptCancelled) {
             socket.end(`${JSON.stringify({ answer: null })}\n`);
             return;
         }
@@ -219,10 +232,11 @@ export class AskpassBridge {
         const abort = (): void => controller.abort();
         socket.once('close', abort);
         const kind = classifyAskpassPrompt(prompt);
+        const retry = kind === 'secret' ? (this.answeredSecrets.get(prompt) ?? 0) : 0;
         let answer: string | null;
         try {
             answer = await this.options.handler(
-                { requestId: randomUUID(), kind, prompt },
+                { requestId: randomUUID(), kind, prompt, ...(retry > 0 && { retry }) },
                 controller.signal,
             );
         } catch {
@@ -232,7 +246,20 @@ export class AskpassBridge {
             socket.off('close', abort);
         }
         if (socket.destroyed) return;
-        socket.end(`${JSON.stringify({ answer: controller.signal.aborted ? null : answer })}\n`);
+        const delivered = controller.signal.aborted ? null : answer;
+        if (answer === null && !controller.signal.aborted) this.isAttemptCancelled = true;
+        if (kind === 'secret' && delivered !== null) this.answeredSecrets.set(prompt, retry + 1);
+        socket.end(`${JSON.stringify({ answer: delivered })}\n`);
+    }
+
+    /**
+     * Starts a new `ssh` connection attempt: repeated secret prompts are counted afresh and a previous cancel no longer
+     * refuses prompts. Within one attempt OpenSSH repeats a passphrase or password prompt only after rejecting the
+     * answer, so a repeat is reported as a retry; a later reconnect asking the same prompt is a first ask again.
+     */
+    beginAttempt(): void {
+        this.answeredSecrets.clear();
+        this.isAttemptCancelled = false;
     }
 
     /**

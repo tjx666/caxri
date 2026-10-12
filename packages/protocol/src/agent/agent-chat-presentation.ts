@@ -148,6 +148,43 @@ export function agentChatQuestionAnswers(
 }
 
 /**
+ * The selection a question card starts with: each question's recommended option, so one Submit accepts every
+ * recommendation. A question without a recommendation starts unanswered, because preselecting an arbitrary option would
+ * read as advice the provider never gave.
+ */
+export function agentChatQuestionDefaults(
+    request: Extract<AgentChatRequest, { kind: 'question' }>,
+): Record<string, string> {
+    const selected: Record<string, string> = {};
+    for (const question of request.questions) {
+        const recommended = question.options.find(
+            (option) => agentChatQuestionOption(option.label).isRecommended,
+        );
+        if (recommended) selected[question.id] = recommended.label;
+    }
+    return selected;
+}
+
+/**
+ * Where a multi-question card goes after the question at `from` is answered: the next question still without an answer,
+ * searching forward and wrapping around, so questions skipped earlier come back before the card submits. `undefined`
+ * means every other question is answered and the card can send.
+ */
+export function agentChatNextUnansweredQuestion(
+    request: Extract<AgentChatRequest, { kind: 'question' }>,
+    answers: Readonly<Record<string, readonly string[]>>,
+    from: number,
+): number | undefined {
+    const count = request.questions.length;
+    for (let step = 1; step < count; step += 1) {
+        const index = (from + step) % count;
+        const question = request.questions.at(index);
+        if (question && !Object.hasOwn(answers, question.id)) return index;
+    }
+    return undefined;
+}
+
+/**
  * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
  * in it, as Claude Code's spinner does; the words never claim a specific step. The phrases are LobeHub's
  * (`opStatusTray.generatingPhrases`); Desktop's translated list keeps the same order, so both pick the same position.
