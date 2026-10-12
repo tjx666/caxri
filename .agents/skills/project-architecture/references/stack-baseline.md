@@ -19,11 +19,11 @@ Keep these compatibility exceptions:
 
 - `@xterm/*`: exact beta versions from one verified upstream commit, with matching core peers.
 - `electron-vite`: exact accepted beta until the stable Vite 8 integration is adopted.
-- `electron`: exact prerelease while Caxri tracks the 45 alpha line, adopted for Chromium 155.
-  A caret is unsafe on a prerelease: `^45.0.0-alpha.10` would resolve forward to any later 45 alpha,
-  so an unrelated install could silently change the Chromium and Node under the Renderer and Main.
-  The matching `minimumReleaseAgeExclude` entry exists because the alpha line publishes faster than
-  the release-age floor. Drop the pin back to `^` once Electron 45 is stable.
+- `electron`: exact prerelease while Caxri tracks the Electron 45 prerelease line (now beta),
+  adopted for Chromium 155. A caret is unsafe on a prerelease: `^45.0.0-beta.1` would resolve
+  forward to any later 45 prerelease, so an unrelated install could silently change the Chromium
+  and Node under the Renderer and Main. The matching `minimumReleaseAgeExclude` entry exists because
+  the prerelease line publishes faster than the release-age floor. Drop the pin back to `^` once Electron 45 is stable.
   The native add-ons are not part of this risk: `better-sqlite3`, `node-pty`, and `@parcel/watcher`
   load in the Server artifact's own bundled Node runtime (`runtime/bin/node`), never in Main or the
   Renderer, so they follow that runtime's ABI rather than Electron's.
@@ -31,8 +31,9 @@ Keep these compatibility exceptions:
   update loop when opening the multi-trigger Editor breadcrumb picker (React error 185).
   `e2e/editor-breadcrumbs.e2e.ts` reproduces it locally and in
   [CI run 34299568185](https://github.com/tjx666/caxri/actions/runs/34299568185).
-  Re-checked 2026-09-21 against 1.8.0, still the newest release: the spec fails the same way and the
-  whole Renderer falls through to the "Something went wrong" boundary, so the pin stays.
+  Re-checked 2026-09-21 against 1.8.0 and 2026-10-13 against 1.9.0, then the newest release: the
+  spec fails the same way (the Editor tab falls through to its error boundary) while the same
+  dependency set with 1.7.0 passes, so the pin stays.
   Re-evaluate it only after that regression passes on a newer release.
 - `typescript` / `@typescript/native` npm aliases: exact TypeScript 6 API and TypeScript 7 CLI pair.
 - `apps/mobile` `typescript`: the plain TypeScript 6 package, held on major 6. Expo tooling resolves
