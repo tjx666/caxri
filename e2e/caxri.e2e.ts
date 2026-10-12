@@ -16,7 +16,6 @@ import {
     openAddProjectDialog,
     openPanelView,
     pageReply,
-    pageRequest,
     pressNewTerminal,
     selectedSessionId,
     sessionCard,
@@ -25,6 +24,7 @@ import {
     waitForRuntimeReady,
 } from './support/helpers.ts';
 import { stableWidth } from './support/motion-settle.ts';
+import { runningWork } from './support/running-work.ts';
 
 test('bundles the default terminal typeface and Nerd Font symbols', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-font-e2e-'));
@@ -180,7 +180,7 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
         await close.click();
 
         await expect(terminalTabs).toHaveCount(1);
-        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+        await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
     } finally {
         try {
             await running.app.close();

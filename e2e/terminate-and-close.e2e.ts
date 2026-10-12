@@ -11,6 +11,7 @@ import {
     VISIBLE_SESSION,
     waitForRuntimeReady,
 } from './support/helpers.ts';
+import { runningWork } from './support/running-work.ts';
 
 /**
  * Terminate and Close ends work, not the Server: the window reopened from the Dock attaches to the same Server Core,
@@ -25,7 +26,7 @@ test('Terminate and Close stops the Terminal and the reopened window can run Ter
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+        await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
         const hostBefore = await pageRequest<{ pid: number }>(running.page, 'host.status');
         // The close prompt's buttons are Keep Running, Terminate and Close, Cancel.
         await running.app.evaluate(({ dialog }) => {
@@ -49,12 +50,12 @@ test('Terminate and Close stops the Terminal and the reopened window can run Ter
         expect(await pageRequest<{ pid: number }>(reopened, 'host.status')).toMatchObject({
             pid: hostBefore.pid,
         });
-        expect(await pageRequest<number>(reopened, 'terminal.runningCount')).toBe(0);
+        expect(await runningWork(reopened)).toEqual({ terminals: 0, chats: 0 });
 
         const stopped = reopened.locator(`${VISIBLE_SESSION} [data-terminal-exit-state="stopped"]`);
         await stopped.getByRole('button', { name: 'Restart Terminal' }).click();
         await expect(stopped).toHaveCount(0);
-        await expect.poll(() => pageRequest<number>(reopened, 'terminal.runningCount')).toBe(1);
+        await expect.poll(() => runningWork(reopened)).toEqual({ terminals: 1, chats: 0 });
         await typeTerminal(reopened, String.raw`printf 'TERMINATE_AND_CLOSE_RESTART_OK\n'`);
         await expect(reopened.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
             'TERMINATE_AND_CLOSE_RESTART_OK',

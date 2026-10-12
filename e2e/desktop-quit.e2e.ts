@@ -15,6 +15,7 @@ import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { runningWork } from './support/running-work.ts';
 
 const QUIT_DIALOG_PROBE_KEY = '__caxriE2EQuitDialogProbe';
 const QUIT_BUTTONS = ['Quit and Stop Tasks', 'Quit and Keep Tasks Running', 'Cancel'];
@@ -304,7 +305,7 @@ test('quit can cancel, keep one live Agent for reconnection, or stop its complet
             cancelId: 2,
             defaultId: 1,
             detail: QUIT_DETAIL,
-            message: 'Quit Caxri while 1 task is running?',
+            message: 'Quit Caxri while 1 Terminal is running?',
             title: 'Quit Caxri?',
             type: 'warning',
         });
@@ -315,7 +316,7 @@ test('quit can cancel, keep one live Agent for reconnection, or stop its complet
         await expect(
             pageRequest<{ ready: boolean }>(first.page, 'app.health'),
         ).resolves.toMatchObject({ ready: true });
-        await expect.poll(() => pageRequest(first!.page, 'terminal.runningCount')).toBe(1);
+        await expect.poll(() => runningWork(first!.page)).toEqual({ terminals: 1, chats: 0 });
         await expectProcessLiveness(completeProcessTree, true);
 
         await installQuitDialogProbe(first.app);
@@ -379,7 +380,7 @@ test('quit can cancel, keep one live Agent for reconnection, or stop its complet
             detail:
                 `${QUIT_DETAIL}\n\n1 other client is connected to Caxri Server. ` +
                 'Stopping will disconnect it.',
-            message: 'Quit Caxri while 1 task is running?',
+            message: 'Quit Caxri while 1 Terminal is running?',
             title: 'Quit Caxri?',
             type: 'warning',
         });

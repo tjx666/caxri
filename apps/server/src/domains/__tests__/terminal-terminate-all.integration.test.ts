@@ -109,10 +109,16 @@ it('keeps Server Core serving Terminals and Chats after Terminate and Close', as
         await vi.waitFor(async () => expect((await readChat()).status).toBe('ready'), {
             timeout: 5_000,
         });
-        expect(await domains.handlers['terminal.runningCount']({})).toBe(2);
+        expect(await domains.handlers['terminal.runningCount']({})).toEqual({
+            terminals: 1,
+            chats: 1,
+        });
 
         await domains.handlers['terminal.terminateAll']({});
-        expect(await domains.handlers['terminal.runningCount']({})).toBe(0);
+        expect(await domains.handlers['terminal.runningCount']({})).toEqual({
+            terminals: 0,
+            chats: 0,
+        });
         expect(await record(shellId)).toMatchObject({ lastProcessState: 'stopped' });
         expect(await record(chatId)).toMatchObject({
             lastProcessState: 'stopped',

@@ -1,3 +1,4 @@
+import type { MethodResult } from '@caxri/protocol';
 import type { MessageBoxOptions } from 'electron';
 
 /**
@@ -121,22 +122,64 @@ export function shellCommandElevationPrompt(
 }
 
 /**
+ * Live work by kind, as `terminal.runningCount` reports it: PTY Terminals (a shell or an Agent CLI) and Chats.
+ */
+export type RunningWork = MethodResult<'terminal.runningCount'>;
+
+const NO_RUNNING_WORK: RunningWork = { terminals: 0, chats: 0 };
+
+export function runningWorkTotal({ terminals, chats }: RunningWork): number {
+    return terminals + chats;
+}
+
+/**
+ * Adds up per-Session counts for a prompt that covers several Sessions (a Project or a bulk delete).
+ */
+export function sumRunningWork(counts: readonly RunningWork[]): RunningWork {
+    return counts.reduce(
+        (sum, count) => ({
+            terminals: sum.terminals + count.terminals,
+            chats: sum.chats + count.chats,
+        }),
+        NO_RUNNING_WORK,
+    );
+}
+
+/**
+ * Names running work by kind, for example `2 Terminals and 1 Chat`, so a confirmation tells a plain shell from an Agent
+ * still working. Each noun takes its own plural and a kind with nothing running is left out; `qualifier` precedes each
+ * noun (`1 running Terminal`). Every prompt that stops or keeps running work words it through here, so the window-close
+ * and deletion confirmations stay consistent. Callers check {@link runningWorkTotal} first: nothing running reads as an
+ * empty string.
+ */
+export function runningWorkPhrase({ terminals, chats }: RunningWork, qualifier?: string): string {
+    const prefix = qualifier ? `${qualifier} ` : '';
+    const parts: Array<[number, string]> = [
+        [terminals, 'Terminal'],
+        [chats, 'Chat'],
+    ];
+    return parts
+        .filter(([count]) => count > 0)
+        .map(([count, noun]) => `${count} ${prefix}${noun}${count === 1 ? '' : 's'}`)
+        .join(' and ');
+}
+
+/**
  * Deleting a Project or a Session removes Caxri metadata only. The detail line says so explicitly because the verb is
  * the same one file managers use for erasing files.
  */
 function deletePrompt(
     kind: 'Project' | 'Session',
     title: string,
-    runningTerminals: number,
+    running: RunningWork,
     folderClause: string,
 ): MessageBoxOptions {
-    const plural = runningTerminals === 1 ? '' : 's';
     return {
         type: 'warning',
         title: `Delete ${kind}`,
         message:
-            runningTerminals > 0
-                ? `Delete '${title}' and terminate ${runningTerminals} running Terminal${plural}?`
+            runningWorkTotal(running) > 0
+                ? `Delete '${title}' and terminate ${runningWorkPhrase(running, 'running')}?`
                 : `Delete '${title}'?`,
         detail: `Only Caxri metadata and snapshots are deleted. ${folderClause} and its files are never touched.`,
         buttons: [`Delete ${kind}`, 'Cancel'],
@@ -163,10 +206,10 @@ const NAMED_WORKTREE_PROJECT_LIMIT = 5;
  */
 export function deleteProjectPrompt(
     title: string,
-    runningTerminals: number,
+    running: RunningWork,
     worktreeProjectTitles: readonly string[] = [],
 ): MessageBoxOptions {
-    const prompt = deletePrompt('Project', title, runningTerminals, 'The Project folder');
+    const prompt = deletePrompt('Project', title, running, 'The Project folder');
     const count = worktreeProjectTitles.length;
     if (count === 0) return prompt;
     const named = worktreeProjectTitles.slice(0, NAMED_WORKTREE_PROJECT_LIMIT);
@@ -181,8 +224,8 @@ export function deleteProjectPrompt(
     return { ...prompt, detail: `${cascade} ${provenance}\n\n${prompt.detail}` };
 }
 
-export function deleteSessionPrompt(title: string, runningTerminals: number): MessageBoxOptions {
-    return deletePrompt('Session', title, runningTerminals, 'The selected folder');
+export function deleteSessionPrompt(title: string, running: RunningWork): MessageBoxOptions {
+    return deletePrompt('Session', title, running, 'The selected folder');
 }
 
 /**
@@ -191,15 +234,14 @@ export function deleteSessionPrompt(title: string, runningTerminals: number): Me
  */
 export function deleteSessionsPrompt(
     sessionCount: number,
-    runningTerminals: number,
+    running: RunningWork,
 ): MessageBoxOptions {
-    const terminalPlural = runningTerminals === 1 ? '' : 's';
     return {
         type: 'warning',
         title: 'Delete Sessions',
         message:
-            runningTerminals > 0
-                ? `Delete ${sessionCount} Sessions and terminate ${runningTerminals} running Terminal${terminalPlural}?`
+            runningWorkTotal(running) > 0
+                ? `Delete ${sessionCount} Sessions and terminate ${runningWorkPhrase(running, 'running')}?`
                 : `Delete ${sessionCount} Sessions?`,
         detail: 'Only Caxri metadata and snapshots are deleted. The selected folders and their files are never touched.',
         buttons: ['Delete Sessions', 'Cancel'],

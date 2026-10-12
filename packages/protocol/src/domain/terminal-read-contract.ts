@@ -19,10 +19,18 @@ export const terminalReadMethods = {
         params: z.strictObject({ terminalId: identifierSchema }),
         result: terminalPreviewSchema,
     },
+    /**
+     * Live work in the whole app or one Session, by kind: PTY Terminals (a shell or an Agent CLI) and Chats (the
+     * provider process behind an Agent Chat). The window-close and deletion confirmations name each kind, so the user
+     * can tell a plain shell from an Agent still working; callers that only need "anything running" add them up.
+     */
     'terminal.runningCount': {
         ...serverRead,
         params: z.object({ sessionId: identifierSchema.optional() }).default({}),
-        result: z.number(),
+        result: z.strictObject({
+            terminals: z.number().int().nonnegative(),
+            chats: z.number().int().nonnegative(),
+        }),
     },
     'terminal.resources': {
         ...serverRead,

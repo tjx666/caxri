@@ -131,12 +131,18 @@ it("stops a hidden Project's live Chats the way archiving their Session does", a
                 ),
             { timeout: 5_000 },
         );
-        expect(await runtime.handlers['terminal.runningCount']({})).toBe(1);
+        expect(await runtime.handlers['terminal.runningCount']({})).toEqual({
+            terminals: 0,
+            chats: 1,
+        });
 
         await runtime.handlers['project.hide']({ projectId: project.id });
 
         // The close prompt and Server Core's idle-exit check both read this count.
-        expect(await runtime.handlers['terminal.runningCount']({})).toBe(0);
+        expect(await runtime.handlers['terminal.runningCount']({})).toEqual({
+            terminals: 0,
+            chats: 0,
+        });
         // Hidden Sessions leave bootstrap, so read the durable record directly; a read handler would relaunch it.
         const direct = new Database(join(userDataPath, 'caxri.db'), { readonly: true });
         try {

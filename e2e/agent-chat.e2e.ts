@@ -15,6 +15,7 @@ import {
     VISIBLE_SESSION,
     waitForCreatedSession,
 } from './support/helpers.ts';
+import { runningWork } from './support/running-work.ts';
 
 /**
  * Waits until every expanded disclosure of one kind has finished its height transition, so a screenshot shows the
@@ -360,7 +361,7 @@ test('closing the window with only a Chat running asks first and Terminate stops
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Codex. You said: hi there')).toBeVisible();
 
-        // Close the Session's shell PTY so the Chat is the only running Terminal.
+        // Close the Session's shell PTY so the Chat is the only running work.
         const bootstrap = await pageRequest<{
             terminals: Array<{ id: string; surface?: string }>;
         }>(page, 'app.bootstrap', {});
@@ -370,7 +371,7 @@ test('closing the window with only a Chat running asks first and Terminate stops
             await pageRequest(page, 'terminal.close', { terminalId: terminal.id });
         }
         await expect(message).toBeVisible();
-        await expect.poll(() => pageRequest<number>(page, 'terminal.runningCount', {})).toBe(1);
+        await expect.poll(() => runningWork(page)).toEqual({ terminals: 0, chats: 1 });
 
         await running.app.evaluate(({ dialog }) => {
             // Records the prompt, then picks "Terminate and Close".
@@ -390,7 +391,7 @@ test('closing the window with only a Chat running asks first and Terminate stops
                 const value: unknown = Reflect.get(globalThis, '__caxriCloseConfirmMessage');
                 return typeof value === 'string' ? value : undefined;
             }),
-        ).toBe('Close this window while 1 Terminal or Chat is running?');
+        ).toBe('Close this window while 1 Chat is running?');
         const log = join(userData, 'logs', 'server-core.jsonl');
         await expect
             .poll(async () =>
