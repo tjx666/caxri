@@ -222,6 +222,11 @@ const projectStatusRepoSchema = z.object({
                 .regex(/^[0-9a-f]{40}$/)
                 .optional(),
             /**
+             * The branch the pull request was opened from. It differs from the row's checked-out branch when the
+             * Session's own Agent delivered the pull request from another worktree.
+             */
+            headBranch: z.string().min(1).optional(),
+            /**
              * Absent when the provider omitted the mergeability fields.
              */
             mergeState: pullRequestMergeStateSchema.optional(),
@@ -251,10 +256,21 @@ export const projectStatusSummarySchema = z.object({
     error: z.string().optional(),
 });
 
+/**
+ * How the status bar found its pull request: `conversation` when the Session's own Agent opened or named it, `branch`
+ * when it was looked up from the checked-out branch.
+ */
+export const pullRequestSourceSchema = z.enum(['conversation', 'branch']);
+
 const projectStatusOverviewPullRequestSchema = z.object({
     number: z.number().int().positive(),
     title: z.string(),
     url: z.url(),
+    /**
+     * The branch the pull request was opened from; absent when the provider omitted it.
+     */
+    headBranch: z.string().min(1).optional(),
+    source: pullRequestSourceSchema,
 });
 
 /**
@@ -353,6 +369,7 @@ export type PullRequestMergeState = z.infer<typeof pullRequestMergeStateSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
 export type ProjectStatusReviewThread = z.infer<typeof projectStatusReviewThreadSchema>;
 export type LinearIssueSource = z.infer<typeof linearIssueSourceSchema>;
+export type PullRequestSource = z.infer<typeof pullRequestSourceSchema>;
 export type ProjectStatusOverviewLinearIssue = z.infer<
     typeof projectStatusOverviewLinearIssueSchema
 >;
