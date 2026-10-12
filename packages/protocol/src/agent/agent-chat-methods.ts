@@ -56,7 +56,7 @@ export const agentChatImageInputSchema = z.strictObject({
  * Upper bound of one message's combined image base64 length, from {@link MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES}. Padding
  * makes each image's encoding round up to a multiple of four, so every image may add up to three characters more.
  */
-const MAX_IMAGES_TOTAL_BASE64_LENGTH =
+export const MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH =
     Math.ceil(MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES / 3) * 4 + MAX_AGENT_CHAT_IMAGES * 3;
 
 const terminalTarget = { terminalId: identifierSchema };
@@ -69,7 +69,7 @@ const messageContent = {
         .refine(
             (images) =>
                 images.reduce((total, image) => total + image.data.length, 0) <=
-                MAX_IMAGES_TOTAL_BASE64_LENGTH,
+                MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
             { message: 'Images in one message exceed the combined size limit' },
         )
         .optional(),
