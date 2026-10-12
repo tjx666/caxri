@@ -13,7 +13,12 @@ import {
 } from '@yutengjing/vscode-icons';
 import { format, resolveConfig } from 'prettier';
 
-import { compressIconSvg, resolveIconSvgSource, selectIconsWithinBudget } from './file-icon-budget';
+import {
+    compressIconSvg,
+    resolveIconSvgSource,
+    restoreLeadingZeros,
+    selectIconsWithinBudget,
+} from './file-icon-budget';
 
 /**
  * Desktop ships all ~1,550 vscode-icons SVGs (8 MB) as static files. A phone bundle cannot carry that, so this script
@@ -337,7 +342,7 @@ const loadSvg = async (file: string): Promise<string> => {
         (name) => readFile(join(overridesDirectory, name), 'utf8'),
         (name) => readFile(join(iconsDirectory, name), 'utf8'),
     );
-    const svg = minify(compressIconSvg(raw, file));
+    const svg = restoreLeadingZeros(minify(compressIconSvg(raw, file)));
     svgSources.set(file, svg);
     return svg;
 };

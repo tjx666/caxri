@@ -5,10 +5,12 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { agentText, hasCheck, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
+    adbShell,
     androidBounds,
     captureMobileFramebuffer,
     mobileRegionFingerprint,
     mobileSemantics,
+    observeMobileNode,
     setMobileNetworkAvailable,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -165,6 +167,166 @@ export async function executeMobileChatImageScenario(
                 // Teardown must still stop the fixture; the scenario's own failure is the useful error.
             }
         }
+        try {
+            await fixture.stop();
+        } finally {
+            await removeMobileGalleryImage(serial);
+        }
+    }
+}
+
+/**
+ * How many copies of the gallery photo `MOB-CHAT-12` attaches: more than the phone's width holds, so the strip scrolls.
+ */
+const STRIP_IMAGE_COUNT = 6;
+
+/**
+ * Attaches the gallery's one photo through the image source sheet and the system Photo Picker, and waits until the
+ * `index`th attachment is ready.
+ */
+async function attachGalleryImage(serial: string, index: number): Promise<void> {
+    await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
+    await waitForCheck(serial, 'image-source-library');
+    await tapMobileCheck(serial, 'image-source-library');
+    await tapMobileNativeControl(serial, { singleImageTile: true });
+    try {
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, `session-image-remove-${index}`) &&
+                nodes.every(({ checkId }) => !checkId.startsWith('session-image-status-')) &&
+                !hasCheck(nodes, 'image-source-library'),
+            60_000,
+        );
+    } catch (error) {
+        // A local diagnostic frame of the picker or composer; it never enters the report.
+        await captureMobileFramebuffer(serial, `/tmp/mob-chat-12-attach-${index}.png`);
+        throw error;
+    }
+}
+
+/**
+ * Waits until the image viewer's counter reads `expected`, such as `2 / 6`.
+ */
+async function expectViewerPosition(serial: string, expected: string): Promise<void> {
+    await waitForMobile(
+        () =>
+            observeMobileNode(serial, 'agent-chat-image-viewer-position', {
+                kind: 'equals',
+                value: expected,
+            }),
+        (observation) => observation.exists && observation.textMatches === true,
+        30_000,
+    );
+}
+
+/**
+ * `MOB-CHAT-12`: the phone attaches more images than its width holds (#1763). The attachment strip scrolls sideways to
+ * reach the last one, each image keeps its remove control (#1825), the message sends with every image, and the viewer
+ * pages through them and closes with a downward swipe (#1812).
+ */
+export async function executeMobileChatImageStripScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({
+        chatProvider: 'claude',
+        mode: 'agent-chat',
+        serial,
+    });
+    try {
+        await addMobileGalleryImage(serial);
+        await fixture.pair();
+        const chat = fixture.agentChat;
+        if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await waitForCheck(serial, 'agent-chat-status-empty');
+        await waitForCheck(serial, 'agent-chat-attach-image');
+        for (let index = 0; index < STRIP_IMAGE_COUNT; index += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each pick goes through the same native picker in turn.
+            await attachGalleryImage(serial, index);
+        }
+        // Each new image scrolls the strip to its end, so the last image and its remove control show first.
+        await waitForCheck(serial, `session-image-remove-${STRIP_IMAGE_COUNT - 1}`);
+        await capture(environment, 'strip-end', artifacts);
+        const strip = await checkBounds(serial, 'session-image-attachments');
+        if (!strip) throw new Error('The attachment strip is not laid out');
+        const width = strip.right - strip.left;
+        const y = String(Math.floor((strip.top + strip.bottom) / 2));
+        // Stay well inside the screen edges: an edge swipe is Android's Back gesture and would leave the Chat. Two
+        // swipes cover the whole strip of six images.
+        for (let swipe = 0; swipe < 2; swipe += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each gesture moves the same strip further.
+            await adbShell(serial, [
+                'input',
+                'swipe',
+                String(strip.left + Math.floor(width * 0.2)),
+                y,
+                String(strip.left + Math.floor(width * 0.8)),
+                y,
+                '400',
+            ]);
+        }
+        await waitForCheck(serial, 'session-image-remove-0');
+        await capture(environment, 'strip-start', artifacts);
+
+        await tapMobileCheckByBounds(serial, 'agent-chat-composer-send');
+        const sent = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                (imageMessage(snapshot)?.images?.length ?? 0) === STRIP_IMAGE_COUNT &&
+                agentText(snapshot).includes(`Received ${STRIP_IMAGE_COUNT} images.`) &&
+                !snapshot.activeTurnId,
+            60_000,
+        );
+        const message = imageMessage(sent);
+        if (!message) throw new Error('The image message did not reach the Chat');
+        await waitForCheck(serial, `agent-chat-message-thumbnail-${message.id}-0`);
+        await waitForNoCheck(serial, 'session-image-attachments');
+        await capture(environment, 'sent', artifacts);
+
+        // The viewer pages through the message's images under a counter and closes with a downward swipe (#1812).
+        await tapMobileCheckByBounds(serial, `agent-chat-message-thumbnail-${message.id}-0`);
+        await waitForCheck(serial, VIEWER_IMAGE, 60_000);
+        await expectViewerPosition(serial, `1 / ${STRIP_IMAGE_COUNT}`);
+        await capture(environment, 'viewer-first', artifacts);
+        const viewer = await checkBounds(serial, 'agent-chat-image-viewer');
+        if (!viewer) throw new Error('The image viewer is not laid out');
+        const viewerWidth = viewer.right - viewer.left;
+        const viewerHeight = viewer.bottom - viewer.top;
+        const middleY = String(viewer.top + Math.floor(viewerHeight / 2));
+        await adbShell(serial, [
+            'input',
+            'swipe',
+            String(viewer.left + Math.floor(viewerWidth * 0.75)),
+            middleY,
+            String(viewer.left + Math.floor(viewerWidth * 0.25)),
+            middleY,
+            '300',
+        ]);
+        await expectViewerPosition(serial, `2 / ${STRIP_IMAGE_COUNT}`);
+        await capture(environment, 'viewer-paged', artifacts);
+        const middleX = String(viewer.left + Math.floor(viewerWidth / 2));
+        await adbShell(serial, [
+            'input',
+            'swipe',
+            middleX,
+            String(viewer.top + Math.floor(viewerHeight * 0.35)),
+            middleX,
+            String(viewer.top + Math.floor(viewerHeight * 0.85)),
+            '300',
+        ]);
+        await waitForNoCheck(serial, 'agent-chat-image-viewer');
+        await capture(environment, 'viewer-closed', artifacts);
+
+        await finish(environment, artifacts, {
+            attached: STRIP_IMAGE_COUNT,
+            status: 'passed',
+            strip: 'scrolled',
+            viewer: 'paged-and-swiped-closed',
+        });
+    } finally {
         try {
             await fixture.stop();
         } finally {

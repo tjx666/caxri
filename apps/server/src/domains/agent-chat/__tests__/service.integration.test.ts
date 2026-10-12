@@ -291,6 +291,34 @@ describe('AgentChatService with a fake Codex app-server', () => {
         });
     });
 
+    it('keeps the answered question and the crashed message after Retry resumes the thread', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'ask me' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        service.respond(terminal.id, pending.requests[0].id, {
+            kind: 'answers',
+            answers: { color: ['Blue'] },
+        });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        await service.send(terminal.id, { text: 'crash now' });
+        await until((current) => current.status === 'failed');
+
+        await service.restart(terminal.id);
+        const resumed = await until((current) => current.status === 'ready');
+        expect(
+            resumed.items.map((item) =>
+                item.type === 'notice'
+                    ? `notice: ${item.message}`
+                    : `${item.type}: ${'text' in item ? item.text : ''}`,
+            ),
+        ).toEqual([
+            'userMessage: ask me',
+            'notice: Color: Blue',
+            'agentMessage: You chose Blue.',
+            'userMessage: crash now',
+        ]);
+    });
+
     it('starts one process for concurrent reads and sends', async () => {
         const { service, terminal, spawnProcess, until } = await fixture();
         service.read(terminal.id);

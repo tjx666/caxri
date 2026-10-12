@@ -76,6 +76,8 @@ const CORE_ROUTED_METHODS = [
     'mobile.agentChat.removeQueued',
     'mobile.agentChat.sendQueuedNow',
     'mobile.agentChat.resumeQueue',
+    'mobile.agentChat.takeQueued',
+    'mobile.agentChat.runCommand',
     'mobile.commanderInbox.list',
     'mobile.commanderInbox.reply',
     'mobile.device.revoke.apply',

@@ -2,9 +2,11 @@ import { Buffer } from 'node:buffer';
 
 import { describe, expect, it } from 'vitest';
 
+import { FILE_ICON_SVGS } from '../../src/features/panels/file-icons.generated';
 import {
     compressIconSvg,
     resolveIconSvgSource,
+    restoreLeadingZeros,
     selectIconsWithinBudget,
 } from '../file-icon-budget';
 
@@ -172,5 +174,35 @@ describe('resolveIconSvgSource', () => {
                 Promise.resolve('<svg>vendor</svg>'),
             ),
         ).rejects.toThrow('EACCES');
+    });
+});
+
+describe('restoreLeadingZeros', () => {
+    it('adds the leading zero react-native-svg needs to bare fraction attributes and style values', () => {
+        const svg =
+            '<svg><linearGradient><stop offset=".5" stop-opacity=\'.7\'/><stop offset="-.25%"/></linearGradient>' +
+            '<path d="M.5.5L1 .5" opacity=".3" style="fill:#fff;stroke-width:.75px"/></svg>';
+
+        expect(restoreLeadingZeros(svg)).toBe(
+            '<svg><linearGradient><stop offset="0.5" stop-opacity=\'0.7\'/><stop offset="-0.25%"/></linearGradient>' +
+                '<path d="M.5.5L1 .5" opacity="0.3" style="fill:#fff;stroke-width:0.75px"/></svg>',
+        );
+    });
+
+    it('leaves values that already carry a leading zero or are not a single number unchanged', () => {
+        const svg =
+            '<svg viewBox=".5 0 32 32"><stop offset="0.5"/><stop offset="1"/><path id="a.5"/></svg>';
+
+        expect(restoreLeadingZeros(svg)).toBe(svg);
+    });
+});
+
+describe('generated file icons', () => {
+    it('never ships a numeric attribute or style value without its leading zero', () => {
+        const offenders = Object.entries(FILE_ICON_SVGS)
+            .filter(([, svg]) => /(?:="|:)-?\.\d/u.test(svg))
+            .map(([icon]) => icon);
+
+        expect(offenders).toEqual([]);
     });
 });

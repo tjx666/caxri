@@ -4,8 +4,13 @@ import { describe, expect, it } from 'vitest';
 import {
     applyLatestConversationPage,
     applyOlderConversationPage,
+    CONVERSATION_SEND_FOLLOW_HOLD_MS,
+    conversationTurnDivider,
+    followConversationToLatest,
     groupConversationItems,
+    isConversationFollowing,
     isConversationObservableThroughBlur,
+    isNewConversationSend,
     mergeLatestConversationItems,
     prependConversationPage,
     shouldFallbackToTerminal,
@@ -212,5 +217,66 @@ describe('Conversation projection', () => {
                 isConversationObservableThroughBlur(false, true),
             ),
         ).toBe('stale');
+    });
+});
+
+describe('conversationTurnDivider', () => {
+    it('labels a completed turn by its duration and keeps it quiet', () => {
+        expect(conversationTurnDivider({ durationMs: 4_000, outcome: 'completed' })).toEqual({
+            label: 'Worked for 4s',
+            tone: 'muted',
+        });
+    });
+
+    it('reads a boundary without an outcome as completed work', () => {
+        expect(conversationTurnDivider({})).toEqual({ label: 'Worked', tone: 'muted' });
+    });
+
+    it('says an interrupted turn stopped instead of completing', () => {
+        expect(conversationTurnDivider({ outcome: 'interrupted' })).toEqual({
+            label: 'Stopped',
+            tone: 'warning',
+        });
+        expect(conversationTurnDivider({ durationMs: 4_000, outcome: 'interrupted' }).label).toBe(
+            'Stopped after 4s',
+        );
+    });
+
+    it('says a failed turn failed', () => {
+        expect(conversationTurnDivider({ durationMs: 4_000, outcome: 'failed' })).toEqual({
+            label: 'Failed after 4s',
+            tone: 'danger',
+        });
+    });
+});
+
+describe("following the user's own send", () => {
+    it('counts only a send made after the list first looked', () => {
+        expect(isNewConversationSend(undefined, 1)).toBe(false);
+        expect(isNewConversationSend(1, 1)).toBe(false);
+        expect(isNewConversationSend(1, 2)).toBe(true);
+        expect(isNewConversationSend(1, undefined)).toBe(false);
+    });
+
+    it('keeps following while the list carries the user to their message, then only near the end', () => {
+        const holdUntil = 1_000 + CONVERSATION_SEND_FOLLOW_HOLD_MS;
+        expect(isConversationFollowing(5_000, 800, 1_000, holdUntil)).toBe(true);
+        expect(isConversationFollowing(5_000, 800, holdUntil, holdUntil)).toBe(false);
+        expect(isConversationFollowing(0, 800, holdUntil, holdUntil)).toBe(true);
+    });
+
+    it('scrolls to the end now and again on the next frame, once the new row has measured', () => {
+        const calls: string[] = [];
+        let frame: (() => void) | undefined;
+        followConversationToLatest({
+            follow: () => calls.push('follow'),
+            nextFrame: (run) => {
+                frame = run;
+            },
+            scrollToEnd: () => calls.push('scroll'),
+        });
+        expect(calls).toEqual(['follow', 'scroll']);
+        frame?.();
+        expect(calls).toEqual(['follow', 'scroll', 'scroll']);
     });
 });

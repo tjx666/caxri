@@ -96,3 +96,58 @@ export const agentChatViewerContent = (
                   : null,
     };
 };
+
+export type AgentChatViewerSwipe = 'dismiss' | 'next' | 'previous';
+
+/**
+ * Distance, as a share of the viewport, and fling speed (points per second) past which a drag at the fitted size closes
+ * the viewer (downward) or turns the page (sideways). A shorter or slower drag springs back.
+ */
+const SWIPE_DISTANCE_RATIO = 0.2;
+const SWIPE_FLING_VELOCITY = 800;
+const SWIPE_FLING_MIN_DISTANCE = 32;
+
+/**
+ * What a one-finger drag over the image at its fitted size does when it ends: a mostly downward drag closes the viewer,
+ * a mostly sideways one turns to the next or previous image of the message, and anything else does nothing. A zoomed
+ * image pans instead and never reaches here, so paging and closing never fight the zoom.
+ */
+export const agentChatViewerSwipe = (
+    drag: { translationX: number; translationY: number; velocityX: number; velocityY: number },
+    viewport: { width: number; height: number },
+): AgentChatViewerSwipe | null => {
+    'worklet';
+    const { translationX, translationY, velocityX, velocityY } = drag;
+    const isVertical = Math.abs(translationY) > Math.abs(translationX);
+    if (isVertical) {
+        if (translationY <= 0) return null;
+        const isFar = translationY > viewport.height * SWIPE_DISTANCE_RATIO;
+        const isFling = velocityY > SWIPE_FLING_VELOCITY && translationY > SWIPE_FLING_MIN_DISTANCE;
+        return isFar || isFling ? 'dismiss' : null;
+    }
+    const isFar = Math.abs(translationX) > viewport.width * SWIPE_DISTANCE_RATIO;
+    const isFling =
+        Math.abs(velocityX) > SWIPE_FLING_VELOCITY &&
+        Math.abs(translationX) > SWIPE_FLING_MIN_DISTANCE &&
+        Math.sign(velocityX) === Math.sign(translationX);
+    if (!isFar && !isFling) return null;
+    return translationX < 0 ? 'next' : 'previous';
+};
+
+/**
+ * The image a swipe turns to, or `null` at the first or last image, where the page springs back.
+ */
+export const agentChatViewerPage = (
+    index: number,
+    count: number,
+    swipe: Exclude<AgentChatViewerSwipe, 'dismiss'>,
+): number | null => {
+    const next = swipe === 'next' ? index + 1 : index - 1;
+    return next >= 0 && next < count ? next : null;
+};
+
+/**
+ * The viewer's `2 / 3` counter, or `null` for a message with one image.
+ */
+export const agentChatViewerPosition = (index: number, count: number): string | null =>
+    count > 1 ? `${index + 1} / ${count}` : null;

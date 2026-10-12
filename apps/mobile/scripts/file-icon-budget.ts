@@ -84,3 +84,38 @@ export const resolveIconSvgSource = async (
         throw error;
     }
 };
+
+/**
+ * A whole attribute or style value that is a single number written without its leading zero (`.5`, `-.5px`, `.4%`).
+ */
+const BARE_FRACTION_VALUE = /^(-?)\.(\d+(?:e[+-]?\d+)?(?:%|[a-z]+)?)$/iu;
+
+const restoreLeadingZero = (value: string): string =>
+    value.replace(BARE_FRACTION_VALUE, (_match, sign: string, rest: string) => `${sign}0.${rest}`);
+
+/**
+ * Svgo (and some upstream SVGs) write fractions without a leading zero, e.g. `<stop offset=".5">`. Browsers accept
+ * that, but `react-native-svg` rejects it for percentage-or-number props such as `offset`, `opacity`, and
+ * `stop-opacity`: it logs `".5" is not a valid number` and falls back to 0, which moves gradient stops to the start.
+ * This restores the leading zero on every attribute value and inline style declaration that is a single bare fraction.
+ * Lists such as path data, `points`, and `viewBox` are left alone: their numbers are tokenized by a path parser that
+ * accepts `.5`.
+ */
+export const restoreLeadingZeros = (svg: string): string =>
+    svg.replaceAll(
+        /(\s[\w:-]+=)(["'])([^"']*)\2/gu,
+        (_match, name: string, quote: string, value: string) => {
+            const normalized =
+                name.trim() === 'style='
+                    ? value
+                          .split(';')
+                          .map((declaration) => {
+                              const colon = declaration.indexOf(':');
+                              if (colon === -1) return declaration;
+                              return `${declaration.slice(0, colon + 1)}${restoreLeadingZero(declaration.slice(colon + 1))}`;
+                          })
+                          .join(';')
+                    : restoreLeadingZero(value);
+            return `${name}${quote}${normalized}${quote}`;
+        },
+    );

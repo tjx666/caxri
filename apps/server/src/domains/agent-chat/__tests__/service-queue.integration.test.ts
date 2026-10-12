@@ -92,6 +92,22 @@ describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
         await service.interrupt(terminal.id);
     });
 
+    it('takes a queued message back for editing with its full text', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello edit' });
+        const queued = await until((snapshot) => snapshot.queue?.length === 1);
+        const id = queued.queue?.[0]?.id ?? '';
+
+        expect(service.takeQueued(terminal.id, id)).toEqual({ text: 'hello edit' });
+        expect(service.read(terminal.id).queue).toEqual([]);
+        expect(() => service.takeQueued(terminal.id, id)).toThrow(
+            expect.objectContaining({ code: 'CONFLICT' }),
+        );
+        await service.interrupt(terminal.id);
+    });
+
     it('keeps a queued message in place when sending it now fails', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'slow please' });

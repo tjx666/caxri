@@ -14,6 +14,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffRow } from '../changes/changes-diff-row';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
+import { changePathParts } from '../changes/changes-model';
 import { agentChatChangeColor, agentChatChangeRows } from './agent-chat-timeline';
 
 /**
@@ -23,8 +24,9 @@ import { agentChatChangeColor, agentChatChangeRows } from './agent-chat-timeline
 const EXPANDED_FILE_LIMIT = 3;
 
 /**
- * One changed file: its Git status letter in the file's Git color, the path (clipped at its start so the file name
- * stays), the `+N -M` stat, and a disclosure for its colored diff, which scrolls sideways rather than wrapping code.
+ * One changed file: its Git status letter in the file's Git color, the path with its directory muted as Desktop draws
+ * it (clipped at its start so the file name stays), the `+N -M` stat, and a disclosure for its colored diff, which
+ * scrolls sideways rather than wrapping code.
  */
 export const AgentChatFileDiff = ({
     initiallyExpanded,
@@ -45,6 +47,7 @@ export const AgentChatFileDiff = ({
     const stat = useMemo(() => agentChatDiffLinesStat(lines), [lines]);
     const rows = useMemo(() => (isExpanded ? agentChatChangeRows(lines) : []), [isExpanded, lines]);
     const Chevron = isExpanded ? ChevronDown : ChevronRight;
+    const { directory, filename } = changePathParts(path);
     return (
         <View style={[styles.file, { borderColor: theme.border }]}>
             <Pressable
@@ -66,7 +69,8 @@ export const AgentChatFileDiff = ({
                     numberOfLines={1}
                     style={[styles.path, { color: theme.text }]}
                 >
-                    {path}
+                    {directory ? <Text style={{ color: theme.muted }}>{directory}</Text> : null}
+                    {filename}
                 </Text>
                 {truncated ? (
                     <Text style={[styles.meta, { color: theme.muted }]}>Truncated</Text>

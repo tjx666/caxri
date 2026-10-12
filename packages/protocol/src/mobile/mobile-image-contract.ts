@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { MAX_AGENT_CHAT_IMAGES } from '../agent/agent-chat-contract.js';
 import { identifierSchema } from '../domain/domain.js';
 import { principalSchema } from '../transport/principal.js';
 
@@ -28,6 +29,9 @@ export const mobileImageUploadParametersSchema = z.strictObject({
  */
 export const mobileImageReadInternalParametersSchema = z.strictObject({
     sessionId: identifierSchema,
-    attachmentIds: z.array(mobileAttachmentIdSchema).min(1).max(8),
+    attachmentIds: z
+        .array(mobileAttachmentIdSchema)
+        .min(1)
+        .max(MAX_AGENT_CHAT_IMAGES * 2),
     principal: principalSchema,
 });
