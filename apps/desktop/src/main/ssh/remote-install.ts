@@ -125,6 +125,8 @@ export async function installRemoteBuild(options: RemoteInstallOptions): Promise
     };
     report(true);
     const runtimeSource = await installRuntime(options, progress);
+    // Sequential on purpose: the app install script refuses to run until the runtime it points at exists remotely.
+    // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
     const installed = await runRemoteScript(
         connection,
         installAppScript({
