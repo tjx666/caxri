@@ -4,7 +4,7 @@ import { delimiter, isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { stripVTControlCharacters } from 'node:util';
 
-import { execFileAsync, isAccessible, safeProcessEnvironment } from '@caxri/system';
+import { execFileAsync, isAccessible, preferredShell, safeProcessEnvironment } from '@caxri/system';
 
 const LOGIN_PATH_MARKER = '__CAXRI_LOGIN_PATH__';
 const MAX_LOGIN_PATH_BYTES = 32 * 1024;
@@ -92,10 +92,7 @@ export class ExecutableResolver {
 
     private async readLoginPath(): Promise<string | undefined> {
         const source = this.sourceEnvironment();
-        // `||` (not `??`) is deliberate: `SHELL=''` is not a runnable shell either and must also
-        // fall back to the default.
-        // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid shell path either
-        const shell = source.SHELL || '/bin/zsh';
+        const shell = preferredShell(source);
         try {
             const { stdout } = await this.run(
                 shell,

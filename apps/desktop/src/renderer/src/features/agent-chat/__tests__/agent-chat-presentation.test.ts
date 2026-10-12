@@ -6,6 +6,7 @@ import { getTerminalExitPresentation } from '../../terminal/terminal-exit-presen
 import {
     agentChatAttachLabel,
     agentChatCommandCwd,
+    agentChatComposerPlaceholder,
     agentChatDeliveryCaption,
     agentChatEmptyHint,
     agentChatEmptyMessage,
@@ -372,5 +373,25 @@ describe('agentChatDeliveryCaption', () => {
         expect(agentChatDeliveryCaption('steered')).toBe('Steered');
         expect(agentChatDeliveryCaption('queued')).toBeUndefined();
         expect(agentChatDeliveryCaption(undefined)).toBeUndefined();
+    });
+});
+
+describe('agentChatComposerPlaceholder', () => {
+    const sendAction = { placeholder: 'Queue a follow-up (⌘Enter to steer)' };
+
+    it('says Enter sends the queued message while one waits, except during an edit', () => {
+        const state = { hasNextQueued: true, isEditing: false, isTurnRunning: true };
+        expect(agentChatComposerPlaceholder(sendAction, state)).toBe(
+            'Enter to steer the queued message, or type a follow-up',
+        );
+        expect(agentChatComposerPlaceholder(sendAction, { ...state, isTurnRunning: false })).toBe(
+            'Enter to send the queued message, or type a new one',
+        );
+        expect(agentChatComposerPlaceholder(sendAction, { ...state, isEditing: true })).toBe(
+            sendAction.placeholder,
+        );
+        expect(agentChatComposerPlaceholder(sendAction, { ...state, hasNextQueued: false })).toBe(
+            sendAction.placeholder,
+        );
     });
 });

@@ -149,6 +149,12 @@ const processSampler = startProcessObservationSampler({
             await finalizeProcess();
         }
     };
+    /**
+     * Server Core is a daemon that must outlive whatever started it. A Server launched from an SSH login on an SSH Host
+     * would otherwise die on the default SIGHUP action when that login ends, taking every Terminal and Agent with it.
+     * Launchers already detach into a new session; ignoring the hangup covers any path that does not.
+     */
+    process.on('SIGHUP', () => {});
     process.once('SIGINT', async (signal) => {
         try {
             await stopForSignal(signal);

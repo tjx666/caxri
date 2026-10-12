@@ -27,7 +27,8 @@
  * reports `/compact`, `/review`, and the terminal-bound `/exit` as its commands. A message steered with `priority:
  * 'next'` is quoted with `[next]`. It lists an `opus` alias and a model without effort control; `set_model` and an
  * `effortLevel` flag setting change what the next init message and hook input report. Ultracode is a flag setting
- * offered only on models with effort control, and an effort change without an `ultracode` key turns it off.
+ * offered only on models with effort control, and an effort change without an `ultracode` key turns it off. A
+ * `fastMode` flag setting turns Fast mode on, which `initialize`, the init message, and the result report.
  *
  * Like the real CLI, `session_state_changed` is reported only under `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, subagent
  * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background subagents unless
@@ -54,6 +55,7 @@ import {
     FAKE_CLAUDE_COMMANDS,
     FAKE_CLAUDE_MODEL,
     FAKE_CLAUDE_MODELS,
+    fakeClaudeFastMode,
     fakeClaudeSessionAnswer,
     hookCallbackIds,
     hookCallbackRequest,
@@ -111,6 +113,7 @@ const state: {
     model: string;
     effort?: string;
     ultracode: boolean;
+    fastMode: boolean;
     /**
      * `--permission-mode`, then whatever `set_permission_mode` or an approved plan switched to.
      */
@@ -132,6 +135,7 @@ const state: {
     queued: [],
     model: FAKE_CLAUDE_MODEL,
     ultracode: false,
+    fastMode: false,
     permissionMode: argument('--permission-mode') ?? 'default',
     isLargeContextTurn: false,
     hooks: {},
@@ -288,6 +292,7 @@ function result(startedAt: number, text: string, isError = false) {
             modelUsage: { [FAKE_CLAUDE_MODEL]: { contextWindow: 200_000 } },
             permission_denials: [],
             queued_turn_count: state.queued.length,
+            ...fakeClaudeFastMode(state),
             ...(isError ? { errors: [text] } : { result: text }),
         }),
     );
@@ -358,6 +363,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
             permissionMode: state.permissionMode,
             slash_commands: FAKE_CLAUDE_COMMANDS.map((command) => command.name),
             terminal_slash_commands: ['exit'],
+            ...fakeClaudeFastMode(state),
         }),
     );
     if (isAuto) {
@@ -550,6 +556,7 @@ lines.on('line', (line) => {
             state.effort = flags.effortLevel;
         }
         if (typeof flags.ultracode === 'boolean') state.ultracode = flags.ultracode;
+        if (typeof flags.fastMode === 'boolean') state.fastMode = flags.fastMode;
         if (request.subtype === 'set_permission_mode' && typeof request.mode === 'string')
             setPermissionMode(request.mode);
         const answer =

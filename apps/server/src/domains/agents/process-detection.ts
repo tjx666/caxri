@@ -1,4 +1,5 @@
-import { basename } from 'node:path';
+import { readdir, readFile, readlink } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
@@ -10,6 +11,10 @@ const PROCESS_QUERY_MAX_BUFFER_BYTES = 2 * 1024 * 1024;
 const OPEN_FILE_QUERY_TIMEOUT_MS = 1_000;
 const OPEN_FILE_QUERY_MAX_BUFFER_BYTES = 512 * 1024;
 const MAX_FOREGROUND_AGENT_PROCESSES = 64;
+/**
+ * Per-process bound on `/proc/<pid>/fd` entries read on Linux, mirroring the `lsof` output cap on macOS.
+ */
+const MAX_PROC_FILE_DESCRIPTORS = 4_096;
 
 interface ProcessEntry {
     command: string;
@@ -194,14 +199,72 @@ export function openFilesFromLsofOutput(output: string): ProcessOpenFile[] {
 }
 
 /**
- * Reads only files held by the current foreground provider descendants. This deliberately fails closed on non-macOS
- * hosts, an unreadable process table, excessive process fan-out, or an `lsof` timeout/output limit.
+ * Linux equivalent of `lsof -Fpfan`: each `/proc/<pid>/fd` link names an open file, and the matching `fdinfo` entry
+ * carries the open flags whose low two bits are the access mode. Only paths and modes are read, never file contents.
+ * Non-file descriptors (`socket:[...]`, `pipe:[...]`, `anon_inode:...`) are skipped, as are descriptors that close
+ * between the directory read and the link read.
+ */
+export async function openFilesFromProcFileSystem(
+    pids: readonly number[],
+    procRoot = '/proc',
+): Promise<ProcessOpenFile[]> {
+    const perProcess = await Promise.all(
+        pids.map(async (pid) => {
+            const directory = join(procRoot, String(pid));
+            let descriptors: string[];
+            try {
+                descriptors = (await readdir(join(directory, 'fd'))).slice(
+                    0,
+                    MAX_PROC_FILE_DESCRIPTORS,
+                );
+            } catch {
+                return [];
+            }
+            const files = await Promise.all(
+                descriptors.map(async (descriptor): Promise<ProcessOpenFile | undefined> => {
+                    try {
+                        const path = await readlink(join(directory, 'fd', descriptor));
+                        if (!path.startsWith('/')) return undefined;
+                        const info = await readFile(join(directory, 'fdinfo', descriptor), 'utf8');
+                        const flags = /^flags:\s*([0-7]+)$/m.exec(info)?.[1];
+                        if (flags === undefined) return undefined;
+                        const mode = Number.parseInt(flags, 8) & 0o3;
+                        return { access: mode === 0 ? 'r' : mode === 1 ? 'w' : 'u', path, pid };
+                    } catch {
+                        return undefined;
+                    }
+                }),
+            );
+            return files.filter((file): file is ProcessOpenFile => file !== undefined);
+        }),
+    );
+    return perProcess.flat();
+}
+
+async function readOpenFiles(pids: readonly number[]): Promise<ProcessOpenFile[]> {
+    if (process.platform === 'linux') return openFilesFromProcFileSystem(pids);
+    const result = await execFileAsync(
+        '/usr/sbin/lsof',
+        ['-nP', '-a', '-p', pids.join(','), '-Fpfan'],
+        {
+            encoding: 'utf8',
+            maxBuffer: OPEN_FILE_QUERY_MAX_BUFFER_BYTES,
+            timeout: OPEN_FILE_QUERY_TIMEOUT_MS,
+        },
+    );
+    return openFilesFromLsofOutput(result.stdout);
+}
+
+/**
+ * Reads only files held by the current foreground provider descendants: `lsof` on macOS, `/proc` on Linux. This
+ * deliberately fails closed on other hosts, an unreadable process table, excessive process fan-out, or an open-file
+ * query timeout/output limit.
  */
 export async function detectForegroundAgentOpenFiles(
     shellPid: number,
     provider: AgentProvider,
 ): Promise<ProcessOpenFile[]> {
-    if (process.platform !== 'darwin') return [];
+    if (process.platform !== 'darwin' && process.platform !== 'linux') return [];
     let processList: { stdout: string };
     try {
         processList = await execFileAsync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,tpgid=,command='], {
@@ -215,15 +278,7 @@ export async function detectForegroundAgentOpenFiles(
     const pids = foregroundAgentProcessIdsFromProcessList(processList.stdout, shellPid, provider);
     if (!pids || pids.length === 0) return [];
     try {
-        const result = await execFileAsync(
-            '/usr/sbin/lsof',
-            ['-nP', '-a', '-p', pids.join(','), '-Fpfan'],
-            {
-                encoding: 'utf8',
-                maxBuffer: OPEN_FILE_QUERY_MAX_BUFFER_BYTES,
-                timeout: OPEN_FILE_QUERY_TIMEOUT_MS,
-            },
-        );
+        const openFiles = await readOpenFiles(pids);
         const currentProcessList = await execFileAsync(
             '/bin/ps',
             ['-axo', 'pid=,ppid=,pgid=,tpgid=,command='],
@@ -245,7 +300,7 @@ export async function detectForegroundAgentOpenFiles(
         )
             return [];
         const allowedPids = new Set(pids);
-        return openFilesFromLsofOutput(result.stdout).filter((file) => allowedPids.has(file.pid));
+        return openFiles.filter((file) => allowedPids.has(file.pid));
     } catch {
         return [];
     }

@@ -171,6 +171,7 @@
                 "files": [
                     "apps/server/src/extension-host/protocol.ts",
                     "apps/server/src/observability/context-schema.ts",
+                    "apps/server/src/terminal-host/launch-plan-schema.ts",
                     "apps/server/src/terminal-host/protocol.ts",
                     "packages/protocol/src/transport/binary-stream.ts",
                     "packages/protocol/src/transport/identity.ts",

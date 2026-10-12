@@ -43,11 +43,6 @@ export type AgentChatTimelineEntry =
            * What the finished turn this reply ends changed and filed, shown under the reply above its Copy action.
            */
           artifacts?: AgentChatTurnArtifacts;
-          /**
-           * The final reply of the most recent turn: its Copy action stays visible instead of waiting for hover, since
-           * it is the reply the user most likely wants to take away. Earlier replies reveal theirs on hover or focus.
-           */
-          isLatestReply?: true;
       }
     | { kind: 'work'; id: string; items: readonly AgentChatWorkItem[] }
     | {
@@ -251,15 +246,12 @@ function withTurnArtifacts(
  * Builds the rendered timeline from the projection. Items arrive in order and each turn's items are contiguous, so a
  * run of items sharing a `turnId` is one turn. A turn still running (or with no recorded end) stays expanded. Every
  * turn not running ends on its last reply, which is the only one marked `isFinalReply`; a running turn's latest reply
- * may still be followed by more work, so it is not marked until the turn ends. The last turn's final reply is also
- * `isLatestReply`; while the last turn still runs, no reply is. History read back from before the live projection is
- * built with `hasLatestReply` off, since the latest reply is always in the live part.
+ * may still be followed by more work, so it is not marked until the turn ends.
  */
 export function buildAgentChatTimeline(
     items: readonly AgentChatItem[],
     turns: readonly AgentChatTurn[],
     activeTurnId: string | undefined,
-    hasLatestReply = true,
 ): AgentChatTimelineEntry[] {
     const finished = new Map(
         turns
@@ -272,7 +264,6 @@ export function buildAgentChatTimeline(
     if (activeTurnId !== undefined) running.add(activeTurnId);
     const entries: AgentChatTimelineEntry[] = [];
     let start = 0;
-    let latestReplyId: string | undefined;
     while (start < items.length) {
         const turnId = items[start]?.turnId;
         let end = start + 1;
@@ -291,16 +282,9 @@ export function buildAgentChatTimeline(
                   )
                 : groupWork(segment, finalReplyId)),
         );
-        latestReplyId = finalReplyId;
         start = end;
     }
-    return latestReplyId === undefined || !hasLatestReply
-        ? entries
-        : entries.map((entry) =>
-              entry.kind === 'item' && entry.item.id === latestReplyId
-                  ? { ...entry, isLatestReply: true }
-                  : entry,
-          );
+    return entries;
 }
 
 /**

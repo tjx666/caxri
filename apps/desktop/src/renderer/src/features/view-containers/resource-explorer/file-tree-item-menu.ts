@@ -11,6 +11,7 @@ import {
     revealFile,
 } from '../../../lib/desktop-file-actions';
 import { useDialogStore } from '../../../stores/dialogs';
+import { isLocalOnlyAvailable } from '../../../stores/environment';
 import { openFilePreview } from '../../preview/preview-commands';
 import { canPreviewPath } from '../../preview/preview-registry';
 import { projectSearchFolderInclude } from '../../project-search/project-search-seed';
@@ -50,7 +51,8 @@ function findInFolder(directory: string, projectRoot: string): void {
 /**
  * The native right-click menu for one file-tree row, built when the menu opens. Every entry dispatches straight to the
  * same action functions and callbacks the row already computed; the file and terminal actions report their own failures
- * through `tryCommand`, so the menu does not handle their results.
+ * through `tryCommand`, so the menu does not handle their results. An SSH Host window drops the entries that hand the
+ * file to this Mac (default app, Finder, Trash), since the file lives on the SSH Host.
  */
 export function fileTreeItemMenu({
     confirmTrash,
@@ -68,6 +70,7 @@ export function fileTreeItemMenu({
 }: FileTreeItemMenuOptions): ContextMenuEntries {
     const isFile = entry.kind === 'file';
     const isDirectory = entry.kind === 'directory';
+    const isLocal = isLocalOnlyAvailable();
     return [
         { label: translate('common.open'), onSelect: openEntry },
         isFile &&
@@ -75,11 +78,12 @@ export function fileTreeItemMenu({
                 label: translate('viewContainers.files.menu.openPreview'),
                 onSelect: () => openFilePreview(entry.path),
             },
-        isFile && {
-            label: translate('viewContainers.files.menu.openWithDefaultApp'),
-            onSelect: () => openFileWithDefaultApp(entry.path),
-        },
-        {
+        isFile &&
+            isLocal && {
+                label: translate('viewContainers.files.menu.openWithDefaultApp'),
+                onSelect: () => openFileWithDefaultApp(entry.path),
+            },
+        isLocal && {
             label: translate('viewContainers.files.menu.revealInFinder'),
             onSelect: () => revealFile(entry.path),
         },
@@ -138,7 +142,7 @@ export function fileTreeItemMenu({
         },
         { label: translate('common.rename'), shortcut: 'enter', onSelect: startRename },
         CONTEXT_MENU_SEPARATOR,
-        {
+        isLocal && {
             label: translate('viewContainers.files.menu.moveToTrash'),
             shortcut: 'cmd+backspace',
             onSelect: confirmTrash,

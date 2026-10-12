@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import type {
     DesktopServerConnectionOptions,
     DesktopServerSupervisor,
-} from '../../server-connection';
+} from '../../server-attachment';
 import { DesktopServerConnection } from '../../server-connection';
 import type { ServerBuildIdentity } from '../../server-staleness';
 

@@ -14,16 +14,18 @@ export function findAgentChatModel(
 }
 
 /**
- * A model, effort, or ultracode switch as a Client asks for it, by identifier.
+ * A model, effort, ultracode, or Fast mode switch as a Client asks for it, by identifier.
  */
 export interface AgentChatModelRequest {
     model?: string;
     effort?: string;
     ultracode?: boolean;
+    fast?: boolean;
 }
 
 /**
- * A validated model or effort switch, as a provider session applies it.
+ * A validated model or effort switch, as a provider session applies it. Only the keys that change are present, so an
+ * empty change means there is nothing to apply.
  */
 export interface AgentChatModelChange {
     /**
@@ -38,21 +40,48 @@ export interface AgentChatModelChange {
      * Turns Claude Code's ultracode on or off; absent when it should stay as it is.
      */
     ultracode?: boolean;
+    /**
+     * Turns Fast mode on or off; absent when it should stay as it is.
+     */
+    fast?: boolean;
 }
 
 /**
  * Validates a requested switch against what the provider listed, so a stale Client cannot send a model or effort the
  * provider never offered. Switching to a model that does not accept the current effort falls back to that model's
- * default, because a provider handed an effort its model rejects fails the next turn.
+ * default, because a provider handed an effort its model rejects fails the next turn. For the same reason, switching to
+ * a model without Fast mode turns it off.
  */
 export function resolveAgentChatModelChange(
-    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'ultracode'>,
+    snapshot: Pick<AgentChatSnapshot, 'effort' | 'fast' | 'model' | 'models' | 'ultracode'>,
     change: AgentChatModelRequest,
 ): AgentChatModelChange {
     if (change.ultracode !== undefined && snapshot.ultracode === undefined)
         throw new CaxriError('VALIDATION', 'Ultracode is not available in this Chat');
     const ultracode = change.ultracode === undefined ? {} : { ultracode: change.ultracode };
-    return { ...resolveModelAndEffort(snapshot, change), ...ultracode };
+    const resolved = resolveModelAndEffort(snapshot, change);
+    const fast = resolveFast(snapshot, change, resolved.model);
+    return { ...resolved, ...ultracode, ...(fast !== undefined && { fast }) };
+}
+
+/**
+ * The Fast mode a switch applies. Turning it on needs the provider to report Fast mode for this Chat at all, and a
+ * known target model to offer it; Claude Code names its model only with the first turn, so before that the provider's
+ * own report decides. Turning it off is always accepted.
+ */
+function resolveFast(
+    snapshot: Pick<AgentChatSnapshot, 'fast' | 'model' | 'models'>,
+    change: AgentChatModelRequest,
+    model: AgentChatModel | undefined,
+): boolean | undefined {
+    const target = model ?? findAgentChatModel(snapshot.models, snapshot.model);
+    const isOffered = target ? target.fast !== undefined : snapshot.model === undefined;
+    const isReported = snapshot.fast !== undefined;
+    if (change.fast === true && !(isReported && isOffered))
+        throw new CaxriError('VALIDATION', 'Fast mode is not available for this model');
+    if (change.fast !== undefined) return change.fast;
+    const isWithdrawn = model !== undefined && model.fast === undefined;
+    return isWithdrawn && snapshot.fast === true ? false : undefined;
 }
 
 function resolveModelAndEffort(
@@ -90,9 +119,14 @@ function resolveModelAndEffort(
 export interface AgentChatPendingSelection {
     change: AgentChatModelRequest;
     /**
-     * The model, effort, and ultracode the snapshot reported when the switch was requested.
+     * The model, effort, ultracode, and Fast mode the snapshot reported when the switch was requested.
      */
-    baseline: { model: string | undefined; effort: string | undefined; ultracode?: boolean };
+    baseline: {
+        model: string | undefined;
+        effort: string | undefined;
+        ultracode?: boolean;
+        fast?: boolean;
+    };
     /**
      * Server Core accepted the switch, so any change in the reported model or effort is its answer, even one that does
      * not spell the requested identifier (an alias that resolves to another id).
@@ -100,11 +134,14 @@ export interface AgentChatPendingSelection {
     isAccepted: boolean;
 }
 
-type SelectionSnapshot = Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'ultracode'>;
+type SelectionSnapshot = Pick<
+    AgentChatSnapshot,
+    'effort' | 'fast' | 'model' | 'models' | 'ultracode'
+>;
 
 /**
- * Whether the snapshot now answers the pending switch: it reports the requested model, effort, and ultracode, or, once
- * the switch was accepted, it changed from the baseline at all.
+ * Whether the snapshot now answers the pending switch: it reports the requested model, effort, ultracode, and Fast
+ * mode, or, once the switch was accepted, it changed from the baseline at all.
  */
 export function isAgentChatSelectionSettled(
     pending: AgentChatPendingSelection,
@@ -118,18 +155,22 @@ export function isAgentChatSelectionSettled(
     const isEffortConfirmed = change.effort === undefined || snapshot?.effort === change.effort;
     const isUltracodeConfirmed =
         change.ultracode === undefined || snapshot?.ultracode === change.ultracode;
-    if (isModelConfirmed && isEffortConfirmed && isUltracodeConfirmed) return true;
+    const isFastConfirmed = change.fast === undefined || snapshot?.fast === change.fast;
+    if (isModelConfirmed && isEffortConfirmed && isUltracodeConfirmed && isFastConfirmed)
+        return true;
     return (
         pending.isAccepted &&
         (snapshot?.model !== pending.baseline.model ||
             snapshot?.effort !== pending.baseline.effort ||
-            snapshot?.ultracode !== pending.baseline.ultracode)
+            snapshot?.ultracode !== pending.baseline.ultracode ||
+            snapshot?.fast !== pending.baseline.fast)
     );
 }
 
 /**
  * The snapshot as the picker shows it while a switch is pending. A new model keeps the current effort when it offers
- * it, and otherwise shows its default, which is what the provider applies.
+ * it, and otherwise shows its default, which is what the provider applies; a new model without Fast mode shows it off,
+ * as the Server turns it off (`resolveAgentChatModelChange`).
  */
 export function agentChatSelectionView<Snapshot extends SelectionSnapshot>(
     snapshot: Snapshot,
@@ -145,7 +186,18 @@ export function agentChatSelectionView<Snapshot extends SelectionSnapshot>(
             effort = next.defaultEffort;
     }
     const ultracode = change.ultracode ?? snapshot.ultracode;
-    return { ...snapshot, model, effort, ...(ultracode !== undefined && { ultracode }) };
+    let fast = change.fast ?? snapshot.fast;
+    if (fast && change.model !== undefined && change.fast === undefined) {
+        const next = findAgentChatModel(snapshot.models, change.model);
+        if (next && !next.fast) fast = false;
+    }
+    return {
+        ...snapshot,
+        model,
+        effort,
+        ...(ultracode !== undefined && { ultracode }),
+        ...(fast !== undefined && { fast }),
+    };
 }
 
 /**

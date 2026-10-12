@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -20,11 +19,9 @@ import {
     startEventLoopMonitor,
 } from '@caxri/system';
 import type { WebContents } from 'electron';
-import { app, BrowserWindow, dialog, Menu, powerMonitor, shell } from 'electron';
+import { app, BrowserWindow, dialog, Menu, powerMonitor } from 'electron';
 
-import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
-import { createAcceptanceUpdateFixture } from './acceptance-update';
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
@@ -36,7 +33,6 @@ import {
     reopenAuxiliaryWindowsAtStartup,
 } from './auxiliary-window-lifecycle';
 import { stampBuildIdentity } from './build-identity';
-import { consoleErrorLogFields } from './console-error-fields';
 import { createDesktopActions } from './desktop-actions';
 import { createDesktopLogger } from './desktop-logger';
 import type { DesktopNotifications } from './desktop-notifications';
@@ -48,11 +44,17 @@ import {
     installSecondInstanceFocus,
     remoteDebuggingState,
 } from './desktop-profile';
+import { createDesktopUpdateService } from './desktop-update-service';
 import { e2eLaunchLogFields } from './e2e-launch';
+import { guardEnvironmentMethods } from './environment-method-policy';
 import { createMainEventRelay } from './event-relay';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
+import {
+    createLocalWorkbenchEnvironment,
+    createRemoteWindowCommandDispatcher,
+} from './local-workbench-environment';
 import { setMainLanguage } from './locale';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
@@ -60,18 +62,18 @@ import { createMenuRefreshController, createMenuStateLoader } from './menu-refre
 import { createOnDemandWindows } from './on-demand-windows';
 import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
-import { observeRendererCrashes } from './renderer-crash-recovery';
+import type { RemoteEnvironments } from './remote-environments';
 import { loadRendererEntry } from './renderer-entry';
-import { observeRendererHangs } from './renderer-hang-observer';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
 import { DesktopServerConnection } from './server-connection';
-import { resolveDesktopLaunch } from './server-launch-environment';
+import { resolveServerConnectionOptions } from './server-connection-options';
 import { shouldContinueStartup } from './server-startup';
+import { createSshHostEnvironments } from './ssh-host-environments';
 import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
 import { createWorkbenchUnsavedEditors } from './unsaved-editors';
-import { UpdateService, updateStateLogFields } from './updates';
+import type { UpdateService } from './updates';
 import {
     createWindowZoomController,
     mainWindowChromeOptions,
@@ -83,6 +85,7 @@ import { resolveE2EWindowMode } from './window-mode';
 import type { WindowPlacement } from './window-placement';
 import { defaultWindowState, readWindowState, showWhenPlaced } from './window-placement';
 import { installWorkbenchIpc } from './workbench-ipc';
+import { installWorkbenchRendererGuards } from './workbench-renderer-guards';
 import { createWorkbenchRootAuthority } from './workbench-root-authority';
 
 const bootStartedAt = performance.now();
@@ -143,6 +146,11 @@ if (ownsProfileInstance) {
     let agentCommander: AgentCommanderWindowController | undefined;
     let updateService: UpdateService;
     let notifications: DesktopNotifications | undefined;
+    /**
+     * SSH Host windows, each with its own Server connection. Created once Main's logger and local connection options
+     * exist; until then no window can request an SSH Host.
+     */
+    let remoteEnvironments: RemoteEnvironments | undefined;
     let isForceWindowClose = false;
     let isQuitStarted = false;
     let quitIntent: AppQuitIntent = 'user';
@@ -186,7 +194,12 @@ if (ownsProfileInstance) {
     });
     const windowZoom = createWindowZoomController({
         loadLevel: async () => (await supervisor.request('settings.get')).value['window.zoomLevel'],
-        windows: () => [mainWindow, agentCommander?.openWindow(), processExplorer.openWindow()],
+        windows: () => [
+            mainWindow,
+            agentCommander?.openWindow(),
+            processExplorer.openWindow(),
+            ...(remoteEnvironments?.list().map((environment) => environment.window) ?? []),
+        ],
     });
     function sendEvent(event: ServerEvent): void {
         eventRelay.send(event);
@@ -220,10 +233,16 @@ if (ownsProfileInstance) {
             eventLoopMonitor?.stop();
             notifications?.dispose();
         },
-        closeDesktop: () => supervisor.shutdown(),
+        closeDesktop: async () => {
+            await remoteEnvironments?.detachAll();
+            await supervisor.shutdown();
+        },
         ...createAppQuitPromptOptions(dialog, () => mainWindow),
         decideUnsavedEditors: () => unsavedEditors.decide('quit'),
-        detachAll: () => supervisor.request('terminal.detachAll'),
+        detachAll: async () => {
+            await remoteEnvironments?.detachTerminals();
+            return supervisor.request('terminal.detachAll');
+        },
         exit: () => app.exit(0),
         logFailure: (level, stage, error) =>
             mainLogger?.write(level, logEventCatalog.app.quitFailed, {
@@ -316,31 +335,7 @@ if (ownsProfileInstance) {
             window.webContents.setBackgroundThrottling(true);
             if (e2eWindowMode === 'visible') window.show();
         });
-        /**
-         * Passive page content never inherits authority from an explicitly trusted Terminal link.
-         */
-        window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-        window.webContents.on('will-navigate', (event, url) => {
-            const currentUrl = window.webContents.getURL();
-            if (url === currentUrl) return;
-            event.preventDefault();
-        });
-        /**
-         * Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults.
-         */
-        window.webContents.on('console-message', (details) => {
-            if (details.level !== 'error' || isBenignRendererErrorMessage(details.message)) return;
-            mainLogger?.write('error', logEventCatalog.renderer.consoleError, {
-                fields: consoleErrorLogFields(details),
-            });
-        });
-        window.webContents.on('preload-error', () => {
-            mainLogger?.write('error', logEventCatalog.renderer.preloadError, {
-                fields: { code: 'PRELOAD_ERROR' },
-            });
-        });
-        observeRendererHangs(window.webContents, logEventCatalog.window, () => mainLogger);
-        observeRendererCrashes(window, {
+        installWorkbenchRendererGuards(window, {
             isQuitting: () => isQuitStarted,
             logger: () => mainLogger,
             shutdown: () => supervisor.shutdown(),
@@ -448,30 +443,34 @@ if (ownsProfileInstance) {
         });
     }
 
-    const handleMainMethod = createMainMethodHandler({
-        ...gpuRecovery.mainMethodOptions,
-        logger: () => mainLogger,
-        getProcessExplorer: () => processExplorer,
-        getAgentCommander: () => agentCommander,
-        onUnsavedEditorsReply: (parameters) => unsavedEditors.reply(parameters),
-        revealSessionInWorkbench: async (sessionId) => {
-            await supervisor.request('session.select', { sessionId });
-            await focusMainWindow();
-        },
-        openSettingsInWorkbench: async (target) => {
-            // Unlike a menu pick, wait for the Workbench Renderer: a reopened window must be listening for the event.
-            await focusMainWindow();
-            if (target) sendEvent({ event: 'settings.openRequested', payload: { target } });
-            else dispatchWorkbenchCommand('settings.open', false);
-        },
-        getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
-        getUserDataPath: () => desktopProfile.userDataPath,
-        getSupervisor: () => supervisor,
-        getUpdateService: () => updateService,
-        getWindow: () => mainWindow,
-        sendEvent,
-        workbenchRootAuthority,
-    });
+    const handleMainMethod = guardEnvironmentMethods(
+        'local',
+        createMainMethodHandler({
+            ...gpuRecovery.mainMethodOptions,
+            environment: createLocalWorkbenchEnvironment(() => remoteEnvironments),
+            logger: () => mainLogger,
+            getProcessExplorer: () => processExplorer,
+            getAgentCommander: () => agentCommander,
+            onUnsavedEditorsReply: (parameters) => unsavedEditors.reply(parameters),
+            revealSessionInWorkbench: async (sessionId) => {
+                await supervisor.request('session.select', { sessionId });
+                await focusMainWindow();
+            },
+            openSettingsInWorkbench: async (target) => {
+                // Unlike a menu pick, wait for the Workbench Renderer: a reopened window must be listening for the event.
+                await focusMainWindow();
+                if (target) sendEvent({ event: 'settings.openRequested', payload: { target } });
+                else dispatchWorkbenchCommand('settings.open', false);
+            },
+            getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
+            getUserDataPath: () => desktopProfile.userDataPath,
+            getSupervisor: () => supervisor,
+            getUpdateService: () => updateService,
+            getWindow: () => mainWindow,
+            sendEvent,
+            workbenchRootAuthority,
+        }),
+    );
 
     const handleServerDesktopOperation = createDesktopOperationHandler(
         createDesktopActions({
@@ -522,6 +521,7 @@ if (ownsProfileInstance) {
             onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             readEventLoopStalls: () => eventLoopMonitor?.summary(),
             onStartupFrame: (frame) => startupProfile.complete(frame),
+            remote: (sender) => remoteEnvironments?.route(sender),
             onEventsReady: () => {
                 startupProfile.mark('rendererReady');
                 // eslint-disable-next-line no-void -- replays the synchronous handshake once Server Core is attached
@@ -533,6 +533,7 @@ if (ownsProfileInstance) {
         });
     }
 
+    const dispatchToRemoteWindow = createRemoteWindowCommandDispatcher(() => remoteEnvironments);
     function installMenu(keybindings: Keybinding[]): void {
         Menu.setApplicationMenu(
             Menu.buildFromTemplate(
@@ -544,6 +545,7 @@ if (ownsProfileInstance) {
                     workbenchWindow: () =>
                         mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
                     isFollowingAppZoom: (window) => window === agentCommander?.openWindow(),
+                    dispatchToRemoteWindow,
                     focusWorkbench: () => {
                         // eslint-disable-next-line no-void -- best effort: the command reaches the Workbench whether or not it came forward
                         void focusMainWindow().catch(() => {});
@@ -597,54 +599,41 @@ if (ownsProfileInstance) {
                 mainLogger.write('info', logEventCatalog.e2e.launch, {
                     fields: e2eLaunchLogFields(e2eAgentPolicy, e2eWindowMode),
                 });
-            updateService = new UpdateService({
-                acceptanceDiscovery: createAcceptanceUpdateFixture({
-                    environment: process.env,
-                    isPackaged: app.isPackaged,
-                    userDataPath,
-                }),
+            updateService = createDesktopUpdateService({
                 currentVersion: caxriVersion,
-                downloadDirectory: join(userDataPath, 'updates'),
-                enabled: app.isPackaged,
-                openPath: (path) => shell.openPath(path),
-                onState: (state) => {
-                    if (state.status !== 'downloading')
-                        mainLogger?.write(
-                            state.status === 'error' ? 'error' : 'info',
-                            logEventCatalog.updates.state,
-                            { fields: updateStateLogFields(state) },
-                        );
-                    sendEvent({ event: 'updates.state', payload: state });
-                },
+                logger: () => mainLogger,
+                sendEvent,
+                userDataPath,
+            });
+            const connectionOptions = resolveServerConnectionOptions({
+                currentDirectory,
+                e2eAgentPolicy,
+                userDataPath,
+                version: caxriVersion,
             });
             supervisor = new DesktopServerConnection({
-                buildIdentity: {
-                    commit: process.env.CAXRI_GIT_COMMIT,
-                    version: caxriVersion,
-                },
-                agentHooksPath:
-                    process.env.CAXRI_E2E === '1'
-                        ? process.env.CAXRI_E2E_AGENT_HOOKS === '1'
-                            ? join(userDataPath, 'agent-hooks')
-                            : undefined
-                        : join(app.getPath('appData'), 'caxri', 'agent-hooks'),
-                currentDirectory,
-                cliPath: app.isPackaged
-                    ? join(process.resourcesPath, 'cli', 'caxri.cjs')
-                    : resolve(currentDirectory, '../../apps/cli/dist/caxri.cjs'),
-                desktopId: randomUUID(),
-                desktopLaunch: resolveDesktopLaunch({
-                    currentDirectory,
-                    executable: process.execPath,
-                    isPackaged: app.isPackaged,
-                }),
-                e2eAgentPolicy,
+                ...connectionOptions,
                 handleCommand: handleServerDesktopOperation,
                 logger: mainLogger,
-                serverArtifactRoot: app.isPackaged
-                    ? join(process.resourcesPath, 'server')
-                    : resolve(currentDirectory, '../../apps/server/dist/server'),
+            });
+            const logger = mainLogger;
+            remoteEnvironments = createSshHostEnvironments({
+                connection: connectionOptions,
+                currentDirectory,
+                isPackaged: app.isPackaged,
+                isQuitting: () => isQuitStarted,
+                logger: () => logger,
+                nextTestRoot: resolveNextTestRootPath,
+                shared: {
+                    ...gpuRecovery.mainMethodOptions,
+                    getAgentCommander: () => agentCommander,
+                    getProcessExplorer: () => processExplorer,
+                    getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
+                    getUpdateService: () => updateService,
+                    getUserDataPath: () => desktopProfile.userDataPath,
+                },
                 userDataPath,
+                zoomLevel: () => windowZoom.level(),
             });
             ({ agentCommander, processExplorer } = createOnDemandWindows({
                 currentDirectory,
