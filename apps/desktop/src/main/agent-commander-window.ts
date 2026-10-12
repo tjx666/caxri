@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-import type { AuxiliaryWindowState, ServerEvent } from '@caxri/protocol';
+import type { AgentCommanderOpenTarget, AuxiliaryWindowState, ServerEvent } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -60,6 +60,11 @@ export class AgentCommanderWindowController {
     private window?: BrowserWindow;
     private isEventsReady = false;
     /**
+     * An `agentCommander.open` asked for the Inbox and the window has not been told yet: a window the request itself
+     * opened cannot receive the event until its Renderer subscribes, so the request waits for `onEventsReady`.
+     */
+    private isInboxRequested = false;
+    /**
      * Where the last window stood. The Commander outlives its window and the user reopens it often, so a reopen puts it
      * back instead of at the default size in the middle of the screen. Recorded after every move and resize as well as
      * on close, because a crash loop destroys the window without a `close` event. Seeded from the previous quit's
@@ -93,6 +98,80 @@ export class AgentCommanderWindowController {
     }
 
     /**
+     * Sends a pending Inbox request straight to this window, which is its only audience: the Workbench has no Inbox
+     * column, so the request never enters the shared relay.
+     */
+    private deliverInboxRequest(): void {
+        if (!this.isInboxRequested || !this.isEventsReady) return;
+        const renderer = this.renderer();
+        if (!renderer) return;
+        this.isInboxRequested = false;
+        const event: ServerEvent = { event: 'agentCommander.inboxRequested', payload: {} };
+        renderer.send('caxri:event', event);
+    }
+
+    private openWindowIfClosed(): void {
+        if (isAuxiliaryWindowRevealed(this.window, this.options.windowMode === 'visible')) return;
+        const logger = this.options.logger();
+        if (!logger) {
+            this.isInboxRequested = false;
+            return;
+        }
+        const zoomFactor = zoomFactorForLevel(this.options.zoomLevel());
+        const window = createAuxiliaryWindow({
+            browserWindow: {
+                ...this.boundsMemory.boundsForOpen(),
+                minWidth: 760,
+                minHeight: 480,
+                title: 'Agent Commander — Caxri',
+                backgroundColor: '#282a36',
+                titleBarStyle: 'hiddenInset',
+                /**
+                 * The header is the Workbench's 44px drag header, so the traffic lights sit where they do there, and
+                 * the window opens at the app zoom instead of flashing at 100% first.
+                 */
+                trafficLightPosition: trafficLightPositionForZoom(zoomFactor),
+                webPreferences: {
+                    preload: join(this.options.currentDirectory, '../preload/index.cjs'),
+                    contextIsolation: true,
+                    nodeIntegration: false,
+                    sandbox: true,
+                    zoomFactor,
+                },
+            },
+            events: logEventCatalog.agentCommander,
+            logger,
+            rendererUrl: resolveRendererEntryUrl({
+                currentDirectory: this.options.currentDirectory,
+                isPackaged: this.options.isPackaged,
+                page: 'agent-commander.html',
+                rendererUrl: this.options.rendererUrl,
+            }),
+            showOnReady: this.options.windowMode === 'visible',
+        });
+        this.window = window;
+        this.isEventsReady = false;
+        /**
+         * A reload (crash recovery) starts a new preload generation that must re-announce readiness and re-learn its
+         * Terminal through `commander.ensure` before any PTY bytes are routed to it again.
+         */
+        window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+            if (!isMainFrame || isInPlace) return;
+            this.isEventsReady = false;
+            this.releaseTerminal();
+        });
+        trackAuxiliaryWindowBounds(window, (bounds) => this.boundsMemory.remember(bounds));
+        publishFullScreenState(window, 'agentCommander', this.options.sendEvent);
+        window.on('closed', () => {
+            if (this.window !== window) return;
+            this.window = undefined;
+            this.isEventsReady = false;
+            this.isInboxRequested = false;
+            this.releaseTerminal();
+        });
+    }
+
+    /**
      * The window while it is open, which also follows the app-wide window zoom.
      */
     openWindow(): BrowserWindow | undefined {
@@ -110,6 +189,7 @@ export class AgentCommanderWindowController {
             observeReply: (raw, reply) => this.policy.observeReply(raw, reply),
             onEventsReady: () => {
                 this.isEventsReady = true;
+                this.deliverInboxRequest();
             },
             onRendererError: (kind) =>
                 this.options
@@ -212,60 +292,13 @@ export class AgentCommanderWindowController {
         }
     }
 
-    open(): void {
-        if (isAuxiliaryWindowRevealed(this.window, this.options.windowMode === 'visible')) return;
-        const logger = this.options.logger();
-        if (!logger) return;
-        const zoomFactor = zoomFactorForLevel(this.options.zoomLevel());
-        const window = createAuxiliaryWindow({
-            browserWindow: {
-                ...this.boundsMemory.boundsForOpen(),
-                minWidth: 760,
-                minHeight: 480,
-                title: 'Agent Commander — Caxri',
-                backgroundColor: '#282a36',
-                titleBarStyle: 'hiddenInset',
-                /**
-                 * The header is the Workbench's 44px drag header, so the traffic lights sit where they do there, and
-                 * the window opens at the app zoom instead of flashing at 100% first.
-                 */
-                trafficLightPosition: trafficLightPositionForZoom(zoomFactor),
-                webPreferences: {
-                    preload: join(this.options.currentDirectory, '../preload/index.cjs'),
-                    contextIsolation: true,
-                    nodeIntegration: false,
-                    sandbox: true,
-                    zoomFactor,
-                },
-            },
-            events: logEventCatalog.agentCommander,
-            logger,
-            rendererUrl: resolveRendererEntryUrl({
-                currentDirectory: this.options.currentDirectory,
-                isPackaged: this.options.isPackaged,
-                page: 'agent-commander.html',
-                rendererUrl: this.options.rendererUrl,
-            }),
-            showOnReady: this.options.windowMode === 'visible',
-        });
-        this.window = window;
-        this.isEventsReady = false;
-        /**
-         * A reload (crash recovery) starts a new preload generation that must re-announce readiness and re-learn its
-         * Terminal through `commander.ensure` before any PTY bytes are routed to it again.
-         */
-        window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
-            if (!isMainFrame || isInPlace) return;
-            this.isEventsReady = false;
-            this.releaseTerminal();
-        });
-        trackAuxiliaryWindowBounds(window, (bounds) => this.boundsMemory.remember(bounds));
-        publishFullScreenState(window, 'agentCommander', this.options.sendEvent);
-        window.on('closed', () => {
-            if (this.window !== window) return;
-            this.window = undefined;
-            this.isEventsReady = false;
-            this.releaseTerminal();
-        });
+    /**
+     * Opens or raises the window. `target: 'inbox'` also asks its Renderer to open the Inbox and focus the first open
+     * item, delivered as soon as the window listens for events.
+     */
+    open(target?: AgentCommanderOpenTarget): void {
+        this.isInboxRequested = target === 'inbox';
+        this.openWindowIfClosed();
+        this.deliverInboxRequest();
     }
 }

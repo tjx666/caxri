@@ -27,6 +27,8 @@ describe('commanderInboxChipCopy', () => {
     it('counts open items with singular and plural agreement', () => {
         expect(commanderInboxChipCopy(1)?.text).toBe('1 needs you');
         expect(commanderInboxChipCopy(3)?.text).toBe('3 need you');
-        expect(commanderInboxChipCopy(3)?.description).toMatch(/^Open Agent Commander: 3 items/);
+        expect(commanderInboxChipCopy(3)?.description).toMatch(
+            /^Open Inbox: 3 Agent Commander items/,
+        );
     });
 });

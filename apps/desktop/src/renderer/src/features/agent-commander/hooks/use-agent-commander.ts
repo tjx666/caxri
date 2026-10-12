@@ -14,6 +14,7 @@ import {
 } from '../commander-client';
 import { commanderEventEffect } from '../commander-events';
 import { invalidateCommanderInbox } from '../commander-inbox-commands';
+import { revealCommanderInbox } from '../commander-inbox-store';
 
 /**
  * Long enough to fold one burst of `state.changed` (a delegation touches a Session, its Terminal, and its Project) into
@@ -97,6 +98,7 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
             // Fire-and-forget: the Inbox query surfaces its own failure in the Inbox column.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             if (effect.inbox) void invalidateCommanderInbox();
+            if (effect.revealInbox) revealCommanderInbox();
             if (effect.pullRequestSessionIds.length > 0) {
                 for (const sessionId of effect.pullRequestSessionIds)
                     pullRequestSessionIds.add(sessionId);

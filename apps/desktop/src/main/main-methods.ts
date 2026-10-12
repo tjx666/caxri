@@ -458,7 +458,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 options.getProcessExplorer().open();
                 return null;
             case 'agentCommander.open':
-                options.getAgentCommander()?.open();
+                options.getAgentCommander()?.open(request.params.target);
                 return null;
             case 'agentCommander.stop':
                 await options.getAgentCommander()?.stop();

@@ -93,9 +93,9 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.commanderInbox.textOne': '{{count}} 项待你处理',
     'statusBar.commanderInbox.textOther': '{{count}} 项待你处理',
     'statusBar.commanderInbox.descriptionOne':
-        '打开 Agent Commander：其收件箱中有 1 项需要你回答或合并。',
+        '打开收件箱：Agent Commander 有 1 项需要你回答或合并。',
     'statusBar.commanderInbox.descriptionOther':
-        '打开 Agent Commander：其收件箱中有 {{count}} 项需要你回答或合并。',
+        '打开收件箱：Agent Commander 有 {{count}} 项需要你回答或合并。',
     'statusBar.listSeparator': '，',
     'statusBar.alsoReferenced': '其他引用',
     'statusBar.source.pullRequest': '来自 Pull Request 描述',
