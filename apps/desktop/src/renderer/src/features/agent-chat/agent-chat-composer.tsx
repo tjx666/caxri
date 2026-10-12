@@ -11,33 +11,26 @@ import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 
 import { Textarea } from '../../components/ui/textarea';
 import { useTranslation } from '../../i18n';
-import { isImeComposing } from '../../lib/ime';
 import { cn } from '../../lib/utilities';
 import { useTerminal } from '../../stores/selectors';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
-import { sendAgentChatQueuedNow } from './agent-chat-commands';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
-import { agentChatComposerKeyAction } from './agent-chat-composer-keys';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { agentChatSendBlock } from './agent-chat-presentation';
-import {
-    agentChatComposerPlaceholder,
-    agentChatSendRefusal,
-    agentChatSendTooltip,
-} from './agent-chat-presentation';
+import { agentChatComposerPlaceholder, agentChatSendTooltip } from './agent-chat-presentation';
 import { agentChatNextQueuedId } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
 import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-composer-edit';
+import { useAgentChatComposerEnter } from './hooks/use-agent-chat-composer-enter';
 import { useAgentChatComposerInput } from './hooks/use-agent-chat-composer-input';
-import { useAgentChatComposerNotice } from './hooks/use-agent-chat-composer-notice';
 import { useAgentChatComposerSend } from './hooks/use-agent-chat-composer-send';
 import { useAgentChatDraft } from './hooks/use-agent-chat-draft';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
@@ -131,18 +124,17 @@ interface AgentChatComposerProperties {
  * provider cannot take, is inserted as its path. Text pasted past `AGENT_CHAT_LONG_PASTE_THRESHOLD` is saved to a file
  * and the message cites it instead. A drag anywhere over the Chat tints the whole pane with a one-line caption. While a
  * turn runs and something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue glyph.
- * A disabled Send says why in its tooltip, and an Enter it refuses says the same in the strip for two
- * seconds and through the live region. A leading `/` or `$` offers the provider's commands and the discovered
- * skills, and a word that starts with `@` offers other Sessions whose conversation the message can cite; both lists
- * show only while the input has focus. It shares the timeline's centered column so the input lines up with the
- * conversation, and keeps the activity row, attachments, the input, and its actions inside one card so they read as a
- * single control. The action row picks the model and effort for the next turn and shows how full the context window is.
- * Clicking Send, Stop, or a chip or queue action hands focus back to the input, since each of those controls disables
- * or unmounts itself and would otherwise drop focus to the document body. The unsent text survives switching Sessions
- * and restarting Caxri, and ArrowUp on an empty input recalls the prompts this Chat already sent. "Edit from here" on
- * an earlier message (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it; sending then
- * rewinds the Chat to before that message and sends the draft in its place, and Escape or Cancel puts the previous
- * draft back.
+ * A disabled Send says why in its tooltip, and an Enter it refuses says the same in the strip for two seconds and
+ * through the live region. A leading `/` or `$` offers the provider's commands and the discovered skills, and a word
+ * that starts with `@` offers other Sessions whose conversation the message can cite; both lists show only while the
+ * input has focus. It shares the timeline's centered column so the input lines up with the conversation, and keeps the
+ * activity row, attachments, the input, and its actions inside one card so they read as a single control. The action
+ * row picks the model and effort for the next turn and shows how full the context window is. Clicking Send, Stop, or a
+ * chip or queue action hands focus back to the input, since each of those controls disables or unmounts itself and
+ * would otherwise drop focus to the document body. The unsent text survives switching Sessions and restarting Caxri,
+ * and ArrowUp on an empty input recalls the prompts this Chat already sent. "Edit from here" on an earlier message
+ * (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it; sending then rewinds the Chat to
+ * before that message and sends the draft in its place, and Escape or Cancel puts the previous draft back.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -251,16 +243,20 @@ export function AgentChatComposer({
         isSending,
     };
     const sendTooltip = agentChatSendTooltip(sendAction, sendState, t);
-    const refusalNotice = useAgentChatComposerNotice();
-    /**
-     * Enter on a draft the composer cannot send yet says why instead of doing nothing (`agentChatSendRefusal`).
-     */
-    const submitFromKey = (delivery: 'steer' | undefined): void => {
-        const refusal = agentChatSendRefusal(sendAction, { ...sendState, isSendable }, t);
-        if (refusal) refusalNotice.show(refusal);
-        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-        else void submit(delivery);
-    };
+    const composerKeys = useAgentChatComposerEnter({
+        cancelEdit: edit.cancel,
+        hasPendingQueue: pendingQueue.length > 0,
+        isBusy,
+        isEditing: edit.isEditing,
+        isSendable,
+        isTurnRunning,
+        nextQueuedId,
+        sendAction,
+        sendState,
+        stop,
+        submit,
+        terminalId,
+    });
     const stopAndFocus = (): void => {
         stop();
         focusInput();
@@ -299,7 +295,7 @@ export function AgentChatComposer({
                     <AgentChatActivityBar
                         activity={activity}
                         notice={
-                            refusalNotice.notice ??
+                            composerKeys.notice ??
                             (menu.confirmsSendAsText
                                 ? t('agentChat.slash.confirmSendAsText')
                                 : undefined)
@@ -377,48 +373,7 @@ export function AgentChatComposer({
                                 return;
                             if (menu.didHandleKey(event, { choose, complete })) return;
                             if (sessionMenu.didHandleKey(event)) return;
-                            const action = agentChatComposerKeyAction(
-                                {
-                                    key: event.key,
-                                    altKey: event.altKey,
-                                    ctrlKey: event.ctrlKey,
-                                    isComposing: isImeComposing(event),
-                                    metaKey: event.metaKey,
-                                    repeat: event.repeat,
-                                    shiftKey: event.shiftKey,
-                                },
-                                {
-                                    isBusy,
-                                    isEditing: edit.isEditing,
-                                    isTurnRunning,
-                                    nextQueuedId:
-                                        hasContent ||
-                                        isSending ||
-                                        edit.isEditing ||
-                                        pendingQueue.length > 0
-                                            ? undefined
-                                            : nextQueuedId,
-                                },
-                            );
-                            if (!action) return;
-                            event.preventDefault();
-                            switch (action.kind) {
-                                case 'stop': {
-                                    stop();
-                                    break;
-                                }
-                                case 'cancelEdit': {
-                                    edit.cancel();
-                                    break;
-                                }
-                                case 'sendQueued': {
-                                    sendAgentChatQueuedNow(terminalId, action.id);
-                                    break;
-                                }
-                                default: {
-                                    submitFromKey(action.delivery);
-                                }
-                            }
+                            composerKeys.onKeyDown(event);
                         }}
                         onPaste={fileInput.onPaste}
                     />
