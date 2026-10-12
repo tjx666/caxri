@@ -89,6 +89,7 @@ export const commandIds = [
     'processExplorer.open',
     'agentCommander.open',
     'agentCommander.stop',
+    'agentCommander.handOver',
     'developer.toggleScreencastMode',
     'developer.reportBug',
     'diagnostics.export',

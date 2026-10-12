@@ -470,6 +470,13 @@ export const agentChatSnapshotSchema = z.strictObject({
      * True after the user stopped a turn with messages still queued; nothing is sent until they resume the queue.
      */
     queuePaused: z.boolean().optional(),
+    /**
+     * Why the queue is paused, set together with `queuePaused` and cleared when it resumes or empties: `stopped` after
+     * the user interrupted a turn, `sendFailed` after Server Core could not send the queued messages it took, and
+     * `deliveryUnknown` after a send may have reached the provider unconfirmed. Clients tell a failure from a Stop by
+     * it.
+     */
+    queuePauseReason: z.enum(['stopped', 'sendFailed', 'deliveryUnknown']).optional(),
 });
 
 /**
@@ -512,6 +519,9 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 queue: agentChatSnapshotSchema.shape.queue.unwrap(),
                 queueLength: agentChatSnapshotSchema.shape.queueLength.unwrap(),
                 queuePaused: agentChatSnapshotSchema.shape.queuePaused.unwrap(),
+                queuePauseReason: agentChatSnapshotSchema.shape.queuePauseReason
+                    .unwrap()
+                    .nullable(),
             })
             .partial(),
     }),
