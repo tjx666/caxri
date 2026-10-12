@@ -52,8 +52,10 @@ export const usageReportParametersSchema = z.object({
      */
     scope: z.enum(usageScopeIds).optional(),
     /**
-     * Narrows the report to one Caxri Session: only Agent Sessions the ledger attributes to it (the Session that first
-     * hosted each conversation) count, and conversations run outside Caxri are left out whatever the scope.
+     * Narrows the report to the Agent Sessions one Caxri Session owns or currently hosts: those the ledger attributes
+     * to it (the Session that first hosted each conversation) plus any bound to one of its Terminals now, such as a
+     * conversation resumed there. Included conversations keep their owner in the per-Session rows, and conversations
+     * run outside Caxri are left out whatever the scope.
      */
     sessionId: identifierSchema.optional(),
 });

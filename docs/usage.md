@@ -13,9 +13,11 @@ broken down by Agent (Claude Code, Codex, Grok Build). The scope toggle picks wh
 - **This Mac**: every Agent transcript on the machine, adding conversations run in a plain terminal or another app.
 
 Clicking the status bar's Agent usage chip opens the page narrowed to the active Terminal's Session, over all time, so
-the first screen is that Session's usage; the Session filter in the header clears it. The report attributes each
-conversation to the Session that first hosted it, so this filter shows exactly the Session's row in Most expensive
-Sessions. A Terminal outside any Session, and **Open Usage** itself, show every Session.
+the first screen is that Session's usage; the Session filter in the header clears it. The filter covers every
+conversation the Session owns or currently hosts, so a conversation resumed there from another Session counts and the
+page matches the chip. The report still attributes each conversation to the Session that first hosted it, so such a
+resumed conversation appears under its owner's row in Most expensive Sessions, and unfiltered totals never count it
+twice. A Terminal outside any Session, and **Open Usage** itself, show every Session.
 
 ## What it shows
 
