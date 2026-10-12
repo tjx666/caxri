@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import {
@@ -297,9 +298,11 @@ export function PdfPreview({
         );
     if (state.status === 'loading')
         return (
-            <div className="flex h-full items-center justify-center bg-background text-muted">
-                {PREVIEW_LOADING_LABEL}
-            </div>
+            <LoadingSkeleton
+                variant="document"
+                className="bg-background"
+                label={PREVIEW_LOADING_LABEL}
+            />
         );
     return (
         <PdfDocumentView document={state.document} viewStateKey={viewStateKey} onRetry={retry} />

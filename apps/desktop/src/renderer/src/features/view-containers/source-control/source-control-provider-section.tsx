@@ -10,11 +10,11 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { DiffStat } from '../../../components/diff-stat';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
+import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import type { StructuredTooltipData } from '../../../components/structured-tooltip';
 import { StructuredTooltip } from '../../../components/structured-tooltip';
 import { Button } from '../../../components/ui/button';
 import { Empty } from '../../../components/ui/empty';
-import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { openExternalUrl } from '../../../lib/external-link';
@@ -461,22 +461,19 @@ function GroupBody({
                     {group.truncationMessage}
                 </div>
             )}
-            {group.resources.length === 0 && (
-                <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
-                    {group.isLoading ? (
-                        <span className="inline-flex items-center gap-1.5">
-                            {/* The Spinner's own "Loading" label would announce alongside the descriptive text below,
-                            so it is hidden from assistive tech and the live region announces once. */}
-                            <Spinner size={12} aria-hidden="true" />
-                            <span role="status" aria-live="polite">
-                                {group.emptyMessage}
-                            </span>
-                        </span>
-                    ) : (
-                        group.emptyMessage
-                    )}
-                </Empty>
-            )}
+            {group.resources.length === 0 &&
+                (group.isLoading ? (
+                    <LoadingSkeleton
+                        variant="list"
+                        label={group.emptyMessage}
+                        rows={3}
+                        indent={12}
+                    />
+                ) : (
+                    <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
+                        {group.emptyMessage}
+                    </Empty>
+                ))}
             {group.resources.length > 0 && (
                 <SourceControlTreeItems
                     activeEditorResource={controller.activeEditorResource}

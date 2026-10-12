@@ -4,6 +4,7 @@ import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol
 import { agentTaskTabLabel } from '@caxri/protocol';
 import { ArrowLeft, RotateCcw, Square } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utilities';
 import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
@@ -242,7 +243,7 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
             />
         )
     ) : (
-        <div className={STATE_CLASS_NAME}>Loading…</div>
+        <LoadingSkeleton variant="document" label="Loading task…" />
     );
     return (
         <section aria-label={title} className="flex h-full min-h-0 flex-col bg-background">

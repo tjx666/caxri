@@ -8,6 +8,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import { DisclosureMotion } from '../../../components/disclosure-motion';
+import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import { Spinner } from '../../../components/ui/spinner';
 import { cn } from '../../../lib/utilities';
 import { pushToast } from '../../../stores/toasts';
@@ -145,9 +146,12 @@ export function SourceControlHistory({
                         {error ? (
                             <div className="px-3 py-2 text-[11px] text-danger">{error}</div>
                         ) : loading && items.length === 0 ? (
-                            <div className="flex items-center gap-1.5 px-3 py-2 text-[11px] text-muted">
-                                <Spinner size={12} /> {descriptor.loadingMessage}
-                            </div>
+                            <LoadingSkeleton
+                                variant="list"
+                                label={descriptor.loadingMessage}
+                                rows={4}
+                                indent={12}
+                            />
                         ) : items.length === 0 ? (
                             <div className="px-3 py-2 text-[11px] text-muted">
                                 {scope && !scope.path

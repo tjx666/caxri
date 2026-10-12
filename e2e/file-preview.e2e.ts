@@ -145,7 +145,9 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
         await expect(running.page.getByRole('tab', { name: 'Preview: guide.md' })).toBeVisible();
         const failure = running.page.locator('.empty-work[role="alert"]');
         await expect(failure).toContainText("Couldn't open this file");
-        await expect(running.page.getByText('Loading preview…', { exact: true })).toHaveCount(0);
+        await expect(
+            running.page.getByRole('status', { name: 'Loading preview…', exact: true }),
+        ).toHaveCount(0);
         await writeFile(join(root, 'guide.md'), '# Guide\n', 'utf8');
         const retry = failure.getByRole('button', { name: 'Retry', exact: true });
         await retry.focus();
