@@ -137,10 +137,14 @@ CAXRI_SSH_INTEGRATION=1 CAXRI_SSH_CONFIG=<lab>/ssh_config \
 `CAXRI_SSH_CONFIG` makes Main pass `-F <file>` to every `ssh` call, so a disposable lab key and
 config never touch the developer's own `~/.ssh`. The same variable works for a dev instance.
 
+`CAXRI_SSH_DESTINATION` picks the lab host (default `caxri-lab`). Pointing it at a host reached
+through `ProxyJump` (a second `sshd` container only reachable from the jump container) runs the whole
+suite, askpass prompts included, through the jump host. The target's `sshd` log shows each login
+coming from the jump container's address, which proves the traffic did not bypass the hop.
+
 ## Known gaps
 
 - Trash, Reveal, open with the default app, and external editors have no remote equivalent yet;
   Agent Chat undo of a created file relies on Trash.
-- `ProxyJump` and `ProxyCommand` should work through OpenSSH but have no automated coverage.
 - A wrong key passphrase is asked again by OpenSSH up to its own retry limit.
 - Remote stack traces carry no source maps (they are dropped from the remote layer to keep it small).
