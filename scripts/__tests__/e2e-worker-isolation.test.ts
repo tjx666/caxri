@@ -8,7 +8,7 @@ import { desktopCommandEnvironment } from '../../.agents/skills/switch-worktree/
 import {
     e2eWorkerTemporaryDirectory,
     removeE2ETemporaryDirectory,
-    resolveE2EClipboardPolicy,
+    resolveE2ELaunchPolicy,
     resolveE2EWorkerIsolation,
 } from '../../e2e/support/worker-isolation';
 
@@ -47,16 +47,41 @@ describe('E2E worker isolation', () => {
     });
 
     it('skips clipboard protection only for parallel-safe launches and rejects clipboard access there', () => {
-        expect(resolveE2EClipboardPolicy({}, false)).toEqual({ protectClipboard: true });
-        expect(resolveE2EClipboardPolicy({ CAXRI_E2E_POOL: 'desktop-exclusive' }, false)).toEqual({
+        const hidden = { clipboard: false, gpuMode: 'disabled', windowMode: 'hidden' } as const;
+        expect(resolveE2ELaunchPolicy({}, hidden)).toEqual({ protectClipboard: true });
+        expect(resolveE2ELaunchPolicy({ CAXRI_E2E_POOL: 'desktop-exclusive' }, hidden)).toEqual({
             protectClipboard: true,
         });
-        expect(resolveE2EClipboardPolicy({ CAXRI_E2E_POOL: 'parallel-safe' }, false)).toEqual({
+        expect(resolveE2ELaunchPolicy({ CAXRI_E2E_POOL: 'parallel-safe' }, hidden)).toEqual({
             protectClipboard: false,
         });
-        expect(() => resolveE2EClipboardPolicy({ CAXRI_E2E_POOL: 'parallel-safe' }, true)).toThrow(
-            'clipboard access is not parallel-safe',
+        expect(() =>
+            resolveE2ELaunchPolicy(
+                { CAXRI_E2E_POOL: 'parallel-safe' },
+                { ...hidden, clipboard: true },
+            ),
+        ).toThrow('clipboard access is not parallel-safe');
+    });
+
+    it('rejects visible windows and an enabled GPU only inside the parallel-safe pool', () => {
+        const hidden = { clipboard: false, gpuMode: 'disabled', windowMode: 'hidden' } as const;
+        const parallel = { CAXRI_E2E_POOL: 'parallel-safe' };
+
+        expect(() =>
+            resolveE2ELaunchPolicy(parallel, { ...hidden, windowMode: 'visible' }),
+        ).toThrow("windowMode: 'visible' is not parallel-safe");
+        expect(() => resolveE2ELaunchPolicy(parallel, { ...hidden, gpuMode: 'enabled' })).toThrow(
+            "gpuMode: 'enabled' is not parallel-safe",
         );
+        for (const environment of [{}, { CAXRI_E2E_POOL: 'desktop-exclusive' }]) {
+            expect(() =>
+                resolveE2ELaunchPolicy(environment, {
+                    clipboard: true,
+                    gpuMode: 'enabled',
+                    windowMode: 'visible',
+                }),
+            ).not.toThrow();
+        }
     });
 
     it('nests a focused E2E launch beneath the switch-worktree desktop coordinator', () => {

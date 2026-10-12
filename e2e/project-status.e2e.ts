@@ -207,8 +207,8 @@ esac
             }),
         ).toBeVisible();
         await running.page.mouse.move(0, 0);
-
-        await writeFile(statusDelayPath, '0.4');
+        // A 2s busy window: 0.4s was outlasted by CDP round trips under 3 parallel workers (issue #1846).
+        await writeFile(statusDelayPath, '2');
         const refreshRequestCount = async (): Promise<number> =>
             (await readFile(statusRequestLogPath, 'utf8')).split('\n').filter(Boolean).length;
         const beforeInitialRefresh = await refreshRequestCount();
@@ -448,7 +448,7 @@ esac
         );
 
         await writeFile(statusTitlePath, 'Status B');
-        await writeFile(statusDelayPath, '0.4');
+        await writeFile(statusDelayPath, '2');
         await deployments.click();
         await expect(deployments).toHaveAttribute('aria-expanded', 'true');
         // Clicking focuses the group row and opens its own card; dismiss it so the leaf hover below is the only one.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveE2EClipboardPolicy } from '../../e2e/support/worker-isolation';
+import { resolveE2ELaunchPolicy } from '../../e2e/support/worker-isolation';
 import {
     createParallelSafeRepairEnvironment,
     parseE2EPool,
@@ -54,7 +54,13 @@ describe('focused E2E repair argv', () => {
             TMPDIR: '/private/tmp/cxr-abcd12',
         });
         expect(environment.CAXRI_DESKTOP_COORDINATOR_TOKEN).toBeUndefined();
-        expect(resolveE2EClipboardPolicy(environment, false)).toEqual({
+        expect(
+            resolveE2ELaunchPolicy(environment, {
+                clipboard: false,
+                gpuMode: 'disabled',
+                windowMode: 'hidden',
+            }),
+        ).toEqual({
             protectClipboard: false,
         });
     });

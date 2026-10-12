@@ -22,19 +22,37 @@ function errorCode(error: unknown): string | undefined {
         : undefined;
 }
 
+export interface E2ELaunchCapabilities {
+    clipboard: boolean;
+    gpuMode: 'disabled' | 'enabled';
+    windowMode: 'hidden' | 'visible';
+}
+
 /**
- * Parallel-safe workers must never contend for the machine-global pasteboard. Desktop-exclusive, control, and focused
- * launches retain the existing snapshot/restore guarantee; a spec that needs the clipboard must stay on those paths.
+ * New specs land in the parallel-safe pool by default (`e2e/support/pools.ts`), so a launch that needs a desktop that
+ * pool cannot give it must fail on its first run there instead of turning into an intermittent failure later. Workers
+ * must never contend for the machine-global pasteboard, a visible window takes real OS focus from sibling workers, and
+ * an enabled GPU contends for the one GPU; each belongs in `desktopExclusiveSpecs` with its reason. Desktop-exclusive,
+ * control, and focused launches keep the clipboard snapshot/restore guarantee. `agentMode: { mode: 'real' }` is not
+ * rejected: policy specs such as `agent-mode.e2e.ts` pair it with a synthetic executable inside their own fixtures.
  */
-export function resolveE2EClipboardPolicy(
+export function resolveE2ELaunchPolicy(
     environment: NodeJS.ProcessEnv,
-    requiresClipboardAccess: boolean,
+    capabilities: E2ELaunchCapabilities,
 ): E2EClipboardPolicy {
     const isParallelSafe = environment.CAXRI_E2E_POOL === 'parallel-safe';
-    if (isParallelSafe && requiresClipboardAccess) {
-        throw new Error('E2E clipboard access is not parallel-safe');
+    if (!isParallelSafe) return { protectClipboard: true };
+    if (capabilities.clipboard) throw new Error('E2E clipboard access is not parallel-safe');
+    const rejected = [
+        capabilities.windowMode === 'visible' && "windowMode: 'visible'",
+        capabilities.gpuMode === 'enabled' && "gpuMode: 'enabled'",
+    ].filter((entry): entry is string => typeof entry === 'string');
+    if (rejected.length > 0) {
+        throw new Error(
+            `E2E launch with ${rejected.join(', ')} is not parallel-safe; list the spec in desktopExclusiveSpecs`,
+        );
     }
-    return { protectClipboard: !isParallelSafe };
+    return { protectClipboard: false };
 }
 
 export function e2eWorkerTemporaryDirectory(
