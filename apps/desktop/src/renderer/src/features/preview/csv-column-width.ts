@@ -1,7 +1,12 @@
 import type { CSSProperties } from 'react';
 
 import type { DelimitedTable } from './csv-table';
-import { cellDisplayWidth, rowNumberGutterWidth } from './csv-table';
+import {
+    cellDisplayWidth,
+    ROW_NUMBER_GUTTER_EXTRA,
+    rowNumberDigits,
+    rowNumberGutterWidth,
+} from './csv-table';
 
 /**
  * Bounds for a column the reader resized, in CSS pixels: narrow enough to tuck a column away, never so narrow that its
@@ -92,4 +97,24 @@ export function tableGridTemplate(
         })
         .join(' ');
     return { gridTemplateColumns: `${rowNumberGutterWidth(table.rows.length)} ${columns}` };
+}
+
+/**
+ * The row-number gutter's width in pixels, the same track {@link tableGridTemplate} sizes in `ch`.
+ */
+export function gutterPixels(rowCount: number, chWidth: number): number {
+    return rowNumberDigits(rowCount) * chWidth + ROW_NUMBER_GUTTER_EXTRA;
+}
+
+/**
+ * The left edge of `column` in the table's scroll content, in pixels: the gutter plus every column before it.
+ */
+export function columnLeftEdge(
+    gutterWidth: number,
+    columnWidths: readonly number[],
+    column: number,
+): number {
+    let left = gutterWidth;
+    for (let index = 0; index < column; index += 1) left += columnWidths[index] ?? 0;
+    return left;
 }

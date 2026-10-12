@@ -8,6 +8,13 @@ import { isCellClipped } from './csv-table';
  * A selected cell: the inactive selection color, switching to the active one while the table has focus (Cmd+C copies
  * only then), the way a list row shows whether its selection is the one the keyboard acts on.
  */
+/**
+ * The active cell's focus ring, shown while the table has focus: the accent outline the Activity chart uses, inset so
+ * the neighboring cells and the sticky gutter never clip it.
+ */
+const ACTIVE_CELL =
+    'group-focus/table:data-[active=true]:outline group-focus/table:data-[active=true]:-outline-offset-1 group-focus/table:data-[active=true]:outline-accent';
+
 const SELECTED_CELL =
     'data-[selected=true]:bg-list-inactive-selection-background data-[selected=true]:text-list-inactive-selection-foreground group-focus/table:data-[selected=true]:bg-list-active-selection-background group-focus/table:data-[selected=true]:text-list-active-selection-foreground';
 
@@ -19,6 +26,8 @@ const SELECTED_CELL =
  * one delegated listener instead of a closure per cell.
  */
 export function CsvTableRow({
+    activeCellId,
+    activeColumn,
     cells,
     columnWidths,
     numericColumns,
@@ -27,6 +36,14 @@ export function CsvTableRow({
     sourceIndex,
     style,
 }: {
+    /**
+     * The DOM id the active cell carries, which the grid names in `aria-activedescendant`.
+     */
+    activeCellId: string;
+    /**
+     * The active cell's column when it is in this row.
+     */
+    activeColumn: number | undefined;
     cells: readonly string[];
     columnWidths: readonly number[];
     numericColumns: readonly boolean[];
@@ -57,30 +74,42 @@ export function CsvTableRow({
                 {sourceIndex + 1}
             </span>
             {cells.map((cell, column) => {
+                const isActive = column === activeColumn;
+                const isSelected =
+                    selectedColumns !== undefined &&
+                    column >= selectedColumns.left &&
+                    column <= selectedColumns.right;
+                const isClipped = isCellClipped(cell, columnWidths[column]);
                 const content = (
                     <span
                         // Columns are positional and never reorder, so the index is the cell's identity.
                         key={column}
+                        aria-selected={isSelected}
                         className={cn(
                             'cursor-default truncate px-2 leading-6',
                             numericColumns[column] && 'text-right tabular-nums',
                             SELECTED_CELL,
+                            ACTIVE_CELL,
                         )}
+                        data-active={isActive}
                         data-column={column}
-                        data-selected={
-                            selectedColumns !== undefined &&
-                            column >= selectedColumns.left &&
-                            column <= selectedColumns.right
-                        }
-                        role="cell"
+                        data-selected={isSelected}
+                        // A clipped cell also passes it as the tooltip's `triggerId`. Base UI merges this child's props last,
+                        // so leaving `id={undefined}` here would erase the trigger's id; the two must agree.
+                        id={isActive ? activeCellId : undefined}
+                        role="gridcell"
                     >
                         {cell}
                     </span>
                 );
                 // Only a cell the column cuts off carries a tooltip: one per visible cell would mount a popup tree for
                 // every cell the virtualizer renders, to repeat text that is already fully on screen.
-                return isCellClipped(cell, columnWidths[column]) ? (
-                    <Tooltip key={column} content={cell}>
+                return isClipped ? (
+                    <Tooltip
+                        key={column}
+                        content={cell}
+                        triggerId={isActive ? activeCellId : undefined}
+                    >
                         {content}
                     </Tooltip>
                 ) : (

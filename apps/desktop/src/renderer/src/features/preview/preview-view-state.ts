@@ -1,10 +1,11 @@
 import type { ColumnWidthOverrides } from './csv-column-width';
 import type { TableSort } from './csv-row-view';
+import type { TableSelection } from './csv-table-selection';
 import type { PreviewZoom } from './preview-zoom';
 
 /**
  * Where a reader left a preview: the scroll offset every view has, plus the PDF view's page and zoom and the table
- * view's sort, filter, and column widths, and a picture's zoom.
+ * view's sort, filter, column widths, and active cell, and a picture's zoom.
  */
 export interface PreviewViewState {
     scrollTop?: number;
@@ -30,6 +31,11 @@ export interface PreviewViewState {
      * Table only: the widths, in CSS pixels, of the columns the reader resized.
      */
     columnWidths?: ColumnWidthOverrides;
+    /**
+     * Table only: the selection and active cell, with the sort and filter key it was made under (see `CsvPreview`), or
+     * `null` once cleared.
+     */
+    tableSelection?: { viewKey: string; selection: TableSelection } | null;
     /**
      * SVG and Mermaid only: the picture's zoom, Fit or a fixed scale.
      */
