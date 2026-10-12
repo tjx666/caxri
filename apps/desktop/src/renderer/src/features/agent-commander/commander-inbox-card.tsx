@@ -50,7 +50,7 @@ export function CommanderInboxCard({
     return (
         <li
             className={cn(
-                'commander-inbox-item flex flex-col gap-1.5 rounded-md border border-border p-2',
+                'commander-inbox-item flex flex-col gap-1.5 rounded-md border border-border p-2 outline-none focus-visible:border-accent',
                 /*
                  * The reply target is a persistent selection, not focus, so it takes the raised `--elevated` fill
                  * instead of the accent DESIGN.md reserves for the one focus indicator.
@@ -60,6 +60,8 @@ export function CommanderInboxCard({
             data-inbox-target={isTarget || undefined}
             data-inbox-kind={item.kind}
             data-inbox-item-id={item.id}
+            // Focusable only from script: the status bar's `N need you` chip lands the keyboard on the first open item.
+            tabIndex={-1}
         >
             <div className="flex min-w-0 items-baseline gap-1.5">
                 <span className="min-w-0 flex-1 text-[13px] leading-5 font-medium wrap-anywhere">

@@ -96,9 +96,9 @@ export const statusBar = {
     'statusBar.commanderInbox.textOne': '{{count}} needs you',
     'statusBar.commanderInbox.textOther': '{{count}} need you',
     'statusBar.commanderInbox.descriptionOne':
-        'Open Agent Commander: 1 item in its Inbox needs your answer or merge.',
+        'Open Inbox: 1 Agent Commander item needs your answer or merge.',
     'statusBar.commanderInbox.descriptionOther':
-        'Open Agent Commander: {{count}} items in its Inbox need your answer or merge.',
+        'Open Inbox: {{count}} Agent Commander items need your answer or merge.',
     'statusBar.listSeparator': ', ',
     'statusBar.alsoReferenced': 'Also referenced',
     'statusBar.source.pullRequest': 'From the pull request description',

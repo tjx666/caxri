@@ -21,6 +21,19 @@ export function revealCommanderSession(sessionId: string): void {
 }
 
 /**
+ * The status bar's `N need you` chip: Main opens or raises the Commander window and has it open its Inbox and focus the
+ * first open item (`agentCommander.open` with `target: 'inbox'`), so the items the chip counts are on screen even when
+ * the Inbox was hidden or is a drawer in a narrow window.
+ */
+export function openCommanderInbox(): void {
+    // Fire-and-forget: tryCommand reports a failed open through a toast.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand(translate('core.commands.openAgentCommanderFailed'), () =>
+        caxri.request('agentCommander.open', { target: 'inbox' }),
+    );
+}
+
+/**
  * Main raises the Workbench, reopening it if needed, and opens Settings there: this window has no Settings of its own.
  * `provider` scrolls Settings straight to that Agent's Executable row when the pane knows which Agent CLI is missing.
  */
