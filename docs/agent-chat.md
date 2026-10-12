@@ -625,10 +625,13 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   hides a sub-second duration through `formatNoticeableDuration`.
 - Replies render Markdown through the shared `@caxri/markdown` block tree
   ([`components/markdown/`](../apps/desktop/src/renderer/src/components/markdown/markdown-blocks.tsx)):
-  leveled headings, nested and task lists, quotes, tables with Copy table (Markdown plus HTML), and
-  fenced code with a header (language, word-wrap toggle, Copy code) painted by Monaco's colorizer
-  once the fence closes. A reply offers Copy message only while the pointer is over it (or focus reaches the button), after
-  it finishes, followed by the time the reply began.
+  leveled headings, nested and task lists, quotes with a hover Copy quote (the quote's text without
+  its `>` markers, `blocksPlainText`), tables with Copy table (Markdown plus HTML), and fenced code
+  with a header (language, word-wrap toggle, Copy code) painted by Monaco's colorizer once the
+  fence closes. Under a finished reply, Copy message and the time the reply began mount only while
+  the pointer is over the reply or focus is inside it, the latest reply included
+  (`agent-chat-reply-frame.tsx`); the row keeps its height, so revealing it never shifts the
+  transcript.
 - Message times follow the Codex app. A centered day break (`Today 17:59`, `Yesterday 09:12`,
   `Oct 3 17:59`) heads the first user message of each day. Under a user message, a hover row shows
   its time and Copy message; the row keeps its height, so revealing it never shifts the transcript.
