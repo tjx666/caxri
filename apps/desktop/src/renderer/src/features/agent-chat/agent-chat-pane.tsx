@@ -42,7 +42,10 @@ import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import { agentChatTimelineEntryKey } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
-import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
+import {
+    focusComposerAtDraftEnd,
+    useAgentChatActivationFocus,
+} from './hooks/use-agent-chat-activation-focus';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from './hooks/use-agent-chat-approval-keys';
 import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
@@ -144,7 +147,10 @@ export function AgentChatPane({
         () =>
             registerTerminalFocusHandler(
                 terminalId,
-                () => inputReference.current?.focus(),
+                () => {
+                    const input = inputReference.current;
+                    if (input) focusComposerAtDraftEnd(input);
+                },
                 () => inputReference.current,
             ),
         [terminalId],
