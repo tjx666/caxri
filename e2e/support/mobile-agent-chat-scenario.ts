@@ -4,6 +4,7 @@ import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
+import { executeMobileChatComposerScenario } from './mobile-agent-chat-composer-scenario';
 import {
     executeMobileChatMissingImageScenario,
     executeMobileChatModelRefusedScenario,
@@ -16,8 +17,14 @@ import {
     waitForCheck,
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
-import { executeMobileChatImageScenario } from './mobile-agent-chat-image-scenario';
-import { executeMobileChatModelScenario } from './mobile-agent-chat-model-scenario';
+import {
+    executeMobileChatImageScenario,
+    executeMobileChatImageStripScenario,
+} from './mobile-agent-chat-image-scenario';
+import {
+    executeMobileChatModelScenario,
+    executeMobileClaudeModelScenario,
+} from './mobile-agent-chat-model-scenario';
 import {
     androidBounds,
     mobileSemantics,
@@ -148,6 +155,8 @@ async function executeMobileAgentChatScenario(
             (snapshot) => snapshot.status === 'ready',
         );
         await waitForNoCheck(serial, 'agent-chat-failed');
+        // Online right after Retry resumed: the answered question and the crashed turn's message stay (#1830).
+        await capture(environment, 'retried', artifacts);
 
         await setMobileNetworkAvailable(serial, false);
         isNetworkDisabled = true;
@@ -355,7 +364,7 @@ async function executeMobileNewChatSessionScenario(
  * Runs the Agent Chat Acceptance case `environment.caseId` names.
  */
 export async function executeMobileAgentChatCase(
-    environment: MobileAgentScenarioEnvironment,
+    environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
     artifacts: string[],
 ): Promise<void> {
     switch (environment.caseId) {
@@ -377,6 +386,12 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatMissingImageScenario(environment, artifacts);
         case 'MOB-CHAT-09':
             return executeMobileChatModelRefusedScenario(environment, artifacts);
+        case 'MOB-CHAT-10':
+            return executeMobileChatComposerScenario(environment, artifacts);
+        case 'MOB-CHAT-11':
+            return executeMobileClaudeModelScenario(environment, artifacts);
+        case 'MOB-CHAT-12':
+            return executeMobileChatImageStripScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }
