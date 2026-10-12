@@ -4,6 +4,8 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import {
+    isCaxriError,
+    REMOTE_PROFILE_IN_USE_MARKER,
     resolveLogLevel,
     SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
     serverDesktopLaunchSchema,
@@ -21,6 +23,7 @@ import { createDesktopLauncher } from './desktop-launcher';
 import { extensionRootsForServer } from './extensions/discovery';
 import { resolveIdleExitThresholdMs } from './idle-exit';
 import { mobileUpdateDirectoryForServer } from './mobile/update-bundle';
+import type { ServerCore, ServerCoreOptions } from './server-core';
 import { startServerCore } from './server-core';
 
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
@@ -62,7 +65,7 @@ const desktopLaunch = desktopLaunchSource
       : undefined;
 const cliPath = process.env.CAXRI_CLI_PATH;
 
-const app = await startServerCore({
+const serverCoreOptions: ServerCoreOptions = {
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     buildId,
     commit,
@@ -98,7 +101,18 @@ const app = await startServerCore({
     }),
     userDataPath,
     version,
-});
+};
+let app: ServerCore;
+try {
+    app = await startServerCore(serverCoreOptions);
+} catch (error) {
+    // One machine-readable line for the SSH Host launch script; the rejection still prints its usual stack below.
+    if (isCaxriError(error) && error.details?.reason === 'profileInUse')
+        process.stderr.write(
+            `${REMOTE_PROFILE_IN_USE_MARKER} host=${String(error.details.hostname)}\n`,
+        );
+    throw error;
+}
 const processContext = {
     bootId: app.lease.identity.processIdentity,
     buildId,

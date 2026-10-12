@@ -144,15 +144,17 @@ describe('askpass', () => {
         });
 
         it('answers pending prompts with a refusal and removes its directory on close', async () => {
+            const { promise: started, resolve: resolveStarted } = Promise.withResolvers<void>();
             const created = await createBridge(
                 (_request, signal) =>
                     new Promise((resolve) => {
+                        resolveStarted();
                         signal.addEventListener('abort', () => resolve('too late'));
                     }),
             );
             const pending = runHelper(created.helperPath, 'Password: ');
-            // Give the helper time to connect before closing.
-            await new Promise((resolve) => setTimeout(resolve, 300));
+            // Close only once the prompt is pending: a fixed delay raced a helper that started slowly under load.
+            await started;
             await created.close();
             bridge = undefined;
             expect((await pending).code).toBe(1);

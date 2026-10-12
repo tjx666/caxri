@@ -171,7 +171,7 @@ class SshEnvironmentController implements RemoteEnvironment {
         this.update({
             phase: 'failed',
             failure: { reason, message: message.slice(0, 2000) },
-            needsUserAction: USER_ACTION_REASONS.has(reason) || this.supervisor.isFailed(),
+            needsUserAction: USER_ACTION_REASONS.has(reason),
         });
     }
 
