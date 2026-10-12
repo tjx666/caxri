@@ -144,8 +144,12 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   the history comes from the bounded tail of its JSONL transcript, read through the same
   Server-derived path as `terminal.transcript`. Sidechain (subagent) and harness records are
   skipped, a visible user prompt opens a turn, and every resumed turn is finished. A missing
-  transcript or a `--resume` that fails its handshake is `resume_failed`. The `answered` notices
-  Caxri synthesized are not in the transcript, so they do not survive a resume.
+  transcript or a `--resume` that fails its handshake is `resume_failed`.
+- **Answered notices across a resume.** No provider's history holds the `answered` notices Caxri
+  synthesizes. A restart in the same Server Core process (Retry after a crash, a surface switch)
+  hands the replaced projection's notices to the new one, and the first history replay puts each
+  back after the item it followed, or after its turn's first item, while the replay still holds
+  that turn. The notices are not persisted, so a Server Core restart loses them.
 - **Grok Build resume.** `session/load` replays the conversation as `session/update` frames before
   it answers, with `turn_completed` marking where each turn ended; the Chat folds them into one
   reset. An unknown session id fails `session/load`, which is `resume_failed`.
