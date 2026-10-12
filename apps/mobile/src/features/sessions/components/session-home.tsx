@@ -65,6 +65,7 @@ const styles = StyleSheet.create({
 const entryKey = (entry: SessionListEntry): string => entry.id;
 const entryType = (entry: SessionListEntry): SessionListEntry['type'] => entry.type;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- already this size before the connection-notice prop; splitting the Session list screen is its own refactor.
 export const SessionHome = ({
     isConnectionNoticeShown,
     layout,

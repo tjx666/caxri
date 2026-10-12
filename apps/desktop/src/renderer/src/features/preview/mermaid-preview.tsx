@@ -13,7 +13,7 @@ import { renderMermaidDiagram } from './markdown-diagrams';
  * with the parser's error below it, until the source parses again.
  */
 export function MermaidPreview({ source, theme }: { source: string; theme: ThemeTokens }) {
-    const diagramReference = useRef<HTMLDivElement>(null);
+    const diagramReference = useRef<HTMLElement>(null);
     const deferredSource = useDeferredValue(source);
     const isEmpty = deferredSource.trim() === '';
 
@@ -33,12 +33,11 @@ export function MermaidPreview({ source, theme }: { source: string; theme: Theme
             ) : (
                 // A figure rather than an image: an image hides its children from assistive technology, and the
                 // parse error rendered inside it has to be readable.
-                <div
+                <figure
                     ref={diagramReference}
                     aria-label="Mermaid diagram"
-                    className="caxri-markdown-diagram caxri-mermaid-file-diagram"
+                    className="caxri-markdown-diagram caxri-mermaid-file-diagram m-0"
                     data-testid="mermaid-preview"
-                    role="figure"
                 />
             )}
         </div>
