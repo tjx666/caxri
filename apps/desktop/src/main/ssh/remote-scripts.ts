@@ -153,7 +153,7 @@ caxri_result status=installed
 
 export interface RuntimeSourceInput {
     /**
-     * Archive member path of the `node` binary, such as `node-v24.20.0-linux-arm64/bin/node`.
+     * Archive member path of the `node` binary, such as `node-v<version>-linux-arm64/bin/node`.
      */
     member: string;
     /**

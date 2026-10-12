@@ -1,14 +1,32 @@
+import type * as FileSystemPromises from 'node:fs/promises';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createProjectFolderBrowser } from '../folder-browse';
+
+/**
+ * Paths whose `stat` never settles, standing in for an unreachable automount or network share.
+ */
+const hangingPaths = new Set<string>();
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+    const actual = await importOriginal<typeof FileSystemPromises>();
+    return {
+        ...actual,
+        stat: (path: string) =>
+            [...hangingPaths].some((hanging) => path.startsWith(hanging))
+                ? new Promise(() => {})
+                : actual.stat(path),
+    };
+});
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    hangingPaths.clear();
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
@@ -74,5 +92,23 @@ describe('project.browseFolders', () => {
             'project.browseFolders'
         ];
         expect((await browse({ path: '/' })).parent).toBeNull();
+    });
+
+    it('still lists a folder whose probe hangs, as expandable and without the Git badge', async () => {
+        const home = await fixture();
+        hangingPaths.add(join(home, 'repo'));
+        const browse = createProjectFolderBrowser({
+            homeDirectory: () => Promise.resolve(home),
+            entryProbeTimeoutMs: 50,
+        })['project.browseFolders'];
+        expect((await browse({})).entries).toEqual([
+            {
+                name: 'empty',
+                path: join(home, 'empty'),
+                isGitRepository: false,
+                hasChildren: false,
+            },
+            { name: 'repo', path: join(home, 'repo'), isGitRepository: false, hasChildren: true },
+        ]);
     });
 });
