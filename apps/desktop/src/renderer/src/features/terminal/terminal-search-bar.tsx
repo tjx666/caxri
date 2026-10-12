@@ -1,16 +1,15 @@
 import type { KeyboardEvent } from 'react';
-import { useRef } from 'react';
 
-import { ChevronDown, ChevronUp, X } from 'lucide-react';
-
-import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
-
-import { Input, InputGroup } from '../../components/ui/input';
+import { FindBar } from '../../components/find-bar';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
 import { keyboardEventShortcut } from '../../lib/keybindings';
 import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
-import { terminalSearchResultLabel } from './terminal-search';
+import {
+    isTerminalSearchNavigable,
+    isTerminalSearchNoMatch,
+    terminalSearchResultLabel,
+} from './terminal-search';
 
 /**
  * VS Code's Match Case/Whole Word/Regex chords, mapped to the toggle each fires. Resolved through
@@ -23,9 +22,6 @@ const SEARCH_TOGGLE_SHORTCUTS: Partial<Record<string, keyof TerminalSearchOption
     'alt+r': 'regex',
     'alt+w': 'wholeWord',
 };
-
-const searchActionClassName =
-    'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted text-[11px] cursor-pointer hover:bg-elevated hover:text-foreground aria-pressed:bg-elevated aria-pressed:text-foreground disabled:cursor-default disabled:opacity-45';
 
 /**
  * `ToggleGroup`'s `value` is the array of currently-pressed item values; each search toggle maps 1:1 to a
@@ -59,8 +55,6 @@ export function TerminalSearchBar({
     onQueryChange,
     onToggle,
 }: TerminalSearchBarProperties) {
-    const inputReference = useRef<HTMLInputElement>(null);
-    const resultLabel = terminalSearchResultLabel(query, results);
     const pressedOptions: Array<keyof TerminalSearchOptions> = [
         caseSensitive && 'caseSensitive',
         wholeWord && 'wholeWord',
@@ -79,19 +73,6 @@ export function TerminalSearchBar({
         if (changed) onToggle(changed);
     };
 
-    useFocusOnRevision(focusRevision, inputReference, { select: true });
-
-    const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-        if (event.key === 'Escape') {
-            event.preventDefault();
-            onClose();
-            return;
-        }
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        onNavigate(event.shiftKey ? 'previous' : 'next');
-    };
-
     /**
      * Listens at the search bar root (not just the input) so the chords work while a toggle button or a navigation
      * button owns focus too, not only while typing a query.
@@ -104,24 +85,16 @@ export function TerminalSearchBar({
     };
 
     return (
-        <search
-            aria-label="Terminal buffer search"
-            className="terminal-search absolute top-2 right-2 z-[4] flex max-w-[calc(100%-1rem)] items-center gap-1 rounded border border-border bg-surface p-1 shadow-lg"
-            onKeyDown={handleSearchBarKeyDown}
-        >
-            <InputGroup appearance="workbench" className="w-56" size="dense">
-                <Input
-                    ref={inputReference}
-                    appearance="embedded"
-                    aria-invalid={Boolean(results.error)}
-                    aria-label="Find in Terminal"
-                    className="flex-1 text-foreground"
-                    placeholder="Find"
-                    size="dense"
-                    value={query}
-                    onChange={(event) => onQueryChange(event.currentTarget.value)}
-                    onKeyDown={handleKeyDown}
-                />
+        <FindBar
+            ariaLabel="Terminal buffer search"
+            className="terminal-search z-[4]"
+            countLabel={terminalSearchResultLabel(query, results)}
+            focusRevision={focusRevision}
+            hasMatches={isTerminalSearchNavigable(query, results)}
+            inputLabel="Find in Terminal"
+            isNoMatch={isTerminalSearchNoMatch(query, results)}
+            isQueryInvalid={Boolean(results.error)}
+            options={
                 <ToggleGroup
                     aria-label="Terminal search options"
                     multiple
@@ -144,46 +117,13 @@ export function TerminalSearchBar({
                         </ToggleGroupItem>
                     </Tooltip>
                 </ToggleGroup>
-            </InputGroup>
-            <span
-                aria-live="polite"
-                className="min-w-14 text-center text-[11px] text-muted"
-                data-search-count={results.resultCount}
-            >
-                {resultLabel}
-            </span>
-            <Tooltip content="Previous Match">
-                <button
-                    aria-label="Previous Terminal search result"
-                    className={searchActionClassName}
-                    disabled={!query || Boolean(results.error)}
-                    type="button"
-                    onClick={() => onNavigate('previous')}
-                >
-                    <ChevronUp size={14} />
-                </button>
-            </Tooltip>
-            <Tooltip content="Next Match">
-                <button
-                    aria-label="Next Terminal search result"
-                    className={searchActionClassName}
-                    disabled={!query || Boolean(results.error)}
-                    type="button"
-                    onClick={() => onNavigate('next')}
-                >
-                    <ChevronDown size={14} />
-                </button>
-            </Tooltip>
-            <Tooltip content="Close Search">
-                <button
-                    aria-label="Close Terminal search"
-                    className={searchActionClassName}
-                    type="button"
-                    onClick={onClose}
-                >
-                    <X size={14} />
-                </button>
-            </Tooltip>
-        </search>
+            }
+            query={query}
+            onClose={onClose}
+            onKeyDown={handleSearchBarKeyDown}
+            onNext={() => onNavigate('next')}
+            onPrevious={() => onNavigate('previous')}
+            onQueryChange={onQueryChange}
+        />
     );
 }

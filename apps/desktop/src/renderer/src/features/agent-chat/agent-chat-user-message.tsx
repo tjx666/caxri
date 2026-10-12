@@ -175,10 +175,10 @@ function EditFromHereButton({ id, text }: { id: string; text: string }) {
  * cannot run, and while a fork it started is in flight so a second click cannot open two Sessions.
  */
 function ForkFromHereButton({ id, text }: { id: string; text: string }) {
-    const edit = useAgentChatEdit();
+    const fork = useAgentChatEdit()?.fork;
     const [isForking, setIsForking] = useState(false);
-    const availability = edit?.forkAvailability(id);
-    if (!edit || availability === undefined) return null;
+    const availability = fork?.availability(id);
+    if (!fork || availability === undefined) return null;
     return (
         <Tooltip content={availability ?? 'Fork from here'}>
             <button
@@ -189,7 +189,7 @@ function ForkFromHereButton({ id, text }: { id: string; text: string }) {
                 onClick={() => {
                     setIsForking(true);
                     // eslint-disable-next-line no-void -- `forkAgentChat` reports its own failure through a toast
-                    void edit.fork(id, text).finally(() => setIsForking(false));
+                    void fork.run(id, text).finally(() => setIsForking(false));
                 }}
             >
                 <GitFork className="size-3.5" />

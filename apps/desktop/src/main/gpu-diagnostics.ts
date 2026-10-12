@@ -6,6 +6,8 @@ import type { TerminalRendererDiagnostic } from '@caxri/protocol';
 import type { LogRecord, StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import type { RendererWindow } from './workbench-ipc';
+
 type LogFields = NonNullable<LogRecord['fields']>;
 
 const CORRELATION_WINDOW_MS = 15_000;
@@ -230,11 +232,13 @@ function decodeGpuExitStatus(
 
 function rendererDiagnosticFields(
     diagnostic: TerminalRendererDiagnostic,
+    rendererWindow: RendererWindow,
     context: CauseContext,
     now: number,
 ): LogFields {
     return {
         code: 'TERMINAL_RENDERER_STATUS',
+        window: rendererWindow,
         diagnosticId: diagnostic.diagnosticId,
         terminalId: diagnostic.terminalId,
         mode: diagnostic.mode,
@@ -434,7 +438,14 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
         }
     }
 
-    function recordRendererDiagnostic(diagnostic: TerminalRendererDiagnostic): void {
+    /**
+     * Logs a Terminal renderer failure, retry, or GPU-correlated transition. `rendererWindow` is the window whose
+     * Terminal pane reported it; the Agent Commander window mounts the same pane as the Workbench.
+     */
+    function recordRendererDiagnostic(
+        diagnostic: TerminalRendererDiagnostic,
+        rendererWindow: RendererWindow = 'workbench',
+    ): void {
         const receivedAt = now();
         recentRendererDiagnostics.push({ diagnostic, receivedAt });
         if (recentRendererDiagnostics.length > MAX_RENDERER_DIAGNOSTICS)
@@ -462,13 +473,19 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
             .logger()
             ?.write(isFailure ? 'warn' : 'info', logEventCatalog.renderer.terminalRendererStatus, {
                 correlationId: correlated?.id,
-                fields: rendererDiagnosticFields(diagnostic, causeContext, receivedAt),
+                fields: rendererDiagnosticFields(
+                    diagnostic,
+                    rendererWindow,
+                    causeContext,
+                    receivedAt,
+                ),
             });
         if (correlated)
             options.logger()?.write('info', logEventCatalog.gpu.recovery, {
                 correlationId: correlated.id,
                 fields: {
                     code: 'GPU_RECOVERY',
+                    window: rendererWindow,
                     diagnosticId: diagnostic.diagnosticId,
                     terminalId: diagnostic.terminalId,
                     rendererMode: diagnostic.mode,

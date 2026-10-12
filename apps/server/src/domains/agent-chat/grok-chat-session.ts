@@ -4,6 +4,7 @@ import type {
     AgentChatMessageInput,
     AgentChatModelChange,
     AgentChatPatchOperation,
+    AgentChatResponse,
     AgentChatTurn,
 } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
@@ -17,12 +18,12 @@ import {
     slashCommandPrompt,
     stringField,
 } from './chat-items';
-import { chatPermissionState, grokOpeningSettings } from './chat-permissions';
+import { chatPermissionState } from './chat-permissions';
 import type {
     AgentChatDriver,
     AgentChatProviderSession,
-    AgentChatResponse,
     AgentChatSessionHost,
+    ChatFork,
     ChatForkTarget,
     ChatInputOptions,
     ChatProcessEnd,
@@ -37,6 +38,7 @@ import {
     grokModelState,
     grokUsage,
 } from './grok-items';
+import { grokOpeningSettings } from './grok-permissions';
 import { GrokRequestBroker } from './grok-requests';
 import { forkGrokSession, rewindGrokSession } from './grok-rewind';
 import {
@@ -507,9 +509,12 @@ class GrokChatSession implements AgentChatProviderSession {
         return rewindGrokSession(this.requireConnection(), this.sessionId, snapshot, target);
     }
 
-    fork(target: ChatForkTarget): Promise<string> {
+    async fork(target: ChatForkTarget): Promise<ChatFork> {
         const source = { sessionId: this.sessionId, cwd: this.options.cwd };
-        return forkGrokSession(this.requireConnection(), source, this.options.read(), target);
+        const connection = this.requireConnection();
+        return {
+            agentSessionId: await forkGrokSession(connection, source, this.options.read(), target),
+        };
     }
 
     async restoreFiles(target: ChatRewindTarget): Promise<void> {

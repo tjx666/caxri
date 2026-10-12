@@ -1,8 +1,8 @@
-import type { AgentChatRequest } from '@caxri/protocol';
+import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { answeredNotice, questionAnswers } from './chat-items';
-import type { AgentChatResponse, AgentChatSessionHost } from './chat-provider';
+import type { AgentChatSessionHost } from './chat-provider';
 import type { GrokToolCall } from './grok-items';
 import {
     grokPermissionOutcome,

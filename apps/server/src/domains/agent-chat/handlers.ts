@@ -49,7 +49,7 @@ export function createAgentChatHandlers(
             agentChat.fork(
                 terminalId,
                 itemId,
-                async ({ projectId, provider, cwd, agentSessionId }) => {
+                async ({ projectId, provider, cwd, agentSessionId, sourceTerminalId }) => {
                     const created = await records.createSessionForProject(
                         projectId,
                         provider,
@@ -57,7 +57,7 @@ export function createAgentChatHandlers(
                         'preserve',
                         undefined,
                         'chat',
-                        { cwd, agentSessionId },
+                        { cwd, agentSessionId, sourceTerminalId },
                     );
                     return { sessionId: created.session.id, terminalId: created.terminal!.id };
                 },

@@ -1,6 +1,8 @@
 import type { CommanderInboxItem } from '@caxri/protocol';
 import { commanderInboxKindLabel, isCommanderInboxQuestion } from '@caxri/protocol';
 
+import type { CaretMention, SuggestionOption } from '../../lib/suggestion-options';
+
 type CommanderInboxSectionId = 'merge' | 'questions';
 
 export interface CommanderInboxSection {
@@ -90,20 +92,6 @@ export function commanderInboxMergeState(item: CommanderInboxItem): CommanderInb
 }
 
 /**
- * The `@` mention the caret is inside, if any: an `@` at the start or after whitespace, followed by the query typed so
- * far with no whitespace. `start` is the index of the `@`.
- */
-export function activeInboxMention(
-    text: string,
-    caret: number,
-): { query: string; start: number } | undefined {
-    const before = text.slice(0, caret);
-    const match = /(?:^|\s)@([^\s@]*)$/u.exec(before);
-    if (!match) return undefined;
-    return { query: match[1], start: caret - match[1].length - 1 };
-}
-
-/**
  * Open items whose title or kind contains the query, case-insensitively, in Inbox order.
  */
 export function inboxMentionCandidates(
@@ -125,10 +113,21 @@ export function inboxMentionCandidates(
  */
 export function removeInboxMention(
     text: string,
-    mention: { start: number },
-    caret: number,
+    mention: Pick<CaretMention, 'end' | 'start'>,
 ): { caret: number; text: string } {
-    return { text: text.slice(0, mention.start) + text.slice(caret), caret: mention.start };
+    return { text: text.slice(0, mention.start) + text.slice(mention.end), caret: mention.start };
+}
+
+/**
+ * An `@` picker row for an Inbox item: its title, with its kind beside it.
+ */
+export function inboxMentionSuggestion(item: CommanderInboxItem): SuggestionOption {
+    return {
+        key: item.id,
+        label: item.title,
+        isLabelLiteral: false,
+        description: commanderInboxKindLabel(item.kind),
+    };
 }
 
 /**

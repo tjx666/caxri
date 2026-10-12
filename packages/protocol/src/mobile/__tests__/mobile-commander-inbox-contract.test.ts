@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CommanderInboxItem } from '../agent/agent-commander-inbox-contract.js';
+import type { CommanderInboxItem } from '../../agent/agent-commander-inbox-contract.js';
 import {
     commanderInboxKindLabel,
     commanderInboxReplyState,
     orderCommanderInboxItems,
-} from '../agent/agent-commander-inbox-presentation.js';
+} from '../../agent/agent-commander-inbox-presentation.js';
 import {
     MOBILE_COMMANDER_INBOX_BODY_MAX_LENGTH,
     MOBILE_COMMANDER_INBOX_MAX_BYTES,
     MOBILE_COMMANDER_INBOX_MAX_REPLIES,
     mobileCommanderInboxListResultSchema,
     projectCommanderInboxForMobile,
-} from '../mobile/mobile-commander-inbox-contract.js';
+} from '../mobile-commander-inbox-contract.js';
 
 const item = (id: string, overrides: Partial<CommanderInboxItem> = {}): CommanderInboxItem => ({
     id,

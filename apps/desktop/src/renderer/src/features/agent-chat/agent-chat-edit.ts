@@ -29,6 +29,14 @@ export function writeAgentChatEdit(terminalId: string, edit: AgentChatEdit | und
     else edits.delete(terminalId);
 }
 
+/**
+ * Drops the edit of every Chat outside `chatTerminalIds`. Called through `retainAgentChatComposerState`.
+ */
+export function retainAgentChatEdits(chatTerminalIds: ReadonlySet<string>): void {
+    for (const terminalId of edits.keys())
+        if (!chatTerminalIds.has(terminalId)) edits.delete(terminalId);
+}
+
 type EditSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>;
 
 /**

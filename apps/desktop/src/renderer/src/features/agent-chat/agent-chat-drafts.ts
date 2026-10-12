@@ -2,6 +2,7 @@ import type { AgentChatImageInput } from '@caxri/protocol';
 import { debounce } from 'es-toolkit';
 
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { retainAgentChatEdits } from './agent-chat-edit';
 import { AGENT_CHAT_IMAGE_RESIZED_NOTE } from './agent-chat-images';
 
 /**
@@ -174,6 +175,22 @@ export function writeAgentChatAttachments(
 ): void {
     if (next.length > 0) attachments.set(terminalId, [...next]);
     else attachments.delete(terminalId);
+}
+
+/**
+ * Releases the Renderer-only composer state of every Chat outside `chatTerminalIds`: its unsent images (up to the
+ * attachment budget per Chat) and its "Edit from here". Nothing else frees them, so a Chat that was closed, deleted
+ * with its Session or Project, or switched to the Terminal surface would hold them until the window reloads. The
+ * Workbench calls this whenever the set of Chat Terminals it knows changes.
+ *
+ * The text draft is deliberately kept: it is bounded and trimmed by recency when persisted (see
+ * `MAX_PERSISTED_AGENT_CHAT_DRAFTS`), and dropping it on a transient snapshot gap would lose typed text that should
+ * survive a restart. Append listeners need nothing here; a composer removes its own when it unmounts.
+ */
+export function retainAgentChatComposerState(chatTerminalIds: ReadonlySet<string>): void {
+    for (const terminalId of attachments.keys())
+        if (!chatTerminalIds.has(terminalId)) attachments.delete(terminalId);
+    retainAgentChatEdits(chatTerminalIds);
 }
 
 /**

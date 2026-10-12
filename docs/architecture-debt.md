@@ -11,9 +11,9 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field                    | Value                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last full audit**      | 2026-10-11 @ `0497d1310` (`main`)                                                                      |
+| **Last full audit**      | 2026-10-12 @ `d5dbb34f6` (`main`)                                                                      |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
-| **Full-audit scope**     | Repository-wide revalidation of every prior OPEN entry plus Server, protocol, CLI, and Agent deltas    |
+| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over `0497d1310..d5dbb34f6` (36 commits) and consumers      |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
@@ -31,83 +31,241 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 ## OPEN
 
-Full audit 2026-10-11 @ `0497d1310`; the fixable findings were resolved by the
-[issue caxri#1667](https://github.com/tjx666/caxri/issues/1667) batch below. Each remaining entry is
+Full audit 2026-10-12 @ `d5dbb34f6`; the fixable findings were resolved by the
+[issue caxri#1795](https://github.com/tjx666/caxri/issues/1795) batch below. Each remaining entry is
 tracked by its own issue because it needs a product decision or its own design.
 
 ### AD-proc-chat-endpoint-identity: [OPEN · Contract drift · M]
 
 - **Summary:** An Agent running on the Chat surface has no Agent Endpoint identity, so `caxri agent message send` is refused and `caxri agent delegate create` runs as the operator instead of as that Agent.
 - **Evidence:** `apps/server/src/domains/agent-chat/chat-launch.ts` builds the provider environment from `agentCommandEnvironment` only; PTY Agents also get Endpoint and hook variables from `apps/server/src/domains/terminal/lifecycle-environment.ts`. `docs/agent-chat.md` now states the difference.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
 - **Remediation target / Acceptance:** [issue caxri#1675](https://github.com/tjx666/caxri/issues/1675): either issue a per-start Endpoint generation for Chat or refuse the operator fallback for `automation === 'agent'`, covered by an integration test.
 
 ### AD-sec-main-link-fetch-trust: [OPEN · Contract drift · S]
 
 - **Summary:** Rendering or hovering a transcript link makes Main request the origin's favicon or the full URL without excluding loopback or private hosts, and redirects are followed.
 - **Evidence:** `apps/desktop/src/main/link-previews.ts`, `apps/desktop/src/main/link-favicons.ts`; the outbound inventory is now in `.agents/skills/project-architecture/references/security.md`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
 - **Remediation target / Acceptance:** [issue caxri#1676](https://github.com/tjx666/caxri/issues/1676): host and final-URL policy with unit tests; the provider status page read gets a byte cap.
 
 ### AD-sec-delegation-hidden-project: [OPEN · Contract drift · S]
 
 - **Summary:** Delegation bootstrap reuses a hidden Project for its root and creates a Session there that Desktop never shows.
 - **Evidence:** `apps/server/src/domains/db/delegation-context.ts` reuses the row found by root path without unhiding it; the registration-authority list in `security.md` now names the bootstrap.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
 - **Remediation target / Acceptance:** [issue caxri#1677](https://github.com/tjx666/caxri/issues/1677): unhide or refuse, with an integration test.
 
 ### AD-ui-native-title-tooltips: [OPEN · Contract drift · M]
 
 - **Summary:** Native `title` attributes bypass the shared Tooltip (keyboard users cannot read them), and "open this file" has five unshared implementations.
 - **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-context-alerts.tsx` and other Renderer `title` uses; no lint rule guards them.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
 - **Remediation target / Acceptance:** [issue caxri#1678](https://github.com/tjx666/caxri/issues/1678): lint rule plus one file-reference component.
 
 ### AD-test-knip-before-merge: [OPEN · Coverage or observability gap · S]
 
 - **Summary:** An ordinary PR that leaves an unused export merges green and fails only the next nightly.
 - **Evidence:** `scripts/ci-execution-plan.ts` assigns `affected`; `scripts/run-ci-focused-checks.ts` runs no knip. Skills and `docs/ci-performance.md` now state this accurately.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
 - **Remediation target / Acceptance:** [issue caxri#1679](https://github.com/tjx666/caxri/issues/1679): knip in the `affected` scope or `guards`.
 
 ### AD-domain-implementation-barrels: [OPEN · Architecture debt · M]
 
 - **Summary:** Seven `index.ts` files hold 400 to 760 lines of implementation, contradicting the thin-barrel rule and seeding the pattern.
 - **Evidence:** `git`, `config`, `project-status`, `theme`, `providers/{codex,claude}` barrels and `packages/extension-api/src/index.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
 - **Remediation target / Acceptance:** [issue caxri#1680](https://github.com/tjx666/caxri/issues/1680): barrels export only, enforced by a structure test.
 
 ### AD-simplify-shared-single-flight: [OPEN · Modernization opportunity · M]
 
 - **Summary:** `SingleFlight` lives under Server domains, so Desktop Main and other owners hand-roll dedupe and per-key serialization with diverging eviction semantics.
 - **Evidence:** `apps/desktop/src/main/agent-provider-status.ts`, `apps/server/src/domains/agents/discovery.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
 - **Remediation target / Acceptance:** [issue caxri#1681](https://github.com/tjx666/caxri/issues/1681): one primitive in `packages/system`.
 
 ### AD-ext-virtual-tab-descriptors: [OPEN · Architecture debt · M]
 
 - **Summary:** Adding a virtual editor tab scheme still needs coordinated edits in eight or nine files without an exhaustive check.
 - **Evidence:** `packages/protocol/src/domain/virtual-tabs.ts` and its Renderer consumers; the status-bar symptom is resolved below.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
 - **Remediation target / Acceptance:** [issue caxri#1682](https://github.com/tjx666/caxri/issues/1682): one exhaustive descriptor table.
 
 ### AD-domain-line-budget-splits: [OPEN · Architecture debt · M]
 
 - **Summary:** Several Server modules say in their JSDoc that they exist to fit the line budget, and the Server composition root is spread across files.
 - **Evidence:** `apps/server/src/domains/service-handlers.ts`, `apps/server/src/domains/create-domain-services.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
 - **Remediation target / Acceptance:** [issue caxri#1683](https://github.com/tjx666/caxri/issues/1683): composition root in one directory, no line-budget split rationale.
 
-### AD-perf-usage-locate-every-poll: [OPEN · Architecture debt · M]
+### AD-lifecycle-chat-idle-providers: [OPEN · Architecture debt · L]
 
-- **Summary:** Every Usage poll re-locates every outside-Caxri transcript; [PR caxri#1658](https://github.com/tjx666/caxri/pull/1658) widened the set to every conversation on the machine.
-- **Evidence:** `apps/server/src/domains/usage/service.ts` `syncOutside` creates a fresh locator per sync. The unbounded `describe` fan-out is resolved below.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
-- **Remediation target / Acceptance:** [issue caxri#1585](https://github.com/tjx666/caxri/issues/1585): cache locations across polls.
+- **Summary:** Reading an old Chat starts its provider process, and nothing stops it again until the Session is archived or the app quits, so browsing Chats accumulates provider processes and keeps Server Core counted as busy.
+- **Evidence:** `apps/server/src/domains/agent-chat/service.ts` `read()` lazily starts the provider; `apps/server/src/domains/terminal/suspension-policy.ts` skips non-PTY Terminals; `apps/server/src/domains/create-domain-services.ts` counts `agentChat.liveCount` as running work.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **Remediation target / Acceptance:** [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800): idle Chats stop their provider, reads no longer start one, and a busy Chat is never stopped.
+
+### AD-dup-chat-revision-sync: [OPEN · Architecture debt · M]
+
+- **Summary:** Desktop and Mobile each implement the Agent Chat revision-chain hold, replay, and re-read logic, so a sync fix lands twice and the two clients can drift.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-client.ts` and `apps/mobile/src/features/agent-chat/agent-chat-sync.ts`. The shared copy and question answers moved to `packages/protocol` in the fix batch; the sync core did not.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **Remediation target / Acceptance:** [issue caxri#1801](https://github.com/tjx666/caxri/issues/1801): one pure revision-chain core in `packages/protocol/src/agent/` used by both clients.
+
+### AD-layout-agent-chat-flat-feature: [OPEN · Architecture debt · M]
+
+- **Summary:** `features/agent-chat` keeps 80+ files flat although `turn-*`, `task*`, and `find*` families form cohesive sub-domains, so placing and finding Chat code costs every change a directory scan.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/`; source-layout's sub-domain guidance. Downgraded from contract drift by its verifier: no rule mechanically requires the split.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **Remediation target / Acceptance:** [issue caxri#1802](https://github.com/tjx666/caxri/issues/1802): pure moves into sub-domain directories with before/after visual parity.
 
 ---
 
 ## RESOLVED
+
+### AD-sec-commander-chat-edit-refused: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Editing or restoring a message in the Agent Commander Chat failed because Main's Commander policy refused `agentChat.rewind`, `agentChat.restoreFiles`, and the revert confirmation, and the confirmation attached to the Workbench window.
+- **Evidence:** `apps/desktop/src/main/agent-commander-policy.ts` admits them, refuses `agentChat.fork` explicitly, and an exhaustiveness test classifies every `agentChat.*` method; `apps/desktop/src/main/request-window.ts` `requestWindowOr` parents the prompt to the requesting window.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Edit and Restore work in the Commander Chat; Fork is hidden there; the confirmation sheet opens on the window that asked.
+
+### AD-state-fork-permission-inherit: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** A "Fork from here" Chat reset to the Project default permission and plan mode instead of keeping its source Chat's choice.
+- **Evidence:** `apps/server/src/domains/session/creation.ts` `inheritChatPermission`, fed by `sourceTerminalId` from `chat-fork.ts`; covered by `service-fork.integration.test.ts`.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** A fork keeps the source Chat's stored level and plan mode and falls back to the default only when the source stored none.
+
+### AD-diag-chat-rewind-outcome: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Rewind and file-restore logs recorded success before the restart and resend finished and gave refusals no cause.
+- **Evidence:** `agent_chat.rewound` is written after restart and send, refusals carry a closed `reason` and `code`, and `resendFailed` records a failed resend; `packages/protocol/src/domain/logging.ts` documents the fields.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** A failed or refused rewind is distinguishable in logs by reason.
+
+### AD-test-chat-capability-parity: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** No test tied each Chat driver's declared capabilities to the methods it implements.
+- **Evidence:** `apps/server/src/domains/agent-chat/__tests__/chat-drivers.test.ts` asserts parity per driver.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** A driver that declares a capability without implementing it fails the test.
+
+### AD-owner-chat-permission-mapping: [RESOLVED · Architecture debt · S]
+
+- **Summary:** One shared module mapped every provider's permission levels, so a provider change edited a file owned by all three.
+- **Evidence:** `chat-permissions.ts` is provider-neutral; `codex-`, `claude-`, and `grok-permissions.ts` own each mapping with their own tests.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Adding or changing a provider's levels touches only that provider's file.
+
+### AD-perf-commander-keystroke-queries: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Commander completion notices, suspension, and launch environment re-queried the Commander Session and Terminal rows on hot paths.
+- **Evidence:** `apps/server/src/domains/db/commander-rows.ts` `agentCommanderIdentity` and `agentCommanderTerminal`; query-count tests in `commander/__tests__/completion-notice-cost.integration.test.ts` and `terminal/__tests__/commander-lookup-cost.integration.test.ts`.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** The hot paths read the Commander rows at most once per call.
+
+### AD-lifecycle-chat-composer-state-retire: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Composer attachments, pending edits, and menu state of a closed Chat stayed in Renderer memory for the app's lifetime.
+- **Evidence:** `retainAgentChatComposerState` and `retainAgentChatEdits` run beside `retainTerminalProgress` in `features/workbench/workbench.tsx`; text drafts are kept on purpose.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Closing a Chat drops its non-draft composer state.
+
+### AD-dup-find-bar: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Terminal search and Chat find each built their own find bar with different labels and no-match feedback.
+- **Evidence:** `apps/desktop/src/renderer/src/components/find-bar.tsx` serves both; `e2e/agent-chat-find.e2e.ts` covers it.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Both surfaces show the same labels, the same `No results` state, and disable navigation without matches.
+
+### AD-dup-inbox-mention-picker: [RESOLVED · Architecture debt · S]
+
+- **Summary:** The Commander Inbox `@` picker was a separate implementation with weaker keyboard and screen-reader behavior than Chat's suggestion menu.
+- **Evidence:** `apps/desktop/src/renderer/src/lib/suggestion-options.ts` and `components/suggestion-list.tsx` back both menus, including `suggestionMenuKeyAction` and `aria-activedescendant`.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Both pickers share keys, rendering, and accessibility wiring.
+
+### AD-ui-commander-terms-icons: [RESOLVED · Contract drift · S]
+
+- **Summary:** The Commander startup badge reused "Needs you", the Inbox toggle used a generic icon, and Settings named the Peer Inbox inconsistently.
+- **Evidence:** The badge reads "Waiting at startup", the toggle uses `MessageSquareWarning`, and GLOSSARY defines Peer Inbox.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** One term per concept across the Commander window, Settings, and docs.
+
+### AD-ui-commander-project-default: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** The Commander Chat permission menu offered "Use as Project default", which always failed because the Commander policy refuses Project writes.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-host.ts` derives `canFork` and `canSaveProjectDefault` from the host window.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** The row is absent in the Commander window and unchanged in the Workbench.
+
+### AD-lifecycle-claude-fork-malformed: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** One malformed line in a Claude transcript made "Fork from here" fail with `Unexpected end of JSON input`, and the store read transcripts of any size.
+- **Evidence:** `claude-rewind.ts` parses line by line, skips and counts malformed records (`agent_chat.forked.skippedRecords`), and refuses with `CAPACITY` above 256 MiB.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Fork succeeds over malformed lines and refuses oversized transcripts clearly.
+
+### AD-diag-commander-terminal-diagnostics: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Terminal renderer, GPU budget, OSC 52, and resize-burst diagnostics from the Commander window were dropped because Main accepted them only from the Workbench.
+- **Evidence:** `apps/desktop/src/main/workbench-ipc.ts` accepts the Terminal diagnostics from both windows and tags them with a closed `window` field.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Commander Terminal incidents appear in logs with `window: 'commander'`.
+
+### AD-lifecycle-external-watcher-retry: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** After an external document's folder was removed and recreated, outside edits to the open file were never reported again.
+- **Evidence:** `apps/desktop/src/main/external-document-watcher.ts` keeps the watched set in Main and retries a failed watch at 1s, 5s, and 30s, then rechecks the folder's documents.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Outside edits are reported again after the folder returns.
+
+### AD-dup-chat-presentation-copy: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Desktop and Mobile each spelled out Chat failure and empty-state copy and built question answers separately.
+- **Evidence:** Shared helpers in `packages/protocol/src/agent/` with each surface's exact strings preserved; the revision sync core remains open as AD-dup-chat-revision-sync.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Copy and answer building have one owner.
+
+### AD-test-protocol-test-placement: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Protocol tests sat outside the package's test layout.
+- **Evidence:** Relocated beside their sources under `packages/protocol`.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Protocol tests follow source-layout.
+
+### AD-toolchain-pdfjs-notices: [RESOLVED · Contract drift · S]
+
+- **Summary:** The pdf.js preview shipped without its license in the third-party notices.
+- **Evidence:** `THIRD_PARTY_NOTICES` and `licenses/` include pdf.js.
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 with the fix batch
+- **Resolved:** 2026-10-12 via [issue caxri#1795](https://github.com/tjx666/caxri/issues/1795).
+- **Remediation target / Acceptance:** Every bundled dependency has its notice.
+
+### AD-perf-usage-locate-every-poll: [RESOLVED · Architecture debt · M]
+
+- **Summary:** Every Usage poll re-located every outside-Caxri transcript; [PR caxri#1658](https://github.com/tjx666/caxri/pull/1658) widened the set to every conversation on the machine.
+- **Evidence:** `apps/server/src/domains/usage/service.ts` fingerprints outside scans and persists `claudeMisses`, so unchanged transcripts are not re-located.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **Resolved:** [PR caxri#1733](https://github.com/tjx666/caxri/pull/1733) (`4beabffa7`), closing [issue caxri#1585](https://github.com/tjx666/caxri/issues/1585).
+- **Remediation target / Acceptance:** cache locations across polls.
 
 ### AD-lifecycle-chat-start-after-park: [RESOLVED · Confirmed defect · S]
 

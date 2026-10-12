@@ -55,8 +55,9 @@ function ActivityModeToggle({ isActivityMode }: { isActivityMode: boolean }) {
                 {/*
                  * A to-do list, because the button swaps the side bar to a queue of Sessions ordered by what is still on
                  * the user's plate. Neither notification picture fits: the status bar's `Bell`
-                 * (`features/toasts/notification-center.tsx`) holds app notifications, and `Inbox` is already the icon
-                 * of the Agent Inbox view (`features/view-containers/catalog-icon.tsx`), which holds peer messages.
+                 * (`features/toasts/notification-center.tsx`) holds app notifications, and `Inbox` already marks the
+                 * Peer Inbox's held peer messages (the status bar's `peer-approval-chip.tsx` and the waiting list in
+                 * `features/agent-inbox/`).
                  */}
                 <ListTodo size={14} />
                 {attentionCount > 0 && (

@@ -1,7 +1,8 @@
 import type { CaxriReply } from '@caxri/protocol';
+import { methods } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { AgentCommanderRendererPolicy } from '../agent-commander-policy';
+import { agentCommanderMethodClass, AgentCommanderRendererPolicy } from '../agent-commander-policy';
 
 function request(method: string, parameters: Record<string, unknown> = {}) {
     return { protocolVersion: 1, id: 'request-1', method, params: parameters };
@@ -105,6 +106,8 @@ describe('Agent Commander Renderer policy', () => {
         'agentChat.read',
         'agentChat.send',
         'agentChat.respond',
+        'agentChat.rewind',
+        'agentChat.restoreFiles',
         'agentActions.list',
     ])('admits the Chat surface request %s only for the Commander Terminal', (method) => {
         const policy = new AgentCommanderRendererPolicy(() => {});
@@ -117,6 +120,45 @@ describe('Agent Commander Renderer policy', () => {
         expect(() => policy.admit(request(method))).toThrow(
             expect.objectContaining({ code: 'FORBIDDEN' }),
         );
+    });
+
+    /**
+     * The Chat pane offers "Edit from here" and "Restore code to here" in this window; both once failed as `FORBIDDEN`
+     * because the policy listed only the Chat requests that existed when it was written.
+     */
+    it('admits the revert confirmation the Chat pane asks before an edit or restore reverts files', () => {
+        const policy = new AgentCommanderRendererPolicy(() => {});
+
+        expect(() =>
+            policy.admit(
+                request('agentChat.confirmRevertFiles', {
+                    providerName: 'Claude',
+                    removedTurns: 1,
+                }),
+            ),
+        ).not.toThrow();
+    });
+
+    it('refuses a fork even for the Commander Terminal', () => {
+        const onDenied = vi.fn();
+        const policy = new AgentCommanderRendererPolicy(onDenied);
+        ensured(policy);
+
+        expect(() =>
+            policy.admit(request('agentChat.fork', { terminalId: 'commander', itemId: 'item-1' })),
+        ).toThrow(expect.objectContaining({ code: 'FORBIDDEN' }));
+        expect(onDenied).toHaveBeenCalledWith('agentChat.fork');
+    });
+
+    it('classifies every agentChat.* method in the protocol registry', () => {
+        const agentChatMethods = Object.keys(methods).filter((method) =>
+            method.startsWith('agentChat.'),
+        );
+        expect(agentChatMethods.length).toBeGreaterThan(0);
+        const unclassified = agentChatMethods.filter(
+            (method) => agentCommanderMethodClass(method) === undefined,
+        );
+        expect(unclassified).toEqual([]);
     });
 
     it('admits Session state writes only for the Commander Session', () => {

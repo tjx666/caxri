@@ -1,7 +1,12 @@
+import { glob, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
+import { inheritChatPermission } from '../../session/creation';
 import type { CreateForkSession } from '../chat-fork';
+import { forkClaudeSession } from '../claude-rewind';
 import { fixture } from './chat-service-fixture';
 
 type Provider = 'claude' | 'codex' | 'grok';
@@ -20,7 +25,8 @@ function isSettled(snapshot: AgentChatSnapshot, turns: number): boolean {
 
 /**
  * Starts a Chat with three completed turns, `first`, `second`, and `third`, and a session creator that opens a fork the
- * way `session.create` does: a new Session's Chat Terminal, bound to the forked Agent Session before it starts.
+ * way `session.create` does: a new Session's Chat Terminal with the source's stored permission, bound to the forked
+ * Agent Session before it starts.
  */
 async function threeTurns(provider: Provider) {
     const context = await fixture({ provider });
@@ -38,15 +44,25 @@ async function threeTurns(provider: Provider) {
         return item.id;
     };
     const createSession = vi.fn<CreateForkSession>(
-        ({ projectId, provider: kind, cwd, agentSessionId }) => {
+        ({ projectId, provider: kind, cwd, agentSessionId, sourceTerminalId }) => {
             const { session } = context.database.createSession(projectId, null);
             const terminal = context.database.createTerminal(session.id, kind, cwd, 'chat');
+            inheritChatPermission(context.database, sourceTerminalId, terminal.id);
             if (agentSessionId)
                 context.database.rebindAgentSession(terminal.id, kind, agentSessionId);
             return Promise.resolve({ sessionId: session.id, terminalId: terminal.id });
         },
     );
     return { ...context, messageId, createSession };
+}
+
+/**
+ * The one session transcript the fake Claude CLI wrote under `configDirectory`.
+ */
+async function claudeTranscriptPath(configDirectory: string): Promise<string> {
+    const paths = await Array.fromAsync(glob('projects/*/*.jsonl', { cwd: configDirectory }));
+    expect(paths).toHaveLength(1);
+    return join(configDirectory, paths[0]);
 }
 
 describe('AgentChatService fork', () => {
@@ -74,6 +90,83 @@ describe('AgentChatService fork', () => {
             expect.objectContaining({ agentSessionId: undefined }),
         );
         expect(await fakeLog('codex', 'thread-forks.jsonl')).toEqual([]);
+    });
+
+    it("inherits the source Chat's stored permission level and plan mode", async () => {
+        const { service, terminal, database, messageId, createSession } = await threeTurns('codex');
+        await service.setPermission(terminal.id, { permissionMode: 'readOnly', planMode: true });
+        // A broader Project default must not override the narrower level the user picked.
+        const { projectId } = database.getSession(terminal.sessionId)!;
+        database.setProjectChatDefault(projectId, 'codex', { permissionMode: 'auto' });
+        const forked = await service.fork(terminal.id, messageId('second'), createSession);
+        expect(createSession).toHaveBeenCalledWith(
+            expect.objectContaining({ sourceTerminalId: terminal.id }),
+        );
+        expect(database.getChatPermission(forked.terminalId)).toEqual({
+            permissionMode: 'readOnly',
+            planMode: true,
+        });
+    });
+
+    it('keeps the Project default when the source Chat stored no permission choice', async () => {
+        const { service, terminal, database, messageId, createSession } = await threeTurns('codex');
+        const { projectId } = database.getSession(terminal.sessionId)!;
+        database.setProjectChatDefault(projectId, 'codex', {
+            permissionMode: 'readOnly',
+            planMode: true,
+        });
+        const forked = await service.fork(terminal.id, messageId('second'), createSession);
+        expect(database.getChatPermission(forked.terminalId)).toEqual({
+            permissionMode: 'readOnly',
+            planMode: true,
+        });
+    });
+
+    it('forks a Claude conversation whose transcript has malformed lines, skipping them', async () => {
+        const context = await threeTurns('claude');
+        const { service, terminal, messageId, createSession, logWrite } = context;
+        const transcriptPath = await claudeTranscriptPath(context.claudeConfigDirectory);
+        const lines = (await readFile(transcriptPath, 'utf8')).trimEnd().split('\n');
+        // A corrupt record in the middle, and a trailing line cut short by an interrupted write.
+        lines.splice(1, 0, '{"type":"user","message":');
+        await writeFile(transcriptPath, `${lines.join('\n')}\n{"type":"assistant","uuid":"cut`);
+
+        const forked = await service.fork(terminal.id, messageId('second'), createSession);
+
+        const logged = logWrite.mock.calls.find(([, event]) => event === 'agent_chat.forked');
+        expect(logged?.[2]?.fields).toMatchObject({ outcome: 'forked', skippedRecords: 2 });
+        await service.restart(forked.terminalId);
+        expect(userTexts(service.read(forked.terminalId))).toEqual(['first']);
+    });
+
+    it('refuses to fork a Claude transcript above the size limit', async () => {
+        const context = await threeTurns('claude');
+        const { terminal, messageId } = context;
+        const transcriptPath = await claudeTranscriptPath(context.claudeConfigDirectory);
+        const content = await readFile(transcriptPath, 'utf8');
+        const agentSessionId = context.database.getTerminal(terminal.id)!.agentSessionId!;
+        await expect(
+            forkClaudeSession(
+                agentSessionId,
+                {
+                    cwd: terminal.cwd,
+                    environment: { CLAUDE_CONFIG_DIR: context.claudeConfigDirectory },
+                },
+                { content, truncated: false },
+                {
+                    itemId: messageId('second'),
+                    turnId: '',
+                    text: 'second',
+                    keptTurns: 1,
+                    removedTurns: 2,
+                },
+                // The real limit is 256 MiB; a small one stands in so the test writes no such file.
+                16,
+            ),
+        ).rejects.toMatchObject({
+            code: 'CAPACITY',
+            message: expect.stringContaining('too large to fork') as string,
+        });
     });
 
     it('refuses while a turn is running and creates nothing', async () => {

@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     createTerminalSearchSelectionGuard,
     initialTerminalSearchState,
+    isTerminalSearchNavigable,
+    isTerminalSearchNoMatch,
     openTerminalSearch,
     registerTerminalSearchHandler,
     terminalSearchReducer,
@@ -60,6 +62,20 @@ describe('Terminal search state', () => {
                 resultIndex: -1,
             }),
         ).toBe('Invalid regular expression');
+    });
+
+    it('steps only through real matches and flags empty or invalid queries as no match', () => {
+        const none = { resultCount: 0, resultIndex: -1 };
+        const some = { resultCount: 3, resultIndex: 0 };
+        const invalid = { error: 'Invalid regular expression', resultCount: 0, resultIndex: -1 };
+        expect(isTerminalSearchNavigable('', none)).toBe(false);
+        expect(isTerminalSearchNavigable('x', none)).toBe(false);
+        expect(isTerminalSearchNavigable('x', some)).toBe(true);
+        expect(isTerminalSearchNavigable('(', invalid)).toBe(false);
+        expect(isTerminalSearchNoMatch('', none)).toBe(false);
+        expect(isTerminalSearchNoMatch('x', none)).toBe(true);
+        expect(isTerminalSearchNoMatch('x', some)).toBe(false);
+        expect(isTerminalSearchNoMatch('(', invalid)).toBe(true);
     });
 });
 

@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { AgentChatRequest, AgentChatSnapshot, ParametersArgument } from '@caxri/protocol';
+import type { AgentChatRequest, AgentChatResponse, AgentChatSnapshot } from '@caxri/protocol';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useReadCache } from '../read-cache/read-cache-context';
 import { cachedChatSchema, trimChatSnapshot } from '../read-cache/read-cache-model';
 import { startAgentChatReader } from './agent-chat-sync';
-
-export type AgentChatResponse = NonNullable<
-    ParametersArgument<'mobile.agentChat.respond'>[0]
->['response'];
 
 /**
  * An uploaded image and its phone-made thumbnail, named by their upload ids; the Server reads both bytes.

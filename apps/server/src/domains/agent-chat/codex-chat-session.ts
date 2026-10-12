@@ -3,6 +3,7 @@ import type {
     AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatPermission,
+    AgentChatResponse,
 } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
@@ -16,8 +17,8 @@ import {
 import type {
     AgentChatDriver,
     AgentChatProviderSession,
-    AgentChatResponse,
     AgentChatSessionHost,
+    ChatFork,
     ChatForkTarget,
     ChatInputOptions,
     ChatProcessEnd,
@@ -474,8 +475,10 @@ class CodexChatSession implements AgentChatProviderSession {
         return revertCodexThread(this.requireConnection(), this.threadId, target);
     }
 
-    fork(target: ChatForkTarget): Promise<string> {
-        return forkCodexThread(this.requireConnection(), this.threadId, target);
+    async fork(target: ChatForkTarget): Promise<ChatFork> {
+        return {
+            agentSessionId: await forkCodexThread(this.requireConnection(), this.threadId, target),
+        };
     }
 
     async interrupt(): Promise<void> {
