@@ -44,6 +44,38 @@ function scan(lines: string[]): ThroughputAccumulator {
 }
 
 describe('createClaudeThroughputScanner', () => {
+    it("tags each response with its message's model and usage speed", () => {
+        const snapshot = scan([
+            prompt(0),
+            assistant(2, 'msg-1', 300),
+            toolResult(3),
+            JSON.stringify({
+                timestamp: at(5),
+                type: 'assistant',
+                message: {
+                    id: 'msg-2',
+                    model: 'claude-opus-5-5',
+                    usage: { output_tokens: 200, speed: 'fast' },
+                },
+            }),
+        ]).snapshot('claude');
+        expect(snapshot?.byModel).toEqual([
+            {
+                model: 'claude-opus-5-5',
+                durationMs: 2_000,
+                outputTokens: 300,
+                responseCount: 1,
+            },
+            {
+                model: 'claude-opus-5-5',
+                speed: 'fast',
+                durationMs: 2_000,
+                outputTokens: 200,
+                responseCount: 1,
+            },
+        ]);
+    });
+
     it('measures each message from its last input to its last content block', () => {
         const snapshot = scan([
             prompt(0),
@@ -54,8 +86,18 @@ describe('createClaudeThroughputScanner', () => {
             assistant(9, 'msg-2', 200),
         ]).snapshot('claude');
         expect(snapshot?.samples).toEqual([
-            { completedAt: BASE + 4_000, durationMs: 4_000, outputTokens: 300 },
-            { completedAt: BASE + 9_000, durationMs: 4_000, outputTokens: 200 },
+            {
+                completedAt: BASE + 4_000,
+                durationMs: 4_000,
+                outputTokens: 300,
+                model: 'claude-opus-5-5',
+            },
+            {
+                completedAt: BASE + 9_000,
+                durationMs: 4_000,
+                outputTokens: 200,
+                model: 'claude-opus-5-5',
+            },
         ]);
         expect(snapshot?.session).toEqual({
             durationMs: 8_000,
@@ -74,7 +116,11 @@ describe('createClaudeThroughputScanner', () => {
             assistant(10, 'msg-1', 900),
         ]).snapshot('claude');
         expect(snapshot?.samples).toEqual([
-            { completedAt: BASE + 10_000, durationMs: 10_000, outputTokens: 900 },
+            expect.objectContaining({
+                completedAt: BASE + 10_000,
+                durationMs: 10_000,
+                outputTokens: 900,
+            }),
         ]);
     });
 
@@ -105,7 +151,11 @@ describe('createClaudeThroughputScanner', () => {
             assistant(5, 'msg-1', 100),
         ]).snapshot('claude');
         expect(snapshot?.samples).toEqual([
-            { completedAt: BASE + 5_000, durationMs: 5_000, outputTokens: 100 },
+            expect.objectContaining({
+                completedAt: BASE + 5_000,
+                durationMs: 5_000,
+                outputTokens: 100,
+            }),
         ]);
     });
 

@@ -1,25 +1,35 @@
-import type { AgentThroughput } from '@caxri/protocol';
+import type { AgentThroughput, AgentThroughputVariant } from '@caxri/protocol';
 import { RefreshCw } from 'lucide-react';
 
 import { ReportCard, StatTile } from '../../components/report-card';
+import {
+    cellClass,
+    numericCellClass,
+    numericHeadClass,
+    tableHeadClass,
+} from '../../components/report-table-classes';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useRelativeTime } from '../../hooks/use-relative-time';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import {
     agentThroughputMethodNote,
     describeThroughputAggregate,
     describeThroughputSample,
+    describeThroughputVariant,
     formatThroughputDuration,
     formatThroughputRate,
     recentAverageLabel,
     throughputRate,
+    throughputSpeedLabel,
 } from '../status-bar/agent-throughput-label';
 import type { AgentThroughputViewState } from './agent-throughput-state';
 import { AGENT_THROUGHPUT_STATE_MESSAGE_KEYS } from './agent-throughput-state';
 
 const CHART_HEIGHT = 128;
 const clockTime = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' });
+const groupedCount = new Intl.NumberFormat();
 
 function rateValue(rate: number | undefined): string | undefined {
     return rate === undefined ? undefined : formatThroughputRate(rate);
@@ -59,6 +69,7 @@ function ThroughputChart({
                 >
                     {samples.map((sample, index) => {
                         const description = t('agentStatus.throughput.barDescription', {
+                            variant: describeThroughputVariant(sample, t),
                             sample: describeThroughputSample(sample, t),
                             time: clockTime.format(sample.completedAt),
                         });
@@ -99,6 +110,71 @@ function ThroughputChart({
                 )}
             </div>
         </div>
+    );
+}
+
+/**
+ * The Agent Session's responses split by model and mode, so a model switch or Fast mode can be compared at a glance
+ * instead of being averaged into one figure. The note explains rows without a mode only when one is listed.
+ */
+function ThroughputByModel({ variants }: { variants: readonly AgentThroughputVariant[] }) {
+    const { t } = useTranslation();
+    return (
+        <ReportCard
+            title={t('agentStatus.throughput.byModel')}
+            caption={t('agentStatus.throughput.byModelCaption')}
+        >
+            <table className="w-full table-fixed border-collapse">
+                <thead>
+                    <tr>
+                        <th className={tableHeadClass}>
+                            {t('agentStatus.throughput.byModel.model')}
+                        </th>
+                        <th className={cn(tableHeadClass, 'w-36')}>
+                            {t('agentStatus.throughput.byModel.mode')}
+                        </th>
+                        <th className={cn(numericHeadClass, 'w-24')}>
+                            {t('agentStatus.throughput.byModel.rate')}
+                        </th>
+                        <th className={cn(numericHeadClass, 'w-24')}>
+                            {t('agentStatus.throughput.byModel.responses')}
+                        </th>
+                        <th className={cn(numericHeadClass, 'w-28')}>
+                            {t('agentStatus.throughput.byModel.tokens')}
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {variants.map((variant) => {
+                        const rate = throughputRate(variant);
+                        return (
+                            <tr key={`${variant.model ?? ''}:${variant.speed ?? ''}`}>
+                                <td className={cn(cellClass, 'font-mono text-[11px]')}>
+                                    {variant.model ?? t('statusBar.throughput.unknownModel')}
+                                </td>
+                                <td className={cn(cellClass, variant.speed ? '' : 'text-muted')}>
+                                    {throughputSpeedLabel(variant.speed, t)}
+                                </td>
+                                <td className={numericCellClass}>
+                                    {rate === undefined ? '—' : formatThroughputRate(rate)}
+                                </td>
+                                <td className={numericCellClass}>
+                                    {groupedCount.format(variant.responseCount)}
+                                </td>
+                                <td className={numericCellClass}>
+                                    {groupedCount.format(variant.outputTokens)}
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+            {variants.some((variant) => variant.speed === undefined) && (
+                <p className="mt-3 mb-0 text-[11px] leading-snug text-muted">
+                    {t('agentStatus.throughput.byModel.unknownNote')}
+                </p>
+            )}
+        </ReportCard>
     );
 }
 
@@ -210,6 +286,7 @@ export function AgentThroughputSection({
                     {agentThroughputMethodNote(t)}
                 </p>
             </ReportCard>
+            {throughput.byModel.length > 0 && <ThroughputByModel variants={throughput.byModel} />}
         </>
     );
 }
