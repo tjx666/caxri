@@ -84,4 +84,12 @@ describe('agentChatComposerKeyAction', () => {
         ).toBeUndefined();
         expect(agentChatComposerKeyAction(press('Escape'), running)).toEqual({ kind: 'stop' });
     });
+
+    it('does not send the queue on a held Enter that repeats after a message was sent', () => {
+        const running = { ...idle, isBusy: true, isTurnRunning: true, nextQueuedId: 'q1' };
+        expect(agentChatComposerKeyAction(press('Enter', { repeat: true }), running)).toEqual({
+            kind: 'submit',
+            delivery: undefined,
+        });
+    });
 });
