@@ -85,10 +85,7 @@ const WORKSPACE_WRITE_FIELDS = {
  * `config/read`. Relative roots are dropped because the policy accepts absolute paths only; a Codex that cannot answer
  * yields no extras, the behavior before this was read.
  */
-export async function readCodexWorkspaceWrite(
-    connection: JsonRpcConnection,
-    cwd: string,
-): Promise<Json> {
+async function readCodexWorkspaceWrite(connection: JsonRpcConnection, cwd: string): Promise<Json> {
     let table: unknown;
     try {
         const result = await connection.request('config/read', { cwd }, CONFIG_READ_TIMEOUT_MS);
