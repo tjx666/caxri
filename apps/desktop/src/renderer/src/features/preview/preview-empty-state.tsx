@@ -17,9 +17,14 @@ export function PreviewEmptyState({
     title,
     path,
     showReveal = false,
+    showSource = true,
 }: {
     title: string;
     path?: string;
+    /**
+     * Off for a file with no text form (a binary file), where the source would open straight back into this state.
+     */
+    showSource?: boolean;
     /**
      * Off for a format Caxri can preview but whose file is simply empty: there the source tab is the whole recovery.
      */
@@ -34,13 +39,20 @@ export function PreviewEmptyState({
             <EmptyTitle className="max-w-80 text-pretty">{title}</EmptyTitle>
             {path && (
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => openPreviewSource(path)}>
-                        {t('preview.openSource')}
-                    </Button>
+                    {showSource && (
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => openPreviewSource(path)}
+                        >
+                            {t('preview.openSource')}
+                        </Button>
+                    )}
                     {showReveal && (
                         <Button
                             size="sm"
-                            variant="ghost"
+                            // The only way forward when there is no source to open, so it takes the source button's weight.
+                            variant={showSource ? 'ghost' : 'secondary'}
                             onClick={() => {
                                 // eslint-disable-next-line no-void -- revealFile reports its own failure through a toast
                                 void revealFile(path);

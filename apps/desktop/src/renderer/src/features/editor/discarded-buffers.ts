@@ -3,7 +3,7 @@ import type { EditorDocument } from '@desktop-shared/editor-state';
 import { translate } from '../../i18n';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import type { ToastActionParameters } from '../../stores/toast-actions';
-import { sessionStateOf } from './document-commands';
+import { sessionStateOf } from './session-pane-state';
 
 type RestoreTarget = ToastActionParameters['editor.restoreDiscardedChanges'];
 

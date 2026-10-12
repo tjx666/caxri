@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import { MAX_PATH_BROWSER_ENTRIES } from '../desktop/path-browser-contract.js';
+import { CaxriError, isCaxriError } from '../transport/errors.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import {
@@ -16,6 +17,27 @@ import {
 } from './domain.js';
 import { fileSearchModeSchema, fileSearchResultSchema } from './file-search.js';
 import { fileAssetSchema } from './preview-asset.js';
+
+/**
+ * The stable `details.reason` a text read carries when the file holds binary content. Binary is only known after the
+ * content is read (an extension cannot predict it), so callers branch on this reason instead of matching the message:
+ * the Desktop opens a no-preview tab and Mobile answers `{ status: 'binary' }`.
+ */
+export const BINARY_FILE_READ_REASON = 'binary';
+
+export function binaryFileReadError(): CaxriError {
+    return new CaxriError('IO', 'Binary files cannot be opened in the editor', {
+        reason: BINARY_FILE_READ_REASON,
+    });
+}
+
+export function isBinaryFileReadError(error: unknown): boolean {
+    return (
+        isCaxriError(error) &&
+        error.code === 'IO' &&
+        error.details?.reason === BINARY_FILE_READ_REASON
+    );
+}
 
 const serverRead = commandPolicy('server', 'read');
 const serverWrite = commandPolicy('server', 'write');
