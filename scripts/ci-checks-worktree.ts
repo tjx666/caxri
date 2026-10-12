@@ -5,16 +5,11 @@ import { access, appendFile, mkdir, rm, symlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
+import { checksWorktreeSetupCommands } from './ci-checks-worktree-setup';
 import { platformChecksEnvironment, sanitizedChildEnvironment } from './ci-child-environment';
 import { execFileAsync, runChildProcess } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-
-interface ChecksWorktreeSetupCommand {
-    arguments: string[];
-    command: string;
-    label: string;
-}
 
 interface ChecksWorktreeOperations {
     execFile?: CaptureProcess;
@@ -64,33 +59,6 @@ async function captureProcess(
 ): Promise<CaptureProcessResult> {
     const { stderr, stdout } = await execFileAsync(command, [...arguments_], options);
     return { stderr, stdout };
-}
-
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- regression-tested by the concurrent CI contract
-export function checksWorktreeSetupCommands(): ChecksWorktreeSetupCommand[] {
-    return [
-        {
-            arguments: [
-                'install',
-                '--frozen-lockfile',
-                '--ignore-scripts',
-                '--prefer-offline',
-                '--no-runtime',
-            ],
-            command: 'pnpm',
-            label: 'synthetic merge pnpm registry, unpack, and link',
-        },
-        {
-            arguments: ['rebuild', 'electron'],
-            command: 'pnpm',
-            label: 'synthetic merge Electron download',
-        },
-        {
-            arguments: ['run', 'scripts/prepare-node-pty.ts'],
-            command: 'bun',
-            label: 'synthetic merge node-pty spawn helper',
-        },
-    ];
 }
 
 function requiredEnvironment(environment: NodeJS.ProcessEnv, key: string): string {
