@@ -49,6 +49,12 @@ export const MAX_AGENT_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
  */
 export const MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES = 20 * 1024 * 1024;
 /**
+ * Combined bytes of the images one `dialog.selectPaths` pick reads for the composer. Larger than
+ * {@link MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES} because the composer resizes an oversized screenshot under the per-image
+ * limit after the pick; an image past what is left of it is cited by path instead.
+ */
+export const MAX_AGENT_CHAT_PICKED_IMAGES_BYTES = 64 * 1024 * 1024;
+/**
  * The default `agentChat.longPasteThreshold`: pasted text longer than this (in UTF-16 code units, what the input
  * counts) is saved to a file the message cites instead of landing in the input, following T3 Code's 32 KiB pasted-text
  * attachment. A paste that would push the message past {@link MAX_AGENT_CHAT_MESSAGE_LENGTH} is saved too, whatever the

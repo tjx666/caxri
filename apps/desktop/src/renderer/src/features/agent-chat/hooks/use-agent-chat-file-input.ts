@@ -2,13 +2,16 @@ import type { ClipboardEvent, DragEvent } from 'react';
 import { useState } from 'react';
 
 import { hasTerminalDraggedPath, PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
+import { useIsRemote } from '../../../stores/environment';
 import { pushToast } from '../../../stores/toasts';
 import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
+import { pickAgentChatPaths } from '../agent-chat-commands';
 import {
     agentChatDroppedImagePlan,
     agentChatImageFiles,
     agentChatImagesUnsupportedMessage,
     agentChatInsertedImagePathMessage,
+    agentChatPickedImageFile,
 } from '../agent-chat-images';
 
 /**
@@ -34,17 +37,21 @@ export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dr
  * with an info toast saying so, because it has a path on disk to cite. `didInsertPaths` receives the drop (absent for a
  * pick) and the files it should cite, and returns whether it inserted anything. A pasted image the provider cannot take
  * has no path to cite, so it says why in an info toast instead of silently doing nothing. Pasted text goes to
- * `takeLongPaste` first, which keeps a long paste out of the input.
+ * `takeLongPaste` first, which keeps a long paste out of the input. In a local window `+` → Files and folders opens the
+ * native panel instead (`pickPaths`), whose folders and files are cited through `didInsertPickedPaths` and whose images
+ * take the same route as dropped ones.
  */
 export function useAgentChatFileInput({
     add,
     didInsertPaths,
+    didInsertPickedPaths,
     isImageInputEnabled,
     providerName,
     takeLongPaste,
 }: {
     add: (files: readonly File[]) => Promise<void>;
     didInsertPaths: (event: DragEvent | undefined, files: readonly File[]) => boolean;
+    didInsertPickedPaths: (paths: readonly string[]) => boolean;
     isImageInputEnabled: boolean;
     /**
      * The provider catalog's display name, for the toast that says it takes no images.
@@ -56,31 +63,60 @@ export function useAgentChatFileInput({
     takeLongPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => boolean;
 }) {
     const [isDragOver, setDragOver] = useState(false);
+    const isRemote = useIsRemote();
     const attach = (files: readonly File[]): void => {
         // eslint-disable-next-line no-void -- add reports unreadable or rejected images through toasts
         if (isImageInputEnabled && files.length > 0) void add(files);
     };
     /**
-     * Splits files between image attachments and path references, the same way for a drop and a pick.
+     * Splits `images` between attachments and path references, the same way for a drop and a pick: `didCite` inserts
+     * the paths of everything that was not attached and returns whether it inserted anything.
      */
-    const route = (event: DragEvent | undefined, files: readonly File[]): void => {
+    const route = (
+        images: readonly File[],
+        didCite: (attached: ReadonlySet<File>) => boolean,
+    ): void => {
         const plan = agentChatDroppedImagePlan(
-            isImageInputEnabled ? agentChatImageFiles(files) : [],
+            isImageInputEnabled ? agentChatImageFiles(images) : [],
         );
         attach(plan.attach);
-        const attached = new Set(plan.attach);
-        const didInsert = didInsertPaths(
-            event,
-            files.filter((file) => !attached.has(file)),
-        );
+        const didInsert = didCite(new Set(plan.attach));
         const message = agentChatInsertedImagePathMessage(
             plan.inserted.map((entry) => entry.rejection),
         );
         if (didInsert && message) pushToast('info', message);
     };
+    const routeFiles = (event: DragEvent | undefined, files: readonly File[]): void =>
+        route(files, (attached) =>
+            didInsertPaths(
+                event,
+                files.filter((file) => !attached.has(file)),
+            ),
+        );
     return {
         isDragOver,
-        pick: (files: readonly File[]) => route(undefined, files),
+        pick: (files: readonly File[]) => routeFiles(undefined, files),
+        /**
+         * Opens the native panel for files and folders together, or `undefined` in an SSH Host window, whose Agent
+         * cannot read this Mac's paths; there `+` keeps the file-only picker (`pick`) for images.
+         */
+        pickPaths: isRemote
+            ? undefined
+            : async (): Promise<void> => {
+                  const picked = await pickAgentChatPaths(isImageInputEnabled);
+                  if (!picked || picked.length === 0) return;
+                  const images = new Map(
+                      picked.flatMap(({ image, path }) =>
+                          image ? [[agentChatPickedImageFile(path, image), path] as const] : [],
+                      ),
+                  );
+                  route(images.keys().toArray(), (attached) => {
+                      const attachedPaths = new Set([...attached].map((file) => images.get(file)));
+                      return didInsertPickedPaths(
+                          picked.map(({ path }) => path).filter((path) => !attachedPaths.has(path)),
+                      );
+                  });
+              },
         dropHandlers: {
             onDragLeave: (event: DragEvent) => {
                 // Leaving for a child of the composer is still over it.
@@ -102,7 +138,7 @@ export function useAgentChatFileInput({
                 if (!isComposerDrag(event)) return;
                 event.preventDefault();
                 event.stopPropagation();
-                route(event, [...event.dataTransfer.files]);
+                routeFiles(event, [...event.dataTransfer.files]);
             },
         },
         onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => {

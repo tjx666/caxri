@@ -55,6 +55,8 @@ export const agentChatTimeline = {
     'agentChat.timeline.announcement.stopped': 'Stopped',
     'agentChat.message.attachImagesOrPaths': 'Attach images or insert file paths',
     'agentChat.message.insertPaths': 'Insert file paths',
+    'agentChat.message.attachImagesOrFolderPaths': 'Attach images or insert file and folder paths',
+    'agentChat.message.insertFolderPaths': 'Insert file and folder paths',
     'agentChat.message.send': 'Send',
     'agentChat.message.sendTooltip': 'Send (Enter)',
     'agentChat.message.queue': 'Queue message',

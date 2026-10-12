@@ -856,7 +856,7 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
 
 - **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 20 PNG,
   JPEG, GIF, or WebP images per message, at most 5 MB each and 20 MB together, pasted, dropped
-  anywhere on the Chat, or chosen with Files in the composer's `+` menu. 5 MB is the Anthropic
+  anywhere on the Chat, or chosen with Files and folders in the composer's `+` menu. 5 MB is the Anthropic
   API's per-image limit; 20 images stays under its stricter 2000 px dimension rule for requests with
   more than 20; and 20 MB keeps the worst-case payload where four full-size images already put it,
   inside the API's 32 MB request limit once base64 adds a third. Server Core enforces the same count
@@ -870,9 +870,14 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   position; no provider process is needed), makes the same thumbnail, and caches only the thumbnail.
   Codex history comes from its app-server, whose item ids name no on-disk record, so a resumed Codex
   image stays a placeholder, as does an image the transcript tail no longer reaches.
-- **Other files.** Files in `+` opens the system file picker (Chromium's file input, which is the
-  native open panel, so no Main dialog method is involved). A picked or dropped file that is not an
-  attachable image, and every file for a provider without image input such as Grok Build, is
+- **Other files and folders.** Files and folders in `+` opens the native open panel through
+  `dialog.selectPaths`, which takes several files and folders at once (Chromium's file input cannot
+  pick a folder together with files). It grants nothing, unlike the Project folder dialog, so a pick
+  never widens what a Project may reach. When the provider takes images, Main returns each picked
+  image's bytes (up to 64 MB across the pick) so it attaches as a dropped one would; a folder is
+  cited by path like any other file. An SSH Host window keeps Chromium's file-only picker as Files,
+  since a path on this Mac means nothing to an Agent on the SSH Host, while a picked image still
+  attaches. A picked or dropped file that is not an attachable image, and every file for a provider without image input such as Grok Build, is
   inserted at the caret as its path, relative to the Agent's directory and quoted the way a
   Terminal drop is. Every provider reads files from disk with its own tools, so a path is the one
   representation all three send paths share; no file contents are inlined.
