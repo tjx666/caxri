@@ -102,6 +102,11 @@ or cancels the delivery, or a concrete blocker requires their input.
    Keep the failed CI result red, distinguish waived failures from checks that never ran, and never
    report the whole suite as passed. A failure that reproduces locally or lacks the two local passes
    remains a blocker unless the user explicitly authorizes a narrower exception.
+   Before treating a locally reproduced failure as the branch's, run the same command twice on
+   `origin/main`. If main fails identically (for example the Renderer performance gate reporting
+   `primary-sidebar.profiledRenderCount` 5 against a baseline of 4 on both), it is a pre-existing
+   main failure: record both sides' results in the PR, file or link the issue that owns the main
+   regression, and continue the authorized merge. A failure absent on main stays a blocker.
    When every failure is waived but the failure aborted validation so some checks never ran, the
    merge decision stays with the agent; it is not a question for the user. Continue the authorized
    merge by default. If the never-run checks plausibly exercise the changed behavior, first hand the
