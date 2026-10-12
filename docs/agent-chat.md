@@ -873,9 +873,11 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   inserted at the caret as its path, relative to the Agent's directory and quoted the way a
   Terminal drop is. Every provider reads files from disk with its own tools, so a path is the one
   representation all three send paths share; no file contents are inlined.
-- **Long paste.** Pasted text longer than 32 KiB (`AGENT_CHAT_LONG_PASTE_THRESHOLD`, T3 Code's
-  pasted-text attachment size), or any paste the 100,000-character message limit would otherwise
-  cut, never enters the input. `agentChat.saveLongPaste` writes it through the same service and
+- **Long paste.** Pasted text longer than the `agentChat.longPasteThreshold` setting (default
+  32 KiB, `AGENT_CHAT_LONG_PASTE_THRESHOLD`, T3 Code's pasted-text attachment size), or any paste
+  the 100,000-character message limit would otherwise cut, never enters the input. Raising the
+  setting (up to the message limit) is how a user pastes a long log as is; a paste the message
+  cannot hold is still saved, never cut. `agentChat.saveLongPaste` writes it through the same service and
   owner-only, pruned file store as [Terminal long paste](low-cost-generation.md#terminal-long-paste),
   and the composer inserts that reference where the paste landed. Send waits while a save is in
   flight. A paste past the 16 MiB file limit is refused with the Terminal's message, and one whose
