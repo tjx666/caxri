@@ -151,16 +151,62 @@ function SessionFilterButton({
 }
 
 /**
- * Usage Workbench tab: token usage, estimated API cost, Agent time, and delivery outcomes for Agent Sessions started in
- * Caxri Sessions, or for every Agent Session on this Mac. A failed first read names a closed reason
- * (`usageLoadFailureReason`), never the Server's raw message. Everything is computed by the Server from local
- * transcripts; see `docs/usage.md`.
+ * The report request for the page's current selection; an Agent or Session filter is sent only when one is set.
  */
-export function UsageWorkbenchPage() {
+function usageReportParameters({
+    agent,
+    range,
+    scope,
+    sessionId,
+}: {
+    agent: AgentFilter;
+    range: UsageRange;
+    scope: UsageScope;
+    sessionId: string | undefined;
+}) {
+    return {
+        timeZone: LOCAL_TIME_ZONE,
+        range,
+        scope,
+        ...(agent !== ALL_AGENTS && { provider: agent }),
+        ...(sessionId && { sessionId }),
+    };
+}
+
+/**
+ * The page title, followed by the removable Session filter while the report is narrowed to one Session.
+ */
+function UsageHeading({
+    fallbackSessionTitle,
+    onClearSession,
+    sessionId,
+}: {
+    fallbackSessionTitle: string | undefined;
+    onClearSession: () => void;
+    sessionId: string | undefined;
+}) {
     const { t } = useTranslation();
+    return (
+        <div className="flex min-w-0 items-center gap-2">
+            <h1 className="m-0 text-[15px] font-semibold">{t('usage.title')}</h1>
+            {sessionId && (
+                <SessionFilterButton
+                    fallbackTitle={fallbackSessionTitle}
+                    sessionId={sessionId}
+                    onClear={onClearSession}
+                />
+            )}
+        </div>
+    );
+}
+
+/**
+ * The page's range and Session filter, seeded from and kept in step with requests the status bar usage chip leaves in
+ * `useUsagePageRequestStore`.
+ */
+function useUsageSessionFilter() {
     const pendingRequest = useUsagePageRequestStore((state) => state.pending);
     const consumeRequest = useUsagePageRequestStore((state) => state.consumeUsagePageRequest);
-    const [scope, setScope] = useState<UsageScope>('caxri');
     /**
      * A Session filter opens on all time: the status bar chip it comes from totals the whole conversation, so a shorter
      * window would greet the user with smaller figures than the ones they clicked. The initializers read the pending
@@ -168,7 +214,6 @@ export function UsageWorkbenchPage() {
      */
     const [range, setRange] = useState<UsageRange>(pendingRequest?.sessionId ? 'all' : '30d');
     const [sessionId, setSessionId] = useState(pendingRequest?.sessionId);
-    const [agent, setAgent] = useState<AgentFilter>(ALL_AGENTS);
     // A request arriving while the page is open is applied during render, React's pattern for state derived from a
     // changed input; the effect below only empties the store so a later mount does not apply it again.
     const [appliedRequest, setAppliedRequest] = useState(pendingRequest);
@@ -180,13 +225,21 @@ export function UsageWorkbenchPage() {
     useEffect(() => {
         if (pendingRequest) consumeRequest();
     }, [consumeRequest, pendingRequest]);
-    const query = useUsageReport({
-        timeZone: LOCAL_TIME_ZONE,
-        range,
-        scope,
-        ...(agent !== ALL_AGENTS && { provider: agent }),
-        ...(sessionId && { sessionId }),
-    });
+    return { range, setRange, sessionId, setSessionId };
+}
+
+/**
+ * Usage Workbench tab: token usage, estimated API cost, Agent time, and delivery outcomes for Agent Sessions started in
+ * Caxri Sessions, or for every Agent Session on this Mac. A failed first read names a closed reason
+ * (`usageLoadFailureReason`), never the Server's raw message. Everything is computed by the Server from local
+ * transcripts; see `docs/usage.md`.
+ */
+export function UsageWorkbenchPage() {
+    const { t } = useTranslation();
+    const [scope, setScope] = useState<UsageScope>('caxri');
+    const { range, setRange, sessionId, setSessionId } = useUsageSessionFilter();
+    const [agent, setAgent] = useState<AgentFilter>(ALL_AGENTS);
+    const query = useUsageReport(usageReportParameters({ agent, range, scope, sessionId }));
     const report = query.data;
     /**
      * `keepPreviousData` keeps the last report on screen while a newly picked range, scope, or Agent loads, so the
@@ -206,16 +259,11 @@ export function UsageWorkbenchPage() {
         >
             <div className="flex flex-wrap items-end justify-between gap-3 bg-surface pt-4 pr-4 pb-3 pl-4">
                 <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                        <h1 className="m-0 text-[15px] font-semibold">{t('usage.title')}</h1>
-                        {sessionId && (
-                            <SessionFilterButton
-                                fallbackTitle={report?.sessions[0]?.title}
-                                sessionId={sessionId}
-                                onClear={() => setSessionId(undefined)}
-                            />
-                        )}
-                    </div>
+                    <UsageHeading
+                        fallbackSessionTitle={report?.sessions[0]?.title}
+                        sessionId={sessionId}
+                        onClearSession={() => setSessionId(undefined)}
+                    />
                     <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
                         {isShowingPreviousSelection ? (
                             <span className="inline-flex items-center gap-1.5">

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
@@ -8,7 +8,6 @@ import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picke
 import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
 import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
-import { registerTerminalFocusHandler } from '../terminal/terminal-pane-handlers';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import {
     canSwitchTerminalSurface,
@@ -41,10 +40,7 @@ import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import { agentChatTimelineEntryKey } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
-import {
-    focusComposerAtDraftEnd,
-    useAgentChatActivationFocus,
-} from './hooks/use-agent-chat-activation-focus';
+import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from './hooks/use-agent-chat-approval-keys';
 import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
@@ -140,18 +136,6 @@ export function AgentChatPane({
                 hasWorkbenchLinks: terminalPaneHost().hasWorkbenchLinks,
             });
         },
-        [terminalId],
-    );
-    useEffect(
-        () =>
-            registerTerminalFocusHandler(
-                terminalId,
-                () => {
-                    const input = inputReference.current;
-                    if (input) focusComposerAtDraftEnd(input);
-                },
-                () => inputReference.current,
-            ),
         [terminalId],
     );
     useAgentChatActivationFocus(inputReference, { isShown, terminalId });
