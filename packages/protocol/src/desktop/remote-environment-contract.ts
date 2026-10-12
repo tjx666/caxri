@@ -47,7 +47,9 @@ export type RemoteConnectionPhase = z.infer<typeof remoteConnectionPhaseSchema>;
 
 /**
  * Closed causes for a failed or interrupted SSH Host connection. `authentication` and `hostKey` stop automatic
- * reconnects because only the user can resolve them.
+ * reconnects because only the user can resolve them. `takenOver` means another Caxri Desktop attached to the same
+ * Server and replaced this window's lease; nothing retries it, because reconnecting would take the Server back from
+ * that window.
  */
 export const remoteFailureReasons = [
     'authentication',
@@ -59,6 +61,7 @@ export const remoteFailureReasons = [
     'installFailed',
     'launchFailed',
     'profileInUse',
+    'takenOver',
     'cancelled',
     'connectionLost',
     'unknown',

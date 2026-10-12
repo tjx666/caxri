@@ -145,8 +145,20 @@ class SshEnvironmentController implements RemoteEnvironment {
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         this.attached.promise.catch(() => {});
         this.connection.onEvent((event) => {
-            if (event.event === 'host.connectionChanged' && event.payload.status === 'reconnected')
+            if (event.event !== 'host.connectionChanged') return;
+            if (event.payload.status === 'reconnected')
                 this.update({ phase: 'connected', failure: undefined, needsUserAction: false });
+            /**
+             * `replaced`: the connection stops for good once another Desktop holds the lease; without this the window
+             * would keep claiming to be connected while every request is cancelled. Nothing retries it, and there is no
+             * OpenSSH question to answer, so `needsUserAction` stays false.
+             */
+            else
+                this.update({
+                    phase: 'disconnected',
+                    failure: { reason: 'takenOver', message: '' },
+                    needsUserAction: false,
+                });
         });
     }
 
