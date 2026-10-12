@@ -1,6 +1,8 @@
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 
 import type {
+    AgentChatContextChange,
+    AgentChatContextComposition,
     AgentChatFailureReason,
     AgentChatMessageInput,
     AgentChatModelChange,
@@ -211,6 +213,15 @@ export interface ChatInputOptions {
 }
 
 /**
+ * The live half of a context report: the composition the running provider reports, and the changes to what precedes the
+ * conversation it noticed since it started.
+ */
+export interface ChatContextDetails {
+    composition?: AgentChatContextComposition;
+    changes: AgentChatContextChange[];
+}
+
+/**
  * History of a task the live session no longer holds (a previous process, a resumed conversation).
  */
 export interface ChatTaskHistory {
@@ -346,6 +357,10 @@ export interface AgentChatProviderSession {
      * id of the timeline item that started the task. Resolves `undefined` when the provider does not know it.
      */
     readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined>;
+    /**
+     * What fills the context now, item by item, for the Context tab. Providers that report no composition omit it.
+     */
+    readContext?(): Promise<ChatContextDetails>;
     respond(requestId: string, response: AgentChatResponse): void;
     /**
      * Orderly stop requested by Caxri. The provider's record is already durable, so nothing is lost.

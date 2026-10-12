@@ -1,6 +1,7 @@
 export * from './agent-action-contract.js';
 export * from './agent-chat-approval.js';
 export * from './agent-chat-commands.js';
+export * from './agent-chat-context.js';
 export * from './agent-chat-contract.js';
 export * from './agent-chat-diff.js';
 export * from './agent-chat-methods.js';

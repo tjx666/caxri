@@ -23,7 +23,7 @@ const DEFAULT_CLAUDE_CACHE_TTL_MINUTES = 60;
  * The cache lifetime a response's `usage.cache_creation` split reveals: any one-hour write means the hour, otherwise
  * any five-minute write means five minutes.
  */
-export function claudeCacheTtlMinutes(usage: unknown): number | undefined {
+export function claudeCacheTtlMinutes(usage: unknown): 5 | 60 | undefined {
     const creation = isRecord(usage) ? usage.cache_creation : undefined;
     if (!isRecord(creation)) return undefined;
     if (isPositive(creation.ephemeral_1h_input_tokens)) return 60;
@@ -135,24 +135,30 @@ export async function refreshClaudeContextDetails(
     query: Pick<Query, 'getContextUsage'>,
     host: Pick<AgentChatSessionHost, 'apply' | 'read'>,
     isEnded: () => boolean,
+    onAnswer?: (response: unknown) => void,
 ): Promise<void> {
     const before = host.read().usage;
     if (!before) return;
     let response: unknown;
     try {
-        response = await withTimeout(
-            query.getContextUsage({ detail: 'summary' }),
-            CONTEXT_USAGE_TIMEOUT_MS,
-        );
+        response = await readClaudeContextUsage(query);
     } catch {
         return;
     }
+    onAnswer?.(response);
     const usage = host.read().usage;
     if (isEnded() || usage?.totalTokens !== before.totalTokens) return;
     // The previous rows were kept only until this answer; an answer without rows drops them.
     const next = { ...usage, ...claudeContextDetails(response, usage.contextWindow) };
     if (next.breakdown === usage.breakdown) delete next.breakdown;
     host.apply([{ op: 'state', state: { usage: next } }]);
+}
+
+/**
+ * One `get_context_usage` answer, bounded so a stalled process cannot hold the caller.
+ */
+export function readClaudeContextUsage(query: Pick<Query, 'getContextUsage'>): Promise<unknown> {
+    return withTimeout(query.getContextUsage({ detail: 'summary' }), CONTEXT_USAGE_TIMEOUT_MS);
 }
 
 function isPositive(value: unknown): value is number {

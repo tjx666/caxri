@@ -10,7 +10,7 @@ import { StatusItem } from './status-item';
 /**
  * Standing disclosure that this instance is reachable by a debugger. Muted tokens per DESIGN.md's status bar redline: a
  * coloured chip is reserved for a degraded Caxri, and an open debugging channel is a mode the user (or the build)
- * chose, like Screencast Mode, not a failure.
+ * chose, like Screencast Mode, not a failure, so it is icon-only: the address and consequence live on the tooltip.
  *
  * The query reports what the running process is actually doing, not `argv.jsonc`'s `remoteDebugging`: turning the
  * switch off leaves the port open until the next launch, and an unpackaged build listens whatever the file says. Both
@@ -28,8 +28,6 @@ export function RemoteDebuggingChip() {
             title={<StructuredTooltip {...copy.tooltip} />}
             className="text-muted"
             onClick={() => openSettings('remote-debugging')}
-        >
-            {copy.text}
-        </StatusItem>
+        />
     );
 }

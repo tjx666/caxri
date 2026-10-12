@@ -8,7 +8,7 @@ import type {
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Bot, ChartColumn, Gauge, Settings, SquareTerminal, X } from 'lucide-react';
+import { Bot, ChartColumn, Gauge, Layers, Settings, SquareTerminal, X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
@@ -25,7 +25,7 @@ import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import type { GitDecoration } from '../../lib/git-decorations';
 import { gitDecorationClassName } from '../../lib/git-decorations';
-import { motionDurationMs } from '../../lib/motion';
+import { motionDurationMs, motionEasing } from '../../lib/motion';
 import { cn } from '../../lib/utilities';
 import { workTabDescription } from './work-tab-accessibility';
 
@@ -108,6 +108,7 @@ interface WorkTabProperties {
         | 'agent-task'
         | 'shell-task'
         | 'agent-status'
+        | 'agent-context'
         | AgentIconIdentity;
     label: string;
     /**
@@ -172,9 +173,11 @@ const DOCUMENT_TAB_MIN_WIDTH = 50;
 function useWorkTabMotion(shouldFill: boolean) {
     const isPresent = useIsPresent();
     const isReducedMotion = useShouldReduceMotion();
-    // Tokens require a live DOM; capture each tab's durations once instead of reading styles on every render.
+    // Tokens require a live DOM; capture each tab's timing once instead of reading styles on every render.
     const [durations] = useState(() => ({
+        enterEase: motionEasing('--motion-ease-enter'),
         enterS: motionDurationMs('--motion-tab-enter') / 1000,
+        exitEase: motionEasing('--motion-ease-exit'),
         exitS: motionDurationMs('--motion-tab-exit') / 1000,
     }));
     const enterDuration = isReducedMotion ? 0 : durations.enterS;
@@ -193,7 +196,9 @@ function useWorkTabMotion(shouldFill: boolean) {
     const isSettled = isPresent && hasSettled;
     return {
         enterDuration,
+        enterEase: durations.enterEase,
         exitDuration,
+        exitEase: durations.exitEase,
         isPresent,
         style: {
             minWidth: isSettled ? targetMinWidth : 0,
@@ -212,6 +217,7 @@ const WORK_TAB_GLYPHS = {
     'agent-task': Bot,
     'shell-task': SquareTerminal,
     'agent-status': Gauge,
+    'agent-context': Layers,
 } as const;
 
 function isWorkTabGlyph(icon: WorkTabProperties['icon']): icon is keyof typeof WORK_TAB_GLYPHS {
@@ -483,7 +489,8 @@ export function WorkTab({
     onSelect,
 }: WorkTabProperties) {
     const { t } = useTranslation();
-    const { enterDuration, exitDuration, isPresent, style } = useWorkTabMotion(fill);
+    const { enterDuration, enterEase, exitDuration, exitEase, isPresent, style } =
+        useWorkTabMotion(fill);
     // Exiting tabs must never look or behave active: force the non-active visual state and lock
     // out pointer/keyboard interaction while the exit animation plays out.
     const isVisuallyActive = active && isPresent;
@@ -545,12 +552,12 @@ export function WorkTab({
             animate={{
                 maxWidth: TAB_MAX_WIDTH,
                 opacity: 1,
-                transition: { duration: enterDuration, ease: 'easeOut' },
+                transition: { duration: enterDuration, ease: enterEase },
             }}
             exit={{
                 maxWidth: 0,
                 opacity: 0,
-                transition: { duration: exitDuration, ease: 'easeIn' },
+                transition: { duration: exitDuration, ease: exitEase },
             }}
         >
             <WorkTabSelect

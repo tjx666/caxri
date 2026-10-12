@@ -81,7 +81,7 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
                 title: title ?? reference,
                 reference,
             })}
-            className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
+            className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
             data-agent-chat-tracker={artifact.provider}
             type="button"
             onClick={() => {

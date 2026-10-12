@@ -11,7 +11,6 @@ import type {
     TerminalRecord,
 } from '@caxri/protocol';
 import {
-    agentChatHistoryPageSchema,
     agentChatSnapshotSchema,
     agentProviderCatalog,
     CaxriError,
@@ -21,13 +20,14 @@ import { assertE2EAgentChatInput, logEventCatalog, readE2EAgentPolicy } from '@c
 
 import { AgentRunAutonomy } from '../agents';
 import { SingleFlight } from '../single-flight';
+import { readChatContext } from './chat-context';
 import { agentChatDrivers } from './chat-drivers';
 import { ChatEndpointLease } from './chat-endpoint-lease';
 import type { ChatExitHost } from './chat-exit';
 import { abandonChatStart, handleChatExit } from './chat-exit';
 import type { CreateForkSession } from './chat-fork';
 import { forkChat } from './chat-fork';
-import { readChatHistoryPage } from './chat-history';
+import { readChatTerminalHistory } from './chat-history';
 import { isAgentChatCommandListed } from './chat-items';
 import {
     chatLifecycleHost,
@@ -46,7 +46,7 @@ import { restoreChatFiles, rewindChat } from './chat-rewind';
 import { chatSessionLogCallbacks } from './chat-session-logs';
 import type { ChatState, ChatStateDelivery, ChatTerminal } from './chat-states';
 import { ChatStates } from './chat-states';
-import { readChatTask } from './chat-task-read';
+import { readChatTask, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**
@@ -409,15 +409,10 @@ export class AgentChatService {
     }
 
     /**
-     * Returns the page of history before `beforeItemId`. Reading history never starts a provider process.
+     * Returns the page of history before `beforeItemId`; see {@link readChatTerminalHistory}.
      */
-    async readHistory(terminalId: string, beforeItemId: string): Promise<AgentChatHistoryPage> {
-        requireChatTerminal(this.options.database, terminalId);
-        const state = this.states.open(terminalId);
-        state.projection.flush();
-        return agentChatHistoryPageSchema.parse(
-            await readChatHistoryPage(this.options, state.projection, beforeItemId),
-        );
+    readHistory(terminalId: string, beforeItemId: string): Promise<AgentChatHistoryPage> {
+        return readChatTerminalHistory(this.options, this.states, terminalId, beforeItemId);
     }
 
     /**
@@ -434,15 +429,16 @@ export class AgentChatService {
         );
     }
 
+    /**
+     * Returns the Context tab's report; see {@link readChatContext}.
+     */
+    readContext(terminalId: string) {
+        return readChatContext(this.options, terminalId, this.states.get(terminalId)?.session);
+    }
+
     async stopTask(terminalId: string, taskId: string): Promise<void> {
         requireChatTerminal(this.options.database, terminalId);
-        const state = this.states.get(terminalId);
-        const task = state?.projection.snapshot.tasks?.find(
-            (candidate) => candidate.id === taskId || candidate.itemId === taskId,
-        );
-        if (!state?.session?.isOpen || task?.status !== 'running' || !task.canStop)
-            throw new CaxriError('CONFLICT', 'This task is no longer running');
-        await state.session.stopTask(task.id);
+        await stopChatTask(this.states.get(terminalId), taskId);
     }
 
     /**
