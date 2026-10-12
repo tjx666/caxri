@@ -10,8 +10,8 @@ import {
  * projection's own, because only `agentChat.readHistory` pages read it: nothing streams it to Clients. Past it the
  * oldest items are dropped and the archive is marked incomplete.
  */
-export const MAX_AGENT_CHAT_ARCHIVE_ITEMS = 20_000;
-export const MAX_AGENT_CHAT_ARCHIVE_TEXT_LENGTH = 32 * 1024 * 1024;
+const MAX_AGENT_CHAT_ARCHIVE_ITEMS = 20_000;
+const MAX_AGENT_CHAT_ARCHIVE_TEXT_LENGTH = 32 * 1024 * 1024;
 
 /**
  * Items older than a cursor, oldest first, with the turns they belong to.
