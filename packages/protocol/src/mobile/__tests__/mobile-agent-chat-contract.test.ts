@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatItem, AgentChatSnapshot } from '../../agent/agent-chat-contract.js';
-import { agentChatPatchSchema, agentChatSnapshotSchema } from '../../agent/agent-chat-contract.js';
+import {
+    agentChatPatchSchema,
+    agentChatSnapshotSchema,
+    MAX_AGENT_CHAT_IMAGES,
+} from '../../agent/agent-chat-contract.js';
 import { applyAgentChatPatch } from '../../agent/agent-chat-reducer.js';
 import {
     clipAgentChatItemForMobile,
@@ -16,6 +20,7 @@ import {
     windowAgentChatSnapshotForMobile,
 } from '../mobile-agent-chat-contract.js';
 import { mobileDashboardSessionSchema } from '../mobile-contract.js';
+import { mobileImageReadInternalParametersSchema } from '../mobile-image-contract.js';
 
 const message = (id: string, text: string, turnId = 'turn-1'): AgentChatItem => ({
     id,
@@ -309,5 +314,58 @@ describe('mobile Agent Chat projection', () => {
         expect(
             parameters.safeParse({ terminalId: 'terminal-1', text: 'x'.repeat(17_000) }).success,
         ).toBe(false);
+    });
+
+    it('reads every image and thumbnail of a message with the most images', () => {
+        const id = (index: number) => `image_${index.toString(16).padStart(32, '0')}`;
+        const attachments = Array.from({ length: MAX_AGENT_CHAT_IMAGES }, (_, index) => ({
+            attachmentId: id(index * 2),
+            thumbnailAttachmentId: id(index * 2 + 1),
+        }));
+        expect(
+            mobileAgentChatMethods['mobile.agentChat.send'].params.safeParse({
+                terminalId: 'terminal-1',
+                text: '',
+                attachments,
+            }).success,
+        ).toBe(true);
+        const read = (count: number) =>
+            mobileImageReadInternalParametersSchema.safeParse({
+                sessionId: 'session-1',
+                attachmentIds: Array.from({ length: count }, (_, index) => id(index)),
+                principal: { kind: 'human-cli', id: 'owner' },
+            });
+        expect(read(MAX_AGENT_CHAT_IMAGES * 2).error).toBeUndefined();
+        expect(read(MAX_AGENT_CHAT_IMAGES * 2 + 1).success).toBe(false);
+    });
+
+    it('runs a slash command with arguments a phone may send', () => {
+        const parameters = mobileAgentChatMethods['mobile.agentChat.runCommand'].params;
+        expect(parameters.safeParse({ terminalId: 'terminal-1', name: 'compact' }).success).toBe(
+            true,
+        );
+        expect(
+            parameters.safeParse({
+                terminalId: 'terminal-1',
+                name: 'compact',
+                arguments: 'keep it',
+            }).success,
+        ).toBe(true);
+        expect(
+            parameters.safeParse({
+                terminalId: 'terminal-1',
+                name: 'compact',
+                arguments: 'x'.repeat(17_000),
+            }).success,
+        ).toBe(false);
+        expect(parameters.safeParse({ terminalId: 'terminal-1', name: 'rm -rf' }).success).toBe(
+            false,
+        );
+    });
+
+    it('returns a taken queued message only when the phone could send it again', () => {
+        const result = mobileAgentChatMethods['mobile.agentChat.takeQueued'].result;
+        expect(result.safeParse({ text: 'x'.repeat(5_000) }).success).toBe(true);
+        expect(result.safeParse({ text: 'x'.repeat(17_000) }).success).toBe(false);
     });
 });

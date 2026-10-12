@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { AgentChatCommand } from '@caxri/protocol';
+import { parseAgentChatCommand } from '@caxri/protocol';
 
 import { cachedAgentChatSnapshot } from '../agent-chat-client';
 import {
@@ -19,7 +20,6 @@ import {
     expireAgentChatPendingMessage,
     showAgentChatPendingMessage,
 } from '../agent-chat-pending';
-import { parseAgentChatCommand } from '../agent-chat-slash-commands';
 
 /**
  * Sends the draft as a message with its images, or runs it when it names a listed slash command. A message leaves the

@@ -41,7 +41,8 @@ type QueueChange =
     | 'removed'
     | 'resumed'
     | 'sentNow'
-    | 'steered';
+    | 'steered'
+    | 'takenForEdit';
 
 function textLength(input: QueuedInput): number {
     return input.kind === 'message'
@@ -343,6 +344,22 @@ export class ChatFollowUpQueue {
         if (this.entries.length === 0) this.pauseReason = undefined;
         this.publish();
         if (reason) this.log(reason);
+    }
+
+    /**
+     * Takes an entry back for editing: removes it and returns the full text Edit puts in the composer, in one step, so
+     * an entry the queue sends meanwhile is never both sent and back in a draft. A Client may hold only a preview of
+     * the text (the phone's `clipAgentChatQueueForMobile`), so the text comes from here. A message carrying images
+     * stays queued and fails with `VALIDATION`: images never return to a composer, and editing must not silently drop
+     * them.
+     */
+    takeForEdit(id: string): { text: string } {
+        const entry = this.entry(id);
+        if (entry.kind === 'message' && (entry.message.images?.length ?? 0) > 0)
+            throw new CaxriError('VALIDATION', 'A queued message with images cannot be edited');
+        const [{ text }] = queueView([entry]);
+        this.remove(id, 'takenForEdit');
+        return { text };
     }
 
     /**

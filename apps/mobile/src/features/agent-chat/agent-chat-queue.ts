@@ -4,19 +4,37 @@ import { agentChatQueueEntry } from '@caxri/protocol';
 type AgentChatQueue = NonNullable<AgentChatSnapshot['queue']>;
 
 /**
+ * One row of the phone's queue card: a shared queue row, or a message still on its way to Server Core
+ * (`agent-chat-pending.ts`), shown at the end of the queue it will join with every action held until Server Core lists
+ * it, as Desktop's card shows one.
+ */
+export type AgentChatQueueRow = AgentChatQueueEntry & { isPending?: true };
+
+/**
  * The follow-up queue as the card above the phone's composer, in send order, each row named the way Desktop names it
- * (`agentChatQueueEntry`). Editing is Desktop-only: the phone holds a bounded preview, not the message. The Server
- * already cut each message to a preview (`clipAgentChatQueueForMobile`) without changing its id, so every row's actions
- * reach the real entry. Entries in `pendingIds` are hidden while the phone waits for their delete or steer to land.
+ * (`agentChatQueueEntry`). The Server already cut each message to a preview (`clipAgentChatQueueForMobile`) without
+ * changing its id, so every row's actions reach the real entry, and Edit fetches the full text as it takes the entry.
+ * Entries in `pendingIds` are hidden while the phone waits for their delete, steer, or edit to land; `sending` are the
+ * messages this phone is still sending into the queue.
  */
 export const agentChatQueueEntries = (
     queue: AgentChatQueue | undefined,
     isTurnRunning: boolean,
     pendingIds: ReadonlySet<string> = new Set(),
-): AgentChatQueueEntry[] =>
-    (queue ?? [])
+    sending: ReadonlyArray<{ id: string; text: string; imageUris: readonly string[] }> = [],
+): AgentChatQueueRow[] => [
+    ...(queue ?? [])
         .filter((message) => !pendingIds.has(message.id))
-        .map((message) => agentChatQueueEntry(message, isTurnRunning));
+        .map((message) => agentChatQueueEntry(message, isTurnRunning)),
+    ...sending.map((message) => ({
+        ...agentChatQueueEntry(
+            { id: message.id, text: message.text, imageCount: message.imageUris.length },
+            isTurnRunning,
+        ),
+        canSendNow: false,
+        isPending: true as const,
+    })),
+];
 
 export interface AgentChatQueueHeader {
     title: 'Queued' | 'Queue paused';
@@ -60,16 +78,72 @@ export const agentChatQueueHeader = (
 /**
  * What a failed queue action says, in Desktop's words.
  */
+/**
+ * The screen reader hints for a queued row's Send now and Edit buttons: why a button is unavailable, or what Steer
+ * does. A message still on its way holds both until Server Core lists it.
+ */
+export const agentChatQueueRowHints = (
+    entry: AgentChatQueueRow,
+    imagesUnsupported: string,
+): { sendNow: string | undefined; edit: string | undefined } => {
+    if (entry.isPending) {
+        const waiting = 'Available once the message is queued.';
+        return { sendNow: waiting, edit: waiting };
+    }
+    const sendNow = entry.canSendNow
+        ? entry.sendNowLabel === 'Steer'
+            ? 'Adds this message to the running turn now.'
+            : undefined
+        : 'A command waits for the running turn to end.';
+    return { sendNow, edit: entry.canEdit ? undefined : imagesUnsupported };
+};
+
 export const AGENT_CHAT_QUEUE_ERRORS = {
     remove: 'Unable to remove the queued message. Try again.',
     sendNow: 'Unable to send the queued message. Try again.',
+    edit: 'Unable to edit the queued message. Try again.',
     resume: 'Unable to resume the queue. Try again.',
 } as const;
 
+export type AgentChatQueueRowAction = 'remove' | 'sendNow' | 'edit';
+
 /**
- * Runs one row action optimistically: the row disappears at once, because Delete and Steer both take it out of the
- * queue, and comes back with an error when the Server refuses. On success it stays hidden until the next snapshot drops
- * it, so a late patch cannot flash it back.
+ * Why a failed row action failed, when the reason changes what the phone says. `gone`: the message left the queue first
+ * (the queue sent it, or another device removed it). `tooLong`: Edit refused a message over what the phone may send
+ * again, which stays queued for the computer.
+ */
+export type AgentChatQueueFailure = 'gone' | 'tooLong' | 'other';
+
+export const agentChatQueueFailure = (
+    action: AgentChatQueueRowAction,
+    code: string | undefined,
+): AgentChatQueueFailure => {
+    if (code === 'CONFLICT') return 'gone';
+    if (action === 'edit' && code === 'VALIDATION') return 'tooLong';
+    return 'other';
+};
+
+/**
+ * The explanation an Edit that came back empty-handed needs. A row that already left the queue is gone from the card
+ * too, and the queue may now be empty, so an inline error would explain nothing on screen; the phone shows these in an
+ * alert instead, so the reader learns why nothing came back to the composer.
+ */
+export const AGENT_CHAT_QUEUE_EDIT_ALERTS = {
+    gone: {
+        title: 'Message already left the queue',
+        message: 'It was sent or removed before it could come back for editing.',
+    },
+    tooLong: {
+        title: 'Edit this message on your computer',
+        message: 'It is longer than a message the phone can send.',
+    },
+} as const;
+
+/**
+ * Runs one row action optimistically: the row disappears at once, because Delete, Steer, and Edit all take it out of
+ * the queue, and comes back with an error when the Server refuses. On success it stays hidden until the next snapshot
+ * drops it, so a late patch cannot flash it back. `reportError` receives the failure's code too, so a caller can tell
+ * an entry that is already gone from one that can be retried.
  */
 export const didRunOptimisticQueueAction = async ({
     action,
@@ -79,11 +153,11 @@ export const didRunOptimisticQueueAction = async ({
     reportError,
     reveal,
 }: {
-    action: 'remove' | 'sendNow';
+    action: AgentChatQueueRowAction;
     hide: (id: string) => void;
     id: string;
     perform: (id: string) => Promise<void>;
-    reportError: (message: string | null) => void;
+    reportError: (message: string | null, failure?: AgentChatQueueFailure) => void;
     reveal: (id: string) => void;
 }): Promise<boolean> => {
     reportError(null);
@@ -91,9 +165,13 @@ export const didRunOptimisticQueueAction = async ({
     try {
         await perform(id);
         return true;
-    } catch {
+    } catch (error) {
         reveal(id);
-        reportError(AGENT_CHAT_QUEUE_ERRORS[action]);
+        const code =
+            error instanceof Error && 'code' in error && typeof error.code === 'string'
+                ? error.code
+                : undefined;
+        reportError(AGENT_CHAT_QUEUE_ERRORS[action], agentChatQueueFailure(action, code));
         return false;
     }
 };

@@ -83,7 +83,7 @@ The window runs with the Desktop principal. Main therefore authorizes it separat
   own layout and focus) only when it names the Commander Session. Main learns both IDs from the
   reply to `commander.ensure` or `commander.snapshot`. The admitted Chat requests are `read`,
   `send`, `respond`, `configure`, `interrupt`, `runCommand`, `readImage`, `readTask`, `stopTask`,
-  `removeQueued`, `sendQueuedNow`, `resumeQueue`, `saveLongPaste`, `rewind` (Edit from here), and
+  `removeQueued`, `takeQueued`, `sendQueuedNow`, `resumeQueue`, `saveLongPaste`, `rewind` (Edit from here), and
   `restoreFiles` (Restore code to here). `agentChat.confirmRevertFiles`, the native confirmation
   before either reverts files, names no Terminal and is admitted on its own, since it only returns
   the answer.

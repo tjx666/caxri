@@ -40,6 +40,13 @@ export const MOBILE_AGENT_CHAT_CLIP_MARKER = '…';
 const MOBILE_AGENT_CHAT_SEND_MAX_BYTES = 16 * 1_024;
 
 /**
+ * Whether `text` fits one `mobile.agentChat.send`. A queued message the phone takes back for editing must pass the same
+ * bound, or the phone could not send it again.
+ */
+export const canMobileAgentChatSend = (text: string): boolean =>
+    new TextEncoder().encode(text).length <= MOBILE_AGENT_CHAT_SEND_MAX_BYTES;
+
+/**
  * Base64 characters one `mobile.agentChat.readImage` reply carries, so an original of several megabytes arrives as a
  * series of replies that each fit one gateway frame.
  */
@@ -292,8 +299,7 @@ export const mobileAgentChatMethods = {
             .strictObject({
                 ...terminalTarget,
                 text: agentChatMethods['agentChat.send'].params.shape.text.refine(
-                    (text) =>
-                        new TextEncoder().encode(text).length <= MOBILE_AGENT_CHAT_SEND_MAX_BYTES,
+                    canMobileAgentChatSend,
                     'Mobile Chat messages must be at most 16 KiB',
                 ),
                 delivery: agentChatMethods['agentChat.send'].params.shape.delivery,
@@ -393,5 +399,37 @@ export const mobileAgentChatMethods = {
         ...commandPolicy('server', 'control', ['terminals.steer']),
         params: agentChatMethods['agentChat.resumeQueue'].params,
         result: z.null(),
+    },
+    /**
+     * Runs one of the snapshot's `commands`, the phone's equivalent of choosing it from the Desktop composer's `/`
+     * menu. Forwarded to `agentChat.runCommand`, which refuses a command the provider does not list and queues one
+     * issued during a turn. Arguments share a phone message's 16 KiB bound.
+     */
+    'mobile.agentChat.runCommand': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: z.strictObject({
+            ...terminalTarget,
+            name: agentChatMethods['agentChat.runCommand'].params.shape.name,
+            arguments: agentChatMethods['agentChat.runCommand'].params.shape.arguments.refine(
+                (value) => value === undefined || canMobileAgentChatSend(value),
+                'Mobile Chat messages must be at most 16 KiB',
+            ),
+        }),
+        result: z.null(),
+    },
+    /**
+     * Takes a queued follow-up back for editing and returns its full text, which the snapshot's preview cuts to 200
+     * characters: the phone's equivalent of the Desktop queue card's Edit, forwarded to `agentChat.takeQueued`. A text
+     * over the 16 KiB a phone may send stays queued and fails with `VALIDATION`, as does a message carrying images.
+     */
+    'mobile.agentChat.takeQueued': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: agentChatMethods['agentChat.takeQueued'].params,
+        result: z.strictObject({
+            text: agentChatMethods['agentChat.takeQueued'].result.shape.text.refine(
+                canMobileAgentChatSend,
+                'Mobile Chat messages must be at most 16 KiB',
+            ),
+        }),
     },
 } as const satisfies Record<string, MethodSpec>;

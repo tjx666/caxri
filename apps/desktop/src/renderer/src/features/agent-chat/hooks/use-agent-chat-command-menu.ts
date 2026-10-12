@@ -2,6 +2,7 @@ import type { KeyboardEvent } from 'react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
+import { agentChatSlashQuery } from '@caxri/protocol';
 
 import { isImeComposing } from '../../../lib/ime';
 import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
@@ -13,7 +14,6 @@ import {
     agentChatDraftMatches,
     agentChatMenuActions,
     agentChatSkillDiscoveryNotice,
-    agentChatSlashQuery,
 } from '../agent-chat-slash-commands';
 import { agentChatActionSuggestion } from '../agent-chat-suggestions';
 

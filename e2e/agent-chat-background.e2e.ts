@@ -108,6 +108,9 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await message.fill('hello third');
         await message.press('Enter');
         await expect(queue.getByText('hello third')).toBeVisible();
+        await message.fill('hello edit');
+        await message.press('Enter');
+        await expect(queue.getByText('hello edit')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue.png') });
 
         // A steer the provider refuses gives the message back to the composer instead of losing it, and says why.
@@ -124,6 +127,11 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         await chat.getByRole('button', { name: 'Stop' }).click();
         await expect(chat.getByText('Queue paused')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue-paused.png') });
+        // Editing takes the message out of the queue and back into the empty composer.
+        await queue.getByRole('button', { name: 'Edit queued message' }).last().click();
+        await expect(message).toHaveValue('hello edit');
+        await expect(queue.getByText('hello edit')).toHaveCount(0);
+        await message.fill('');
         await queue.getByRole('button', { name: 'Delete queued message' }).last().click();
         await expect(queue.getByText('hello third')).toHaveCount(0);
         await chat.getByRole('button', { name: 'Resume' }).click();

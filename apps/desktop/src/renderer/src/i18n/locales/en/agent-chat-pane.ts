@@ -21,6 +21,7 @@ export const agentChatPane = {
     'agentChat.commands.saveProjectDefaultFailed': 'Unable to save the Project default',
     'agentChat.commands.stopTaskFailed': 'Unable to stop the task',
     'agentChat.commands.removeQueuedFailed': 'Unable to remove the queued message',
+    'agentChat.commands.editQueuedFailed': 'Unable to edit the queued message',
     'agentChat.commands.sendQueuedFailed': 'Unable to send the queued message',
     'agentChat.commands.resumeQueueFailed': 'Unable to resume the queue',
     'agentChat.commands.findTranscriptFailed': 'Unable to find the transcript',

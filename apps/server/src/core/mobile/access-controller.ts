@@ -14,6 +14,7 @@ import {
     agentChatTerminalProjectRoot,
     invokeMobileAgentChatRequest,
     isMobileAgentChatRead,
+    isMobileAgentChatRequest,
 } from './agent-chat-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { invokeMobileCommanderInboxRequest } from './commander-inbox-requests';
@@ -229,6 +230,26 @@ export const openMobileAccessController = async (options: {
             resolveAgentEndpoint,
             forwardOperation,
         ) => {
+            /**
+             * Chat mutations take the same authority order as an attention answer, so a revoke that lands first always
+             * wins; a read needs no serialization. Every `mobile.agentChat.*` method routes here, and
+             * `invokeMobileAgentChatRequest` switches over them exhaustively.
+             */
+            if (isMobileAgentChatRequest(request)) {
+                requiredGateway(gateway);
+                const invoke = async () => {
+                    assertOpen();
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    return invokeMobileAgentChatRequest(
+                        request,
+                        principal,
+                        domainService,
+                        forwardOperation,
+                        () => currentPairedPrincipal(principal, request.method),
+                    );
+                };
+                return isMobileAgentChatRead(request) ? invoke() : withAuthority(invoke);
+            }
             const activeGateway = requiredGateway(gateway);
             switch (request.method) {
                 case 'mobile.access.status':
@@ -457,33 +478,6 @@ export const openMobileAccessController = async (options: {
                         request.params.terminalId,
                     );
                     return invokeMobileTerminalRequest(request, observer);
-                }
-                /**
-                 * Chat mutations take the same authority order as an attention answer, so a revoke that lands first
-                 * always wins; a read needs no serialization.
-                 */
-                case 'mobile.agentChat.read':
-                case 'mobile.agentChat.readImage':
-                case 'mobile.agentChat.send':
-                case 'mobile.agentChat.interrupt':
-                case 'mobile.agentChat.respond':
-                case 'mobile.agentChat.retry':
-                case 'mobile.agentChat.configure':
-                case 'mobile.agentChat.removeQueued':
-                case 'mobile.agentChat.sendQueuedNow':
-                case 'mobile.agentChat.resumeQueue': {
-                    const invoke = async () => {
-                        assertOpen();
-                        const principal = currentPairedPrincipal(context.principal, request.method);
-                        return invokeMobileAgentChatRequest(
-                            request,
-                            principal,
-                            domainService,
-                            forwardOperation,
-                            () => currentPairedPrincipal(principal, request.method),
-                        );
-                    };
-                    return isMobileAgentChatRead(request) ? invoke() : withAuthority(invoke);
                 }
                 case 'mobile.pairing.create': {
                     return withAuthority(() => {

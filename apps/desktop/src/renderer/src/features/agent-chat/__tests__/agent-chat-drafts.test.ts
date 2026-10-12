@@ -9,7 +9,6 @@ import {
     draftAfterEditCancel,
     draftAfterSend,
     draftWithInsertion,
-    draftWithReturnedMessage,
     readAgentChatAttachments,
     readAgentChatDraft,
     retainAgentChatComposerState,
@@ -130,9 +129,6 @@ describe('returning an unsent message', () => {
     });
 
     it('puts the message back ahead of what was typed or attached since', () => {
-        expect(draftWithReturnedMessage('', 'queued')).toBe('queued');
-        expect(draftWithReturnedMessage('  ', 'queued')).toBe('queued');
-        expect(draftWithReturnedMessage('typed', 'queued')).toBe('queued\n\ntyped');
         expect(
             attachmentsWithReturned(
                 [image('later'), image('kept')],

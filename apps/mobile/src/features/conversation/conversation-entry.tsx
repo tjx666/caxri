@@ -2,11 +2,11 @@ import { use, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
-import { agentChatTurnLabel } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from './conversation-markdown';
 import type { ConversationEntry as Entry } from './conversation-model';
+import { conversationTurnDivider } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
 import { ConversationSystemEvent } from './conversation-system-event';
 import { ConversationToolDetail } from './conversation-tool-detail';
@@ -20,7 +20,7 @@ type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
  * The caption that ends a turn (`Worked for 2m 1s`), a small centered pill like a chat app's time stamp. A failed or
  * stopped turn carries its tone in the text color, as Desktop's fold row does.
  */
-export const ConversationTurnDivider = ({
+const ConversationTurnDivider = ({
     label,
     testID,
     theme,
@@ -41,15 +41,17 @@ export const ConversationTurnDivider = ({
 export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: MobileTheme }) => {
     const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
     const renderUserAttachments = use(ConversationUserAttachments);
-    if (entry.type === 'turnBoundary')
+    if (entry.type === 'turnBoundary') {
+        const divider = conversationTurnDivider(entry);
         return (
-            // A terminal Agent's record says only how long the turn took, so it reads as completed work.
             <ConversationTurnDivider
-                label={agentChatTurnLabel({ durationMs: entry.durationMs, status: 'completed' })}
+                label={divider.label}
                 testID={`conversation-turn-${entry.id}`}
                 theme={theme}
+                tone={divider.tone}
             />
         );
+    }
     if (entry.type === 'userMessage')
         return (
             <View style={[styles.message, styles.userRow]} testID={`conversation-user-${entry.id}`}>

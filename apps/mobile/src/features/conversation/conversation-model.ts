@@ -1,7 +1,25 @@
 import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
-import { summarizeAgentToolGroup } from '@caxri/protocol';
+import { agentChatTurnLabel, summarizeAgentToolGroup } from '@caxri/protocol';
+
+import { agentChatTurnTone } from '../agent-chat/agent-chat-timeline';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
+type TurnBoundary = Extract<AgentTimelineItem, { type: 'turnBoundary' }>;
+
+/**
+ * The caption and tone of a terminal Agent's turn divider, in the words and tones an Agent Chat footer uses (`Worked
+ * for 4s`, `Stopped after 4s`, `Failed`). A boundary whose record does not say how the turn ended reads as completed
+ * work.
+ */
+export const conversationTurnDivider = (
+    boundary: Pick<TurnBoundary, 'durationMs' | 'outcome'>,
+): { label: string; tone: 'danger' | 'muted' | 'warning' } => {
+    const status = boundary.outcome ?? 'completed';
+    return {
+        label: agentChatTurnLabel({ durationMs: boundary.durationMs, status }),
+        tone: agentChatTurnTone(status),
+    };
+};
 
 export type ConversationAvailability =
     MobileTimelineReadResult['status'] | 'loading' | 'error' | 'stale';
@@ -157,3 +175,47 @@ export const shouldFollowConversation = (
 
 export const shouldShowConversationJump = (isAtBottom: boolean, hasNewContent: boolean): boolean =>
     !isAtBottom && hasNewContent;
+
+/**
+ * How long after the user's own send the list keeps following while its animated scroll to the end runs. The scroll
+ * passes through offsets above the follow threshold, and a keyboard closing or a new row measuring mid-scroll moves the
+ * end again; without the hold, either would read as the reader scrolling away and bring back the Jump control.
+ */
+export const CONVERSATION_SEND_FOLLOW_HOLD_MS = 600;
+
+/**
+ * Whether a scroll leaves the list following its end: a reader near the end follows, and so does any offset passed
+ * while the list is still carrying the user to their own message (`holdUntil`).
+ */
+export const isConversationFollowing = (
+    distanceFromBottom: number,
+    viewportHeight: number,
+    now: number,
+    holdUntil: number,
+): boolean => shouldFollowConversation(distanceFromBottom, viewportHeight) || now < holdUntil;
+
+/**
+ * Whether the user sent a message since the list last looked (`previous`): Desktop returns to the end after its own
+ * send, while new Agent output never pulls a reader who scrolled up back down. The first value a list sees is a
+ * baseline, so remounting a list never counts as a send.
+ */
+export const isNewConversationSend = (previous: number | undefined, next: number | undefined) =>
+    previous !== undefined && next !== undefined && next > previous;
+
+/**
+ * Carries the list to its newest row after the user's own send. FlashList places a row from its estimated height and
+ * corrects the offset once the row measures, so the scroll repeats on the next frame to land on the real end.
+ */
+export const followConversationToLatest = ({
+    follow,
+    nextFrame,
+    scrollToEnd,
+}: {
+    follow: () => void;
+    nextFrame: (run: () => void) => void;
+    scrollToEnd: () => void;
+}): void => {
+    follow();
+    scrollToEnd();
+    nextFrame(scrollToEnd);
+};

@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
+import { Alert } from 'react-native';
 
-import type { AgentChatQueueError } from './agent-chat-queue';
+import type { AgentChatQueueError, AgentChatQueueRowAction } from './agent-chat-queue';
 import {
+    AGENT_CHAT_QUEUE_EDIT_ALERTS,
     AGENT_CHAT_QUEUE_ERRORS,
     agentChatQueueEntries,
     agentChatQueueHeader,
@@ -12,13 +14,18 @@ import {
 import type { AgentChatController } from './use-agent-chat';
 
 /**
- * The queue card's rows, header, and actions for one Chat. Delete and Steer hide their row at once and restore it with
- * an inline error when the Server refuses; Resume shows its own busy state, since the header it lives in stays.
+ * The queue card's rows, header, and actions for one Chat. Delete, Steer, and Edit hide their row at once and restore
+ * it with an inline error when the Server refuses; Resume shows its own busy state, since the header it lives in stays.
+ * Edit hands the message's full text to `onEdit` (the composer draft) only once the Server took it out of the queue.
  */
 export const useAgentChatQueueActions = (
-    chat: Pick<AgentChatController, 'removeQueued' | 'resumeQueue' | 'sendQueuedNow' | 'snapshot'>,
+    chat: Pick<
+        AgentChatController,
+        'pending' | 'removeQueued' | 'resumeQueue' | 'sendQueuedNow' | 'snapshot' | 'takeQueued'
+    >,
+    onEdit: (text: string) => void,
 ) => {
-    const { removeQueued, resumeQueue, sendQueuedNow, snapshot } = chat;
+    const { pending, removeQueued, resumeQueue, sendQueuedNow, snapshot, takeQueued } = chat;
     const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
     const [storedError, setError] = useState<AgentChatQueueError | null>(null);
     const [isResuming, setResuming] = useState(false);
@@ -32,8 +39,8 @@ export const useAgentChatQueueActions = (
         [pendingIds, queue],
     );
     const entries = useMemo(
-        () => agentChatQueueEntries(queue, isTurnRunning, livePendingIds),
-        [isTurnRunning, livePendingIds, queue],
+        () => agentChatQueueEntries(queue, isTurnRunning, livePendingIds, pending.queue),
+        [isTurnRunning, livePendingIds, pending.queue, queue],
     );
     const header = agentChatQueueHeader(snapshot, isTurnRunning, entries.length);
 
@@ -43,20 +50,36 @@ export const useAgentChatQueueActions = (
     const reveal = useCallback((id: string): void => {
         setPendingIds((current) => new Set([...current].filter((pending) => pending !== id)));
     }, []);
+    const takeForEdit = useCallback(
+        async (id: string): Promise<void> => {
+            onEdit(await takeQueued(id));
+        },
+        [onEdit, takeQueued],
+    );
     const run = useCallback(
-        (action: 'remove' | 'sendNow', id: string): Promise<boolean> =>
+        (action: AgentChatQueueRowAction, id: string): Promise<boolean> =>
             didRunOptimisticQueueAction({
                 action,
                 hide,
                 id,
-                perform: action === 'remove' ? removeQueued : sendQueuedNow,
-                reportError: (message) => setError(message === null ? null : { id, message }),
+                perform: { remove: removeQueued, sendNow: sendQueuedNow, edit: takeForEdit }[
+                    action
+                ],
+                reportError: (message, failure) => {
+                    if (action === 'edit' && (failure === 'gone' || failure === 'tooLong')) {
+                        const { title, message: detail } = AGENT_CHAT_QUEUE_EDIT_ALERTS[failure];
+                        Alert.alert(title, detail);
+                        return;
+                    }
+                    setError(message === null ? null : { id, message });
+                },
                 reveal,
             }),
-        [hide, removeQueued, reveal, sendQueuedNow],
+        [hide, removeQueued, reveal, sendQueuedNow, takeForEdit],
     );
     const remove = useCallback((id: string): Promise<boolean> => run('remove', id), [run]);
     const sendNow = useCallback((id: string): Promise<boolean> => run('sendNow', id), [run]);
+    const edit = useCallback((id: string): Promise<boolean> => run('edit', id), [run]);
     const resume = useCallback(async (): Promise<void> => {
         setError(null);
         setResuming(true);
@@ -69,5 +92,5 @@ export const useAgentChatQueueActions = (
         }
     }, [resumeQueue]);
 
-    return { entries, error: error?.message, header, isResuming, remove, resume, sendNow };
+    return { edit, entries, error: error?.message, header, isResuming, remove, resume, sendNow };
 };

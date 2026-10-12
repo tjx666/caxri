@@ -13,7 +13,8 @@ import {
 } from '../.agents/skills/acceptance/scripts/case-lifecycle';
 import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
 import { repoContext, withRepoLock } from '../.agents/skills/switch-worktree/scripts/repo';
-import { prepareMobileFixtureIme } from './mobile-acceptance-ime';
+import { cleanupFixtureImeWithRetry, prepareMobileFixtureIme } from './mobile-acceptance-ime';
+import { withMobileReducedMotion } from './mobile-acceptance-motion';
 import type { MobileAcceptanceArtifact } from './mobile-acceptance-runtime';
 import {
     assertMobileAcceptanceSourceIdentity,
@@ -507,22 +508,6 @@ async function markFixtureImeRestored(
     });
 }
 
-async function cleanupFixtureImeWithRetry(cleanup: () => Promise<void>): Promise<void> {
-    try {
-        await cleanup();
-    } catch (firstError) {
-        try {
-            await cleanup();
-        } catch (secondError) {
-            throw new AggregateError(
-                [firstError, secondError],
-                'Fixture IME cleanup failed after one retry',
-                { cause: secondError },
-            );
-        }
-    }
-}
-
 async function recordSetupBlockedCase(
     caseId: MobileAndroidAcceptanceCaseId,
     sourceCommit: string,
@@ -649,16 +634,20 @@ await withRepoLock(
             apkSha256 = createHash('sha256')
                 .update(await readFile(releaseApk))
                 .digest('hex');
-            cleanupFixtureIme = await prepareMobileFixtureIme(serial, {
+            const deviceCommands = {
+                readDevice: adbRead,
+                runDevice: (arguments_: string[]) => adbRun(arguments_),
+            };
+            const cleanupIme = await prepareMobileFixtureIme(serial, {
                 build: (directory) =>
                     run(
                         'bash',
                         [join(root, 'e2e/support/mobile-ime/build.sh'), directory],
                         BUILD_TIMEOUT_MS,
                     ),
-                readDevice: adbRead,
-                runDevice: (arguments_) => adbRun(arguments_),
+                ...deviceCommands,
             });
+            cleanupFixtureIme = await withMobileReducedMotion(serial, deviceCommands, cleanupIme);
         } catch (error) {
             setupFailure = error;
         }
