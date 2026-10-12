@@ -107,6 +107,43 @@ describe('Release workflow contract', () => {
         );
     });
 
+    it('builds SSH Host natives on hosted Linux runners and packages them without Docker', () => {
+        const parsed = parse(workflow) as {
+            jobs: Partial<
+                Record<
+                    string,
+                    {
+                        'needs'?: string;
+                        'permissions'?: Record<string, string>;
+                        'runs-on'?: string;
+                        'steps'?: Array<{ env?: Record<string, string>; name?: string }>;
+                        'strategy'?: { matrix?: { include?: Array<Record<string, string>> } };
+                    }
+                >
+            >;
+        };
+        const natives = parsed.jobs['linux-natives'];
+        expect(natives?.permissions).toEqual({ contents: 'read' });
+        expect(natives?.strategy?.matrix?.include).toEqual([
+            { target: 'linux-x64', runner: 'ubuntu-24.04' },
+            { target: 'linux-arm64', runner: 'ubuntu-24.04-arm' },
+        ]);
+        expect(JSON.stringify(natives)).not.toContain('secrets.');
+        expect(parsed.jobs.release?.needs).toBe('linux-natives');
+        const packaging = parsed.jobs.release?.steps?.find(
+            (step) => step.name === 'Package unsigned Apple Silicon DMG',
+        );
+        expect(packaging?.env?.CAXRI_LINUX_NATIVES_DIR).toBe(
+            '${{ runner.temp }}/caxri-linux-natives',
+        );
+        expect(workflow.indexOf('name: Download Linux natives')).toBeLessThan(
+            workflow.indexOf('name: Package unsigned Apple Silicon DMG'),
+        );
+        expect(stepScript('Package unsigned Apple Silicon DMG')).toContain(
+            'cmp "apps/server/dist/remote/${target}/app.tar.gz"',
+        );
+    });
+
     it('keeps publication credentials bounded and cleans the local runner', () => {
         expect(workflow).toContain('contents: write');
         expect(workflow).toContain('persist-credentials: false');

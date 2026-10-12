@@ -9,7 +9,10 @@ import { agentChatSelectionView, isAgentChatSelectionSettled } from '@caxri/prot
 
 import { didConfigureAgentChat } from '../agent-chat-commands';
 
-type ReportedSelection = Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'ultracode'>;
+type ReportedSelection = Pick<
+    AgentChatSnapshot,
+    'effort' | 'fast' | 'model' | 'models' | 'ultracode'
+>;
 
 /**
  * The model picker's optimistic switch: `configure` shows the choice at once (`snapshot` is the reported one with the
@@ -37,6 +40,7 @@ export function useAgentChatModelSelection(
                 model: reported?.model,
                 effort: reported?.effort,
                 ultracode: reported?.ultracode,
+                fast: reported?.fast,
             },
             isAccepted: false,
         };

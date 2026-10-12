@@ -14,6 +14,7 @@ import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { fetchCaxriQuery } from '../../queries/client';
+import { isLocalOnlyAvailable } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
 import { takeBackFromCommander } from '../agent-commander/commander-handover-commands';
 import { openCommanderHandover } from '../agent-commander/commander-handover-store';
@@ -302,7 +303,8 @@ async function sessionRowMenu({
             onSelect: () => revokePermissionAutoAllow(session.id),
         },
         CONTEXT_MENU_SEPARATOR,
-        {
+        // The external editor runs on this Mac and cannot open a Project on an SSH Host.
+        isLocalOnlyAvailable() && {
             label: translate('primarySidebar.sessionMenu.openProjectInEditor'),
             shortcut: readCommandShortcut('project.openInEditor'),
             onSelect: () => openProjectInExternalEditor(project, session.id),

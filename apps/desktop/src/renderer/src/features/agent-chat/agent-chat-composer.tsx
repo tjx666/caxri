@@ -16,6 +16,7 @@ import { useTerminal } from '../../stores/selectors';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
+import { sendAgentChatQueuedNow } from './agent-chat-commands';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
 import { agentChatComposerKeyAction } from './agent-chat-composer-keys';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
@@ -23,7 +24,8 @@ import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { agentChatSendBlock } from './agent-chat-presentation';
-import { agentChatSendTooltip } from './agent-chat-presentation';
+import { agentChatComposerPlaceholder, agentChatSendTooltip } from './agent-chat-presentation';
+import { agentChatNextQueuedId } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
@@ -116,22 +118,23 @@ interface AgentChatComposerProperties {
 /**
  * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
  * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
- * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
- * pasted, dropped, or picked with Attach files when the provider accepts them; any other dropped or picked file, Files
- * entry, or Editor tab, and an image in a format or size the provider cannot take, is inserted as its path. Text pasted
- * past `AGENT_CHAT_LONG_PASTE_THRESHOLD` is saved to a file and the message cites it instead. A drag anywhere over the
- * Chat tints the whole pane with a one-line caption. While a turn runs and something is typed, the activity row says
- * what Enter and Cmd+Enter do, and Send wears the queue glyph. A disabled Send says why in its tooltip. A leading `/`
- * or `$` offers the provider's commands and the discovered skills, and a word that starts with `@` offers other
- * Sessions whose conversation the message can cite; both lists show only while the input has focus. It shares the
- * timeline's centered column so the input lines up with the conversation, and keeps the activity row, attachments, the
- * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
- * for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands
- * focus back to the input, since each of those controls disables or unmounts itself and would otherwise drop focus to
- * the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input
- * recalls the prompts this Chat already sent. "Edit from here" on an earlier message (`useAgentChatComposerEdit`) puts
- * its text in the input and the edit bar above it; sending then rewinds the Chat to before that message and sends the
- * draft in its place, and Escape or Cancel puts the previous draft back.
+ * input, and Enter in an empty input sends the first of them now. Escape or the Stop button that replaces Send while
+ * the input is empty interrupts the turn. Images can be pasted, dropped, or picked with Attach files when the provider
+ * accepts them; any other dropped or picked file, Files entry, or Editor tab, and an image in a format or size the
+ * provider cannot take, is inserted as its path. Text pasted past `AGENT_CHAT_LONG_PASTE_THRESHOLD` is saved to a file
+ * and the message cites it instead. A drag anywhere over the Chat tints the whole pane with a one-line caption. While a
+ * turn runs and something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue glyph.
+ * A disabled Send says why in its tooltip. A leading `/` or `$` offers the provider's commands and the discovered
+ * skills, and a word that starts with `@` offers other Sessions whose conversation the message can cite; both lists
+ * show only while the input has focus. It shares the timeline's centered column so the input lines up with the
+ * conversation, and keeps the activity row, attachments, the input, and its actions inside one card so they read as a
+ * single control. The action row picks the model and effort for the next turn and shows how full the context window is.
+ * Clicking Send, Stop, or a chip or queue action hands focus back to the input, since each of those controls disables
+ * or unmounts itself and would otherwise drop focus to the document body. The unsent text survives switching Sessions
+ * and restarting Caxri, and ArrowUp on an empty input recalls the prompts this Chat already sent. "Edit from here" on
+ * an earlier message (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it; sending then
+ * rewinds the Chat to before that message and sends the draft in its place, and Escape or Cancel puts the previous
+ * draft back.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -231,6 +234,7 @@ export function AgentChatComposer({
         setDraft,
     });
     const { sendAction } = edit;
+    const nextQueuedId = agentChatNextQueuedId(queue, isTurnRunning);
     const sendTooltip = agentChatSendTooltip(
         sendAction,
         {
@@ -322,7 +326,15 @@ export function AgentChatComposer({
                         aria-label={t('agentChat.composer.message')}
                         className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
                         maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
-                        placeholder={sendAction.placeholder}
+                        placeholder={agentChatComposerPlaceholder(
+                            sendAction,
+                            {
+                                hasNextQueued: nextQueuedId !== undefined,
+                                isEditing: edit.isEditing,
+                                isTurnRunning,
+                            },
+                            t,
+                        )}
                         ref={inputReference}
                         rows={1}
                         value={draft}
@@ -352,14 +364,39 @@ export function AgentChatComposer({
                                     repeat: event.repeat,
                                     shiftKey: event.shiftKey,
                                 },
-                                { isBusy, isEditing: edit.isEditing, isTurnRunning },
+                                {
+                                    isBusy,
+                                    isEditing: edit.isEditing,
+                                    isTurnRunning,
+                                    nextQueuedId:
+                                        hasContent ||
+                                        isSending ||
+                                        edit.isEditing ||
+                                        pendingQueue.length > 0
+                                            ? undefined
+                                            : nextQueuedId,
+                                },
                             );
                             if (!action) return;
                             event.preventDefault();
-                            if (action.kind === 'stop') stop();
-                            else if (action.kind === 'cancelEdit') edit.cancel();
-                            // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                            else void submit(action.delivery);
+                            switch (action.kind) {
+                                case 'stop': {
+                                    stop();
+                                    break;
+                                }
+                                case 'cancelEdit': {
+                                    edit.cancel();
+                                    break;
+                                }
+                                case 'sendQueued': {
+                                    sendAgentChatQueuedNow(terminalId, action.id);
+                                    break;
+                                }
+                                default: {
+                                    // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
+                                    void submit(action.delivery);
+                                }
+                            }
                         }}
                         onPaste={fileInput.onPaste}
                     />

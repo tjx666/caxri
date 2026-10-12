@@ -10,6 +10,7 @@ import { CodeBlock } from './code-block';
 import { InlineNodes } from './inline-nodes';
 import type { MarkdownRenderContext } from './markdown-context';
 import { MarkdownContext, useMarkdownContext } from './markdown-context';
+import { QuoteBlock } from './quote-block';
 import { TableBlock } from './table-block';
 
 /**
@@ -68,9 +69,9 @@ const BlockNode = memo(
             }
             case 'quote': {
                 return (
-                    <blockquote className="my-0 flex flex-col gap-2 border-0 border-l-2 border-solid border-border pl-3 text-muted">
+                    <QuoteBlock block={block}>
                         <BlockList blocks={block.children} depth={depth} isOpen={isOpen} />
-                    </blockquote>
+                    </QuoteBlock>
                 );
             }
             case 'list': {

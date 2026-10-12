@@ -60,14 +60,15 @@
         "build:protocol": "pnpm --filter @caxri/protocol run build",
         "build:cli": "pnpm --filter @caxri/cli run build",
         "build:extensions": "pnpm --recursive --filter './extensions/*' run build",
+        "build:remote-layers": "pnpm --filter @caxri/server run build:remote",
         "link:cli": "bun run build:cli && bun run apps/cli/scripts/link-global.ts",
         "unlink:cli": "pnpm remove --global @caxri/cli",
         "uninstall:caxri": "bun run scripts/uninstall-caxri.ts",
         "install:caxri": "bun run scripts/install-caxri.ts",
         "build:desktop": "electron-vite build",
-        "package": "bun run build && electron-builder --mac dir",
+        "package": "bun run build && bun run build:remote-layers && electron-builder --mac dir",
         "package:e2e": "bun run build && bun run scripts/package-extension-test-app.ts",
-        "package:dmg": "bun run build && electron-builder --mac dmg --publish never",
+        "package:dmg": "bun run build && bun run build:remote-layers && electron-builder --mac dmg --publish never",
         "release:prepare": "bun run .agents/skills/release/scripts/prepare-release.ts",
         "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
         "spike:native": "bun run scripts/native-spike.ts",
@@ -313,6 +314,14 @@
             {
                 "from": "apps/server/dist/server",
                 "to": "server"
+            },
+            {
+                "from": "apps/server/dist/remote",
+                "to": "remote",
+                "filter": [
+                    "*/descriptor.json",
+                    "*/app.tar.gz"
+                ]
             },
             {
                 "from": "out/mobile-update",

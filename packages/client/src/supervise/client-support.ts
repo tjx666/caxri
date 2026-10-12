@@ -8,6 +8,11 @@ import type {
 import type { RawData } from 'ws';
 
 /**
+ * Default timeout for connecting to Server Core and for each `ServerClient` request.
+ */
+export const DEFAULT_TIMEOUT_MS = 15_000;
+
+/**
  * A single in-flight `ServerClient` request awaiting its reply or timeout.
  */
 export interface PendingRequest {

@@ -21,6 +21,7 @@ vi.mock('../terminal-commands', () => ({
     stopTerminal: mocks.stopTerminal,
 }));
 
+import { useEnvironmentStore } from '../../../stores/environment';
 import {
     reportTerminalResourceAlert,
     terminalResourceAlertMessage,
@@ -54,6 +55,20 @@ function dismissedMessages(): string[] {
 describe('terminal resource alerts', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        useEnvironmentStore.setState({ state: { kind: 'local' } });
+    });
+
+    it('leaves out View details in an SSH Host window, whose processes Process Explorer cannot see', () => {
+        useEnvironmentStore.setState({
+            state: {
+                kind: 'ssh',
+                destination: 'devbox',
+                phase: 'connected',
+                needsUserAction: false,
+            },
+        });
+        reportTerminalResourceAlert(raised);
+        expect(mocks.pushToast.mock.calls[0]?.[2]).toMatchObject({ secondaryAction: undefined });
     });
 
     it('names the Agent, the Session, and both readings', () => {

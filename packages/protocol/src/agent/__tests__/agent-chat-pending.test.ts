@@ -147,6 +147,40 @@ describe('isAgentChatPendingMessageSettled', () => {
         ).toBe(false);
     });
 
+    it('settles on a queue preview whose blank lines collapse below the matched prefix', () => {
+        const long = `Plan\n\n\n\n${'step one, then step two. '.repeat(20)}`;
+        const head = `${long.slice(0, 200)}…`;
+        expect(
+            isAgentChatPendingMessageSettled(
+                pending({ text: long }),
+                snapshot({ queue: [{ id: 'new', text: head }] }),
+            ),
+        ).toBe(true);
+    });
+
+    it('settles a queued message once the full queue grew past a preview that stops early', () => {
+        const preview = Array.from({ length: 10 }, (_, index) => ({ id: `q${index}`, text: 'x' }));
+        const queued = pending({ placement: 'queue', knownQueueLength: 12 });
+        expect(
+            isAgentChatPendingMessageSettled(queued, snapshot({ queue: preview, queueLength: 12 })),
+        ).toBe(false);
+        expect(
+            isAgentChatPendingMessageSettled(queued, snapshot({ queue: preview, queueLength: 13 })),
+        ).toBe(true);
+        // A whole queue shows the message itself, so its length alone settles nothing.
+        expect(
+            isAgentChatPendingMessageSettled(
+                pending({ placement: 'queue', knownQueueLength: 1 }),
+                snapshot({
+                    queue: [
+                        { id: 'q0', text: 'x' },
+                        { id: 'q1', text: 'y' },
+                    ],
+                }),
+            ),
+        ).toBe(false);
+    });
+
     it('stays pending while only an earlier message or another text shows', () => {
         expect(
             isAgentChatPendingMessageSettled(

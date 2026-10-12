@@ -51,11 +51,11 @@ import {
     routeDesktopOperation,
 } from './control-server-desktop-lease';
 import { shouldSettleOutsideOrderedLane } from './control-server-lane';
+import { DesktopLeaseWaiters } from './control-server-lease-waiters';
 import type {
     ClientState,
     ControlServerOptions,
     ControlSocketTerminationReason,
-    DesktopLeaseWaiter,
     OrderedQueueTiming,
 } from './control-server-support';
 import {
@@ -91,7 +91,7 @@ export class ControlServer {
     private readonly sockets = new Set<WebSocket>();
     private readonly dispatch: CommandDispatcher;
     private readonly pendingDesktopCommands = new Map<string, PendingDesktopCommand>();
-    private readonly desktopLeaseWaiters = new Set<DesktopLeaseWaiter>();
+    private readonly desktopLeaseWaiters = new DesktopLeaseWaiters();
     private currentDesktop?: ClientState;
     private desktopGeneration = 0;
     private endpoint?: ServerControlEndpoint;
@@ -594,6 +594,7 @@ export class ControlServer {
                             renewDesktop(this.leaseHost, nextState);
                         }
                         this.options.onClientCountChanged?.(this.clients.size, 'connected');
+                        if (desktopLease) this.options.onDesktopAttached?.();
                         writeControlMessage(
                             socket,
                             localServerWelcomeSchema.parse({
@@ -622,11 +623,7 @@ export class ControlServer {
                         )
                             throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
                         clientState.desktopReady = true;
-                        for (const waiter of this.desktopLeaseWaiters) {
-                            clearTimeout(waiter.timer);
-                            waiter.resolve(desktopLease);
-                        }
-                        this.desktopLeaseWaiters.clear();
+                        this.desktopLeaseWaiters.resolveAll(desktopLease);
                         return;
                     }
                     const operationCommand =
@@ -697,23 +694,7 @@ export class ControlServer {
     waitForDesktopLease(timeoutMs: number): Promise<DesktopLease> {
         const lease = this.desktopLease();
         if (lease) return Promise.resolve(lease);
-        if (this.desktopLeaseWaiters.size >= 32)
-            return Promise.reject(
-                new CaxriError('CAPACITY', 'Too many Desktop launches are pending'),
-            );
-        return new Promise((resolve, reject) => {
-            const waiter: DesktopLeaseWaiter = {
-                reject,
-                resolve,
-                timer: setTimeout(() => {
-                    this.desktopLeaseWaiters.delete(waiter);
-                    reject(
-                        new CaxriError('TIMEOUT', 'Desktop did not connect before the deadline'),
-                    );
-                }, timeoutMs),
-            };
-            this.desktopLeaseWaiters.add(waiter);
-        });
+        return this.desktopLeaseWaiters.wait(timeoutMs);
     }
 
     /**
@@ -765,11 +746,9 @@ export class ControlServer {
             pending.reject(new CaxriError('UNAVAILABLE', 'Host transport is closing'));
         }
         this.pendingDesktopCommands.clear();
-        for (const waiter of this.desktopLeaseWaiters) {
-            clearTimeout(waiter.timer);
-            waiter.reject(new CaxriError('UNAVAILABLE', 'Host transport is closing'));
-        }
-        this.desktopLeaseWaiters.clear();
+        this.desktopLeaseWaiters.rejectAll(
+            new CaxriError('UNAVAILABLE', 'Host transport is closing'),
+        );
         this.binaryRuntime.close();
         this.binaryStreams.close();
         for (const socket of this.sockets)

@@ -13,6 +13,7 @@ import {
 } from '../../lib/desktop-file-actions';
 import { parentDirectoryPath } from '../../lib/file-path';
 import { readCommandShortcut } from '../../lib/keybindings';
+import { isLocalOnlyAvailable } from '../../stores/environment';
 import type { PreviewTabSwitch } from '../preview/preview-commands';
 import { openFilePreview, openPreviewSource } from '../preview/preview-commands';
 import type {
@@ -52,6 +53,10 @@ export function documentTabPathMenu(
         unavailableReason,
     });
     const target = desktop.target;
+    /**
+     * The default app and Finder run on this Mac; an SSH Host window's documents live on the SSH Host.
+     */
+    const isLocal = isLocalOnlyAvailable();
     return [
         ...(previewSwitch
             ? [
@@ -68,13 +73,13 @@ export function documentTabPathMenu(
                   CONTEXT_MENU_SEPARATOR,
               ]
             : []),
-        {
+        isLocal && {
             label: t('editor.load.openWithDefaultApp'),
             disabled: !target,
             disabledReason: desktop.disabledReason,
             onSelect: () => target && openWithDefaultApp(target),
         },
-        {
+        isLocal && {
             label: t('editor.pathMenu.revealInFinder'),
             disabled: !target,
             disabledReason: desktop.disabledReason,

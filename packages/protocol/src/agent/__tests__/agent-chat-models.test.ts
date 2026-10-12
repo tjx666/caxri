@@ -16,6 +16,7 @@ const SOL: AgentChatModel = {
     displayName: 'Sol',
     efforts: ['low', 'medium', 'high', 'xhigh'],
     defaultEffort: 'medium',
+    fast: { description: '1.5x speed' },
 };
 const MINI: AgentChatModel = {
     id: 'mini',
@@ -99,6 +100,30 @@ describe('resolveAgentChatModelChange', () => {
             resolveAgentChatModelChange(snapshot, { model: 'plain', effort: 'low' }),
         ).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
     });
+
+    it('turns Fast mode on only for a model that offers it', () => {
+        const fastSnapshot = { ...snapshot, fast: false };
+        expect(resolveAgentChatModelChange(fastSnapshot, { fast: true })).toEqual({ fast: true });
+        expect(resolveAgentChatModelChange(fastSnapshot, { fast: false })).toEqual({
+            fast: false,
+        });
+        expect(() =>
+            resolveAgentChatModelChange(fastSnapshot, { model: 'mini', fast: true }),
+        ).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
+        // A provider that reports no Fast mode for this Chat cannot turn it on, whatever the model lists.
+        expect(() => resolveAgentChatModelChange(snapshot, { fast: true })).toThrow(
+            expect.objectContaining({ code: 'VALIDATION' }),
+        );
+    });
+
+    it('turns Fast mode off when switching to a model without it', () => {
+        expect(resolveAgentChatModelChange({ ...snapshot, fast: true }, { model: 'mini' })).toEqual(
+            { model: MINI, effort: 'low', fast: false },
+        );
+        expect(
+            resolveAgentChatModelChange({ ...snapshot, fast: false }, { model: 'mini' }),
+        ).toEqual({ model: MINI, effort: 'low' });
+    });
 });
 
 describe('agentChatModelLabel', () => {
@@ -164,7 +189,13 @@ describe('agentChatModelLabel', () => {
 describe('Agent Chat model selection', () => {
     const models: AgentChatModel[] = [
         { id: 'fast', displayName: 'Fast', efforts: ['low', 'medium'], defaultEffort: 'low' },
-        { id: 'deep', displayName: 'Deep', efforts: ['medium', 'high'], defaultEffort: 'high' },
+        {
+            id: 'deep',
+            displayName: 'Deep',
+            efforts: ['medium', 'high'],
+            defaultEffort: 'high',
+            fast: { description: '1.5x speed' },
+        },
     ];
     const snapshot = { model: 'fast', effort: 'medium', models };
     const pending = (
@@ -227,5 +258,19 @@ describe('Agent Chat model selection', () => {
                 ultracode: true,
             }),
         ).toBe(true);
+    });
+
+    it('shows a pending Fast mode toggle, and Fast mode off on a new model without it', () => {
+        const onDeep = { ...snapshot, model: 'deep', effort: 'high', fast: false };
+        expect(agentChatSelectionView(onDeep, pending({ fast: true }))).toMatchObject({
+            fast: true,
+        });
+        expect(isAgentChatSelectionSettled(pending({ fast: true }), onDeep)).toBe(false);
+        expect(
+            isAgentChatSelectionSettled(pending({ fast: true }), { ...onDeep, fast: true }),
+        ).toBe(true);
+        expect(
+            agentChatSelectionView({ ...onDeep, fast: true }, pending({ model: 'fast' })),
+        ).toMatchObject({ model: 'fast', fast: false });
     });
 });

@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, lstat, mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
+import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
@@ -14,7 +14,10 @@ const MAX_PENDING_UPLOADS = 16;
 const MAX_COMPLETED_IMAGES = 128;
 const PENDING_LIFETIME_MS = 2 * 60_000;
 const IMAGE_LIFETIME_MS = 60 * 60_000;
-const IMAGE_ROOT = join(tmpdir(), 'caxri-mobile-images');
+/**
+ * Scoped by uid: on Linux `tmpdir()` is the shared `/tmp`, where a fixed name could be pre-created by another account.
+ */
+const IMAGE_ROOT = join(tmpdir(), `caxri-mobile-images-${userInfo().uid}`);
 
 interface Upload {
     chunks: Buffer[];
@@ -54,6 +57,11 @@ export class MobileImageStore {
 
     async #cleanExpiredFiles(): Promise<void> {
         await mkdir(this.#root, { recursive: true, mode: 0o700 });
+        // A planted symlink or foreign directory would expose uploaded images to another account.
+        const metadata = await lstat(this.#root);
+        if (!metadata.isDirectory() || metadata.isSymbolicLink() || metadata.uid !== userInfo().uid)
+            throw new CaxriError('CONFLICT', 'The mobile image directory is not owned by you.');
+        await chmod(this.#root, 0o700);
         const entries = await readdir(this.#root);
         for (const name of entries) {
             if (!/^image_[0-9a-f]{32}\.jpg$/u.test(name)) continue;

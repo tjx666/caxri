@@ -138,13 +138,19 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             .click();
         /**
          * Only the reply that ends each turn carries Copy, so commentary between tool calls reserves no action row.
+         * Copy mounts only while the reply is hovered.
          */
         const reply = (text: string) =>
             chat.locator('[data-agent-chat-reply]').filter({ hasText: text });
         await expect(reply('Looking around the project.')).toBeVisible();
+        await reply('Looking around the project.').hover();
         await expect(
             reply('Looking around the project.').getByRole('button', { name: 'Copy message' }),
         ).toHaveCount(0);
+        await expect(
+            reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
+        ).toHaveCount(0);
+        await reply('Explored the project.').hover();
         await expect(
             reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
         ).toHaveCount(1);
@@ -472,10 +478,17 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await expect(
             chat.getByRole('button', { name: 'Model: Fake, Medium effort', exact: true }),
         ).toBeVisible();
-        // The latest turn's reply keeps its Copy action in view; earlier replies show it on hover.
-        const copyRow = chat.getByRole('button', { name: 'Copy message' }).last().locator('..');
+        // Even the latest reply mounts its Copy action and time only while hovered.
+        const latestReply = chat
+            .locator('[data-agent-chat-reply]')
+            .filter({ hasText: 'Hello from fake Claude. You said: hi there' });
         await message.hover();
-        await expect(copyRow).toHaveCSS('opacity', '1');
+        await expect(latestReply.getByRole('button', { name: 'Copy message' })).toHaveCount(0);
+        await expect(latestReply.locator('time')).toHaveCount(0);
+        await latestReply.hover();
+        await expect(latestReply.getByRole('button', { name: 'Copy message' })).toBeVisible();
+        await expect(latestReply.locator('time')).toBeVisible();
+        await message.hover();
         await expect(chat.getByRole('meter', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-reply.png') });
         // The meter measures against the compaction window and its tooltip lists what fills the context.

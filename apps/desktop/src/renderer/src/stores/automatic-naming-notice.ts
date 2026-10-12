@@ -23,6 +23,12 @@ function describeSubject(bootstrap: BootstrapState | undefined, sessionId: strin
     return [project?.displayTitle, session?.displayTitle].filter(Boolean).join(' / ') || 'Agent';
 }
 
+const automaticNamingNoticeKey = {
+    sandboxBoundaryConflict: 'core.automaticNaming.sandboxBoundaryConflict',
+    sandboxPathUnavailable: 'core.automaticNaming.unverifiedPaths',
+    sandboxUnavailable: 'core.automaticNaming.sandboxUnavailable',
+} as const satisfies Record<AutomaticNamingNotice['reason'], string>;
+
 /**
  * Shows the notices this window has not shown yet, whichever path delivered them.
  */
@@ -36,14 +42,6 @@ export function reportAutomaticNamingNotices(
         if (reportedLaunches.has(launch)) continue;
         reportedLaunches.add(launch);
         const subject = describeSubject(bootstrap, notice.sessionId);
-        pushToast(
-            'info',
-            translate(
-                notice.reason === 'sandboxBoundaryConflict'
-                    ? 'core.automaticNaming.sandboxBoundaryConflict'
-                    : 'core.automaticNaming.unverifiedPaths',
-                { subject },
-            ),
-        );
+        pushToast('info', translate(automaticNamingNoticeKey[notice.reason], { subject }));
     }
 }
