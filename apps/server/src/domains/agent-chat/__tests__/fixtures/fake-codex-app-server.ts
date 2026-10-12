@@ -276,7 +276,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
             ran(`sed -n '${start},${start + 9}p' src/app.ts`, '');
         completeMcpCalls(io, turn);
         await streamMessage(turn, 'Explored the project.', 0);
-    } else if (text.includes('several questions')) {
+    } else if (text.includes('several questions') || text.includes('askmany')) {
+        // `askmany` is the one-word form a phone can type: `adb input text` drops spaces.
         await runQuestions(io, turn);
     } else if (text.includes('ask')) {
         await runQuestion(io, turn);
