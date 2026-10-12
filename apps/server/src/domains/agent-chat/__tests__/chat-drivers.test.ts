@@ -28,6 +28,7 @@ function unstartedHost(provider: (typeof agentProviderIds)[number]): AgentChatSe
         applyTask: vi.fn(),
         readTask: () => {},
         lifecycle: vi.fn(),
+        observeLifecycle: vi.fn(async () => {}),
         onSessionBound: vi.fn(),
         onTurnFinished: vi.fn(),
         onPermissionChanged: vi.fn(),

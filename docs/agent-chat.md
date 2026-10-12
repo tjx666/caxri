@@ -982,6 +982,19 @@ hook signals, but they do not depend on the provider's hooks setting. The coordi
 working-directory session discovery for an unbound Chat so it cannot claim an unrelated PTY
 conversation.
 
+A Claude Chat also registers in-process `PreToolUse`, `PostToolUse`, and `PostToolUseFailure`
+callbacks for `Bash` (`apps/server/src/domains/agent-chat/claude-shell-hooks.ts`) and synthesizes
+the same `shellToolStarted`, `shellToolFinished`, and `shellToolFailed` signals the Terminal hook
+bridge reports. The `git worktree add` classifier is
+one shared source (`apps/server/src/domains/agents/hooks/worktree-command.ts`) that the bridge
+embeds, and `PreToolUse` waits (up to the bridge's 2 second budget) until Server Core captured its
+before-snapshot. A Chat Session therefore follows a worktree its Agent creates under
+`workbench.newWorktreeBehavior`, exactly as a Terminal Session does. A Chat does not report the
+hook `cwd` as `agentCwd`: its transcript is located through `agentProviderStateRoot`, and a Bash
+`cd` moves the hook cwd without moving the transcript, so Chat resume would break. Entering an
+existing worktree with `EnterWorktree` is therefore not followed in a Chat yet. Codex and Grok Chats
+expose no blocking pre-tool callback and do not report these phases.
+
 ## Observability
 
 `agent_chat.process_started` (closed outcome `ready`, `failed`, or `abandoned` with its reason,
