@@ -1,4 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
+import { MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentChatPendingMessage } from '../agent-chat-pending';
@@ -8,10 +9,10 @@ import {
     agentChatPendingPlacement,
     expireAgentChatPendingMessage,
     isAgentChatPendingAnswerSettled,
-    isAgentChatPendingMessageSettled,
     pruneAgentChatPending,
     selectAgentChatPendingAnswers,
     selectAgentChatPendingMessages,
+    settledAgentChatPendingMessages,
     showAgentChatPendingMessage,
     useAgentChatPendingStore,
 } from '../agent-chat-pending';
@@ -87,23 +88,24 @@ describe('agentChatPendingPlacement', () => {
     });
 });
 
-describe('isAgentChatPendingMessageSettled', () => {
+function isSettled(message: AgentChatPendingMessage, current: AgentChatSnapshot | undefined) {
+    return settledAgentChatPendingMessages([message], current).has(message.id);
+}
+
+describe('settledAgentChatPendingMessages', () => {
     it('settles on a new user message or queue entry that carries its text', () => {
         expect(
-            isAgentChatPendingMessageSettled(
+            isSettled(
                 pending(),
                 snapshot({ items: [{ id: 'new', type: 'userMessage', text: 'Run the  tests\n' }] }),
             ),
         ).toBe(true);
         expect(
-            isAgentChatPendingMessageSettled(
-                pending(),
-                snapshot({ queue: [{ id: 'new', text: 'Run the tests' }] }),
-            ),
+            isSettled(pending(), snapshot({ queue: [{ id: 'new', text: 'Run the tests' }] })),
         ).toBe(true);
         // The queue joined it with the message before it.
         expect(
-            isAgentChatPendingMessageSettled(
+            isSettled(
                 pending(),
                 snapshot({
                     items: [{ id: 'new', type: 'userMessage', text: 'First\n\nRun the tests' }],
@@ -114,18 +116,113 @@ describe('isAgentChatPendingMessageSettled', () => {
 
     it('stays pending while only an earlier message or another text shows', () => {
         expect(
-            isAgentChatPendingMessageSettled(
+            isSettled(
                 pending(),
                 snapshot({ items: [{ id: 'old', type: 'userMessage', text: 'Run the tests' }] }),
             ),
         ).toBe(false);
         expect(
-            isAgentChatPendingMessageSettled(
+            isSettled(
                 pending(),
                 snapshot({ items: [{ id: 'new', type: 'userMessage', text: 'Something else' }] }),
             ),
         ).toBe(false);
-        expect(isAgentChatPendingMessageSettled(pending(), undefined)).toBe(false);
+        expect(isSettled(pending(), undefined)).toBe(false);
+    });
+});
+
+describe('pending messages pair one to one with what the projection shows', () => {
+    const select = selectAgentChatPendingMessages('terminal-1');
+    const shownTexts = (current: AgentChatSnapshot) =>
+        settledAgentChatPendingMessages(select(useAgentChatPendingStore.getState()), current);
+    function send(text: string, images: ReadonlyArray<{ thumbnail: string }> = []) {
+        return showAgentChatPendingMessage('terminal-1', snapshot(), {
+            text,
+            images,
+            delivery: undefined,
+        });
+    }
+
+    it('keeps a later message pending while only an earlier one that contains its text shows', () => {
+        const first = send('please look');
+        const second = send('ok');
+        const firstShown = snapshot({
+            items: [{ id: 'u1', type: 'userMessage', text: 'please look' }],
+        });
+        expect([...shownTexts(firstShown)]).toEqual([first]);
+        // Pruning the first must not let the second claim the message the first already took.
+        pruneAgentChatPending('terminal-1', firstShown);
+        expect(select(useAgentChatPendingStore.getState()).map((message) => message.id)).toEqual([
+            second,
+        ]);
+        expect(shownTexts(firstShown).size).toBe(0);
+        const bothShown = snapshot({
+            items: [
+                { id: 'u1', type: 'userMessage', text: 'please look' },
+                { id: 'u2', type: 'userMessage', text: 'ok' },
+            ],
+        });
+        expect([...shownTexts(bothShown)]).toEqual([second]);
+    });
+
+    it('pairs an image-only message with a new entry carrying its images, never with any text', () => {
+        const thumbnail = { thumbnail: 'data:image/png;base64,AA==' };
+        const imageOnly = send('', [thumbnail, thumbnail]);
+        expect(
+            shownTexts(snapshot({ items: [{ id: 'u1', type: 'userMessage', text: 'hello' }] }))
+                .size,
+        ).toBe(0);
+        expect(shownTexts(snapshot({ queue: [{ id: 'q1', text: '', imageCount: 1 }] })).size).toBe(
+            0,
+        );
+        expect([
+            ...shownTexts(snapshot({ queue: [{ id: 'q1', text: '', imageCount: 2 }] })),
+        ]).toEqual([imageOnly]);
+        expect([
+            ...shownTexts(
+                snapshot({
+                    items: [{ id: 'u1', type: 'userMessage', text: '', images: [{}, {}] }],
+                }),
+            ),
+        ]).toEqual([imageOnly]);
+    });
+
+    it('clears only one of two identical messages when the first arrives', () => {
+        const first = send('continue');
+        const second = send('continue');
+        const one = snapshot({ items: [{ id: 'u1', type: 'userMessage', text: 'continue' }] });
+        expect([...shownTexts(one)]).toEqual([first]);
+        pruneAgentChatPending('terminal-1', one);
+        expect(shownTexts(one).size).toBe(0);
+        // Queued back to back, both can arrive joined in one message.
+        expect([
+            ...shownTexts(
+                snapshot({
+                    items: [
+                        { id: 'u1', type: 'userMessage', text: 'continue' },
+                        { id: 'u2', type: 'userMessage', text: 'continue\n\ncontinue' },
+                    ],
+                }),
+            ),
+        ]).toEqual([second]);
+    });
+
+    it('settles a joined message cut off at the timeline text bound', () => {
+        const long = 'a'.repeat(MAX_AGENT_CHAT_TEXT_LENGTH - 10);
+        const first = send(long);
+        const cut = send('the tail starts here and runs past the bound');
+        const gone = send('sent before the dispatch, wholly past the bound');
+        const joined = `${long}\n\nthe tail starts here and runs past the bound\n\nsent before the dispatch, wholly past the bound`;
+        const shown = snapshot({
+            items: [
+                {
+                    id: 'u1',
+                    type: 'userMessage',
+                    text: joined.slice(0, MAX_AGENT_CHAT_TEXT_LENGTH),
+                },
+            ],
+        });
+        expect([...shownTexts(shown)]).toEqual([first, cut, gone]);
     });
 });
 

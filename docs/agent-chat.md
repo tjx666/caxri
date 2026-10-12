@@ -1016,10 +1016,15 @@ mid-Chat differs per provider:
 
 - **Codex** has no in-place request, so a level rides on the next `turn/start` as
   `approvalPolicy`, `approvalsReviewer`, and `sandboxPolicy`, which Codex keeps on the thread; a
-  running turn keeps the level it started with. `thread/start` and `thread/resume` pass the saved
-  level directly. Plan mode is app-server's `collaborationMode`, which names the model and effort it
+  running turn keeps the level it started with. Because `sandboxPolicy` replaces the thread's whole
+  policy and app-server fills omitted fields with empty defaults, a switch to a workspace-write level
+  also sends the `[sandbox_workspace_write]` extras (absolute `writable_roots`, `network_access`,
+  and the tmp exclusions) that `config/read` reports for the Chat's directory. `thread/start` and
+  `thread/resume` pass the saved level directly. Plan mode is app-server's `collaborationMode`, which names the model and effort it
   runs with: it is sent on every turn while on, and `default` is sent once to turn it off when the
-  thread last ran in plan mode (as `thread/resume` reports or the last turn sent). Codex's `plan`
+  thread last ran in plan mode (as `thread/resume` reports or the last turn sent). Without a reported
+  model plan mode cannot be sent, so the Chat shows it off and refuses to turn it on until Codex
+  reports one. Codex's `plan`
   item shows as an Agent message. A real-Agent E2E ignores the choice and keeps its fixed read-only
   thread. Because a running turn keeps its level, a switch made during one says so: the menu notes
   `Applies to the next turn.`, and the trigger adds a `from next turn` caption until that turn
@@ -1033,11 +1038,17 @@ mid-Chat differs per provider:
   `--permission-mode plan` is not carried over; plan mode is only the composer's toggle.
 - **Grok Build** fixes its permission at launch, so a level switch restarts the Agent on the same
   conversation (`session/load`) with the new options. A running turn would be cut short, so the
-  switch fails with `CONFLICT` until it finishes.
+  switch fails with `CONFLICT` until it finishes. Input sent while the switch is pending waits for
+  the restart and reaches the new process, never the one being stopped.
+
+A Chat with no provider process (stopped or failed) only saves a switch and shows it; the next start
+launches with it, so the switch never starts the provider by itself.
 
 **Project default.** The menu's last row is a checkbox item. "Use as Project default" saves the
 Chat's level and plan mode for that provider on its Project; once the Chat matches the saved
-default the row reads "Project default" and stays checked. While the level is Custom it stays
+default the row reads "Project default" and stays checked. While the Project has a saved default for
+the provider, a "Clear Project default" row below it removes that default (`chatDefault: null`), so
+new Chats follow the launch settings again; Chats that already copied it keep their choice. While the level is Custom it stays
 visible but disabled with `Choose a level to save it as the default`, since a default must name a
 level. The Agent Commander window omits the row (`AgentChatHostCapabilities`). The default is stored
 (`projects.chat_defaults`, `project.setChatDefault`). A new Chat copies it at creation, except a

@@ -12,7 +12,7 @@ import {
 } from './support/helpers.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex Chat switches its permission level and plan mode, and a new Chat starts from the Project default', async ({}, testInfo) => {
+test('a Codex Chat switches its permission level and plan mode, and a new Chat starts from the Project default until it is cleared', async ({}, testInfo) => {
     const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-permissions-'));
     const directory = await realpath(created);
     const userData = join(directory, 'user-data');
@@ -71,6 +71,37 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
             chat.getByRole('button', { name: /^Permissions: / }).filter({ visible: true }),
         ).toHaveAccessibleName('Permissions: Read only, plan mode on');
         await page.screenshot({ path: testInfo.outputPath('codex-chat-project-default.png') });
+
+        // Clearing the default leaves this Chat's own choice alone; the next new Chat follows the launch settings.
+        const defaultedPicker = chat
+            .getByRole('button', { name: /^Permissions: / })
+            .filter({ visible: true });
+        await defaultedPicker.click();
+        const clearDefault = menu.getByRole('menuitem', { name: /Clear Project default/ });
+        await expect(clearDefault).toBeVisible();
+        // Let the menu finish opening so the evidence shows it opaque, not mid-fade over the composer.
+        await menu.evaluate(async (element) => {
+            await Promise.allSettled(
+                element.getAnimations({ subtree: true }).map((animation) => animation.finished),
+            );
+        });
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-clear-default-menu.png') });
+        await clearDefault.click();
+        await expect(menu).toBeHidden();
+        await expect(defaultedPicker).toHaveAccessibleName('Permissions: Read only, plan mode on');
+        await defaultedPicker.click();
+        await expect(
+            menu.getByRole('menuitemcheckbox', { name: 'Use as Project default' }),
+        ).not.toBeChecked();
+        await expect(menu.getByRole('menuitem', { name: /Clear Project default/ })).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-default-cleared.png') });
+        await page.keyboard.press('Escape');
+        await expect(menu).toBeHidden();
+
+        await openAgentChat(page, 'Codex Chat');
+        await expect(
+            chat.getByRole('button', { name: /^Permissions: / }).filter({ visible: true }),
+        ).toHaveAccessibleName('Permissions: Full access');
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
