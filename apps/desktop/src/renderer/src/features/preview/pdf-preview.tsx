@@ -123,7 +123,7 @@ function ZoomMenu({
                     }}
                 >
                     {PDF_ZOOM_CHOICES.map(({ label }) => (
-                        <MenuRadioItem key={label} value={label}>
+                        <MenuRadioItem key={label} closeOnClick value={label}>
                             {label}
                         </MenuRadioItem>
                     ))}
