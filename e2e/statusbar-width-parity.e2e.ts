@@ -30,15 +30,20 @@ interface WidthCapture {
  * contract rather than fixed breakpoints:
  *
  * - `wide` has room for everything, so every chip renders.
- * - `narrow` cannot fit the fixture: the Project and branch names are both longer than the pickers' cap, so the context
- *   alone is close to 600px, and at least the child-process count has to go.
+ * - `narrow` leaves room for the never-hidden items and less than one droppable chip, so at least the child-process count
+ *   has to go. It is derived from the wide bar instead of fixed, because the never-hidden set depends on the host: the
+ *   `Debug port` disclosure is always there under E2E, and a host without WebGL adds the Terminal's `Software` renderer
+ *   chip, which a fixed 656px window cannot fit next to the fixture's long Project and branch names.
  * - At both widths no item's label is truncated, nothing overflows its region, and any chip still shown outranks every
  *   chip already dropped.
  */
-const WIDTH_CAPTURES: readonly WidthCapture[] = [
-    { name: 'wide', width: 1_280 },
-    { name: 'narrow', width: 656 },
-];
+const WIDE_WIDTH = 1_280;
+
+/**
+ * Room the narrow capture leaves beyond the never-hidden items: enough to absorb sub-pixel rounding, less than any
+ * chip.
+ */
+const NARROW_SLACK = 4;
 
 const PROJECT_NAME = 'width-project-with-a-deliberately-long-folder-name';
 const BRANCH_NAME = 'feat/width-with-a-deliberately-long-branch-name';
@@ -133,7 +138,7 @@ exec /bin/zsh -l
             )
             .toBe('dracula');
         await running.page.setViewportSize({
-            width: WIDTH_CAPTURES[0].width,
+            width: WIDE_WIDTH,
             height: WINDOW_HEIGHT,
         });
 
@@ -251,10 +256,28 @@ exec /bin/zsh -l
             });
         };
 
-        for (const capture of WIDTH_CAPTURES) {
-            // eslint-disable-next-line no-await-in-loop -- each width must settle and be captured before the next resize.
-            await captureWidth(capture);
-        }
+        await captureWidth({ name: 'wide', width: WIDE_WIDTH });
+        // The width the bar needs once every droppable chip is gone, read from the settled wide bar.
+        const neverHiddenSurplus = await statusbar.evaluate((element) => {
+            const pixels = (value: string) => Number(value.replace(/px$/u, '')) || 0;
+            const style = getComputedStyle(element);
+            const gap = (node: Element) => pixels(getComputedStyle(node).columnGap);
+            const available =
+                element.clientWidth - pixels(style.paddingLeft) - pixels(style.paddingRight);
+            const regions = [...element.children];
+            let required = gap(element) * Math.max(0, regions.length - 1);
+            for (const region of regions) required += region.scrollWidth;
+            for (const slot of element.querySelectorAll<HTMLElement>('[data-status-chip]')) {
+                const width = slot.getBoundingClientRect().width;
+                if (width > 0)
+                    required -= width + (slot.parentElement ? gap(slot.parentElement) : 0);
+            }
+            return available - required;
+        });
+        await captureWidth({
+            name: 'narrow',
+            width: Math.ceil(WIDE_WIDTH - neverHiddenSurplus + NARROW_SLACK),
+        });
     } finally {
         try {
             await running.app.close();
