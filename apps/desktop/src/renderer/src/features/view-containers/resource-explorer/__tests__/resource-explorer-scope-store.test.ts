@@ -9,6 +9,7 @@ import {
     clearStaleScopeFocusPath,
     collapseScope,
     didRevealPathInScope,
+    followEditorFileInScope,
     pruneResourceExplorerScopes,
     rowSelectors,
     setResourceExplorerActiveScope,
@@ -122,6 +123,25 @@ describe('Resource Explorer scope store', () => {
 
         clearScopeRevealPath(scopeA, { path: '/project/src/index.ts', revision: 1 });
         expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]).toBeUndefined();
+    });
+
+    it('follows the Editor: reveals a Project file and drops a pending reveal for anything else', () => {
+        followEditorFileInScope(scopeA, '/project', '/project/src/index.ts');
+        expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]).toEqual({
+            path: '/project/src/index.ts',
+            revision: 1,
+        });
+
+        // A Terminal or diff tab, then an external file: neither may leave the previous file's reveal pending.
+        followEditorFileInScope(scopeA, '/project', undefined);
+        expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]).toBeUndefined();
+
+        followEditorFileInScope(scopeA, '/project', '/project/src/index.ts');
+        followEditorFileInScope(scopeA, '/project', '/elsewhere/notes.md');
+        expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]).toBeUndefined();
+        expect(useResourceExplorerScopeStore.getState().selectionByScope[scopeA]).toBe(
+            '/project/src/index.ts',
+        );
     });
 
     it('leaves unrelated scope entries referentially stable when one scope changes', () => {

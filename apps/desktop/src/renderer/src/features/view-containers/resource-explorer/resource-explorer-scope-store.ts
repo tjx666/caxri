@@ -195,6 +195,20 @@ export function didRevealPathInScope(scopeId: string, projectRoot: string, path:
 }
 
 /**
+ * Follows the Editor: reveals the file the active work tab shows, or drops the pending reveal when that tab shows no
+ * Project file (a Terminal, a diff, an external file), so a stale request cannot scroll the tree after the user moved
+ * on.
+ */
+export function followEditorFileInScope(
+    scopeId: string,
+    projectRoot: string,
+    activeFilePath: string | undefined,
+): void {
+    if (activeFilePath === undefined || !didRevealPathInScope(scopeId, projectRoot, activeFilePath))
+        clearScopeRevealPath(scopeId);
+}
+
+/**
  * Clears a one-shot reveal request. A row supplies the token it consumed so it cannot erase a newer request that won
  * between render and its effect; callers invalidating the whole scope omit the token.
  */
