@@ -274,14 +274,13 @@ export class RecentSshDestinations {
                 ? Reflect.get(parsed, 'destinations')
                 : undefined;
         if (!Array.isArray(values)) return [];
-        const destinations: string[] = [];
+        const destinations = new Set<string>();
         for (const value of values as unknown[]) {
-            if (destinations.length >= MAX_RECENT_DESTINATIONS) break;
+            if (destinations.size >= MAX_RECENT_DESTINATIONS) break;
             const destination = sshDestinationSchema.safeParse(value);
-            if (destination.success && !destinations.includes(destination.data))
-                destinations.push(destination.data);
+            if (destination.success) destinations.add(destination.data);
         }
-        return destinations;
+        return [...destinations];
     }
 
     async record(destination: string): Promise<string[]> {

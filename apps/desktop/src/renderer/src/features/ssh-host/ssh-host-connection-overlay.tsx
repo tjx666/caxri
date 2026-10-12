@@ -51,6 +51,8 @@ function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) 
             aria-labelledby="ssh-host-connection-title"
             aria-modal="true"
             className="ssh-host-connection-overlay fixed inset-0 z-40 flex items-center justify-center bg-background outline-none [-webkit-app-region:drag]"
+            // A native <dialog> would dismiss on Escape; this full-window state cannot be dismissed until the Server attaches.
+            // react-doctor-disable-next-line react-doctor/prefer-html-dialog
             role="dialog"
             tabIndex={-1}
         >

@@ -405,16 +405,19 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
             ['keybindings.jsonc', seed.keybindings],
             ['theme.json', seed.theme],
         ];
-        for (const [file, content] of files) {
-            if (content === undefined) continue;
-            // eslint-disable-next-line no-await-in-loop -- three small sequential writes over one master.
-            await bestEffort(() =>
-                runRemoteScript(connection, seedConfigScript({ file }), {
-                    stdin: Readable.from([Buffer.from(content, 'utf8')]),
-                    timeoutMs: SMALL_SCRIPT_TIMEOUT_MS,
-                }),
-            );
-        }
+        // Each file is its own channel on the shared master, so the three writes run concurrently.
+        await Promise.all(
+            files
+                .filter((entry): entry is [SeedableConfigFile, string] => entry[1] !== undefined)
+                .map(([file, content]) =>
+                    bestEffort(() =>
+                        runRemoteScript(connection, seedConfigScript({ file }), {
+                            stdin: Readable.from([Buffer.from(content, 'utf8')]),
+                            timeoutMs: SMALL_SCRIPT_TIMEOUT_MS,
+                        }),
+                    ),
+                ),
+        );
         if (this.probe) this.probe = { ...this.probe, configPresent: true };
     }
 

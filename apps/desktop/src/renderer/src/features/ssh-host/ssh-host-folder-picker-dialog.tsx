@@ -166,12 +166,7 @@ function FolderList({
 }) {
     const { t } = useTranslation();
     return (
-        <div
-            aria-busy={isLoading || isNavigating}
-            aria-label={t('sshHost.folderPicker.listLabel')}
-            className="mx-4 mt-2 h-70 overflow-auto rounded border border-border bg-background p-1"
-            role="list"
-        >
+        <div className="mx-4 mt-2 h-70 overflow-auto rounded border border-border bg-background p-1">
             {loadError ? (
                 <p className="m-0 p-2 text-[12px] text-danger" role="status">
                     {t('sshHost.folderPicker.loadFailed', { message: errorMessage(loadError, '') })}
@@ -181,33 +176,45 @@ function FolderList({
             ) : entries?.length === 0 ? (
                 <p className="m-0 p-2 text-[12px] text-muted">{t('sshHost.folderPicker.empty')}</p>
             ) : (
-                entries?.map((entry) => (
-                    <div key={entry.path} role="listitem">
-                        <button
-                            className="flex h-7 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:outline-none"
-                            type="button"
-                            onClick={() => onOpen(entry)}
-                        >
-                            <Folder aria-hidden="true" className="flex-none text-muted" size={14} />
-                            <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                            {entry.isGitRepository && (
-                                <span
-                                    aria-label={t('sshHost.folderPicker.gitRepositoryDescription')}
-                                    className="flex-none rounded bg-elevated px-1.5 text-[10px] text-muted"
-                                >
-                                    {t('sshHost.folderPicker.gitRepository')}
-                                </span>
-                            )}
-                            {entry.hasChildren && (
-                                <ChevronRight
+                <ul
+                    aria-busy={isNavigating}
+                    aria-label={t('sshHost.folderPicker.listLabel')}
+                    className="m-0 list-none p-0"
+                >
+                    {entries?.map((entry) => (
+                        <li key={entry.path}>
+                            <button
+                                className="flex h-7 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:outline-none"
+                                type="button"
+                                onClick={() => onOpen(entry)}
+                            >
+                                <Folder
                                     aria-hidden="true"
                                     className="flex-none text-muted"
-                                    size={13}
+                                    size={14}
                                 />
-                            )}
-                        </button>
-                    </div>
-                ))
+                                <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                                {entry.isGitRepository && (
+                                    <span
+                                        aria-label={t(
+                                            'sshHost.folderPicker.gitRepositoryDescription',
+                                        )}
+                                        className="flex-none rounded bg-elevated px-1.5 text-[10px] text-muted"
+                                    >
+                                        {t('sshHost.folderPicker.gitRepository')}
+                                    </span>
+                                )}
+                                {entry.hasChildren && (
+                                    <ChevronRight
+                                        aria-hidden="true"
+                                        className="flex-none text-muted"
+                                        size={13}
+                                    />
+                                )}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
             )}
         </div>
     );

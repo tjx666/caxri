@@ -346,8 +346,10 @@ export async function ensureLinuxNatives(
     architecture: LinuxArchitecture,
     runtime: LinuxRuntimeSource,
 ): Promise<LinuxNatives> {
-    const key = await nativesCacheKey(architecture, runtime);
-    const watcherPackage = await ensureWatcherPackage(architecture);
+    const [key, watcherPackage] = await Promise.all([
+        nativesCacheKey(architecture, runtime),
+        ensureWatcherPackage(architecture),
+    ]);
     const override = process.env.CAXRI_LINUX_NATIVES_DIR;
     if (override)
         return { ...(await prebuiltNatives(override, architecture, key)), watcherPackage };
@@ -418,8 +420,10 @@ async function exportLinuxNatives(
     directory: string,
 ): Promise<string> {
     const runtime = await ensureLinuxRuntime(architecture, version);
-    const key = await nativesCacheKey(architecture, runtime);
-    const natives = await ensureLinuxNatives(architecture, runtime);
+    const [key, natives] = await Promise.all([
+        nativesCacheKey(architecture, runtime),
+        ensureLinuxNatives(architecture, runtime),
+    ]);
     const output = resolve(directory, `linux-${architecture}`);
     await rm(output, { force: true, recursive: true });
     await mkdir(output, { recursive: true });
