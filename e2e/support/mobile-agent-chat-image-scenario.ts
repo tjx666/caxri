@@ -188,14 +188,20 @@ async function attachGalleryImage(serial: string, index: number): Promise<void> 
     await waitForCheck(serial, 'image-source-library');
     await tapMobileCheck(serial, 'image-source-library');
     await tapMobileNativeControl(serial, { singleImageTile: true });
-    await waitForMobile(
-        () => mobileSemantics(serial),
-        (nodes) =>
-            hasCheck(nodes, 'session-image-attachments') &&
-            nodes.every(({ checkId }) => !checkId.startsWith('session-image-status-')) &&
-            (index === 0 || !hasCheck(nodes, 'image-source-library')),
-        60_000,
-    );
+    try {
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, `session-image-remove-${index}`) &&
+                nodes.every(({ checkId }) => !checkId.startsWith('session-image-status-')) &&
+                !hasCheck(nodes, 'image-source-library'),
+            60_000,
+        );
+    } catch (error) {
+        // A local diagnostic frame of the picker or composer; it never enters the report.
+        await captureMobileFramebuffer(serial, `/tmp/mob-chat-12-attach-${index}.png`);
+        throw error;
+    }
 }
 
 /**
