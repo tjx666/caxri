@@ -4,6 +4,7 @@ import type {
     SessionPullRequests,
 } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import type { SessionActivityPresentation } from './session-activity';
 
 export type SessionPullRequestIcon = 'closed' | 'deployed' | 'draft' | 'merged' | 'open';
@@ -63,13 +64,6 @@ export function selectSessionPullRequest(
     return { ...(pullRequest && { pullRequest }), ...(unavailable && { unavailable }) };
 }
 
-const STATE_LABELS: Record<SessionPullRequest['state'], string> = {
-    closed: 'Closed',
-    draft: 'Draft',
-    merged: 'Merged',
-    open: 'Open',
-};
-
 /**
  * What a merged pull request became once the hosting provider rebuilt production from it.
  *
@@ -85,36 +79,37 @@ function deployedPresentation(
     deployment: SessionPullRequest['deployment'],
     number: number,
 ): SessionPullRequestPresentation | undefined {
-    const base = `Pull request #${number} merged`;
     switch (deployment?.state) {
         case 'success':
             return {
-                ariaLabel: `${base} and deployed to production.`,
+                ariaLabel: translate('primarySidebar.pullRequest.deployed.ariaLabel', { number }),
                 icon: 'deployed',
-                label: 'Deployed',
+                label: translate('primarySidebar.pullRequest.deployed.label'),
                 // The merged violet, not the open green: a shipped rocket is where a merged pull request goes next,
                 // and at 13px a green rocket beside a green open PR read as the same state.
                 tone: 'merged',
-                checksLabel: 'Deployed to production',
+                checksLabel: translate('primarySidebar.pullRequest.deployed.checks'),
                 checksTone: 'success',
             };
         case 'failure':
             return {
-                ariaLabel: `${base}, production deployment failed.`,
+                ariaLabel: translate('primarySidebar.pullRequest.deployFailed.ariaLabel', {
+                    number,
+                }),
                 icon: 'deployed',
-                label: 'Deploy failed',
+                label: translate('primarySidebar.pullRequest.deployFailed.label'),
                 tone: 'danger',
-                checksLabel: 'Production deployment failed',
+                checksLabel: translate('primarySidebar.pullRequest.deployFailed.checks'),
                 checksTone: 'danger',
             };
         case 'pending':
         case 'queued':
             return {
-                ariaLabel: `${base}, deploying to production.`,
+                ariaLabel: translate('primarySidebar.pullRequest.deploying.ariaLabel', { number }),
                 icon: 'deployed',
-                label: 'Deploying',
+                label: translate('primarySidebar.pullRequest.deploying.label'),
                 tone: 'warning',
-                checksLabel: 'Deploying to production',
+                checksLabel: translate('primarySidebar.pullRequest.deploying.checks'),
                 checksTone: 'warning',
             };
         default:
@@ -129,48 +124,51 @@ function deployedPresentation(
 export function sessionPullRequestPresentation(
     pullRequest: SessionPullRequest,
 ): SessionPullRequestPresentation {
-    const label = STATE_LABELS[pullRequest.state];
-    const base = `Pull request #${pullRequest.number} ${label.toLowerCase()}`;
+    const label = translate(`primarySidebar.pullRequest.state.${pullRequest.state}`);
+    const { number } = pullRequest;
+    const base = translate(`primarySidebar.pullRequest.base.${pullRequest.state}`, { number });
+    const withChecks = (checks: 'cancelled' | 'failing' | 'passing' | 'queued' | 'running') => ({
+        ariaLabel: translate(`primarySidebar.pullRequest.checks.${checks}.ariaLabel`, { base }),
+        checksLabel: translate(`primarySidebar.pullRequest.checks.${checks}.label`),
+    });
+    const sentence = translate('primarySidebar.pullRequest.sentence', { base });
     switch (pullRequest.state) {
         case 'merged':
             return (
                 deployedPresentation(pullRequest.deployment, pullRequest.number) ?? {
-                    ariaLabel: `${base}.`,
+                    ariaLabel: sentence,
                     icon: 'merged',
                     label,
                     tone: 'merged',
                 }
             );
         case 'closed':
-            return { ariaLabel: `${base}.`, icon: 'closed', label, tone: 'danger' };
+            return { ariaLabel: sentence, icon: 'closed', label, tone: 'danger' };
         case 'draft':
-            return { ariaLabel: `${base}.`, icon: 'draft', label, tone: 'neutral' };
+            return { ariaLabel: sentence, icon: 'draft', label, tone: 'neutral' };
         case 'open': {
             if (pullRequest.checks === 'cancelled')
                 return {
-                    ariaLabel: `${base}, checks cancelled.`,
+                    ...withChecks('cancelled'),
                     icon: 'open',
                     label,
                     tone: 'success',
-                    checksLabel: 'Checks cancelled',
                     checksTone: 'neutral',
                 };
             if (pullRequest.checks === 'failure')
                 return {
-                    ariaLabel: `${base}, checks failing.`,
+                    ...withChecks('failing'),
                     icon: 'open',
                     label,
                     tone: 'success',
-                    checksLabel: 'Checks failing',
                     checksTone: 'danger',
                 };
             if (pullRequest.checks === 'pending')
                 return {
-                    ariaLabel: `${base}, checks running.`,
+                    ...withChecks('running'),
                     icon: 'open',
                     label,
                     tone: 'success',
-                    checksLabel: 'Checks running',
                     checksTone: 'warning',
                 };
             /*
@@ -182,23 +180,21 @@ export function sessionPullRequestPresentation(
              */
             if (pullRequest.checks === 'queued')
                 return {
-                    ariaLabel: `${base}, checks queued.`,
+                    ...withChecks('queued'),
                     icon: 'open',
                     label,
                     tone: 'success',
-                    checksLabel: 'Checks queued',
                     checksTone: 'warning',
                 };
             if (pullRequest.checks === 'success')
                 return {
-                    ariaLabel: `${base}, checks passing.`,
+                    ...withChecks('passing'),
                     icon: 'open',
                     label,
                     tone: 'success',
-                    checksLabel: 'Checks passing',
                     checksTone: 'success',
                 };
-            return { ariaLabel: `${base}.`, icon: 'open', label, tone: 'success' };
+            return { ariaLabel: sentence, icon: 'open', label, tone: 'success' };
         }
     }
 }

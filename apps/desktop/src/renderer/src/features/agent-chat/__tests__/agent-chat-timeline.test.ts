@@ -62,7 +62,7 @@ const shape = (entries: readonly AgentChatTimelineEntry[]): unknown =>
               ? entry.items.map((item) => item.id)
               : entry.kind === 'artifacts'
                 ? entry.id
-                : { [entry.label]: shape(entry.entries) },
+                : { [agentChatTurnLabel(entry)]: shape(entry.entries) },
     );
 
 describe('buildAgentChatTimeline', () => {
@@ -259,16 +259,14 @@ describe('buildAgentChatTimeline', () => {
 
 describe('agentChatTurnLabel', () => {
     it('names how the turn ended', () => {
-        expect(agentChatTurnLabel({ id: 't', status: 'completed', durationMs: 45_000 })).toBe(
+        expect(agentChatTurnLabel({ status: 'completed', durationMs: 45_000 })).toBe(
             'Worked for 45s',
         );
-        expect(agentChatTurnLabel({ id: 't', status: 'interrupted', durationMs: 3000 })).toBe(
+        expect(agentChatTurnLabel({ status: 'interrupted', durationMs: 3000 })).toBe(
             'Stopped after 3s',
         );
-        expect(agentChatTurnLabel({ id: 't', status: 'failed' })).toBe('Failed');
-        expect(agentChatTurnLabel({ id: 't', status: 'completed', durationMs: 400 })).toBe(
-            'Worked',
-        );
+        expect(agentChatTurnLabel({ status: 'failed' })).toBe('Failed');
+        expect(agentChatTurnLabel({ status: 'completed', durationMs: 400 })).toBe('Worked');
     });
 });
 

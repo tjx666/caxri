@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { pushToast } from '../../stores/toasts';
 
 /**
@@ -9,5 +10,5 @@ import { pushToast } from '../../stores/toasts';
  */
 export function announceAgentChatSelectionCopy(): void {
     if (!getSelection()?.toString().trim()) return;
-    pushToast('success', 'Selection copied');
+    pushToast('success', translate('agentChat.timeline.selectionCopied'));
 }

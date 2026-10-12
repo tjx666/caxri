@@ -3,17 +3,26 @@ import { agentTranscriptTabPath } from '@caxri/protocol';
 import { capitalize } from 'es-toolkit';
 import { CircleDot } from 'lucide-react';
 
+import type { TranslationKey } from '../../../../i18n';
+import { useTranslation } from '../../../../i18n';
 import { resolveAgentIcon } from '../../../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../../../icons/agents/agent-identity-icon';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery } from '../../../../queries/client';
 import { useSelectedSession, useSessionTerminals } from '../../../../stores/selectors';
 import { openEditorTab } from '../../../editor/document-commands';
-import { FAILURE_REASON_LABELS } from '../../../terminal/terminal-exit-presentation';
+import { FAILURE_REASON_LABEL_KEYS } from '../../../terminal/terminal-exit-presentation';
 
-function processStateLabel(state: TerminalRecord['lastProcessState']): string {
-    return capitalize(state);
-}
+const PROCESS_STATE_LABEL_KEYS: Record<TerminalRecord['lastProcessState'], TranslationKey> = {
+    running: 'panel.terminalInfo.state.running',
+    starting: 'panel.terminalInfo.state.starting',
+    stopped: 'panel.terminalInfo.state.stopped',
+    dead: 'panel.terminalInfo.state.dead',
+    failed: 'panel.terminalInfo.state.failed',
+    interrupted: 'panel.terminalInfo.state.interrupted',
+    suspended: 'panel.terminalInfo.state.suspended',
+    detached: 'panel.terminalInfo.state.detached',
+};
 
 const terminalStateColor: Record<TerminalRecord['lastProcessState'], string> = {
     running: 'text-success',
@@ -37,6 +46,7 @@ const terminalStateColor: Record<TerminalRecord['lastProcessState'], string> = {
  * the read-only transcript viewer tab.
  */
 function TerminalTranscriptRow({ terminal }: { terminal: TerminalRecord }) {
+    const { t } = useTranslation();
     const transcript = useCaxriQuery(
         'terminal.agentTranscript',
         { terminalId: terminal.id, withContent: false },
@@ -45,16 +55,16 @@ function TerminalTranscriptRow({ terminal }: { terminal: TerminalRecord }) {
     if (!transcript.data) return null;
     return (
         <>
-            <dt className="text-muted">Transcript</dt>
+            <dt className="text-muted">{t('panel.terminalInfo.transcript')}</dt>
             <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
                 <button
                     type="button"
                     className="cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline"
-                    title={
+                    title={t(
                         transcript.data.exists
-                            ? 'Open transcript in the editor'
-                            : 'Transcript file not found yet'
-                    }
+                            ? 'panel.terminalInfo.openTranscript'
+                            : 'panel.terminalInfo.transcriptMissing',
+                    )}
                     onClick={() => openEditorTab(agentTranscriptTabPath(terminal.id))}
                 >
                     {transcript.data.path}
@@ -68,18 +78,19 @@ function TerminalTranscriptRow({ terminal }: { terminal: TerminalRecord }) {
  * Scoped to the selected Session's Terminals so another Session's Agents never leak in here.
  */
 export function TerminalInfoPanel() {
+    const { t } = useTranslation();
     const session = useSelectedSession();
     const terminals = useSessionTerminals();
     if (!session)
         return (
             <div className="empty-panel px-3 py-4 text-center text-muted">
-                Create a Session to inspect Terminals.
+                {t('panel.terminalInfo.noSession')}
             </div>
         );
     if (terminals.length === 0)
         return (
             <div className="empty-panel px-3 py-4 text-center text-muted">
-                No Terminals in this Session.
+                {t('panel.terminalInfo.noTerminals')}
             </div>
         );
 
@@ -110,16 +121,16 @@ export function TerminalInfoPanel() {
                             </div>
                             {isPrimary && (
                                 <span className="flex-none rounded bg-elevated px-1 text-[10px] text-muted">
-                                    Title source
+                                    {t('panel.terminalInfo.titleSource')}
                                 </span>
                             )}
                         </div>
                         <dl className="my-2 grid grid-cols-[64px_minmax(0,1fr)] gap-1 text-[11px]">
-                            <dt className="text-muted">Type</dt>
+                            <dt className="text-muted">{t('panel.terminalInfo.type')}</dt>
                             <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
                                 {resolveAgentIcon(terminal.kind).label}
                             </dd>
-                            <dt className="text-muted">Status</dt>
+                            <dt className="text-muted">{t('panel.terminalInfo.status')}</dt>
                             <dd
                                 className={cn(
                                     `terminal-state terminal-state-${terminal.lastProcessState}`,
@@ -128,11 +139,13 @@ export function TerminalInfoPanel() {
                                 )}
                             >
                                 <CircleDot size={12} />
-                                {processStateLabel(terminal.lastProcessState)}
+                                {t(PROCESS_STATE_LABEL_KEYS[terminal.lastProcessState])}
                             </dd>
                             {terminal.provider && (
                                 <>
-                                    <dt className="text-muted">Provider</dt>
+                                    <dt className="text-muted">
+                                        {t('panel.terminalInfo.provider')}
+                                    </dt>
                                     <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
                                         {capitalize(terminal.provider)}
                                     </dd>
@@ -140,21 +153,23 @@ export function TerminalInfoPanel() {
                             )}
                             {terminal.failureReason && (
                                 <>
-                                    <dt className="text-muted">Failure</dt>
+                                    <dt className="text-muted">
+                                        {t('panel.terminalInfo.failure')}
+                                    </dt>
                                     <dd className="m-0 min-w-0 [overflow-wrap:anywhere] text-danger">
-                                        {FAILURE_REASON_LABELS[terminal.failureReason]}
+                                        {t(FAILURE_REASON_LABEL_KEYS[terminal.failureReason])}
                                     </dd>
                                 </>
                             )}
                             {terminal.processId && (
                                 <>
-                                    <dt className="text-muted">PID</dt>
+                                    <dt className="text-muted">{t('panel.terminalInfo.pid')}</dt>
                                     <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
                                         {terminal.processId}
                                     </dd>
                                 </>
                             )}
-                            <dt className="text-muted">Directory</dt>
+                            <dt className="text-muted">{t('panel.terminalInfo.directory')}</dt>
                             <dd
                                 className="m-0 min-w-0 [overflow-wrap:anywhere]"
                                 title={terminal.cwd}
@@ -163,21 +178,23 @@ export function TerminalInfoPanel() {
                             </dd>
                             {terminal.agentSessionId && (
                                 <>
-                                    <dt className="text-muted">Agent Session</dt>
+                                    <dt className="text-muted">
+                                        {t('panel.terminalInfo.agentSession')}
+                                    </dt>
                                     <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
                                         {terminal.agentSessionId}
                                     </dd>
                                 </>
                             )}
                             <TerminalTranscriptRow terminal={terminal} />
-                            <dt className="text-muted">Created</dt>
+                            <dt className="text-muted">{t('panel.terminalInfo.created')}</dt>
                             <dd
                                 className="m-0 min-w-0 [overflow-wrap:anywhere]"
                                 title={new Date(terminal.createdAt).toISOString()}
                             >
                                 {new Date(terminal.createdAt).toLocaleString()}
                             </dd>
-                            <dt className="text-muted">Updated</dt>
+                            <dt className="text-muted">{t('panel.terminalInfo.updated')}</dt>
                             <dd
                                 className="m-0 min-w-0 [overflow-wrap:anywhere]"
                                 title={new Date(terminal.updatedAt).toISOString()}

@@ -1,5 +1,6 @@
 import type { TreeItemDto } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { isCancelledRequest, pushToast } from '../../stores/toasts';
@@ -73,7 +74,11 @@ export async function runTreeItemCommand(
         const [url] = command.arguments ?? [];
         if (typeof url === 'string')
             await openExternalUrl(url, (message) => pushToast('error', message));
-        else pushToast('error', `Unable to run ${command.title}. The link is missing.`);
+        else
+            pushToast(
+                'error',
+                translate('viewContainers.commands.linkMissing', { title: command.title }),
+            );
         return;
     }
     if (command.id === SEND_TO_AGENT_COMMAND) {

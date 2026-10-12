@@ -1,8 +1,9 @@
 import type { Keybinding } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
+import { mainLocale, setMainLanguage } from '../locale';
 import { buildAppMenuTemplate } from '../menu';
-import { createMenuRefreshController } from '../menu-refresh';
+import { createMenuRefreshController, createMenuStateLoader } from '../menu-refresh';
 
 function copyBinding(key: string): Keybinding[] {
     return [{ command: 'terminal.copy', key }];
@@ -75,5 +76,23 @@ describe('Main menu refresh controller', () => {
 
         expect(loadKeybindings).toHaveBeenCalledTimes(2);
         expect(applied).toEqual(['Copy Selection [⌘C]', 'Copy Selection [⇧⌘C]']);
+    });
+
+    it('applies the language setting with each menu read', async () => {
+        const request = vi.fn((method: string) =>
+            Promise.resolve(
+                method === 'settings.get'
+                    ? { value: { 'workbench.language': null } }
+                    : { value: copyBinding('cmd+c') },
+            ),
+        );
+        const load = createMenuStateLoader(
+            () => ({ request }) as never,
+            () => ['zh-CN'],
+        );
+
+        expect(await load()).toEqual(copyBinding('cmd+c'));
+        expect(mainLocale()).toBe('zh-CN');
+        setMainLanguage(null, []);
     });
 });

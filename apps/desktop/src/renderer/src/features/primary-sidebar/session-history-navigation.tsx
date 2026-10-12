@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { navigateSessionHistory } from '../session/session-commands';
 import type { SessionNavigationDirection } from '../session/session-navigation-history';
 import { useSessionNavigationHistoryStore } from '../session/session-navigation-history';
@@ -15,6 +16,7 @@ function SessionHistoryButton({ direction }: { direction: SessionNavigationDirec
         direction === 'back' ? state.canGoBack : state.canGoForward,
     );
     const Icon = direction === 'back' ? ArrowLeft : ArrowRight;
+    const { t } = useTranslation();
     return (
         <CommandTooltip
             commandId={direction === 'back' ? 'session.navigateBack' : 'session.navigateForward'}
@@ -23,7 +25,11 @@ function SessionHistoryButton({ direction }: { direction: SessionNavigationDirec
                 className="text-muted enabled:hover:text-foreground"
                 size="icon"
                 variant="ghost"
-                aria-label={direction === 'back' ? 'Go Back' : 'Go Forward'}
+                aria-label={t(
+                    direction === 'back'
+                        ? 'primarySidebar.history.back'
+                        : 'primarySidebar.history.forward',
+                )}
                 data-session-history={direction}
                 disabled={!isEnabled}
                 onClick={() => navigateSessionHistory(direction)}

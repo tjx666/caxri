@@ -1,1 +1,57 @@
-export const agentStatus = {} as const;
+export const agentStatus = {
+    // Provider service status, worded like the provider's own status page
+    'agentStatus.service.operational': 'Operational',
+    'agentStatus.service.maintenance': 'Under maintenance',
+    'agentStatus.service.degraded': 'Degraded performance',
+    'agentStatus.service.partialOutage': 'Partial outage',
+    'agentStatus.service.majorOutage': 'Major outage',
+    'agentStatus.failure.network': 'Status unavailable: the status page could not be reached',
+    'agentStatus.failure.http': 'Status unavailable: the status page answered with an error',
+    'agentStatus.failure.invalidResponse': 'Status unavailable: the status page changed its format',
+    'agentStatus.affectedComponents': '{{status}}: {{components}}',
+    'agentStatus.alertLabel': 'API status: {{status}}',
+    'agentStatus.phase.investigating': 'Investigating',
+    'agentStatus.phase.identified': 'Identified',
+    'agentStatus.phase.monitoring': 'Monitoring',
+    'agentStatus.phase.resolved': 'Resolved',
+    'agentStatus.phase.postmortem': 'Postmortem',
+    'agentStatus.moreIncidents': '+{{count}} more',
+    'agentStatus.incidentWithPhase': '{{name}} ({{phase}})',
+    // Status-bar card summary
+    'agentStatus.summary.readFailed': 'Could not read the status page',
+    'agentStatus.summary.checking': 'Checking…',
+    // Agent status tab
+    'agentStatus.page.terminalClosed': 'This Terminal is no longer open; figures stop updating.',
+    // Output speed section
+    'agentStatus.throughput.title': 'Output speed',
+    'agentStatus.throughput.loading': 'Reading the transcript…',
+    'agentStatus.throughput.error': "Couldn't read the Agent's transcript.",
+    'agentStatus.throughput.closed': 'Nothing was measured before this Terminal closed.',
+    'agentStatus.throughput.notMeasured':
+        'No response has been measured yet. Speed appears after the Agent finishes its first response.',
+    'agentStatus.throughput.chartLabel': 'Output speed of the last {{count}} responses',
+    'agentStatus.throughput.barDescription': '{{sample}}, finished {{time}}',
+    'agentStatus.throughput.recentAverage': 'Recent average',
+    'agentStatus.throughput.lastResponse': 'Last response',
+    'agentStatus.throughput.thisTurn': 'This turn',
+    'agentStatus.throughput.noResponseThisTurn': 'No response yet in this turn',
+    'agentStatus.throughput.firstToken': 'First token',
+    'agentStatus.throughput.firstTokenNotReported': 'Not reported for the last finished turn',
+    'agentStatus.throughput.firstTokenLastTurn': 'In the last finished turn',
+    'agentStatus.throughput.agentSession': 'Agent Session',
+    'agentStatus.throughput.chartCaption':
+        'Last {{count}} responses, oldest first; the dashed line is the recent average',
+    'agentStatus.throughput.chartPending': 'The chart appears after a second measured response.',
+    // API status section
+    'agentStatus.provider.title': 'API status',
+    'agentStatus.provider.pageTitle': '{{page}} API status',
+    'agentStatus.provider.readFailed': "Caxri could not read {{agent}}'s status page.",
+    'agentStatus.provider.noPage': '{{agent}} has no public status page to read.',
+    'agentStatus.provider.checking': 'Checking the status page…',
+    'agentStatus.provider.openPage': 'Open status page',
+    'agentStatus.provider.checkedAgo': 'Checked {{time}}',
+    'agentStatus.provider.updatedAgo': 'updated {{time}}',
+    'agentStatus.provider.unavailable': '{{reason}}. Caxri tries again every minute.',
+    'agentStatus.provider.activeIncidents': 'Active incidents',
+    'agentStatus.provider.noIncidents': 'No open incident affects these components.',
+} as const;

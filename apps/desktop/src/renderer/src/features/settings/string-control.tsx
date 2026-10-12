@@ -1,7 +1,9 @@
 import type { StringSettingSpec } from '@caxri/protocol';
 
 import { Input } from '../../components/ui/input';
+import { useTranslation } from '../../i18n';
 import { isMonospaceStringSetting } from './monospace-string-fields';
+import { settingPlaceholder } from './setting-spec-text';
 
 interface StringControlProperties {
     id: string;
@@ -17,6 +19,7 @@ interface StringControlProperties {
  * font cannot shape (box-drawing, curly quotes) still resolve.
  */
 export function StringControl({ id, label, spec, value, onChange }: StringControlProperties) {
+    const { t } = useTranslation();
     return (
         <Input
             id={id}
@@ -24,7 +27,7 @@ export function StringControl({ id, label, spec, value, onChange }: StringContro
             className={
                 isMonospaceStringSetting(spec.key) ? 'bg-background font-mono' : 'bg-background'
             }
-            placeholder={spec.placeholder}
+            placeholder={settingPlaceholder(t, spec)}
             value={value ?? ''}
             onChange={(event) =>
                 onChange(event.target.value === '' && spec.nullable ? null : event.target.value)

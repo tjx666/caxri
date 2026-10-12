@@ -2,6 +2,7 @@ import { Eye, FileCode } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import type { PreviewTabSwitch } from './preview-commands';
 import { openFilePreviewToSide, openPreviewSource } from './preview-commands';
 
@@ -15,8 +16,9 @@ import { openFilePreviewToSide, openPreviewSource } from './preview-commands';
  * a button that does nothing.
  */
 export function PreviewTabAction({ tabSwitch }: { tabSwitch: PreviewTabSwitch }) {
+    const { t } = useTranslation();
     const isSource = tabSwitch.kind === 'openSource';
-    const label = isSource ? 'Open Source' : 'Open Preview to the Side';
+    const label = t(isSource ? 'preview.openSource' : 'preview.openPreviewToSide');
     return (
         <Tooltip content={label}>
             <Button

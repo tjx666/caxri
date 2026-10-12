@@ -18,6 +18,7 @@ import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useContextMenu } from '../../hooks/use-context-menu';
+import { useTranslation } from '../../i18n';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { readCommandShortcut, useCommandShortcut } from '../../lib/keybindings';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
@@ -98,6 +99,7 @@ function TerminalRecoveryActions({
      * the same words the Session row and tab menus use for the same request; a Shell (or an Agent that must be set up
      * again) says "Restart Terminal".
      */
+    const { t } = useTranslation();
     const restartShortcut = useCommandShortcut('terminal.restart');
     // Automatic restore owns the Terminal until it settles into a state requiring user action.
     if (processState === 'interrupted' || processState === 'suspended') return null;
@@ -109,31 +111,34 @@ function TerminalRecoveryActions({
         return (
             <CommandTooltip commandId="session.resume">
                 <Button
-                    aria-label="Resume Agent"
+                    aria-label={t('terminal.recovery.resumeAgent')}
                     className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
                     size="sm"
                     variant="ghost"
                     onClick={() => resumeSession(sessionId)}
                 >
-                    <RotateCcw size={12} /> Resume
+                    <RotateCcw size={12} /> {t('terminal.recovery.resume')}
                 </Button>
             </CommandTooltip>
         );
     const isNeedsSettings = processState === 'failed' && failureReason === 'executable_not_found';
-    const restartDescription =
-        !isNeedsSettings && resumesAgentSession ? 'Restart Agent' : 'Restart Terminal';
+    const restartDescription = t(
+        !isNeedsSettings && resumesAgentSession
+            ? 'terminal.recovery.restartAgent'
+            : 'terminal.recovery.restartTerminal',
+    );
     return (
         <>
             {isNeedsSettings && (
                 <CommandTooltip commandId="settings.open">
                     <Button
-                        aria-label="Open Settings"
+                        aria-label={t('terminal.recovery.openSettings')}
                         className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
                         size="sm"
                         variant="ghost"
                         onClick={() => terminalPaneHost().openSettings(provider)}
                     >
-                        <Settings2 size={12} /> Open Settings
+                        <Settings2 size={12} /> {t('terminal.recovery.openSettings')}
                     </Button>
                 </CommandTooltip>
             )}
@@ -145,19 +150,19 @@ function TerminalRecoveryActions({
                     variant="ghost"
                     onClick={() => restartTerminal(terminalId)}
                 >
-                    <RotateCcw size={12} /> Restart
+                    <RotateCcw size={12} /> {t('terminal.recovery.restart')}
                 </Button>
             </Tooltip>
             {resumesAgentSession && !isNeedsSettings && (
                 <CommandTooltip commandId="terminal.startNewAgentSession">
                     <Button
-                        aria-label="Start New Conversation"
+                        aria-label={t('terminal.recovery.startNewConversation')}
                         className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
                         size="sm"
                         variant="ghost"
                         onClick={() => startNewAgentSession(terminalId)}
                     >
-                        <MessageSquarePlus size={12} /> New Conversation
+                        <MessageSquarePlus size={12} /> {t('terminal.recovery.newConversation')}
                     </Button>
                 </CommandTooltip>
             )}
@@ -182,6 +187,8 @@ function TerminalRecoveryBar({
     sessionId: string | undefined;
     terminalId: string;
 }) {
+    // Subscribes to the locale so the translated exit copy below follows a language change.
+    useTranslation();
     const exitPresentation = getTerminalExitPresentation(
         processState,
         failureReason,
@@ -242,6 +249,7 @@ export function TerminalPane({
     isPaneVisible,
     terminalId,
 }: TerminalPaneProperties) {
+    const { t } = useTranslation();
     const terminal = useTerminal(terminalId);
     // The Terminal's own Session, not the selected one: a kept-alive Workbench renders Terminals that belong to a
     // Session the user has switched away from, and they must keep resolving paths against their own Project root.
@@ -362,16 +370,23 @@ export function TerminalPane({
      */
     const openContextMenu = useContextMenu(() => [
         {
-            label: 'Copy',
+            label: t('common.copy'),
             disabled: !hasActiveTerminalSelection(terminalId),
             onSelect: () => copyActiveTerminalSelection(terminalId),
         },
-        { label: 'Paste', disabled: !isRunning, onSelect: () => pasteFromClipboard() },
-        CONTEXT_MENU_SEPARATOR,
-        { label: 'Clear', onSelect: () => clearActiveTerminal(terminalId) },
-        { label: 'Find in Terminal', onSelect: () => findInActiveTerminal(terminalId) },
         {
-            label: 'Open Detected Link…',
+            label: t('terminal.contextMenu.paste'),
+            disabled: !isRunning,
+            onSelect: () => pasteFromClipboard(),
+        },
+        CONTEXT_MENU_SEPARATOR,
+        { label: t('common.clear'), onSelect: () => clearActiveTerminal(terminalId) },
+        {
+            label: t('terminal.search.inputLabel'),
+            onSelect: () => findInActiveTerminal(terminalId),
+        },
+        {
+            label: t('terminal.contextMenu.openDetectedLink'),
             shortcut: readCommandShortcut('terminal.openDetectedLink'),
             onSelect: () => openTerminalLinkPicker(terminalId),
         },
@@ -408,7 +423,7 @@ export function TerminalPane({
                     role="status"
                 >
                     <Smartphone aria-hidden="true" size={12} />
-                    <span>Phone controls Terminal size</span>
+                    <span>{t('terminal.mobileSizeOwnership')}</span>
                     {/* Ticks on every mobile resize; `aria-hidden` keeps it out of the live region so screen readers
                     announce the ownership sentence once instead of re-announcing a grid size on every tick. */}
                     <span aria-hidden="true" className="ml-auto font-mono tabular-nums">
@@ -452,7 +467,7 @@ export function TerminalPane({
                     className="flex min-h-7 flex-none items-center gap-2 border-t border-border bg-surface px-2 text-[11px] text-muted"
                     role="status"
                 >
-                    <Spinner size={14} /> Saving pasted text…
+                    <Spinner size={14} /> {t('terminal.longPaste.saving')}
                 </div>
             )}
             <TerminalRecoveryBar

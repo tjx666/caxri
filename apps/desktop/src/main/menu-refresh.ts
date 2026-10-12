@@ -1,5 +1,9 @@
 import type { Keybinding } from '@caxri/protocol';
 
+import { setMainLanguage } from './locale';
+import { createMenuKeybindingFailureInjection } from './menu-keybinding-failure';
+import type { DesktopServerConnection } from './server-connection';
+
 export interface MenuRefreshControllerOptions {
     applyKeybindings(keybindings: Keybinding[]): void;
     loadKeybindings(): Promise<Keybinding[]>;
@@ -53,5 +57,23 @@ export function createMenuRefreshController(
             inFlight = track(run());
             return inFlight;
         },
+    };
+}
+
+/**
+ * Reads everything the native menu renders: the keybindings for its accelerators and the language for its labels.
+ */
+export function createMenuStateLoader(
+    server: () => Pick<DesktopServerConnection, 'request'>,
+    systemLanguages: () => readonly string[],
+): () => Promise<Keybinding[]> {
+    const injectMenuKeybindingFailure = createMenuKeybindingFailureInjection();
+    return async () => {
+        const [keybindings, settings] = await Promise.all([
+            server().request('keybindings.get'),
+            server().request('settings.get'),
+        ]);
+        setMainLanguage(settings.value['workbench.language'], systemLanguages());
+        return injectMenuKeybindingFailure(keybindings.value);
     };
 }

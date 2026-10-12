@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useContextMenu } from '../../../hooks/use-context-menu';
+import { useTranslation } from '../../../i18n';
 import type { ContextMenuEntries } from '../../../lib/context-menu';
 import { showContextMenu } from '../../../lib/context-menu';
 import { cn } from '../../../lib/utilities';
@@ -37,6 +38,7 @@ export function SourceControlTreeRow({
      */
     tooltip?: ReactNode;
 }) {
+    const { t } = useTranslation();
     const focus = useSourceControlTreeFocus();
     const hasMenu = Boolean(menuItems?.length);
     const menu = (): ContextMenuEntries =>
@@ -55,9 +57,12 @@ export function SourceControlTreeRow({
             )}
             aria-level={level}
             aria-description={
-                [properties['aria-description'], hasMenu && 'Press Shift+F10 for actions']
+                [
+                    properties['aria-description'],
+                    hasMenu && t('viewContainers.sourceControl.rowMenuHint'),
+                ]
                     .filter(Boolean)
-                    .join('. ') || undefined
+                    .join(t('viewContainers.sourceControl.hintSeparator')) || undefined
             }
             data-row-id={rowId}
             role="treeitem"

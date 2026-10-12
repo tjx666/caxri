@@ -8,6 +8,7 @@ import {
 } from '@caxri/protocol';
 import type { BaseWindow, KeyboardEvent, MenuItem, MenuItemConstructorOptions } from 'electron';
 
+import { translateCommandTitle, translateMain } from './locale';
 import { electronAccelerator } from './menu-accelerator';
 
 export interface AppMenuOptions {
@@ -108,12 +109,12 @@ function commandAccelerator(
  * @see https://github.com/electron/electron/pull/18985
  */
 function commandLabel(definition: CommandDefinition, keybindings: readonly Keybinding[]): string {
+    const title = translateCommandTitle(definition.id, definition.title);
     const binding = keybindings.find((candidate) => candidate.command === definition.id);
-    if (!binding) return definition.title;
-    if (!isRendererOwnedShortcut(definition.id) && !shortcutLeadingChord(binding.key))
-        return definition.title;
+    if (!binding) return title;
+    if (!isRendererOwnedShortcut(definition.id) && !shortcutLeadingChord(binding.key)) return title;
     const shortcut = formatShortcut(binding.key);
-    return shortcut ? `${definition.title} [${shortcut}]` : definition.title;
+    return shortcut ? `${title} [${shortcut}]` : title;
 }
 
 /**
@@ -210,52 +211,61 @@ export function buildAppMenuTemplate({
     return [
         {
             label: 'Caxri',
+            /**
+             * Role items carry explicit labels: Electron's defaults are English regardless of the app language, and the
+             * menu has to follow the `workbench.language` setting rather than the system language.
+             */
             submenu: [
-                { role: 'about' },
+                { role: 'about', label: translateMain('desktop.menu.about') },
                 { type: 'separator' },
                 ...commandItems('application'),
                 { type: 'separator' },
-                { id: 'app.hide', role: 'hide', accelerator: 'Command+H' },
-                { role: 'hideOthers' },
-                { role: 'unhide' },
+                {
+                    id: 'app.hide',
+                    role: 'hide',
+                    label: translateMain('desktop.menu.hide'),
+                    accelerator: 'Command+H',
+                },
+                { role: 'hideOthers', label: translateMain('desktop.menu.hideOthers') },
+                { role: 'unhide', label: translateMain('desktop.menu.showAll') },
                 { type: 'separator' },
-                { role: 'quit', label: 'Quit Caxri' },
+                { role: 'quit', label: translateMain('desktop.menu.quit') },
             ],
         },
-        { label: 'Project', submenu: commandItems('project') },
-        { label: 'Session', submenu: commandItems('session') },
-        { label: 'Terminal', submenu: commandItems('terminal') },
+        { label: translateMain('desktop.menu.project'), submenu: commandItems('project') },
+        { label: translateMain('desktop.menu.session'), submenu: commandItems('session') },
+        { label: translateMain('desktop.menu.terminal'), submenu: commandItems('terminal') },
         {
-            label: 'Edit',
+            label: translateMain('desktop.menu.edit'),
             submenu: [
-                { role: 'undo' },
-                { role: 'redo' },
+                { role: 'undo', label: translateMain('desktop.menu.undo') },
+                { role: 'redo', label: translateMain('desktop.menu.redo') },
                 { type: 'separator' },
-                { role: 'cut' },
-                { role: 'copy' },
-                { role: 'paste' },
-                { role: 'selectAll' },
+                { role: 'cut', label: translateMain('desktop.menu.cut') },
+                { role: 'copy', label: translateMain('desktop.menu.copy') },
+                { role: 'paste', label: translateMain('desktop.menu.paste') },
+                { role: 'selectAll', label: translateMain('desktop.menu.selectAll') },
             ],
         },
         {
-            label: 'View',
+            label: translateMain('desktop.menu.view'),
             submenu: [
-                { role: 'reload' },
-                { role: 'toggleDevTools' },
+                { role: 'reload', label: translateMain('desktop.menu.reload') },
+                { role: 'toggleDevTools', label: translateMain('desktop.menu.toggleDevTools') },
                 { type: 'separator' },
                 ...commandItems('view'),
             ],
         },
         {
-            label: 'Window',
+            label: translateMain('desktop.menu.window'),
             submenu: [
                 ...commandItems('window'),
                 { type: 'separator' },
-                { role: 'minimize' },
-                { role: 'zoom' },
-                { role: 'front' },
+                { role: 'minimize', label: translateMain('desktop.menu.minimize') },
+                { role: 'zoom', label: translateMain('desktop.menu.zoom') },
+                { role: 'front', label: translateMain('desktop.menu.bringAllToFront') },
             ],
         },
-        { label: 'Help', submenu: commandItems('help') },
+        { label: translateMain('desktop.menu.help'), submenu: commandItems('help') },
     ];
 }

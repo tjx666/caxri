@@ -3,6 +3,7 @@ import { agentProviderCatalog } from '@caxri/protocol';
 
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { skillScopeHealth, skillScopeSummary, skillScopeTone } from './provider-health';
 
@@ -23,10 +24,13 @@ interface ProviderSkillHealthProperties {
  * concrete repair command when an installation needs attention.
  */
 export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkillHealthProperties) {
+    const { t } = useTranslation();
     if (!agentProviderCatalog[provider].capabilities.actions)
         return (
             <span className="text-muted">
-                Bundled skills are unavailable for {agentProviderCatalog[provider].displayName}.
+                {t('settings.providerHealth.skill.unavailable', {
+                    provider: agentProviderCatalog[provider].displayName,
+                })}
             </span>
         );
     return (
@@ -35,11 +39,13 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
             className="rounded-sm border border-border p-2 text-[11px] text-muted"
         >
             <span className="flex items-center justify-between gap-3 text-foreground">
-                <span>Bundle</span>
+                <span>{t('settings.providerHealth.skill.bundle')}</span>
                 <span className="font-mono text-[10px] text-muted">
                     {agentSkillHealth
-                        ? `Bundled v${agentSkillHealth.bundled.bundledVersion}`
-                        : 'Checking bundle…'}
+                        ? t('settings.providerHealth.skill.bundledVersion', {
+                              version: agentSkillHealth.bundled.bundledVersion,
+                          })
+                        : t('settings.providerHealth.skill.checkingBundle')}
                 </span>
             </span>
             {(['local', 'global'] as const).map((scope) => {
@@ -61,7 +67,7 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
                                 scopeToneClassName[skillScopeTone(installation)],
                             )}
                         >
-                            {skillScopeSummary(agentSkillHealth, installation, scope)}
+                            {skillScopeSummary(t, agentSkillHealth, installation, scope)}
                         </span>
                         {installation && (
                             <span className="mt-0.5 block">{installation.action}</span>
@@ -73,7 +79,7 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
                                 </code>
                                 <CopyIconButton
                                     className="flex-none"
-                                    label="Copy command"
+                                    label={t('settings.providerHealth.skill.copyCommand')}
                                     copy={() =>
                                         writeToClipboardWithFeedback(
                                             navigator.clipboard,

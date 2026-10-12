@@ -5,6 +5,7 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 
 import { useModalRegistration } from '@/hooks/use-modal-registration';
+import { useTranslation } from '@/i18n';
 import { restorePickerFocus } from '@/lib/picker-final-focus';
 import { cn } from '@/lib/utilities';
 
@@ -76,10 +77,11 @@ export function DialogContent({ backdropClassName, ...properties }: DialogConten
 function DialogPopup({
     className,
     children,
-    closeLabel = 'Close',
+    closeLabel,
     showCloseButton = true,
     ...properties
 }: DialogPopupProperties) {
+    const { t } = useTranslation();
     return (
         <DialogPrimitive.Popup
             data-slot="dialog-content"
@@ -103,7 +105,7 @@ function DialogPopup({
                 <DialogPrimitive.Close
                     data-slot="dialog-close"
                     className="absolute top-2 right-2 grid size-7 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-elevated"
-                    aria-label={closeLabel}
+                    aria-label={closeLabel ?? t('common.close')}
                 >
                     <X aria-hidden="true" size={15} />
                 </DialogPrimitive.Close>

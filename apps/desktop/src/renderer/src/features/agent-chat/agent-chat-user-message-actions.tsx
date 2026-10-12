@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import { GitFork, History, Pencil } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { useAgentChatEdit } from './hooks/use-agent-chat-edit';
 
 const ACTION_BUTTON_CLASS =
@@ -55,6 +56,7 @@ export function AgentChatUserMessageActions({
     text: string;
     onFork: () => void;
 }) {
+    const { t } = useTranslation();
     const edit = useAgentChatEdit();
     if (!edit) return null;
     const { fork, restore } = edit;
@@ -65,7 +67,7 @@ export function AgentChatUserMessageActions({
             <RewindActionButton
                 availability={edit.availability(id)}
                 icon={Pencil}
-                label="Edit from here"
+                label={t('agentChat.message.editFromHere')}
                 onClick={() => edit.startEdit(id, text)}
             />
             {/* `isForking` is owned by the message so its context menu shares it: no second fork while one opens. */}
@@ -74,7 +76,7 @@ export function AgentChatUserMessageActions({
                     availability={fork.availability(id)}
                     icon={GitFork}
                     isBusy={isForking}
-                    label="Fork from here"
+                    label={t('agentChat.message.forkFromHere')}
                     onClick={onFork}
                 />
             )}
@@ -82,7 +84,7 @@ export function AgentChatUserMessageActions({
                 <RewindActionButton
                     availability={restore.availability(id)}
                     icon={History}
-                    label="Restore code to here"
+                    label={t('agentChat.message.restoreCodeToHere')}
                     onClick={() => restore.run(id)}
                 />
             )}

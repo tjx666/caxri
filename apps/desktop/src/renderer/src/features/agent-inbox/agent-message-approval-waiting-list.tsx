@@ -2,6 +2,7 @@ import type { AgentHeldMessage } from '@caxri/protocol';
 import { Inbox } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { heldMessageDeadlineLabel } from './agent-message-approval-state';
 
 interface AgentMessageApprovalWaitingListProperties {
@@ -20,25 +21,27 @@ export function AgentMessageApprovalWaitingList({
     approvals,
     onReview,
 }: AgentMessageApprovalWaitingListProperties) {
+    const { t } = useTranslation();
     if (approvals.length === 0) return null;
 
     return (
         <section
-            aria-label="Peer messages waiting for your decision"
+            aria-label={t('agentInbox.waitingList.label')}
             data-testid="agent-message-approval-waiting-list"
             className="fixed bottom-8 left-4 z-40 w-80 overflow-hidden rounded-lg border border-border bg-elevated shadow-[0_16px_48px_var(--shadow)]"
         >
             <header className="border-b border-border px-3 py-2">
                 <div className="flex items-center gap-2">
                     <Inbox aria-hidden="true" size={14} className="shrink-0 text-muted" />
-                    <h2 className="m-0 text-[12px] font-semibold">Waiting for your decision</h2>
+                    <h2 className="m-0 text-[12px] font-semibold">
+                        {t('agentInbox.waitingList.title')}
+                    </h2>
                     <span className="ml-auto rounded bg-badge px-1.5 text-[11px] text-badge-foreground">
                         {approvals.length}
                     </span>
                 </div>
                 <p className="m-0 mt-1 text-[11px] leading-[1.45] text-muted">
-                    Nothing was answered. Each sender is still waiting until its approval window
-                    closes.
+                    {t('agentInbox.waitingList.hint')}
                 </p>
             </header>
             <ul className="m-0 max-h-52 list-none overflow-auto p-0">
@@ -54,7 +57,9 @@ export function AgentMessageApprovalWaitingList({
                                     className="ml-auto shrink-0 text-[11px] text-muted"
                                     dateTime={new Date(approval.expiresAt).toISOString()}
                                 >
-                                    {`Until ${heldMessageDeadlineLabel(approval.expiresAt)}`}
+                                    {t('agentInbox.waitingList.until', {
+                                        time: heldMessageDeadlineLabel(approval.expiresAt),
+                                    })}
                                 </time>
                             </div>
                             <p className="m-0 truncate text-[11px] text-muted">
@@ -64,10 +69,12 @@ export function AgentMessageApprovalWaitingList({
                         <Button
                             variant="secondary"
                             size="sm"
-                            aria-label={`Review the message from ${approval.from.name}`}
+                            aria-label={t('agentInbox.waitingList.reviewLabel', {
+                                name: approval.from.name,
+                            })}
                             onClick={() => onReview(approval.messageId)}
                         >
-                            Review
+                            {t('agentInbox.waitingList.review')}
                         </Button>
                     </li>
                 ))}

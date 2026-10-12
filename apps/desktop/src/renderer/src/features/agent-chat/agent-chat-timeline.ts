@@ -4,16 +4,17 @@ import type {
     AgentToolKind,
     AgentToolPresentation,
 } from '@caxri/protocol';
-import {
-    agentToolOutcomeLabel,
-    describeAgentTool,
-    formatShortDuration,
-    summarizeAgentToolGroup,
-    unwrapShellCommand,
-} from '@caxri/protocol';
+import { describeAgentTool, formatShortDuration, unwrapShellCommand } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { agentChatMessageFullTime } from './agent-chat-time';
+import {
+    agentChatToolGroupSummary,
+    agentChatToolLabel,
+    agentChatToolOutcomeLabel,
+} from './agent-chat-tool-labels';
 import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { collectAgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 
@@ -60,7 +61,10 @@ export type AgentChatTimelineEntry =
     | {
           kind: 'turn';
           id: string;
-          label: string;
+          /**
+           * How long the turn ran, for its fold row's label (`agentChatTurnLabel`), translated where it renders.
+           */
+          durationMs?: number;
           /**
            * How the turn ended, so a failed or stopped turn's fold row carries its tone, not only its words.
            */
@@ -126,21 +130,28 @@ function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): Flat
  * `Worked for 2m 1s`, or how a turn that did not complete ended. A turn under a second reads as plain `Worked`, as a
  * work row drops its sub-second duration: `<1s` is noise.
  */
-export function agentChatTurnLabel(turn: AgentChatTurn): string {
+export function agentChatTurnLabel(
+    turn: Pick<AgentChatTurn, 'durationMs' | 'status'>,
+    t: Translate = translate,
+): string {
     const duration =
         (turn.durationMs ?? 0) >= 1000 ? formatShortDuration(turn.durationMs) : undefined;
-    const verb =
+    if (duration)
+        return t(
+            turn.status === 'interrupted'
+                ? 'agentChat.fold.stoppedAfter'
+                : turn.status === 'failed'
+                  ? 'agentChat.fold.failedAfter'
+                  : 'agentChat.fold.workedFor',
+            { duration },
+        );
+    return t(
         turn.status === 'interrupted'
-            ? 'Stopped after'
+            ? 'agentChat.fold.stopped'
             : turn.status === 'failed'
-              ? 'Failed after'
-              : 'Worked for';
-    if (duration) return `${verb} ${duration}`;
-    return turn.status === 'interrupted'
-        ? 'Stopped'
-        : turn.status === 'failed'
-          ? 'Failed'
-          : 'Worked';
+              ? 'agentChat.fold.failed'
+              : 'agentChat.fold.worked',
+    );
 }
 
 /**
@@ -148,10 +159,12 @@ export function agentChatTurnLabel(turn: AgentChatTurn): string {
  */
 export function agentChatTurnTimeTooltip(
     entry: Pick<Extract<AgentChatTimelineEntry, { kind: 'turn' }>, 'endedAt' | 'startedAt'>,
+    t: Translate = translate,
 ): string | undefined {
-    if (entry.endedAt !== undefined) return `Finished ${agentChatMessageFullTime(entry.endedAt)}`;
+    if (entry.endedAt !== undefined)
+        return t('agentChat.fold.finishedAt', { time: agentChatMessageFullTime(entry.endedAt) });
     if (entry.startedAt !== undefined)
-        return `Started ${agentChatMessageFullTime(entry.startedAt)}`;
+        return t('agentChat.fold.startedAt', { time: agentChatMessageFullTime(entry.startedAt) });
     return undefined;
 }
 
@@ -196,8 +209,8 @@ function foldTurn(
         entries.push({
             kind: 'turn',
             id: `turn:${turn.id}`,
-            label: agentChatTurnLabel(turn),
             status: turn.status,
+            ...(turn.durationMs !== undefined && { durationMs: turn.durationMs }),
             ...(turn.startedAt !== undefined && { startedAt: turn.startedAt }),
             ...(turn.startedAt !== undefined &&
                 turn.durationMs !== undefined && { endedAt: turn.startedAt + turn.durationMs }),
@@ -339,13 +352,20 @@ export function agentChatReasoningTitle(text: string): { title?: string; body: s
  * tools, so they are described here; every other tool goes through the shared provider tool table. A settled item that
  * did not complete names its outcome in the verb (`Failed to edit`), so the title tells the truth on its own.
  */
-export function describeAgentChatWork(item: AgentChatWorkItem): AgentToolPresentation {
-    const presentation = describeAgentChatWorkAction(item);
+export function describeAgentChatWork(
+    item: AgentChatWorkItem,
+    t: Translate = translate,
+): AgentToolPresentation {
+    const action = describeAgentChatWorkAction(item, t);
+    const presentation = { ...action, label: agentChatToolLabel(action.label, t) };
     if (item.type === 'reasoning' || item.status === 'running') return presentation;
-    return { ...presentation, label: agentToolOutcomeLabel(presentation, item.status) };
+    return { ...presentation, label: agentChatToolOutcomeLabel(presentation, item.status, t) };
 }
 
-function describeAgentChatWorkAction(item: AgentChatWorkItem): AgentToolPresentation {
+/**
+ * The work row's presentation with the protocol's English label; `describeAgentChatWork` translates it.
+ */
+function describeAgentChatWorkAction(item: AgentChatWorkItem, t: Translate): AgentToolPresentation {
     switch (item.type) {
         case 'reasoning': {
             const { title } = agentChatReasoningTitle(item.text);
@@ -370,11 +390,19 @@ function describeAgentChatWorkAction(item: AgentChatWorkItem): AgentToolPresenta
         case 'fileChange': {
             const first = item.changes.at(0);
             const isCreate = item.changes.every((change) => change.kind === 'add');
-            const more = item.changes.length > 1 ? ` +${item.changes.length - 1} more` : '';
+            const name = first && pathBasename(first.path);
             return {
                 kind: isCreate ? 'write' : 'edit',
                 label: isCreate ? 'Created' : 'Edited',
-                ...(first && { subject: `${pathBasename(first.path)}${more}` }),
+                ...(name && {
+                    subject:
+                        item.changes.length > 1
+                            ? t('agentChat.tool.moreFiles', {
+                                  name,
+                                  count: item.changes.length - 1,
+                              })
+                            : name,
+                }),
                 isCodeSubject: true,
                 ...(first && item.changes.length === 1 && { path: first.path }),
             };
@@ -441,7 +469,10 @@ export function agentChatWorkGroupFailure(
  * when it is all the group holds. Items that failed or were declined are counted at the end (`, 1 failed`), so a
  * collapsed group never reads as a clean run.
  */
-export function summarizeAgentChatWork(items: readonly AgentChatWorkItem[]): string {
+export function summarizeAgentChatWork(
+    items: readonly AgentChatWorkItem[],
+    t: Translate = translate,
+): string {
     const tools = items.flatMap((item): Array<{ name: string; summary?: string }> => {
         switch (item.type) {
             case 'reasoning': {
@@ -465,12 +496,14 @@ export function summarizeAgentChatWork(items: readonly AgentChatWorkItem[]): str
         }
     });
     if (tools.length === 0)
-        return items.some((item) => item.type === 'reasoning' && item.streaming)
-            ? 'Thinking'
-            : 'Thought';
+        return t(
+            items.some((item) => item.type === 'reasoning' && item.streaming)
+                ? 'agentChat.tool.label.thinking'
+                : 'agentChat.tool.label.thought',
+        );
     const failed = items.filter((item) => isAgentChatWorkUnsuccessful(item)).length;
-    const summary = summarizeAgentToolGroup(tools);
-    return failed > 0 ? `${summary}, ${failed} failed` : summary;
+    const summary = agentChatToolGroupSummary(tools, t);
+    return failed > 0 ? t('agentChat.workGroup.withFailures', { summary, count: failed }) : summary;
 }
 
 /**

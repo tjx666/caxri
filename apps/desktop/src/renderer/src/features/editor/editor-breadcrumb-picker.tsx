@@ -6,6 +6,7 @@ import { ChevronRight } from 'lucide-react';
 
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { isDirectoryEntry } from '../../lib/file-entry';
 import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
@@ -90,6 +91,7 @@ export function EditorBreadcrumbPicker({
     segment: EditorBreadcrumbSegment;
     sessionId: string;
 }) {
+    const { t } = useTranslation();
     const {
         activeOptionId,
         activePath,
@@ -112,7 +114,7 @@ export function EditorBreadcrumbPicker({
                 ref={listboxReference}
                 aria-activedescendant={activeOptionId}
                 aria-busy={isPending}
-                aria-label={`Contents of ${directoryLabel}`}
+                aria-label={t('editor.breadcrumbs.contentsOf', { directory: directoryLabel })}
                 role="listbox"
                 tabIndex={0}
                 className="max-h-72 overflow-y-auto p-1 outline-none"
@@ -127,7 +129,7 @@ export function EditorBreadcrumbPicker({
                     >
                         <Spinner aria-hidden="true" size={12} />
                         <span aria-live="polite" role="status">
-                            Loading folder…
+                            {t('editor.breadcrumbs.loadingFolder')}
                         </span>
                     </div>
                 )}
@@ -138,7 +140,9 @@ export function EditorBreadcrumbPicker({
                         className="px-2 py-2 text-danger"
                         role="option"
                     >
-                        <span role="alert">{describeFailure(error, 'Unable to read folder')}</span>
+                        <span role="alert">
+                            {describeFailure(error, t('editor.breadcrumbs.readFolderFailed'))}
+                        </span>
                     </div>
                 )}
                 {!isPending && !isError && entries.length === 0 && (
@@ -148,7 +152,7 @@ export function EditorBreadcrumbPicker({
                         className="px-2 py-2 text-muted italic"
                         role="option"
                     >
-                        Empty folder
+                        {t('editor.breadcrumbs.emptyFolder')}
                     </div>
                 )}
                 {!isPending &&
@@ -166,7 +170,9 @@ export function EditorBreadcrumbPicker({
             </div>
             {truncated && (
                 <div aria-live="polite" className="px-2 py-1 text-[11px] text-muted" role="status">
-                    Showing the first {entries.length.toLocaleString()} items
+                    {t('editor.breadcrumbs.truncated', {
+                        count: entries.length.toLocaleString(),
+                    })}
                 </div>
             )}
         </div>

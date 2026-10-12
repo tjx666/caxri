@@ -2,6 +2,8 @@ import type { EditorNavigationTarget } from '@caxri/protocol';
 import { errorMessage, isCaxriError } from '@caxri/protocol';
 import type { ITheme, Terminal } from '@xterm/xterm';
 
+import type { TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import {
@@ -54,9 +56,9 @@ export const onError = (message: string): void => pushToast('error', message);
  * Closing or detaching a Terminal cancels its pending stream operations, sometimes before React tears down the pane.
  * That lifecycle signal needs no notification; actual transport and Server failures remain visible.
  */
-export function reportTerminalOperationError(error: unknown, fallback: string): void {
+export function reportTerminalOperationError(error: unknown, fallback: TranslationKey): void {
     if (isCaxriError(error) && error.code === 'CANCELLED') return;
-    onError(errorMessage(error, fallback));
+    onError(errorMessage(error, translate(fallback)));
 }
 
 /**
@@ -69,7 +71,7 @@ export async function reattachTerminalView(
     terminalId: string,
     replay: TerminalReplayCoordinator,
     readSize: () => TerminalSize | undefined,
-    failureTitle: string,
+    failureTitle: TranslationKey,
 ): Promise<void> {
     markTerminalAttached(terminalId, false);
     try {
@@ -84,13 +86,11 @@ export async function reattachTerminalView(
  * A blocked OSC 52 write is expected policy enforcement, not a failure; it uses `info` (which auto-dismisses) rather
  * than the persistent `error` styling reserved for `onWriteFailure` below.
  */
-export const OSC52_BLOCK_MESSAGES: Record<Osc52BlockReason, string> = {
-    'disabled':
-        'A Terminal program tried to copy to the clipboard, but OSC 52 access is off in Settings.',
-    'malformed': 'A Terminal program sent a malformed clipboard request; it was ignored.',
-    'oversized': 'A Terminal program tried to copy too much text at once; the request was ignored.',
-    'rate-limited':
-        'A Terminal program is copying to the clipboard too quickly; extra requests are being ignored.',
+export const OSC52_BLOCK_MESSAGES: Record<Osc52BlockReason, TranslationKey> = {
+    'disabled': 'terminal.osc52.blocked.disabled',
+    'malformed': 'terminal.osc52.blocked.malformed',
+    'oversized': 'terminal.osc52.blocked.oversized',
+    'rate-limited': 'terminal.osc52.blocked.rateLimited',
 };
 
 export const emptySearchResults: TerminalSearchResults = { resultCount: 0, resultIndex: -1 };
@@ -132,7 +132,7 @@ export function registerTerminalInputHandlers(
             if (expected === undefined) await sendTerminalInput(terminalId, data);
             else await sendTerminalInputToAgent(terminalId, data, expected);
         } catch (error) {
-            if (!isDisposed) reportTerminalOperationError(error, 'Terminal input failed');
+            if (!isDisposed) reportTerminalOperationError(error, 'terminal.errors.inputFailed');
         }
     };
     const dataDisposable = terminal.onData((data) => {
@@ -145,7 +145,7 @@ export function registerTerminalInputHandlers(
         if (!isInputOpen()) return;
         // eslint-disable-next-line no-void -- the request reports its own failure.
         void sendTerminalBinaryInput(terminalId, data, expectedAgentLaunchId()).catch((error) => {
-            if (!isDisposed) reportTerminalOperationError(error, 'Terminal input failed');
+            if (!isDisposed) reportTerminalOperationError(error, 'terminal.errors.inputFailed');
         });
     });
     const unregisterInputGate = registerTerminalInputGate(terminalId, isInputOpen);
@@ -202,7 +202,7 @@ export function registerTerminalPaneLinks(
         await executeViewCatalogShortcut('secondarySidebar.showGit');
         const status = await dispatchExtensionViewAction(
             'caxri.git.openCommit',
-            'Open Git Commit',
+            translate('terminal.links.openGitCommit'),
             [repoId, sha],
         );
         if (status === 'executed')
@@ -218,7 +218,10 @@ export function registerTerminalPaneLinks(
             openTerminalLinkCandidatePicker(
                 latest().terminalId,
                 result.candidates.map((candidate) => ({
-                    accessibleName: `Show commit ${reference} in ${candidate.repositoryName}`,
+                    accessibleName: translate('terminal.links.commitCandidate.accessibleName', {
+                        reference,
+                        repository: candidate.repositoryName,
+                    }),
                     activate: () => {
                         // eslint-disable-next-line no-void -- this helper owns user-visible failure reporting
                         void openCommitCandidate(candidate.repositoryId, candidate.sha);
@@ -232,7 +235,7 @@ export function registerTerminalPaneLinks(
                 false,
             );
         } catch (error) {
-            onError(errorMessage(error, 'Git commit link failed'));
+            onError(errorMessage(error, translate('terminal.links.commitLinkFailed')));
         }
     };
     const previews = new TerminalReferencePreviewStore(loadTerminalReferencePreview);

@@ -2,6 +2,7 @@ import type { AgentProvider, PaneResource, TerminalRecord } from '@caxri/protoco
 import { agentProviderCatalog } from '@caxri/protocol';
 import { redactSecretText } from '@caxri/utils';
 
+import type { Translate } from '../../i18n';
 import type { ScreenshotAnnotation } from './screenshot-annotations';
 import { formatAnnotationLines } from './screenshot-annotations';
 
@@ -139,10 +140,8 @@ export function chooseBugReportTarget(
  * the notice always promises that much; only a provider with a Caxri-safe image input adds the clipboard-paste
  * sentence, because that path has a side effect (it overwrites the user's clipboard) they should know about first.
  */
-export function bugReportImageDeliveryNotice(provider?: AgentProvider): string {
-    const base =
-        'The screenshot is saved to a temporary file and its path is included in the report so the Agent can open it.';
+export function bugReportImageDeliveryNotice(t: Translate, provider?: AgentProvider): string {
     if (provider && agentProviderCatalog[provider].imageInput)
-        return `${base} It is also pasted into this Agent directly; sending replaces the system clipboard with the image.`;
-    return base;
+        return t('bugReport.imageDelivery.pasted');
+    return t('bugReport.imageDelivery.savedPath');
 }

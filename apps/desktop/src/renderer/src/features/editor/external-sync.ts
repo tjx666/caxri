@@ -7,6 +7,7 @@ import type { EditorDocument } from '@desktop-shared/editor-state';
 import { replaceWithExternalDocument } from '@desktop-shared/editor-state';
 import { uniq } from 'es-toolkit';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getSelectedSession, getSessionState, selectSelectedSession } from '../../stores/selectors';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
@@ -51,8 +52,8 @@ function readCachedDocument<T>(cached: Record<string, T>, path: string): T | und
  */
 function discardedChangesMessage(names: readonly string[]): string {
     return names.length === 1
-        ? `Your unsaved changes to ${names[0]} were replaced by changes on disk.`
-        : `Your unsaved changes to ${names.length} files were replaced by changes on disk.`;
+        ? translate('editor.externalSync.discardedOne', { name: names[0] })
+        : translate('editor.externalSync.discardedOther', { count: names.length });
 }
 
 /**

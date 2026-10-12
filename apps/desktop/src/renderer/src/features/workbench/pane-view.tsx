@@ -14,6 +14,8 @@ import { TerminalSquare } from 'lucide-react';
 
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { hasTerminalDraggedPath } from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
@@ -47,12 +49,12 @@ const dropZoneClassName: Record<PaneDropZone, string> = {
     down: 'inset-[50%_0_0_0]',
 };
 
-const dropZoneLabel: Record<PaneDropZone, string> = {
-    center: 'Move to pane',
-    left: 'Split left',
-    right: 'Split right',
-    up: 'Split up',
-    down: 'Split down',
+const dropZoneLabelKeys: Record<PaneDropZone, TranslationKey> = {
+    center: 'workbench.pane.dropZone.center',
+    left: 'workbench.pane.dropZone.left',
+    right: 'workbench.pane.dropZone.right',
+    up: 'workbench.pane.dropZone.up',
+    down: 'workbench.pane.dropZone.down',
 };
 
 function dropZoneFromEvent(event: DragEvent<HTMLElement>): PaneDropZone {
@@ -83,12 +85,13 @@ function isLeadingBarWindowWide(node: PaneLayoutNode): boolean {
 }
 
 function EmptyPane() {
+    const { t } = useTranslation();
     return (
         <Empty className="empty-work h-full flex-1">
             <EmptyMedia>
                 <TerminalSquare size={30} />
             </EmptyMedia>
-            <EmptyTitle>No Terminal in this Session.</EmptyTitle>
+            <EmptyTitle>{t('workbench.pane.empty')}</EmptyTitle>
             <NewTerminalButton appearance="labelled" />
         </Empty>
     );
@@ -146,6 +149,7 @@ function PaneBox({
     pane: PaneNode;
     spansWindowWidth: boolean;
 }) {
+    const { t } = useTranslation();
     const [activeDropZone, setActiveDropZone] = useState<PaneDropZone>();
     const isActivePane = layout.activePaneId === pane.id;
     /**
@@ -186,7 +190,10 @@ function PaneBox({
     // repeated on every pane left them indistinguishable once a Workbench held more than one. The total is part of the
     // name because an ordinal alone ("pane 2") gives no sense of how far the split tree extends.
     const panes = listPanes(layout);
-    const paneLabel = `pane ${panes.findIndex((candidate) => candidate.id === pane.id) + 1} of ${panes.length}`;
+    const tabListLabel = t('workbench.pane.tabListLabel', {
+        index: panes.findIndex((candidate) => candidate.id === pane.id) + 1,
+        count: panes.length,
+    });
     // Session-wide, not pane-local: a Terminal moved to a new session leaves its Session behind entirely, so the guard
     // must see every pane's Terminals, not just the ones sharing this Terminal's own tab bar.
     const isOnlySessionTerminal = listPaneTerminalIds(layout).length === 1;
@@ -273,7 +280,7 @@ function PaneBox({
                 isOnlySessionTerminal={isOnlySessionTerminal}
                 isRootBar={isLeading}
                 pane={pane}
-                paneLabel={paneLabel}
+                tabListLabel={tabListLabel}
                 spansWindowWidth={spansWindowWidth}
             />
             <div
@@ -301,7 +308,7 @@ function PaneBox({
                             dropZoneClassName[activeDropZone],
                         )}
                     >
-                        {dropZoneLabel[activeDropZone]}
+                        {t(dropZoneLabelKeys[activeDropZone])}
                     </div>
                 )}
             </div>
@@ -318,6 +325,7 @@ function PaneSplitView({
     layout: PaneLayout;
     node: PaneSplitNode;
 }) {
+    const { t } = useTranslation();
     const [draftRatio, setDraftRatio] = useState<number>();
     const ratio = draftRatio ?? node.ratio;
     const isHorizontal = node.direction === 'horizontal';
@@ -378,7 +386,11 @@ function PaneSplitView({
                     'hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
                     isHorizontal ? 'cursor-col-resize' : 'cursor-row-resize',
                 )}
-                aria-label={`Resize ${isHorizontal ? 'horizontal' : 'vertical'} split`}
+                aria-label={t(
+                    isHorizontal
+                        ? 'workbench.pane.resizeHorizontalSplit'
+                        : 'workbench.pane.resizeVerticalSplit',
+                )}
                 aria-orientation={isHorizontal ? 'vertical' : 'horizontal'}
                 aria-valuemin={Math.round(MIN_SPLIT_RATIO * 100)}
                 aria-valuemax={Math.round(MAX_SPLIT_RATIO * 100)}

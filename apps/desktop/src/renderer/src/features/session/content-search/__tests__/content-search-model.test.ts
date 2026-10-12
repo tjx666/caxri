@@ -1,7 +1,14 @@
 import type { SessionContentSearchResult } from '@caxri/protocol';
 import { expect, it } from 'vitest';
 
-import { contentSearchCoverage, contentSearchItems } from '../content-search-model';
+import { translate } from '../../../../i18n';
+import {
+    contentSearchCoverage as describeCoverage,
+    contentSearchItems,
+} from '../content-search-model';
+
+const contentSearchCoverage = (value: SessionContentSearchResult) =>
+    describeCoverage(value, translate);
 
 const result: SessionContentSearchResult = {
     matches: [

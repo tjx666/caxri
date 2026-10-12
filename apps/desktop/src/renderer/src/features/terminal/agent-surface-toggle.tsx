@@ -5,14 +5,32 @@ import { MessageSquareText, SquareTerminal } from 'lucide-react';
 import { Spinner } from '../../components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { switchTerminalSurfaceTo } from './terminal-surface-commands';
 import { usePendingTerminalSurface } from './terminal-surface-switch-pending';
 
 const SURFACES = [
-    { surface: 'pty', label: 'Terminal', Icon: SquareTerminal },
-    { surface: 'chat', label: 'Chat', Icon: MessageSquareText },
-] as const satisfies ReadonlyArray<{ surface: TerminalSurface; label: string; Icon: LucideIcon }>;
+    { surface: 'pty', Icon: SquareTerminal },
+    { surface: 'chat', Icon: MessageSquareText },
+] as const satisfies ReadonlyArray<{ surface: TerminalSurface; Icon: LucideIcon }>;
+
+const SURFACE_COPY: Record<
+    TerminalSurface,
+    { label: TranslationKey; open: TranslationKey; opening: TranslationKey }
+> = {
+    chat: {
+        label: 'terminal.surface.chat',
+        open: 'terminal.surface.openAsChat',
+        opening: 'terminal.surface.openingAsChat',
+    },
+    pty: {
+        label: 'terminal.surface.terminal',
+        open: 'terminal.surface.openAsTerminal',
+        opening: 'terminal.surface.openingAsTerminal',
+    },
+};
 
 /**
  * The tab rail's Terminal | Chat switch for the active Chat-capable Agent Terminal. Pressing the other segment reopens
@@ -36,13 +54,14 @@ const SURFACES = [
  * here and, from every other entry point, by the shared switch registry.
  */
 export function AgentSurfaceToggle({ terminal }: { terminal: TerminalRecord }) {
+    const { t } = useTranslation();
     const shortcut = useCommandShortcut('terminal.switchAgentSurface');
     const current: TerminalSurface = terminal.surface ?? 'pty';
     const pendingSurface = usePendingTerminalSurface(terminal.id);
     const isSwitching = pendingSurface !== undefined;
     return (
         <ToggleGroup<TerminalSurface>
-            aria-label="Open as Terminal or Chat"
+            aria-label={t('terminal.surface.toggleLabel')}
             aria-busy={isSwitching}
             className="agent-surface-toggle gap-0.5 rounded border border-border p-0.5"
             value={[current]}
@@ -51,19 +70,15 @@ export function AgentSurfaceToggle({ terminal }: { terminal: TerminalRecord }) {
                 if (!isSwitching && next[0]) void switchTerminalSurfaceTo(terminal, next[0]);
             }}
         >
-            {SURFACES.map(({ surface, label, Icon }) => {
+            {SURFACES.map(({ surface, Icon }) => {
+                const copy = SURFACE_COPY[surface];
+                const label = t(copy.label);
                 const isCurrent = surface === current;
                 const isPending = surface === pendingSurface;
                 return (
                     <Tooltip
                         key={surface}
-                        content={
-                            isPending
-                                ? `Opening as ${label}…`
-                                : isCurrent
-                                  ? label
-                                  : `Open as ${label}`
-                        }
+                        content={isPending ? t(copy.opening) : isCurrent ? label : t(copy.open)}
                         shortcut={isCurrent || isPending ? undefined : shortcut}
                     >
                         <ToggleGroupItem

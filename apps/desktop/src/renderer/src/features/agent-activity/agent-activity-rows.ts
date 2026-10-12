@@ -1,5 +1,7 @@
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
 import { sessionActivityPresentation } from '../primary-sidebar/session-activity';
 import type { SessionStatus } from '../primary-sidebar/session-status';
@@ -34,7 +36,6 @@ export interface AgentActivityRow {
 
 export interface AgentActivityGroup {
     id: AgentActivityGroupId;
-    label: string;
     rows: AgentActivityRow[];
 }
 
@@ -111,41 +112,64 @@ const GROUP_ORDER: readonly AgentActivityGroupId[] = [
     'idle',
 ];
 
-const GROUP_LABELS: Record<AgentActivityGroupId, string> = {
-    attention: 'Needs attention',
-    failed: 'Failed',
-    finished: 'Recently finished',
-    idle: 'Idle',
-    waiting: 'Waiting',
-    working: 'Working',
+const GROUP_LABEL_KEYS: Record<AgentActivityGroupId, TranslationKey> = {
+    attention: 'agentActivity.group.attention',
+    failed: 'agentActivity.group.failed',
+    finished: 'agentActivity.group.finished',
+    idle: 'agentActivity.group.idle',
+    waiting: 'agentActivity.group.waiting',
+    working: 'agentActivity.group.working',
 };
 
-export function agentActivityHeadingPresentation(group: AgentActivityGroup): {
+/**
+ * Heading words for one group. Components pass their `useTranslation()` `t` so a language change re-renders the
+ * heading; the `translate` default serves unit tests and other non-React callers.
+ */
+export function agentActivityHeadingPresentation(
+    group: AgentActivityGroup,
+    t: Translate = translate,
+): {
     count: number | undefined;
     label: string;
     summary: string;
 } {
+    const label = t(GROUP_LABEL_KEYS[group.id]);
     if (group.id === 'attention') {
         const unreadCount = group.rows.filter((row) => row.session.hasUnread).length;
         if (unreadCount === 0) {
             const viewedCount = group.rows.length;
             return {
                 count: undefined,
-                label: 'Viewing',
-                summary: `${viewedCount} read ${viewedCount === 1 ? 'Session' : 'Sessions'}`,
+                label: t('agentActivity.group.viewing'),
+                summary: t(
+                    viewedCount === 1
+                        ? 'agentActivity.heading.readSessionsOne'
+                        : 'agentActivity.heading.readSessionsOther',
+                    { count: viewedCount },
+                ),
             };
         }
         return {
             count: unreadCount,
-            label: group.label,
-            summary: `${unreadCount} unread ${unreadCount === 1 ? 'Session' : 'Sessions'}`,
+            label,
+            summary: t(
+                unreadCount === 1
+                    ? 'agentActivity.heading.unreadSessionsOne'
+                    : 'agentActivity.heading.unreadSessionsOther',
+                { count: unreadCount },
+            ),
         };
     }
     const count = group.rows.length;
     return {
         count,
-        label: group.label,
-        summary: `${count} ${count === 1 ? 'Session' : 'Sessions'}`,
+        label,
+        summary: t(
+            count === 1
+                ? 'agentActivity.heading.sessionsOne'
+                : 'agentActivity.heading.sessionsOther',
+            { count },
+        ),
     };
 }
 
@@ -251,7 +275,6 @@ export function agentActivityGroups({
         return [
             {
                 id,
-                label: GROUP_LABELS[id],
                 rows: rows.toSorted(
                     (left, right) =>
                         right.session.lastSessionActivityAt - left.session.lastSessionActivityAt ||

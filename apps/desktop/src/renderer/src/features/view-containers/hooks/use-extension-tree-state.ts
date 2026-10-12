@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ExtensionTreeViewState } from '@caxri/protocol';
 import { MAX_EXTENSION_TREE_VIEW_STATES } from '@caxri/protocol';
 
+import { translate } from '../../../i18n';
 import { getBootstrap } from '../../../stores/selectors';
 import { patchSessionState } from '../../../stores/workbench';
 import type { ExtensionTreeState } from '../extension-tree-state';
@@ -38,7 +39,7 @@ function persistTreeState(scope: ExtensionTreeStateScope, state: ExtensionTreeSt
                 [scope.viewId]: persisted,
             },
         },
-        'Extension tree state could not be saved',
+        translate('viewContainers.extensionTree.stateSaveFailed'),
     );
 }
 

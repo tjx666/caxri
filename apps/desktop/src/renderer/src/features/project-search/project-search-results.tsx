@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
+import { useTranslation } from '../../i18n';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
 import { cn } from '../../lib/utilities';
@@ -262,12 +263,13 @@ export function ProjectSearchResults({
     mode: FileSearchMode;
     nameTree: readonly NameSearchNode[];
 }) {
+    const { t } = useTranslation();
     return (
         <div
             className="search-results min-h-0 flex-1 overflow-auto"
             id={id}
             role="tree"
-            aria-label="Search results"
+            aria-label={t('projectSearch.results.label')}
         >
             {mode === 'name'
                 ? nameTree.map((node) => (

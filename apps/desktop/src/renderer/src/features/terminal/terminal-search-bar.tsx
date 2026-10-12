@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { FindBar } from '../../components/find-bar';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { keyboardEventShortcut } from '../../lib/keybindings';
 import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
 import {
@@ -77,6 +78,7 @@ export function TerminalSearchBar({
      * Listens at the search bar root (not just the input) so the chords work while a toggle button or a navigation
      * button owns focus too, not only while typing a query.
      */
+    const { t } = useTranslation();
     const handleSearchBarKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
         const option = SEARCH_TOGGLE_SHORTCUTS[keyboardEventShortcut(event.nativeEvent)];
         if (!option) return;
@@ -86,33 +88,39 @@ export function TerminalSearchBar({
 
     return (
         <FindBar
-            ariaLabel="Terminal buffer search"
+            ariaLabel={t('terminal.search.ariaLabel')}
             className="terminal-search z-[4]"
-            countLabel={terminalSearchResultLabel(query, results)}
+            countLabel={terminalSearchResultLabel(t, query, results)}
             focusRevision={focusRevision}
             hasMatches={isTerminalSearchNavigable(query, results)}
-            inputLabel="Find in Terminal"
+            inputLabel={t('terminal.search.inputLabel')}
             isNoMatch={isTerminalSearchNoMatch(query, results)}
             isQueryInvalid={Boolean(results.error)}
             options={
                 <ToggleGroup
-                    aria-label="Terminal search options"
+                    aria-label={t('terminal.search.optionsLabel')}
                     multiple
                     value={pressedOptions}
                     onValueChange={handleToggleGroupChange}
                 >
-                    <Tooltip content="Match Case">
-                        <ToggleGroupItem aria-label="Match Case" value="caseSensitive">
+                    <Tooltip content={t('terminal.search.matchCase')}>
+                        <ToggleGroupItem
+                            aria-label={t('terminal.search.matchCase')}
+                            value="caseSensitive"
+                        >
                             Aa
                         </ToggleGroupItem>
                     </Tooltip>
-                    <Tooltip content="Match Whole Word">
-                        <ToggleGroupItem aria-label="Match Whole Word" value="wholeWord">
+                    <Tooltip content={t('terminal.search.wholeWord')}>
+                        <ToggleGroupItem
+                            aria-label={t('terminal.search.wholeWord')}
+                            value="wholeWord"
+                        >
                             ab
                         </ToggleGroupItem>
                     </Tooltip>
-                    <Tooltip content="Use Regular Expression">
-                        <ToggleGroupItem aria-label="Use Regular Expression" value="regex">
+                    <Tooltip content={t('terminal.search.regex')}>
+                        <ToggleGroupItem aria-label={t('terminal.search.regex')} value="regex">
                             .*
                         </ToggleGroupItem>
                     </Tooltip>

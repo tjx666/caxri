@@ -5,6 +5,7 @@ import { Paperclip } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { agentChatAttachLabel } from './agent-chat-presentation';
 
 /**
@@ -30,6 +31,7 @@ export function AgentChatAttachButton({
     isBusy: boolean;
     onPick: (files: File[]) => void;
 }) {
+    const { t } = useTranslation();
     const inputReference = useRef<HTMLInputElement>(null);
     return (
         <>
@@ -46,9 +48,9 @@ export function AgentChatAttachButton({
                     event.target.value = '';
                 }}
             />
-            <Tooltip content={agentChatAttachLabel(canAttachImages)}>
+            <Tooltip content={agentChatAttachLabel(canAttachImages, t)}>
                 <Button
-                    aria-label="Attach files"
+                    aria-label={t('agentChat.attachments.attachFiles')}
                     className="text-muted hover:text-foreground"
                     size="icon"
                     type="button"

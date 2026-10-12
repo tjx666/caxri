@@ -1,10 +1,11 @@
 import type { AgentChatImageInput } from '@caxri/protocol';
 import { debounce } from 'es-toolkit';
 
+import { translate } from '../../i18n';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
 import type { AgentChatEdit } from './agent-chat-edit';
 import { readAgentChatEdit, retainAgentChatEdits, writeAgentChatEdit } from './agent-chat-edit';
-import { AGENT_CHAT_IMAGE_RESIZED_NOTE } from './agent-chat-images';
+import { agentChatResizedImageLabel } from './agent-chat-images';
 
 /**
  * Unsent composer text per Chat Terminal. Switching tabs or Sessions unmounts a Chat's composer, and the draft must
@@ -264,7 +265,7 @@ export function agentChatAttachmentName(
 ): string {
     // A pasted image may carry an empty name, which falls back like a missing one.
     return attachment.name === undefined || attachment.name === ''
-        ? `Attachment ${index + 1}`
+        ? translate('agentChat.attachments.fallbackName', { number: index + 1 })
         : attachment.name;
 }
 
@@ -276,7 +277,5 @@ export function agentChatAttachmentLabel(
     index: number,
 ): string {
     const label = agentChatAttachmentName(attachment, index);
-    return attachment.isResized
-        ? `${label} (${AGENT_CHAT_IMAGE_RESIZED_NOTE.toLowerCase()})`
-        : label;
+    return attachment.isResized ? agentChatResizedImageLabel(label) : label;
 }

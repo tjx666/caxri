@@ -20,6 +20,7 @@ import {
     hasLinkActivationModifier,
     registerMouseTrackingLinkClickGuard,
 } from './terminal-link-click-guard';
+import { terminalLinkAccessibleName, terminalLinkHintText } from './terminal-link-copy';
 import type { TerminalLinkHintController, TerminalLinkHintPreview } from './terminal-link-hint';
 import { createTerminalLinkHintController } from './terminal-link-hint';
 import type { TerminalLinkClosingBracket } from './terminal-link-token';
@@ -48,8 +49,6 @@ const EXPLICIT_TERMINAL_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
  * Plain text needs explicit CJK prose boundaries while OSC 8 targets retain every valid Unicode URL character.
  */
 const PLAIN_TEXT_URL_PATTERN = /https?:\/\/[^\s<>"'`、，。；：！？（）]+/giu;
-const TERMINAL_FILE_LINK_HINT_TEXT = '⌘ click to open in editor';
-const TERMINAL_URL_LINK_HINT_TEXT = '⌘ click to open in browser';
 
 /**
  * The picker uses a non-virtualized cmdk list, so both descriptor count and retained target bytes need hard bounds even
@@ -452,15 +451,6 @@ function activateLinkFromPointer(
     if (hasLinkActivationModifier(event)) activateLink(match, context);
 }
 
-export function terminalLinkHintText(match: Pick<TerminalLinkMatch, 'hint' | 'kind'>): string {
-    if (match.hint) return match.hint;
-    return match.kind === 'url'
-        ? TERMINAL_URL_LINK_HINT_TEXT
-        : match.kind === 'commit'
-          ? '⌘ click to show commit in Git'
-          : TERMINAL_FILE_LINK_HINT_TEXT;
-}
-
 /**
  * Keeps xterm's synchronous leave/reprovide cycle stable without treating a different link rewritten at the same buffer
  * range as the old one. The target is part of the identity because Terminal applications commonly redraw a line in
@@ -480,9 +470,7 @@ export function createDetectedLink(
     bufferLine: number,
 ): TerminalDetectedLink {
     return {
-        accessibleName:
-            match.accessibleName ??
-            `Open ${match.kind === 'url' ? 'external' : 'file'} link ${match.text}`,
+        accessibleName: match.accessibleName ?? terminalLinkAccessibleName(match.kind, match.text),
         bufferLine,
         detail: match.detail,
         id,

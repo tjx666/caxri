@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FolderGit2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { isEditableEventTarget } from '../../lib/keybindings';
 import { restorePickerFocus } from '../../lib/picker-final-focus';
 import { useDialogStore } from '../../stores/dialogs';
@@ -23,6 +24,7 @@ import { useWorkbenchRootPromptStore } from './workbench-root-prompt-store';
  * `document.body` with the next Tab restarting at the top of the document.
  */
 export function WorkbenchRootPrompt() {
+    const { t } = useTranslation();
     const sessionId = useSelectedSession()?.id;
     const candidate = useWorkbenchRootPromptStore((state) =>
         sessionId ? state.candidates[sessionId] : undefined,
@@ -93,19 +95,19 @@ export function WorkbenchRootPrompt() {
         <aside
             ref={promptReference}
             aria-keyshortcuts="Shift+Escape"
-            aria-label="New Git worktree"
+            aria-label={t('workbench.rootPrompt.label')}
             className="fixed bottom-10 left-1/2 z-[75] grid w-[min(560px,calc(100vw-32px))] -translate-x-1/2 grid-cols-[16px_minmax(0,1fr)] items-start gap-x-3 gap-y-2 rounded-md border border-border bg-elevated px-3 py-2 shadow-[0_8px_24px_var(--shadow)] focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
             role="status"
             tabIndex={-1}
         >
             <FolderGit2 aria-hidden="true" className="flex-none text-muted" size={16} />
             <span className="min-w-0 flex-1 text-[12px] text-foreground">
-                A new Git worktree was created for this Session.
+                {t('workbench.rootPrompt.message')}
                 {/*
                  * `aria-keyshortcuts` is only read once focus is already here, and a live region announces its
                  * content rather than its label, so the route in has to be part of what is announced.
                  */}
-                <span className="sr-only"> Press Shift+Escape to focus this notice.</span>
+                <span className="sr-only"> {t('workbench.rootPrompt.focusHint')}</span>
                 <span className="mt-1 block text-[11px] break-all text-muted">
                     {candidate.rootPath}
                 </span>
@@ -120,7 +122,7 @@ export function WorkbenchRootPrompt() {
                         void runOnce(() => dismissWorkbenchCandidate(sessionId, candidate));
                     }}
                 >
-                    Not Now
+                    {t('workbench.rootPrompt.notNow')}
                 </Button>
                 <Button
                     disabled={pending}
@@ -130,7 +132,7 @@ export function WorkbenchRootPrompt() {
                         void runOnce(() => continueSessionInWorktree(sessionId, candidate));
                     }}
                 >
-                    Continue Session in Worktree
+                    {t('workbench.rootPrompt.continue')}
                 </Button>
             </div>
         </aside>

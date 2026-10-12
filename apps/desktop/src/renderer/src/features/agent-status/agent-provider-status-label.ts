@@ -4,16 +4,8 @@ import type {
     AgentProviderStatusFailureReason,
 } from '@caxri/protocol';
 
-/**
- * The status page's own wording, so a user who opens the page reads the same phrase there.
- */
-const STATUS_LABELS: Record<AgentProviderServiceStatus, string> = {
-    operational: 'Operational',
-    maintenance: 'Under maintenance',
-    degraded: 'Degraded performance',
-    partialOutage: 'Partial outage',
-    majorOutage: 'Major outage',
-};
+import type { Translate } from '../../i18n';
+import { isTranslationKey, translate } from '../../i18n';
 
 type ProviderStatusTone = 'danger' | 'success' | 'warning';
 
@@ -38,14 +30,16 @@ const TONE_DOT_CLASS_NAMES: Record<ProviderStatusTone, string> = {
     danger: 'bg-danger',
 };
 
-const FAILURE_LABELS: Record<AgentProviderStatusFailureReason, string> = {
-    network: 'the status page could not be reached',
-    http: 'the status page answered with an error',
-    invalidResponse: 'the status page changed its format',
-};
-
-export function providerServiceStatusLabel(status: AgentProviderServiceStatus): string {
-    return STATUS_LABELS[status];
+/**
+ * The status page's own wording (`agentStatus.service.*`), so a user who opens the page reads the same phrase there.
+ * Helpers here take an optional `t`: components pass `useTranslation().t` so they re-render on a language change, and
+ * the default serves non-React callers and tests.
+ */
+export function providerServiceStatusLabel(
+    status: AgentProviderServiceStatus,
+    t: Translate = translate,
+): string {
+    return t(`agentStatus.service.${status}`);
 }
 
 export function providerStatusDotClassName(status: AgentProviderServiceStatus): string {
@@ -72,18 +66,27 @@ export interface ProviderStatusAlert {
  */
 export function providerStatusAlert(
     status: AgentProviderStatus | null | undefined,
+    t: Translate = translate,
 ): ProviderStatusAlert | undefined {
     if (status?.state !== 'available') return undefined;
     const tone = STATUS_TONES[status.status];
     if (tone === 'success') return undefined;
-    return { label: `API status: ${providerServiceStatusLabel(status.status)}`, tone };
+    return {
+        label: t('agentStatus.alertLabel', {
+            status: providerServiceStatusLabel(status.status, t),
+        }),
+        tone,
+    };
 }
 
 /**
  * `Status unavailable: the status page could not be reached`.
  */
-export function providerStatusFailureLabel(reason: AgentProviderStatusFailureReason): string {
-    return `Status unavailable: ${FAILURE_LABELS[reason]}`;
+export function providerStatusFailureLabel(
+    reason: AgentProviderStatusFailureReason,
+    t: Translate = translate,
+): string {
+    return t(`agentStatus.failure.${reason}`);
 }
 
 /**
@@ -92,31 +95,44 @@ export function providerStatusFailureLabel(reason: AgentProviderStatusFailureRea
  */
 export function describeProviderStatus(
     status: Extract<AgentProviderStatus, { state: 'available' }>,
+    t: Translate = translate,
 ): string {
     const affected = status.components.filter((component) => component.status !== 'operational');
-    const label = providerServiceStatusLabel(status.status);
+    const label = providerServiceStatusLabel(status.status, t);
     return affected.length === 0
         ? label
-        : `${label}: ${affected.map((component) => component.name).join(', ')}`;
+        : t('agentStatus.affectedComponents', {
+              status: label,
+              components: affected.map((component) => component.name).join(', '),
+          });
 }
 
 /**
  * An incident's phase as both the status-bar card and the Agent status tab print it: `Identified`. The page words it in
  * lower case; one casing keeps the two surfaces reading as the same fact.
  */
-export function incidentPhaseLabel(phase: string): string {
+export function incidentPhaseLabel(phase: string, t: Translate = translate): string {
+    // Phases are open-ended page text; the common Statuspage phases are translated and anything else stays verbatim.
+    const key = `agentStatus.phase.${phase}`;
+    if (isTranslationKey(key)) return t(key);
     return phase.charAt(0).toUpperCase() + phase.slice(1);
 }
 
 /**
  * The status-bar card has room for one incident line: the first incident, and how many more the Agent status tab lists.
  */
-export function summarizeIncidents<T>(incidents: readonly T[]): {
+export function summarizeIncidents<T>(
+    incidents: readonly T[],
+    t: Translate = translate,
+): {
     first: T | undefined;
     moreLabel: string | undefined;
 } {
     const more = incidents.length - 1;
-    return { first: incidents[0], moreLabel: more > 0 ? `+${more} more` : undefined };
+    return {
+        first: incidents[0],
+        moreLabel: more > 0 ? t('agentStatus.moreIncidents', { count: more }) : undefined,
+    };
 }
 
 /**

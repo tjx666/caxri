@@ -1,1 +1,22 @@
-export const agentActivity = {} as const;
+export const agentActivity = {
+    'agentActivity.treeLabel': 'Activity',
+    'agentActivity.empty': 'No Agent Session is waiting on you.',
+    'agentActivity.markReadFailed': 'Unable to mark the Session read',
+    'agentActivity.group.attention': 'Needs attention',
+    'agentActivity.group.failed': 'Failed',
+    'agentActivity.group.finished': 'Recently finished',
+    'agentActivity.group.idle': 'Idle',
+    'agentActivity.group.waiting': 'Waiting',
+    'agentActivity.group.working': 'Working',
+    'agentActivity.group.viewing': 'Viewing',
+    'agentActivity.heading.readSessionsOne': '{{count}} read Session',
+    'agentActivity.heading.readSessionsOther': '{{count}} read Sessions',
+    'agentActivity.heading.unreadSessionsOne': '{{count}} unread Session',
+    'agentActivity.heading.unreadSessionsOther': '{{count}} unread Sessions',
+    'agentActivity.heading.sessionsOne': '{{count}} Session',
+    'agentActivity.heading.sessionsOther': '{{count}} Sessions',
+    'agentActivity.glyph.detached': 'Detached',
+    'agentActivity.viewedAndRead': 'Viewed and read',
+    'agentActivity.markRead': 'Mark as Read',
+    'agentActivity.markSessionRead': 'Mark {{title}} as read',
+} as const;

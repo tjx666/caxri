@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { cn } from '../../lib/utilities';
 import { PROCESS_GRID_TEMPLATE } from './process-columns';
@@ -50,6 +51,7 @@ function ProcessDisclosure({
 }
 
 function ProcessNameCell({ row }: { row: ProcessTreeRow }) {
+    const { t } = useTranslation();
     const { depth, isExpandable, isExpanded, node } = row;
     const Icon = KIND_ICONS[node.kind];
     return (
@@ -77,7 +79,9 @@ function ProcessNameCell({ row }: { row: ProcessTreeRow }) {
                     {node.tag}
                 </span>
             )}
-            {node.isHigh && <span className="sr-only">, high resource use</span>}
+            {node.isHigh && (
+                <span className="sr-only">{t('processExplorer.row.highResource')}</span>
+            )}
         </div>
     );
 }
@@ -92,15 +96,16 @@ function ProcessPidCell({
     node: ProcessTreeRow['node'];
     onStopTerminal: (terminalId: string, name: string) => void;
 }) {
+    const { t } = useTranslation();
     const { terminalId } = node;
     return (
         <span role="gridcell" className={cn(processRowCellClassName, 'text-muted')}>
             {terminalId ? (
-                <Tooltip content="Stop — suspends this Terminal; reopen its Session to resume">
+                <Tooltip content={t('processExplorer.row.stopTooltip')}>
                     <button
                         type="button"
                         tabIndex={-1}
-                        aria-label={`Stop ${node.name}`}
+                        aria-label={t('processExplorer.row.stopLabel', { name: node.name })}
                         className="process-stop grid size-5.5 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted opacity-0 group-hover/row:opacity-100 group-focus-visible/row:opacity-100 hover:bg-elevated hover:text-danger focus-visible:opacity-100"
                         onClick={(event) => {
                             event.stopPropagation();

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import type { MobileAccessStatus, MobileDeviceSummary, ProjectQueryResult } from '@caxri/protocol';
 import { MOBILE_MAX_PROJECT_GRANTS } from '@caxri/protocol';
 
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import {
     createMobilePairing,
     listMobileDevices,
@@ -23,7 +25,10 @@ export interface MobileAccessState {
     busy: boolean;
     copied: boolean;
     devices: MobileDeviceSummary[];
-    error?: string;
+    /**
+     * Stored as a key so the message follows a language change while it is on screen.
+     */
+    error?: TranslationKey;
     loadState: 'error' | 'loading' | 'ready';
     now: number;
     pairing?: MobilePairingState;
@@ -50,7 +55,7 @@ export type MobileAccessAction =
       }
     | { busy: boolean; type: 'set-busy' }
     | { copied: boolean; type: 'set-copied' }
-    | { error?: string; type: 'set-error' }
+    | { error?: TranslationKey; type: 'set-error' }
     | {
           devices: MobileDeviceSummary[];
           now: number;
@@ -111,7 +116,7 @@ export const mobileAccessReducer = (
         case 'load-failed':
             return {
                 ...state,
-                error: 'Unable to load mobile access.',
+                error: 'settings.mobileAccess.error.load',
                 loadState: 'error',
             };
         case 'load-started':
@@ -147,6 +152,7 @@ export const mobileAccessReducer = (
 };
 
 export const useMobileAccessController = () => {
+    const { t } = useTranslation();
     const [state, dispatch] = useReducer(mobileAccessReducer, initialMobileAccessState);
 
     const load = useCallback(async (): Promise<void> => {
@@ -225,8 +231,8 @@ export const useMobileAccessController = () => {
         } catch {
             dispatch({
                 error: isEnabled
-                    ? 'Mobile access needs an active private local network.'
-                    : 'Unable to turn off mobile access.',
+                    ? 'settings.mobileAccess.error.enable'
+                    : 'settings.mobileAccess.error.disable',
                 type: 'set-error',
             });
         } finally {
@@ -263,7 +269,7 @@ export const useMobileAccessController = () => {
                 // A transient status refresh must not discard the already-issued pairing link.
             }
         } catch {
-            dispatch({ error: 'Unable to create a pairing code.', type: 'set-error' });
+            dispatch({ error: 'settings.mobileAccess.error.createPairing', type: 'set-error' });
         } finally {
             dispatch({ busy: false, type: 'set-busy' });
         }
@@ -276,7 +282,7 @@ export const useMobileAccessController = () => {
             await revokeMobileDevice({ deviceId });
             await load();
         } catch {
-            dispatch({ error: 'Unable to revoke this device.', type: 'set-error' });
+            dispatch({ error: 'settings.mobileAccess.error.revoke', type: 'set-error' });
         } finally {
             dispatch({ busy: false, type: 'set-busy' });
         }
@@ -289,7 +295,7 @@ export const useMobileAccessController = () => {
             dispatch({ copied: true, type: 'set-copied' });
             dispatch({ error: undefined, type: 'set-error' });
         } catch {
-            dispatch({ error: 'Unable to copy the pairing link.', type: 'set-error' });
+            dispatch({ error: 'settings.mobileAccess.error.copyLink', type: 'set-error' });
         }
     };
 
@@ -305,13 +311,14 @@ export const useMobileAccessController = () => {
             activeDevices.map((device) => [
                 device.deviceId,
                 summarizeProjectAccess(
+                    t,
                     device.projectIds
                         .filter((projectId) => !state.worktreeProjectIds.has(projectId))
                         .map((projectId) => projectTitles.get(projectId)),
                 ),
             ]),
         );
-    }, [activeDevices, state.projects, state.worktreeProjectIds]);
+    }, [activeDevices, state.projects, state.worktreeProjectIds, t]);
 
     return {
         ...state,

@@ -1,6 +1,8 @@
 import type { ProjectQueryResult } from '@caxri/protocol';
 import { isTopLevelProject } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+
 /**
  * Separates the Projects a pairing can grant (the PrimarySidebar's top-level Projects) from auto-registered worktree
  * Projects. A paired device never lists a worktree Project, so offering one in the pairing checklist only spent a grant
@@ -30,10 +32,13 @@ export function splitGrantableProjects(result: ProjectQueryResult): {
  * Collapsing every unresolved grant into one trailing `+N unavailable` keeps the line honest (the device still has that
  * many grants) without repeating a word that carries no new information after the first time.
  */
-export function summarizeProjectAccess(titles: ReadonlyArray<string | undefined>): string {
+export function summarizeProjectAccess(
+    t: Translate,
+    titles: ReadonlyArray<string | undefined>,
+): string {
     const known = titles.filter((title): title is string => title !== undefined);
     const unavailableCount = titles.length - known.length;
     if (unavailableCount === 0) return known.join(', ');
-    const suffix = `+${unavailableCount} unavailable`;
+    const suffix = t('settings.mobileAccess.devices.unavailable', { count: unavailableCount });
     return known.length > 0 ? `${known.join(', ')} · ${suffix}` : suffix;
 }

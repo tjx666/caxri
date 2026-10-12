@@ -1,6 +1,8 @@
 import type { AgentChatItem } from '@caxri/protocol';
 import { parseAgentMcpToolName, unwrapShellCommand } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
+
 /**
  * A pull request, issue, or LobeHub acceptance report the Agent created or updated during a turn, shown as a card under
  * the turn's reply the way the Codex app and LobeHub surface what an Agent filed.
@@ -263,9 +265,15 @@ function commandAcceptanceArtifact(item: CommandItem): AgentChatTrackerArtifact 
         kind: 'acceptance',
         action: (round === undefined ? isAppended : round > 1) ? 'updated' : 'created',
         url: `${origin}/acceptance/${id}`,
-        reference: round === undefined ? id.slice(0, 8) : `Round ${round}`,
+        reference:
+            round === undefined ? id.slice(0, 8) : translate('agentChat.tracker.round', { round }),
         ...(title && { title }),
-        ...(cases && { excerpt: `${cases} ${cases === 1 ? 'check' : 'checks'}` }),
+        ...(cases && {
+            excerpt: translate(
+                cases === 1 ? 'agentChat.tracker.checksOne' : 'agentChat.tracker.checksOther',
+                { count: cases },
+            ),
+        }),
     };
 }
 

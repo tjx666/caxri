@@ -15,6 +15,8 @@ import {
     CommandList,
 } from '../../components/ui/command';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
@@ -35,12 +37,12 @@ import { didSendAgentActionInputSteps, recordRecentAgentAction } from './agent-a
 import { useAgentActionCatalog } from './use-agent-action-catalog';
 import { useAgentActionSessionReferences } from './use-agent-action-session-references';
 
-const sourceLabels: Record<AgentAction['source'], string> = {
-    builtIn: 'Built-in',
-    project: 'Project',
-    global: 'User',
-    legacy: 'Legacy',
-    custom: 'Custom',
+const sourceLabelKeys: Record<AgentAction['source'], TranslationKey> = {
+    builtIn: 'agentActions.source.builtIn',
+    project: 'agentActions.source.project',
+    global: 'agentActions.source.global',
+    legacy: 'agentActions.source.legacy',
+    custom: 'agentActions.source.custom',
 };
 
 interface AgentActionRowProperties {
@@ -50,6 +52,7 @@ interface AgentActionRowProperties {
 }
 
 function AgentActionRow({ action, location, onSelect }: AgentActionRowProperties) {
+    const { t } = useTranslation();
     return (
         <CommandItem
             data-agent-action={action.invocation}
@@ -71,7 +74,9 @@ function AgentActionRow({ action, location, onSelect }: AgentActionRowProperties
                     <span className="truncate text-[11px] text-muted">{action.description}</span>
                 )}
             </span>
-            <small className="shrink-0 text-[10px] text-muted">{sourceLabels[action.source]}</small>
+            <small className="shrink-0 text-[10px] text-muted">
+                {t(sourceLabelKeys[action.source])}
+            </small>
         </CommandItem>
     );
 }
@@ -92,12 +97,13 @@ function AgentActionTargetNote({
     sessionTitle: string | undefined;
     terminalTitle: string | undefined;
 }) {
+    const { t } = useTranslation();
     const providerName = provider ? agentProviderCatalog[provider].displayName : 'Agent';
-    const targetTitle = resolveAgentActionTargetTitle(sessionTitle, terminalTitle);
+    const targetTitle = resolveAgentActionTargetTitle(sessionTitle, terminalTitle, t);
     return (
         <div
             id={id}
-            aria-label={describeAgentActionTarget(providerName, targetTitle)}
+            aria-label={describeAgentActionTarget(providerName, targetTitle, t)}
             className="flex items-center gap-2 border-b border-border px-4 py-2 text-[11px] text-muted"
             data-agent-action-target=""
             data-target-title-kind={targetTitle.kind}
@@ -113,11 +119,11 @@ function AgentActionTargetNote({
             ) : (
                 <>
                     <span className="min-w-0 truncate" data-agent-action-target-title="session">
-                        Session: {targetTitle.sessionTitle}
+                        {t('agentActions.target.session', { title: targetTitle.sessionTitle })}
                     </span>
                     <span aria-hidden="true">·</span>
                     <span className="min-w-0 truncate" data-agent-action-target-title="terminal">
-                        Terminal: {targetTitle.terminalTitle}
+                        {t('agentActions.target.terminal', { title: targetTitle.terminalTitle })}
                     </span>
                 </>
             )}
@@ -160,6 +166,7 @@ function handleAlternateChord(
 }
 
 export function AgentActionsDialog() {
+    const { t } = useTranslation();
     const targetDescriptionId = useId();
     const interactionDescriptionId = useId();
     const shouldRestoreTerminalFocusReference = useRef(true);
@@ -197,12 +204,15 @@ export function AgentActionsDialog() {
     const submit = (action: AgentAction, mode: AgentActionSubmitMode): void => {
         if (inputSequenceInFlightReference.current) return;
         if (mode === 'run' && !canExecuteAgentAction(action)) {
-            pushToast('info', `${action.invocation} needs arguments before it can run.`);
+            pushToast(
+                'info',
+                t('agentActions.dialog.needsArguments', { invocation: action.invocation }),
+            );
             return;
         }
         const current = getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);
         if (!current?.provider || !isAgentProcessRunning(current.lastAgentProcessState)) {
-            pushToast('error', 'The selected Agent is no longer running.');
+            pushToast('error', t('agentActions.agentNotRunning'));
             closePicker();
             return;
         }
@@ -244,7 +254,7 @@ export function AgentActionsDialog() {
                     return false;
                 }}
             >
-                <DialogTitle className="sr-only">Agent Commands &amp; Skills</DialogTitle>
+                <DialogTitle className="sr-only">{t('agentActions.dialog.title')}</DialogTitle>
                 <AgentActionTargetNote
                     id={targetDescriptionId}
                     provider={provider}
@@ -253,7 +263,7 @@ export function AgentActionsDialog() {
                 />
                 <Command
                     className="w-full"
-                    label="Agent Commands & Skills"
+                    label={t('agentActions.dialog.title')}
                     shouldFilter={false}
                     onKeyDownCapture={(event: KeyboardEvent<HTMLDivElement>) =>
                         handleAlternateChord(event, {
@@ -267,7 +277,7 @@ export function AgentActionsDialog() {
                     <CommandInput
                         autoFocus
                         aria-describedby={`${targetDescriptionId} ${interactionDescriptionId}`}
-                        placeholder="Search skills and slash commands, or type @ for Sessions…"
+                        placeholder={t('agentActions.dialog.placeholder')}
                         value={search}
                         onValueChange={setSearch}
                     />
@@ -278,7 +288,10 @@ export function AgentActionsDialog() {
                             onSelect={sessionReferences.insert}
                         />
                         {catalog.recentActions.length > 0 && (
-                            <CommandGroup data-agent-action-group="recent" heading="Recently Used">
+                            <CommandGroup
+                                data-agent-action-group="recent"
+                                heading={t('agentActions.dialog.recent')}
+                            >
                                 {catalog.recentActions.map((action) => (
                                     <AgentActionRow
                                         key={action.invocation}
@@ -295,7 +308,11 @@ export function AgentActionsDialog() {
                             <CommandGroup
                                 key={kind}
                                 data-agent-action-group={kind}
-                                heading={kind === 'command' ? 'Commands' : 'Skills'}
+                                heading={t(
+                                    kind === 'command'
+                                        ? 'agentActions.dialog.commands'
+                                        : 'agentActions.dialog.skills',
+                                )}
                             >
                                 {grouped.map((action) => (
                                     <AgentActionRow
@@ -311,20 +328,18 @@ export function AgentActionsDialog() {
                         ))}
                         {catalog.isDiscovering && (
                             <p className="m-0 px-3 py-2 text-[11px] text-muted" role="status">
-                                Discovering skills…
+                                {t('agentActions.dialog.discovering')}
                             </p>
                         )}
                         {catalog.isPartial && (
                             <p className="m-0 px-3 py-2 text-[11px] text-warning" role="status">
-                                Some commands or skills were unavailable or exceeded discovery
-                                limits. Available commands and skills are still ready.
+                                {t('agentActions.dialog.partial')}
                             </p>
                         )}
                     </CommandList>
                 </Command>
                 <span id={interactionDescriptionId} className="sr-only">
-                    Enter runs the selected action. Command+Enter inserts it for editing. Type @ to
-                    insert a reference to another Session's conversation.
+                    {t('agentActions.dialog.interactionHint')}
                 </span>
                 <div
                     className="flex min-h-10 items-center justify-between gap-3 border-t border-border px-3 py-1.5"
@@ -339,7 +354,7 @@ export function AgentActionsDialog() {
                                 useDialogStore.getState().openSettings('agent-actions', provider);
                         }}
                     >
-                        <Settings2 size={13} /> Manage in Settings…
+                        <Settings2 size={13} /> {t('agentActions.dialog.manageInSettings')}
                     </Button>
                     <AgentActionFooterModes isSessionMode={sessionReferences.isActive} />
                 </div>

@@ -1,3 +1,4 @@
+import type { Translate } from '../../i18n';
 import type { VisibleItemRow, VisibleRow } from './extension-tree-rows';
 
 /**
@@ -111,11 +112,15 @@ export function extensionTreeHorizontalIntent(
 export function extensionTreeActionsHint(
     actions: ReadonlyArray<{ command: { title: string }; tooltip?: string }>,
     isCollapsedBranch: boolean,
+    t: Translate,
 ): string {
     const names = actions
         .map(({ command, tooltip }) => (tooltip ? `${command.title} (${tooltip})` : command.title))
         .join(', ');
-    return isCollapsedBranch
-        ? `Actions: ${names}. Press Right Arrow to expand the row, then Right Arrow again to reach them, or Shift+F10 for a menu.`
-        : `Actions: ${names}. Press Right Arrow to reach them, or Shift+F10 for a menu.`;
+    return t(
+        isCollapsedBranch
+            ? 'viewContainers.extensionTree.actionsHintCollapsed'
+            : 'viewContainers.extensionTree.actionsHint',
+        { names },
+    );
 }

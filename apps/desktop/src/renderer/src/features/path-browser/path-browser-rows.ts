@@ -1,5 +1,6 @@
 import type { MethodResult } from '@caxri/protocol';
 
+import type { TranslationKey } from '../../i18n';
 import type { PathBrowserCreateCandidate } from './path-browser';
 
 type PathBrowserSnapshot = MethodResult<'pathBrowser.start'>;
@@ -7,7 +8,8 @@ export type PathBrowserEntry = PathBrowserSnapshot['entries'][number];
 export type PathBrowserSearchStatus = PathBrowserSnapshot['projectSearch'];
 
 /**
- * One line of the dialog. Creation shares the list and the selection model with the results so a single Enter path
+ * One line of the dialog. Group labels and notice texts are translation keys, so the dialog renders them in the active
+ * language at render time. Creation shares the list and the selection model with the results so a single Enter path
  * serves both, instead of living in a separate slot the keyboard cannot reach. Headings and notices share the list for
  * the opposite reason: they describe where the rows beneath them came from, so they have to sit with those rows rather
  * than in chrome that scrolls separately.
@@ -19,9 +21,9 @@ export type PathBrowserRow =
      * through options by `aria-activedescendant`, which skips everything that is not one. The row carries its own group
      * so the accessible name can say it, the way VS Code folds a Quick Pick separator into its entries.
      */
-    | { entry: PathBrowserEntry; group?: string; kind: 'entry' }
-    | { id: string; kind: 'group'; label: string }
-    | { id: string; kind: 'notice'; text: string; tone: 'muted' | 'danger' };
+    | { entry: PathBrowserEntry; group?: TranslationKey; kind: 'entry' }
+    | { id: string; kind: 'group'; label: TranslationKey }
+    | { id: string; kind: 'notice'; text: TranslationKey; tone: 'muted' | 'danger' };
 
 /**
  * Headings and notices are read, not chosen. Arrow keys and the mouse both step over them, so the selected row is
@@ -57,18 +59,17 @@ export function firstSelectablePathBrowserIndex(rows: readonly PathBrowserRow[])
     return index === -1 ? 0 : index;
 }
 
-const DIRECTORY_GROUP_LABEL = 'In this folder';
-const PROJECT_GROUP_LABEL = 'Elsewhere in this Project';
+const DIRECTORY_GROUP_LABEL: TranslationKey = 'pathBrowser.rows.directoryGroup';
+const PROJECT_GROUP_LABEL: TranslationKey = 'pathBrowser.rows.projectGroup';
 
 /**
  * Says the search could not run, rather than letting its group disappear. A missing group and an empty group read the
  * same way: "this name is nowhere else", and only one of them is true.
  */
-const SEARCH_UNAVAILABLE_NOTICE = 'Project search is unavailable right now.';
-const SEARCH_INCOMPLETE_NOTICE = 'Only part of this Project was searched. Refine the name.';
-const DIRECTORY_TRUNCATED_NOTICE =
-    'Only part of this folder is shown. Refine or open a narrower folder.';
-const NO_MATCH_NOTICE = 'No matching file or folder.';
+const SEARCH_UNAVAILABLE_NOTICE: TranslationKey = 'pathBrowser.rows.searchUnavailable';
+const SEARCH_INCOMPLETE_NOTICE: TranslationKey = 'pathBrowser.rows.searchIncomplete';
+const DIRECTORY_TRUNCATED_NOTICE: TranslationKey = 'pathBrowser.rows.directoryTruncated';
+const NO_MATCH_NOTICE: TranslationKey = 'pathBrowser.rows.noMatch';
 
 /**
  * Builds the dialog's list from both lookups at once.

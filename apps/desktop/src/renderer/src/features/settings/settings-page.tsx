@@ -9,19 +9,18 @@ import type {
     ArgvConfigChanges,
 } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Search, X } from 'lucide-react';
 
 import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 import { cn } from '@/lib/utilities';
 
-import { Input, InputGroup } from '../../components/ui/input';
-import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { SettingRow } from './setting-row';
-import type { SettingsCategory } from './settings-registry';
-import { agentProviderForSubcategory, settingsCategories, settingsRows } from './settings-registry';
+import type { SettingRowDescriptor, SettingsCategory } from './settings-registry';
+import { agentProviderForSubcategory, useSettingsRegistry } from './settings-registry';
 import type { SettingsListItem } from './settings-search';
 import { buildSettingsList, countRowsByCategory, filterSettingsRows } from './settings-search';
+import { SettingsSearchInput } from './settings-search-input';
 import { rowResetAction } from './settings-values';
 
 export interface SettingsPageProperties {
@@ -54,9 +53,6 @@ export interface SettingsPageProperties {
     ) => void;
 }
 
-const clearSearchButtonClassName =
-    'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:bg-elevated hover:text-foreground';
-
 /**
  * Anchor id a TOC entry scrolls to: a category id, or `category:subcategory`.
  */
@@ -81,8 +77,12 @@ function SettingsToc({
     searching,
     onNavigate,
 }: SettingsTocProperties) {
+    const { t } = useTranslation();
     return (
-        <nav aria-label="Settings categories" className="min-h-0 overflow-y-auto py-2 pl-2">
+        <nav
+            aria-label={t('settings.page.categoriesNav')}
+            className="min-h-0 overflow-y-auto py-2 pl-2"
+        >
             <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                 {categories.map((category) => {
                     const count = counts[category.id] ?? 0;
@@ -172,11 +172,13 @@ const estimateItemSize = (item: SettingsListItem): number => {
 
 /**
  * VS Code-style Settings surface: search on top, category table of contents left, and one virtualized flat list of
- * headings and rows right. Rendering stays schema-driven: rows come from `settingsRows`, so the list scales to any
- * number of settings without DOM cost.
+ * headings and rows right. Rendering stays schema-driven: rows come from the Settings registry, so the list scales to
+ * any number of settings without DOM cost.
  */
 export function SettingsPage(properties: SettingsPageProperties) {
     const { settings, argvConfig, trustedDomainsFocusRequestId } = properties;
+    const { t } = useTranslation();
+    const { categories, rows } = useSettingsRegistry();
     const [query, setQuery] = useState('');
     const isSearching = query.trim().length > 0;
     const scrollParentReference = useRef<HTMLDivElement>(null);
@@ -190,8 +192,11 @@ export function SettingsPage(properties: SettingsPageProperties) {
 
     useFocusOnRevision(properties.searchFocusRequestId, searchInputReference);
 
-    const visibleRows = useMemo(() => filterSettingsRows(settingsRows, query), [query]);
-    const list = useMemo(() => buildSettingsList(settingsCategories, visibleRows), [visibleRows]);
+    const visibleRows = useMemo(() => filterSettingsRows(rows, query), [rows, query]);
+    const list = useMemo(
+        () => buildSettingsList(categories, visibleRows),
+        [categories, visibleRows],
+    );
     const counts = useMemo(() => countRowsByCategory(visibleRows), [visibleRows]);
 
     // TanStack Virtual is knowingly incompatible with React Compiler memoization; the compiler
@@ -320,7 +325,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const handlers = {
         onArgvConfigChange: properties.onArgvConfigChange,
         onFieldChange: properties.onFieldChange,
-        onResetRow: (row: (typeof settingsRows)[number]): void => {
+        onResetRow: (row: SettingRowDescriptor): void => {
             const action = rowResetAction(row.binding, settings);
             if (!action) return;
             if (action.kind === 'argv') properties.onArgvConfigChange(action.changes);
@@ -331,40 +336,28 @@ export function SettingsPage(properties: SettingsPageProperties) {
     return (
         <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
             <div className="border-b border-border p-3 pb-2">
-                <InputGroup appearance="workbench" size="dense">
-                    <Search aria-hidden="true" className="shrink-0 text-muted" size={14} />
-                    <Input
-                        ref={searchInputReference}
-                        appearance="embedded"
-                        aria-label="Search settings"
-                        placeholder="Search settings"
-                        size="dense"
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                    />
-                    {query && (
-                        <Tooltip content="Clear Search">
-                            <button
-                                type="button"
-                                className={clearSearchButtonClassName}
-                                aria-label="Clear settings search"
-                                onClick={() => setQuery('')}
-                            >
-                                <X size={13} />
-                            </button>
-                        </Tooltip>
-                    )}
-                </InputGroup>
+                <SettingsSearchInput
+                    inputRef={searchInputReference}
+                    label={t('settings.page.search')}
+                    placeholder={t('settings.page.search')}
+                    clearTooltip={t('settings.page.clearSearch')}
+                    clearLabel={t('settings.page.clearSearchLabel')}
+                    value={query}
+                    onChange={setQuery}
+                />
                 {isSearching && (
                     <p className="mt-2 mb-0 text-[11px] text-muted" role="status">
-                        {visibleRows.length} of {settingsRows.length} settings
+                        {t('settings.page.searchCount', {
+                            total: rows.length,
+                            visible: visibleRows.length,
+                        })}
                     </p>
                 )}
             </div>
             <div className="grid min-h-0 grid-cols-[168px_minmax(0,1fr)] overflow-hidden">
                 <SettingsToc
                     activeAnchor={activeAnchor}
-                    categories={settingsCategories}
+                    categories={categories}
                     counts={counts}
                     searching={isSearching}
                     onNavigate={navigate}
@@ -372,7 +365,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
                 <div ref={scrollParentReference} className="min-h-0 overflow-y-auto pr-2 pb-6 pl-1">
                     {list.length === 0 ? (
                         <p className="px-3 py-6 text-center text-[12px] text-muted">
-                            No settings match “{query.trim()}”
+                            {t('settings.page.noMatches', { query: query.trim() })}
                         </p>
                     ) : (
                         <div

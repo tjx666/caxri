@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { TERMINAL_DEFAULT_WORD_SEPARATORS } from '../terminal-file-candidate';
+import { terminalLinkHintText } from '../terminal-link-copy';
 import type { TerminalLinkContext } from '../terminal-links';
 import {
     findTerminalLinks,
     MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES,
     MAX_TERMINAL_DETECTED_LINKS,
     registerTerminalLinks,
-    terminalLinkHintText,
 } from '../terminal-links';
 import { cellsFor, createTerminal } from './terminal-links-test-helpers';
 

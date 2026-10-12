@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SourceControlViewState } from '@caxri/protocol';
 import { MAX_SOURCE_CONTROL_VIEW_STATES } from '@caxri/protocol';
 
+import { translate } from '../../../../i18n';
 import { getBootstrap } from '../../../../stores/selectors';
 import { patchSessionState } from '../../../../stores/workbench';
 import type { SourceControlViewNavigation } from '../source-control-state';
@@ -45,7 +46,7 @@ function persistSourceControlNavigation(
                 [scope.viewId]: persisted,
             },
         },
-        'Source Control view state could not be saved',
+        translate('viewContainers.sourceControl.stateSaveFailed'),
     );
 }
 

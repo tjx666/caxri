@@ -8,6 +8,7 @@ import {
 } from '../../components/ui/command';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { terminalLinkPickerCopy } from './terminal-link-picker-presentation';
 import type { TerminalLinkScanStatus } from './terminal-link-scanner';
 import type { TerminalDetectedLink } from './terminal-links';
@@ -32,6 +33,7 @@ function TerminalLinkGroup({
     links: TerminalDetectedLink[];
     onSelect: (link: TerminalDetectedLink) => void;
 }) {
+    const { t } = useTranslation();
     if (links.length === 0) return null;
     return (
         <CommandGroup heading={heading}>
@@ -48,11 +50,13 @@ function TerminalLinkGroup({
                     </Tooltip>
                     <small className="flex-none text-[11px] text-muted">
                         {link.detail ??
-                            (link.kind === 'url'
-                                ? 'External URL'
-                                : link.kind === 'commit'
-                                  ? 'Git commit'
-                                  : 'File')}
+                            t(
+                                link.kind === 'url'
+                                    ? 'terminal.linkPicker.kind.url'
+                                    : link.kind === 'commit'
+                                      ? 'terminal.links.commit.detail'
+                                      : 'terminal.linkPicker.kind.file',
+                            )}
                     </small>
                 </CommandItem>
             ))}
@@ -73,6 +77,7 @@ export function TerminalLinkPicker({
     status,
     isTruncated,
 }: TerminalLinkPickerProperties) {
+    const { t } = useTranslation();
     const urls = links.filter((link) => link.kind === 'url');
     const files = links.filter((link) => link.kind === 'file');
     const commits = links.filter((link) => link.kind === 'commit');
@@ -82,7 +87,7 @@ export function TerminalLinkPicker({
      * otherwise uncontrolled and retains the full detected path, filtering every safe display candidate out.
      */
     const commandKey = mode;
-    const copy = terminalLinkPickerCopy(mode, isCommitCandidates, status);
+    const copy = terminalLinkPickerCopy(t, mode, isCommitCandidates, status);
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <PickerDialogContent>
@@ -92,27 +97,40 @@ export function TerminalLinkPicker({
                     <CommandList aria-busy={status === 'scanning'}>
                         <CommandEmpty>{copy.empty}</CommandEmpty>
                         {mode === 'detected' && (
-                            <TerminalLinkGroup heading="URLs" links={urls} onSelect={onSelect} />
+                            <TerminalLinkGroup
+                                heading={t('terminal.linkPicker.group.urls')}
+                                links={urls}
+                                onSelect={onSelect}
+                            />
                         )}
                         <TerminalLinkGroup
-                            heading={mode === 'candidates' ? 'Matching files' : 'Files'}
+                            heading={t(
+                                mode === 'candidates'
+                                    ? 'terminal.linkPicker.group.matchingFiles'
+                                    : 'terminal.linkPicker.group.files',
+                            )}
                             links={files}
                             onSelect={onSelect}
                         />
                         <TerminalLinkGroup
-                            heading={
-                                mode === 'candidates' ? 'Matching repositories' : 'Git commits'
-                            }
+                            heading={t(
+                                mode === 'candidates'
+                                    ? 'terminal.linkPicker.group.matchingRepositories'
+                                    : 'terminal.linkPicker.group.commits',
+                            )}
                             links={commits}
                             onSelect={onSelect}
                         />
                         {(status === 'exhausted' || isTruncated) && (
                             <div className="px-2 py-1.5 text-[11px] text-muted">
-                                {mode === 'candidates'
-                                    ? isCommitCandidates
-                                        ? 'Commit search reached its safety limit; choose from the matches shown.'
-                                        : 'File search reached its safety limit; choose from the matches shown.'
-                                    : `Showing the first ${MAX_TERMINAL_DETECTED_LINKS} links.`}
+                                {t(
+                                    mode === 'candidates'
+                                        ? isCommitCandidates
+                                            ? 'terminal.linkPicker.limit.commits'
+                                            : 'terminal.linkPicker.limit.files'
+                                        : 'terminal.linkPicker.limit.detected',
+                                    { count: MAX_TERMINAL_DETECTED_LINKS },
+                                )}
                             </div>
                         )}
                     </CommandList>

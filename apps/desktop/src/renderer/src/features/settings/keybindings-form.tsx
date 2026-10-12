@@ -3,10 +3,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { Keybinding } from '@caxri/protocol';
 import { findKeybindingConflicts } from '@caxri/protocol';
-import { Search, X } from 'lucide-react';
 
-import { Input, InputGroup } from '../../components/ui/input';
-import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
+import { commandCategory } from '../../lib/command-labels';
 import { isModifierKey, keyboardEventShortcut } from '../../lib/keybindings';
 import type { KeybindingRow, RecordingState } from './keybinding-editor';
 import {
@@ -15,12 +14,14 @@ import {
     clearRecordingKey,
     commitOnBlur,
     commitOnEnter,
+    CUSTOM_KEYBINDING_CATEGORY,
     filterKeybindingRows,
     groupKeybindingRows,
     isFocusNavigationKey,
     startRecording,
 } from './keybinding-editor';
 import { KeybindingRowItem } from './keybinding-row-item';
+import { SettingsSearchInput } from './settings-search-input';
 
 interface KeybindingsFormProperties {
     /**
@@ -35,12 +36,6 @@ interface KeybindingsFormProperties {
 }
 
 /**
- * Clear-search affordance shared with `ProjectSearch`'s `searchOptionClassName`.
- */
-const clearSearchButtonClassName =
-    'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:bg-elevated hover:text-foreground';
-
-/**
  * Searchable, keyboard-operable command list backed by the lossless JSONC draft.
  */
 export function KeybindingsForm({
@@ -50,13 +45,14 @@ export function KeybindingsForm({
     onChange,
     onRemove,
 }: KeybindingsFormProperties) {
+    const { t } = useTranslation();
     const [query, setQuery] = useState('');
     const [recording, setRecording] = useState<RecordingState>();
     const [focusRequest, setFocusRequest] = useState<{ command: string; id: number }>();
     const rootReference = useRef<HTMLDivElement>(null);
     const searchReference = useRef<HTMLInputElement>(null);
     const rows = useMemo(() => buildKeybindingRows(keybindings), [keybindings]);
-    const visibleRows = useMemo(() => filterKeybindingRows(rows, query), [query, rows]);
+    const visibleRows = useMemo(() => filterKeybindingRows(rows, query, t), [query, rows, t]);
     const groups = useMemo(() => groupKeybindingRows(visibleRows), [visibleRows]);
     const conflictsByKey = useMemo(
         () =>
@@ -168,39 +164,29 @@ export function KeybindingsForm({
             className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
         >
             <div className="border-b border-border p-3">
-                <InputGroup appearance="workbench" size="dense">
-                    <Search aria-hidden="true" className="shrink-0 text-muted" size={14} />
-                    <Input
-                        ref={searchReference}
-                        appearance="embedded"
-                        aria-label="Search keyboard shortcuts"
-                        placeholder="Search commands or shortcuts"
-                        size="dense"
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                    />
-                    {query && (
-                        <Tooltip content="Clear Search">
-                            <button
-                                type="button"
-                                className={clearSearchButtonClassName}
-                                aria-label="Clear keyboard shortcut search"
-                                onClick={() => setQuery('')}
-                            >
-                                <X size={13} />
-                            </button>
-                        </Tooltip>
-                    )}
-                </InputGroup>
+                <SettingsSearchInput
+                    inputRef={searchReference}
+                    label={t('settings.keybindingEditor.searchLabel')}
+                    placeholder={t('settings.keybindingEditor.searchPlaceholder')}
+                    clearTooltip={t('settings.keybindingEditor.clearSearch')}
+                    clearLabel={t('settings.keybindingEditor.clearSearchLabel')}
+                    value={query}
+                    onChange={setQuery}
+                />
                 <p className="mt-2 text-[11px] text-muted">
-                    {visibleRows.length} of {rows.length} shortcuts
+                    {t('settings.keybindingEditor.count', {
+                        visible: visibleRows.length,
+                        total: rows.length,
+                    })}
                 </p>
             </div>
             <div className="structured-editor m-0 min-h-0 overflow-auto p-2">
                 {groups.map((group) => (
                     <section key={group.category} className="mb-3 last:mb-0">
                         <h3 className="mb-1 truncate px-3 text-[10px] font-medium tracking-wide text-muted uppercase">
-                            {group.category}
+                            {group.category === CUSTOM_KEYBINDING_CATEGORY
+                                ? t('settings.keybindingEditor.customCategory')
+                                : commandCategory(group.category, t)}
                         </h3>
                         <ul className="m-0 list-none p-0">
                             {group.rows.map((row) => (
@@ -221,7 +207,7 @@ export function KeybindingsForm({
                 ))}
                 {visibleRows.length === 0 && (
                     <div className="flex flex-col items-center gap-2 p-6 text-center text-muted">
-                        <p>No keyboard shortcuts found.</p>
+                        <p>{t('settings.keybindingEditor.empty')}</p>
                     </div>
                 )}
             </div>

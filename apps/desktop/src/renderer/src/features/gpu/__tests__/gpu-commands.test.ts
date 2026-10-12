@@ -25,7 +25,7 @@ vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
 import {
     confirmTurnOffHardwareAcceleration,
     openHardwareAccelerationSettings,
-    TURN_OFF_HARDWARE_ACCELERATION_CONFIRM,
+    turnOffHardwareAccelerationConfirm,
 } from '../gpu-commands';
 
 beforeEach(() => {
@@ -67,14 +67,14 @@ describe('confirmTurnOffHardwareAcceleration', () => {
      * was a button and a card describing different actions.
      */
     it('states that the change persists, that it restarts now, and where it is undone', () => {
-        expect(TURN_OFF_HARDWARE_ACCELERATION_CONFIRM.title).toContain('restart Caxri?');
-        expect(TURN_OFF_HARDWARE_ACCELERATION_CONFIRM.message).toContain('restarts now');
-        expect(TURN_OFF_HARDWARE_ACCELERATION_CONFIRM.message).toContain('every time it starts');
-        expect(TURN_OFF_HARDWARE_ACCELERATION_CONFIRM.message).toContain('back on in Settings');
+        expect(turnOffHardwareAccelerationConfirm().title).toContain('restart Caxri?');
+        expect(turnOffHardwareAccelerationConfirm().message).toContain('restarts now');
+        expect(turnOffHardwareAccelerationConfirm().message).toContain('every time it starts');
+        expect(turnOffHardwareAccelerationConfirm().message).toContain('back on in Settings');
     });
 
     it('keeps implementation vocabulary out of every string the user reads', () => {
-        const copy = Object.values(TURN_OFF_HARDWARE_ACCELERATION_CONFIRM).join(' ');
+        const copy = Object.values(turnOffHardwareAccelerationConfirm()).join(' ');
         for (const jargon of ['argv', 'WebGL', 'DOM', 'Safe Mode', 'disable-hardware-acceleration'])
             expect(copy).not.toContain(jargon);
     });

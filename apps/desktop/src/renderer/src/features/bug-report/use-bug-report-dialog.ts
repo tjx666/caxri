@@ -4,6 +4,7 @@ import type { MethodResult } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
+import { translate, useTranslation } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { setBugReportOpen } from '../../stores/dialogs';
 import { getBootstrap } from '../../stores/selectors';
@@ -69,7 +70,7 @@ function initialReportState(): {
     const session = snapshot?.sessions.find((item) => item.id === snapshot.selectedSessionId);
     const project = snapshot?.projects.find((item) => item.id === session?.projectId);
     if (!snapshot || !session || !project)
-        return { contextError: 'Select a Session before reporting a bug to an Agent.' };
+        return { contextError: translate('bugReport.flow.selectSession') };
     return {
         selectedTargetId: chooseBugReportTarget(
             snapshot.terminals,
@@ -158,6 +159,7 @@ export function useBugReportDialog() {
         createBugReportDialogState,
     );
     const bootstrap = useWorkbenchStore((state) => state.bootstrap);
+    const { t } = useTranslation();
     const {
         annotatorOpen,
         busy,
@@ -185,7 +187,10 @@ export function useBugReportDialog() {
             } catch (error: unknown) {
                 if (isCurrent)
                     updateState({
-                        contextError: errorMessage(error, 'Unable to load Caxri context.'),
+                        contextError: errorMessage(
+                            error,
+                            translate('bugReport.flow.contextLoadFailed'),
+                        ),
                     });
             }
         }
@@ -223,7 +228,7 @@ export function useBugReportDialog() {
             });
         } catch (error) {
             updateState({
-                screenshotError: errorMessage(error, 'Unable to capture the Caxri window.'),
+                screenshotError: errorMessage(error, translate('bugReport.flow.captureFailed')),
             });
         } finally {
             updateState({ captureHidden: false, capturing: false });
@@ -281,7 +286,7 @@ export function useBugReportDialog() {
         [bootstrap?.terminals, source?.session.id],
     );
     const target = targets.find((item) => item.id === selectedTargetId);
-    const imageDeliveryNotice = bugReportImageDeliveryNotice(target?.provider);
+    const imageDeliveryNotice = bugReportImageDeliveryNotice(t, target?.provider);
     const isSessionChanged = Boolean(source && bootstrap?.selectedSessionId !== source.session.id);
     const canPreview = Boolean(
         source && diagnostics && draft.actual.trim() && draft.expected.trim(),
@@ -313,11 +318,10 @@ export function useBugReportDialog() {
      */
     const discardDraft = async (): Promise<void> => {
         const isConfirmed = await caxri.window.showConfirm({
-            cancelLabel: 'Keep Draft',
-            confirmLabel: 'Discard Draft',
-            message:
-                'The text you wrote, the screenshot, and every annotation on it are deleted. This cannot be undone.',
-            title: 'Discard this bug report draft?',
+            cancelLabel: t('bugReport.flow.keepDraft'),
+            confirmLabel: t('bugReport.form.discardDraft'),
+            message: t('bugReport.flow.discardConfirmMessage'),
+            title: t('bugReport.flow.discardConfirmTitle'),
         });
         if (!isConfirmed) return;
         clearBugReportDraft();
@@ -381,7 +385,7 @@ export function useBugReportDialog() {
                     updateState({
                         screenshotError: errorMessage(
                             error,
-                            'Unable to save the screenshot file. The report will not include an image path.',
+                            t('bugReport.flow.saveScreenshotFailed'),
                         ),
                     });
                 }
@@ -396,9 +400,9 @@ export function useBugReportDialog() {
         if (!report) return;
         try {
             await navigator.clipboard.writeText(report);
-            pushToast('success', 'Bug report copied');
+            pushToast('success', t('bugReport.flow.copied'));
         } catch (error) {
-            updateState({ sendError: errorMessage(error, 'Unable to copy the bug report.') });
+            updateState({ sendError: errorMessage(error, t('bugReport.flow.copyFailed')) });
         }
     };
 
@@ -407,7 +411,7 @@ export function useBugReportDialog() {
         const current = getBootstrap();
         if (current?.selectedSessionId !== source.session.id) {
             updateState({
-                sendError: 'The selected Session changed. Copy the report or reopen this flow.',
+                sendError: t('bugReport.preview.sessionChanged'),
             });
             return;
         }
@@ -416,8 +420,7 @@ export function useBugReportDialog() {
         );
         if (!liveTarget) {
             updateState({
-                sendError:
-                    'The selected Agent is no longer running. Choose another Agent or copy the report.',
+                sendError: t('bugReport.flow.agentStopped'),
             });
             return;
         }
@@ -438,9 +441,9 @@ export function useBugReportDialog() {
             shouldRetainOnClose.current = false;
             clearBugReportDraft();
             setBugReportOpen(false);
-            pushToast('success', `Bug report sent to ${liveTarget.title}`);
+            pushToast('success', t('bugReport.flow.sent', { title: liveTarget.title }));
         } catch (error) {
-            updateState({ sendError: errorMessage(error, 'Unable to send the bug report.') });
+            updateState({ sendError: errorMessage(error, t('bugReport.flow.sendFailed')) });
         } finally {
             updateState({ busy: false });
         }

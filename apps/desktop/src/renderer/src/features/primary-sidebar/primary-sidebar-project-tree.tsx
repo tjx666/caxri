@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
+import { useTranslation } from '../../i18n';
 import {
     useProjects,
     useSelectedProject,
@@ -48,6 +49,7 @@ const onAddProject = (): void => executeCommand('project.create');
  * hidden tree recomputing behind the queue.
  */
 export function PrimarySidebarProjectTree() {
+    const { t } = useTranslation();
     const allProjects = useProjects();
     /**
      * The tree is the only consumer that hides auto-registered worktree Projects. Filtering once here (before order,
@@ -234,7 +236,7 @@ export function PrimarySidebarProjectTree() {
                  */}
                 <div
                     ref={treeReference}
-                    aria-label="Primary Side Bar"
+                    aria-label={t('primarySidebar.tree.ariaLabel')}
                     role="tree"
                     /*
                      * Not a Tab stop (rows own the only one) but `focusChromeSurface` falls back to the tree itself
@@ -301,7 +303,7 @@ export function PrimarySidebarProjectTree() {
                         className="first-session flex min-h-[72px] w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-transparent p-4 text-muted hover:border-muted hover:text-foreground"
                         onClick={onAddProject}
                     >
-                        <Plus size={16} /> Add your first Project
+                        <Plus size={16} /> {t('primarySidebar.tree.addFirstProject')}
                     </button>
                 )}
                 <div className="project-order-announcement sr-only" aria-live="polite">

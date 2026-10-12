@@ -5,6 +5,8 @@ import { shiftLocalDate } from '@caxri/protocol';
 
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { HeatmapWeek, UsageMetric } from './usage-metrics';
 import {
@@ -19,17 +21,21 @@ import {
 
 type ActivityView = 'daily' | 'weekly' | 'cumulative';
 
-const ACTIVITY_VIEWS: ReadonlyArray<{ value: ActivityView; label: string }> = [
-    { value: 'daily', label: 'Daily' },
-    { value: 'weekly', label: 'Weekly' },
-    { value: 'cumulative', label: 'Cumulative' },
-];
+const ACTIVITY_VIEWS: readonly ActivityView[] = ['daily', 'weekly', 'cumulative'];
 
 /**
  * Intensity steps over the `--chart` role, GitHub style. Level 0 is an empty day on the card's own elevated fill.
  */
 const LEVEL_CLASSES = ['bg-elevated', 'bg-chart/25', 'bg-chart/50', 'bg-chart/75', 'bg-chart'];
-const WEEKDAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+const WEEKDAY_LABELS: ReadonlyArray<TranslationKey | undefined> = [
+    undefined,
+    'usage.activity.weekdayMon',
+    undefined,
+    'usage.activity.weekdayWed',
+    undefined,
+    'usage.activity.weekdayFri',
+    undefined,
+];
 
 interface HoverTarget {
     label: string;
@@ -58,6 +64,7 @@ function DailyGrid({
     weeks: readonly HeatmapWeek[];
     days: ReadonlyMap<string, UsageDay>;
 }) {
+    const { t } = useTranslation();
     return (
         <div className="grid grid-cols-[repeat(53,minmax(0,1fr))] gap-0.5">
             {weeks.map((week) => (
@@ -68,7 +75,7 @@ function DailyGrid({
                         ) : (
                             <Tooltip
                                 key={cell.date}
-                                content={usageDayTooltip(cell.date, days.get(cell.date))}
+                                content={usageDayTooltip(t, cell.date, days.get(cell.date))}
                             >
                                 <div
                                     className={cn(
@@ -86,6 +93,7 @@ function DailyGrid({
 }
 
 function WeeklyBars({ weeks, metric }: { weeks: readonly HeatmapWeek[]; metric: UsageMetric }) {
+    const { t } = useTranslation();
     const peak = Math.max(0, ...weeks.map((week) => week.total));
     return (
         <div className="grid h-28 grid-cols-[repeat(53,minmax(0,1fr))] items-end gap-0.5">
@@ -93,7 +101,13 @@ function WeeklyBars({ weeks, metric }: { weeks: readonly HeatmapWeek[]; metric: 
             {weeks.map((week) => (
                 <Tooltip
                     key={week.start}
-                    content={`Week of ${formatDate(week.start)} · ${week.total > 0 ? formatMetric(week.total, metric) : 'No usage'}`}
+                    content={t('usage.activity.weekTooltip', {
+                        date: formatDate(t, week.start),
+                        value:
+                            week.total > 0
+                                ? formatMetric(t, week.total, metric)
+                                : t('usage.noUsage'),
+                    })}
                 >
                     <div className="flex h-full items-end">
                         <div
@@ -129,6 +143,7 @@ function CumulativeChart({
     metric: UsageMetric;
     onHover: (target: HoverTarget | undefined) => void;
 }) {
+    const { t } = useTranslation();
     const points = useMemo(() => buildCumulative(weeks), [weeks]);
     const total = points.at(-1)?.total ?? 0;
     const step = CHART_WIDTH / Math.max(1, points.length - 1);
@@ -154,8 +169,8 @@ function CumulativeChart({
                 const point = points.at(Math.min(points.length - 1, Math.max(0, index)));
                 if (point)
                     onHover({
-                        label: `Through ${formatDate(point.date)}`,
-                        detail: formatMetric(point.total, metric),
+                        label: t('usage.activity.through', { date: formatDate(t, point.date) }),
+                        detail: formatMetric(t, point.total, metric),
                     });
             }}
         >
@@ -187,10 +202,14 @@ export function UsageActivityCard({
     activity: readonly UsageDay[];
     today: string;
 }) {
+    const { t } = useTranslation();
     const [view, setView] = useState<ActivityView>('daily');
     const [metric, setMetric] = useState<UsageMetric>('tokens');
     const [hover, setHover] = useState<HoverTarget>();
-    const weeks = useMemo(() => buildHeatmap(activity, today, metric), [activity, today, metric]);
+    const weeks = useMemo(
+        () => buildHeatmap(t, activity, today, metric),
+        [t, activity, today, metric],
+    );
     const days = useMemo(() => new Map(activity.map((day) => [day.date, day])), [activity]);
     const yearStart = shiftLocalDate(today, -364);
     const yearDays = activity.filter((day) => day.date >= yearStart);
@@ -199,10 +218,16 @@ export function UsageActivityCard({
         0,
     );
     const activeDays = yearDays.filter((day) => day.tokens > 0).length;
-    const summary = `${formatMetric(yearTotal, metric)} over ${activeDays} active ${activeDays === 1 ? 'day' : 'days'} in the last year`;
+    const summary = t(
+        activeDays === 1 ? 'usage.activity.summaryOne' : 'usage.activity.summaryOther',
+        { count: activeDays, value: formatMetric(t, yearTotal, metric) },
+    );
     const busiestDay = activityHighlights(yearDays).busiestDay;
     const chartLabel = busiestDay
-        ? `${summary}; busiest day ${usageDayTooltip(busiestDay.date, busiestDay)}`
+        ? t('usage.activity.chartLabel', {
+              busiestDay: usageDayTooltip(t, busiestDay.date, busiestDay),
+              summary,
+          })
         : summary;
 
     return (
@@ -210,7 +235,7 @@ export function UsageActivityCard({
             // `min-w-0` lets the page grid shrink this card to the pane, so the year chart scrolls inside it instead of
             // widening the whole page past a narrow pane.
             className="min-w-0 rounded-md border border-border bg-surface p-4"
-            aria-label={activityCardLabel(metric)}
+            aria-label={activityCardLabel(t, metric)}
         >
             {/* Wraps so a narrow pane drops the switches under the title instead of clipping them. */}
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -219,32 +244,32 @@ export function UsageActivityCard({
                  * says so, since a 30D selection above a year-long chart otherwise reads as a bug.
                  */}
                 <h2 className="m-0 flex items-baseline gap-2 text-[13px] font-semibold">
-                    Activity
+                    {t('usage.activity.title')}
                     <span className="text-[11px] font-normal text-muted">
-                        Last 12 months, for every range
+                        {t('usage.activity.caption')}
                     </span>
                 </h2>
                 <div className="flex flex-wrap items-center justify-end gap-2">
                     <ToggleGroup
-                        aria-label="Activity metric"
+                        aria-label={t('usage.activity.metric')}
                         value={[metric]}
                         onValueChange={(next: UsageMetric[]) => {
                             if (next[0]) setMetric(next[0]);
                         }}
                     >
-                        <ToggleGroupItem value="tokens">Tokens</ToggleGroupItem>
-                        <ToggleGroupItem value="cost">Cost</ToggleGroupItem>
+                        <ToggleGroupItem value="tokens">{t('usage.tokens')}</ToggleGroupItem>
+                        <ToggleGroupItem value="cost">{t('usage.cost.title')}</ToggleGroupItem>
                     </ToggleGroup>
                     <ToggleGroup
-                        aria-label="Activity view"
+                        aria-label={t('usage.activity.view')}
                         value={[view]}
                         onValueChange={(next: ActivityView[]) => {
                             if (next[0]) setView(next[0]);
                         }}
                     >
                         {ACTIVITY_VIEWS.map((item) => (
-                            <ToggleGroupItem key={item.value} value={item.value}>
-                                {item.label}
+                            <ToggleGroupItem key={item} value={item}>
+                                {t(`usage.activity.views.${item}`)}
                             </ToggleGroupItem>
                         ))}
                     </ToggleGroup>
@@ -264,7 +289,7 @@ export function UsageActivityCard({
                         >
                             {WEEKDAY_LABELS.map((label, index) => (
                                 <span key={index} className="flex items-center leading-none">
-                                    {label}
+                                    {label ? t(label) : ''}
                                 </span>
                             ))}
                         </div>
@@ -292,11 +317,11 @@ export function UsageActivityCard({
                 </span>
                 {view === 'daily' && (
                     <span className="flex flex-none items-center gap-1" aria-hidden="true">
-                        Less
+                        {t('usage.activity.less')}
                         {LEVEL_CLASSES.map((level) => (
                             <span key={level} className={cn('size-2.5 rounded-sm', level)} />
                         ))}
-                        More
+                        {t('usage.activity.more')}
                     </span>
                 )}
             </div>

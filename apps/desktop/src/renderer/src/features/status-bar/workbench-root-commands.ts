@@ -1,5 +1,6 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
@@ -13,16 +14,21 @@ export async function selectWorkbenchRoot(
 ): Promise<'selected' | 'canceled' | 'failed'> {
     if (root.authorization === 'required') {
         const confirmed = await caxri.window.showConfirm({
-            title: 'Authorize worktree?',
-            message: `Allow Caxri to access the folder "${root.rootPath}" for branch "${root.branch}"? Files, Editor, and Git in this Session will switch to this worktree.`,
-            confirmLabel: 'Authorize and switch',
+            title: translate('statusBar.workbenchRoot.authorizeTitle'),
+            message: translate('statusBar.workbenchRoot.authorizeMessage', {
+                path: root.rootPath,
+                branch: root.branch,
+            }),
+            confirmLabel: translate('statusBar.workbenchRoot.authorizeConfirm'),
         });
         if (!confirmed) return 'canceled';
     }
     const result = await tryCommand(
-        root.authorization === 'required'
-            ? 'Unable to authorize Workbench Root'
-            : 'Unable to switch Workbench Root',
+        translate(
+            root.authorization === 'required'
+                ? 'statusBar.workbenchRoot.authorizeFailed'
+                : 'statusBar.workbenchRoot.switchFailed',
+        ),
         async () => {
             const selected =
                 root.authorization === 'required'

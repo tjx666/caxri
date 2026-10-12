@@ -5,10 +5,15 @@ import type {
     AgentChatSnapshot,
     ProcessState,
 } from '@caxri/protocol';
-import { agentChatFailureMessage, agentChatWaitingText } from '@caxri/protocol';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import { projectRelativePath } from '../../lib/file-path';
 import { getTerminalExitPresentation } from '../terminal/terminal-exit-presentation';
+import {
+    agentChatLocalizedFailureMessage,
+    agentChatLocalizedWaitingText,
+} from './agent-chat-request-labels';
 
 /**
  * Whether the composer accepts a message. A stopped Chat resumes its Agent Session on the next message, a starting one
@@ -35,11 +40,12 @@ export function agentChatEmptyMessage(
     snapshot: Pick<AgentChatSnapshot, 'items' | 'status'> | undefined,
     processState: ProcessState | undefined,
     providerName: string,
+    t: Translate = translate,
 ): string | undefined {
     if (!snapshot || snapshot.items.length > 0) return undefined;
-    if (processState === 'detached') return 'Messages appear here once the Chat resumes.';
+    if (processState === 'detached') return t('agentChat.timeline.emptyDetached');
     return snapshot.status === 'ready'
-        ? `Send a message to start working with ${providerName}.`
+        ? t('agentChat.timeline.emptyReady', { provider: providerName })
         : undefined;
 }
 
@@ -49,17 +55,23 @@ export function agentChatEmptyMessage(
  * Shift+Enter. Either sigil opens the same list of commands and skills (`agentChatSlashQuery`), `$` leading with
  * skills, so the hint does not promise `$` only skills.
  */
-export function agentChatEmptyHint(canAttachImages: boolean): string {
-    const files = canAttachImages ? 'paste or drop images and files' : 'drop files to insert paths';
-    return `Type / or $ for commands and skills · ${files} · ⇧Enter for a new line`;
+export function agentChatEmptyHint(canAttachImages: boolean, t: Translate = translate): string {
+    const files = t(
+        canAttachImages
+            ? 'agentChat.timeline.emptyHintImages'
+            : 'agentChat.timeline.emptyHintPaths',
+    );
+    return t('agentChat.timeline.emptyHint', { files });
 }
 
 /**
  * The Attach button's name and tooltip. A picked image attaches only when the provider takes images; any other file is
  * inserted into the message as its path, so the button says both.
  */
-export function agentChatAttachLabel(canAttachImages: boolean): string {
-    return canAttachImages ? 'Attach images or insert file paths' : 'Insert file paths';
+export function agentChatAttachLabel(canAttachImages: boolean, t: Translate = translate): string {
+    return t(
+        canAttachImages ? 'agentChat.message.attachImagesOrPaths' : 'agentChat.message.insertPaths',
+    );
 }
 
 /**
@@ -86,8 +98,11 @@ export interface AgentChatRecoveryNotice {
  * provider's own detail only says so again (`Claude could not resume this conversation`), so the body names the cause
  * Caxri knows and the next step instead.
  */
-export function agentChatResumeFailureDetail(providerName: string): string {
-    return `${providerName} could not reopen its saved record of this conversation. Retry, or open it as a Terminal to see what ${providerName} reports.`;
+export function agentChatResumeFailureDetail(
+    providerName: string,
+    t: Translate = translate,
+): string {
+    return t('agentChat.timeline.resumeFailureDetail', { provider: providerName });
 }
 
 /**
@@ -99,11 +114,13 @@ export function agentChatRecoveryNotice(
     snapshot: Pick<AgentChatSnapshot, 'failure' | 'status'> | undefined,
     state: { isLoadError: boolean; processState: ProcessState | undefined },
     providerName: string,
+    t: Translate = translate,
 ): AgentChatRecoveryNotice | undefined {
     if (state.processState === 'detached')
         return {
             kind: 'detached',
-            message: getTerminalExitPresentation('detached')?.label ?? 'Detached',
+            message:
+                getTerminalExitPresentation('detached')?.label ?? t('agentChat.timeline.detached'),
             recovery: 'restart',
         };
     const isFailed = snapshot?.status === 'failed';
@@ -114,32 +131,26 @@ export function agentChatRecoveryNotice(
      */
     const recovery = isFailed ? 'restart' : 'reload';
     if (!snapshot?.failure)
-        return { kind: 'failed', message: 'The conversation could not be loaded.', recovery };
+        return { kind: 'failed', message: t('agentChat.timeline.loadFailed'), recovery };
     if (snapshot.failure.reason === 'conversation_in_use')
         return {
             kind: 'inUse',
-            message: agentChatFailureMessage('conversation_in_use', {
-                providerName,
-                surface: 'desktop',
-            }),
+            message: agentChatLocalizedFailureMessage('conversation_in_use', providerName, t),
             // The provider's own detail only restates the heading, so the body names the way out instead.
-            detail: 'Close it there, then retry.',
+            detail: t('agentChat.timeline.inUseDetail'),
             recovery,
         };
     if (snapshot.failure.reason === 'resume_failed')
         return {
             kind: 'failed',
-            message: agentChatFailureMessage('resume_failed', { providerName, surface: 'desktop' }),
-            detail: agentChatResumeFailureDetail(providerName),
+            message: agentChatLocalizedFailureMessage('resume_failed', providerName, t),
+            detail: agentChatResumeFailureDetail(providerName, t),
             recovery,
             canOpenAsTerminal: true,
         };
     return {
         kind: 'failed',
-        message: agentChatFailureMessage(snapshot.failure.reason, {
-            providerName,
-            surface: 'desktop',
-        }),
+        message: agentChatLocalizedFailureMessage(snapshot.failure.reason, providerName, t),
         ...(snapshot.failure.detail && { detail: snapshot.failure.detail }),
         recovery,
     };
@@ -149,40 +160,40 @@ export function agentChatRecoveryNotice(
  * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
  * in it, as Claude Code's spinner does; the words stay calm and never claim a specific step.
  */
-const WORKING_VERBS = [
-    'Pondering',
-    'Tinkering',
-    'Mulling it over',
-    'Connecting the dots',
-    'Untangling',
-    'Sketching',
-    'Percolating',
-    'Rummaging',
-    'Piecing it together',
-    'Noodling',
-    'Brewing',
-    'Weighing options',
-    'Tracing',
-    'Sleuthing',
-    'Distilling',
-    'Simmering',
-    'Calibrating',
-    'Whittling',
-    'Wrangling',
-    'Conjuring',
-    'Exploring',
-    'Cross-checking',
-    'Lining things up',
-    'Spelunking',
-] as const;
+const WORKING_VERBS: readonly TranslationKey[] = [
+    'agentChat.timeline.working.pondering',
+    'agentChat.timeline.working.tinkering',
+    'agentChat.timeline.working.mullingItOver',
+    'agentChat.timeline.working.connectingTheDots',
+    'agentChat.timeline.working.untangling',
+    'agentChat.timeline.working.sketching',
+    'agentChat.timeline.working.percolating',
+    'agentChat.timeline.working.rummaging',
+    'agentChat.timeline.working.piecingItTogether',
+    'agentChat.timeline.working.noodling',
+    'agentChat.timeline.working.brewing',
+    'agentChat.timeline.working.weighingOptions',
+    'agentChat.timeline.working.tracing',
+    'agentChat.timeline.working.sleuthing',
+    'agentChat.timeline.working.distilling',
+    'agentChat.timeline.working.simmering',
+    'agentChat.timeline.working.calibrating',
+    'agentChat.timeline.working.whittling',
+    'agentChat.timeline.working.wrangling',
+    'agentChat.timeline.working.conjuring',
+    'agentChat.timeline.working.exploring',
+    'agentChat.timeline.working.crossChecking',
+    'agentChat.timeline.working.liningThingsUp',
+    'agentChat.timeline.working.spelunking',
+];
 
 /**
  * One verb per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
  */
-export function agentChatWorkingVerb(turnId: string): string {
+export function agentChatWorkingVerb(turnId: string, t: Translate = translate): string {
     let hash = 0;
     for (const character of turnId) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) >>> 0;
-    return WORKING_VERBS[hash % WORKING_VERBS.length] ?? 'Working';
+    return t(WORKING_VERBS[hash % WORKING_VERBS.length] ?? 'agentChat.timeline.working.working');
 }
 
 export type AgentChatActivity =
@@ -205,19 +216,28 @@ export function agentChatActivity(
         | undefined,
     providerName: string,
     { hasConversation = false }: { hasConversation?: boolean } = {},
+    t: Translate = translate,
 ): AgentChatActivity | undefined {
-    if (!snapshot && hasConversation) return { kind: 'starting', text: 'Loading conversation…' };
+    if (!snapshot && hasConversation)
+        return { kind: 'starting', text: t('agentChat.timeline.loadingConversation') };
     if (!snapshot || snapshot.status === 'starting')
-        return { kind: 'starting', text: `Starting ${providerName}…` };
+        return {
+            kind: 'starting',
+            text: t('agentChat.timeline.starting', { provider: providerName }),
+        };
     const turnId = snapshot.activeTurnId;
     if (turnId && snapshot.requests.length > 0)
-        return { kind: 'waiting', text: agentChatWaitingText(snapshot.requests) };
+        return { kind: 'waiting', text: agentChatLocalizedWaitingText(snapshot.requests, t) };
     if (snapshot.operation === 'compacting')
-        return { kind: 'compacting', text: 'Compacting context…', isStoppable: Boolean(turnId) };
+        return {
+            kind: 'compacting',
+            text: t('agentChat.timeline.compacting'),
+            isStoppable: Boolean(turnId),
+        };
     if (!turnId) return undefined;
     return {
         kind: 'working',
-        text: `${agentChatWorkingVerb(turnId)}…`,
+        text: `${agentChatWorkingVerb(turnId, t)}…`,
         startedAt: snapshot.turns.find((turn) => turn.id === turnId)?.startedAt,
     };
 }
@@ -290,28 +310,35 @@ export function agentChatSubmitDelivery(
 /**
  * The composer's send affordance for the Chat's state: while a turn runs, Enter queues and Cmd+Enter steers; while the
  * Chat is otherwise busy (compacting, or draining the queue) a message waits its turn. An idle Chat in plan mode asks
- * for what to plan, since the next message starts a plan rather than changes.
+ * for what to plan, since the next message starts a plan rather than changes. `kind` says which one it is, since the
+ * label is translated and must not be compared.
  */
 export function agentChatSendAction(
     state: { isTurnRunning: boolean; isBusy: boolean; isPlanMode?: boolean },
     providerName: string,
-): { label: 'Send' | 'Queue message'; tooltip: string; placeholder: string } {
+    t: Translate = translate,
+): { kind: 'queue' | 'send'; label: string; tooltip: string; placeholder: string } {
     if (state.isTurnRunning)
         return {
-            label: 'Queue message',
-            tooltip: 'Queue (Enter) · Steer (⌘Enter)',
-            placeholder: 'Queue a follow-up (⌘Enter to steer)',
+            kind: 'queue',
+            label: t('agentChat.message.queue'),
+            tooltip: t('agentChat.message.queueSteerTooltip'),
+            placeholder: t('agentChat.message.queueSteerPlaceholder'),
         };
     if (state.isBusy)
         return {
-            label: 'Queue message',
-            tooltip: 'Queue (Enter)',
-            placeholder: 'Queue a follow-up',
+            kind: 'queue',
+            label: t('agentChat.message.queue'),
+            tooltip: t('agentChat.message.queueTooltip'),
+            placeholder: t('agentChat.message.queuePlaceholder'),
         };
     return {
-        label: 'Send',
-        tooltip: 'Send (Enter)',
-        placeholder: state.isPlanMode ? 'Describe what to plan…' : `Message ${providerName}`,
+        kind: 'send',
+        label: t('agentChat.message.send'),
+        tooltip: t('agentChat.message.sendTooltip'),
+        placeholder: state.isPlanMode
+            ? t('agentChat.message.planPlaceholder')
+            : t('agentChat.message.placeholder', { provider: providerName }),
     };
 }
 
@@ -343,25 +370,26 @@ export function agentChatSendTooltip(
         isPreparingReference?: boolean;
         isSending: boolean;
     },
+    t: Translate = translate,
 ): string {
     switch (state.block) {
         case 'loading': {
-            return 'Chat loading…';
+            return t('agentChat.message.sendBlockedLoading');
         }
         case 'failed': {
-            return 'Chat stopped. Retry above';
+            return t('agentChat.message.sendBlockedFailed');
         }
         case 'detached': {
-            return 'Chat detached. Resume above';
+            return t('agentChat.message.sendBlockedDetached');
         }
         case undefined: {
             break;
         }
     }
-    if (state.isPreparingReference) return 'Preparing Session reference…';
-    if (state.isAttaching) return 'Attaching…';
-    if (state.isSending) return 'Sending…';
-    if (!state.hasContent) return 'Type a message to send';
+    if (state.isPreparingReference) return t('agentChat.message.preparingReference');
+    if (state.isAttaching) return t('agentChat.message.attaching');
+    if (state.isSending) return t('agentChat.message.sending');
+    if (!state.hasContent) return t('agentChat.message.typeToSend');
     return action.tooltip;
 }
 
@@ -410,24 +438,11 @@ export function agentChatItemStatusTone(status: AgentChatItemStatus): AgentChatS
     }
 }
 
-export function agentChatItemStatusLabel(status: AgentChatItemStatus): string {
-    switch (status) {
-        case 'running': {
-            return 'Running';
-        }
-        case 'completed': {
-            return 'Completed';
-        }
-        case 'failed': {
-            return 'Failed';
-        }
-        case 'declined': {
-            return 'Declined';
-        }
-        case 'interrupted': {
-            return 'Interrupted';
-        }
-    }
+export function agentChatItemStatusLabel(
+    status: AgentChatItemStatus,
+    t: Translate = translate,
+): string {
+    return t(`agentChat.tool.status.${status}`);
 }
 
 /**
@@ -437,23 +452,35 @@ export function agentChatItemStatusLabel(status: AgentChatItemStatus): string {
  */
 export function agentChatDeliveryCaption(
     delivery: 'queued' | 'steered' | undefined,
-): 'Steered' | undefined {
-    return delivery === 'steered' ? 'Steered' : undefined;
+    t: Translate = translate,
+): string | undefined {
+    return delivery === 'steered' ? t('agentChat.message.steered') : undefined;
 }
 
-export function agentChatNoticeMessage(item: Extract<AgentChatItem, { type: 'notice' }>): string {
+/**
+ * A notice's text. The provider's own message is transcript content and stays as reported; only the words Caxri puts
+ * around it are translated.
+ */
+export function agentChatNoticeMessage(
+    item: Extract<AgentChatItem, { type: 'notice' }>,
+    t: Translate = translate,
+): string {
     switch (item.kind) {
         case 'compacted': {
-            return 'Context compacted';
+            return t('agentChat.message.contextCompacted');
         }
         case 'retrying': {
-            return item.message ? `Retrying: ${item.message}` : 'Retrying';
+            return item.message
+                ? t('agentChat.message.retryingWith', { message: item.message })
+                : t('agentChat.message.retrying');
         }
         case 'error': {
-            return item.message ?? 'The Agent reported an error';
+            return item.message ?? t('agentChat.message.agentError');
         }
         case 'answered': {
-            return item.message ? `Answered: ${item.message}` : 'Answered';
+            return item.message
+                ? t('agentChat.message.answeredWith', { message: item.message })
+                : t('agentChat.message.answered');
         }
     }
 }

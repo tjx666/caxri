@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 
 import type { editor as MonacoEditor } from 'monaco-editor';
 
+import { translate } from '../../i18n';
 import { monaco } from '../../lib/monaco';
 import { subscribeCaxriQuery } from '../../queries/client';
 import type { BoundGitReviewCommentEditor, ReviewEditorScope } from './git-review-bound-editors';
@@ -154,7 +155,7 @@ export function bindGitReviewCommentEditor(
      */
     editor.addAction({
         id: 'caxri.addReviewComment',
-        label: 'Add Review Comment',
+        label: translate('editor.review.addComment'),
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1,
         run: () => add(),
@@ -187,7 +188,7 @@ export function bindGitReviewCommentEditor(
                     },
                     options: {
                         glyphMarginClassName: 'git-review-add-glyph',
-                        glyphMarginHoverMessage: { value: 'Add Review Comment' },
+                        glyphMarginHoverMessage: { value: translate('editor.review.addComment') },
                     },
                 },
             ]);

@@ -33,9 +33,9 @@ createRoot(document.querySelector('#root')!).render(
         <WorkbenchI18nProvider>
             <QueryClientProvider client={queryClient}>
                 <ErrorBoundary
-                    title="Agent Commander stopped rendering"
-                    description="Reload Agent Commander to reconnect to its Terminal. The Commander keeps running meanwhile."
-                    reloadLabel="Reload Agent Commander"
+                    titleKey="core.errorBoundary.agentCommander.title"
+                    descriptionKey="core.errorBoundary.agentCommander.description"
+                    reloadLabelKey="core.errorBoundary.agentCommander.reload"
                     logScope="Agent Commander"
                 >
                     <AgentCommanderApp />

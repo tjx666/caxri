@@ -40,6 +40,8 @@
 
 import { clamp } from 'es-toolkit';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type {
     AnnotationPoint,
     AnnotationSegment,
@@ -208,9 +210,16 @@ export function describeAnnotationSegment(
     kind: ScreenshotAnnotationKind,
 ): string {
     if (kind === 'arrow')
-        return `Arrow from ${formatPoint({ x: segment.x1, y: segment.y1 })} to ${formatPoint({ x: segment.x2, y: segment.y2 })}`;
+        return translate('bugReport.keyboard.arrowSegment', {
+            from: formatPoint({ x: segment.x1, y: segment.y1 }),
+            to: formatPoint({ x: segment.x2, y: segment.y2 }),
+        });
     const box = normalizeBox(segment);
-    return `Box ${Math.round(box.width)} by ${Math.round(box.height)} pixels at ${formatPoint(box)}`;
+    return translate('bugReport.keyboard.boxSegment', {
+        height: Math.round(box.height),
+        point: formatPoint(box),
+        width: Math.round(box.width),
+    });
 }
 
 /**
@@ -221,10 +230,13 @@ export function describeAnnotationSegment(
 export function annotationCanvasDescription(
     kind: ScreenshotAnnotationKind,
     markCount: number,
+    t: Translate,
 ): string {
-    const marks = markCount === 1 ? '1 mark' : `${markCount} marks`;
-    const shape = kind === 'arrow' ? 'an arrow' : 'a box';
-    return `${kind === 'arrow' ? 'Arrow' : 'Box'} tool, ${marks}. Press Enter to start ${shape} at the keyboard cursor, arrow keys to size it, Option and arrow keys to move it, Enter again to add it, Escape to discard it. Hold Shift to move further. Press Delete to remove the selected mark.`;
+    const marks =
+        markCount === 1
+            ? t('bugReport.keyboard.marksOne')
+            : t('bugReport.keyboard.marksOther', { count: markCount });
+    return t(`bugReport.keyboard.${kind}Description`, { marks });
 }
 
 function centerOf(context: AnnotationKeyboardContext): AnnotationPoint {
@@ -281,18 +293,30 @@ function resolveArrowKey(
     // which of the two positions they are now on.
     if (!state.cursor) {
         const cursor = centerOf(context);
-        return handle({ anchor: undefined, cursor }, `Cursor at ${formatPoint(cursor)}.`);
+        return handle(
+            { anchor: undefined, cursor },
+            translate('bugReport.keyboard.cursorAt', { point: formatPoint(cursor) }),
+        );
     }
     const step = annotationKeyboardStep(context.scale, input.shiftKey);
     if (!state.anchor) {
         const cursor = movePoint(state.cursor, direction, step, context);
-        return handle({ anchor: undefined, cursor }, `Cursor at ${formatPoint(cursor)}.`);
+        return handle(
+            { anchor: undefined, cursor },
+            translate('bugReport.keyboard.cursorAt', { point: formatPoint(cursor) }),
+        );
     }
     const next = input.altKey
         ? translateShape({ anchor: state.anchor, cursor: state.cursor }, direction, step, context)
         : { anchor: state.anchor, cursor: movePoint(state.cursor, direction, step, context) };
     const draft = annotationKeyboardDraft(next);
-    return handle(next, draft && `${describeAnnotationSegment(draft, context.kind)}.`);
+    return handle(
+        next,
+        draft &&
+            translate('bugReport.keyboard.segment', {
+                description: describeAnnotationSegment(draft, context.kind),
+            }),
+    );
 }
 
 function resolveCommitKey(
@@ -304,25 +328,24 @@ function resolveCommitKey(
         const cursor = state.cursor ?? centerOf(context);
         return handle(
             { anchor: cursor, cursor },
-            `${context.kind === 'arrow' ? 'Arrow' : 'Box'} started at ${formatPoint(cursor)}.`,
+            translate(`bugReport.keyboard.${context.kind}Started`, { point: formatPoint(cursor) }),
         );
     }
-    const shape = context.kind === 'arrow' ? 'arrow' : 'box';
     if (context.markCount >= MAX_ANNOTATIONS)
         return handle(
             state,
-            `Up to ${MAX_ANNOTATIONS} marks. Delete one before adding another ${shape}.`,
+            translate(`bugReport.keyboard.${context.kind}Limit`, { max: MAX_ANNOTATIONS }),
         );
     // The same size floor the pointer path uses, so a shape nobody could see is never added by either input.
     if (isNegligibleDrag({ ...draft, kind: context.kind }))
-        return handle(
-            state,
-            `This ${shape} is too small to add. Press the arrow keys to make it bigger.`,
-        );
+        return handle(state, translate(`bugReport.keyboard.${context.kind}TooSmall`));
     // The cursor survives the commit so the next mark starts where the last one ended.
     return handle(
         { anchor: undefined, cursor: state.cursor },
-        `Added ${describeAnnotationSegment(draft, context.kind).toLowerCase()}.`,
+        translate('bugReport.keyboard.added', {
+            // English reads the description mid-sentence ("Added box ..."); lowercasing is a no-op for Chinese.
+            description: describeAnnotationSegment(draft, context.kind).toLowerCase(),
+        }),
         draft,
     );
 }
@@ -344,23 +367,25 @@ export function resolveAnnotationKey(
 
     if (input.key === 'Enter' || input.key === ' ') return resolveCommitKey(state, context);
 
-    const shape = context.kind === 'arrow' ? 'Arrow' : 'Box';
+    const discarded = (): string => translate(`bugReport.keyboard.${context.kind}Discarded`);
     if (input.key === 'Escape') {
-        if (state.anchor)
-            return handle({ anchor: undefined, cursor: state.cursor }, `${shape} discarded.`);
-        if (state.cursor) return handle(EMPTY_ANNOTATION_KEYBOARD_STATE, 'Keyboard cursor hidden.');
+        if (state.anchor) return handle({ anchor: undefined, cursor: state.cursor }, discarded());
+        if (state.cursor)
+            return handle(
+                EMPTY_ANNOTATION_KEYBOARD_STATE,
+                translate('bugReport.keyboard.cursorHidden'),
+            );
         // Nothing of ours is on screen, so Escape is the dialog's: closing the annotator is what the user meant.
         return ignore(state);
     }
 
     if (input.key === 'Delete' || input.key === 'Backspace') {
-        if (state.anchor)
-            return handle({ anchor: undefined, cursor: state.cursor }, `${shape} discarded.`);
+        if (state.anchor) return handle({ anchor: undefined, cursor: state.cursor }, discarded());
         if (!context.hasSelection) return ignore(state);
         return {
             commit: undefined,
             handled: true,
-            message: 'Deleted the selected mark.',
+            message: translate('bugReport.keyboard.deletedSelected'),
             removeSelected: true,
             state,
         };

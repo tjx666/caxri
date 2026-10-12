@@ -1,5 +1,6 @@
 import type { FileEntry } from '@caxri/protocol';
 
+import { translate } from '../../../i18n';
 import type { ContextMenuEntries } from '../../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../../lib/context-menu';
 import { copyFilePath } from '../../../lib/copy-file-path';
@@ -14,7 +15,7 @@ import { openFilePreview } from '../../preview/preview-commands';
 import { canPreviewPath } from '../../preview/preview-registry';
 import { projectSearchFolderInclude } from '../../project-search/project-search-seed';
 import { rememberFile } from './file-actions';
-import { FILE_OPERATION_BUSY_REASON } from './file-operation-state';
+import { fileOperationBusyReason } from './file-operation-state';
 
 export interface FileTreeItemMenuOptions {
     confirmTrash: () => Promise<void>;
@@ -68,33 +69,36 @@ export function fileTreeItemMenu({
     const isFile = entry.kind === 'file';
     const isDirectory = entry.kind === 'directory';
     return [
-        { label: 'Open', onSelect: openEntry },
+        { label: translate('common.open'), onSelect: openEntry },
         isFile &&
             canPreviewPath(entry.path) && {
-                label: 'Open Preview',
+                label: translate('viewContainers.files.menu.openPreview'),
                 onSelect: () => openFilePreview(entry.path),
             },
         isFile && {
-            label: 'Open with Default App',
+            label: translate('viewContainers.files.menu.openWithDefaultApp'),
             onSelect: () => openFileWithDefaultApp(entry.path),
         },
-        { label: 'Reveal in Finder', onSelect: () => revealFile(entry.path) },
         {
-            label: 'Open in Terminal',
+            label: translate('viewContainers.files.menu.revealInFinder'),
+            onSelect: () => revealFile(entry.path),
+        },
+        {
+            label: translate('viewContainers.files.menu.openInTerminal'),
             onSelect: () => openFileInTerminal(isDirectory ? entry.path : parentDirectory),
         },
         isDirectory && {
-            label: 'Find in Folder…',
+            label: translate('viewContainers.files.menu.findInFolder'),
             onSelect: () => findInFolder(entry.path, projectRoot),
         },
         CONTEXT_MENU_SEPARATOR,
         {
-            label: 'Cut',
+            label: translate('viewContainers.files.menu.cut'),
             shortcut: 'cmd+x',
             onSelect: () => rememberFile(projectId, entry.path, 'cut'),
         },
         {
-            label: 'Copy',
+            label: translate('common.copy'),
             shortcut: 'cmd+c',
             onSelect: () => rememberFile(projectId, entry.path, 'copy'),
         },
@@ -103,25 +107,41 @@ export function fileTreeItemMenu({
          * of only surfacing through a Cmd+V error toast.
          */
         {
-            label: 'Paste',
+            label: translate('viewContainers.files.menu.paste'),
             disabled: pasteDisabledReason !== undefined,
             disabledReason: pasteDisabledReason,
             shortcut: pasteDisabledReason === undefined ? 'cmd+v' : undefined,
             onSelect: pasteIntoEntry,
         },
         {
-            label: 'Duplicate',
+            label: translate('viewContainers.files.menu.duplicate'),
             disabled: duplicateBlocked,
-            disabledReason: FILE_OPERATION_BUSY_REASON,
+            disabledReason: fileOperationBusyReason(),
             onSelect: duplicateEntry,
         },
-        { label: 'Copy Path', onSelect: () => copyFilePath(entry.path) },
-        { label: 'Copy Relative Path', onSelect: () => copyFilePath(entry.path, projectRoot) },
+        {
+            label: translate('viewContainers.files.menu.copyPath'),
+            onSelect: () => copyFilePath(entry.path),
+        },
+        {
+            label: translate('viewContainers.files.menu.copyRelativePath'),
+            onSelect: () => copyFilePath(entry.path, projectRoot),
+        },
         CONTEXT_MENU_SEPARATOR,
-        isDirectory && { label: 'New File', onSelect: () => startCreate('file') },
-        isDirectory && { label: 'New Folder', onSelect: () => startCreate('directory') },
-        { label: 'Rename', shortcut: 'enter', onSelect: startRename },
+        isDirectory && {
+            label: translate('viewContainers.files.newFile'),
+            onSelect: () => startCreate('file'),
+        },
+        isDirectory && {
+            label: translate('viewContainers.files.newFolder'),
+            onSelect: () => startCreate('directory'),
+        },
+        { label: translate('common.rename'), shortcut: 'enter', onSelect: startRename },
         CONTEXT_MENU_SEPARATOR,
-        { label: 'Move to Trash', shortcut: 'cmd+backspace', onSelect: confirmTrash },
+        {
+            label: translate('viewContainers.files.menu.moveToTrash'),
+            shortcut: 'cmd+backspace',
+            onSelect: confirmTrash,
+        },
     ];
 }

@@ -3,6 +3,7 @@ import { CornerDownLeft, CornerDownRight, Pause, Pencil, Play, Trash2 } from 'lu
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import {
     didRemoveAgentChatQueued,
     editAgentChatQueued,
@@ -25,6 +26,8 @@ function QueueCard({
     onEdit: (text: string) => void;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
+    const isSteer = entry.sendNowLabel === 'Steer';
     return (
         <li className="flex min-w-0 items-center gap-1 rounded py-0.5 pr-0.5 pl-2 text-[12px] leading-5 hover:bg-[var(--selection)]">
             <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -39,9 +42,11 @@ function QueueCard({
                     <span className="shrink-0 text-[11px] text-muted">{entry.imageLabel}</span>
                 )}
             </span>
-            <Tooltip content={entry.canEdit ? 'Edit' : 'Messages with images cannot be edited'}>
+            <Tooltip
+                content={t(entry.canEdit ? 'common.edit' : 'agentChat.edit.imagesUnsupported')}
+            >
                 <Button
-                    aria-label="Edit queued message"
+                    aria-label={t('agentChat.queue.editMessage')}
                     className={ACTION_CLASS_NAME}
                     disabled={!entry.canEdit}
                     size="icon"
@@ -55,9 +60,9 @@ function QueueCard({
                     <Pencil className="size-3.5" />
                 </Button>
             </Tooltip>
-            <Tooltip content="Delete">
+            <Tooltip content={t('common.delete')}>
                 <Button
-                    aria-label="Delete queued message"
+                    aria-label={t('agentChat.queue.deleteMessage')}
                     className={ACTION_CLASS_NAME}
                     size="icon"
                     variant="ghost"
@@ -73,14 +78,12 @@ function QueueCard({
             <Tooltip
                 content={
                     entry.canSendNow
-                        ? entry.sendNowLabel === 'Steer'
-                            ? 'Add to the running turn now'
-                            : 'Send now'
-                        : 'A command waits for the running turn to end'
+                        ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')
+                        : t('agentChat.queue.commandWaits')
                 }
             >
                 <Button
-                    aria-label={entry.sendNowLabel === 'Steer' ? 'Steer now' : 'Send now'}
+                    aria-label={t(isSteer ? 'agentChat.queue.steerNow' : 'agentChat.queue.sendNow')}
                     className="min-h-6 shrink-0 gap-1 px-1.5 text-muted hover:text-foreground"
                     disabled={!entry.canSendNow}
                     size="sm"
@@ -91,7 +94,7 @@ function QueueCard({
                     }}
                 >
                     <CornerDownLeft className="size-3.5" />
-                    {entry.sendNowLabel}
+                    {t(isSteer ? 'agentChat.queue.steer' : 'agentChat.queue.sendNow')}
                 </Button>
             </Tooltip>
         </li>
@@ -125,11 +128,12 @@ export function AgentChatQueueList({
     queue: readonly AgentChatQueuedMessage[] | undefined;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
     const entries = agentChatQueueEntries(queue, isTurnRunning);
     if (entries.length === 0) return null;
     return (
         <section
-            aria-label="Queued messages"
+            aria-label={t('agentChat.queue.label')}
             className="mb-2 rounded-md border border-border bg-surface p-1"
         >
             <h3 className="m-0 flex min-h-6 items-center gap-2 pr-0.5 pl-2 text-[11px] font-normal text-muted">
@@ -137,7 +141,7 @@ export function AgentChatQueueList({
                     <>
                         <Pause aria-hidden="true" className="size-3 shrink-0 text-warning" />
                         <span className="min-w-0 flex-1 truncate">
-                            Queue paused · sends nothing until you resume
+                            {t('agentChat.queue.paused')}
                         </span>
                         <Button
                             className="min-h-5 shrink-0 gap-1 px-1.5 text-[11px]"
@@ -149,12 +153,16 @@ export function AgentChatQueueList({
                             }}
                         >
                             <Play className="size-3" />
-                            Resume
+                            {t('agentChat.queue.resume')}
                         </Button>
                     </>
                 ) : (
                     <span className="min-w-0 flex-1 truncate">
-                        {isTurnRunning ? 'Queued · sends after this turn' : 'Queued'}
+                        {t(
+                            isTurnRunning
+                                ? 'agentChat.queue.queuedAfterTurn'
+                                : 'agentChat.queue.queued',
+                        )}
                     </span>
                 )}
             </h3>

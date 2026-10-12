@@ -7,9 +7,11 @@ import { Field, FieldLabel } from '../../components/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { useGitDiffViewStore } from './git-diff-view-store';
 
 export function GitDiffViewOptions({ stacked = false }: { stacked?: boolean }) {
+    const { t } = useTranslation();
     const id = useId();
     const inlineView = useGitDiffViewStore((state) => state.inlineView);
     const collapseUnchanged = useGitDiffViewStore((state) => state.collapseUnchanged ?? stacked);
@@ -18,17 +20,29 @@ export function GitDiffViewOptions({ stacked = false }: { stacked?: boolean }) {
     );
     return (
         <Popover>
-            <Tooltip content="Diff View Options">
+            <Tooltip content={t('editor.diffOptions.title')}>
                 <PopoverTrigger
-                    render={<Button size="icon" variant="ghost" aria-label="Diff View Options" />}
+                    render={
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label={t('editor.diffOptions.title')}
+                        />
+                    }
                 >
                     <Ellipsis aria-hidden="true" size={14} />
                 </PopoverTrigger>
             </Tooltip>
-            <PopoverContent align="end" aria-label="Diff View Options" className="w-80 p-3">
+            <PopoverContent
+                align="end"
+                aria-label={t('editor.diffOptions.title')}
+                className="w-80 p-3"
+            >
                 <div className="flex flex-col gap-3">
                     <Field orientation="horizontal">
-                        <FieldLabel htmlFor={`${id}-inline`}>Inline View</FieldLabel>
+                        <FieldLabel htmlFor={`${id}-inline`}>
+                            {t('editor.diffOptions.inlineView')}
+                        </FieldLabel>
                         <Switch
                             id={`${id}-inline`}
                             checked={inlineView}
@@ -39,7 +53,7 @@ export function GitDiffViewOptions({ stacked = false }: { stacked?: boolean }) {
                     </Field>
                     <Field orientation="horizontal">
                         <FieldLabel htmlFor={`${id}-collapse`}>
-                            Collapse Unchanged Regions
+                            {t('editor.diffOptions.collapseUnchanged')}
                         </FieldLabel>
                         <Switch
                             id={`${id}-collapse`}
@@ -51,7 +65,7 @@ export function GitDiffViewOptions({ stacked = false }: { stacked?: boolean }) {
                     </Field>
                     <Field orientation="horizontal">
                         <FieldLabel htmlFor={`${id}-whitespace`}>
-                            Show Leading/Trailing Whitespace Differences
+                            {t('editor.diffOptions.showWhitespace')}
                         </FieldLabel>
                         <Switch
                             id={`${id}-whitespace`}

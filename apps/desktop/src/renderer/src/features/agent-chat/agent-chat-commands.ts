@@ -8,6 +8,7 @@ import type {
 } from '@caxri/protocol';
 import { formatLongPasteReference } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getBootstrap } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -34,7 +35,7 @@ export async function didSendAgentChatMessage(
     delivery?: 'queue' | 'steer',
 ): Promise<boolean> {
     let isSent = false;
-    await tryCommand('Message could not be sent', async () => {
+    await tryCommand(translate('agentChat.commands.sendFailed'), async () => {
         await caxri.request('agentChat.send', {
             terminalId,
             ...message,
@@ -53,7 +54,7 @@ export function saveAgentChatLongPaste(
     terminalId: string,
     content: string,
 ): Promise<string | undefined> {
-    return tryCommand("Long paste couldn't be saved", async () =>
+    return tryCommand(translate('agentChat.commands.longPasteFailed'), async () =>
         formatLongPasteReference(
             await caxri.request('agentChat.saveLongPaste', { terminalId, content }),
         ),
@@ -77,7 +78,7 @@ export async function didRewindAgentChat(
     },
 ): Promise<boolean> {
     let isSent = false;
-    await tryCommand('Message could not be edited', async () => {
+    await tryCommand(translate('agentChat.commands.editFailed'), async () => {
         const replaceTurns = agentChatReplaceTurnsConfirm(request);
         if (replaceTurns && !(await caxri.window.showConfirm(replaceTurns))) return;
         if (request.restoreFiles) {
@@ -109,7 +110,7 @@ export async function forkAgentChat(
     itemId: string,
     text: string,
 ): Promise<void> {
-    await tryCommand('Conversation could not be forked', async () => {
+    await tryCommand(translate('agentChat.commands.forkFailed'), async () => {
         const forked = await caxri.request('agentChat.fork', { terminalId, itemId });
         if (text) writeAgentChatDraft(forked.terminalId, text);
         await didSelectSession(forked.sessionId);
@@ -129,7 +130,7 @@ export async function restoreAgentChatFiles(
     terminalId: string,
     request: { itemId: string; providerName: string; restoredTurns: number },
 ): Promise<void> {
-    await tryCommand('Code could not be restored', async () => {
+    await tryCommand(translate('agentChat.commands.restoreFailed'), async () => {
         const { confirmed } = await caxri.request('agentChat.confirmRevertFiles', {
             providerName: request.providerName,
             removedTurns: request.restoredTurns,
@@ -148,16 +149,19 @@ export async function didRunAgentChatCommand(
     command: { name: string; arguments?: string },
 ): Promise<boolean> {
     let isRun = false;
-    await tryCommand(`/${command.name} could not run`, async () => {
-        await caxri.request('agentChat.runCommand', { terminalId, ...command });
-        isRun = true;
-    });
+    await tryCommand(
+        translate('agentChat.commands.runCommandFailed', { name: command.name }),
+        async () => {
+            await caxri.request('agentChat.runCommand', { terminalId, ...command });
+            isRun = true;
+        },
+    );
     return isRun;
 }
 
 export function interruptAgentChat(terminalId: string): void {
     // eslint-disable-next-line no-void -- tryCommand reports interrupt failures through the toast
-    void tryCommand('Unable to stop the Agent', () =>
+    void tryCommand(translate('agentChat.commands.stopAgentFailed'), () =>
         caxri.request('agentChat.interrupt', { terminalId }),
     );
 }
@@ -172,7 +176,7 @@ export async function didAnswerAgentChatRequest(
     response: AgentChatResponse,
 ): Promise<boolean> {
     let isAnswered = false;
-    await tryCommand('Unable to answer the Agent', async () => {
+    await tryCommand(translate('agentChat.commands.answerFailed'), async () => {
         await caxri.request('agentChat.respond', { terminalId, requestId, response });
         isAnswered = true;
     });
@@ -206,7 +210,7 @@ export function saveAgentChatProjectDefault(
 ): void {
     // eslint-disable-next-line no-void -- tryCommand reports a failed save through the toast
     void tryCommand(
-        'Unable to save the Project default',
+        translate('agentChat.commands.saveProjectDefaultFailed'),
         () => caxri.request('project.setChatDefault', { projectId, provider, chatDefault }),
         { refresh: refreshWorkbench },
     );
@@ -217,7 +221,7 @@ export function saveAgentChatProjectDefault(
  */
 export function stopAgentChatTask(terminalId: string, taskId: string): void {
     // eslint-disable-next-line no-void -- tryCommand reports stop failures through the toast
-    void tryCommand('Unable to stop the task', () =>
+    void tryCommand(translate('agentChat.commands.stopTaskFailed'), () =>
         caxri.request('agentChat.stopTask', { terminalId, taskId }),
     );
 }
@@ -228,7 +232,7 @@ export function stopAgentChatTask(terminalId: string, taskId: string): void {
  */
 export async function didRemoveAgentChatQueued(terminalId: string, id: string): Promise<boolean> {
     let isRemoved = false;
-    await tryCommand('Unable to remove the queued message', async () => {
+    await tryCommand(translate('agentChat.commands.removeQueuedFailed'), async () => {
         await caxri.request('agentChat.removeQueued', { terminalId, id });
         isRemoved = true;
     });
@@ -252,7 +256,7 @@ export async function editAgentChatQueued(
  */
 export function sendAgentChatQueuedNow(terminalId: string, id: string): void {
     // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
-    void tryCommand('Unable to send the queued message', () =>
+    void tryCommand(translate('agentChat.commands.sendQueuedFailed'), () =>
         caxri.request('agentChat.sendQueuedNow', { terminalId, id }),
     );
 }
@@ -262,7 +266,7 @@ export function sendAgentChatQueuedNow(terminalId: string, id: string): void {
  */
 export function resumeAgentChatQueue(terminalId: string): void {
     // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
-    void tryCommand('Unable to resume the queue', () =>
+    void tryCommand(translate('agentChat.commands.resumeQueueFailed'), () =>
         caxri.request('agentChat.resumeQueue', { terminalId }),
     );
 }
@@ -276,7 +280,7 @@ export async function didContinueAgentChatInNewChat(
     terminal: TerminalRecord,
     { pendingRequest, providerName }: { pendingRequest: string; providerName: string },
 ): Promise<boolean> {
-    const transcript = await tryCommand('Unable to find the transcript', () =>
+    const transcript = await tryCommand(translate('agentChat.commands.findTranscriptFailed'), () =>
         caxri.request('terminal.agentTranscript', {
             terminalId: terminal.id,
             withContent: false,
@@ -284,7 +288,7 @@ export async function didContinueAgentChatInNewChat(
     );
     if (transcript === undefined) return false;
     if (!transcript?.exists) {
-        pushToast('error', 'This Chat has no transcript on disk for a new Chat to read.');
+        pushToast('error', translate('agentChat.commands.noTranscript'));
         return false;
     }
     const terminalId = await createTerminalForSession(terminal.sessionId, terminal.kind, {

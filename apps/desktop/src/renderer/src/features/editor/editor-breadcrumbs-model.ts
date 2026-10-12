@@ -1,5 +1,6 @@
 import type { FileEntry } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
 import { parentDirectoryPath, projectRelativePath } from '../../lib/file-path';
 
 export interface EditorBreadcrumbSegment {
@@ -66,9 +67,13 @@ export function editorBreadcrumbPickerDirectory(segment: EditorBreadcrumbSegment
     return parentDirectoryPath(segment.path);
 }
 
-export function editorBreadcrumbDirectoryLabel(directory: string, projectRoot: string): string {
+export function editorBreadcrumbDirectoryLabel(
+    directory: string,
+    projectRoot: string,
+    t: Translate,
+): string {
     const relativePath = projectRelativePath(directory, projectRoot);
-    return relativePath === '.' ? 'Project root' : (relativePath ?? directory);
+    return relativePath === '.' ? t('editor.breadcrumbs.projectRoot') : (relativePath ?? directory);
 }
 
 type PickerEntry = Pick<FileEntry, 'kind' | 'name' | 'path'>;

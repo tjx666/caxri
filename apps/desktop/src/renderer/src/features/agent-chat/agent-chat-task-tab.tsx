@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 
 import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol';
-import { agentTaskTabLabel } from '@caxri/protocol';
 import { ArrowLeft, RotateCcw, Square } from 'lucide-react';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
 import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
@@ -51,10 +51,11 @@ function TaskHeader({
     terminalId: string;
     title: string;
 }) {
+    const { t } = useTranslation();
     const details = [
         kind === 'agent' ? agentChatTaskIdentity(task) : undefined,
-        task && agentChatTaskUsageSummary(task),
-        task && agentChatTaskActivity(task),
+        task && agentChatTaskUsageSummary(task, t),
+        task && agentChatTaskActivity(task, t),
     ].filter(Boolean);
     return (
         <header className="flex shrink-0 items-start gap-2 border-b border-border px-4 py-2">
@@ -87,7 +88,7 @@ function TaskHeader({
                             onClick={() => stopAgentChatTask(terminalId, task.id)}
                         >
                             <Square className="size-2.5 fill-current" />
-                            Stop
+                            {t('agentChat.tasks.stop')}
                         </Button>
                     )}
                 </div>
@@ -113,6 +114,7 @@ function TaskTimeline({
     terminalId: string;
     truncated: boolean;
 }) {
+    const { t } = useTranslation();
     const { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest, anchor } =
         useAgentChatScroll(revision);
     const timeline = useMemo(() => buildAgentChatTimeline(items, [], undefined), [items]);
@@ -154,8 +156,7 @@ function TaskTimeline({
                 >
                     {truncated && (
                         <p className="m-0 text-center text-[11px] text-muted">
-                            Earlier messages are not shown: Chat keeps only the recent part of a
-                            long subagent conversation.
+                            {t('agentChat.tasks.earlierHidden')}
                         </p>
                     )}
                     <AgentChatExpansionContext value={expansion}>
@@ -169,9 +170,11 @@ function TaskTimeline({
                     </AgentChatExpansionContext>
                     {timeline.length === 0 && (
                         <p className="m-0 py-8 text-center text-[13px] text-muted">
-                            {isRunning
-                                ? 'The subagent has not reported anything yet.'
-                                : 'The subagent reported nothing.'}
+                            {t(
+                                isRunning
+                                    ? 'agentChat.tasks.emptyRunning'
+                                    : 'agentChat.tasks.empty',
+                            )}
                         </p>
                     )}
                 </div>
@@ -192,25 +195,28 @@ function TaskTimeline({
  * so and offers the way back to the Chat; it is never re-run.
  */
 export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
+    const { t } = useTranslation();
     const { projection, task, isUnavailable } = useAgentChatTask(tab.terminalId, tab.taskId);
     const snapshot = projection.data;
     const kind = agentChatTaskKind(task, snapshot);
-    const title = agentTaskTabLabel(task ?? { kind, title: '' });
+    const taskTitle = task?.title.trim() ?? '';
+    const title =
+        taskTitle === ''
+            ? t(kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent')
+            : taskTitle;
     const isRunning = task?.status === 'running';
     const body = isUnavailable ? (
         <div className={STATE_CLASS_NAME}>
-            <p className="m-0 text-foreground">This task is no longer available.</p>
-            <p className="m-0 text-[12px]">
-                The Agent no longer has a record of it, for example after a restart.
-            </p>
+            <p className="m-0 text-foreground">{t('agentChat.tasks.unavailable')}</p>
+            <p className="m-0 text-[12px]">{t('agentChat.tasks.unavailableDetail')}</p>
             <Button size="sm" variant="secondary" onClick={() => revealAgentChat(tab.terminalId)}>
                 <ArrowLeft className="size-3.5" />
-                Back to Chat
+                {t('agentChat.review.backToChat')}
             </Button>
         </div>
     ) : projection.isError ? (
         <div className={STATE_CLASS_NAME} role="alert">
-            <p className="m-0 text-foreground">This task could not be loaded.</p>
+            <p className="m-0 text-foreground">{t('agentChat.tasks.loadFailed')}</p>
             <Button
                 size="sm"
                 variant="secondary"
@@ -220,7 +226,7 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
                 }}
             >
                 <RotateCcw className="size-3.5" />
-                Retry
+                {t('common.retry')}
             </Button>
         </div>
     ) : snapshot ? (
@@ -243,7 +249,7 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
             />
         )
     ) : (
-        <LoadingSkeleton variant="document" label="Loading task…" />
+        <LoadingSkeleton variant="document" label={t('agentChat.tasks.loading')} />
     );
     return (
         <section aria-label={title} className="flex h-full min-h-0 flex-col bg-background">

@@ -1,3 +1,4 @@
+import { useTranslation } from '../../../i18n';
 import type { PendingFileOperation } from './file-operation-state';
 
 export interface PendingFileOperationStatusProperties {
@@ -11,6 +12,7 @@ export function PendingFileOperationStatus({
     onCancel,
     operation,
 }: PendingFileOperationStatusProperties) {
+    const { t } = useTranslation();
     return (
         <div
             role="status"
@@ -24,7 +26,7 @@ export function PendingFileOperationStatus({
                     type="button"
                     onClick={onCancel}
                 >
-                    Cancel
+                    {t('common.cancel')}
                 </button>
             )}
         </div>

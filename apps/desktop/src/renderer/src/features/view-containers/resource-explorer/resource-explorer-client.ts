@@ -9,6 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { getSelectedSession } from '../../../stores/selectors';
 
@@ -65,7 +66,8 @@ export interface ResourceExplorerClient {
  */
 function requireSessionId(): string {
     const sessionId = getSelectedSession()?.id;
-    if (!sessionId) throw new CaxriError('UNAVAILABLE', 'No Session is selected');
+    if (!sessionId)
+        throw new CaxriError('UNAVAILABLE', translate('viewContainers.files.noSession'));
     return sessionId;
 }
 

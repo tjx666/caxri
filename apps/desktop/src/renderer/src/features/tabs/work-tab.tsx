@@ -18,6 +18,7 @@ import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 import { ContextMenuTrigger } from '../../components/context-menu-trigger';
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
@@ -481,13 +482,14 @@ export function WorkTab({
     onKeyDown,
     onSelect,
 }: WorkTabProperties) {
+    const { t } = useTranslation();
     const { enterDuration, exitDuration, isPresent, style } = useWorkTabMotion(fill);
     // Exiting tabs must never look or behave active: force the non-active visual state and lock
     // out pointer/keyboard interaction while the exit animation plays out.
     const isVisuallyActive = active && isPresent;
     const tabDescriptionId = `${tabId}-description`;
     // Rendered outside the `role="tab"` button below, so the tab's accessible name stays the bare filename.
-    const description = workTabDescription({ accessibleDetail, detail, dirty, gitDecoration });
+    const description = workTabDescription({ accessibleDetail, detail, dirty, gitDecoration }, t);
     const tab = (
         <m.div
             style={style}

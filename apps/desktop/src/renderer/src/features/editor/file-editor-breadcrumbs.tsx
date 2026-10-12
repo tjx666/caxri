@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n';
 import { useProjectById } from '../../stores/selectors';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { EditorBreadcrumbs } from './editor-breadcrumbs';
@@ -19,6 +20,7 @@ export function FileEditorBreadcrumbs({
     isExternal: boolean;
     readOnly?: boolean;
 }) {
+    const { t } = useTranslation();
     const session = usePaneViewSession();
     const project = useProjectById(session?.workbenchProjectId);
     if (!session || (isExternal && !displayPath)) return null;
@@ -26,7 +28,9 @@ export function FileEditorBreadcrumbs({
         <div className="flex h-6 shrink-0 items-center overflow-hidden border-b border-border bg-surface">
             {isExternal ? (
                 <EditorPathBreadcrumbs
-                    accessibilityLabel={`File breadcrumbs: ${displayPath}`}
+                    accessibilityLabel={t('editor.breadcrumbs.fileLabel', {
+                        path: displayPath ?? '',
+                    })}
                     path={displayPath!}
                 />
             ) : project ? (
@@ -38,7 +42,11 @@ export function FileEditorBreadcrumbs({
                     workbenchProjectId={session.workbenchProjectId}
                 />
             ) : null}
-            {readOnly && <span className="mr-2 shrink-0 text-xs text-muted">Read-only</span>}
+            {readOnly && (
+                <span className="mr-2 shrink-0 text-xs text-muted">
+                    {t('editor.breadcrumbs.readOnly')}
+                </span>
+            )}
         </div>
     );
 }

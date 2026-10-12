@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { useTranslation } from '../../i18n';
 import { acceptanceAriaLabel, acceptanceChipLabel, acceptanceTooltip } from './acceptance-label';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
@@ -44,17 +45,18 @@ export function AcceptanceStatus({
 }: {
     acceptances: readonly ProjectStatusOverviewAcceptance[];
 }) {
+    const { t } = useTranslation();
     if (acceptances.length === 0) return null;
     const [acceptance, ...extra] = acceptances;
     const { Icon, tone } = STATE_PRESENTATION[acceptance.state];
     const shared = {
-        ariaLabel: acceptanceAriaLabel(acceptance, extra.length),
+        ariaLabel: acceptanceAriaLabel(acceptance, extra.length, t),
         icon: <Icon className={tone} />,
-        title: <StructuredTooltip {...acceptanceTooltip(acceptance, extra)} />,
+        title: <StructuredTooltip {...acceptanceTooltip(acceptance, extra, t)} />,
     };
     const label = (
         <>
-            {acceptanceChipLabel(acceptance)}
+            {acceptanceChipLabel(acceptance, t)}
             {extra.length > 0 && <span className="ml-1 text-muted">+{extra.length}</span>}
         </>
     );

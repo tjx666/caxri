@@ -15,6 +15,7 @@ import {
     TOOLTIP_CURSOR_SIDE_OFFSET,
 } from '../../components/tooltip-positioning';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
+import { useTranslation } from '../../i18n';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
@@ -45,6 +46,7 @@ export function ExtensionTreeTooltip({
     const popupReference = useRef<HTMLDivElement>(null);
     const triggerReference = useRef<HTMLAnchorElement>(null);
     const tooltipId = useId();
+    const { t } = useTranslation();
     const [cursorAnchor, setCursorAnchor] = useState<TooltipCursorAnchor>();
     const [open, setOpen] = useState(false);
     const triggerFocus = trigger.props.onFocus as FocusEventHandler<HTMLElement> | undefined;
@@ -202,7 +204,13 @@ export function ExtensionTreeTooltip({
                                 <span className="text-muted">{row.label}: </span>
                                 {row.url ? (
                                     <button
-                                        aria-label={`Open ${row.label}: ${row.value}`}
+                                        aria-label={t(
+                                            'viewContainers.extensionTree.openTooltipLink',
+                                            {
+                                                label: row.label,
+                                                value: row.value,
+                                            },
+                                        )}
                                         className="max-w-full cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
                                         type="button"
                                         onClick={() => openTooltipUrl(row.url!)}

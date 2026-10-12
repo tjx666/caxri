@@ -1,5 +1,8 @@
 import type { AgentChatCommand, AgentChatSnapshot, AgentChatUsage } from '@caxri/protocol';
-import { formatDuration, formatTokens, formatUsd } from '@caxri/protocol';
+import { formatTokens, formatUsd } from '@caxri/protocol';
+
+import { translate } from '../../i18n';
+import { localizedDuration } from '../../lib/usage-format';
 
 /**
  * Share of the compaction window past which the context counts as high: the meter turns `--danger` and the composer
@@ -108,28 +111,39 @@ export function agentChatContextAlerts(
         const cost =
             usage.cacheRewriteUsd === undefined
                 ? ''
-                : ` (est. ~${formatUsd(usage.cacheRewriteUsd)})`;
+                : translate('agentChat.context.cacheCost', {
+                      cost: formatUsd(usage.cacheRewriteUsd),
+                  });
+        const costNote = cost && translate('agentChat.context.cacheDetailCost');
         if (idleMs >= ttlMs) {
             alerts.cache = {
                 state: 'expired',
-                text: `Idle ${formatDuration(idleMs)} · next reply re-reads the whole conversation${cost}`,
-                detail: `The prompt cache lasts ${cacheTtlMinutes}m, so the next reply reads all ${tokens} tokens again without it.${cost && ' The cost is an estimate at standard API prices.'}`,
+                text: translate('agentChat.context.cacheText', {
+                    duration: localizedDuration(idleMs),
+                    cost,
+                }),
+                detail: `${translate('agentChat.context.cacheDetail', { minutes: cacheTtlMinutes, tokens })}${costNote}`,
             };
         } else if (idleMs >= ttlMs - Math.min(CACHE_EXPIRY_LEAD_MS, ttlMs / 2)) {
             // Rounded up so the countdown never claims `0m` while the cache is still warm.
-            const remaining = formatDuration(Math.ceil((ttlMs - idleMs) / 60_000) * 60_000);
+            const remaining = localizedDuration(Math.ceil((ttlMs - idleMs) / 60_000) * 60_000);
             alerts.cache = {
                 state: 'expiring',
-                text: `Cache expires in ${remaining} · reply now to skip a full re-read${cost}`,
-                detail: `The prompt cache lasts ${cacheTtlMinutes}m from the last reply. A message sent within ${remaining} reuses it; after that the next reply reads all ${tokens} tokens again.${cost && ' The cost is an estimate at standard API prices.'}`,
+                text: translate('agentChat.context.cacheExpiringText', { remaining, cost }),
+                detail: `${translate('agentChat.context.cacheExpiringDetail', { minutes: cacheTtlMinutes, remaining, tokens })}${costNote}`,
             };
         }
     }
     const window = usage.compactWindow ?? usage.contextWindow;
     if (window && usage.totalTokens / window >= HIGH_CONTEXT_SHARE)
         alerts.pressure = {
-            text: `Context ${tokens} / ${formatTokens(window)} · consider compacting`,
-            detail: `The conversation fills ${Math.round((usage.totalTokens / window) * 100)}% of the window the Agent compacts at. Compacting now keeps answers sharp.`,
+            text: translate('agentChat.context.pressureText', {
+                tokens,
+                window: formatTokens(window),
+            }),
+            detail: translate('agentChat.context.pressureDetail', {
+                percent: Math.round((usage.totalTokens / window) * 100),
+            }),
         };
     return alerts;
 }

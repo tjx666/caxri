@@ -1,7 +1,8 @@
-import { agentProviderCatalog, agentStatusTabLabel } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
+import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useTerminal } from '../../stores/selectors';
 import { AgentProviderStatusSection } from './agent-provider-status-section';
@@ -12,9 +13,10 @@ import { useAgentProviderStatus } from './use-agent-provider-status';
 /**
  * Agent status tab for one Agent Terminal, opened from the status bar's output-speed chip or `Show Agent Status`: the
  * speed figures in full and the provider's public service status, so a slow Agent can be told apart from a provider
- * incident. The heading is the tab's own label, so the two never disagree on casing.
+ * incident. The heading reads the tab's own label key, so the two never disagree on casing.
  */
 export function AgentStatusPage({ terminalId }: { terminalId: string }) {
+    const { t } = useTranslation();
     const terminal = useTerminal(terminalId);
     // Same key and pace as the status-bar chip, so both read one cached result.
     const throughputQuery = usePolledQuery(
@@ -31,7 +33,7 @@ export function AgentStatusPage({ terminalId }: { terminalId: string }) {
         ? terminal.title && terminal.title !== agentName
             ? terminal.title
             : undefined
-        : 'This Terminal is no longer open; figures stop updating.';
+        : t('agentStatus.page.terminalClosed');
     const state = agentThroughputViewState({
         data: throughput,
         isError: throughputQuery.isError,
@@ -44,7 +46,7 @@ export function AgentStatusPage({ terminalId }: { terminalId: string }) {
                     {provider && <AgentIdentityIcon identity={provider} size={18} />}
                     <div className="min-w-0">
                         <h1 className="m-0 text-[15px] font-semibold">
-                            {agentStatusTabLabel(agentName)}
+                            {t('editor.tab.agentStatus', { agent: agentName ?? 'Agent' })}
                         </h1>
                         {subtitle && (
                             <p className="mt-0.5 mb-0 truncate text-[11px] text-muted">

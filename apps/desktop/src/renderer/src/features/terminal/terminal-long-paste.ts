@@ -6,14 +6,17 @@ import {
     MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
 } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
+
 type LongPasteFailure = 'too-large' | 'native-too-large';
 
 export function longPasteFailureMessage(reason?: LongPasteFailure): string {
     if (reason === 'too-large')
-        return `Pasted text exceeds the ${MAX_LONG_PASTE_BYTES / 1_048_576} MiB limit. Your clipboard is unchanged. Save it to a file and share its path.`;
-    if (reason === 'native-too-large')
-        return 'This Agent cannot receive a paste this large. Your clipboard is unchanged. Save it to a file and share its path.';
-    return 'Long paste could not be saved. Your clipboard is unchanged; try again or save it to a file.';
+        return translate('terminal.longPaste.tooLarge', {
+            limit: MAX_LONG_PASTE_BYTES / 1_048_576,
+        });
+    if (reason === 'native-too-large') return translate('terminal.longPaste.nativeTooLarge');
+    return translate('terminal.longPaste.saveFailed');
 }
 
 export function shouldPrepareLongPaste(options: {

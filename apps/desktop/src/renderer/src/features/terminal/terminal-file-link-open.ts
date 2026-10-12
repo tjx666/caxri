@@ -6,6 +6,8 @@ import type {
 import { errorMessage } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
+import type { TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
@@ -18,10 +20,9 @@ import { openCommanderFileLink, openTerminalFileLink } from './terminal-link-com
  * What to say when Main refused a file link on its own. Without these the link reads as broken: the click lands, the
  * Terminal does nothing, and nothing anywhere says why. A user-initiated cancel carries no reason and stays silent.
  */
-const TERMINAL_FILE_LINK_REFUSALS: Record<TerminalFileLinkRefusalReason, string> = {
-    project_gone: 'That file\u{2019}s Project is no longer in Caxri.',
-    worktree_project_unbound:
-        'That file is in a Git worktree no Session is using as its Workbench Root. Continue a Session in the worktree first.',
+const TERMINAL_FILE_LINK_REFUSALS: Record<TerminalFileLinkRefusalReason, TranslationKey> = {
+    project_gone: 'terminal.links.refusal.projectGone',
+    worktree_project_unbound: 'terminal.links.refusal.worktreeProjectUnbound',
 };
 
 const onError = (message: string): void => pushToast('error', message);
@@ -69,7 +70,7 @@ export async function openTerminalFileTarget(
                     sessionId: result.sessionId,
                     workbenchProjectId,
                 });
-            if (!opened) throw new Error('Unable to open external file in this Session');
+            if (!opened) throw new Error(translate('terminal.links.openExternalFileFailed'));
             if (location)
                 revealEditorNavigation(
                     editorModelPath(sessionViewScope(result.sessionId, workbenchProjectId), opened),
@@ -78,14 +79,17 @@ export async function openTerminalFileTarget(
             return;
         }
         if ('canceled' in result) {
-            if (result.reason) onError(TERMINAL_FILE_LINK_REFUSALS[result.reason]);
+            if (result.reason) onError(translate(TERMINAL_FILE_LINK_REFUSALS[result.reason]));
             return;
         }
         if ('status' in result)
             openTerminalLinkCandidatePicker(
                 terminalId,
                 result.candidates.map((candidate) => ({
-                    accessibleName: `Open matching file ${candidate.relativePath} in ${candidate.projectTitle}`,
+                    accessibleName: translate('terminal.links.matchingFile.accessibleName', {
+                        path: candidate.relativePath,
+                        project: candidate.projectTitle,
+                    }),
                     activate: () => {
                         // eslint-disable-next-line no-void -- this helper owns user-visible failure reporting
                         void openTerminalFileTarget(terminalId, candidate.path, location, {
@@ -101,6 +105,6 @@ export async function openTerminalFileTarget(
                 result.truncated,
             );
     } catch (error) {
-        onError(errorMessage(error, 'Terminal file link failed'));
+        onError(errorMessage(error, translate('terminal.links.fileLinkFailed')));
     }
 }

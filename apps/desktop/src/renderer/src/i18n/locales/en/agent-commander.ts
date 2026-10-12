@@ -1,1 +1,159 @@
-export const agentCommander = {} as const;
+export const agentCommander = {
+    // Window chrome
+    'agentCommander.window.title': 'Agent Commander',
+    'agentCommander.window.sessionsLabel': 'Sessions',
+    'agentCommander.window.stop': 'Stop',
+    'agentCommander.window.stopTooltip':
+        'Stop the Commander and close this window. Tasks it delegated keep running, and opening it again resumes the same conversation.',
+    'agentCommander.window.needsYou': 'Needs you',
+    'agentCommander.window.hideNeedsYou': 'Hide Needs you',
+    'agentCommander.window.showColumn': 'Show {{column}}',
+    'agentCommander.window.hideColumn': 'Hide {{column}}',
+    'agentCommander.window.resizeNeedsYou': 'Resize Needs you',
+
+    // Commander Terminal
+    'agentCommander.terminal.couldNotStart': 'Agent Commander could not start.',
+    'agentCommander.terminal.starting': 'Starting Agent Commander…',
+    'agentCommander.terminal.ariaLabel': 'Agent Commander: {{title}}',
+    'agentCommander.terminal.startFailed': 'Unable to start Agent Commander',
+    'agentCommander.terminal.noLongerSetUp':
+        'Agent Commander is no longer set up. Close this window and open it again.',
+
+    // Board
+    'agentCommander.board.loadFailed': 'Unable to load the board',
+    'agentCommander.board.loading': 'Loading Agents…',
+    'agentCommander.board.emptyCommander':
+        'No Commander tasks yet. Describe a goal to the Commander, and the Sessions it starts appear here.',
+    'agentCommander.board.emptyAll':
+        'No Sessions yet. Sessions from every Project appear here as their Agents work.',
+    'agentCommander.board.scopeLabel': 'Board scope',
+    'agentCommander.board.scopeCommander': 'Commander',
+    'agentCommander.board.scopeCommanderLabel': 'Sessions the Commander started',
+    'agentCommander.board.scopeAll': 'All',
+    'agentCommander.board.scopeAllLabel': 'Every Session',
+    'agentCommander.board.group.attention': 'Needs attention',
+    'agentCommander.board.group.failed': 'Failed',
+    'agentCommander.board.group.finished': 'Recently finished',
+    'agentCommander.board.group.idle': 'Idle',
+    'agentCommander.board.group.waiting': 'Waiting',
+    'agentCommander.board.group.working': 'Working',
+    'agentCommander.board.process.exited': 'Exited',
+    'agentCommander.board.process.detached': 'Detached',
+    'agentCommander.board.process.failed': 'Failed to start',
+    'agentCommander.board.process.interrupted': 'Interrupted',
+    'agentCommander.board.process.starting': 'Starting',
+    'agentCommander.board.process.suspended': 'Suspended',
+    'agentCommander.board.noTerminal': 'No Terminal',
+    'agentCommander.board.shell': 'Shell',
+    'agentCommander.board.unread': 'Unread. {{state}}',
+    'agentCommander.board.pullRequestOpen': '{{label}} Open in browser.',
+    'agentCommander.board.ownedSession':
+        'Created by Agent Commander, so it can delegate tasks here.',
+    'agentCommander.board.commanderTask': 'Commander task. {{description}}',
+
+    // Board task status
+    'agentCommander.task.label.answered': 'Answered',
+    'agentCommander.task.label.blocked': 'Blocked',
+    'agentCommander.task.label.failed': 'Failed',
+    'agentCommander.task.label.running': 'Running',
+    'agentCommander.task.label.starting': 'Starting',
+    'agentCommander.task.label.stopped': 'Stopped',
+    'agentCommander.task.label.takenOver': 'Taken over by you',
+    'agentCommander.task.label.waitingAtStartup': 'Waiting at startup',
+    'agentCommander.task.description.answerUnavailable':
+        'The Agent finished, but its answer could not be read back.',
+    'agentCommander.task.description.awaitingReady':
+        'The Agent is starting and has not begun the task yet.',
+    'agentCommander.task.description.blocked':
+        'The Agent stopped to ask a question, usually one the Commander answers.',
+    'agentCommander.task.description.collecting':
+        'The Agent finished its turn; the Commander is reading its answer.',
+    'agentCommander.task.description.completed':
+        'The Agent gave its final answer. The Commander still verifies it before reporting.',
+    'agentCommander.task.description.failed': 'The task failed.',
+    'agentCommander.task.description.humanIntervened':
+        'You typed into this Session while the task ran, so it is yours now. The Commander no longer drives it or sends it follow-ups.',
+    'agentCommander.task.description.interrupted': 'The task stopped before the Agent finished.',
+    'agentCommander.task.description.launching':
+        'The Commander is launching an Agent for this task.',
+    'agentCommander.task.description.running': 'The Agent is working on the task.',
+    'agentCommander.task.description.submitting': 'The Commander is handing the task to the Agent.',
+    'agentCommander.task.waitingAtStartupTitle':
+        'Waiting at startup. The Agent is running but has not started, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own. Task {{delegationId}}.',
+    'agentCommander.task.reason': ' Reason: {{reason}}.',
+    'agentCommander.task.title': '{{label}}. {{description}}{{reason}} Task {{delegationId}}.',
+
+    // Inbox
+    'agentCommander.inbox.hideColumn': 'Hide this column',
+    'agentCommander.inbox.loadFailed': 'Unable to load the Inbox',
+    'agentCommander.inbox.loading': 'Loading Inbox…',
+    'agentCommander.inbox.empty':
+        'Nothing needs you. When the Commander has a question or a pull request ready to merge, it appears here.',
+    'agentCommander.inbox.section.merge': 'Ready to merge',
+    'agentCommander.inbox.section.questions': 'Questions',
+    'agentCommander.inbox.openPullRequest': 'Open the pull request in the browser',
+    'agentCommander.inbox.showSession': 'Show this Session in the Workbench',
+    'agentCommander.inbox.session': 'Session',
+    'agentCommander.inbox.answers': 'Answers',
+    'agentCommander.inbox.merging': 'Merging…',
+    'agentCommander.inbox.merge': 'Merge',
+    'agentCommander.inbox.mergeTooltip': 'Merge the commit the Commander verified',
+    'agentCommander.inbox.reply': 'Reply',
+    'agentCommander.inbox.kind.decision': 'Decision',
+    'agentCommander.inbox.kind.hands': 'Needs your hands',
+    'agentCommander.inbox.kind.merge': 'Pull request',
+    'agentCommander.inbox.replyState.read': 'Read by Commander',
+    'agentCommander.inbox.replyState.delivered': 'Delivered to Commander',
+
+    // Inbox merge readiness
+    'agentCommander.mergeState.changedSinceVerified': 'Changed since verified',
+    'agentCommander.mergeState.changedSinceVerifiedReason':
+        'New commits landed after the Commander verified this pull request. It re-verifies before you merge.',
+    'agentCommander.mergeState.draft': 'Draft',
+    'agentCommander.mergeState.draftReason': 'The pull request is still a draft.',
+    'agentCommander.mergeState.conflicts': 'Conflicts',
+    'agentCommander.mergeState.conflictsReason': 'The pull request conflicts with its base branch.',
+    'agentCommander.mergeState.unknown': 'GitHub state unknown',
+    'agentCommander.mergeState.checksFailing': 'Checks failing',
+    'agentCommander.mergeState.checksRunning': 'Checks running',
+    'agentCommander.mergeState.blocked': 'Blocked',
+    'agentCommander.mergeState.behindBase': 'Behind base',
+    'agentCommander.mergeState.checksPassed': 'Checks passed',
+
+    // Inbox composer
+    'agentCommander.composer.suggestionFooter': '↑↓ to move · Enter to choose',
+    'agentCommander.composer.suggestionLabel': 'Inbox items',
+    'agentCommander.composer.replyingTo': 'Replying to',
+    'agentCommander.composer.clearTarget': 'Clear the reply target',
+    'agentCommander.composer.mentionHint': 'Type @ to choose the item you are answering.',
+    'agentCommander.composer.inputLabel': 'Reply to the Commander',
+    'agentCommander.composer.placeholderWithTarget': 'Your answer',
+    'agentCommander.composer.placeholder': '@ an item, then your answer',
+    'agentCommander.composer.sendTooltip': 'Send (Enter)',
+    'agentCommander.composer.sendLabel': 'Send reply',
+
+    // Inbox commands
+    'agentCommander.inboxCommands.replyFailed': 'Unable to send the reply',
+    'agentCommander.inboxCommands.dismissTitle': 'Dismiss this item?',
+    'agentCommander.inboxCommands.dismissMergeMessage':
+        'The Commander is told you will not merge this pull request from the Inbox. The pull request itself stays open.',
+    'agentCommander.inboxCommands.dismissQuestionMessage':
+        'The Commander is told you dismissed this question without an answer.',
+    'agentCommander.inboxCommands.dismissFailed': 'Unable to dismiss this item',
+    'agentCommander.inboxCommands.mergeTitle': 'Merge {{pullRequest}}?',
+    'agentCommander.inboxCommands.mergeMessage':
+        "Merges commit {{sha}}, the one the Commander verified, with the repository's preferred merge method. GitHub refuses if new commits landed.",
+    'agentCommander.inboxCommands.mergeFailed': 'Unable to merge this pull request',
+    'agentCommander.inboxCommands.merged': 'Merged {{pullRequest}}',
+
+    // Commander commands
+    'agentCommander.commands.revealFailed': 'Unable to show this Session in the Workbench',
+    'agentCommander.commands.openSettingsFailed': 'Unable to open Settings in the Workbench',
+    'agentCommander.commands.stopFailed': 'Unable to stop Agent Commander',
+    'agentCommander.commands.stopAndClose': 'Stop and Close',
+    'agentCommander.commands.stopOutcome':
+        'Stopping the Commander ends the current turn and closes this window. Tasks it delegated keep running.',
+    'agentCommander.commands.stopTurnTitle': 'Stop the running turn?',
+    'agentCommander.commands.stopTurnMessage':
+        'Agent Commander is still working. Stopping it ends the current turn and closes its window. Tasks it delegated keep running.',
+} as const;

@@ -2,6 +2,9 @@ import type { UpdateState } from '@caxri/protocol';
 import { isUpdateVersionSkipped } from '@caxri/protocol';
 import { formatBytes } from '@caxri/utils';
 
+import type { Translate } from '../../i18n';
+import { translate, useLocaleStore } from '../../i18n';
+
 /**
  * Everything the update surfaces decide from `UpdateState` plus the user's persisted skip, kept pure so the rules that
  * matter (when Caxri may interrupt, what the status bar carries, and what a rate-limited check is allowed to claim) are
@@ -12,18 +15,22 @@ import { formatBytes } from '@caxri/utils';
  * The clock time a recovery sentence can name, or `undefined` for a deadline that has already passed, so a sentence is
  * never composed promising a retry in the past.
  *
- * The locale is pinned rather than read from the host because every Caxri UI string is English; the time zone is left
- * to the host, which is the machine the user is reading the window on. This mirrors the Server's `retryTimeLabel`
- * (`apps/server/src/domains/retry-time.ts`) for the Project Status budget rows: the two cannot share a module today
- * because one runs in the Server process and the other in the Renderer, and neither package owns a shared formatting
- * layer yet.
+ * The locale follows the interface language rather than the host, so the time reads in the same language as the
+ * sentence around it; the time zone is left to the host, which is the machine the user is reading the window on. This
+ * mirrors the Server's `retryTimeLabel` (`apps/server/src/domains/retry-time.ts`) for the Project Status budget rows:
+ * the two cannot share a module today because one runs in the Server process and the other in the Renderer, and neither
+ * package owns a shared formatting layer yet.
  */
 export function updateRetryTimeLabel(
     retryAt: number | undefined,
     now: number = Date.now(),
 ): string | undefined {
     if (retryAt === undefined || !Number.isFinite(retryAt) || retryAt <= now) return undefined;
-    return new Date(retryAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const { locale } = useLocaleStore.getState();
+    return new Date(retryAt).toLocaleTimeString(locale === 'en' ? 'en-US' : locale, {
+        hour: 'numeric',
+        minute: '2-digit',
+    });
 }
 
 export interface UpdateStatusCopy {
@@ -38,68 +45,90 @@ export interface UpdateStatusCopy {
  * button tells the user neither how long the pause lasts nor that the button they cannot press is exactly the one that
  * would get past it. A manual check bypasses the recorded window, so the copy says so and the action stays live:
  * deliberately unlike the Project Status budget rows, where retrying is the very request the limiter is refusing.
+ *
+ * `t` defaults to the out-of-React `translate` so tests and non-render callers need not pass one; a component passes
+ * its `useTranslation()` `t` so a language change re-renders the copy.
  */
 export function describeUpdateStatus(
     state: UpdateState | undefined,
-    options: { now?: number; skippedVersion?: string | null } = {},
+    options: { now?: number; skippedVersion?: string | null; t?: Translate } = {},
 ): UpdateStatusCopy {
-    if (!state) return { title: 'Loading update status…', description: 'Please wait.' };
+    const t = options.t ?? translate;
+    if (!state)
+        return {
+            title: t('updates.status.loading.title'),
+            description: t('updates.status.loading.description'),
+        };
     switch (state.status) {
         case 'idle':
             return {
-                title: `Caxri ${state.currentVersion}`,
-                description: 'Check GitHub Releases for a newer stable version.',
+                title: t('updates.status.version', { version: state.currentVersion }),
+                description: t('updates.status.idle.description'),
             };
         case 'checking':
-            return { title: 'Checking for updates…', description: `Caxri ${state.currentVersion}` };
+            return {
+                title: t('updates.status.checking.title'),
+                description: t('updates.status.version', { version: state.currentVersion }),
+            };
         case 'unavailable': {
             if (!state.rateLimited)
-                return { title: 'Update checks unavailable', description: state.reason };
+                return { title: t('updates.status.unavailable.title'), description: state.reason };
             const resumesAt = updateRetryTimeLabel(state.retryAt, options.now);
             return {
-                title: 'Update checks are paused',
-                description: `${state.reason} ${
-                    resumesAt
-                        ? `Automatic checks resume after ${resumesAt}.`
-                        : 'Automatic checks resume once the limit clears.'
-                } Checking now asks GitHub anyway, without waiting.`,
+                title: t('updates.status.paused.title'),
+                description: t('updates.status.paused.description', {
+                    reason: state.reason,
+                    resume: resumesAt
+                        ? t('updates.status.paused.resumesAt', { time: resumesAt })
+                        : t('updates.status.paused.resumesLater'),
+                }),
             };
         }
         case 'up-to-date':
             return {
-                title: 'Caxri is up to date',
-                description: `You are running the latest version, ${state.currentVersion}.`,
+                title: t('updates.status.upToDate.title'),
+                description: t('updates.status.upToDate.description', {
+                    version: state.currentVersion,
+                }),
             };
         case 'available':
             return {
-                title: `Caxri ${state.version} is available`,
+                title: t('updates.status.available.title', { version: state.version }),
                 description: isUpdateVersionSkipped(state.version, options.skippedVersion)
-                    ? `You skipped this version, so Caxri stopped offering it. Stop skipping to download ${state.fileName} and verify it here.`
-                    : `Download ${state.fileName} inside Caxri and verify it before opening.`,
+                    ? t('updates.status.available.skippedDescription', {
+                          fileName: state.fileName,
+                      })
+                    : t('updates.status.available.description', { fileName: state.fileName }),
             };
         case 'downloading':
             return {
-                title: `Downloading Caxri ${state.version}…`,
+                title: t('updates.status.downloading.title', { version: state.version }),
                 description: state.totalBytes
-                    ? `${formatBytes(state.receivedBytes)} of ${formatBytes(state.totalBytes)}`
-                    : `${formatBytes(state.receivedBytes)} downloaded`,
+                    ? t('updates.status.downloading.progress', {
+                          received: formatBytes(state.receivedBytes),
+                          total: formatBytes(state.totalBytes),
+                      })
+                    : t('updates.status.downloading.received', {
+                          received: formatBytes(state.receivedBytes),
+                      }),
             };
         case 'ready':
             return {
-                title: `Caxri ${state.version} is ready to install`,
-                description: 'The DMG passed SHA-256 verification.',
+                title: t('updates.status.ready.title', { version: state.version }),
+                description: t('updates.status.ready.description'),
             };
         case 'error':
             return {
-                title: 'Update failed',
-                description:
+                title: t('updates.status.error.title'),
+                description: t(
                     state.failureKind === 'network'
-                        ? 'The update connection was interrupted. Check your network and try again.'
+                        ? 'updates.status.error.network'
                         : state.failureKind === 'integrity'
-                          ? 'The download could not be verified and was not opened. Download it again.'
+                          ? 'updates.status.error.integrity'
                           : state.action === 'open'
-                            ? 'The downloaded installer could not be opened. Try again or open it from Finder.'
-                            : 'The update could not be completed. Please try again.',
+                            ? 'updates.status.error.open'
+                            : 'updates.status.error.generic',
+                ),
             };
     }
 }
@@ -141,13 +170,14 @@ export interface UpdateChip {
 export function describeUpdateChip(
     state: UpdateState | undefined,
     skippedVersion?: string | null,
+    t: Translate = translate,
 ): UpdateChip | undefined {
     if (!state) return undefined;
     if (state.status === 'available') {
         if (isUpdateVersionSkipped(state.version, skippedVersion)) return undefined;
         return {
-            label: `Update ${state.version}`,
-            description: `Caxri ${state.version} is available. Click to show the update.`,
+            label: t('updates.chip.available.label', { version: state.version }),
+            description: t('updates.chip.available.description', { version: state.version }),
             kind: 'available',
         };
     }
@@ -157,23 +187,29 @@ export function describeUpdateChip(
                 ? undefined
                 : Math.min(100, Math.floor((state.receivedBytes / state.totalBytes) * 100));
         return {
-            label: percent === undefined ? 'Updating…' : `Updating ${percent}%`,
-            description: `Downloading Caxri ${state.version}. Click to show the download.`,
+            label:
+                percent === undefined
+                    ? t('updates.chip.downloading.label')
+                    : t('updates.chip.downloading.labelPercent', { percent }),
+            description: t('updates.chip.downloading.description', { version: state.version }),
             kind: 'downloading',
         };
     }
     if (state.status === 'ready')
         return {
-            label: 'Update ready',
-            description: `Caxri ${state.version} is downloaded and verified. Click to install it.`,
+            label: t('updates.chip.ready.label'),
+            description: t('updates.chip.ready.description', { version: state.version }),
             kind: 'ready',
         };
     if (state.status === 'error' && state.action !== 'check' && state.version)
         return {
-            label: 'Update failed',
-            description: `Caxri ${state.version} could not be ${
-                state.action === 'open' ? 'installed' : 'downloaded'
-            }. Click to see why and try again.`,
+            label: t('updates.chip.failed.label'),
+            description: t(
+                state.action === 'open'
+                    ? 'updates.chip.failed.installDescription'
+                    : 'updates.chip.failed.downloadDescription',
+                { version: state.version },
+            ),
             kind: 'failed',
         };
     return undefined;
@@ -206,7 +242,10 @@ export function resolveUpdateAnnouncement(
     if (isUpdateVersionSkipped(state.version, skippedVersion)) return undefined;
     return {
         version: state.version,
-        message: `Caxri ${state.version} is available. You are running ${state.currentVersion}.`,
+        message: translate('updates.announcement.message', {
+            version: state.version,
+            currentVersion: state.currentVersion,
+        }),
     };
 }
 

@@ -4,6 +4,7 @@ import { isChatTerminal } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 import { useTerminal } from '../../stores/selectors';
 import { AgentChatTerminalContent } from '../agent-chat/agent-chat-terminal-content';
 import { didPasteDropIntoTerminal, isTerminalPasteDrag } from '../terminal/terminal-drop';
@@ -30,6 +31,7 @@ export function CommanderTerminal({
     onRetry: () => void;
     status: AgentCommanderStatus;
 }) {
+    const { t } = useTranslation();
     const terminalId = useAgentCommanderStore((state) => state.identity?.terminalId);
     const terminal = useTerminal(terminalId ?? '');
     if (status.kind === 'error')
@@ -38,10 +40,12 @@ export function CommanderTerminal({
                 role="alert"
                 className="commander-terminal-status flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-muted"
             >
-                <span className="text-foreground">Agent Commander could not start.</span>
+                <span className="text-foreground">
+                    {t('agentCommander.terminal.couldNotStart')}
+                </span>
                 <span className="max-w-[460px] text-xs">{status.message}</span>
                 <Button size="sm" variant="secondary" onClick={onRetry}>
-                    Retry
+                    {t('common.retry')}
                 </Button>
             </div>
         );
@@ -49,13 +53,13 @@ export function CommanderTerminal({
         return (
             <div className="commander-terminal-status flex h-full flex-col items-center justify-center gap-3 p-6 text-muted">
                 <Spinner />
-                <span>Starting Agent Commander…</span>
+                <span>{t('agentCommander.terminal.starting')}</span>
             </div>
         );
     if (isChatTerminal(terminal))
         return (
             <AgentChatTerminalContent
-                ariaLabel={`Agent Commander: ${terminal.title}`}
+                ariaLabel={t('agentCommander.terminal.ariaLabel', { title: terminal.title })}
                 host="commander"
                 isShown
                 key={terminal.id}
@@ -79,7 +83,7 @@ export function CommanderTerminal({
         >
             <TerminalPane
                 active
-                ariaLabel={`Agent Commander: ${terminal.title}`}
+                ariaLabel={t('agentCommander.terminal.ariaLabel', { title: terminal.title })}
                 isPaneVisible
                 terminalId={terminal.id}
             />

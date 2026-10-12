@@ -4,6 +4,7 @@ import type { ProjectRecord } from '@caxri/protocol';
 import { Check } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useSessionPullRequest } from '../primary-sidebar/hooks/use-session-pull-request';
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
@@ -47,6 +48,7 @@ export function AgentActivityRowItem({
      */
     worktreeProject: ProjectRecord | undefined;
 }) {
+    const { t } = useTranslation();
     const { project, session, terminal } = row;
     const isRenaming = sessionRename.renamingRowId === session.id;
     const beginRename = () =>
@@ -74,6 +76,7 @@ export function AgentActivityRowItem({
         row,
         selected,
         sessionRename,
+        t,
         titleScroll,
         visiblePullRequest,
         worktreeProject,
@@ -127,10 +130,11 @@ function AgentActivityMarkReadButton({
     onMarkRead: () => void;
     sessionTitle: string;
 }) {
+    const { t } = useTranslation();
     return (
-        <Tooltip content="Mark as Read">
+        <Tooltip content={t('agentActivity.markRead')}>
             <button
-                aria-label={`Mark ${sessionTitle} as read`}
+                aria-label={t('agentActivity.markSessionRead', { title: sessionTitle })}
                 aria-keyshortcuts="Delete"
                 className={cn(
                     sessionRowActionButton,

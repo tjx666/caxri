@@ -2,6 +2,7 @@ import type { GitDiffTab, GitFileStatus } from '@caxri/protocol';
 import { parseGitDiffTab } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     describeHiddenGitDiffFiles,
     filterGitDiffFiles,
@@ -37,10 +38,10 @@ describe('filterGitDiffFiles', () => {
 
         expect(filtered.files).toEqual([]);
         expect(filtered.hiddenCount).toBe(2);
-        expect(describeHiddenGitDiffFiles(filtered.hiddenCount, true)).toBe(
+        expect(describeHiddenGitDiffFiles(filtered.hiddenCount, true, false, translate)).toBe(
             'All 2 changed files are hidden by Git diff exclusions.',
         );
-        expect(describeHiddenGitDiffFiles(2_000, true, true)).toBe(
+        expect(describeHiddenGitDiffFiles(2_000, true, true, translate)).toBe(
             'All 2,000 loaded changed files are hidden by Git diff exclusions.',
         );
     });

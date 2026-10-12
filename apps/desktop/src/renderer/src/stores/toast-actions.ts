@@ -1,5 +1,8 @@
 import type { PaneSplitSide, TerminalKind, TerminalSurface } from '@caxri/protocol';
 
+import type { TranslationKey } from '../i18n';
+import { translate } from '../i18n';
+
 /**
  * The argument each follow-up needs to run again later, and, through its keys, the closed set of follow-ups a
  * notification may offer.
@@ -95,24 +98,25 @@ export type ToastAction = {
 }[ToastActionId];
 
 /**
- * One label per identity, so the live toast and the history entry cannot disagree about what the button offers.
+ * One label per identity, so the live toast and the history entry cannot disagree about what the button offers. Held as
+ * translation keys and resolved where the button renders, so a language change relabels buttons already in history.
  */
-export const toastActionLabels: Record<ToastActionId, string> = {
-    'diagnostics.copyFailure': 'Copy details',
-    'editor.restoreDiscardedChanges': 'Restore My Changes',
-    'editor.retrySave': 'Retry',
-    'github.open': 'Open on GitHub',
-    'processExplorer.open': 'View details',
-    'session.unarchive': 'Undo',
-    'settings.open': 'Open Settings',
-    'settings.openHardwareAcceleration': 'Open Settings',
-    'settings.turnOffHardwareAcceleration': 'Turn off hardware acceleration…',
-    'terminal.create': 'Retry',
-    'terminal.refresh': 'Refresh',
-    'terminal.restart': 'Retry',
-    'terminal.stopRunaway': 'Stop',
-    'updates.show': 'Show Update',
-    'workbench.undoFollowedRoot': 'Undo',
+export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
+    'diagnostics.copyFailure': 'toasts.action.copyDetails',
+    'editor.restoreDiscardedChanges': 'toasts.action.restoreDiscardedChanges',
+    'editor.retrySave': 'common.retry',
+    'github.open': 'toasts.action.openOnGitHub',
+    'processExplorer.open': 'toasts.action.viewDetails',
+    'session.unarchive': 'toasts.action.undo',
+    'settings.open': 'toasts.action.openSettings',
+    'settings.openHardwareAcceleration': 'toasts.action.openSettings',
+    'settings.turnOffHardwareAcceleration': 'toasts.action.turnOffHardwareAcceleration',
+    'terminal.create': 'common.retry',
+    'terminal.refresh': 'common.refresh',
+    'terminal.restart': 'common.retry',
+    'terminal.stopRunaway': 'toasts.action.stop',
+    'updates.show': 'toasts.action.showUpdate',
+    'workbench.undoFollowedRoot': 'toasts.action.undo',
 };
 
 export interface ToastActionHandler<Id extends ToastActionId> {
@@ -135,7 +139,9 @@ export type ToastActionHandlers = { [Id in ToastActionId]: ToastActionHandler<Id
  * button that does nothing. It does not claim the follow-up is gone, nothing was checked, only that this window could
  * not perform it.
  */
-export const UNKNOWN_TOAST_ACTION_REASON = 'Caxri could not run this action.';
+export function unknownToastActionReason(): string {
+    return translate('toasts.actionUnavailable.unknown');
+}
 
 const installed: { handlers?: Partial<ToastActionHandlers> } = {};
 
@@ -162,7 +168,7 @@ export function runToastAction(action: ToastAction): string | undefined {
      */
     const handler = installed.handlers?.[action.id] as
         ToastActionHandler<ToastActionId> | undefined;
-    if (!handler) return UNKNOWN_TOAST_ACTION_REASON;
+    if (!handler) return unknownToastActionReason();
     const parameters = action.params;
     const reason = handler.unavailable?.(parameters);
     if (reason) return reason;

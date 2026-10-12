@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 
 import type { AppLocale } from '@caxri/protocol';
+import type { TranslationParameters } from '@desktop-shared/i18n/interpolate';
+import { interpolate } from '@desktop-shared/i18n/interpolate';
 import type { TranslationKey as LobeTranslationKey } from '@lobehub/ui/i18n';
 import { useTranslation as useLobeTranslation } from '@lobehub/ui/i18n';
 
-import type { TranslationParameters as TranslationParameters } from './interpolate';
-import { interpolate } from './interpolate';
 import type { TranslationKey } from './resources';
 
 export type Translate = (key: TranslationKey, parameters?: TranslationParameters) => string;

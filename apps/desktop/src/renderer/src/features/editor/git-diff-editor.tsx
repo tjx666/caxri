@@ -1,6 +1,7 @@
 import type { GitDiffDocument, GitDiffTab } from '@caxri/protocol';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
+import { useTranslation } from '../../i18n';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSessionById } from '../../stores/selectors';
@@ -12,7 +13,7 @@ import { EditorPathBreadcrumbs } from './editor-path-breadcrumbs';
 import { GitChangesDiffEditor } from './git-changes-diff-editor';
 import { didFocusDiffEditor } from './git-diff-actions';
 import {
-    RESOLVED_GIT_DIFF_REASON,
+    RESOLVED_GIT_DIFF_REASON_KEY,
     resolvedGitDiffActionLabel,
     resolveNullGitDiffState,
 } from './git-diff-resolution';
@@ -39,13 +40,14 @@ function FileDiffResult({
     sessionId?: string;
     tab: Extract<GitDiffTab, { kind: 'commit-file' | 'file' }>;
 }) {
+    const { t } = useTranslation();
     const paneSession = useSessionById(sessionId);
     const { data: summary } = useCaxriQuery(
         'git.summary',
         { sessionId: sessionId ?? '' },
         { enabled: Boolean(sessionId) },
     );
-    useToastOnQueryError(isError, error, 'Unable to open Git diff');
+    useToastOnQueryError(isError, error, t('editor.gitDiff.openFailed'));
     if (!sessionId || document === null) return null;
     /**
      * A pull request or commit diff that fails to read used to leave the reason on screen with no way out, while the
@@ -55,16 +57,20 @@ function FileDiffResult({
     if (isError)
         return (
             <EditorLoadFailure
-                actionLabel={resolvedGitDiffActionLabel(isFetching)}
-                reason={describeFailure(error, 'Unable to open Git diff')}
+                actionLabel={t(resolvedGitDiffActionLabel(isFetching))}
+                reason={describeFailure(error, t('editor.gitDiff.openFailed'))}
                 onAction={onRetry}
             />
         );
-    if (!document) return <LoadingSkeleton variant="document" label="Loading diff…" />;
-    const renamedFrom =
+    if (!document)
+        return <LoadingSkeleton variant="document" label={t('editor.gitDiff.loading')} />;
+    const breadcrumbsLabel =
         document.originalPath && document.originalPath !== document.path
-            ? ` (renamed from ${document.originalPath})`
-            : '';
+            ? t('editor.breadcrumbs.diffLabelRenamed', {
+                  path: document.path,
+                  originalPath: document.originalPath,
+              })
+            : t('editor.breadcrumbs.diffLabel', { path: document.path });
     const repo = summary?.isRepository
         ? summary.repositories.find((candidate) => candidate.id === tab.repositoryId)
         : undefined;
@@ -83,7 +89,7 @@ function FileDiffResult({
             <div className="flex h-6 shrink-0 items-center overflow-hidden border-b border-border bg-surface">
                 {browseContext ? (
                     <EditorBreadcrumbs
-                        accessibilityLabel={`Diff breadcrumbs: ${document.path}${renamedFrom}`}
+                        accessibilityLabel={breadcrumbsLabel}
                         onEscapeToEditor={() => {
                             didFocusDiffEditor(navigationKey, editorInstanceId);
                         }}
@@ -95,7 +101,7 @@ function FileDiffResult({
                     />
                 ) : (
                     <EditorPathBreadcrumbs
-                        accessibilityLabel={`Diff breadcrumbs: ${document.path}${renamedFrom}`}
+                        accessibilityLabel={breadcrumbsLabel}
                         path={document.path}
                     />
                 )}
@@ -125,6 +131,7 @@ function WorkingFileDiffEditor({
     navigationKey: string;
     tab: Extract<GitDiffTab, { kind: 'file' }>;
 }) {
+    const { t } = useTranslation();
     const sessionId = usePaneViewSessionId();
     const {
         data: document,
@@ -144,15 +151,15 @@ function WorkingFileDiffEditor({
         // failure is never mounted. Without this branch the tab keeps a retry that can never leave "Loading diff…".
         const nullState = resolveNullGitDiffState({ document, isError, isFetchedAfterMount });
         if (nullState === 'pending')
-            return <LoadingSkeleton variant="document" label="Loading diff…" />;
+            return <LoadingSkeleton variant="document" label={t('editor.gitDiff.loading')} />;
         const isFailed = nullState === 'failed';
         return (
             <EditorLoadFailure
-                actionLabel={resolvedGitDiffActionLabel(isFetching)}
+                actionLabel={t(resolvedGitDiffActionLabel(isFetching))}
                 reason={
                     isFailed
-                        ? describeFailure(error, 'Unable to open Git diff')
-                        : RESOLVED_GIT_DIFF_REASON
+                        ? describeFailure(error, t('editor.gitDiff.openFailed'))
+                        : t(RESOLVED_GIT_DIFF_REASON_KEY)
                 }
                 tone={isFailed ? 'failed' : 'interrupted'}
                 onAction={() => {

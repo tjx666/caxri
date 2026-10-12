@@ -15,14 +15,13 @@ import { unarchiveSession } from '../features/session/session-archive-commands';
 import { createTerminalForSession } from '../features/terminal/terminal-commands';
 import { terminalToastActionHandlers } from '../features/terminal/terminal-toast-actions';
 import { showUpdateDialog } from '../features/updates/update-commands';
+import { translate } from '../i18n';
 import { openExternalUrl } from '../lib/external-link';
 import { openSettings } from '../stores/dialogs';
 import { getBootstrap } from '../stores/selectors';
 import type { ToastActionHandlers } from '../stores/toast-actions';
 import { pushToast, tryCommand } from '../stores/toasts';
 import { undoFollowedWorkbenchRoot } from '../stores/workbench-root-notice';
-
-const MISSING_SESSION_REASON = 'That Session no longer exists.';
 
 /**
  * Archived Sessions stay in the bootstrap snapshot with an `archivedAt`, so this answers "does the record still exist",
@@ -43,7 +42,9 @@ export const toastActionHandlers: ToastActionHandlers = {
     'diagnostics.copyFailure': {
         run: ({ text }) => {
             // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast
-            void tryCommand('Copy details failed', () => navigator.clipboard.writeText(text));
+            void tryCommand(translate('toasts.copyDetailsFailed'), () =>
+                navigator.clipboard.writeText(text),
+            );
         },
     },
     'editor.restoreDiscardedChanges': {
@@ -65,7 +66,9 @@ export const toastActionHandlers: ToastActionHandlers = {
         // An archived Session can still be deleted outright, and restoring one that is gone would report a low-level
         // failure for something the user already did on purpose.
         unavailable: ({ sessionId }) =>
-            hasSession(sessionId) ? undefined : MISSING_SESSION_REASON,
+            hasSession(sessionId)
+                ? undefined
+                : translate('toasts.actionUnavailable.missingSession'),
         run: ({ sessionId }) => unarchiveSession(sessionId, 'unchanged'),
     },
     'settings.open': { run: () => openSettings() },
@@ -80,7 +83,9 @@ export const toastActionHandlers: ToastActionHandlers = {
     },
     'terminal.create': {
         unavailable: ({ sessionId }) =>
-            hasSession(sessionId) ? undefined : MISSING_SESSION_REASON,
+            hasSession(sessionId)
+                ? undefined
+                : translate('toasts.actionUnavailable.missingSession'),
         run: ({ cwd, kind, paneId, sessionId, split, surface }) => {
             // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
             void createTerminalForSession(sessionId, kind, { cwd, paneId, split, surface });
@@ -101,11 +106,11 @@ export const toastActionHandlers: ToastActionHandlers = {
          */
         unavailable: ({ followedProjectId, projectId, sessionId }) => {
             const session = getBootstrap()?.sessions.find((entry) => entry.id === sessionId);
-            if (!session) return MISSING_SESSION_REASON;
+            if (!session) return translate('toasts.actionUnavailable.missingSession');
             const current = session.workbenchProjectId;
             return current === followedProjectId || current === projectId
                 ? undefined
-                : 'This Session has moved on from that switch.';
+                : translate('toasts.actionUnavailable.sessionMovedOn');
         },
         run: ({ projectId, sessionId }) => {
             // Fire-and-forget: undoFollowedWorkbenchRoot funnels every failure into its own error toast.

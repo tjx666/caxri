@@ -2,6 +2,7 @@ import type { SourceControlAction, SourceControlHistoryDescriptor } from '@caxri
 
 import { DiffStat } from '../../../components/diff-stat';
 import { LoadingSkeleton } from '../../../components/loading-skeleton';
+import { useTranslation } from '../../../i18n';
 import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { describeFailure } from '../../../stores/toasts';
 import { useSourceControlHistoryDetails } from './hooks/use-source-control-history-details';
@@ -28,6 +29,7 @@ export function SourceControlHistoryDetails({
     rowIdPrefix: string;
     runAction: (action: SourceControlAction) => void;
 }) {
+    const { t } = useTranslation();
     const details = useSourceControlHistoryDetails(descriptor, itemId, path);
     if (details.isPending)
         return (
@@ -49,7 +51,8 @@ export function SourceControlHistoryDetails({
             <div className="px-3 py-1 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
                 {descriptor.detailsLabel} ·{' '}
                 {details.data.resources.length + (details.data.hiddenCount ?? 0)}
-                {!!details.data.hiddenCount && ` · ${details.data.hiddenCount} hidden`}
+                {!!details.data.hiddenCount &&
+                    ` · ${t('viewContainers.sourceControl.hiddenCount', { count: details.data.hiddenCount })}`}
             </div>
             {details.data.resources.length === 0 ? (
                 <div className="px-3 py-2 text-[11px] text-muted">
@@ -94,13 +97,14 @@ export function SourceControlHistoryHoverDetails({
     itemId: string;
     path?: string;
 }) {
+    const { t } = useTranslation();
     const details = useSourceControlHistoryDetails(descriptor, itemId, path);
     if (!details.data) return null;
     return (
         <>
             <span className="text-muted">{details.data.summary}</span>
             <DiffStat additions={details.data.additions} deletions={details.data.deletions} />
-            <span className="sr-only">{diffStatLabel(details.data)}</span>
+            <span className="sr-only">{diffStatLabel(details.data, t)}</span>
         </>
     );
 }

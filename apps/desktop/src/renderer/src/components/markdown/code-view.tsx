@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { CodeXml, WrapText } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
 import { Tooltip } from '../ui/tooltip';
@@ -40,16 +41,19 @@ export function CodeView({
      */
     language: string | undefined;
 }) {
+    const { t } = useTranslation();
     const [isWrapped, setWrapped] = useState(false);
     const { html, languageName } = useColorizedCode(code, language, isPaintable);
-    const wrapLabel = isWrapped ? 'Disable word wrap' : 'Enable word wrap';
+    const wrapLabel = t(
+        isWrapped ? 'core.codeView.disableWordWrap' : 'core.codeView.enableWordWrap',
+    );
     return (
         <div className="overflow-hidden rounded-lg bg-elevated">
             {/* Chrome, not content: a selection running through the block copies the code without its language label. */}
             <div className="flex h-8 items-center gap-1.5 pt-1 pr-1.5 pl-3 text-[12px] text-muted select-none">
                 <CodeXml aria-hidden className="size-3.5 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">
-                    {label ?? languageName ?? language ?? 'Text'}
+                    {label ?? languageName ?? language ?? t('core.codeView.plainText')}
                 </span>
                 <Tooltip content={wrapLabel}>
                     <button
@@ -67,7 +71,7 @@ export function CodeView({
                 </Tooltip>
                 <CopyIconButton
                     copy={() => writeToClipboardWithFeedback(navigator.clipboard, code)}
-                    label="Copy code"
+                    label={t('core.copy.code')}
                 />
             </div>
             <pre

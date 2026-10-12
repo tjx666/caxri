@@ -9,6 +9,7 @@ import type {
 import { isPinnedSession } from '@caxri/protocol';
 
 import { ContextMenuTrigger } from '../../components/context-menu-trigger';
+import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
@@ -120,14 +121,6 @@ export function SessionRowMenu({
 }
 
 /**
- * One sentence per reason an Agent entry is unavailable, shared by every entry that needs it: the Session has no Agent
- * at all, or its Agent has not started a conversation yet.
- */
-const NO_AGENT_REASON = 'This Session has no Agent';
-const NO_CONVERSATION_REASON = 'This Session has no Agent conversation yet';
-const NO_RUNNING_AGENT_REASON = 'This Session has no running Agent';
-
-/**
  * A native menu cannot be patched once it is showing, so the grant read gates the whole menu. It is bounded: a slow or
  * stalled Server must not turn a right-click into nothing happening.
  */
@@ -182,9 +175,11 @@ async function sessionRowMenu({
      * conversation: a Session whose Agent has not started one yet has nothing to put on the clipboard.
      */
     const agentSessionId = primaryTerminal?.agentSessionId;
-    const missingConversationReason = primaryTerminal?.provider
-        ? NO_CONVERSATION_REASON
-        : NO_AGENT_REASON;
+    const missingConversationReason = translate(
+        primaryTerminal?.provider
+            ? 'primarySidebar.sessionMenu.noConversationReason'
+            : 'primarySidebar.sessionMenu.noAgentReason',
+    );
     /**
      * `terminal.switchAgentSurface` and `terminal.restart` act on the active Terminal, while these entries act on the
      * clicked row's Primary Agent. Their key hints show only when the two are the same Terminal, so a row other than
@@ -208,7 +203,7 @@ async function sessionRowMenu({
          */
         onMarkRead &&
             session.hasUnread && {
-                label: 'Mark as Read',
+                label: translate('primarySidebar.sessionMenu.markAsRead'),
                 shortcut: 'delete',
                 onSelect: onMarkRead,
             },
@@ -217,13 +212,13 @@ async function sessionRowMenu({
          * keeps its focus.
          */
         onBeginRename && {
-            label: 'Rename',
+            label: translate('common.rename'),
             shortcut: readCommandShortcut('session.rename'),
             onSelect: onBeginRename,
         },
         onSuggestRename &&
             canSuggestSessionTitle(session) && {
-                label: 'Rename with AI',
+                label: translate('primarySidebar.sessionMenu.renameWithAi'),
                 shortcut: 'shift+enter',
                 onSelect: onSuggestRename,
             },
@@ -232,14 +227,16 @@ async function sessionRowMenu({
          * rather than the selected Session; the same reason Archive keeps a literal instead of a binding.
          */
         {
-            label: pinned ? 'Unpin Session' : 'Pin Session',
+            label: translate(
+                pinned ? 'primarySidebar.sessionMenu.unpin' : 'primarySidebar.sessionMenu.pin',
+            ),
             onSelect: () => setSessionPinned(session.id, !pinned),
         },
         /**
          * In the Activity queue Delete marks the row read instead, so the hint moves to that entry.
          */
         {
-            label: 'Archive',
+            label: translate('primarySidebar.sessionMenu.archive'),
             shortcut: onMarkRead ? undefined : 'delete',
             onSelect: () => archiveSession(session.id),
         },
@@ -253,37 +250,42 @@ async function sessionRowMenu({
         primaryTerminal && terminalSurfaceMenuEntry(primaryTerminal, isPrimaryTerminalActive),
         agentRestartMenuEntry(primaryTerminal, missingConversationReason, isPrimaryTerminalActive),
         detached
-            ? { label: 'Resume Agent', onSelect: () => resumeSession(session.id) }
+            ? {
+                  label: translate('primarySidebar.sessionMenu.resumeAgent'),
+                  onSelect: () => resumeSession(session.id),
+              }
             : {
-                  label: 'Detach Agent',
+                  label: translate('primarySidebar.sessionMenu.detachAgent'),
                   disabled: !canDetach,
-                  disabledReason: NO_RUNNING_AGENT_REASON,
+                  disabledReason: translate('primarySidebar.sessionMenu.noRunningAgentReason'),
                   onSelect: () => detachSession(session.id),
               },
         isAutoAllowGranted && {
-            label: 'Turn Off Always Allow in This Session',
+            label: translate('primarySidebar.sessionMenu.turnOffAlwaysAllow'),
             onSelect: () => revokePermissionAutoAllow(session.id),
         },
         CONTEXT_MENU_SEPARATOR,
         {
-            label: 'Open Project in Editor',
+            label: translate('primarySidebar.sessionMenu.openProjectInEditor'),
             shortcut: readCommandShortcut('project.openInEditor'),
             onSelect: () => openProjectInExternalEditor(project, session.id),
         },
         pullRequest && {
-            label: `Open Pull Request #${pullRequest.number}`,
+            label: translate('primarySidebar.sessionMenu.openPullRequest', {
+                number: pullRequest.number,
+            }),
             shortcut: readCommandShortcut('session.openPullRequest'),
             onSelect: () => openSessionPullRequest(pullRequest),
         },
         CONTEXT_MENU_SEPARATOR,
         {
-            label: 'Copy Conversation ID',
+            label: translate('primarySidebar.sessionMenu.copyConversationId'),
             disabled: !agentSessionId,
             disabledReason: missingConversationReason,
             onSelect: () => agentSessionId && copyAgentSessionId(agentSessionId),
         },
         {
-            label: 'Copy Transcript Path',
+            label: translate('primarySidebar.sessionMenu.copyTranscriptPath'),
             disabled: !agentSessionId,
             disabledReason: missingConversationReason,
             onSelect: () =>
@@ -292,7 +294,7 @@ async function sessionRowMenu({
         agentResumeCommandMenuEntry(primaryTerminal, isResumable, missingConversationReason),
         CONTEXT_MENU_SEPARATOR,
         {
-            label: 'Delete Session…',
+            label: translate('primarySidebar.sessionMenu.deleteSession'),
             shortcut: readCommandShortcut('session.delete'),
             onSelect: () => deleteSession(session.id),
         },

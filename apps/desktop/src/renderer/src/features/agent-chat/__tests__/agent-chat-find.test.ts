@@ -77,7 +77,7 @@ describe('isAgentChatTurnFoldMatch', () => {
     const fold: Extract<AgentChatTimelineEntry, { kind: 'turn' }> = {
         kind: 'turn',
         id: 'turn:1',
-        label: 'Worked for 2s',
+        durationMs: 2000,
         status: 'completed',
         entries: [
             {

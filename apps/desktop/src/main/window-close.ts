@@ -4,6 +4,7 @@ import type { BrowserWindow, Dialog } from 'electron';
 
 import type { RunningWork } from './confirmations';
 import { runningWorkPhrase, runningWorkTotal } from './confirmations';
+import { translateMain as t } from './locale';
 
 interface WindowCloseOptions {
     close: () => void;
@@ -41,16 +42,23 @@ export interface WindowClosePrompt {
 export function windowClosePrompt(running: RunningWork): WindowClosePrompt {
     return {
         type: 'warning',
-        title: 'Close this window?',
+        title: t('desktop.windowClose.title'),
         /**
          * The question lives in `message` because macOS sheets do not show `title`; the title is only for platforms
          * that draw one.
          */
-        message: `Close this window while ${runningWorkPhrase(running)} ${
-            runningWorkTotal(running) === 1 ? 'is' : 'are'
-        } running?`,
-        detail: 'Keep Running closes this window and keeps them running in the background. To exit the app, use Quit Caxri and choose whether they should stop.',
-        buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
+        message: t(
+            runningWorkTotal(running) === 1
+                ? 'desktop.windowClose.messageOne'
+                : 'desktop.windowClose.messageOther',
+            { running: runningWorkPhrase(running) },
+        ),
+        detail: t('desktop.windowClose.detail'),
+        buttons: [
+            t('desktop.windowClose.keepRunning'),
+            t('desktop.windowClose.terminate'),
+            t('desktop.dialog.cancel'),
+        ],
         defaultId: 2,
         cancelId: 2,
     };

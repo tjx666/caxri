@@ -1,5 +1,8 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 /**
  * The worktrees this Session's own conversation named, most recently named first.
  *
@@ -46,9 +49,10 @@ export function visibleWorkbenchRoots(
 export function workbenchRootLabel(
     root: WorkbenchRootOption,
     roots: readonly WorkbenchRootOption[],
+    t: Translate = translate,
 ) {
     return root.branch === 'detached' ||
         roots.some((other) => other.worktreeId !== root.worktreeId && other.branch === root.branch)
-        ? `${root.branch === 'detached' ? 'Detached' : root.branch} · ${root.displayTitle}`
+        ? `${root.branch === 'detached' ? t('statusBar.workbenchRoot.detached') : root.branch} · ${root.displayTitle}`
         : root.branch;
 }

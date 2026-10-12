@@ -1,5 +1,6 @@
 import type { ServerEvent } from '@caxri/protocol';
 
+import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import { pushToast, tryCommand } from './toasts';
 
@@ -28,7 +29,9 @@ export function workbenchRootNotice(
         return payload.returnedProjectTitle
             ? {
                   kind: 'fallback',
-                  message: `The active worktree is no longer available. Returned to ${payload.returnedProjectTitle}.`,
+                  message: translate('core.workbenchRoot.fallback', {
+                      title: payload.returnedProjectTitle,
+                  }),
                   projectId: payload.workbenchProjectId,
                   projectTitle: payload.returnedProjectTitle,
               }
@@ -37,8 +40,8 @@ export function workbenchRootNotice(
     return {
         kind: 'followed',
         message: payload.followedProjectTitle
-            ? `Switched to worktree "${payload.followedProjectTitle}" — an Agent moved there.`
-            : 'Switched to another worktree — an Agent moved there.',
+            ? translate('core.workbenchRoot.followedNamed', { title: payload.followedProjectTitle })
+            : translate('core.workbenchRoot.followed'),
         projectId: payload.workbenchProjectId,
         ...(payload.followedProjectTitle && { projectTitle: payload.followedProjectTitle }),
         // Undo is offered only when a different, still-known root can actually be restored.
@@ -56,7 +59,7 @@ export function workbenchRootNotice(
  * rejection. The successful switch converges the Workbench through the `state.changed` Server publishes with it.
  */
 export function undoFollowedWorkbenchRoot(sessionId: string, projectId: string): Promise<unknown> {
-    return tryCommand('Unable to return to the previous Workbench Root', () =>
+    return tryCommand(translate('core.workbenchRoot.undoFailed'), () =>
         caxri.request('session.selectWorkbenchRoot', { sessionId, projectId }),
     );
 }
@@ -84,8 +87,8 @@ export function reportWorkbenchRootChange(
                     followedProjectId: payload.workbenchProjectId,
                 },
                 accessibleLabel: notice.projectTitle
-                    ? `Undo the switch to worktree ${notice.projectTitle}`
-                    : 'Undo the switch to another worktree',
+                    ? translate('core.workbenchRoot.undoNamed', { title: notice.projectTitle })
+                    : translate('core.workbenchRoot.undo'),
             },
         }),
     });

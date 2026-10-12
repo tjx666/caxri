@@ -5,6 +5,7 @@ import { FileDiff, GitPullRequest } from 'lucide-react';
 import { executeCommand } from '../../commands/execute';
 import { DiffStatSign } from '../../components/diff-stat';
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { useTranslation } from '../../i18n';
 import { diffStatLabel, visibleDiffStatParts } from '../../lib/diff-stat-label';
 import { AcceptanceStatus } from './acceptance-status';
 import type { ChipVisibility } from './chip-priority';
@@ -20,37 +21,50 @@ function showSecondarySidebar(command: Extract<CommandId, `secondarySidebar.show
 }
 
 function RepoChangesStatus({ additions, deletions }: { additions: number; deletions: number }) {
+    const { t } = useTranslation();
     const visible = visibleDiffStatParts({ additions, deletions });
     return (
         <StatusItem
             className="diff-stat"
             icon={<FileDiff />}
-            ariaLabel={`Open changes: ${diffStatLabel({ additions, deletions })}`}
+            ariaLabel={t('statusBar.changes.ariaLabel', {
+                label: diffStatLabel({ additions, deletions }, t),
+            })}
             title={
                 <StructuredTooltip
-                    title="Primary repository changes"
+                    title={t('statusBar.changes.title')}
                     rows={[
                         {
-                            label: 'Added',
+                            label: t('statusBar.changes.added'),
                             value: (
                                 <span className="diff-stat text-diff-stat-added">
                                     <DiffStatSign sign="+" />
-                                    {additions} {additions === 1 ? 'line' : 'lines'}
+                                    {t(
+                                        additions === 1
+                                            ? 'statusBar.changes.linesOne'
+                                            : 'statusBar.changes.linesOther',
+                                        { count: additions },
+                                    )}
                                 </span>
                             ),
                         },
                         {
-                            label: 'Removed',
+                            label: t('statusBar.changes.removed'),
                             value: (
                                 <span className="diff-stat text-diff-stat-removed">
                                     <DiffStatSign sign="-" />
-                                    {deletions} {deletions === 1 ? 'line' : 'lines'}
+                                    {t(
+                                        deletions === 1
+                                            ? 'statusBar.changes.linesOne'
+                                            : 'statusBar.changes.linesOther',
+                                        { count: deletions },
+                                    )}
                                 </span>
                             ),
                         },
                     ]}
-                    notes={['Counts tracked files only; new untracked files are not included.']}
-                    hint="Click to show in Git"
+                    notes={[t('statusBar.changes.note')]}
+                    hint={t('statusBar.changes.hint')}
                 />
             }
             onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
@@ -77,6 +91,7 @@ export function RepoStatusChips({
     chipVisibility: ChipVisibility;
     repo: Repo;
 }) {
+    const { t } = useTranslation();
     return (
         <>
             {chipVisibility.pullRequest && (
@@ -85,12 +100,16 @@ export function RepoStatusChips({
                         <StatusItem
                             icon={<GitPullRequest />}
                             href={repo.pullRequest.url}
-                            ariaLabel={`Open pull request #${repo.pullRequest.number}`}
+                            ariaLabel={t('statusBar.pullRequest.ariaLabel', {
+                                number: repo.pullRequest.number,
+                            })}
                             title={
                                 <StructuredTooltip
-                                    eyebrow={`Pull request #${repo.pullRequest.number}`}
+                                    eyebrow={t('statusBar.pullRequest.eyebrow', {
+                                        number: repo.pullRequest.number,
+                                    })}
                                     title={repo.pullRequest.title}
-                                    hint="Click to open on GitHub"
+                                    hint={t('statusBar.pullRequest.hint')}
                                 />
                             }
                         >
@@ -100,12 +119,18 @@ export function RepoStatusChips({
                     {repo.pullRequestUnavailable && (
                         <StatusInfo
                             icon={<GitPullRequest />}
-                            ariaLabel={`${pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}. ${repo.pullRequestUnavailable.hint}`}
+                            ariaLabel={t('statusBar.pullRequest.unavailableAriaLabel', {
+                                label: pullRequestUnavailableLabel(
+                                    repo.pullRequestUnavailable.reason,
+                                    t,
+                                ),
+                                hint: repo.pullRequestUnavailable.hint,
+                            })}
                             title={repo.pullRequestUnavailable.hint}
                             className="bg-elevated text-muted"
                             focusable
                         >
-                            {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}
+                            {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason, t)}
                         </StatusInfo>
                     )}
                 </PriorityChipSlot>

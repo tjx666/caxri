@@ -2,4 +2,6 @@ import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namesp
 
 import type { windowZoom as source } from '../en/window-zoom';
 
-export const windowZoom: TranslatedNamespace<typeof source> = {};
+export const windowZoom: TranslatedNamespace<typeof source> = {
+    'windowZoom.changeFailed': '无法更改缩放级别',
+};

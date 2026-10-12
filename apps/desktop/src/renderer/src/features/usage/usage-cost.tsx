@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { UsageCostDisplay } from './usage-metrics';
 
@@ -12,12 +13,19 @@ export function UsageCost({
     className?: string;
     display: UsageCostDisplay;
 }) {
+    const { t } = useTranslation();
     if (display.kind === 'unpriced')
-        return <span className={cn(className, 'font-normal text-muted')}>{display.label}</span>;
+        return (
+            <span className={cn(className, 'font-normal text-muted')}>
+                {t('usage.cost.noPrice')}
+            </span>
+        );
     return (
         <span className={cn('tabular-nums', className)}>
             {display.label}
-            {display.kind === 'partial' && <span className="font-normal text-muted"> partial</span>}
+            {display.kind === 'partial' && (
+                <span className="font-normal text-muted"> {t('usage.cost.partial')}</span>
+            )}
         </span>
     );
 }

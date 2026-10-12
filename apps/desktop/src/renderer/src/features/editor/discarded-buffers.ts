@@ -1,5 +1,6 @@
 import type { EditorDocument } from '@desktop-shared/editor-state';
 
+import { translate } from '../../i18n';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import type { ToastActionParameters } from '../../stores/toast-actions';
 import { sessionStateOf } from './document-commands';
@@ -83,11 +84,13 @@ function dropOldestRestored(): void {
 
 export function discardedChangesUnavailableReason(target: RestoreTarget): string | undefined {
     if (restorableBuffers(target).length > 0) return undefined;
-    return target.paths.every((path) =>
-        restoredBuffers.has(bufferKey(target.sessionId, target.workbenchProjectId, path)),
-    )
-        ? 'Your earlier changes were already restored.'
-        : 'Your earlier changes can no longer be restored because the file was closed, edited again, or its Project changed.';
+    return translate(
+        target.paths.every((path) =>
+            restoredBuffers.has(bufferKey(target.sessionId, target.workbenchProjectId, path)),
+        )
+            ? 'editor.discarded.alreadyRestored'
+            : 'editor.discarded.unavailable',
+    );
 }
 
 /**

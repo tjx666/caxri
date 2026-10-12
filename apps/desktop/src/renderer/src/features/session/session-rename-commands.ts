@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { requestSessionRename } from '../../stores/dialogs';
 import { getSelectedSession } from '../../stores/selectors';
@@ -25,7 +26,7 @@ export function renameSelectedSessionWithAi(): void {
     const session = getSelectedSession();
     if (!session) return;
     if (!canSuggestSessionTitle(session)) {
-        pushToast('info', 'This Session has no Agent conversation to name it from.');
+        pushToast('info', translate('session.rename.noConversation'));
         return;
     }
     if (!useChromeLayoutStore.getState().primarySidebarVisible)

@@ -6,7 +6,7 @@ vi.mock('../../../../lib/caxri', () => ({ caxri: { request: vi.fn() } }));
 import type { ContextMenuEntries } from '../../../../lib/context-menu';
 import { serializeContextMenu } from '../../../../lib/context-menu';
 import { useDialogStore } from '../../../../stores/dialogs';
-import { FILE_OPERATION_BUSY_REASON, pasteDisabledReason } from '../file-operation-state';
+import { fileOperationBusyReason, pasteDisabledReason } from '../file-operation-state';
 import type { FileTreeItemMenuOptions } from '../file-tree-item-menu';
 import { fileTreeItemMenu } from '../file-tree-item-menu';
 import { fileTreeRootMenu } from '../file-tree-root-context-menu';
@@ -98,7 +98,7 @@ describe('fileTreeItemMenu', () => {
         expect(paste?.shortcut).toBeUndefined();
         expect(items.find((item) => item.label === 'Duplicate')).toMatchObject({
             enabled: false,
-            disabledReason: FILE_OPERATION_BUSY_REASON,
+            disabledReason: fileOperationBusyReason(),
         });
     });
 
@@ -128,7 +128,7 @@ describe('pasteDisabledReason', () => {
             'Nothing to paste',
         );
         expect(pasteDisabledReason({ isBlocked: true, isClipboardEmpty: false })).toBe(
-            FILE_OPERATION_BUSY_REASON,
+            fileOperationBusyReason(),
         );
         expect(pasteDisabledReason({ isBlocked: false, isClipboardEmpty: false })).toBeUndefined();
     });

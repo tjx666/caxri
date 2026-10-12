@@ -7,6 +7,7 @@ import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
 
 import { readExternalFileSnapshot } from './external-file-snapshot';
+import { translateMain } from './locale';
 import type { PathBrowserOpenTarget } from './path-browser-authority';
 import { createPathBrowserAuthority } from './path-browser-authority';
 import type { PathBrowserLogger } from './path-browser-log';
@@ -102,17 +103,19 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         }
 
         const projectTitle =
-            state.projects.find((project) => project.id === projectId)?.displayTitle ?? 'Project';
+            state.projects.find((project) => project.id === projectId)?.displayTitle ??
+            translateMain('desktop.chooseSession.fallbackProject');
         const result = await showMessageBox(options.getWindow(), {
             type: 'question',
-            title: 'Choose a Session',
-            message: `Choose a Session in ${projectTitle} to open this file`,
-            detail: 'The file will open in the selected Session without starting a Terminal.',
+            title: translateMain('desktop.chooseSession.title'),
+            message: translateMain('desktop.chooseSession.message', { project: projectTitle }),
+            detail: translateMain('desktop.chooseSession.detail'),
             buttons: [
                 ...sessions.map(
-                    (session, index) => `${session.displayTitle || 'Untitled'} (${index + 1})`,
+                    (session, index) =>
+                        `${session.displayTitle || translateMain('desktop.chooseSession.untitled')} (${index + 1})`,
                 ),
-                'Cancel',
+                translateMain('desktop.dialog.cancel'),
             ],
             defaultId: 0,
             cancelId: sessions.length,
@@ -298,10 +301,14 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         const folder = dirname(path);
         const result = await showMessageBox(options.getWindow(), {
             type: 'question',
-            title: 'Open a File Outside Added Projects?',
-            message: `Open ${basename(path)} from outside your Projects?`,
-            detail: `${path}\n\nThis file is outside every added Project. Caxri opens it in the editor without adding a Project, and saving writes back to this file. Trusting the folder skips this prompt for files under ${folder}.`,
-            buttons: ['Open', 'Trust Folder and Open', 'Cancel'],
+            title: translateMain('desktop.externalFile.title'),
+            message: translateMain('desktop.externalFile.message', { name: basename(path) }),
+            detail: translateMain('desktop.externalFile.detail', { path, folder }),
+            buttons: [
+                translateMain('desktop.dialog.open'),
+                translateMain('desktop.externalFile.trustFolder'),
+                translateMain('desktop.dialog.cancel'),
+            ],
             defaultId: 0,
             cancelId: 2,
             noLink: true,
@@ -338,7 +345,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 return testRoot;
             }
             const result = await chooseDirectory(options.getWindow(), {
-                title: 'Choose a Project folder',
+                title: translateMain('desktop.chooseProjectFolder'),
                 properties: ['openDirectory', 'createDirectory'],
             });
             // `.at(0)` (not `[0]`) keeps the result typed as possibly missing: `filePaths` is empty

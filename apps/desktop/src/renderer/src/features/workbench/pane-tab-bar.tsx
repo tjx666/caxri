@@ -7,140 +7,20 @@ import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { cn } from '../../lib/utilities';
-import { useCaxriQuery } from '../../queries/client';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
-import { useGitDecoration } from '../../stores/git-decorations';
-import {
-    useIsFullScreen,
-    useProjectById,
-    useSessionState,
-    useTerminal,
-} from '../../stores/selectors';
-import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
-import { closeDocumentTabs, pinDocumentTab } from '../editor/document-commands';
-import {
-    documentTabPathMenuState,
-    editorTabActionsPath,
-    resolveDocumentTabPath,
-} from '../editor/document-tab-path-actions';
-import { documentTabPathMenu } from '../editor/document-tab-path-menu';
-import { GitReviewTabBadge } from '../editor/git-review-tab-badge';
-import { useDocumentTabPresentation } from '../editor/hooks/use-document-tab-presentation';
-import { previewTabSwitch } from '../preview/preview-commands';
-import { WorkTab } from '../tabs/work-tab';
+import { useIsFullScreen, useSessionState, useTerminal } from '../../stores/selectors';
+import { editorTabActionsPath } from '../editor/document-tab-path-actions';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from '../tabs/work-tab-accessibility';
 import { canSwitchTerminalSurface } from '../terminal/terminal-surface-commands';
+import { DocumentPaneTab } from './document-pane-tab';
 import { selectPaneTab } from './pane-actions';
-import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { PaneTabActions } from './pane-tab-actions';
-import { paneTabMenu } from './pane-tab-menu';
 import { useActiveTabReveal } from './pane-tab-reveal';
-import { usePaneViewSession, usePaneViewSessionId } from './pane-view-session';
+import { usePaneViewSessionId } from './pane-view-session';
 import type { PaneTabProperties } from './terminal-pane-tab';
 import { TerminalPaneTab } from './terminal-pane-tab';
 import { usePaneTabDrag } from './use-pane-tab-drag';
-
-/**
- * Subscribes to its own document so a keystroke only rerenders the tab whose dirty flag flipped.
- */
-function DocumentPaneTab({
-    active,
-    closable,
-    onNavigate,
-    paneId,
-    path,
-    showActiveAccent,
-    showTrailingSeparator,
-    tab,
-}: PaneTabProperties & { path: string }) {
-    const session = usePaneViewSession();
-    /**
-     * Keep context-menu close actions in sync when other tabs open or close.
-     */
-    const paneLayout = useSessionState(usePaneViewSessionId())?.paneLayout;
-    const project = useProjectById(session?.workbenchProjectId);
-    const overviewQuery = useCaxriQuery(
-        'git.overview',
-        { sessionId: session?.id ?? '' },
-        { enabled: Boolean(session), staleTime: 60_000 },
-    );
-    const document = useSessionViewStore((state) =>
-        session
-            ? state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
-            : undefined,
-    );
-    const resolution = resolveDocumentTabPath(path, {
-        projectRoot: project?.rootPath,
-        repositories: overviewQuery.data?.repositories,
-        externalDisplayPath: document?.displayPath,
-    });
-    /**
-     * Keyed on the resolved filesystem path, not the tab's own `path`: a single-file Git diff tab carries a virtual URI
-     * whose repository-relative path only `resolveDocumentTabPath` can turn into the absolute path Git reports.
-     */
-    const gitDecoration = useGitDecoration(resolution?.absolutePath);
-    const pathMenu = documentTabPathMenuState(path, overviewQuery);
-    const presentation = useDocumentTabPresentation(path, document?.displayPath);
-    return (
-        <WorkTab
-            active={active}
-            accessory={<GitReviewTabBadge sessionId={session?.id} tabPath={path} />}
-            fill={false}
-            closable={closable}
-            closeLabel="Close Editor"
-            dirty={document?.dirty}
-            gitDecoration={gitDecoration}
-            // Icon, label, and location detail. Ordinary files expose their full path on hover (`labelTooltip`);
-            // virtual resources reuse their descriptive label.
-            {...presentation}
-            // The full path is a different detail than the filename, not a fuller version of it, so it must not
-            // replace the filename a screen reader announces the way a Terminal's untruncated title does.
-            keepLabelAsAccessibleName
-            motionIdentity={tab.id}
-            showActiveAccent={showActiveAccent}
-            showTrailingSeparator={showTrailingSeparator}
-            tabId={workTabId(tab.id)}
-            paneTabId={tab.id}
-            onDoubleClick={() => {
-                if (session) pinDocumentTab(session.id, tab.id);
-            }}
-            onClose={() => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, closeDocumentTabs() reports its own errors
-                void closeDocumentTabs([tab.id]);
-            }}
-            onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = 'copyMove';
-                event.dataTransfer.setData(PANE_TAB_DRAG_TYPE, tab.id);
-                if (resolution)
-                    event.dataTransfer.setData(EDITOR_PATH_DRAG_TYPE, resolution.absolutePath);
-                event.dataTransfer.setData('text/plain', resolution?.absolutePath ?? path);
-            }}
-            onKeyDown={(event) => {
-                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-                event.preventDefault();
-                onNavigate(event.key as WorkTabNavigationKey);
-            }}
-            onSelect={() => selectPaneTab(tab.id)}
-            contextMenu={() =>
-                paneTabMenu({
-                    paneId,
-                    paneLayout,
-                    tabId: tab.id,
-                    resourceEntries: pathMenu.showMenu
-                        ? documentTabPathMenu({
-                              resolution,
-                              unavailableReason: pathMenu.unavailableReason,
-                              externalDocumentId: pathMenu.externalDocumentId,
-                              previewSwitch: previewTabSwitch(path),
-                          })
-                        : undefined,
-                })
-            }
-            preview={tab.preview}
-        />
-    );
-}
 
 function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: boolean }) {
     const terminalId =
@@ -406,7 +286,7 @@ function PaneTabList({
     listReference,
     orderedTabs,
     paneId,
-    paneLabel,
+    tabListLabel,
     railTabs,
     showActiveAccent,
 }: {
@@ -420,7 +300,7 @@ function PaneTabList({
     listReference: RefObject<HTMLDivElement | null>;
     orderedTabs: readonly PaneTab[];
     paneId: string;
-    paneLabel: string;
+    tabListLabel: string;
     railTabs: readonly PaneTab[];
     showActiveAccent: boolean;
 }) {
@@ -435,7 +315,7 @@ function PaneTabList({
         <div
             ref={listReference}
             role="tablist"
-            aria-label={`Open tabs in ${paneLabel}`}
+            aria-label={tabListLabel}
             aria-orientation="horizontal"
             className="relative flex min-w-0 flex-1"
         >
@@ -505,7 +385,7 @@ export function PaneTabBar({
     isOnlySessionTerminal,
     isRootBar,
     pane,
-    paneLabel,
+    tabListLabel,
     spansWindowWidth,
 }: {
     /**
@@ -517,7 +397,7 @@ export function PaneTabBar({
     isOnlySessionTerminal: boolean;
     isRootBar: boolean;
     pane: PaneNode;
-    paneLabel: string;
+    tabListLabel: string;
     /**
      * Whether this bar reaches the window's right edge. False for the leading pane of a side-by-side split, where the
      * drag corner below would otherwise sit in the middle of the window rather than in it.
@@ -585,7 +465,7 @@ export function PaneTabBar({
                 listReference={listReference}
                 orderedTabs={orderedTabs}
                 paneId={pane.id}
-                paneLabel={paneLabel}
+                tabListLabel={tabListLabel}
                 railTabs={railTabs}
                 showActiveAccent={showActiveAccent}
             />

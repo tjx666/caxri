@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { ActiveSessionRow } from './active-session-row';
 import type { SessionOrderController } from './hooks/use-session-order';
@@ -106,17 +107,28 @@ export function PinnedSessionGroup({
     worktreeProjects,
 }: PinnedSessionGroupProperties) {
     const visibleSessionIds = useVisibleSessionIds(visibleSessions);
+    const { t } = useTranslation();
     if (sessions.length === 0) return null;
     const revealRowId = primarySidebarRevealRowId(PINNED_GROUP_ROW_ID);
     return (
         <section className="pinned-session-group relative mb-2" data-pinned-group="">
             <div className="pinned-heading group/pinned-heading flex min-h-7 items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]">
-                <Tooltip content={`${expanded ? 'Collapse' : 'Expand'} Pinned`}>
+                <Tooltip
+                    content={t(
+                        expanded
+                            ? 'primarySidebar.pinned.collapse'
+                            : 'primarySidebar.pinned.expand',
+                    )}
+                >
                     <button
                         className="pinned-disclosure grid h-7 w-4 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-muted hover:text-foreground"
                         aria-controls={PINNED_DISCLOSURE_ID}
                         aria-expanded={expanded}
-                        aria-label={`${expanded ? 'Collapse' : 'Expand'} Pinned`}
+                        aria-label={t(
+                            expanded
+                                ? 'primarySidebar.pinned.collapse'
+                                : 'primarySidebar.pinned.expand',
+                        )}
                         tabIndex={-1}
                         onClick={(event) => {
                             onToggle();
@@ -136,14 +148,19 @@ export function PinnedSessionGroup({
                     // The heading shows no digit; the group is short by construction and the rows themselves are the
                     // answer, so the membership reaches assistive technology here instead, where a collapsed group
                     // would otherwise announce nothing about what it holds.
-                    aria-label={`Pinned, ${sessions.length} ${sessions.length === 1 ? 'Session' : 'Sessions'}`}
+                    aria-label={t(
+                        sessions.length === 1
+                            ? 'primarySidebar.pinned.headingAriaLabelOne'
+                            : 'primarySidebar.pinned.headingAriaLabelOther',
+                        { count: sessions.length },
+                    )}
                     data-row-id={PINNED_GROUP_ROW_ID}
                     tabIndex={PINNED_GROUP_ROW_ID === rovingRowId ? 0 : -1}
                     onClick={onToggle}
                 >
                     <Pin aria-hidden="true" className="flex-none text-muted" size={13} />
                     <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium">
-                        Pinned
+                        {t('primarySidebar.pinned.title')}
                     </strong>
                 </button>
             </div>
@@ -156,7 +173,7 @@ export function PinnedSessionGroup({
             >
                 {() => (
                     <div
-                        aria-label="Pinned Sessions"
+                        aria-label={t('primarySidebar.pinned.listAriaLabel')}
                         className="session-list pb-1 pl-4"
                         role="group"
                     >
@@ -203,14 +220,19 @@ export function PinnedSessionGroup({
                             <button
                                 className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
                                 role="treeitem"
-                                aria-label={`Show ${nextRevealCount} more pinned ${nextRevealCount === 1 ? 'Session' : 'Sessions'}`}
+                                aria-label={t(
+                                    nextRevealCount === 1
+                                        ? 'primarySidebar.pinned.revealAriaLabelOne'
+                                        : 'primarySidebar.pinned.revealAriaLabelOther',
+                                    { count: nextRevealCount },
+                                )}
                                 aria-level={2}
                                 aria-selected={false}
                                 data-row-id={revealRowId}
                                 tabIndex={revealRowId === rovingRowId ? 0 : -1}
                                 onClick={onRevealMoreSessions}
                             >
-                                Show {nextRevealCount} more
+                                {t('primarySidebar.reveal.showMore', { count: nextRevealCount })}
                             </button>
                         )}
                     </div>

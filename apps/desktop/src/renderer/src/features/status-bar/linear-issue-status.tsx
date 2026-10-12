@@ -1,6 +1,7 @@
 import type { ProjectStatusOverviewLinearIssue } from '@caxri/protocol';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { useTranslation } from '../../i18n';
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
 import {
     hasOpenableLinearIssue,
@@ -21,10 +22,11 @@ export function LinearIssueStatus({
 }: {
     issues: readonly ProjectStatusOverviewLinearIssue[];
 }) {
+    const { t } = useTranslation();
     if (issues.length === 0) return null;
     const [issue, ...extra] = issues;
     const shared = {
-        ariaLabel: linearIssueAriaLabel(issue, extra.length),
+        ariaLabel: linearIssueAriaLabel(issue, extra.length, t),
         icon: (
             <LinearStatusIcon
                 kind={issue.stateType ?? 'backlog'}
@@ -33,7 +35,7 @@ export function LinearIssueStatus({
         ),
         // The other referenced issues are links on the card, so it must stay open under the pointer.
         interactiveTitle: hasOpenableLinearIssue(extra),
-        title: <StructuredTooltip {...linearIssueTooltip(issue, extra)} />,
+        title: <StructuredTooltip {...linearIssueTooltip(issue, extra, t)} />,
     };
     const label = (
         <>

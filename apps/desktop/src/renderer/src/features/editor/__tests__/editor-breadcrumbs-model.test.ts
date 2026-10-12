@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     adjacentBreadcrumbPickerPath,
     editorBreadcrumbDirectoryLabel,
@@ -86,8 +87,10 @@ describe('editor breadcrumb picker paths', () => {
         const [segment] = editorBreadcrumbSegments('/project/src/editor.ts', '/project');
 
         expect(editorBreadcrumbPickerDirectory(segment)).toBe('/project');
-        expect(editorBreadcrumbDirectoryLabel('/project', '/project')).toBe('Project root');
-        expect(editorBreadcrumbDirectoryLabel('/project/src', '/project')).toBe('src');
+        expect(editorBreadcrumbDirectoryLabel('/project', '/project', translate)).toBe(
+            'Project root',
+        );
+        expect(editorBreadcrumbDirectoryLabel('/project/src', '/project', translate)).toBe('src');
     });
 });
 

@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useRef } from 'react';
 
+import { useTranslation } from '../../i18n';
 import { AGENT_CHAT_HISTORY_HEAD_ATTRIBUTE } from './agent-chat-history';
 
 /**
@@ -42,6 +43,7 @@ export function AgentChatHistoryHead({
     providerName: string;
     scrollReference: RefObject<HTMLDivElement | null>;
 }): ReactNode {
+    const { t } = useTranslation();
     const sentinelReference = useRef<HTMLDivElement | null>(null);
     const canLoad = hasMore && !isLoading && !hasFailed;
     useEffect(() => {
@@ -66,19 +68,19 @@ export function AgentChatHistoryHead({
             >
                 {hasFailed ? (
                     <p className="m-0 text-[11px] text-muted" role="status">
-                        Earlier messages could not be loaded.{' '}
+                        {t('agentChat.history.loadFailed')}{' '}
                         <button
                             className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
                             type="button"
                             onClick={onLoad}
                         >
-                            Retry
+                            {t('common.retry')}
                         </button>
                     </p>
                 ) : (
                     isLoading && (
                         <p className="m-0 text-[11px] text-muted" role="status">
-                            Loading earlier messages…
+                            {t('agentChat.history.loading')}
                         </p>
                     )
                 )}
@@ -90,7 +92,7 @@ export function AgentChatHistoryHead({
             {...{ [AGENT_CHAT_HISTORY_HEAD_ATTRIBUTE]: '' }}
             className="m-0 text-center text-[11px] text-muted"
         >
-            Earlier messages are not available in Chat. {providerName} still has all of them.
+            {t('agentChat.history.unavailable', { provider: providerName })}
             {onOpenAsTerminal && (
                 <>
                     {' '}
@@ -99,7 +101,7 @@ export function AgentChatHistoryHead({
                         type="button"
                         onClick={onOpenAsTerminal}
                     >
-                        Open as Terminal
+                        {t('agentChat.dock.openAsTerminal')}
                     </button>
                 </>
             )}

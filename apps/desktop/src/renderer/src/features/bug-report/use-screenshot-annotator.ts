@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { BUG_REPORT_JPEG_DATA_URL_PREFIX } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import type {
     AnnotationSegment,
     ScreenshotAnnotation,
@@ -20,7 +21,7 @@ function loadImage(source: string): Promise<HTMLImageElement> {
         const image = new Image();
         image.addEventListener('load', () => resolve(image));
         image.addEventListener('error', () =>
-            reject(new Error('Unable to read the captured screenshot.')),
+            reject(new Error(translate('bugReport.annotator.readFailed'))),
         );
         image.src = source;
     });
@@ -103,13 +104,13 @@ export function useScreenshotAnnotator(initialAnnotations: readonly ScreenshotAn
         canvas.width = image.naturalWidth;
         canvas.height = image.naturalHeight;
         const context = canvas.getContext('2d');
-        if (!context) throw new Error('Unable to prepare a canvas for the annotated screenshot.');
+        if (!context) throw new Error(translate('bugReport.annotator.canvasFailed'));
         context.drawImage(image, 0, 0);
         drawAnnotations(context, annotations, displayScale);
         const dataUrl = canvas.toDataURL('image/jpeg', ANNOTATED_JPEG_QUALITY);
         // A canvas that cannot encode JPEG falls back to PNG, which the screenshot contract rejects downstream.
         if (!dataUrl.startsWith(BUG_REPORT_JPEG_DATA_URL_PREFIX))
-            throw new Error('Unable to encode the annotated screenshot as a JPEG.');
+            throw new Error(translate('bugReport.annotator.encodeFailed'));
         return dataUrl;
     };
 

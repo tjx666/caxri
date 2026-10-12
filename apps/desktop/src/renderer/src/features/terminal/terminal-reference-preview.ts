@@ -1,5 +1,9 @@
 import type { TerminalReferencePreview, TerminalReferencePreviewRequest } from '@caxri/protocol';
-import { relativeTime, rememberBounded } from '@caxri/utils';
+import { rememberBounded } from '@caxri/utils';
+
+import type { TranslationKey } from '../../i18n';
+import { isTranslationKey, translate, useLocaleStore } from '../../i18n';
+import { localizedRelativeTime } from '../../lib/relative-time';
 
 /**
  * Long enough that re-reading the same line of output costs nothing, short enough that an issue closed in the browser
@@ -119,14 +123,30 @@ export function basicReferencePreviewCard(link: TerminalPreviewLink): TerminalRe
     return { detail: link.detail, facts: [], title: link.text };
 }
 
+/**
+ * "3 days ago" in the interface language. The card is built outside React when a hover resolves, so it reads the locale
+ * store's snapshot; a language change applies to the next card.
+ */
+function ageFact(timestamp: number, now: number): string {
+    return localizedRelativeTime(timestamp, now, 'long', useLocaleStore.getState().locale);
+}
+
 function commitFacts(
     preview: Extract<TerminalReferencePreview, { kind: 'commit' }>,
     now: number,
 ): string[] {
-    const facts = [preview.author, relativeTime(preview.authoredAt, now)].filter(Boolean);
-    const fileLabel = preview.changedFileCount === 1 ? 'file' : 'files';
+    const facts = [preview.author, ageFact(preview.authoredAt, now)].filter(Boolean);
     facts.push(
-        `+${preview.insertions} -${preview.deletions} in ${preview.changedFileCount} ${fileLabel}`,
+        translate(
+            preview.changedFileCount === 1
+                ? 'terminal.referencePreview.commitStatsOne'
+                : 'terminal.referencePreview.commitStatsOther',
+            {
+                count: preview.changedFileCount,
+                deletions: preview.deletions,
+                insertions: preview.insertions,
+            },
+        ),
     );
     return facts;
 }
@@ -137,15 +157,26 @@ function commitFacts(
  */
 const UNAVAILABLE_FACTS: Record<
     Extract<TerminalReferencePreview, { kind: 'unavailable' }>['reason'],
-    string
+    TranslationKey
 > = {
-    'ambiguous': 'Matches more than one repository',
-    'cli-missing': 'Install the GitHub CLI to see details',
-    'failed': 'Details unavailable',
-    'not-authenticated': 'Sign in with the GitHub CLI to see details',
-    'not-found': 'No details found',
-    'rate-limited': 'GitHub rate limit reached',
+    'ambiguous': 'terminal.referencePreview.unavailable.ambiguous',
+    'cli-missing': 'terminal.referencePreview.unavailable.cliMissing',
+    'failed': 'terminal.referencePreview.unavailable.failed',
+    'not-authenticated': 'terminal.referencePreview.unavailable.notAuthenticated',
+    'not-found': 'terminal.referencePreview.unavailable.notFound',
+    'rate-limited': 'terminal.referencePreview.unavailable.rateLimited',
 };
+
+/**
+ * GitHub reports an open-ended state string (`open`, `closed`, `merged`), and a merged pull request reports `closed`
+ * with `isMerged`; a known state is translated, anything else is shown capitalized like every other fact on the card.
+ */
+function githubStateLabel(state: string, isDraft: boolean, isMerged: boolean): string {
+    if (isMerged) return translate('terminal.referencePreview.state.merged');
+    if (isDraft) return translate('terminal.referencePreview.state.draft');
+    const key = `terminal.referencePreview.state.${state.toLowerCase()}`;
+    return isTranslationKey(key) ? translate(key) : state.charAt(0).toUpperCase() + state.slice(1);
+}
 
 /**
  * Folds a Server answer into the basic card, so a degraded read loses the extra facts and keeps everything the Renderer
@@ -158,7 +189,7 @@ export function terminalReferencePreviewCard(
 ): TerminalReferencePreviewCard {
     const basic = basicReferencePreviewCard(link);
     if (preview.kind === 'unavailable')
-        return { ...basic, facts: [UNAVAILABLE_FACTS[preview.reason]] };
+        return { ...basic, facts: [translate(UNAVAILABLE_FACTS[preview.reason])] };
     if (preview.kind === 'commit')
         return {
             body: preview.body.split('\n').filter(Boolean).slice(0, 2).join(' ') || undefined,
@@ -166,18 +197,18 @@ export function terminalReferencePreviewCard(
             facts: commitFacts(preview, now),
             title: preview.subject,
         };
-    // GitHub reports `open` / `closed`; the fact starts a line, so it is capitalized like every other one on the card.
-    const state = preview.isMerged
-        ? 'Merged'
-        : preview.isDraft
-          ? 'Draft'
-          : preview.state.charAt(0).toUpperCase() + preview.state.slice(1);
+    const state = githubStateLabel(preview.state, preview.isDraft, preview.isMerged);
     return {
         detail: basic.detail,
         facts: [
-            `${state} ${preview.isPullRequest ? 'pull request' : 'issue'} #${preview.number}`,
+            translate(
+                preview.isPullRequest
+                    ? 'terminal.referencePreview.pullRequestFact'
+                    : 'terminal.referencePreview.issueFact',
+                { number: preview.number, state },
+            ),
             preview.author,
-            relativeTime(preview.createdAt, now),
+            ageFact(preview.createdAt, now),
         ].filter(Boolean),
         title: preview.title || basic.title,
     };

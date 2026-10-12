@@ -77,7 +77,7 @@ describe('reportTerminalOperationError', () => {
     it('ignores typed lifecycle cancellation regardless of its message', () => {
         reportTerminalOperationError(
             new CaxriError('CANCELLED', 'Fixture cancelled'),
-            'Attach failed',
+            'terminal.errors.attachFailed',
         );
         expect(getToasts()).toEqual([]);
     });
@@ -85,7 +85,10 @@ describe('reportTerminalOperationError', () => {
     it.each(['UNAVAILABLE', 'TIMEOUT', 'NOT_FOUND'] as const)(
         'preserves real %s failures',
         (code) => {
-            reportTerminalOperationError(new CaxriError(code, 'Fixture failed'), 'Attach failed');
+            reportTerminalOperationError(
+                new CaxriError(code, 'Fixture failed'),
+                'terminal.errors.attachFailed',
+            );
             expect(getToasts().map((toast) => toast.title)).toEqual(['Fixture failed']);
         },
     );
@@ -93,7 +96,7 @@ describe('reportTerminalOperationError', () => {
     it('does not classify untyped errors by message', () => {
         reportTerminalOperationError(
             new Error('Terminal stream operation was cancelled'),
-            'Attach failed',
+            'terminal.errors.attachFailed',
         );
         expect(getToasts().map((toast) => toast.title)).toEqual([
             'Terminal stream operation was cancelled',

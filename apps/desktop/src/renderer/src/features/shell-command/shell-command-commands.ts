@@ -1,5 +1,6 @@
 import type { ShellCommandResult } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { pushToast, tryCommand } from '../../stores/toasts';
 
@@ -13,22 +14,22 @@ export function shellCommandToast(
         case 'installed':
             return {
                 kind: 'success',
-                message: `Shell command 'caxri' installed in PATH at ${result.linkPath}.`,
+                message: translate('shellCommand.installed', { path: result.linkPath }),
             };
         case 'alreadyInstalled':
             return {
                 kind: 'info',
-                message: `Shell command 'caxri' is already installed at ${result.linkPath}.`,
+                message: translate('shellCommand.alreadyInstalled', { path: result.linkPath }),
             };
         case 'uninstalled':
             return {
                 kind: 'success',
-                message: `Shell command 'caxri' removed from ${result.linkPath}.`,
+                message: translate('shellCommand.uninstalled', { path: result.linkPath }),
             };
         case 'notInstalled':
             return {
                 kind: 'info',
-                message: `Shell command 'caxri' is not installed at ${result.linkPath}.`,
+                message: translate('shellCommand.notInstalled', { path: result.linkPath }),
             };
         case 'canceled':
             return undefined;
@@ -43,14 +44,12 @@ async function run(label: string, request: () => Promise<ShellCommandResult>): P
 
 export function installShellCommand(): void {
     // eslint-disable-next-line no-void -- floating-promise discard: `tryCommand` reports failures through its own toast
-    void run("Unable to install the 'caxri' shell command", () =>
-        caxri.request('shellCommand.install'),
-    );
+    void run(translate('shellCommand.installFailed'), () => caxri.request('shellCommand.install'));
 }
 
 export function uninstallShellCommand(): void {
     // eslint-disable-next-line no-void -- floating-promise discard: `tryCommand` reports failures through its own toast
-    void run("Unable to uninstall the 'caxri' shell command", () =>
+    void run(translate('shellCommand.uninstallFailed'), () =>
         caxri.request('shellCommand.uninstall'),
     );
 }

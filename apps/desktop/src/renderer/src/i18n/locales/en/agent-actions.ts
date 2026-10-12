@@ -1,1 +1,34 @@
-export const agentActions = {} as const;
+export const agentActions = {
+    'agentActions.source.builtIn': 'Built-in',
+    'agentActions.source.project': 'Project',
+    'agentActions.source.global': 'User',
+    'agentActions.source.legacy': 'Legacy',
+    'agentActions.source.custom': 'Custom',
+    'agentActions.target.fallbackSession': 'Session',
+    'agentActions.target.fallbackTerminal': 'Terminal',
+    'agentActions.target.sharedLabel': 'Target: {{provider}}; {{title}}',
+    'agentActions.target.distinctLabel':
+        'Target: {{provider}}; Session: {{session}}; Terminal: {{terminal}}',
+    'agentActions.target.session': 'Session: {{title}}',
+    'agentActions.target.terminal': 'Terminal: {{title}}',
+    'agentActions.dialog.title': 'Agent Commands & Skills',
+    'agentActions.dialog.placeholder': 'Search skills and slash commands, or type @ for Sessions…',
+    'agentActions.dialog.recent': 'Recently Used',
+    'agentActions.dialog.commands': 'Commands',
+    'agentActions.dialog.skills': 'Skills',
+    'agentActions.dialog.discovering': 'Discovering skills…',
+    'agentActions.dialog.partial':
+        'Some commands or skills were unavailable or exceeded discovery limits. Available commands and skills are still ready.',
+    'agentActions.dialog.interactionHint':
+        "Enter runs the selected action. Command+Enter inserts it for editing. Type @ to insert a reference to another Session's conversation.",
+    'agentActions.dialog.manageInSettings': 'Manage in Settings…',
+    'agentActions.dialog.needsArguments': '{{invocation}} needs arguments before it can run.',
+    'agentActions.agentNotRunning': 'The selected Agent is no longer running.',
+    'agentActions.sessions.heading': 'Sessions',
+    'agentActions.footer.run': 'Run',
+    'agentActions.footer.insert': 'Insert',
+    'agentActions.empty.actions': 'No Agent command or skill found.',
+    'agentActions.empty.sessions': 'No other Session with an Agent conversation matches.',
+    'agentActions.sendFailed': 'Unable to send Agent command or skill',
+    'agentActions.saveRecentFailed': 'Unable to save recent Agent action',
+} as const;

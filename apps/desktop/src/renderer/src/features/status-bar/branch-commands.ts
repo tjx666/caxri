@@ -1,5 +1,6 @@
 import type { CaxriMethod } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { queryClient } from '../../queries/client';
 import { tryCommand } from '../../stores/toasts';
@@ -32,7 +33,7 @@ export async function switchBranch(
     repoId: string,
     branch: string,
 ): Promise<void> {
-    const result = await tryCommand('Unable to switch branch', () =>
+    const result = await tryCommand(translate('statusBar.branch.switchFailed'), () =>
         caxri.request('git.switchBranch', { sessionId, repositoryId: repoId, branch }),
     );
     if (result === undefined) return;

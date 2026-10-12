@@ -1,5 +1,6 @@
 import type { AgentHeldMessage } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { createStore } from '../../lib/store';
 import { describeFailure, pushToast } from '../../stores/toasts';
@@ -78,7 +79,10 @@ export function subscribeHeldMessageQueue(): () => void {
             if (isActive) updateHeldMessageQueue((queue) => replaceHeldMessages(queue, initial));
         } catch (error: unknown) {
             if (isActive)
-                pushToast('error', describeFailure(error, 'Unable to load held peer messages'));
+                pushToast(
+                    'error',
+                    describeFailure(error, translate('agentInbox.store.loadFailed')),
+                );
         }
     }
     // eslint-disable-next-line no-void -- intentional floating-promise discard, loadHeldMessages reports its own failure

@@ -23,10 +23,11 @@ import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useResourceLoad } from '../../hooks/use-resource-load';
+import { translate, useTranslation } from '../../i18n';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
-import { PREVIEW_LOADING_LABEL } from '../preview/preview-registry';
+import { PREVIEW_LOADING_LABEL_KEY } from '../preview/preview-registry';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-commands';
@@ -34,7 +35,7 @@ import { documentLoadRecoveryAction, documentReadRecovery } from './document-loa
 import { EditorErrorBoundary } from './editor-error-boundary';
 import { EditorLoadFailure } from './editor-load-failure';
 import {
-    EDITOR_LOAD_FAILURE_REASON,
+    EDITOR_LOAD_FAILURE_REASON_KEY,
     editorLoadReducer,
     initialEditorLoadState,
 } from './editor-load-state';
@@ -103,6 +104,7 @@ const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
 
 function LoadedCodeEditor(properties: CodeEditorProperties) {
+    const { t } = useTranslation();
     const CodeEditor = useSyncExternalStore(
         subscribeLoadedCodeEditor,
         getLoadedCodeEditor,
@@ -122,7 +124,7 @@ function LoadedCodeEditor(properties: CodeEditorProperties) {
                 dispatchModuleLoad({
                     type: 'failed',
                     attempt,
-                    reason: EDITOR_LOAD_FAILURE_REASON,
+                    reason: translate(EDITOR_LOAD_FAILURE_REASON_KEY),
                     tone: 'failed',
                 });
         });
@@ -134,7 +136,7 @@ function LoadedCodeEditor(properties: CodeEditorProperties) {
     if (moduleLoad.status === 'failed')
         return (
             <EditorLoadFailure
-                actionLabel="Reload window"
+                actionLabel={t('editor.load.reloadWindow')}
                 reason={moduleLoad.reason}
                 onAction={() => {
                     // A missing or stale asset is re-requested by the reload, and nothing is lost: durable workbench
@@ -143,7 +145,7 @@ function LoadedCodeEditor(properties: CodeEditorProperties) {
                 }}
             />
         );
-    return <LoadingSkeleton variant="document" label="Loading editor…" />;
+    return <LoadingSkeleton variant="document" label={t('editor.load.loadingEditor')} />;
 }
 
 /**
@@ -151,6 +153,7 @@ function LoadedCodeEditor(properties: CodeEditorProperties) {
  * document cache cap) reads it on demand instead of being closed.
  */
 function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
+    const { t } = useTranslation();
     const session = usePaneViewSession();
     const sessionId = session?.id;
     const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
@@ -170,7 +173,7 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     if (!session || !scope || !theme) return null;
     if (!document) {
         if (isExternal)
-            return <div className={emptyWorkClassName}>External file is no longer available.</div>;
+            return <div className={emptyWorkClassName}>{t('editor.load.externalUnavailable')}</div>;
         if (failure)
             return (
                 <EditorLoadFailure
@@ -179,10 +182,11 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
                         documentReadRecovery(failure.error),
                         path,
                         retry,
+                        t,
                     )}
                 />
             );
-        return <LoadingSkeleton variant="document" label="Loading file…" />;
+        return <LoadingSkeleton variant="document" label={t('editor.load.loadingFile')} />;
     }
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -219,11 +223,17 @@ export function EditorSurface({ paneId, path }: { paneId: string; path: string }
 }
 
 function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }) {
+    const { t } = useTranslation();
     const gitDiffTab = parseGitDiffTab(path);
     if (gitDiffTab)
         return (
             <Suspense
-                fallback={<LoadingSkeleton variant="document" label="Loading diff editor…" />}
+                fallback={
+                    <LoadingSkeleton
+                        variant="document"
+                        label={t('editor.load.loadingDiffEditor')}
+                    />
+                }
             >
                 {/*
                  * Keyed per diff resource so switching between two diff tabs in one pane remounts the editor instead
@@ -238,28 +248,47 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
     const transcriptTab = parseAgentTranscriptTab(path);
     if (transcriptTab)
         return (
-            <Suspense fallback={<LoadingSkeleton variant="document" label="Loading transcript…" />}>
+            <Suspense
+                fallback={
+                    <LoadingSkeleton
+                        variant="document"
+                        label={t('editor.load.loadingTranscript')}
+                    />
+                }
+            >
                 <AgentTranscriptEditor key={transcriptTab.terminalId} tab={transcriptTab} />
             </Suspense>
         );
     const agentTaskTab = parseAgentTaskTab(path);
     if (agentTaskTab)
         return (
-            <Suspense fallback={<LoadingSkeleton variant="document" label="Loading task…" />}>
+            <Suspense
+                fallback={
+                    <LoadingSkeleton variant="document" label={t('editor.load.loadingTask')} />
+                }
+            >
                 <AgentChatTaskTab key={path} tab={agentTaskTab} />
             </Suspense>
         );
     const turnReviewTab = parseAgentTurnReviewTab(path);
     if (turnReviewTab)
         return (
-            <Suspense fallback={<LoadingSkeleton variant="document" label="Loading changes…" />}>
+            <Suspense
+                fallback={
+                    <LoadingSkeleton variant="document" label={t('editor.load.loadingChanges')} />
+                }
+            >
                 <AgentChatTurnReviewTab key={path} tab={turnReviewTab} />
             </Suspense>
         );
     const agentStatusTab = parseAgentStatusTab(path);
     if (agentStatusTab)
         return (
-            <Suspense fallback={<LoadingSkeleton variant="page" label="Loading Agent status…" />}>
+            <Suspense
+                fallback={
+                    <LoadingSkeleton variant="page" label={t('editor.load.loadingAgentStatus')} />
+                }
+            >
                 <AgentStatusPage key={path} terminalId={agentStatusTab.terminalId} />
             </Suspense>
         );
@@ -267,20 +296,28 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
     if (previewTab)
         return (
             <Suspense
-                fallback={<LoadingSkeleton variant="document" label={PREVIEW_LOADING_LABEL} />}
+                fallback={
+                    <LoadingSkeleton variant="document" label={t(PREVIEW_LOADING_LABEL_KEY)} />
+                }
             >
                 <PreviewSurface key={previewTab.path} paneId={paneId} tab={previewTab} />
             </Suspense>
         );
     if (isSettingsTabPath(path))
         return (
-            <Suspense fallback={<LoadingSkeleton variant="page" label="Loading Settings…" />}>
+            <Suspense
+                fallback={
+                    <LoadingSkeleton variant="page" label={t('editor.load.loadingSettings')} />
+                }
+            >
                 <SettingsWorkbenchPage />
             </Suspense>
         );
     if (isUsageTabPath(path))
         return (
-            <Suspense fallback={<LoadingSkeleton variant="page" label="Loading Usage…" />}>
+            <Suspense
+                fallback={<LoadingSkeleton variant="page" label={t('editor.load.loadingUsage')} />}
+            >
                 <UsageWorkbenchPage />
             </Suspense>
         );

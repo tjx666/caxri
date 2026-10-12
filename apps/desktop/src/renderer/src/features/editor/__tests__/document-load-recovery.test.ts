@@ -1,6 +1,8 @@
 import { CaxriError, externalEditorTabPath } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { translate } from '../../../i18n';
+
 const mocks = vi.hoisted(() => ({
     openExternalDocumentWithDefaultApp: vi.fn(() => Promise.resolve()),
     openFileWithDefaultApp: vi.fn(() => Promise.resolve()),
@@ -34,7 +36,7 @@ describe('documentReadRecovery', () => {
 describe('documentLoadRecoveryAction', () => {
     it('runs the retry for a retryable failure', () => {
         const retry = vi.fn();
-        const action = documentLoadRecoveryAction('retry', '/project/a.txt', retry);
+        const action = documentLoadRecoveryAction('retry', '/project/a.txt', retry, translate);
         action.onAction();
         expect(action.actionLabel).toBe('Retry');
         expect(retry).toHaveBeenCalledOnce();
@@ -42,12 +44,18 @@ describe('documentLoadRecoveryAction', () => {
 
     it('opens a Project file by path and an external document by its opaque ID', () => {
         const retry = vi.fn();
-        documentLoadRecoveryAction('openWithDefaultApp', '/project/big.log', retry).onAction();
+        documentLoadRecoveryAction(
+            'openWithDefaultApp',
+            '/project/big.log',
+            retry,
+            translate,
+        ).onAction();
         expect(mocks.openFileWithDefaultApp).toHaveBeenCalledWith('/project/big.log');
         const external = documentLoadRecoveryAction(
             'openWithDefaultApp',
             externalEditorTabPath('doc-1', 'big.log'),
             retry,
+            translate,
         );
         external.onAction();
         expect(external.actionLabel).toBe('Open with Default App');

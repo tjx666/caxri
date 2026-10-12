@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { describeTruncatedGitChanges, shouldShowGitTruncationBanner } from '../git-diff-truncation';
 
 describe('shouldShowGitTruncationBanner', () => {
@@ -18,7 +19,7 @@ describe('shouldShowGitTruncationBanner', () => {
 
 describe('describeTruncatedGitChanges', () => {
     it('names the visible count against the true total', () => {
-        expect(describeTruncatedGitChanges(2_000, 5_312)).toBe(
+        expect(describeTruncatedGitChanges(2_000, 5_312, translate)).toBe(
             'Showing the first 2,000 of 5,312 changes',
         );
     });

@@ -5,6 +5,9 @@
  * unit-testable without rendering React.
  */
 
+import type { Translate } from '../i18n';
+import { translate } from '../i18n';
+
 export type CopyFeedbackStatus = 'idle' | 'copied' | 'failed';
 
 /**
@@ -52,14 +55,19 @@ export async function writeRichToClipboardWithFeedback(
 
 /**
  * Resolves the button's visible label for the current feedback status, falling back to the caller's idle-state label
- * (e.g. "Copy details").
+ * (e.g. "Copy details"). A component passes its own `t`; the `translate` default serves the class-based crash screen
+ * and DOM code outside React.
  */
-export function copyButtonLabel(status: CopyFeedbackStatus, idleLabel: string): string {
+export function copyButtonLabel(
+    status: CopyFeedbackStatus,
+    idleLabel: string,
+    t: Translate = translate,
+): string {
     switch (status) {
         case 'copied':
-            return 'Copied';
+            return t('common.copied');
         case 'failed':
-            return 'Copy failed';
+            return t('core.copy.failed');
         case 'idle':
             return idleLabel;
     }

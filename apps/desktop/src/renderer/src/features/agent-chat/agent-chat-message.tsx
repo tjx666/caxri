@@ -8,6 +8,7 @@ import { CircleAlert } from 'lucide-react';
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageTime } from './agent-chat-message-time';
@@ -87,6 +88,7 @@ export function AgentChatReply({
     item: Extract<AgentChatItem, { type: 'agentMessage' }>;
     onOpenFile?: (target: string) => void;
 }) {
+    const { t } = useTranslation();
     return (
         <div className="group/reply" data-agent-chat-reply="">
             <AgentChatMessage
@@ -112,7 +114,7 @@ export function AgentChatReply({
                                 copy={() =>
                                     writeToClipboardWithFeedback(navigator.clipboard, item.text)
                                 }
-                                label="Copy message"
+                                label={t('agentChat.message.copy')}
                             />
                             {item.createdAt !== undefined && (
                                 <AgentChatMessageTime timestamp={item.createdAt} />
@@ -132,6 +134,7 @@ export function AgentChatReply({
  * a search or an issue.
  */
 export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type: 'notice' }> }) {
+    const { t } = useTranslation();
     const isError = item.kind === 'error';
     return (
         <div
@@ -142,7 +145,7 @@ export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type:
         >
             {isError && <CircleAlert className="mt-0.5 size-3.5 shrink-0" />}
             <span className="wrap-anywhere whitespace-pre-line select-text">
-                {agentChatNoticeMessage(item)}
+                {agentChatNoticeMessage(item, t)}
             </span>
         </div>
     );

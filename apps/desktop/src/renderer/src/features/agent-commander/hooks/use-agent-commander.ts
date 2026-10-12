@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { debounce } from 'es-toolkit';
 
+import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../../queries/client';
 import { describeFailure } from '../../../stores/toasts';
@@ -120,7 +121,10 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
                 if (run.isCurrent)
                     setStatus({
                         kind: 'error',
-                        message: describeFailure(error, 'Unable to start Agent Commander'),
+                        message: describeFailure(
+                            error,
+                            translate('agentCommander.terminal.startFailed'),
+                        ),
                     });
                 return;
             }

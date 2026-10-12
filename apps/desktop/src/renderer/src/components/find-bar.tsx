@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, X } from 'lucide-react';
 
 import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 
+import { useTranslation } from '../i18n';
 import { cn } from '../lib/utilities';
 import { Input, InputGroup } from './ui/input';
 import { Tooltip } from './ui/tooltip';
@@ -82,6 +83,7 @@ export function FindBar({
     onPrevious,
     onQueryChange,
 }: FindBarProperties) {
+    const { t } = useTranslation();
     const inputReference = useRef<HTMLInputElement>(null);
     useFocusOnRevision(focusRevision, inputReference, { select: true });
     const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -115,7 +117,7 @@ export function FindBar({
                     aria-invalid={isQueryInvalid}
                     aria-label={inputLabel}
                     className="flex-1 text-foreground"
-                    placeholder="Find"
+                    placeholder={t('core.findBar.placeholder')}
                     size="dense"
                     spellCheck={false}
                     value={query}
@@ -133,9 +135,9 @@ export function FindBar({
             >
                 {countLabel}
             </span>
-            <Tooltip content="Previous Match" shortcut="shift+enter">
+            <Tooltip content={t('core.findBar.previousMatch')} shortcut="shift+enter">
                 <button
-                    aria-label="Previous Match"
+                    aria-label={t('core.findBar.previousMatch')}
                     className={ACTION_CLASS_NAME}
                     disabled={!hasMatches}
                     type="button"
@@ -144,9 +146,9 @@ export function FindBar({
                     <ChevronUp size={14} />
                 </button>
             </Tooltip>
-            <Tooltip content="Next Match" shortcut="enter">
+            <Tooltip content={t('core.findBar.nextMatch')} shortcut="enter">
                 <button
-                    aria-label="Next Match"
+                    aria-label={t('core.findBar.nextMatch')}
                     className={ACTION_CLASS_NAME}
                     disabled={!hasMatches}
                     type="button"
@@ -155,9 +157,9 @@ export function FindBar({
                     <ChevronDown size={14} />
                 </button>
             </Tooltip>
-            <Tooltip content="Close Find" shortcut="escape">
+            <Tooltip content={t('core.findBar.close')} shortcut="escape">
                 <button
-                    aria-label="Close Find"
+                    aria-label={t('core.findBar.close')}
                     className={ACTION_CLASS_NAME}
                     type="button"
                     onClick={onClose}

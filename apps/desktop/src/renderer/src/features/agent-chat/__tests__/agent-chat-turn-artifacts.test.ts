@@ -2,6 +2,7 @@ import type { AgentChatItem } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     agentChatEditedFilesStat,
     agentChatEditedFilesTitle,
@@ -48,11 +49,15 @@ describe('collectAgentChatEditedFiles', () => {
 
 describe('agentChatEditedFilesTitle', () => {
     it('names a single file by what happened to it and counts several', () => {
-        expect(agentChatEditedFilesTitle([{ path: '/p/a.svg', kind: 'add' }], pathBasename)).toBe(
-            'Created a.svg',
-        );
         expect(
-            agentChatEditedFilesTitle([{ path: '/p/a.svg', kind: 'update' }], pathBasename),
+            agentChatEditedFilesTitle([{ path: '/p/a.svg', kind: 'add' }], pathBasename, translate),
+        ).toBe('Created a.svg');
+        expect(
+            agentChatEditedFilesTitle(
+                [{ path: '/p/a.svg', kind: 'update' }],
+                pathBasename,
+                translate,
+            ),
         ).toBe('Edited a.svg');
         expect(
             agentChatEditedFilesTitle(
@@ -61,6 +66,7 @@ describe('agentChatEditedFilesTitle', () => {
                     { path: '/p/b', kind: 'delete' },
                 ],
                 pathBasename,
+                translate,
             ),
         ).toBe('Edited 2 files');
     });

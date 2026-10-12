@@ -1,4 +1,5 @@
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 
 interface AgentMessageApprovalActionsProperties {
     isExpired: boolean;
@@ -27,33 +28,31 @@ export function AgentMessageApprovalActions({
     onDismiss,
     onSettle,
 }: AgentMessageApprovalActionsProperties) {
+    const { t } = useTranslation();
     if (isExpired)
         return (
             <div className="flex justify-end gap-2">
                 <Button data-approval-confirm onClick={onDismiss}>
-                    Dismiss
+                    {t('common.dismiss')}
                 </Button>
             </div>
         );
     return (
         <>
-            <p className="m-0 text-[11px] text-muted">
-                Decide later, Escape, and closing this dialog all leave the request waiting. None of
-                them answers the sender.
-            </p>
+            <p className="m-0 text-[11px] text-muted">{t('agentInbox.actions.hint')}</p>
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" disabled={pending} onClick={onDefer}>
-                    Decide later
+                    {t('agentInbox.actions.decideLater')}
                 </Button>
                 <Button variant="secondary" disabled={pending} onClick={() => onSettle('deny')}>
-                    Deny
+                    {t('agentInbox.actions.deny')}
                 </Button>
                 <Button
                     data-approval-confirm
                     disabled={pending || isBodyLoading}
                     onClick={() => onSettle('approve')}
                 >
-                    Approve message
+                    {t('agentInbox.actions.approve')}
                 </Button>
             </div>
         </>

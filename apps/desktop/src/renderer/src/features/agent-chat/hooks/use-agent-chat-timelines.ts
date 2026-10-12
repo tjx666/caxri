@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
+import { useTranslation } from '../../../i18n';
 import type { AgentChatOlderHistory } from '../agent-chat-history';
 import { splitAgentChatHistory } from '../agent-chat-history';
 import type { AgentChatRailMark } from '../agent-chat-rail-marks';
@@ -25,6 +26,7 @@ export function useAgentChatTimelines(
     dayBreaks: ReturnType<typeof agentChatDayBreaks>;
     railMarks: readonly AgentChatRailMark[];
 } {
+    const { t } = useTranslation();
     const items = snapshot?.items;
     const turns = snapshot?.turns;
     const activeTurnId = snapshot?.activeTurnId;
@@ -65,12 +67,12 @@ export function useAgentChatTimelines(
     const railMarks = useMemo(
         () =>
             sampleAgentChatRailMarks(
-                agentChatRailMarks([
-                    ...settledChunks.flatMap((chunk) => chunk.entries),
-                    ...timeline,
-                ]),
+                agentChatRailMarks(
+                    [...settledChunks.flatMap((chunk) => chunk.entries), ...timeline],
+                    t,
+                ),
             ),
-        [settledChunks, timeline],
+        [settledChunks, timeline, t],
     );
     return { settledChunks, timeline, dayBreaks, railMarks };
 }

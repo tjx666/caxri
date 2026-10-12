@@ -10,6 +10,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
+import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useDialogStore } from '../../stores/dialogs';
@@ -28,6 +29,7 @@ export function CreateSessionDialog() {
     const pendingProjectId = useDialogStore((state) => state.pendingProjectId);
     const projects = useProjects();
     const openInChat = useSettings()?.['session.openAgentsInChat'];
+    const { t } = useTranslation();
     const isOpen = Boolean(pendingRoot ?? pendingProjectId);
     // Mirrors the Server's Project-title derivation (`basename(rootPath)` in apps/server/src/domains/db/models/projects.ts) so
     // the dialog previews the same title the created Project will get.
@@ -40,10 +42,13 @@ export function CreateSessionDialog() {
         <Dialog open={isOpen} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
             <DialogContent className="w-80">
                 <DialogHeader>
-                    <DialogTitle>Choose the default Terminal</DialogTitle>
+                    <DialogTitle>{t('session.createDialog.title')}</DialogTitle>
                     <DialogDescription>
-                        Create a Session{contextLabel ? ` in ${contextLabel}` : ''}. Its primary
-                        Agent Terminal provides the Session title when metadata is available.
+                        {contextLabel
+                            ? t('session.createDialog.descriptionInProject', {
+                                  project: contextLabel,
+                              })
+                            : t('session.createDialog.description')}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-1 p-2">
@@ -71,7 +76,7 @@ export function CreateSessionDialog() {
                         variant="ghost"
                         onClick={() => onCreate(null)}
                     >
-                        <SquareDashed size={15} /> Start without a Terminal
+                        <SquareDashed size={15} /> {t('session.create.withoutTerminal')}
                     </Button>
                     <OpenInChatSwitch />
                 </div>

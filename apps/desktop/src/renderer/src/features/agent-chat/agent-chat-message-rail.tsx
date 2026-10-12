@@ -1,6 +1,7 @@
 import { memo } from 'react';
 
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { AgentChatRailMark } from './agent-chat-rail-marks';
 import { isAgentChatMessageRailShown } from './agent-chat-rail-marks';
@@ -20,30 +21,33 @@ const RailTick = memo(
         isActive: boolean;
         preview: string;
         onJump: (id: string) => void;
-    }) => (
-        <Tooltip
-            anchorMode="cursor"
-            content={<span className="line-clamp-3 max-w-72 wrap-anywhere">{preview}</span>}
-            hoverOnly
-        >
-            <button
-                aria-current={isActive ? 'location' : undefined}
-                aria-label={`Go to message: ${preview}`}
-                className="group/tick flex h-2.5 min-h-0.5 w-5 shrink cursor-pointer items-center border-0 bg-transparent p-0 pl-1.5 focus-visible:outline focus-visible:outline-accent"
-                type="button"
-                onClick={() => onJump(id)}
+    }) => {
+        const { t } = useTranslation();
+        return (
+            <Tooltip
+                anchorMode="cursor"
+                content={<span className="line-clamp-3 max-w-72 wrap-anywhere">{preview}</span>}
+                hoverOnly
             >
-                <span
-                    className={cn(
-                        'block h-0.5 rounded-full transition-[width,background-color] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-reduce:transition-none',
-                        isActive
-                            ? 'w-3 bg-foreground/70'
-                            : 'w-2 bg-muted/35 group-hover/tick:w-3 group-hover/tick:bg-foreground/70',
-                    )}
-                />
-            </button>
-        </Tooltip>
-    ),
+                <button
+                    aria-current={isActive ? 'location' : undefined}
+                    aria-label={t('agentChat.rail.goToMessage', { preview })}
+                    className="group/tick flex h-2.5 min-h-0.5 w-5 shrink cursor-pointer items-center border-0 bg-transparent p-0 pl-1.5 focus-visible:outline focus-visible:outline-accent"
+                    type="button"
+                    onClick={() => onJump(id)}
+                >
+                    <span
+                        className={cn(
+                            'block h-0.5 rounded-full transition-[width,background-color] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-reduce:transition-none',
+                            isActive
+                                ? 'w-3 bg-foreground/70'
+                                : 'w-2 bg-muted/35 group-hover/tick:w-3 group-hover/tick:bg-foreground/70',
+                        )}
+                    />
+                </button>
+            </Tooltip>
+        );
+    },
 );
 
 /**
@@ -64,10 +68,11 @@ export function AgentChatMessageRail({
     marks: readonly AgentChatRailMark[];
     onJump: (id: string) => void;
 }) {
+    const { t } = useTranslation();
     if (!isAgentChatMessageRailShown(marks)) return null;
     return (
         <nav
-            aria-label="Messages"
+            aria-label={t('agentChat.rail.label')}
             className="absolute top-1/2 left-1 flex max-h-[calc(100%-6rem)] -translate-y-1/2 flex-col"
             data-agent-chat-message-rail=""
         >

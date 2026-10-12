@@ -4,6 +4,7 @@ import type { BrowserWindow, Dialog } from 'electron';
 
 import type { RunningWork } from './confirmations';
 import { runningWorkPhrase, runningWorkTotal } from './confirmations';
+import { translateMain as t } from './locale';
 import type { DesktopServerConnection } from './server-connection';
 
 export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
@@ -93,33 +94,36 @@ export interface AppQuitPrompt {
     type: 'warning';
 }
 
-function plural(count: number, singular: string, multiple = `${singular}s`): string {
-    return count === 1 ? singular : multiple;
-}
-
 export function appQuitPrompt(impact: AppQuitImpact): AppQuitPrompt {
+    const { otherClientCount, running } = impact;
     const otherClientDetail =
-        impact.otherClientCount === 0
+        otherClientCount === 0
             ? ''
-            : `\n\n${impact.otherClientCount} other ${plural(impact.otherClientCount, 'client')} ${
-                  impact.otherClientCount === 1 ? 'is' : 'are'
-              } connected to Caxri Server. Stopping will disconnect ${
-                  impact.otherClientCount === 1 ? 'it' : 'them'
-              }.`;
+            : `\n\n${t(
+                  otherClientCount === 1
+                      ? 'desktop.quit.otherClientsOne'
+                      : 'desktop.quit.otherClientsOther',
+                  { count: otherClientCount },
+              )}`;
     return {
         type: 'warning',
-        title: 'Quit Caxri?',
+        title: t('desktop.quit.title'),
         /**
          * The question lives in `message` because macOS sheets and alerts do not show `title`; the title is only for
          * platforms that draw one.
          */
-        message: `Quit Caxri while ${runningWorkPhrase(impact.running)} ${
-            runningWorkTotal(impact.running) === 1 ? 'is' : 'are'
-        } running?`,
-        detail: `Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent sessions so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.${
-            otherClientDetail
-        }`,
-        buttons: ['Quit and Stop Tasks', 'Quit and Keep Tasks Running', 'Cancel'],
+        message: t(
+            runningWorkTotal(running) === 1
+                ? 'desktop.quit.messageOne'
+                : 'desktop.quit.messageOther',
+            { running: runningWorkPhrase(running) },
+        ),
+        detail: `${t('desktop.quit.detail')}${otherClientDetail}`,
+        buttons: [
+            t('desktop.quit.stopTasks'),
+            t('desktop.quit.keepTasks'),
+            t('desktop.dialog.cancel'),
+        ],
         /**
          * Keep-running remains the default because a mistaken Enter can recoverably leave work alive, while a mistaken
          * stop can destroy an in-flight shell command or Agent turn.
@@ -163,15 +167,19 @@ export function pendingReviewCommentsPrompt(
     const repoCount = summary.groups.length;
     return {
         type: 'warning',
-        title: 'Quit with pending review comments?',
+        title: t('desktop.quit.reviewTitle'),
         // The question is the message, as in `appQuitPrompt`: macOS does not show the title.
-        message: `Quit Caxri and lose ${summary.count} pending review ${plural(summary.count, 'comment')}?`,
-        detail: `Review comments live in memory only and do not survive quitting Caxri. ${repoCount} ${plural(
-            repoCount,
-            'repository',
-            'repositories',
-        )} ${repoCount === 1 ? 'has' : 'have'} unsent comments.`,
-        buttons: ['Quit Anyway', 'Cancel'],
+        message: t(
+            summary.count === 1
+                ? 'desktop.quit.reviewMessageOne'
+                : 'desktop.quit.reviewMessageOther',
+            { count: summary.count },
+        ),
+        detail: t(
+            repoCount === 1 ? 'desktop.quit.reviewDetailOne' : 'desktop.quit.reviewDetailOther',
+            { count: repoCount },
+        ),
+        buttons: [t('desktop.quit.anyway'), t('desktop.dialog.cancel')],
         /**
          * Cancel stays the default, matching `appQuitPrompt`'s own reasoning: a mistaken Enter should recoverably keep
          * the comments around rather than discard them.
@@ -218,10 +226,10 @@ export async function notifyAppQuitStopFailure(
 ): Promise<void> {
     const options = {
         type: 'error' as const,
-        title: "Caxri Couldn't Stop All Tasks",
-        message: 'Some background tasks may still be running.',
-        detail: 'Caxri will quit now. Reopen Caxri to stop any remaining tasks before resuming their Agent sessions in another tool.',
-        buttons: ['Quit Anyway'],
+        title: t('desktop.quit.stopFailureTitle'),
+        message: t('desktop.quit.stopFailureMessage'),
+        detail: t('desktop.quit.stopFailureDetail'),
+        buttons: [t('desktop.quit.anyway')],
         defaultId: 0,
         cancelId: 0,
     };

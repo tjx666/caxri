@@ -5,6 +5,7 @@ import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { useIsFetching } from '@tanstack/react-query';
 
 import { executeCommand } from '../../../../commands/execute';
+import { translate } from '../../../../i18n';
 import { dragPath, hasDraggedPath } from '../../../../lib/file-drag';
 import { CONTROLLED_VIEW_QUERY_METHOD, queryClient } from '../../../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../stores/selectors';
@@ -317,7 +318,11 @@ export function useResourceExplorerController(): ResourceExplorerController | un
             return;
         }
         setScopeFocusPath(scope.scopeId, undefined);
-        const label = target.itemKind === 'file' ? 'New File' : 'New Folder';
+        const label = translate(
+            target.itemKind === 'file'
+                ? 'viewContainers.files.newFile'
+                : 'viewContainers.files.newFolder',
+        );
         fileCaptionReference.current
             ?.querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(label)}"]`)
             ?.focus();

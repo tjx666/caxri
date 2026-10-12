@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import type { ConfirmRequest } from '../../stores/confirmations';
 
 /**
@@ -16,9 +17,9 @@ export function agentChatReplaceTurnsConfirm({
 }): ConfirmRequest | undefined {
     if (restoreFiles || removedTurns <= 1) return undefined;
     return {
-        title: `Replace ${removedTurns} later turns?`,
-        message: `Sending this edit removes this message's turn and the ${removedTurns - 1} after it from the conversation. To keep them, cancel and use Fork from Here instead.`,
-        confirmLabel: 'Replace Turns',
+        title: translate('agentChat.undo.replaceTurnsTitle', { count: removedTurns }),
+        message: translate('agentChat.undo.replaceTurnsMessage', { count: removedTurns - 1 }),
+        confirmLabel: translate('agentChat.undo.replaceTurnsConfirm'),
     };
 }
 
@@ -28,8 +29,8 @@ export function agentChatReplaceTurnsConfirm({
  */
 export function agentChatRestoreSuccessMessage(restoredTurns: number): string {
     return restoredTurns === 1
-        ? 'Restored the code changed in 1 turn'
-        : `Restored the code changed in ${restoredTurns} turns`;
+        ? translate('agentChat.undo.restoreSuccessOne')
+        : translate('agentChat.undo.restoreSuccessOther', { count: restoredTurns });
 }
 
 /**
@@ -37,5 +38,7 @@ export function agentChatRestoreSuccessMessage(restoredTurns: number): string {
  */
 export function agentChatForkSuccessMessage(sessionTitle: string | undefined): string {
     const title = sessionTitle?.trim();
-    return title ? `Forked into a new Session: ${title}` : 'Forked into a new Session';
+    return title
+        ? translate('agentChat.undo.forkSuccessNamed', { title })
+        : translate('agentChat.undo.forkSuccess');
 }

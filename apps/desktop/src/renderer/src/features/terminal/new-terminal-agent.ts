@@ -1,6 +1,8 @@
 import type { AppSettings, TerminalKind, TerminalRecord, TerminalSurface } from '@caxri/protocol';
 import { canUseAgentChat, isChatTerminal, terminalKindSchema } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 
 /**
@@ -164,17 +166,26 @@ export function newTerminalAgentChoices(
  * "New Terminal": it is not an Agent. `agentLabel` is the Agent's display name, resolved by the caller from the icon
  * registry so this module stays free of asset imports.
  */
-export function newTerminalActionLabel(target: NewTerminalTarget, agentLabel: string): string {
-    if (target.kind === 'shell') return 'New Terminal';
-    return `New ${agentLabel} ${target.surface === 'chat' ? 'Chat' : 'Terminal'}`;
+export function newTerminalActionLabel(
+    target: NewTerminalTarget,
+    agentLabel: string,
+    t: Translate = translate,
+): string {
+    if (target.kind === 'shell') return t('terminal.new.terminal');
+    return t(target.surface === 'chat' ? 'terminal.new.agentChat' : 'terminal.new.agentTerminal', {
+        agent: agentLabel,
+    });
 }
 
 /**
  * The empty pane's labelled button text: "New Chat" when its press opens an Agent Chat, "New Terminal" otherwise. The
  * leading Agent icon already names the Agent, so the text names only what kind of tab appears.
  */
-export function newTerminalButtonText(surface: TerminalSurface | undefined): string {
-    return surface === 'chat' ? 'New Chat' : 'New Terminal';
+export function newTerminalButtonText(
+    surface: TerminalSurface | undefined,
+    t: Translate = translate,
+): string {
+    return t(surface === 'chat' ? 'terminal.new.chat' : 'terminal.new.terminal');
 }
 
 /**
@@ -182,8 +193,15 @@ export function newTerminalButtonText(surface: TerminalSurface | undefined): str
  * named the way {@link newTerminalActionLabel} names a Terminal, so the Project heading's button and the tab strip's `+`
  * read alike. A Shell default is "New Shell Session".
  */
-export function newSessionActionLabel(target: NewTerminalTarget, agentLabel: string): string {
-    return `New ${agentLabel}${target.surface === 'chat' ? ' Chat' : ''} Session`;
+export function newSessionActionLabel(
+    target: NewTerminalTarget,
+    agentLabel: string,
+    t: Translate = translate,
+): string {
+    return t(
+        target.surface === 'chat' ? 'terminal.new.agentChatSession' : 'terminal.new.agentSession',
+        { agent: agentLabel },
+    );
 }
 
 /**
@@ -193,9 +211,11 @@ export function newSessionActionLabel(target: NewTerminalTarget, agentLabel: str
  */
 export function agentChoiceMarker(
     choice: Pick<NewTerminalAgentChoice, 'isDefault' | 'surface'>,
+    t: Translate = translate,
 ): string | undefined {
-    const parts = [choice.surface === 'chat' && 'Chat', choice.isDefault && 'Default'].filter(
-        (part): part is string => typeof part === 'string',
-    );
+    const parts = [
+        choice.surface === 'chat' && t('terminal.new.chatMarker'),
+        choice.isDefault && t('terminal.new.defaultMarker'),
+    ].filter((part): part is string => typeof part === 'string');
     return parts.length > 0 ? parts.join(' · ') : undefined;
 }

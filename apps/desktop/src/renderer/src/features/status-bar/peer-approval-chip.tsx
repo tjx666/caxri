@@ -1,5 +1,6 @@
 import { Inbox } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import {
     reviewOldestDeferredMessage,
     selectDeferredHeldMessageCount,
@@ -15,8 +16,9 @@ import { StatusItem } from './status-item';
  * is not a failure (DESIGN.md status bar redline).
  */
 export function PeerApprovalChip() {
+    const { t } = useTranslation();
     const count = useHeldMessageQueueStore(selectDeferredHeldMessageCount);
-    const copy = peerApprovalChipCopy(count);
+    const copy = peerApprovalChipCopy(count, t);
     if (!copy) return null;
     return (
         <StatusItem

@@ -16,6 +16,8 @@ import { StructuredTooltip } from '../../../components/structured-tooltip';
 import { Button } from '../../../components/ui/button';
 import { Empty } from '../../../components/ui/empty';
 import { Tooltip } from '../../../components/ui/tooltip';
+import type { Translate } from '../../../i18n';
+import { useTranslation } from '../../../i18n';
 import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { openExternalUrl } from '../../../lib/external-link';
 import { cn } from '../../../lib/utilities';
@@ -27,11 +29,7 @@ import type {
 import { SourceControlBranchRow } from './source-control-branch-row';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
-import {
-    changedFileCountLabel,
-    changedFileCountText,
-    GROUP_LINE_STATS_NOTE,
-} from './source-control-row-labels';
+import { changedFileCountLabel, changedFileCountText } from './source-control-row-labels';
 import type { SourceControlRowMenuItem } from './source-control-row-menu';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
 import {
@@ -68,13 +66,20 @@ function didOpenExternalLink(
 function rowTooltip(
     content: Omit<StructuredTooltipData, 'hint'>,
     link: SourceControlExternalLink | undefined,
+    t: Translate,
 ): ReactNode {
     return (
         <StructuredTooltip
             {...content}
             hint={[
-                ...(link ? [`Command-click to ${link.label.toLowerCase()}`] : []),
-                'Option-click to expand or collapse everything below',
+                ...(link
+                    ? [
+                          t('viewContainers.sourceControl.commandClickHint', {
+                              action: link.label.toLowerCase(),
+                          }),
+                      ]
+                    : []),
+                t('viewContainers.sourceControl.optionClickHint'),
             ]}
         />
     );
@@ -97,6 +102,7 @@ function GroupActionButtons({
     controller: ReadyController;
     group: GroupModel;
 }) {
+    const { t } = useTranslation();
     return (
         <>
             {group.actions.map((action) => (
@@ -128,7 +134,11 @@ function GroupActionButtons({
                 </Tooltip>
             ))}
             {(group.hiddenCount ?? 0) > 0 && (
-                <span className="font-normal normal-case">{group.hiddenCount} hidden</span>
+                <span className="font-normal normal-case">
+                    {t('viewContainers.sourceControl.hiddenCount', {
+                        count: group.hiddenCount ?? 0,
+                    })}
+                </span>
             )}
         </>
     );
@@ -168,6 +178,7 @@ function ProviderHeader({
     foldedGroup: GroupModel | undefined;
     provider: ProviderModel;
 }) {
+    const { t } = useTranslation();
     const [runningActionId, setRunningActionId] = useState<string>();
     /**
      * The notice borrows the target mode's own icon and switch, so it can never drift from the mode switch it is a
@@ -223,13 +234,20 @@ function ProviderHeader({
                     {
                         title: provider.label,
                         rows: provider.rootPath
-                            ? [{ label: 'Path', value: provider.rootPath, isCode: true }]
+                            ? [
+                                  {
+                                      label: t('viewContainers.sourceControl.pathLabel'),
+                                      value: provider.rootPath,
+                                      isCode: true,
+                                  },
+                              ]
                             : undefined,
                         details: [provider.descriptionTooltip],
                         notes:
                             provider.tooltip === provider.rootPath ? undefined : [provider.tooltip],
                     },
                     provider.externalLink,
+                    t,
                 )}
                 menuItems={menuItems}
                 onClick={(event) => {
@@ -366,6 +384,7 @@ function GroupCaption({
     /**
      * The provider's page for the changes this group lists: the pull request whose number the caption already prints.
      */
+    const { t } = useTranslation();
     const externalLink = provider.externalLink;
     const toggleRecursively = (): void =>
         controller.setSubtreeExpanded(
@@ -383,12 +402,12 @@ function GroupCaption({
                 aria-expanded={expanded}
                 aria-keyshortcuts={externalLink ? 'Meta Alt' : 'Alt'}
                 aria-description={[
-                    changedFileCountLabel(group.count),
-                    lineStats && diffStatLabel(lineStats),
+                    changedFileCountLabel(group.count, t),
+                    lineStats && diffStatLabel(lineStats, t),
                 ]
                     .filter(Boolean)
                     .join(', ')}
-                tooltip={rowTooltip({ title: group.label }, externalLink)}
+                tooltip={rowTooltip({ title: group.label }, externalLink, t)}
                 menuItems={sourceControlActionMenuItems(group.actions, controller.runAction)}
                 onClick={(event) => {
                     if (didOpenExternalLink(event, externalLink)) return;
@@ -415,7 +434,11 @@ function GroupCaption({
             <span className="git-changes-actions flex items-center gap-1">
                 <GroupActionButtons controller={controller} group={group} />
                 {lineStats && (
-                    <Tooltip content={`${diffStatLabel(lineStats)}. ${GROUP_LINE_STATS_NOTE}.`}>
+                    <Tooltip
+                        content={t('viewContainers.sourceControl.lineStatsTooltip', {
+                            stats: diffStatLabel(lineStats, t),
+                        })}
+                    >
                         <span className="flex">
                             <DiffStat
                                 {...lineStats}
@@ -425,9 +448,9 @@ function GroupCaption({
                     </Tooltip>
                 )}
                 {/* Names its unit on screen: a bare count beside `+4 -1` read as a third diff figure. */}
-                <Tooltip content={changedFileCountLabel(group.count)}>
+                <Tooltip content={changedFileCountLabel(group.count, t)}>
                     <span className="git-changes-count ml-1 text-[11px] font-normal tracking-normal whitespace-nowrap normal-case tabular-nums">
-                        {changedFileCountText(group.count)}
+                        {changedFileCountText(group.count, t)}
                     </span>
                 </Tooltip>
             </span>

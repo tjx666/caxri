@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { BookMarked, CircleDot, ExternalLink, GitPullRequest, MessagesSquare } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import type { LinkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
@@ -43,6 +44,7 @@ export function WebLink({
     summary: LinkSummary;
     onOpen: (url: string) => void;
 }) {
+    const { t } = useTranslation();
     const origin = new URL(href).origin;
     return (
         <HoverCard>
@@ -88,7 +90,7 @@ export function WebLink({
                         type="button"
                         onClick={() => onOpen(href)}
                     >
-                        Open
+                        {t('common.open')}
                         <ExternalLink aria-hidden className="size-3.5" />
                     </button>
                 </div>
