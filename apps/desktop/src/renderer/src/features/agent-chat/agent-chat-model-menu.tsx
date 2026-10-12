@@ -81,16 +81,12 @@ export function AgentChatModelMenu({
     if (!label) return null;
     const { modelName, effortName, ariaLabel } = agentChatModelTriggerText(t, snapshot, label);
     const text = (
-        <>
-            {snapshot?.fast && (
-                <Zap aria-hidden className="size-3 shrink-0 fill-current text-foreground" />
-            )}
-            {snapshot?.ultracode && (
-                <Workflow aria-hidden className="size-3 shrink-0 text-foreground" />
-            )}
-            <span className="truncate text-foreground">{modelName}</span>
-            {effortName && <span className="shrink-0">{effortName}</span>}
-        </>
+        <ModelTriggerText
+            effortName={effortName}
+            isFast={snapshot?.fast === true}
+            isUltracode={snapshot?.ultracode === true}
+            modelName={modelName}
+        />
     );
     const models = snapshot?.models;
     if (!models || models.length === 0) return <span className={LABEL_CLASS_NAME}>{text}</span>;
@@ -174,5 +170,30 @@ export function AgentChatModelMenu({
                 )}
             </PopoverContent>
         </Popover>
+    );
+}
+
+/**
+ * The trigger's reading of the current choice: an active mode's icon first, then the model name in the foreground color
+ * and the effort muted beside it.
+ */
+function ModelTriggerText({
+    effortName,
+    isFast,
+    isUltracode,
+    modelName,
+}: {
+    effortName: string | undefined;
+    isFast: boolean;
+    isUltracode: boolean;
+    modelName: string;
+}) {
+    return (
+        <>
+            {isFast && <Zap aria-hidden className="size-3 shrink-0 fill-current text-foreground" />}
+            {isUltracode && <Workflow aria-hidden className="size-3 shrink-0 text-foreground" />}
+            <span className="truncate text-foreground">{modelName}</span>
+            {effortName && <span className="shrink-0">{effortName}</span>}
+        </>
     );
 }

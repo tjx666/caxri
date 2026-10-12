@@ -43,6 +43,7 @@ import {
 } from './agent-chat-reply-navigation';
 import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
+import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import { agentChatTimelineEntryKey } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
@@ -269,23 +270,11 @@ export function AgentChatPane({
                                             onOpenFile={openFile}
                                         />
                                         <AgentChatEditContext value={editActions}>
-                                            {timeline.map((entry) => {
-                                                const key = agentChatTimelineEntryKey(entry);
-                                                const dayBreak = dayBreaks.get(key);
-                                                return (
-                                                    <Fragment key={key}>
-                                                        {dayBreak !== undefined && (
-                                                            <AgentChatDayBreak
-                                                                timestamp={dayBreak}
-                                                            />
-                                                        )}
-                                                        <AgentChatTimelineEntryView
-                                                            entry={entry}
-                                                            onOpenFile={openFile}
-                                                        />
-                                                    </Fragment>
-                                                );
-                                            })}
+                                            <LiveTimelineEntries
+                                                dayBreaks={dayBreaks}
+                                                timeline={timeline}
+                                                onOpenFile={openFile}
+                                            />
                                             <AgentChatPendingTimeline
                                                 pending={pending}
                                                 onOpenFile={openFile}
@@ -374,4 +363,28 @@ export function AgentChatPane({
             />
         </section>
     );
+}
+
+/**
+ * The live timeline's rows, each preceded by the day break that starts its calendar day.
+ */
+function LiveTimelineEntries({
+    dayBreaks,
+    onOpenFile,
+    timeline,
+}: {
+    dayBreaks: ReadonlyMap<string, number>;
+    onOpenFile: (reference: string) => void;
+    timeline: readonly AgentChatTimelineEntry[];
+}) {
+    return timeline.map((entry) => {
+        const key = agentChatTimelineEntryKey(entry);
+        const dayBreak = dayBreaks.get(key);
+        return (
+            <Fragment key={key}>
+                {dayBreak !== undefined && <AgentChatDayBreak timestamp={dayBreak} />}
+                <AgentChatTimelineEntryView entry={entry} onOpenFile={onOpenFile} />
+            </Fragment>
+        );
+    });
 }

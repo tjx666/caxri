@@ -7,7 +7,7 @@ import {
     projectDisplayPath,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import { ChevronDown, FileDiff, LoaderCircle, MessageSquareDiff, Undo2 } from 'lucide-react';
+import { ChevronDown, FileDiff, MessageSquareDiff } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
@@ -22,11 +22,7 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { agentChatLocalizedEditedFilesTitle } from './agent-chat-diff-labels';
 import { AgentChatDiff } from './agent-chat-file-changes';
 import { openAgentChatTurnReview } from './agent-chat-task-opener';
-import {
-    agentChatUndoKey,
-    undoAgentChatTurn,
-    useAgentChatUndoStore,
-} from './agent-chat-undo-commands';
+import { AgentChatTurnUndoButton } from './agent-chat-turn-undo-button';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
 /**
@@ -129,9 +125,6 @@ export function AgentChatTurnChanges({
     const terminalId = useAgentChatTerminal();
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
     const detailId = useId();
-    const undoStatus = useAgentChatUndoStore((state) =>
-        session ? state.turns[agentChatUndoKey(session.id, turnId)] : undefined,
-    );
     const displayPath = (path: string): string => projectDisplayPath(path, session?.rootPath);
     const stat = agentChatEditedFilesStat(files);
     const title = agentChatLocalizedEditedFilesTitle(files, t);
@@ -151,11 +144,6 @@ export function AgentChatTurnChanges({
             if (!next.delete(path)) next.add(path);
             return next;
         });
-    const undoBlocker = isPartial
-        ? 'agentChat.undo.partialTurnTooltip'
-        : files.some((file) => file.truncated)
-          ? 'agentChat.undo.truncatedTooltip'
-          : undefined;
     const only = files.at(0);
     const sessionId = session?.id;
     return (
@@ -225,44 +213,15 @@ export function AgentChatTurnChanges({
                         </HoverCardContent>
                     </HoverCard>
                 </div>
-                {sessionId !== undefined &&
-                    (undoStatus === 'undone' ? (
-                        <span className="shrink-0 text-[12px] text-muted">
-                            {t('agentChat.undo.undone')}
-                        </span>
-                    ) : (
-                        <Tooltip content={t(undoBlocker ?? 'agentChat.undo.tooltip')}>
-                            <Button
-                                aria-disabled={
-                                    undoBlocker !== undefined || undoStatus === 'undoing'
-                                }
-                                className="shrink-0 gap-1 text-[12px] text-muted enabled:not-aria-disabled:hover:text-foreground"
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                    if (undoBlocker !== undefined || undoStatus === 'undoing')
-                                        return;
-                                    // eslint-disable-next-line no-void -- undoAgentChatTurn reports failures through tryCommand
-                                    void undoAgentChatTurn({
-                                        sessionId,
-                                        turnId,
-                                        files,
-                                        displayPath,
-                                    });
-                                }}
-                            >
-                                {t('agentChat.undo.button')}
-                                {undoStatus === 'undoing' ? (
-                                    <LoaderCircle
-                                        aria-hidden="true"
-                                        className="size-3.5 motion-safe:animate-spin"
-                                    />
-                                ) : (
-                                    <Undo2 aria-hidden="true" className="size-3.5" />
-                                )}
-                            </Button>
-                        </Tooltip>
-                    ))}
+                {sessionId !== undefined && (
+                    <AgentChatTurnUndoButton
+                        displayPath={displayPath}
+                        files={files}
+                        isPartial={isPartial}
+                        sessionId={sessionId}
+                        turnId={turnId}
+                    />
+                )}
                 {terminalId !== undefined && (
                     <Tooltip content={t('agentChat.review.tooltip')}>
                         <Button
