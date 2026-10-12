@@ -21,6 +21,7 @@ import {
     Brain,
     ChevronRight,
     CircleStop,
+    Command,
     FilePenLine,
     FilePlus,
     FileText,
@@ -65,7 +66,9 @@ import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-age
  */
 const WORK_ICONS: Record<AgentToolKind, LucideIcon> = {
     agent: Bot,
+    browser: Globe,
     command: SquareTerminal,
+    computer: Command,
     edit: FilePenLine,
     image: Image,
     list: FolderOpen,

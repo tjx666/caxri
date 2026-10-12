@@ -19,6 +19,7 @@ import {
 
 import { clip, isRecord, readableToolInputSummary, tail } from './chat-items';
 import { withCacheRewriteEstimate } from './chat-usage';
+import { codexComputerUseCall } from './codex-computer-use';
 import { codexDelivery } from './codex-input';
 
 /**
@@ -250,6 +251,17 @@ export function mapCodexItem(
             };
         }
         case 'mcpToolCall': {
+            const computerUse = codexComputerUseCall(raw);
+            if (computerUse)
+                return {
+                    ...base,
+                    type: 'toolCall',
+                    ...computerUse,
+                    status: itemStatus(raw.status),
+                    ...(duration(raw.durationMs) !== undefined && {
+                        durationMs: duration(raw.durationMs),
+                    }),
+                };
             const output = mcpOutput(raw);
             const summary = summarizeJson(raw.arguments);
             return {

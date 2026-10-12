@@ -122,11 +122,19 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.fill('ask me');
         await message.press('Enter');
         const question = chat.getByRole('region', { name: 'Codex has a question' });
-        await question.getByRole('radio', { name: /^Blue/u }).click();
-        await question.getByRole('button', { name: 'Submit' }).click();
-        await expect(chat.getByText('You chose Blue.')).toBeVisible();
-        await expect(chat.getByText('Answered: Color: Blue')).toBeVisible();
+        // The transcript marks the question being asked while the card waits, as the Codex app does.
+        await expect(chat.locator('[data-agent-chat-asking]')).toHaveText('Asking a question');
         await page.screenshot({ path: testInfo.outputPath('agent-chat-question.png') });
+        // One click answers a lone question.
+        await question.getByRole('radio', { name: /^Blue/u }).click();
+        await expect(chat.getByText('You chose Blue.')).toBeVisible();
+        await expect(chat.locator('[data-agent-chat-asking]')).toHaveCount(0);
+        const answered = chat.locator('[data-agent-chat-answered]').last();
+        await expect(answered.getByRole('button', { name: 'Asked a question' })).toHaveAttribute(
+            'aria-expanded',
+            'true',
+        );
+        await expect(answered).toContainText('Which color?Blue');
 
         // Consecutive tool calls fold into one summary; a finished turn folds its work behind its duration.
         await message.fill('explore the project');
@@ -179,7 +187,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(earlierReply.getByRole('button', { name: 'Copied' })).toBeVisible();
         // A shell read reads as the file it read, the way the Codex app names exploration.
         const workGroup = chat.getByRole('button', {
-            name: 'Read 10 files, ran 1 command, called 1 MCP tool',
+            name: 'Read 10 files, ran 1 command, called 1 MCP tool, ran 2 browser steps, ran 1 Computer Use step',
         });
         await expect(workGroup).toHaveAttribute('aria-expanded', 'false');
         await workGroup.click();
@@ -195,6 +203,16 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await chat
             .locator('[data-scroll-fade-start]')
             .evaluate((element) => element.scrollTo({ top: 0 }));
+        // A Computer Use step reads as the title the Agent wrote for it, with its script and output one click away.
+        await expect(chat.getByRole('button', { name: /^Read the router page/u })).toBeVisible();
+        await expect(chat.getByRole('button', { name: /^Copy the settings/u })).toBeVisible();
+        const browserStep = chat.getByRole('button', { name: /^Open the JSON editor/u });
+        await browserStep.click();
+        await expect(chat.getByText('await tab.click(12);')).toBeVisible();
+        await expect(chat.getByText(/^Browser tab: 1, Title/u).last()).toBeVisible();
+        await expectDisclosuresSettled(chat, 'agent-chat-item');
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-computer-use.png') });
+        await browserStep.click();
         await chat.getByRole('button', { name: 'Read app.ts' }).first().click();
         // A printed file's output is painted in that file's language.
         await expect(chat.locator('pre code span[class*="mtk"]').first()).toBeVisible();
@@ -551,7 +569,6 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await message.press('Enter');
         const question = chat.getByRole('region', { name: 'Claude has a question' });
         await question.getByRole('radio', { name: /^Blue/u }).click();
-        await question.getByRole('button', { name: 'Submit' }).click();
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-question.png') });
 

@@ -1,4 +1,5 @@
 import type { AgentChatItem, AgentChatSnapshot } from './agent-chat-contract.js';
+import type { AgentChatRequest } from './agent-chat-requests.js';
 
 /**
  * Optimistic sends and answers, shared by the Desktop and phone Chats. Sending takes a round trip through Server Core
@@ -219,22 +220,28 @@ export function agentChatPendingView<Message extends AgentChatPendingMessageBase
     queue: Message[];
     notices: AgentChatItem[];
     answeredRequestIds: ReadonlySet<string>;
+    /**
+     * Question requests still waiting on their card, which the timeline marks with an Asking row.
+     */
+    asking: AgentChatRequest[];
 } {
     const timeline: Message[] = [];
     const queue: Message[] = [];
     for (const message of unsettledAgentChatPendingMessages(messages, snapshot))
         (message.placement === 'queue' ? queue : timeline).push(message);
     const unsettled = unsettledAgentChatPendingAnswers(answers, snapshot);
+    const answeredRequestIds =
+        unsettled.length === 0 ? EMPTY_IDS : new Set(unsettled.map((answer) => answer.requestId));
     return {
         timeline,
         queue,
         notices: unsettled.flatMap((answer): AgentChatItem[] =>
             answer.notice ? [answer.notice] : [],
         ),
-        answeredRequestIds:
-            unsettled.length === 0
-                ? EMPTY_IDS
-                : new Set(unsettled.map((answer) => answer.requestId)),
+        answeredRequestIds,
+        asking: (snapshot?.requests ?? []).filter(
+            (request) => request.kind === 'question' && !answeredRequestIds.has(request.id),
+        ),
     };
 }
 

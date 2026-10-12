@@ -98,7 +98,7 @@ describe('Agent Commander service', () => {
         expect(restoreTerminals).toHaveBeenCalledExactlyOnceWith(first.identity.sessionId);
         expect(first.workspacePath).toBe(join(directory, COMMANDER_WORKSPACE_DIRECTORY));
         const instructions = await readFile(join(first.workspacePath, 'AGENTS.md'), 'utf8');
-        expect(instructions).toContain('node "$CAXRI_CLI_PATH"');
+        expect(instructions).toContain('"$CAXRI_CLI" <command>');
         // A ready report is checked against the pull request's live head, not the board's cached copy.
         expect(instructions).toContain('headRefOid');
         // The CLI rejects a `--timeout` above 120000 ms, so a longer wait would fail every unattended round.

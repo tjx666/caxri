@@ -22,7 +22,10 @@ behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) rec
   status bar shows the SSH Host; while connecting, an overlay names the current phase (connecting,
   probing, installing, starting, forwarding).
 - **Prompts**: passwords, key passphrases, 2FA codes, and new host-key confirmations appear as a
-  dialog inside that window. Answers go straight to OpenSSH and are never logged.
+  dialog inside that window. Answers go straight to OpenSSH and are never logged. When OpenSSH asks
+  the same password or passphrase again within one attempt, it rejected the previous answer, so the
+  dialog says so and numbers the retry. Cancel ends the attempt at once: OpenSSH would otherwise
+  treat each refused prompt as one failed try and keep asking.
 - **Reconnect**: a dropped connection retries with backoff. A failure that needs the user
   (authentication, a changed host key, a cancelled prompt) stops retrying and shows a Reconnect
   button; the same action is the `Reconnect to SSH Host` command.
@@ -44,9 +47,17 @@ Renderer hides the matching commands through the `localMachine` command conditio
 | Refused or hidden                                         | Remote replacement                    |
 | --------------------------------------------------------- | ------------------------------------- |
 | Native folder picker when adding a Project                | Folder browser served by the SSH Host |
-| Move to Trash, Reveal in Finder, open with default app    | None yet                              |
+| Move to Trash                                             | The SSH Host's freedesktop.org Trash  |
+| Reveal in Finder, open with default app                   | None yet                              |
 | Open in external editor                                   | None yet                              |
 | Theme import, diagnostics export, bug report, OS settings | Use the local window                  |
+
+Move to Trash, including Agent Chat undo of a file the Agent created, keeps the same native
+confirmation. After it, the remote Server moves the entry into the SSH Host's home Trash
+(`$XDG_DATA_HOME/Trash`, by default `~/.local/share/Trash`) with a `.trashinfo` record, so `gio trash
+--restore` or a desktop file manager on that machine can recover it. The Server rechecks the
+device and inode the user approved, so a path replaced after the dialog is refused. A Project on
+another filesystem than the home directory is copied into the Trash and then removed.
 
 ## Requirements on the SSH Host
 
@@ -137,10 +148,12 @@ CAXRI_SSH_INTEGRATION=1 CAXRI_SSH_CONFIG=<lab>/ssh_config \
 `CAXRI_SSH_CONFIG` makes Main pass `-F <file>` to every `ssh` call, so a disposable lab key and
 config never touch the developer's own `~/.ssh`. The same variable works for a dev instance.
 
+`CAXRI_SSH_DESTINATION` picks the lab host (default `caxri-lab`). Pointing it at a host reached
+through `ProxyJump` (a second `sshd` container only reachable from the jump container) runs the whole
+suite, askpass prompts included, through the jump host. The target's `sshd` log shows each login
+coming from the jump container's address, which proves the traffic did not bypass the hop.
+
 ## Known gaps
 
-- Trash, Reveal, open with the default app, and external editors have no remote equivalent yet;
-  Agent Chat undo of a created file relies on Trash.
-- `ProxyJump` and `ProxyCommand` should work through OpenSSH but have no automated coverage.
-- A wrong key passphrase is asked again by OpenSSH up to its own retry limit.
+- Reveal, open with the default app, and external editors have no remote equivalent yet.
 - Remote stack traces carry no source maps (they are dropped from the remote layer to keep it small).

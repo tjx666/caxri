@@ -79,6 +79,44 @@ describe('Codex item mapping', () => {
         });
     });
 
+    it('titles a Computer Use step by its title and names the surface it drove', () => {
+        const step = (result: unknown) =>
+            mapCodexItem(
+                {
+                    type: 'mcpToolCall',
+                    id: 'c',
+                    server: 'cua_repl',
+                    tool: 'js',
+                    status: 'completed',
+                    arguments: { code: 'await tab.getAXState();', title: 'Check the sign-in' },
+                    result,
+                },
+                't',
+                false,
+            );
+        const browserResult = {
+            content: [{ type: 'text', text: 'Browser tab: 1' }],
+            _meta: { 'codex/toolSurface': { kind: 'browserUse', backend: 'chrome' } },
+        };
+        expect(step(browserResult)).toMatchObject({
+            type: 'toolCall',
+            name: 'browserUse',
+            summary: 'Check the sign-in',
+            input: 'await tab.getAXState();',
+            output: 'Browser tab: 1',
+        });
+        // A step that returned its whole result again as text reads through to the inner output.
+        expect(
+            step({ content: [{ type: 'text', text: JSON.stringify(browserResult) }] }),
+        ).toMatchObject({ name: 'browserUse', output: 'Browser tab: 1' });
+        expect(
+            step({
+                content: [{ type: 'text', text: 'Clicked' }],
+                _meta: { 'codex/toolSurface': { kind: 'computerUse', app: null } },
+            }),
+        ).toMatchObject({ name: 'computerUse', output: 'Clicked' });
+    });
+
     it('summarizes a dynamic tool by a readable field instead of its raw JSON arguments', () => {
         const summary = (arguments_: unknown) => {
             const item = mapCodexItem(

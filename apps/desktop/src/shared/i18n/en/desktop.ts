@@ -48,6 +48,10 @@ export const desktop = {
     'desktop.trash.detail': '{{path}}\n\nYou can recover this item from the Trash.',
     'desktop.trash.detailUnsaved':
         '{{path}}\n\nThis file has unsaved changes in the editor. Only the last saved version can be recovered from the Trash.',
+    'desktop.trash.detailRemote':
+        '{{path}}\n\nThe item moves to the Trash on {{host}} (~/.local/share/Trash), where it can be recovered.',
+    'desktop.trash.detailRemoteUnsaved':
+        '{{path}}\n\nThe item moves to the Trash on {{host}} (~/.local/share/Trash). This file has unsaved changes in the editor; only the last saved version can be recovered.',
     'desktop.trash.confirm': 'Move to Trash',
 
     'desktop.shellCommand.installTitle': "Install 'caxri' Command",
