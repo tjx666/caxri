@@ -180,6 +180,7 @@ export class AgentEndpointLifecycle {
             CAXRI_AGENT_ENDPOINT_ID: endpoint.ref.endpointId,
             CAXRI_AGENT_ENDPOINT_GENERATION: String(endpoint.ref.generation),
             CAXRI_AGENT_ENDPOINT_TOKEN: endpoint.token,
+            ...(process.env.CAXRI_CLI && { CAXRI_CLI: process.env.CAXRI_CLI }),
             ...(process.env.CAXRI_CLI_PATH && { CAXRI_CLI_PATH: process.env.CAXRI_CLI_PATH }),
             CAXRI_USER_DATA_DIR: this.userDataPath,
         };
