@@ -449,15 +449,20 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
             chat.getByRole('button', { name: 'Model: Default, Medium effort', exact: true }),
         ).toBeVisible();
 
-        // The Terminal | Chat switch stays findable at rest, muted until the pointer enters the tab bar.
-        const surfaceToggle = chat.locator('.agent-surface-toggle').locator('..');
+        // The Terminal | Chat switch stays findable at rest: its pressed segment's icon is muted until the pointer
+        // enters the tab bar. Only that color changes, so the segment borders keep full contrast.
+        const pressedSegment = chat.locator('.agent-surface-toggle [data-pressed]');
+        const surfaceToggle = chat.locator('.agent-surface-toggle');
         await message.hover();
-        await expect(surfaceToggle).toHaveCSS('opacity', '0.6');
-        await chat.locator('.work-tabs').first().hover();
         await expect(surfaceToggle).toHaveCSS('opacity', '1');
+        const restColor = await pressedSegment.evaluate(
+            (element) => getComputedStyle(element).color,
+        );
+        await chat.locator('.work-tabs').first().hover();
+        await expect(pressedSegment).not.toHaveCSS('color', restColor);
         await page.screenshot({ path: testInfo.outputPath('claude-chat-tab-hover.png') });
         await message.hover();
-        await expect(surfaceToggle).toHaveCSS('opacity', '0.6');
+        await expect(pressedSegment).toHaveCSS('color', restColor);
 
         await message.fill('hi there');
         await message.press('Enter');

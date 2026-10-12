@@ -165,7 +165,7 @@ export function buildAppMenuTemplate({
          * `useCommandShortcuts` does) or an actual mouse/touch click on the menu item (a deliberate user action that
          * must keep working even while a Terminal/editor has focus).
          */
-        click: (_menuItem: MenuItem, focused: BaseWindow | undefined, event: KeyboardEvent) => {
+        click: (_menuItem: MenuItem, focused: BaseWindow | undefined, event?: KeyboardEvent) => {
             /**
              * The Process Explorer menu must work while its diagnostic window is focused.
              */
@@ -176,7 +176,8 @@ export function buildAppMenuTemplate({
              * ask before a running Commander turn ends.
              */
             if (definition.id === 'agentCommander.open') return openAgentCommander();
-            const isViaAccelerator = event.triggeredByAccelerator === true;
+            // A programmatic `MenuItem.click()` passes no event; it is a deliberate click, not an accelerator.
+            const isViaAccelerator = event?.triggeredByAccelerator === true;
             const workbench = workbenchWindow();
             switch (
                 commandTarget(
