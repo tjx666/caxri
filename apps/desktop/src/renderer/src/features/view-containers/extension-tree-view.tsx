@@ -24,7 +24,11 @@ import {
     reconcilePendingTreeRefresh,
 } from './extension-tree-refresh-state';
 import type { VisibleItemRow, VisibleRow } from './extension-tree-rows';
-import { flattenVisibleRows, visibleRowKey } from './extension-tree-rows';
+import {
+    flattenVisibleRows,
+    loadingPlaceholderRowCount,
+    visibleRowKey,
+} from './extension-tree-rows';
 import type { TreeRowAction } from './extension-tree-state';
 import {
     focusTreeItem,
@@ -269,7 +273,7 @@ function ExtensionTreeViewContent({
         count: rows.length,
         estimateSize: (index) => {
             const row = rows[index];
-            if (row.kind !== 'item') return 28;
+            if (row.kind !== 'item') return 28 * loadingPlaceholderRowCount(row);
             if (row.item.variant === 'message') return MESSAGE_ROW_HEIGHT;
             return row.item.variant === 'header' ? 32 : 28;
         },

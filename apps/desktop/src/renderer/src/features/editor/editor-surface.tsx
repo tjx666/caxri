@@ -21,6 +21,7 @@ import {
 } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useResourceLoad } from '../../hooks/use-resource-load';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { useTheme } from '../../stores/selectors';
@@ -142,7 +143,7 @@ function LoadedCodeEditor(properties: CodeEditorProperties) {
                 }}
             />
         );
-    return <div className={emptyWorkClassName}>Loading editor…</div>;
+    return <LoadingSkeleton variant="document" label="Loading editor…" />;
 }
 
 /**
@@ -181,7 +182,7 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
                     )}
                 />
             );
-        return <div className={emptyWorkClassName}>Loading file…</div>;
+        return <LoadingSkeleton variant="document" label="Loading file…" />;
     }
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -221,7 +222,9 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
     const gitDiffTab = parseGitDiffTab(path);
     if (gitDiffTab)
         return (
-            <Suspense fallback={<div className={emptyWorkClassName}>Loading diff editor…</div>}>
+            <Suspense
+                fallback={<LoadingSkeleton variant="document" label="Loading diff editor…" />}
+            >
                 {/*
                  * Keyed per diff resource so switching between two diff tabs in one pane remounts the editor instead
                  * of re-pointing a live one. `@monaco-editor/react`'s DiffEditor swaps a changed model path only on
@@ -235,47 +238,49 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
     const transcriptTab = parseAgentTranscriptTab(path);
     if (transcriptTab)
         return (
-            <Suspense fallback={<div className={emptyWorkClassName}>Loading transcript…</div>}>
+            <Suspense fallback={<LoadingSkeleton variant="document" label="Loading transcript…" />}>
                 <AgentTranscriptEditor key={transcriptTab.terminalId} tab={transcriptTab} />
             </Suspense>
         );
     const agentTaskTab = parseAgentTaskTab(path);
     if (agentTaskTab)
         return (
-            <Suspense fallback={<div className={emptyWorkClassName}>Loading task…</div>}>
+            <Suspense fallback={<LoadingSkeleton variant="document" label="Loading task…" />}>
                 <AgentChatTaskTab key={path} tab={agentTaskTab} />
             </Suspense>
         );
     const turnReviewTab = parseAgentTurnReviewTab(path);
     if (turnReviewTab)
         return (
-            <Suspense fallback={<div className={emptyWorkClassName}>Loading changes…</div>}>
+            <Suspense fallback={<LoadingSkeleton variant="document" label="Loading changes…" />}>
                 <AgentChatTurnReviewTab key={path} tab={turnReviewTab} />
             </Suspense>
         );
     const agentStatusTab = parseAgentStatusTab(path);
     if (agentStatusTab)
         return (
-            <Suspense fallback={<div className={emptyWorkClassName}>Loading Agent status…</div>}>
+            <Suspense fallback={<LoadingSkeleton variant="page" label="Loading Agent status…" />}>
                 <AgentStatusPage key={path} terminalId={agentStatusTab.terminalId} />
             </Suspense>
         );
     const previewTab = parseFilePreviewTab(path);
     if (previewTab)
         return (
-            <Suspense fallback={<div className={emptyWorkClassName}>{PREVIEW_LOADING_LABEL}</div>}>
+            <Suspense
+                fallback={<LoadingSkeleton variant="document" label={PREVIEW_LOADING_LABEL} />}
+            >
                 <PreviewSurface key={previewTab.path} paneId={paneId} tab={previewTab} />
             </Suspense>
         );
     if (isSettingsTabPath(path))
         return (
-            <Suspense fallback={<div className={emptyWorkClassName}>Loading Settings…</div>}>
+            <Suspense fallback={<LoadingSkeleton variant="page" label="Loading Settings…" />}>
                 <SettingsWorkbenchPage />
             </Suspense>
         );
     if (isUsageTabPath(path))
         return (
-            <Suspense fallback={<div className={emptyWorkClassName}>Loading Usage…</div>}>
+            <Suspense fallback={<LoadingSkeleton variant="page" label="Loading Usage…" />}>
                 <UsageWorkbenchPage />
             </Suspense>
         );

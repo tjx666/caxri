@@ -1,7 +1,7 @@
 import { memo } from 'react';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
-import { Spinner } from '../../components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { usePolledQuery } from '../../hooks/use-polled-query';
 import { describeFailure } from '../../stores/toasts';
@@ -56,9 +56,11 @@ export function CommanderBoardView() {
         );
     if (!data)
         return (
-            <div className="commander-board-status flex min-h-0 flex-1 items-center justify-center p-6 text-muted">
-                <Spinner />
-            </div>
+            <LoadingSkeleton
+                variant="list"
+                className="commander-board-status min-h-0 flex-1 py-1"
+                label="Loading Agents…"
+            />
         );
     const sections = commanderBoardSections(commanderBoardRowsInScope(data.rows, scope));
     return (

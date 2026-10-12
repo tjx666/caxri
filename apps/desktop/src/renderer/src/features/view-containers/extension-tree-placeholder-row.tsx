@@ -1,11 +1,13 @@
 import { AlertTriangle } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
-import { Spinner } from '../../components/ui/spinner';
 import type { VisiblePlaceholderRow } from './extension-tree-rows';
+import { loadingPlaceholderRowCount } from './extension-tree-rows';
 
 /**
- * A lazy branch's loading, error, and empty states, rendered where that branch's children would be.
+ * A lazy branch's loading, error, and empty states, rendered where that branch's children would be. Loading draws
+ * skeleton rows sized by `loadingPlaceholderRowCount`, which the virtualizer's row estimate reads too.
  *
  * `role="status"` is the announcement these states want: the same notice role the multi-file diff's exclusion banner
  * uses. It is not the row's own role: the caller wraps this in a disabled `treeitem`, because `role="tree"` admits only
@@ -19,17 +21,16 @@ export function ExtensionTreePlaceholderRow({
     onRetry: () => void;
     row: VisiblePlaceholderRow;
 }) {
-    const paddingLeft = `${8 + row.depth * 14}px`;
     if (row.kind === 'loading')
         return (
-            <div
-                className="flex h-7 items-center gap-2 text-muted"
-                role="status"
-                style={{ paddingLeft }}
-            >
-                <Spinner aria-hidden="true" className="size-3.5" /> Loading view…
-            </div>
+            <LoadingSkeleton
+                variant="list"
+                indent={8 + row.depth * 14}
+                label="Loading view…"
+                rows={loadingPlaceholderRowCount(row)}
+            />
         );
+    const paddingLeft = `${8 + row.depth * 14}px`;
     if (row.kind === 'error')
         return (
             <div

@@ -3,9 +3,9 @@ import { useLayoutEffect, useRef, useState } from 'react';
 
 import { FolderGit2, GitBranch, TriangleAlert } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import { Button } from '../../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../../components/ui/empty';
-import { Spinner } from '../../../components/ui/spinner';
 import { useScrollEdge } from '../../../hooks/use-scroll-edge';
 import type { SourceControlController } from './hooks/use-source-control-controller';
 import { SourceControlHeader } from './source-control-header';
@@ -52,6 +52,14 @@ function SourceControlMessage({
 }: {
     controller: Exclude<SourceControlController, { status: 'ready' }>;
 }) {
+    if (controller.status === 'loading')
+        return (
+            <LoadingSkeleton
+                variant="list"
+                className="min-h-0 flex-1 py-1"
+                label={controller.loadingMessage}
+            />
+        );
     const state =
         controller.status === 'no-session'
             ? {
@@ -59,23 +67,17 @@ function SourceControlMessage({
                   icon: <GitBranch aria-hidden="true" size={28} />,
                   title: 'No Session selected',
               }
-            : controller.status === 'loading'
+            : controller.status === 'no-repository'
               ? {
-                    description: undefined,
-                    icon: <Spinner aria-hidden="true" size={24} />,
-                    title: controller.loadingMessage,
+                    description: 'This Project root is not a repository yet.',
+                    icon: <FolderGit2 aria-hidden="true" size={28} />,
+                    title: 'No Git repository',
                 }
-              : controller.status === 'no-repository'
-                ? {
-                      description: 'This Project root is not a repository yet.',
-                      icon: <FolderGit2 aria-hidden="true" size={28} />,
-                      title: 'No Git repository',
-                  }
-                : {
-                      description: controller.message,
-                      icon: <TriangleAlert aria-hidden="true" className="text-danger" size={28} />,
-                      title: 'Git is not available',
-                  };
+              : {
+                    description: controller.message,
+                    icon: <TriangleAlert aria-hidden="true" className="text-danger" size={28} />,
+                    title: 'Git is not available',
+                };
 
     return (
         <Empty className="min-h-0 flex-1 gap-2 p-4" aria-live="polite">

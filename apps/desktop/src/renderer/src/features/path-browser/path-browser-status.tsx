@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import type { usePathBrowser } from './use-path-browser';
 
 export function PathBrowserHelp({
@@ -33,7 +34,8 @@ export function PathBrowserStatus({
     ReturnType<typeof usePathBrowser>,
     'isStarting' | 'isNavigating' | 'displayedError' | 'isResultsReady'
 >) {
-    if (isStarting || isNavigating) return <p className="p-6 text-center text-muted">Loading…</p>;
+    if (isStarting || isNavigating)
+        return <LoadingSkeleton variant="list" className="py-1" label="Loading folder…" />;
     if (displayedError)
         return (
             <p className="p-6 text-center text-danger" role="alert">

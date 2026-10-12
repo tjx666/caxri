@@ -1,6 +1,7 @@
 import type { SourceControlAction, SourceControlHistoryDescriptor } from '@caxri/protocol';
 
 import { DiffStat } from '../../../components/diff-stat';
+import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { describeFailure } from '../../../stores/toasts';
 import { useSourceControlHistoryDetails } from './hooks/use-source-control-history-details';
@@ -30,9 +31,12 @@ export function SourceControlHistoryDetails({
     const details = useSourceControlHistoryDetails(descriptor, itemId, path);
     if (details.isPending)
         return (
-            <div className="px-3 py-2 text-[11px] text-muted">
-                {descriptor.detailsLoadingMessage}
-            </div>
+            <LoadingSkeleton
+                variant="list"
+                label={descriptor.detailsLoadingMessage}
+                rows={3}
+                indent={12 + level * 14}
+            />
         );
     if (details.isError)
         return (

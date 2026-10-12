@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ProcessExplorerSnapshot } from '@desktop-shared/process-explorer';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { TooltipProvider } from '../../components/ui/tooltip';
 import { useContainerWidth } from '../../hooks/use-container-width';
@@ -61,7 +62,7 @@ function ProcessListMessage({
                 </Button>
             </div>
         );
-    if (!hasSnapshot) return <div className={processMessageClassName}>Loading processes…</div>;
+    if (!hasSnapshot) return <LoadingSkeleton variant="list" label="Loading processes…" rows={8} />;
     if (!hasProcesses)
         return <div className={processMessageClassName}>No Caxri processes found.</div>;
     if (!hasRows)

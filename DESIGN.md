@@ -48,7 +48,12 @@ reference this file; deviations require updating this spec first.
 9. **Non-happy paths are product states.** Empty, loading, a missing prerequisite, and a failure
    each have honest copy, the matching semantic tone, and a recovery action the user can take. Do
    not render them as a blank surface, and do not relabel a failed probe as a successful negative
-   (a Git error is not "not a repository").
+   (a Git error is not "not a repository"). A surface or region waiting for its first data draws
+   `LoadingSkeleton` (`components/loading-skeleton.tsx`) shaped like what will arrive (`list`
+   rows, `document` lines, `page` cards) and names the wait in its `label`, instead of a centered
+   `Loading…` line that collapses the layout and then jumps. A `Spinner` stays for inline progress
+   inside an already-rendered control or row (a button, chip, picker, `Loading more` row) and for
+   a wait whose copy explains something the user should know, such as a process starting.
 
 `apps/desktop/src/renderer/src/styles/theme.css` is the single Tailwind/default-theme/bootstrap
 source imported by both `styles.css` (main workbench) and `process-explorer.css`. Entry

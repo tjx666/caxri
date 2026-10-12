@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { projectRelativePath } from '../../lib/file-path';
 import { useCaxriQuery } from '../../queries/client';
@@ -38,7 +39,7 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
         [items, turnId],
     );
     const comments = useAgentChatReviewComments({ files, projectRoot, terminalId });
-    if (chat.isPending) return <div className={STATE_CLASS_NAME}>Loading changes…</div>;
+    if (chat.isPending) return <LoadingSkeleton variant="document" label="Loading changes…" />;
     if (chat.isError)
         return <div className={STATE_CLASS_NAME}>This Chat is no longer available to review.</div>;
     if (files.length === 0)

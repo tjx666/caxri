@@ -140,7 +140,7 @@ process.exit(result.status ?? 1);
                 const repo = document.querySelector('[data-git-repository-id]');
                 hasFlickered ||=
                     !heading?.isConnected ||
-                    Boolean(repo?.textContent.includes('Loading pull request changes…'));
+                    Boolean(repo?.querySelector('[aria-label="Loading pull request changes…"]'));
             });
             observer.observe(document.body, {
                 childList: true,
