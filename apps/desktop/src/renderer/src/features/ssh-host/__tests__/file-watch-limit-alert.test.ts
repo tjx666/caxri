@@ -5,6 +5,16 @@ const mocks = vi.hoisted(() => ({
         (shouldDismiss: (title: string) => boolean): unknown => shouldDismiss,
     ),
     pushToast: vi.fn<(kind: string, message: string, options?: unknown) => void>(),
+    listeners: [] as Array<(event: unknown) => void>,
+}));
+
+vi.mock('../../../lib/caxri', () => ({
+    caxri: {
+        onEvent: (listener: (event: unknown) => void) => {
+            mocks.listeners.push(listener);
+            return () => {};
+        },
+    },
 }));
 
 vi.mock('../../../stores/toasts', () => ({
@@ -12,7 +22,10 @@ vi.mock('../../../stores/toasts', () => ({
     pushToast: mocks.pushToast,
 }));
 
-import { reportFileWatchLimitAlert } from '../file-watch-limit-alert';
+import {
+    reportFileWatchLimitAlert,
+    subscribeFileWatchLimitAlerts,
+} from '../file-watch-limit-alert';
 
 function wasDismissed(title: string): boolean {
     return mocks.dismissToastsMatching.mock.calls.some(([shouldDismiss]) => shouldDismiss(title));
@@ -53,5 +66,25 @@ describe('reportFileWatchLimitAlert', () => {
 
         expect(wasDismissed(first)).toBe(true);
         expect(mocks.pushToast.mock.calls[1]?.[1]).toContain('fs.inotify.max_user_instances');
+    });
+
+    it('retracts the notice when the Server connection is replaced, so the new Server can raise it again', () => {
+        subscribeFileWatchLimitAlerts();
+        const emit = (event: unknown) => {
+            for (const listener of mocks.listeners) listener(event);
+        };
+        emit({
+            event: 'files.watchLimitAlert',
+            payload: { state: 'raised', reason: 'watch-limit' },
+        });
+        const message = mocks.pushToast.mock.calls[0]?.[1] ?? '';
+        emit({ event: 'host.connectionChanged', payload: { status: 'reconnected' } });
+        expect(wasDismissed(message)).toBe(true);
+
+        emit({
+            event: 'files.watchLimitAlert',
+            payload: { state: 'raised', reason: 'watch-limit' },
+        });
+        expect(mocks.pushToast).toHaveBeenCalledTimes(2);
     });
 });

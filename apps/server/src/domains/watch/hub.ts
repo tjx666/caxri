@@ -4,8 +4,11 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import parcelWatcher from '@parcel/watcher';
 
-import { NATIVE_WATCHER_BACKEND } from './native-watcher';
-import { isMustRescanAdvisory, watchFailureFields, WatchLimitAlerts } from './watch-failures';
+import { isMustRescanAdvisory, watchFailureFields, WatchLimitAlerts } from './failures';
+import { withInotifyStartProbe } from './inotify-probe';
+import { NATIVE_WATCHER_BACKEND } from './native-backend';
+import type { WatchHubSnapshot } from './snapshot';
+import { summarizeWatchRegistrations } from './snapshot';
 
 /**
  * Hard cap on concurrently active native subscriptions. Native watcher capacity (FSEvents streams, file descriptors) is
@@ -18,7 +21,6 @@ const DEFAULT_MAX_NATIVE_SUBSCRIPTIONS = 64;
  * gate starts degrading registrations.
  */
 const NATIVE_PRESSURE_WARN_RATIO = 0.75;
-const MAX_SNAPSHOT_LABELS = 64;
 /**
  * First delay before retrying a failed native subscription, doubling on each further attempt up to
  * {@link NATIVE_RETRY_MAX_DELAY_MS}. Retries never stop once fallback is active: a native failure has no signal that
@@ -101,22 +103,6 @@ export interface WatchHandle {
      */
     startFallback(error: unknown): void;
     dispose(): Promise<void>;
-}
-
-interface WatchHubSnapshotEntry {
-    label: string;
-    native: number;
-    polling: number;
-    eventBatches: number;
-    lastEventAt?: number;
-}
-
-export interface WatchHubSnapshot {
-    registrations: number;
-    native: number;
-    polling: number;
-    gateTrips: number;
-    entries: WatchHubSnapshotEntry[];
 }
 
 export interface WatchHubOptions {
@@ -224,7 +210,10 @@ export class WatchHub {
      * registration regardless of when the hub was constructed.
      */
     private nativeSubscribe(): typeof parcelWatcher.subscribe {
-        return this.subscribeOverride ?? parcelWatcher.subscribe;
+        return withInotifyStartProbe(
+            this.subscribeOverride ?? parcelWatcher.subscribe,
+            () => this.nativeCount() > 0,
+        );
     }
 
     private nativeCount(): number {
@@ -638,39 +627,7 @@ export class WatchHub {
      * Content-free listener census for diagnostics: counts and labels only, never paths.
      */
     snapshot(): WatchHubSnapshot {
-        const byLabel = new Map<string, WatchHubSnapshotEntry>();
-        let native = 0;
-        let polling = 0;
-        for (const entry of this.registrations) {
-            if (entry.mode === 'native') native += 1;
-            else if (entry.mode === 'polling') polling += 1;
-            const aggregate = byLabel.get(entry.label) ?? {
-                label: entry.label,
-                native: 0,
-                polling: 0,
-                eventBatches: 0,
-            };
-            if (entry.mode === 'native') aggregate.native += 1;
-            else if (entry.mode === 'polling') aggregate.polling += 1;
-            aggregate.eventBatches += entry.eventBatches;
-            if (
-                entry.lastEventAt !== undefined &&
-                (aggregate.lastEventAt === undefined || entry.lastEventAt > aggregate.lastEventAt)
-            )
-                aggregate.lastEventAt = entry.lastEventAt;
-            byLabel.set(entry.label, aggregate);
-        }
-        return {
-            registrations: this.registrations.size,
-            native,
-            polling,
-            gateTrips: this.gateTrips,
-            entries: byLabel
-                .values()
-                .toArray()
-                .toSorted((left, right) => left.label.localeCompare(right.label))
-                .slice(0, MAX_SNAPSHOT_LABELS),
-        };
+        return summarizeWatchRegistrations(this.registrations, this.gateTrips);
     }
 
     async close(): Promise<void> {

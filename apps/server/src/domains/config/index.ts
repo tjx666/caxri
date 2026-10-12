@@ -39,8 +39,8 @@ import { applyEdits, modify } from 'jsonc-parser';
 
 import { atomicWrite } from '../atomic-file';
 import { draculaTheme, importTheme, serializeTheme } from '../theme';
-import type { WatchHandle } from '../watch-hub';
-import { WatchHub } from '../watch-hub';
+import type { WatchHandle } from '../watch';
+import { WatchHub } from '../watch';
 import {
     JSONC_FORMATTING_OPTIONS,
     prepareKeybindingsSource,

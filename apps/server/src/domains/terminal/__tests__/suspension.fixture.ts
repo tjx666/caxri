@@ -2,7 +2,7 @@ import type { AppSettings, ServerEvent, SessionRecord, TerminalRecord } from '@c
 import { defaultAppSettings } from '@caxri/protocol';
 import { vi } from 'vitest';
 
-import type { PollerRegistrationOptions } from '../../watch-hub';
+import type { PollerRegistrationOptions } from '../../watch';
 import { TerminalSuspensionService } from '../suspension';
 
 const START = 10_000_000;

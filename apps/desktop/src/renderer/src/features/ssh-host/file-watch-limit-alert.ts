@@ -53,8 +53,15 @@ export function reportFileWatchLimitAlert(alert: FileWatchLimitAlert): void {
     });
 }
 
+/**
+ * A replacement or reconnected Server starts without the old episode, and the `cleared` the old one may have sent is a
+ * transient event that was never replayed, so a reconnect retracts the notice; the Server raises again if the limit is
+ * still hit.
+ */
 export function subscribeFileWatchLimitAlerts(): () => void {
     return caxri.onEvent((event) => {
         if (event.event === 'files.watchLimitAlert') reportFileWatchLimitAlert(event.payload);
+        else if (event.event === 'host.connectionChanged')
+            reportFileWatchLimitAlert({ state: 'cleared' });
     });
 }

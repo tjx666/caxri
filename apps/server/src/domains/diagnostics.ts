@@ -12,7 +12,7 @@ import { logEventCatalog, redactLogValue, redactSecrets } from '@caxri/system';
 import { commanderDiagnostics } from './commander';
 import type { CaxriDatabase } from './db';
 import { diagnosticSettings } from './diagnostic-settings';
-import type { WatchHubSnapshot } from './watch-hub';
+import type { WatchHubSnapshot } from './watch';
 
 /**
  * Matches every rotated generation the logger keeps (`.jsonl`, `.jsonl.1`, `.jsonl.2`, ...). Matching any numeric

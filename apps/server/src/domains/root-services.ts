@@ -22,7 +22,7 @@ import { FileService } from './files';
 import { GitService } from './git';
 import { ProjectRootResolver } from './project';
 import { SessionContextService } from './session';
-import { WatchHub } from './watch-hub';
+import { WatchHub } from './watch';
 import { WorkbenchRootService } from './workbench';
 
 /**

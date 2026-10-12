@@ -7,8 +7,8 @@ import type parcelWatcher from '@parcel/watcher';
 
 import { readBoundedRegularFileText } from '../bounded-file-reader';
 import { isOutsideRoot } from '../path-security';
-import type { WatchHandle } from '../watch-hub';
-import { WatchHub } from '../watch-hub';
+import type { WatchHandle } from '../watch';
+import { WatchHub } from '../watch';
 
 /**
  * Watched repository groups are bounded to keep the Server file-descriptor gate intact; the least recently used group
