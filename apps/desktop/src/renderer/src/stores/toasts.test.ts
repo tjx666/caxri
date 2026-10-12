@@ -385,6 +385,13 @@ describe('Sonner notification adapter', () => {
             );
         });
 
+        it('names a binary file instead of the misleading IO reason', () => {
+            const error = new CaxriError('IO', 'Binary files cannot be opened in the editor');
+            expect(describeFailureNotice(error, '无法打开文件').message).toBe(
+                '无法打开文件：二进制文件无法在编辑器中打开。',
+            );
+        });
+
         it('tryCommand offers the hidden raw text through Copy details', async () => {
             await tryCommand('保存失败', () =>
                 Promise.reject(new CaxriError('CONFLICT', 'Branch main already exists')),

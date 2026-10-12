@@ -26,6 +26,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.failure.errno.EEXIST': '已存在同名文件。',
     'toasts.failure.errno.EPIPE': '连接已中断。',
     'toasts.failure.errno.ECONNREFUSED': '服务拒绝了连接。',
+    'toasts.failure.binaryFile': '二进制文件无法在编辑器中打开。',
     'toasts.muteFailed': '无法静音通知',
 
     'toasts.action.copyDetails': '复制详细信息',

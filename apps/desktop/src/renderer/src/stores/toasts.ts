@@ -252,6 +252,15 @@ const errnoReasons: Partial<Record<string, TranslationKey>> = {
 };
 
 /**
+ * Server messages whose `CaxriError` code alone would give a misleading localized reason: a binary file is readable, so
+ * the `IO` reason "could not read or write the file" is wrong. Matched by text until the Server reports a structured
+ * reason (https://github.com/tjx666/caxri/issues/1921).
+ */
+const messageReasons: ReadonlyArray<readonly [RegExp, TranslationKey]> = [
+    [/\bBinary files cannot be opened in the (?:diff )?editor\b/u, 'toasts.failure.binaryFile'],
+];
+
+/**
  * Keeps a rejected filesystem path out of fallback copy while retaining the rest of an unknown reason.
  */
 function redactAbsolutePaths(message: string): string {
@@ -303,20 +312,21 @@ export interface FailureNotice {
 export function describeFailureNotice(error: unknown, label: string): FailureNotice {
     const rawMessage = errorMessage(error, '');
     const errorCode = (error as { code?: unknown } | null)?.code;
-    const errnoReason =
+    const knownReason =
         (typeof errorCode === 'string' ? errnoReasons[errorCode] : undefined) ??
         errnoReasons[
             /\b(?:ENOENT|ENOTDIR|EISDIR|EACCES|EPERM|ENOSPC|EEXIST|EPIPE|ECONNREFUSED)\b/u.exec(
                 rawMessage,
             )?.[0] ?? ''
-        ];
+        ] ??
+        messageReasons.find(([pattern]) => pattern.test(rawMessage))?.[1];
     const fallback = translate(
         isCaxriError(error) ? caxriErrorReasons[error.code] : 'toasts.failure.couldNotComplete',
     );
     const isServerTextShown = useLocaleStore.getState().locale === 'en';
     let reason: string;
     let detail: string | undefined;
-    if (errnoReason) reason = translate(errnoReason);
+    if (knownReason) reason = translate(knownReason);
     else if (isServerTextShown)
         reason =
             redactAbsolutePaths(rawMessage)

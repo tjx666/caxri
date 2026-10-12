@@ -26,6 +26,7 @@ export const toasts = {
     'toasts.failure.errno.EEXIST': 'A file with that name already exists.',
     'toasts.failure.errno.EPIPE': 'The connection was interrupted.',
     'toasts.failure.errno.ECONNREFUSED': 'The service refused the connection.',
+    'toasts.failure.binaryFile': "Binary files can't be opened in the editor.",
     'toasts.muteFailed': 'Unable to mute notifications',
 
     // stores/toast-actions.ts: follow-up buttons
