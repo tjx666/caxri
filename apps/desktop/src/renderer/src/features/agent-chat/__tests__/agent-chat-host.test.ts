@@ -6,6 +6,7 @@ describe('agentChatHostCapabilities', () => {
     it('offers every host-gated Chat action in the Workbench', () => {
         expect(agentChatHostCapabilities('workbench')).toEqual({
             canFork: true,
+            canOpenBesideChat: true,
             canSaveProjectDefault: true,
         });
     });
@@ -15,9 +16,17 @@ describe('agentChatHostCapabilities', () => {
      * only ends in a failure toast.
      */
     it('offers neither fork nor the Project default in the Agent Commander window', () => {
-        expect(agentChatHostCapabilities('commander')).toEqual({
+        expect(agentChatHostCapabilities('commander')).toMatchObject({
             canFork: false,
             canSaveProjectDefault: false,
         });
+    });
+
+    /**
+     * The window mounts no pane layout, so a task or turn-review tab opened there would be invisible yet persisted into
+     * the Commander Session's layout (issue caxri#1719).
+     */
+    it('opens nothing beside the Chat in the Agent Commander window', () => {
+        expect(agentChatHostCapabilities('commander').canOpenBesideChat).toBe(false);
     });
 });
