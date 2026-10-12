@@ -418,8 +418,10 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
   persisted across Server Core restarts.
 - In the composer, Enter queues during a turn and Cmd+Enter steers. Queued entries form one list
   above the composer, each with Edit (back into the composer), Delete, and Steer or Send now; a
-  paused queue says so in the list header with Resume. A phone queues the same way; see
-  [Mobile](#mobile).
+  paused queue says so in the list header with Resume. Enter (or Cmd+Enter) in an empty composer
+  sends the head of the queue now, as its Steer or Send now would, and the placeholder says so while
+  one waits; a slash command at the head during a turn still waits. A phone queues the same way;
+  see [Mobile](#mobile).
 - Compaction (Codex `contextCompaction`, Claude Code `status: 'compacting'`) sets the snapshot's
   `operation` to `compacting` and raises `compactionStarted`; input sent meanwhile is queued. The
   `/compact` user bubble is hidden because the compaction notice already represents it.
