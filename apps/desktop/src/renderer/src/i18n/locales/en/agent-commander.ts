@@ -183,6 +183,8 @@ export const agentCommander = {
     'agentCommander.handover.mayBeOpen': 'May be open elsewhere',
     'agentCommander.handover.mayBeOpenWarning':
         'A conversation you picked was active in the last few minutes. If it is still open in another terminal, both copies will continue separately.',
+    'agentCommander.handover.tooMany':
+        'Hand over at most {{max}} at once. Deselect {{excess}} to continue.',
     'agentCommander.handover.untitledConversation': 'Untitled conversation',
     'agentCommander.handover.refusedLine': 'Not handed over ({{count}}): {{reason}}',
     'agentCommander.handover.noteLabel': 'Note for the Commander',

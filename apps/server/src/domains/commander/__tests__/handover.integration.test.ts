@@ -183,7 +183,8 @@ describe('Commander hand-over', () => {
         const f = await fixture();
         const { session, terminal } = f.agentSession();
         const other = f.agentSession('conversation-2');
-        await f.service.handOver({ sessionIds: [session.id] });
+        const accepted = (await f.service.handOver({ sessionIds: [session.id] })).outcomes[0];
+        if (accepted.outcome !== 'accepted') throw new Error('hand-over was refused');
 
         f.service.observeInput(other.terminal.id);
         expect(f.service.managedSessions().sessionIds).toEqual([session.id]);
@@ -191,6 +192,10 @@ describe('Commander hand-over', () => {
         f.service.observeInput(terminal.id);
         expect(f.service.managedSessions().sessionIds).toEqual([]);
         expect(commanderHandovers(f.database)).toEqual([]);
+        // The never-continued hand-over's task closes instead of holding a ledger slot.
+        expect(f.database.commanderTasks.get(accepted.taskId!)).toMatchObject({
+            status: 'dropped',
+        });
         expect(f.logger.write).toHaveBeenCalledWith(
             'info',
             'agent_commander.session_taken_back',

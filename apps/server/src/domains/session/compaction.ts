@@ -132,7 +132,7 @@ export class SessionCompaction {
                     target.terminal.id,
                     '/compact\r',
                     target.launchId,
-                    'human',
+                    'maintenance',
                     (delivered) => settle(delivered ? 'submitted' : 'failed'),
                 );
                 if (!accepted) settle('failed');
