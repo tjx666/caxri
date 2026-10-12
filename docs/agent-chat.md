@@ -323,8 +323,9 @@ record is the source of truth.
 
 ## Background work
 
-Subagents and background shells are tasks: the snapshot's `tasks` lists each one (kind, title,
-status, agent type, model, usage, the timeline item that started it, and whether it can be stopped),
+Subagents, Claude Code workflows, and background shells are tasks: the snapshot's `tasks` lists
+each one (kind, title, status, agent type, model, usage, the timeline item that started it, and
+whether it can be stopped),
 and each task has its own projection (`AgentChatTaskSnapshot`) with its own revisions, patched by the
 transient `agentChat.taskPatch` event exactly like the parent projection. A task projection holds a
 subagent's conversation (500 items, 512 KiB of text) or a shell's output tail, so a chatty subagent
@@ -343,7 +344,11 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   `perTaskStopAffordance` keeps background subagents alive across an interrupt; a background shell
   outlives an interrupt either way, with no task event (verified with Claude Code 2.1.296). `stopTask`
   maps to the SDK's `stop_task`. History is rebuilt from
-  `<session>/subagents/agent-<id>.meta.json` (matched by `toolUseId`) and its `.jsonl`.
+  `<session>/subagents/agent-<id>.meta.json` (matched by `toolUseId`) and its `.jsonl`. A workflow
+  (the `Workflow` tool's `local_workflow` task, which runs in the background) is listed as a
+  stoppable background `agent` task keyed by its tool use id and titled by its script's
+  `workflow_name`, or `Workflow` without one; the agents inside it are not listed. Its frames follow
+  the SDK's types and have not yet been captured from a real CLI.
 - **Codex.** A subagent is a child thread; its task id is the child thread id and its row is the
   `collabAgentToolCall` (or `subAgentActivity`) item. App-server sends no `thread/started` for a
   spawned child, so notifications from an unknown thread are held briefly (8 threads, 500 each) until
@@ -995,7 +1000,7 @@ message text, command output, provider stderr, or protocol bodies.
 `apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` and
 `fake-claude-cli.ts`, and `fake-grok-acp.ts` are deterministic stand-ins for each provider, selected by keywords in the
 user's message (approval, file-change approval, edit, oversized diff, question, plan approval,
-table, slow stream, subagent, background shell, failure, crash). The Claude fake speaks the stream-json control protocol the
+table, slow stream, subagent, background shell, Claude workflow, failure, crash). The Claude fake speaks the stream-json control protocol the
 SDK drives and writes a real transcript, so resume is exercised end to end. Both answer a message
 with images by counting them and implement compaction, so the E2E covers paste, file pick, and the
 slash list for each provider. The Grok fake persists its frames so `session/load` replays them,
