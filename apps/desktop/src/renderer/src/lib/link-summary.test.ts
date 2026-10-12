@@ -40,6 +40,16 @@ describe('linkSummary', () => {
         });
     });
 
+    it('names the Linear issue a link opens so its card can read the issue', () => {
+        expect(linkSummary('https://linear.app/acme/issue/eng-42/fix-the-thing')).toEqual({
+            host: 'linear.app',
+            detail: 'ENG-42',
+            linearIssue: { workspace: 'acme', identifier: 'ENG-42' },
+            isSecure: true,
+        });
+        expect(linkSummary('https://linear.app/acme/project/roadmap')?.linearIssue).toBeUndefined();
+    });
+
     it('ignores links that are not web pages', () => {
         expect(linkSummary('mailto:someone@example.com')).toBeUndefined();
         expect(linkSummary('not a url')).toBeUndefined();

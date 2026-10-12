@@ -23,6 +23,11 @@ export interface LinkSummary {
      */
     reference?: { owner: string; repo: string; number: number };
     /**
+     * The issue a `linear.app/<workspace>/issue/<identifier>` link opens, so its card can read the title and
+     * description the signed-in page hides from an anonymous fetch.
+     */
+    linearIssue?: { workspace: string; identifier: string };
+    /**
      * Whether the host's own favicon can load under the Renderer's `img-src https:` policy.
      */
     isSecure: boolean;
@@ -66,6 +71,17 @@ function githubSummary(
     return { detail: name, kind: 'repository' };
 }
 
+function linearIssueSummary(
+    segments: readonly string[],
+): Pick<LinkSummary, 'detail' | 'linearIssue'> | undefined {
+    const [workspace, section, identifier] = segments;
+    if (!workspace || section !== 'issue' || !identifier) return undefined;
+    if (!/^[A-Za-z][A-Za-z0-9]{0,15}-\d{1,9}$/u.test(identifier)) return undefined;
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/u.test(workspace)) return undefined;
+    const normalized = identifier.toUpperCase();
+    return { detail: normalized, linearIssue: { workspace, identifier: normalized } };
+}
+
 export function linkSummary(href: string): LinkSummary | undefined {
     let url: URL;
     try {
@@ -78,6 +94,8 @@ export function linkSummary(href: string): LinkSummary | undefined {
     const segments = url.pathname.split('/').filter(Boolean).map(safeDecode);
     const isSecure = url.protocol === 'https:';
     if (isGitHubHost(host)) return { host, ...githubSummary(segments), isSecure };
+    const linear = host === 'linear.app' ? linearIssueSummary(segments) : undefined;
+    if (linear) return { host, ...linear, isSecure };
     const detail =
         segments.length > 0 || url.search ? safeDecode(`${url.pathname}${url.search}`) : undefined;
     return { host, ...(detail && { detail }), isSecure };
