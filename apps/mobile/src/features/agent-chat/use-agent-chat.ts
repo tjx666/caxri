@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import type {
     AgentChatModelRequest,
+    AgentChatPermissionRequest,
     AgentChatRequest,
     AgentChatResponse,
     AgentChatSnapshot,
@@ -172,10 +173,11 @@ export const useAgentChat = ({
         [request, terminalId],
     );
     /**
-     * Switches the model, effort, or ultracode the next turn uses; Core validates the change against the snapshot.
+     * Switches the model, effort, ultracode, permission level, or plan mode the next turn uses; Core validates the
+     * change against what the provider offers, and the gateway refuses a permission change from a `reply` device.
      */
     const configure = useCallback(
-        async (change: AgentChatModelRequest): Promise<void> => {
+        async (change: AgentChatModelRequest & AgentChatPermissionRequest): Promise<void> => {
             if (terminalId === null) return;
             await request('mobile.agentChat.configure', { terminalId, ...change });
         },

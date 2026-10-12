@@ -1,7 +1,6 @@
 import type {
     AgentChatDefault,
     AgentChatPermissionMode,
-    AgentChatPermissionRequest,
     AgentChatSnapshot,
     AgentProvider,
     ProjectChatDefaults,
@@ -173,63 +172,6 @@ export function agentChatPermissionView(
 }
 
 type PermissionSnapshot = Pick<AgentChatSnapshot, 'permissionMode' | 'planMode'>;
-
-/**
- * A permission switch the picker already shows while Server Core and the provider apply it, mirroring the model
- * picker's `AgentChatPendingSelection`: the choice shows at once, and a failed switch drops it again.
- */
-export interface AgentChatPendingPermission {
-    change: AgentChatPermissionRequest;
-    /**
-     * The level and plan mode the snapshot reported when the switch was requested.
-     */
-    baseline: {
-        permissionMode: AgentChatPermissionMode | undefined;
-        planMode: boolean | undefined;
-    };
-    /**
-     * Server Core accepted the switch, so any change in the reported choice is its answer.
-     */
-    isAccepted: boolean;
-}
-
-/**
- * Whether the snapshot now answers the pending switch: it reports the requested level and plan mode, or, once the
- * switch was accepted, it changed from the baseline at all.
- */
-export function isAgentChatPermissionSettled(
-    pending: AgentChatPendingPermission,
-    snapshot: PermissionSnapshot | undefined,
-): boolean {
-    const { change, baseline } = pending;
-    const isLevelConfirmed =
-        change.permissionMode === undefined || snapshot?.permissionMode === change.permissionMode;
-    const isPlanConfirmed =
-        change.planMode === undefined || (snapshot?.planMode ?? false) === change.planMode;
-    if (isLevelConfirmed && isPlanConfirmed) return true;
-    return (
-        pending.isAccepted &&
-        (snapshot?.permissionMode !== baseline.permissionMode ||
-            snapshot?.planMode !== baseline.planMode)
-    );
-}
-
-/**
- * The snapshot as the picker shows it while a switch is pending.
- */
-export function agentChatPermissionSelectionView<Snapshot extends PermissionSnapshot>(
-    snapshot: Snapshot,
-    pending: AgentChatPendingPermission | undefined,
-): Snapshot {
-    if (!pending) return snapshot;
-    const permissionMode = pending.change.permissionMode ?? snapshot.permissionMode;
-    const planMode = pending.change.planMode ?? snapshot.planMode;
-    return {
-        ...snapshot,
-        ...(permissionMode && { permissionMode }),
-        ...(planMode !== undefined && { planMode }),
-    };
-}
 
 /**
  * The level and plan mode the running turn started with, captured when the user first switches during that turn, so the

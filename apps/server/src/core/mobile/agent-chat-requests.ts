@@ -228,10 +228,25 @@ export async function invokeMobileAgentChatRequest(
             return null;
         }
         case 'mobile.agentChat.configure': {
+            const { permissionMode, planMode } = request.params;
+            /**
+             * A permission level decides which actions the Agent may take without asking, so changing it is the
+             * standing form of answering approvals, which only a `control` device may do (`mobile.agentChat.respond`).
+             * Plan mode travels with it, as one Permissions sheet. A `reply` device keeps the model and effort.
+             */
+            if (
+                (permissionMode !== undefined || planMode !== undefined) &&
+                principal.role !== 'control'
+            )
+                throw new CaxriError(
+                    'FORBIDDEN',
+                    'Control access is required to change permissions',
+                );
             /**
              * Core validates the switch against the Chat's listed models (`resolveAgentChatModelChange`), so a phone
              * holding a stale list cannot choose a model or effort the provider never offered, nor turn on ultracode
-             * for a model without it.
+             * for a model without it; a permission level or plan mode the provider lacks fails the same way
+             * (`resolveAgentChatPermissionChange`).
              */
             await forward({
                 method: 'agentChat.configure',
@@ -242,6 +257,8 @@ export async function invokeMobileAgentChatRequest(
                     ...(request.params.ultracode !== undefined && {
                         ultracode: request.params.ultracode,
                     }),
+                    ...(permissionMode !== undefined && { permissionMode }),
+                    ...(planMode !== undefined && { planMode }),
                 },
             });
             return null;

@@ -280,6 +280,55 @@ describe('mobile Agent Chat requests', () => {
         ]);
     });
 
+    it('lets only a control device switch the permission level or plan mode', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        const domain = domainFixture({ surface: 'chat' });
+        await invoke(
+            {
+                method: 'mobile.agentChat.configure',
+                params: { terminalId: 'terminal-1', permissionMode: 'fullAccess', planMode: false },
+            },
+            domain,
+            forward,
+        );
+        expect(forward).toHaveBeenCalledWith({
+            method: 'agentChat.configure',
+            params: { terminalId: 'terminal-1', permissionMode: 'fullAccess', planMode: false },
+        });
+        forward.mockClear();
+        const reply = { ...principal, role: 'reply' as const };
+        await Promise.all(
+            [{ permissionMode: 'fullAccess' as const }, { planMode: true }].map((change) =>
+                expect(
+                    invokeMobileAgentChatRequest(
+                        {
+                            method: 'mobile.agentChat.configure',
+                            params: { terminalId: 'terminal-1', ...change },
+                        },
+                        reply,
+                        domain.domainService,
+                        forward,
+                        () => {},
+                    ),
+                ).rejects.toMatchObject({ code: 'FORBIDDEN' }),
+            ),
+        );
+        // The model stays a reply device's choice.
+        await invokeMobileAgentChatRequest(
+            {
+                method: 'mobile.agentChat.configure',
+                params: { terminalId: 'terminal-1', model: 'opus' },
+            },
+            reply,
+            domain.domainService,
+            forward,
+            () => {},
+        );
+        expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
+            { method: 'agentChat.configure', params: { terminalId: 'terminal-1', model: 'opus' } },
+        ]);
+    });
+
     it('queues a message sent during a turn unless the phone asks to steer', async () => {
         const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
         const domain = domainFixture({ surface: 'chat' });
