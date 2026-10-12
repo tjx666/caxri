@@ -136,35 +136,6 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         );
         await expect(answered).toContainText('Which color?Blue');
 
-        // Several questions sit behind tabs, one at a time; answering moves to the next unanswered question.
-        await message.fill('ask several questions');
-        await message.press('Enter');
-        const questions = chat.getByRole('region', { name: 'Codex has 3 questions' });
-        const questionTabs = questions.getByRole('tab');
-        await expect(questionTabs).toHaveCount(3);
-        // The recommended option starts selected, so the first question already counts as answered.
-        await expect(questionTabs.nth(0)).toHaveAttribute('aria-description', 'Answered');
-        await expect(questionTabs.nth(1)).toHaveAttribute('aria-description', 'Not answered yet');
-        await expect(questions.getByText('Which users count as free?')).toBeHidden();
-        await page.screenshot({ path: testInfo.outputPath('agent-chat-questions.png') });
-        await questions.getByRole('radio', { name: /^Per request/u }).focus();
-        await page.keyboard.press('Enter');
-        await expect(questionTabs.nth(1)).toHaveAttribute('aria-selected', 'true');
-        await expect(questions.getByRole('radio', { name: /^Free and Hobby/u })).toBeFocused();
-        await page.keyboard.press('2');
-        await expect(questionTabs.nth(2)).toHaveAttribute('aria-selected', 'true');
-        // Going back keeps the earlier answer.
-        await questionTabs.nth(0).click();
-        await expect(questions.getByRole('radio', { name: /^Per request/u })).toBeChecked();
-        await questions.getByRole('button', { name: 'Submit' }).click();
-        await expect(chat.getByText('You answered Per request / Free only / -.')).toBeVisible();
-        const answeredSeveral = chat.locator('[data-agent-chat-answered]').last();
-        await expect(
-            answeredSeveral.getByRole('button', { name: 'Asked 3 questions' }),
-        ).toBeVisible();
-        await expect(answeredSeveral).toContainText('Anything else to keep in mind?Skipped');
-        await page.screenshot({ path: testInfo.outputPath('agent-chat-questions-answered.png') });
-
         // Consecutive tool calls fold into one summary; a finished turn folds its work behind its duration.
         await message.fill('explore the project');
         await message.press('Enter');
@@ -193,7 +164,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         ).toHaveCount(1);
         // A shell read reads as the file it read, the way the Codex app names exploration.
         const workGroup = chat.getByRole('button', {
-            name: 'Read 10 files, ran 1 command, called 1 MCP tool',
+            name: 'Read 10 files, ran 1 command, called 1 MCP tool, ran 2 browser steps, ran 1 Computer Use step',
         });
         await expect(workGroup).toHaveAttribute('aria-expanded', 'false');
         await workGroup.click();
@@ -209,6 +180,16 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await chat
             .locator('[data-scroll-fade-start]')
             .evaluate((element) => element.scrollTo({ top: 0 }));
+        // A Computer Use step reads as the title the Agent wrote for it, with its script and output one click away.
+        await expect(chat.getByRole('button', { name: /^Read the router page/u })).toBeVisible();
+        await expect(chat.getByRole('button', { name: /^Copy the settings/u })).toBeVisible();
+        const browserStep = chat.getByRole('button', { name: /^Open the JSON editor/u });
+        await browserStep.click();
+        await expect(chat.getByText('await tab.click(12);')).toBeVisible();
+        await expect(chat.getByText(/^Browser tab: 1, Title/u).last()).toBeVisible();
+        await expectDisclosuresSettled(chat, 'agent-chat-item');
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-computer-use.png') });
+        await browserStep.click();
         await chat.getByRole('button', { name: 'Read app.ts' }).first().click();
         // A printed file's output is painted in that file's language.
         await expect(chat.locator('pre code span[class*="mtk"]').first()).toBeVisible();

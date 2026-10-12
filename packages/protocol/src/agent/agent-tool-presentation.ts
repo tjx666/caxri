@@ -11,7 +11,9 @@ interface ToolCall {
 
 export type AgentToolKind =
     | 'agent'
+    | 'browser'
     | 'command'
+    | 'computer'
     | 'edit'
     | 'image'
     | 'list'
@@ -130,6 +132,15 @@ export const unwrapShellCommand = (command: string): string => {
         : script;
 };
 
+/**
+ * Computer Use steps (`browserUse` and `computerUse`, named by the Server after the surface a Codex step drove) read as
+ * the step's own title, the way the Codex app lists them; the generic label stands in only when the step had none.
+ */
+const COMPUTER_USE_TOOLS: Partial<Record<string, { kind: AgentToolKind; label: string }>> = {
+    browseruse: { kind: 'browser', label: 'Used the browser' },
+    computeruse: { kind: 'computer', label: 'Used Computer Use' },
+};
+
 export const describeAgentTool = (
     tool: Pick<ToolCall, 'name' | 'summary'>,
 ): AgentToolPresentation => {
@@ -138,6 +149,13 @@ export const describeAgentTool = (
      * "nothing more to show", not a subject that happens to match.
      */
     const rawSubject = tool.summary === tool.name ? undefined : tool.summary;
+    const computerUse = COMPUTER_USE_TOOLS[tool.name.toLowerCase()];
+    if (computerUse)
+        return {
+            kind: computerUse.kind,
+            label: rawSubject ?? computerUse.label,
+            isCodeSubject: false,
+        };
     const mcp = parseAgentMcpToolName(tool.name);
     if (mcp)
         return {
@@ -293,6 +311,8 @@ const GROUP_PHRASES: Record<AgentToolKind, (count: number) => string> = {
     search: (count) => `ran ${plural(count, 'search', 'searches')}`,
     web: (count) => `browsed ${plural(count, 'page')}`,
     agent: (count) => `ran ${plural(count, 'agent')}`,
+    browser: (count) => `ran ${plural(count, 'browser step')}`,
+    computer: (count) => `ran ${plural(count, 'Computer Use step')}`,
     plan: () => 'updated the plan',
     skill: (count) => `used ${plural(count, 'skill')}`,
     mcp: (count) => `called ${plural(count, 'MCP tool')}`,

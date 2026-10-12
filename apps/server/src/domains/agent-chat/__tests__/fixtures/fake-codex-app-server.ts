@@ -58,6 +58,7 @@ import {
     wireTurn,
 } from './fake-codex-history.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
+import { completeMcpCalls } from './fake-codex-mcp-calls.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import {
@@ -273,16 +274,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         // Enough reads that the expanded group scrolls, each shown as the file it read rather than its command line.
         for (let start = 1; start <= 81; start += 10)
             ran(`sed -n '${start},${start + 9}p' src/app.ts`, '');
-        completeItem(turn, {
-            type: 'mcpToolCall',
-            id: crypto.randomUUID(),
-            server: 'docs',
-            tool: 'search',
-            status: 'completed',
-            arguments: { query: 'greet' },
-            result: { content: [{ type: 'text', text: '{"hits": 1}' }] },
-            durationMs: 5,
-        });
+        completeMcpCalls(io, turn);
         await streamMessage(turn, 'Explored the project.', 0);
     } else if (text.includes('several questions')) {
         await runQuestions(io, turn);
