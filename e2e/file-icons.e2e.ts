@@ -18,6 +18,9 @@ test('Files secondarySidebar renders local file, folder, open, and fallback icon
     await Promise.all([
         writeFile(join(root, 'package.json'), '{}\n', 'utf8'),
         writeFile(join(root, 'Component.test.tsx'), 'export {};\n', 'utf8'),
+        // Both resolve only through VS Code's language registry: an extension (`cjs`) and a filename pattern (`.env.*`).
+        writeFile(join(root, '.changelogrc.cjs'), 'module.exports = {};\n', 'utf8'),
+        writeFile(join(root, '.env.desktop'), 'KEY=value\n', 'utf8'),
         // vscode-icons has no mapping for this name, so it exercises the default_file fallback.
         writeFile(join(root, 'mystery.unknownext'), 'unknown extension file\n', 'utf8'),
     ]);
@@ -31,6 +34,8 @@ test('Files secondarySidebar renders local file, folder, open, and fallback icon
         await expect(running.page.locator('[data-file-icon="folder_type_src"]')).toBeVisible();
         await expect(running.page.locator('[data-file-icon="file_type_npm"]')).toBeVisible();
         await expect(running.page.locator('[data-file-icon="file_type_testts"]')).toBeVisible();
+        await expect(running.page.locator('[data-file-icon="file_type_js"]')).toBeVisible();
+        await expect(running.page.locator('[data-file-icon="file_type_dotenv"]')).toBeVisible();
         await expect(running.page.locator('[data-file-icon="default_file"]')).toBeVisible();
 
         await running.page.getByRole('treeitem', { name: '.github', exact: true }).click();

@@ -11,6 +11,11 @@ describe('resolveFileIcon', () => {
         ['types.d.ts', 'file_type_typescriptdef'],
         ['README.md', 'file_type_markdown'],
         ['diagram.svg', 'file_type_svg'],
+        // Resolved through VS Code's built-in language contributions, including `.env.*` filename patterns.
+        ['.changelogrc.cjs', 'file_type_js'],
+        ['.env.desktop', 'file_type_dotenv'],
+        ['.env.example.development', 'file_type_dotenv'],
+        ['Dockerfile.dev', 'file_type_docker'],
         ['unknown', 'default_file'],
     ])('resolves %s to %s', (name, id) => {
         expect(resolveFileIcon({ kind: 'file', name }).id).toBe(id);
