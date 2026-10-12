@@ -23,6 +23,14 @@ function editableFocusedElement(): HTMLElement {
     } as unknown as HTMLElement;
 }
 
+function focusedInboxItem(): HTMLElement {
+    return {
+        closest: (selector: string) =>
+            selector === '[data-keeps-keyboard-focus]' ? { dataset: {} } : null,
+        dataset: {},
+    } as unknown as HTMLElement;
+}
+
 describe('reconcileTerminalProcessFocus', () => {
     it.each([
         { active: true, isRunning: false, name: 'stopped' },
@@ -208,6 +216,16 @@ describe('canClaimTerminalFocus', () => {
                 terminalId: 'terminal-1',
             }),
         ).toBe(true);
+    });
+
+    it('leaves focus in a region that keeps it, such as the Commander Inbox item the Needs you chip focused', () => {
+        expect(
+            canClaimTerminalFocus({
+                focusedElement: focusedInboxItem(),
+                isModalOpen: false,
+                terminalId: 'terminal-1',
+            }),
+        ).toBe(false);
     });
 
     it('defers to a modal, an editable control, and roving tab navigation', () => {
