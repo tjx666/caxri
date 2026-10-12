@@ -66,27 +66,34 @@ export async function initializeCodexConnection(
 }
 
 /**
- * The opened thread, with the model and reasoning effort Codex reported for it. A thread that never chose an effort
- * reports none.
+ * What Codex reported for the opened thread: its model, reasoning effort, service tier, and collaboration mode. A
+ * thread that never chose an effort or service tier reports none.
  */
-export type CodexThreadOpening = { model?: string; effort?: string; collaborationMode?: string } & (
-    { outcome: 'resumed'; thread: Json } | { outcome: 'started'; threadId: string }
-);
-
-function reportedModel(result: unknown): {
+interface CodexThreadReport {
     model?: string;
     effort?: string;
+    serviceTier?: string;
     collaborationMode?: string;
-} {
+}
+
+/**
+ * The opened thread, with what Codex reported for it.
+ */
+export type CodexThreadOpening = CodexThreadReport &
+    ({ outcome: 'resumed'; thread: Json } | { outcome: 'started'; threadId: string });
+
+function reportedModel(result: unknown): CodexThreadReport {
     if (!isRecord(result)) return {};
     const model = stringField(result.model);
     const effort = stringField(result.reasoningEffort);
+    const serviceTier = stringField(result.serviceTier);
     const collaborationMode = isRecord(result.collaborationMode)
         ? stringField(result.collaborationMode.mode)
         : undefined;
     return {
         ...(model && { model }),
         ...(effort && { effort }),
+        ...(serviceTier && { serviceTier }),
         ...(collaborationMode && { collaborationMode }),
     };
 }

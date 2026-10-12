@@ -54,6 +54,7 @@ import {
 import { claudeAssistantItems } from './claude-items';
 import {
     claudeChatModels,
+    claudeFastMode,
     claudeHookEffort,
     claudeInitEffort,
     configureClaudeModel,
@@ -278,6 +279,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 if (model)
                     this.options.apply([{ op: 'state', state: { model: clip(model, 200) } }]);
                 this.options.apply(claudeInitEffort(message));
+                this.options.apply(claudeFastMode(message));
                 this.permissions.onReported(message.permissionMode, this.query);
                 const commands = this.commands.hideTerminalBound(message.terminal_slash_commands);
                 if (commands) this.options.apply([{ op: 'state', state: { commands } }]);
@@ -334,6 +336,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'result': {
                 this.turns.finish(message);
+                this.options.apply(claudeFastMode(message));
                 if (!this.options.read().activeTurnId) this.contextDetails.request();
                 return;
             }
@@ -475,6 +478,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             this.reportCommands(initialized.commands);
             const models = claudeChatModels(initialized.models);
             if (models.length > 0) this.options.apply([{ op: 'state', state: { models } }]);
+            this.options.apply(claudeFastMode(initialized));
             this.reportAppliedSettings(stream);
             this.permissions.report();
         } catch {

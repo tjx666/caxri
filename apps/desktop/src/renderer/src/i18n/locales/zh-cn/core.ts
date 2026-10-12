@@ -18,6 +18,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.copy.failed': '复制失败',
     'core.copy.code': '复制代码',
     'core.copy.table': '复制表格',
+    'core.copy.quote': '复制引用',
 
     'core.findBar.placeholder': '查找',
     'core.findBar.previousMatch': '上一个匹配项',

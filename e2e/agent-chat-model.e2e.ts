@@ -16,7 +16,7 @@ import {
 } from './support/helpers.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex Chat switches its model and effort and shows the context it uses', async ({}, testInfo) => {
+test('a Codex Chat switches its model, effort, and Fast mode and shows the context it uses', async ({}, testInfo) => {
     const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-model-'));
     const directory = await realpath(created);
     const userData = join(directory, 'user-data');
@@ -48,10 +48,24 @@ test('a Codex Chat switches its model and effort and shows the context it uses',
         await expect(picker).toHaveAccessibleName('Model: Fake Codex, High effort');
         // Choosing an effort completes the selection and closes the menu.
         await expect(menu).toBeHidden();
-        // A model choice keeps the menu open, so the new model's efforts show in place.
+        // Fast mode is a toggle below the efforts, described in Codex's own words, and reads as a word on the trigger.
+        await picker.click();
+        const fast = menu.getByRole('menuitemcheckbox', { name: /Fast/u });
+        await expect(fast).toHaveText(/Fast\s*1\.5x speed, increased usage/u);
+        await expect(fast).not.toBeChecked();
+        await fast.click();
+        await expect(fast).toBeChecked();
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-fast-menu.png') });
+        await page.keyboard.press('Escape');
+        await expect(picker).toHaveAccessibleName('Model: Fake Codex, High effort, Fast mode on');
+        await expect(picker).toHaveText(/Fast/u);
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-fast-trigger.png') });
+        // A model choice keeps the menu open, so the new model's efforts show in place; a model without Fast mode
+        // turns it off and drops the toggle.
         await picker.click();
         await menu.getByRole('menuitemradio', { name: /Fake Codex Mini/ }).click();
         await expect(picker).toHaveAccessibleName('Model: Fake Codex Mini, Low effort');
+        await expect(fast).toHaveCount(0);
         await expect(menu.getByRole('menuitemradio')).toHaveText([
             /Fake Codex\s*The default fake model/,
             /Fake Codex Mini/,
@@ -88,6 +102,13 @@ test('a Codex Chat switches its model and effort and shows the context it uses',
         await expect(faq.locator('[data-link-icon]')).toHaveCount(1);
         await expect(chat.getByText('Esc to stop')).toBeHidden();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-markdown.png') });
+        // A quote offers Copy on hover, the way a code block does.
+        const quote = chat.locator('blockquote').filter({ hasText: 'nothing outside the Project' });
+        const copyQuote = quote.locator('..').getByRole('button', { name: 'Copy quote' });
+        await expect(copyQuote).toHaveCSS('opacity', '0');
+        await quote.hover();
+        await expect(copyQuote).toHaveCSS('opacity', '1');
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-quote-copy.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

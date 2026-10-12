@@ -1,9 +1,4 @@
-import type {
-    AgentChatModel,
-    AgentChatModelChange,
-    AgentChatModelRequest,
-    AgentChatSnapshot,
-} from '@caxri/protocol';
+import type { AgentChatModel, AgentChatModelChange, AgentChatSnapshot } from '@caxri/protocol';
 import { findAgentChatModel } from '@caxri/protocol';
 
 import { boundedChatModels, clip, isRecord, stringField } from './chat-items';
@@ -12,6 +7,38 @@ import type { CodexPermissions } from './codex-permissions';
 import type { JsonRpcConnection } from './json-rpc-connection';
 
 const MODEL_LIST_TIMEOUT_MS = 10_000;
+
+/**
+ * The service tier ids that mean Fast mode. `model/list` names the tier `priority` (its wire value); Codex also accepts
+ * the config spelling `fast` for it, and reports back whichever was sent.
+ */
+const FAST_SERVICE_TIERS = new Set(['priority', 'fast']);
+const FAST_SERVICE_TIER = 'priority';
+/**
+ * The service tier that asks for standard speed. Clearing the tier with `null` would fall back to the user's
+ * `config.toml` or the model's catalog default instead, which may itself be Fast.
+ */
+const STANDARD_SERVICE_TIER = 'default';
+
+/**
+ * Whether a model offers Fast mode, with Codex's description of it (`1.5x speed, increased usage`). `serviceTiers`
+ * replaced `additionalSpeedTiers`, which older app-servers still send alone.
+ */
+function codexFastTier(entry: Record<string, unknown>): AgentChatModel['fast'] {
+    if (Array.isArray(entry.serviceTiers)) {
+        const tiers: unknown[] = entry.serviceTiers;
+        const tier = tiers.find(
+            (candidate) =>
+                isRecord(candidate) && FAST_SERVICE_TIERS.has(stringField(candidate.id) ?? ''),
+        );
+        if (!isRecord(tier)) return undefined;
+        const description = stringField(tier.description);
+        return description ? { description: clip(description, 200) } : {};
+    }
+    return Array.isArray(entry.additionalSpeedTiers) && entry.additionalSpeedTiers.includes('fast')
+        ? {}
+        : undefined;
+}
 
 /**
  * Maps a `model/list` page to the models a Chat can switch to. `model` is the slug `turn/start` takes and
@@ -32,24 +59,35 @@ function codexChatModels(result: unknown): AgentChatModel[] {
             : [];
         const defaultEffort = stringField(entry.defaultReasoningEffort);
         const description = stringField(entry.description);
+        const fast = codexFastTier(entry);
         models.push({
             id,
             displayName: stringField(entry.displayName) ?? id,
             ...(description && { description }),
             efforts,
             ...(defaultEffort && { defaultEffort }),
+            ...(fast && { fast }),
         });
     }
     return boundedChatModels(models);
 }
 
 /**
- * One Codex Chat's model and effort: what the provider lists and reports, and the switch still waiting for a turn.
- * App-server has no request that changes them in place; they ride on the next `turn/start`, which Codex then keeps for
- * the turns after it and saves on the thread.
+ * The `turn/start` fields a pending switch sets: the model, effort, and service tier.
+ */
+interface CodexTurnSettings {
+    model?: string;
+    effort?: string;
+    serviceTier?: string;
+}
+
+/**
+ * One Codex Chat's model, effort, and Fast mode: what the provider lists and reports, and the switch still waiting for
+ * a turn. App-server has no request that changes them in place; they ride on the next `turn/start`, which Codex then
+ * keeps for the turns after it and saves on the thread.
  */
 export class CodexModelSettings {
-    private nextTurn: AgentChatModelRequest = {};
+    private nextTurn: CodexTurnSettings = {};
 
     constructor(
         private readonly host: Pick<AgentChatSessionHost, 'apply' | 'read'>,
@@ -57,12 +95,16 @@ export class CodexModelSettings {
     ) {}
 
     /**
-     * Records the effort `thread/start` or `thread/resume` reported for the thread. A thread that reports none uses its
-     * model's default, which `load` fills in; clearing it here drops a choice shown before a restart that never reached
-     * a turn, so the composer does not claim an effort Codex is not using.
+     * Records the effort and service tier `thread/start` or `thread/resume` reported for the thread. A thread that
+     * reports no effort uses its model's default, which `load` fills in; clearing it here drops a choice shown before a
+     * restart that never reached a turn, so the composer does not claim an effort Codex is not using. Fast mode is on
+     * only while the thread's tier is the Fast one.
      */
-    reportOpened(effort: string | undefined): void {
-        this.host.apply([{ op: 'state', state: { effort: effort ? clip(effort, 40) : null } }]);
+    reportOpened({ effort, serviceTier }: { effort?: string; serviceTier?: string }): void {
+        const isFast = serviceTier !== undefined && FAST_SERVICE_TIERS.has(serviceTier);
+        this.host.apply([
+            { op: 'state', state: { effort: effort ? clip(effort, 40) : null, fast: isFast } },
+        ]);
     }
 
     /**
@@ -92,10 +134,25 @@ export class CodexModelSettings {
     /**
      * Holds a validated switch for the next turn and shows it right away.
      */
-    configure({ model, effort }: AgentChatModelChange): void {
-        const change = { ...(model && { model: model.id }), ...(effort && { effort }) };
-        this.nextTurn = { ...this.nextTurn, ...change };
-        this.host.apply([{ op: 'state', state: change }]);
+    configure({ model, effort, fast }: AgentChatModelChange): void {
+        this.nextTurn = {
+            ...this.nextTurn,
+            ...(model && { model: model.id }),
+            ...(effort && { effort }),
+            ...(fast !== undefined && {
+                serviceTier: fast ? FAST_SERVICE_TIER : STANDARD_SERVICE_TIER,
+            }),
+        };
+        this.host.apply([
+            {
+                op: 'state',
+                state: {
+                    ...(model && { model: model.id }),
+                    ...(effort && { effort }),
+                    ...(fast !== undefined && { fast }),
+                },
+            },
+        ]);
     }
 
     /**
