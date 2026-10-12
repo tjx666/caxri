@@ -450,9 +450,10 @@ export const logEventCatalog = {
         restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
         resumeSkipped: 'terminal.resume_skipped',
         /**
-         * An Agent launch that resumed a Terminal this Server Core parked earlier: the closed park `reason` (`idle`,
-         * `untouched`, `archived`, `detached`, `requested`), the provider, and `suspendedForMs`. A park from before a
-         * Server Core restart resumes without this record.
+         * An Agent launch that resumed a parked Terminal: the closed park `reason` (`idle`, `untouched`, `archived`,
+         * `detached`, `requested`), the provider, and `suspendedForMs`. An Agent an earlier Server Core left
+         * `suspended` or `detached` logs `reason: 'beforeRestart'` with `suspendedForMs: null`, since its park time was
+         * in memory.
          */
         resumed: 'terminal.resumed',
         suspendFailed: 'terminal.suspend_failed',

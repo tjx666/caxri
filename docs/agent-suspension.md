@@ -52,6 +52,13 @@ Claude's `SubagentStop`) count as activity but never end the parent's turn. A st
 typed into the Agent is the user interrupting it; it ends the turn and any pending prompt, because
 Claude sends no completion hook for an interrupted turn.
 
+The Escape is taken at face value, so one the TUI consumed for something else (closing a completion
+menu) also ends the turn. The next main-turn signal that only arrives from inside a running turn
+(a shell tool starting, finishing, or failing, Claude's `toolBatchFinished`, or an attention request
+or resolution) reopens it, so a long command started after that Escape keeps the Agent awake. Until
+such a signal arrives, only the idle window protects the Agent. That gap is deliberate: an Escape
+followed by no hook at all looks the same as a real interrupt, which must still release the Agent.
+
 An unread completion does not block suspension. The final screen is captured before the process
 stops, so the output the user has not read yet is still on the tab when they come back.
 
@@ -95,9 +102,11 @@ Both transitions are logged without any Terminal or transcript content:
 - `terminal.suspended`: the closed `reason` (`idle`, `untouched`, `archived`, `detached`,
   `requested`, `terminated`), the provider, and for the automatic reasons `idleMs` (since the last
   activity) and `backgroundMs` (since the Session was left).
-- `terminal.resumed`: the Agent launch that brought back a Terminal this Server Core parked, with
-  the original `reason`, the provider, and `suspendedForMs`. A park from before a Server Core
-  restart resumes without this record, because the park time is kept in memory only.
+- `terminal.resumed`: the Agent launch that brought back a parked Terminal, with the original
+  `reason`, the provider, and `suspendedForMs`. The park time and reason are kept in memory only,
+  so an Agent an earlier Server Core left `suspended` or `detached` resumes with
+  `reason: beforeRestart` and `suspendedForMs: null`; the count stays complete across restarts, only
+  the duration is unknown.
 
 ## Code
 
