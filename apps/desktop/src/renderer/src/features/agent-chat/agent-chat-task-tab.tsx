@@ -10,6 +10,7 @@ import { cn } from '../../lib/utilities';
 import { stopAgentChatTask } from './agent-chat-commands';
 import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
+import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { revealAgentChat } from './agent-chat-task-opener';
@@ -162,6 +163,13 @@ function TaskTimeline({
                     )}
                 </div>
             </div>
+            {/* A quote lands in the parent Chat's draft, so the Chat comes forward to show it. */}
+            <AgentChatSelectionToolbar
+                contentReference={contentReference}
+                scrollReference={scrollReference}
+                terminalId={terminalId}
+                onQuoted={() => revealAgentChat(terminalId)}
+            />
             <AgentChatJumpToLatest
                 focusTarget={scrollReference}
                 isFollowing={isFollowing}

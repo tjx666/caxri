@@ -34,6 +34,7 @@ import {
     isAgentChatBusy,
 } from './agent-chat-presentation';
 import { isAgentChatMessageRailShown } from './agent-chat-rail-marks';
+import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import { agentChatTimelineEntryKey } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
@@ -286,6 +287,12 @@ export function AgentChatPane({
                             />
                         </div>
                     </div>
+                    <AgentChatSelectionToolbar
+                        contentReference={contentReference}
+                        scrollReference={scrollReference}
+                        terminalId={terminalId}
+                        onQuoted={focusComposer}
+                    />
                     <AgentChatMessageRail
                         activeIndex={rail.activeIndex}
                         marks={railMarks}
