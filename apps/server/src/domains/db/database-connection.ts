@@ -12,6 +12,10 @@ import { CommanderTasksModel } from './models/commander-tasks';
 import { MobileAgentSubmitReceiptsModel } from './models/mobile-agent-submit-receipts';
 import { ProjectsModel } from './models/projects';
 import { ProtocolStateModel } from './models/protocol-state';
+import type {
+    SessionStateRevisionAdvance,
+    SessionStateStaleWrite,
+} from './models/session-state-revisions';
 import type { SessionStateRepair, SessionStateUnchangedWrite } from './models/session-state-row';
 import { SessionsModel } from './models/sessions';
 import { SnapshotsModel } from './models/snapshots';
@@ -25,6 +29,8 @@ import type { ShutdownReason } from './session-policy';
 export interface CaxriDatabaseConnectionOptions {
     onSessionStateRepair?: (repair: SessionStateRepair) => void;
     onSessionStateUnchanged?: (report: SessionStateUnchangedWrite) => void;
+    onSessionStateRevisionAdvanced?: (advance: SessionStateRevisionAdvance) => void;
+    onSessionStateStaleWrite?: (staleWrite: SessionStateStaleWrite) => void;
     onTransaction?: (observation: DatabaseTransactionObservation) => void;
 }
 
@@ -82,6 +88,10 @@ export class CaxriDatabaseConnection {
             this.db,
             options.onSessionStateRepair,
             options.onSessionStateUnchanged,
+            {
+                onRevisionAdvanced: options.onSessionStateRevisionAdvanced,
+                onStaleWrite: options.onSessionStateStaleWrite,
+            },
         );
         this.agentSessionUsage = new AgentSessionUsageModel(this.db);
         this.terminals = new TerminalsModel(this.db, this.agentSessionUsage);
