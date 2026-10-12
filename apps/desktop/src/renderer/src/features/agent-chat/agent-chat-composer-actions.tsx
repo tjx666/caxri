@@ -14,6 +14,7 @@ import {
     AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,
     AgentChatStopButton,
 } from './agent-chat-stop-button';
+import { openAgentChatContext } from './agent-chat-task-opener';
 import { useAgentChatPermissionSelection } from './hooks/use-agent-chat-permission-selection';
 
 /**
@@ -61,6 +62,7 @@ function AgentChatSendButton({
  */
 export function AgentChatComposerActions({
     canAttachImages,
+    canOpenContext,
     canSaveProjectDefault,
     isAttaching,
     isQueueing,
@@ -82,6 +84,10 @@ export function AgentChatComposerActions({
      * Whether the provider accepts images, which decides what Files in `+` says it does.
      */
     canAttachImages: boolean;
+    /**
+     * Whether the context meter offers Details (`AgentChatHostCapabilities`).
+     */
+    canOpenContext: boolean;
     /**
      * Whether the permission menu offers "Use as Project default" (`AgentChatHostCapabilities`).
      */
@@ -171,7 +177,16 @@ export function AgentChatComposerActions({
             </div>
             <div className="flex min-w-0 items-center gap-0.5">
                 {contextUsage && (
-                    <AgentChatContextMeter onCompact={onCompact} usage={contextUsage} />
+                    <AgentChatContextMeter
+                        onCompact={onCompact}
+                        // Only Claude Code answers a context composition and keeps a transcript to replay.
+                        onShowDetails={
+                            canOpenContext && provider === 'claude'
+                                ? () => openAgentChatContext(terminalId)
+                                : undefined
+                        }
+                        usage={contextUsage}
+                    />
                 )}
                 <AgentChatModelMenu snapshot={snapshot} terminalId={terminalId} />
             </div>

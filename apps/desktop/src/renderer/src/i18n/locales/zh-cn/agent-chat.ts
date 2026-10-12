@@ -3,6 +3,7 @@ import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namesp
 import type { agentChat as source } from '../en/agent-chat';
 import { agentChatChanges } from './agent-chat-changes';
 import { agentChatComposer } from './agent-chat-composer';
+import { agentChatContext } from './agent-chat-context';
 import { agentChatPane } from './agent-chat-pane';
 import { agentChatRequests } from './agent-chat-requests';
 import { agentChatTimeline } from './agent-chat-timeline';
@@ -13,4 +14,5 @@ export const agentChat: TranslatedNamespace<typeof source> = {
     ...agentChatChanges,
     ...agentChatPane,
     ...agentChatRequests,
+    ...agentChatContext,
 };

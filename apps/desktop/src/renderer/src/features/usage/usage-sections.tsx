@@ -2,6 +2,7 @@ import type { UsageLimit, UsageReport } from '@caxri/protocol';
 import { formatLineCount, formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 
 import { ReportCard, StatTile } from '../../components/report-card';
+import { ShareBar } from '../../components/share-bar';
 import { Progress } from '../../components/ui/progress';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useRelativeTime } from '../../hooks/use-relative-time';
@@ -13,7 +14,6 @@ import {
 } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { ProviderLabel } from './provider-label';
-import { ShareBar } from './share-bar';
 import { UsageActivityCard } from './usage-activity-card';
 import { UsageCost } from './usage-cost';
 import { UsageDetailCards } from './usage-detail-cards';

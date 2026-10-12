@@ -107,7 +107,7 @@ export function AgentChatPane({
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
-    const { canFork, canSaveProjectDefault } = agentChatHostCapabilities(host);
+    const { canFork, canOpenContext, canSaveProjectDefault } = agentChatHostCapabilities(host);
     const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
         terminalId,
         snapshot,
@@ -342,6 +342,7 @@ export function AgentChatPane({
                 activity={agentChatActivity(snapshot, providerName, {
                     hasConversation: Boolean(terminal?.agentSessionId),
                 })}
+                canOpenContext={canOpenContext}
                 canSaveProjectDefault={canSaveProjectDefault}
                 sendBlock={agentChatSendBlock(snapshot, processState)}
                 commands={snapshot?.commands}
