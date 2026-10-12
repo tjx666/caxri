@@ -57,6 +57,15 @@ describe('AgentChatPendingStore', () => {
         expect(store.get(agentChatPendingKey('scope', 'other')).messages).toEqual([]);
     });
 
+    it('counts a slash command as a send without showing a pending row', () => {
+        const store = new AgentChatPendingStore();
+        const listener = vi.fn();
+        store.subscribe(KEY, listener);
+        store.countCommand(KEY);
+        expect(store.get(KEY)).toEqual({ messages: [], answers: [], sendCount: 1 });
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+
     it('hands a message over once the projection shows it, keeping the send count', () => {
         const store = new AgentChatPendingStore();
         store.show(KEY, snapshot({ items: [] }), message('a'));
