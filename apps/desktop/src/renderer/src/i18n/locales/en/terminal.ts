@@ -93,6 +93,8 @@ export const terminal = {
     'terminal.links.commit.accessibleName': 'Show Git commit {{reference}}',
     'terminal.links.commit.detail': 'Git commit',
     'terminal.links.commit.hint': '⌘ click to show commit {{reference}} in Git',
+    'terminal.links.refusal.outsideProjects':
+        'Only files inside a Project can be opened in an SSH Host window. Add the file’s folder as a Project to open it.',
     'terminal.links.refusal.projectGone': 'That file’s Project is no longer in Caxri.',
     'terminal.links.refusal.worktreeProjectUnbound':
         'That file is in a Git worktree no Session is using as its Workbench Root. Continue a Session in the worktree first.',
