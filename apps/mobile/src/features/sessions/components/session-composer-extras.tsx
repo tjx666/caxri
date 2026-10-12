@@ -104,6 +104,7 @@ export const SessionComposerAttachments = ({
             style={styles.strip}
             testID="session-image-attachments"
         >
+            {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- At most 20 images; virtualizing would only break the strip's layout animation. */}
             {images.attachments.map((attachment, index) => {
                 const label = imageAttachmentAccessibilityLabel(
                     attachment,

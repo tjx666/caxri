@@ -78,6 +78,26 @@ export const agentChatQueueHeader = (
 /**
  * What a failed queue action says, in Desktop's words.
  */
+/**
+ * The screen reader hints for a queued row's Send now and Edit buttons: why a button is unavailable, or what Steer
+ * does. A message still on its way holds both until Server Core lists it.
+ */
+export const agentChatQueueRowHints = (
+    entry: AgentChatQueueRow,
+    imagesUnsupported: string,
+): { sendNow: string | undefined; edit: string | undefined } => {
+    if (entry.isPending) {
+        const waiting = 'Available once the message is queued.';
+        return { sendNow: waiting, edit: waiting };
+    }
+    const sendNow = entry.canSendNow
+        ? entry.sendNowLabel === 'Steer'
+            ? 'Adds this message to the running turn now.'
+            : undefined
+        : 'A command waits for the running turn to end.';
+    return { sendNow, edit: entry.canEdit ? undefined : imagesUnsupported };
+};
+
 export const AGENT_CHAT_QUEUE_ERRORS = {
     remove: 'Unable to remove the queued message. Try again.',
     sendNow: 'Unable to send the queued message. Try again.',
