@@ -16,7 +16,7 @@ import { agentChatDraftEndCaret } from '../agent-chat-composer-caret';
  * `useAgentChatPlacedCaret` follows, so a restored draft ending in `@word` still waits for the user before opening the
  * Sessions list.
  */
-export function focusComposerAtDraftEnd(input: HTMLTextAreaElement): void {
+function focusComposerAtDraftEnd(input: HTMLTextAreaElement): void {
     input.focus();
     const caret = agentChatDraftEndCaret(input);
     if (caret !== undefined) input.setSelectionRange(caret, caret);
