@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     clampPdfPageNumber,
     describePdfView,
     parsePdfPageInput,
     PDF_ZOOM_CHOICES,
+    pdfZoomChoiceLabel,
 } from '../pdf-toolbar-model';
 
 describe('PDF page field', () => {
@@ -24,12 +26,9 @@ describe('PDF page field', () => {
 
 describe('PDF zoom menu', () => {
     it('offers the two fits before the fixed scales', () => {
-        expect(PDF_ZOOM_CHOICES.slice(0, 3).map(({ label }) => label)).toEqual([
-            'Fit Width',
-            'Fit Page',
-            '50%',
-        ]);
-        expect(PDF_ZOOM_CHOICES.find(({ choice }) => choice === 1)?.label).toBe('100%');
+        const labels = PDF_ZOOM_CHOICES.map((choice) => pdfZoomChoiceLabel(choice, translate));
+        expect(labels.slice(0, 3)).toEqual(['Fit Width', 'Fit Page', '50%']);
+        expect(pdfZoomChoiceLabel(1, translate)).toBe('100%');
     });
 
     it('announces the page and zoom after an explicit change', () => {

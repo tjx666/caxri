@@ -6,6 +6,7 @@ import { Square, X } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { stopAgentChatTask } from './agent-chat-commands';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
@@ -20,11 +21,14 @@ import {
 } from './agent-chat-tasks';
 
 function TaskEntry({ task, terminalId }: { task: AgentChatTask; terminalId: string }) {
-    const title = task.title || (task.kind === 'shell' ? 'Shell' : 'Subagent');
+    const { t } = useTranslation();
+    const title =
+        task.title ||
+        t(task.kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent');
     return (
         <li className="group/task flex min-w-0 items-center gap-1 rounded text-[12px] leading-5 hover:bg-[var(--selection)]">
             <button
-                aria-label={`Open ${title}`}
+                aria-label={t('agentChat.tasks.openTask', { title })}
                 className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-0.5 text-left text-muted hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                 type="button"
                 onClick={() => openAgentChatTaskTab(terminalId, task.id)}
@@ -49,9 +53,9 @@ function TaskEntry({ task, terminalId }: { task: AgentChatTask; terminalId: stri
                 </span>
             </button>
             {canStopAgentChatTask(task) && (
-                <Tooltip content="Stop">
+                <Tooltip content={t('agentChat.tasks.stop')}>
                     <Button
-                        aria-label={`Stop ${title}`}
+                        aria-label={t('agentChat.tasks.stopTask', { title })}
                         className="size-6 shrink-0 text-muted hover:text-foreground"
                         size="icon"
                         variant="ghost"
@@ -84,6 +88,7 @@ export function AgentChatTaskStrip({
     tasks: readonly AgentChatTask[] | undefined;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
     const [dismissedAt, setDismissedAt] = useState<number | undefined>();
     const view = agentChatTaskStripView(tasks, { dismissedAt, latestTurnStartedAt });
     const [isShowingEnded, setShowingEnded] = useState(false);
@@ -92,13 +97,16 @@ export function AgentChatTaskStrip({
     const { running, ended, isDismissible } = view;
     return (
         <section
-            aria-label="Background work"
+            aria-label={t('agentChat.tasks.backgroundWork')}
             className="rounded-md border border-border bg-surface p-1"
         >
             <h3 className="m-0 flex min-h-6 items-center gap-2 px-2 text-[11px] font-normal text-muted">
-                <span className="min-w-0 flex-1 truncate">Background work</span>
+                <span className="min-w-0 flex-1 truncate">
+                    {t('agentChat.tasks.backgroundWork')}
+                </span>
                 <span className="shrink-0 tabular-nums">
-                    {running.length > 0 && `${running.length} running`}
+                    {running.length > 0 &&
+                        t('agentChat.tasks.runningCount', { count: running.length })}
                     {running.length > 0 && ended.length > 0 && ' · '}
                     {ended.length > 0 && (
                         <button
@@ -108,14 +116,14 @@ export function AgentChatTaskStrip({
                             type="button"
                             onClick={() => setShowingEnded((value) => !value)}
                         >
-                            {ended.length} ended
+                            {t('agentChat.tasks.endedCount', { count: ended.length })}
                         </button>
                     )}
                 </span>
                 {isDismissible && (
-                    <Tooltip content="Dismiss">
+                    <Tooltip content={t('common.dismiss')}>
                         <Button
-                            aria-label="Dismiss ended background work"
+                            aria-label={t('agentChat.tasks.dismissEnded')}
                             className="-mr-1.5 size-5 shrink-0 text-muted hover:text-foreground"
                             size="icon"
                             variant="ghost"
@@ -138,7 +146,7 @@ export function AgentChatTaskStrip({
             )}
             {isShowingEnded && ended.length > 0 && (
                 <ul
-                    aria-label="Ended background work"
+                    aria-label={t('agentChat.tasks.endedList')}
                     className={cn(
                         'm-0 flex max-h-32 list-none flex-col overflow-y-auto p-0',
                         running.length > 0 && 'mt-1 border-t border-border pt-1',

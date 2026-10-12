@@ -1,6 +1,7 @@
 import { isCaxriError } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { parentDirectoryPath } from '../../lib/file-path';
 import { createStore } from '../../lib/store';
@@ -130,7 +131,7 @@ export async function undoAgentChatTurn({
 }): Promise<void> {
     const key = agentChatUndoKey(sessionId, turnId);
     setStatus(key, 'undoing');
-    const isUndone = await tryCommand('Unable to undo the Agent changes', async () => {
+    const isUndone = await tryCommand(translate('agentChat.undo.failedTitle'), async () => {
         const plans = await Promise.all(
             files.map(async (file) =>
                 planAgentChatFileUndo(file, await readCurrent(sessionId, file.path)),
@@ -153,7 +154,7 @@ export async function undoAgentChatTurn({
         ];
         const applied = await applySteps(sessionId, ordered);
         if (applied.count > 0 && (applied.count < ordered.length || 'error' in applied))
-            pushToast('warning', 'Undo stopped partway: some files were already restored.');
+            pushToast('warning', translate('agentChat.undo.partial'));
         if ('error' in applied) throw applied.error;
         const isComplete = applied.count === ordered.length;
         if (isComplete) pushToast('success', agentChatUndoSuccessMessage(files.length));

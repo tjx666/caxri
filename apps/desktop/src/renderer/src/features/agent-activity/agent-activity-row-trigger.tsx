@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
+import type { Translate } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
@@ -69,6 +70,7 @@ export function AgentActivityRowTrigger({
     row,
     selected,
     sessionRename,
+    t,
     titleScroll,
     visiblePullRequest,
     worktreeProject,
@@ -84,6 +86,10 @@ export function AgentActivityRowTrigger({
     selected: boolean;
     sessionRename: SessionRenameController;
     /**
+     * The caller's `useTranslation()` function, passed in for the same reason as `titleScroll`: this cannot call hooks.
+     */
+    t: Translate;
+    /**
      * Owned by the caller: this is a plain function returning the HoverCard trigger element, not a component, so it
      * must not call hooks; React Compiler may skip re-running it and React would see a changed hook count.
      */
@@ -92,7 +98,7 @@ export function AgentActivityRowTrigger({
     worktreeProject: ProjectRecord | undefined;
 }) {
     const { project, session, terminal } = row;
-    const glyph = agentActivityGlyph(row);
+    const glyph = agentActivityGlyph(row, t);
     const GlyphIcon = GLYPH_COMPONENTS[glyph.id];
     const canSuggest = canSuggestSessionTitle(session);
     const { viewportReference, textReference, setHovered, setFocused } = titleScroll;
@@ -118,7 +124,9 @@ export function AgentActivityRowTrigger({
             role="treeitem"
             aria-level={2}
             aria-description={
-                !canMarkRead && row.groupId === 'attention' ? 'Viewed and read' : undefined
+                !canMarkRead && row.groupId === 'attention'
+                    ? t('agentActivity.viewedAndRead')
+                    : undefined
             }
             aria-selected={selected}
             aria-keyshortcuts={rowKeyShortcuts({ canMarkRead, canSuggest, isRenaming })}

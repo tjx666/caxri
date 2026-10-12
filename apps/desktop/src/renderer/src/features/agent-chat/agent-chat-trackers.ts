@@ -1,6 +1,8 @@
 import type { AgentChatItem } from '@caxri/protocol';
 import { parseAgentMcpToolName, unwrapShellCommand } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+
 /**
  * A pull request, issue, or LobeHub acceptance report the Agent created or updated during a turn, shown as a card under
  * the turn's reply the way the Codex app and LobeHub surface what an Agent filed.
@@ -11,8 +13,8 @@ export interface AgentChatTrackerArtifact {
     action: 'created' | 'updated';
     url: string;
     /**
-     * `owner/repo#12` for GitHub, the issue identifier (`ENG-123`) for Linear, and `Round 2` (or the short acceptance
-     * id when the round is unknown) for an acceptance report.
+     * `owner/repo#12` for GitHub, the issue identifier (`ENG-123`) for Linear, and the short report id for an
+     * acceptance report. Display through `trackerReferenceText()`, which prefers an acceptance report's round.
      */
     reference: string;
     title?: string;
@@ -20,6 +22,38 @@ export interface AgentChatTrackerArtifact {
      * The first line of prose in the body, without Markdown heading or list markers.
      */
     excerpt?: string;
+    /**
+     * The acceptance round the report reached, when the ingest output reported one.
+     */
+    round?: number;
+    /**
+     * How many checks the acceptance round ran. Display through `trackerExcerptText()`.
+     */
+    checks?: number;
+}
+
+/**
+ * The card's reference line. An acceptance round is localized here at render time rather than when the timeline is
+ * collected, because the collected timeline is memoized and would keep the language it was first built in.
+ */
+export function trackerReferenceText(artifact: AgentChatTrackerArtifact, t: Translate): string {
+    return artifact.round === undefined
+        ? artifact.reference
+        : t('agentChat.tracker.round', { round: artifact.round });
+}
+
+/**
+ * The card's excerpt line; an acceptance report's check count, localized at render time like `trackerReferenceText()`.
+ */
+export function trackerExcerptText(
+    artifact: AgentChatTrackerArtifact,
+    t: Translate,
+): string | undefined {
+    if (artifact.checks === undefined) return artifact.excerpt;
+    return t(
+        artifact.checks === 1 ? 'agentChat.tracker.checksOne' : 'agentChat.tracker.checksOther',
+        { count: artifact.checks },
+    );
 }
 
 type CommandItem = Extract<AgentChatItem, { type: 'command' }>;
@@ -263,9 +297,10 @@ function commandAcceptanceArtifact(item: CommandItem): AgentChatTrackerArtifact 
         kind: 'acceptance',
         action: (round === undefined ? isAppended : round > 1) ? 'updated' : 'created',
         url: `${origin}/acceptance/${id}`,
-        reference: round === undefined ? id.slice(0, 8) : `Round ${round}`,
+        reference: id.slice(0, 8),
+        ...(round !== undefined && { round }),
         ...(title && { title }),
-        ...(cases && { excerpt: `${cases} ${cases === 1 ? 'check' : 'checks'}` }),
+        ...(cases && { checks: cases }),
     };
 }
 

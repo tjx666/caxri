@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { CircleCheck, CircleX, Info, TriangleAlert, X } from 'lucide-react';
 import { Toaster } from 'sonner';
 
+import { useTranslation } from '../../i18n';
 import { useDialogStore } from '../../stores/dialogs';
 import { configureReminderPresentation } from '../../stores/toasts';
 import { NotificationOptions } from './notification-options';
@@ -20,6 +21,7 @@ function shouldRestoreToastFocus(): boolean {
  * presentation to Caxri tokens without creating another queue or animation lifecycle.
  */
 export function ToastOutlet() {
+    const { t } = useTranslation();
     useEffect(
         () =>
             configureReminderPresentation((properties) => <NotificationOptions {...properties} />),
@@ -42,7 +44,8 @@ export function ToastOutlet() {
                 error: <CircleX size={16} />,
                 close: <X size={14} />,
             }}
-            toastOptions={{ className: 'toast', closeButtonAriaLabel: 'Dismiss notification' }}
+            containerAriaLabel={t('toasts.outlet.label')}
+            toastOptions={{ className: 'toast', closeButtonAriaLabel: t('toasts.outlet.dismiss') }}
         />
     );
 }

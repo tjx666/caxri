@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { ProjectRecord } from '@caxri/protocol';
 
+import { translate } from '../../../i18n';
 import { PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
 import { didReorderProject } from '../../session/session-commands';
 import type { ProjectDropTarget } from '../project-order';
@@ -60,7 +61,11 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
         );
         if (!confirmed) return;
         setProjectOrderAnnouncement(
-            `Moved ${confirmed.displayTitle} to position ${confirmed.projectIds.indexOf(confirmed.movedProjectId) + 1} of ${confirmed.projectIds.length}`,
+            translate('primarySidebar.projectOrder.movedAnnouncement', {
+                position: confirmed.projectIds.indexOf(confirmed.movedProjectId) + 1,
+                title: confirmed.displayTitle,
+                total: confirmed.projectIds.length,
+            }),
         );
     }, [projects]);
 

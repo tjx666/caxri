@@ -12,15 +12,18 @@ import { AgentCommanderApp } from './features/agent-commander/agent-commander-ap
 import { readAgentCommanderWorkbench } from './features/agent-commander/commander-client';
 import { configureCommanderTerminalHost } from './features/agent-commander/commander-commands';
 import { configureCommanderToastActions } from './features/agent-commander/commander-toast-actions';
+import { I18nProvider } from './i18n';
 import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
 import { queryClient } from './queries/client';
 import { installRendererErrorReporter } from './renderer-error-reporter';
 import { configureWorkbenchSnapshotSource } from './stores/workbench';
+import { syncWorkbenchLocale } from './stores/workbench-locale';
 
 installRendererErrorReporter((kind) => globalThis.caxri.reportError(kind));
 installStoreInspector();
 observeWindowActive();
+syncWorkbenchLocale();
 // Before the first render: Main denies this window `app.bootstrap`, so every shared refresh path must already read the
 // Commander-scoped snapshot by the time a Terminal pane can trigger one.
 configureWorkbenchSnapshotSource(readAgentCommanderWorkbench);
@@ -29,15 +32,17 @@ configureCommanderTerminalHost();
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>
-        <QueryClientProvider client={queryClient}>
-            <ErrorBoundary
-                title="Agent Commander stopped rendering"
-                description="Reload Agent Commander to reconnect to its Terminal. The Commander keeps running meanwhile."
-                reloadLabel="Reload Agent Commander"
-                logScope="Agent Commander"
-            >
-                <AgentCommanderApp />
-            </ErrorBoundary>
-        </QueryClientProvider>
+        <I18nProvider>
+            <QueryClientProvider client={queryClient}>
+                <ErrorBoundary
+                    titleKey="core.errorBoundary.agentCommander.title"
+                    descriptionKey="core.errorBoundary.agentCommander.description"
+                    reloadLabelKey="core.errorBoundary.agentCommander.reload"
+                    logScope="Agent Commander"
+                >
+                    <AgentCommanderApp />
+                </ErrorBoundary>
+            </QueryClientProvider>
+        </I18nProvider>
     </StrictMode>,
 );

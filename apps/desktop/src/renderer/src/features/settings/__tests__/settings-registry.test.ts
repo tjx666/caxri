@@ -1,7 +1,10 @@
 import { settingsSpec, settingsSpecByKey } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { settingsRows, titleNamedBindings } from '../settings-registry';
+import { translate } from '../../../i18n';
+import { getSettingsRegistry, titleNamedBindings } from '../settings-registry';
+
+const settingsRows = getSettingsRegistry(translate).rows;
 
 describe('settingsRows', () => {
     /**

@@ -5,8 +5,9 @@ import { ReportCard, StatTile } from '../../components/report-card';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useRelativeTime } from '../../hooks/use-relative-time';
+import { useTranslation } from '../../i18n';
 import {
-    AGENT_THROUGHPUT_METHOD_NOTE,
+    agentThroughputMethodNote,
     describeThroughputAggregate,
     describeThroughputSample,
     formatThroughputDuration,
@@ -15,7 +16,7 @@ import {
     throughputRate,
 } from '../status-bar/agent-throughput-label';
 import type { AgentThroughputViewState } from './agent-throughput-state';
-import { AGENT_THROUGHPUT_STATE_MESSAGES } from './agent-throughput-state';
+import { AGENT_THROUGHPUT_STATE_MESSAGE_KEYS } from './agent-throughput-state';
 
 const CHART_HEIGHT = 128;
 const clockTime = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' });
@@ -37,6 +38,7 @@ function ThroughputChart({
     average: number | undefined;
     samples: AgentThroughput['samples'];
 }) {
+    const { t } = useTranslation();
     const rates = samples.map((sample) => throughputRate(sample) ?? 0);
     const max = Math.max(...rates, average ?? 0);
     if (max <= 0) return null;
@@ -53,10 +55,13 @@ function ThroughputChart({
             <div className="relative min-w-0 flex-1" style={{ height: CHART_HEIGHT }}>
                 <ul
                     className="m-0 flex h-full list-none items-end gap-1 border-b border-border p-0"
-                    aria-label={`Output speed of the last ${samples.length} responses`}
+                    aria-label={t('agentStatus.throughput.chartLabel', { count: samples.length })}
                 >
                     {samples.map((sample, index) => {
-                        const description = `${describeThroughputSample(sample)}, finished ${clockTime.format(sample.completedAt)}`;
+                        const description = t('agentStatus.throughput.barDescription', {
+                            sample: describeThroughputSample(sample, t),
+                            time: clockTime.format(sample.completedAt),
+                        });
                         return (
                             <Tooltip
                                 key={`${sample.completedAt}:${sample.outputTokens}:${sample.durationMs}`}
@@ -109,11 +114,12 @@ export function AgentThroughputSection({
     onRetry: () => void;
     state: AgentThroughputViewState;
 }) {
+    const { t } = useTranslation();
     const latest = state.kind === 'measured' ? state.latest : undefined;
     const lastResponseAgo = useRelativeTime(latest?.completedAt);
     if (state.kind !== 'measured')
         return (
-            <ReportCard title="Output speed">
+            <ReportCard title={t('agentStatus.throughput.title')}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <p
                         className={
@@ -122,12 +128,12 @@ export function AgentThroughputSection({
                                 : 'm-0 text-[12px] text-muted'
                         }
                     >
-                        {AGENT_THROUGHPUT_STATE_MESSAGES[state.kind]}
+                        {t(AGENT_THROUGHPUT_STATE_MESSAGE_KEYS[state.kind])}
                     </p>
                     {state.kind === 'error' && (
                         <Button size="sm" variant="secondary" onClick={onRetry}>
                             <RefreshCw aria-hidden="true" size={12} />
-                            Retry
+                            {t('common.retry')}
                         </Button>
                     )}
                 </div>
@@ -139,16 +145,16 @@ export function AgentThroughputSection({
         <>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">
                 <StatTile
-                    label="Recent average"
+                    label={t('agentStatus.throughput.recentAverage')}
                     value={rateValue(recent)}
-                    detail={recentAverageLabel(throughput.recent.responseCount)}
+                    detail={recentAverageLabel(throughput.recent.responseCount, t)}
                 />
                 <StatTile
-                    label="Last response"
+                    label={t('agentStatus.throughput.lastResponse')}
                     value={rateValue(throughputRate(state.latest))}
                     detail={
                         <>
-                            {describeThroughputSample(state.latest)}
+                            {describeThroughputSample(state.latest, t)}
                             {lastResponseAgo && (
                                 <span className="whitespace-nowrap">, {lastResponseAgo}</span>
                             )}
@@ -156,38 +162,40 @@ export function AgentThroughputSection({
                     }
                 />
                 <StatTile
-                    label="This turn"
+                    label={t('agentStatus.throughput.thisTurn')}
                     value={rateValue(throughputRate(throughput.turn))}
                     detail={
                         throughput.turn.responseCount > 0
-                            ? describeThroughputAggregate(throughput.turn)
-                            : 'No response yet in this turn'
+                            ? describeThroughputAggregate(throughput.turn, t)
+                            : t('agentStatus.throughput.noResponseThisTurn')
                     }
                 />
                 <StatTile
-                    label="First token"
+                    label={t('agentStatus.throughput.firstToken')}
                     value={
                         throughput.turnTimeToFirstTokenMs === undefined
                             ? undefined
                             : formatThroughputDuration(throughput.turnTimeToFirstTokenMs)
                     }
-                    detail={
+                    detail={t(
                         throughput.turnTimeToFirstTokenMs === undefined
-                            ? 'Not reported for the last finished turn'
-                            : 'In the last finished turn'
-                    }
+                            ? 'agentStatus.throughput.firstTokenNotReported'
+                            : 'agentStatus.throughput.firstTokenLastTurn',
+                    )}
                 />
                 <StatTile
-                    label="Agent Session"
+                    label={t('agentStatus.throughput.agentSession')}
                     value={rateValue(throughputRate(throughput.session))}
-                    detail={describeThroughputAggregate(throughput.session)}
+                    detail={describeThroughputAggregate(throughput.session, t)}
                 />
             </div>
             <ReportCard
-                title="Output speed"
+                title={t('agentStatus.throughput.title')}
                 caption={
                     throughput.samples.length > 1
-                        ? `Last ${throughput.samples.length} responses, oldest first; the dashed line is the recent average`
+                        ? t('agentStatus.throughput.chartCaption', {
+                              count: throughput.samples.length,
+                          })
                         : undefined
                 }
             >
@@ -195,11 +203,11 @@ export function AgentThroughputSection({
                     <ThroughputChart average={recent} samples={throughput.samples} />
                 ) : (
                     <p className="m-0 text-[12px] text-muted">
-                        The chart appears after a second measured response.
+                        {t('agentStatus.throughput.chartPending')}
                     </p>
                 )}
                 <p className="mt-3 mb-0 text-[11px] leading-snug text-muted">
-                    {AGENT_THROUGHPUT_METHOD_NOTE}
+                    {agentThroughputMethodNote(t)}
                 </p>
             </ReportCard>
         </>

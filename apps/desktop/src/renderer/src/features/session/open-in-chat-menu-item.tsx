@@ -2,6 +2,7 @@ import type { TerminalSurface } from '@caxri/protocol';
 
 import { MenuCheckboxItem } from '../../components/ui/menu';
 import { Switch } from '../../components/ui/switch';
+import { translate, useTranslation } from '../../i18n';
 import { useSettings } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { applyFormEdit } from '../settings/config-edit';
@@ -10,10 +11,9 @@ import { agentChoiceMarker } from '../terminal/new-terminal-agent';
 
 /**
  * The toggle writes the persistent `session.openAgentsInChat` setting, not a choice for the next pick, so its label
- * says so with "Always": sitting in a menu of one-off choices, the Settings title alone read like an action for the
- * Agent about to be picked.
+ * (`session.openInChat.label`) says so with "Always": sitting in a menu of one-off choices, the Settings title alone
+ * read like an action for the Agent about to be picked.
  */
-const LABEL = 'Always Open Agents in Chat';
 
 /**
  * Writes `session.openAgentsInChat` through `settings.jsonc`, the same path the Settings page uses, so the menus and
@@ -21,7 +21,7 @@ const LABEL = 'Always Open Agents in Chat';
  */
 function setOpenAgentsInChat(isOn: boolean): void {
     // eslint-disable-next-line no-void -- tryCommand reports a failed write through the toast
-    void tryCommand('Unable to change how Agents open', async () => {
+    void tryCommand(translate('session.openInChat.failed'), async () => {
         const { source } = await getSettings();
         await updateSettings({
             source: applyFormEdit(source, ['session.openAgentsInChat'], isOn),
@@ -39,9 +39,10 @@ function useIsOpenInChatOn(): boolean {
  */
 export function OpenInChatMenuItem() {
     const isOn = useIsOpenInChatOn();
+    const { t } = useTranslation();
     return (
         <MenuCheckboxItem checked={isOn} onCheckedChange={setOpenAgentsInChat}>
-            <span className="flex-1 truncate">{LABEL}</span>
+            <span className="flex-1 truncate">{t('session.openInChat.label')}</span>
         </MenuCheckboxItem>
     );
 }
@@ -52,9 +53,10 @@ export function OpenInChatMenuItem() {
  */
 export function OpenInChatSwitch() {
     const isOn = useIsOpenInChatOn();
+    const { t } = useTranslation();
     return (
         <label className="flex cursor-pointer items-center justify-between gap-2 px-1 text-[12px] text-muted">
-            {LABEL}
+            {t('session.openInChat.label')}
             <Switch checked={isOn} onCheckedChange={setOpenAgentsInChat} />
         </label>
     );
@@ -71,6 +73,7 @@ export function AgentChoiceMarker({
     isDefault: boolean;
     surface: TerminalSurface;
 }) {
-    const marker = agentChoiceMarker({ isDefault, surface });
+    const { t } = useTranslation();
+    const marker = agentChoiceMarker({ isDefault, surface }, t);
     return marker ? <span className="text-muted">{marker}</span> : null;
 }

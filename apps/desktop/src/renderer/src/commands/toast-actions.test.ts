@@ -47,7 +47,11 @@ vi.mock('../stores/workbench-root-notice', () => ({
     undoFollowedWorkbenchRoot: mocks.undoFollowedWorkbenchRoot,
 }));
 
-import { configureToastActions, runToastAction, toastActionLabels } from '../stores/toast-actions';
+import {
+    configureToastActions,
+    runToastAction,
+    toastActionLabelKeys,
+} from '../stores/toast-actions';
 import { toastActionHandlers } from './toast-actions';
 
 const SESSION = { id: 'session-1', workbenchProjectId: 'project-followed' };
@@ -203,7 +207,7 @@ describe('toast action handlers', () => {
 
     it('declares a handler for every follow-up the catalog names', () => {
         expect(new Set(Object.keys(toastActionHandlers))).toEqual(
-            new Set(Object.keys(toastActionLabels)),
+            new Set(Object.keys(toastActionLabelKeys)),
         );
     });
 });

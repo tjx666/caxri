@@ -13,6 +13,7 @@ import {
     DialogTitle,
 } from '../../components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
+import { useTranslation } from '../../i18n';
 import { ScreenshotAnnotationCanvas } from './screenshot-annotation-canvas';
 import { ScreenshotAnnotationList } from './screenshot-annotation-list';
 import type { ScreenshotAnnotation, ScreenshotAnnotationKind } from './screenshot-annotations';
@@ -40,6 +41,7 @@ function ScreenshotAnnotatorContent({
     source,
     width,
 }: Omit<ScreenshotAnnotatorDialogProperties, 'open'>) {
+    const { t } = useTranslation();
     const annotator = useScreenshotAnnotator(annotations);
     const [busy, setBusy] = useState(false);
     const [renderError, setRenderError] = useState<string>();
@@ -50,7 +52,7 @@ function ScreenshotAnnotatorContent({
             onDone(annotator.annotations, await annotator.rasterize(source));
         } catch (error) {
             // Staying open with the marks intact beats silently handing back an unannotated image.
-            setRenderError(errorMessage(error, 'Unable to render the annotated screenshot.'));
+            setRenderError(errorMessage(error, t('bugReport.annotator.renderFailed')));
         } finally {
             setBusy(false);
         }
@@ -59,15 +61,13 @@ function ScreenshotAnnotatorContent({
     return (
         <DialogContent className="w-[min(1400px,calc(100vw-32px))]" data-bug-report-annotator>
             <DialogHeader>
-                <DialogTitle>Annotate Screenshot</DialogTitle>
-                <DialogDescription>
-                    Mark the areas that are wrong and write one note per mark.
-                </DialogDescription>
+                <DialogTitle>{t('bugReport.annotator.title')}</DialogTitle>
+                <DialogDescription>{t('bugReport.annotator.description')}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 p-4">
                 <div className="flex items-center gap-3">
                     <ToggleGroup
-                        aria-label="Annotation tool"
+                        aria-label={t('bugReport.annotator.tool')}
                         value={[annotator.tool]}
                         onValueChange={(next: ScreenshotAnnotationKind[]) => {
                             // Base UI reports re-activating the pressed segment as an empty selection; a drawing tool
@@ -77,17 +77,17 @@ function ScreenshotAnnotatorContent({
                     >
                         <ToggleGroupItem id="bug-report-tool-box" size="dense" value="box">
                             <Square aria-hidden="true" size={13} />
-                            Box
+                            {t('bugReport.annotator.box')}
                         </ToggleGroupItem>
                         <ToggleGroupItem id="bug-report-tool-arrow" size="dense" value="arrow">
                             <MoveUpRight aria-hidden="true" size={13} />
-                            Arrow
+                            {t('bugReport.annotator.arrow')}
                         </ToggleGroupItem>
                     </ToggleGroup>
                     <p className="m-0 text-[11px] text-muted">
                         {annotator.isAtLimit
-                            ? `Up to ${MAX_ANNOTATIONS} annotations`
-                            : 'Drag on the screenshot to mark an area, or press Enter on it'}
+                            ? t('bugReport.annotator.limit', { max: MAX_ANNOTATIONS })
+                            : t('bugReport.annotator.hint')}
                     </p>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -124,7 +124,7 @@ function ScreenshotAnnotatorContent({
                 )}
                 <div className="flex justify-end gap-2">
                     <Button variant="secondary" onClick={onCancel}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
                     <Button
                         disabled={busy}
@@ -134,7 +134,7 @@ function ScreenshotAnnotatorContent({
                             void finish();
                         }}
                     >
-                        {busy ? 'Rendering…' : 'Done'}
+                        {t(busy ? 'bugReport.annotator.rendering' : 'common.done')}
                     </Button>
                 </div>
             </div>

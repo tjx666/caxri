@@ -1,3 +1,5 @@
+import type { Translate } from '../i18n';
+import { translate } from '../i18n';
 import { createStore } from '../lib/store';
 
 /**
@@ -9,11 +11,11 @@ import { createStore } from '../lib/store';
  */
 export interface ConfirmRequest {
     /**
-     * Dismissal label; defaults to {@link DEFAULT_CANCEL_LABEL}.
+     * Dismissal label; defaults to the shared "Cancel".
      */
     cancelLabel?: string;
     /**
-     * Confirming action label, phrased as the action itself ("Turn On"); defaults to {@link DEFAULT_CONFIRM_LABEL}.
+     * Confirming action label, phrased as the action itself ("Turn On"); defaults to the shared "OK".
      */
     confirmLabel?: string;
     /**
@@ -25,9 +27,6 @@ export interface ConfirmRequest {
      */
     title: string;
 }
-
-const DEFAULT_CANCEL_LABEL = 'Cancel';
-const DEFAULT_CONFIRM_LABEL = 'OK';
 
 interface ConfirmationState {
     request?: ConfirmRequest;
@@ -69,9 +68,12 @@ export function resolveConfirm(isConfirmed: boolean): void {
  * Resolves the button labels a request left unset, so the dialog component stays render-only and the defaults are
  * covered by a unit test instead of living inside JSX.
  */
-export function confirmationLabels(request: ConfirmRequest): { cancel: string; confirm: string } {
+export function confirmationLabels(
+    request: ConfirmRequest,
+    t: Translate = translate,
+): { cancel: string; confirm: string } {
     return {
-        cancel: request.cancelLabel ?? DEFAULT_CANCEL_LABEL,
-        confirm: request.confirmLabel ?? DEFAULT_CONFIRM_LABEL,
+        cancel: request.cancelLabel ?? t('common.cancel'),
+        confirm: request.confirmLabel ?? t('common.ok'),
     };
 }

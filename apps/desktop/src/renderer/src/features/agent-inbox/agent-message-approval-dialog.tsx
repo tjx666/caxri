@@ -10,6 +10,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
+import { translate, useTranslation } from '../../i18n';
 import { describeFailure, pushToast } from '../../stores/toasts';
 import { AgentMessageApprovalActions } from './agent-message-approval-actions';
 import { AgentMessageApprovalBody } from './agent-message-approval-body';
@@ -55,6 +56,7 @@ function approvalConfirmButton(popup: HTMLElement | null): HTMLButtonElement | n
  * be replaced by the next request mid-decision.
  */
 export function AgentMessageApprovalDialog() {
+    const { t } = useTranslation();
     const queue = useHeldMessageQueueStore((state) => state.queue);
     const [detail, setDetail] = useState<AgentHeldMessageDetail>();
     const [detailFailed, setDetailFailed] = useState(false);
@@ -90,7 +92,7 @@ export function AgentMessageApprovalDialog() {
                 setDetailFailed(true);
                 pushToast(
                     'error',
-                    describeFailure(error, 'Unable to load the complete peer message'),
+                    describeFailure(error, translate('agentInbox.dialog.loadBodyFailed')),
                 );
             },
             onStale: () =>
@@ -189,7 +191,17 @@ export function AgentMessageApprovalDialog() {
                 settleHeldMessage(existing, current.messageId, 'confirmed'),
             );
         } catch (error) {
-            pushToast('error', describeFailure(error, `Unable to ${action} peer message`));
+            pushToast(
+                'error',
+                describeFailure(
+                    error,
+                    t(
+                        action === 'approve'
+                            ? 'agentInbox.dialog.approveFailed'
+                            : 'agentInbox.dialog.denyFailed',
+                    ),
+                ),
+            );
             updateHeldMessageQueue((existing) =>
                 settleHeldMessage(
                     existing,
@@ -218,7 +230,9 @@ export function AgentMessageApprovalDialog() {
                         ref={contentReference}
                         // Closing this dialog sets the request aside; it does not refuse it. The X's glyph cannot carry
                         // that distinction, so its accessible name has to.
-                        closeLabel={isExpired ? 'Dismiss' : 'Decide later'}
+                        closeLabel={t(
+                            isExpired ? 'common.dismiss' : 'agentInbox.actions.decideLater',
+                        )}
                         data-testid="agent-message-approval-dialog"
                         initialFocus={() => {
                             const confirm = approvalConfirmButton(contentReference.current);
@@ -232,22 +246,23 @@ export function AgentMessageApprovalDialog() {
                     >
                         <DialogHeader>
                             <DialogTitle>
-                                {isExpired ? 'Peer message expired' : 'Peer message approval'}
+                                {t(
+                                    isExpired
+                                        ? 'agentInbox.dialog.titleExpired'
+                                        : 'agentInbox.dialog.title',
+                                )}
                             </DialogTitle>
                             {/* Expired, there is no approving left to explain; the notice below says what happened instead. */}
                             {!isExpired && (
                                 <DialogDescription>
-                                    This is inert Agent-to-Agent text. Approving delivers only this
-                                    message and does not grant permissions, change settings, or
-                                    execute a command.
+                                    {t('agentInbox.dialog.description')}
                                 </DialogDescription>
                             )}
                         </DialogHeader>
                         <div className="space-y-3 p-4">
                             {isExpired && (
                                 <Alert variant="warning" data-testid="agent-message-expired">
-                                    This request expired before it was answered. It can no longer be
-                                    approved or denied, and the message was not delivered.
+                                    {t('agentInbox.dialog.expiredNotice')}
                                 </Alert>
                             )}
                             <AgentMessageApprovalSummary message={current} isExpired={isExpired} />

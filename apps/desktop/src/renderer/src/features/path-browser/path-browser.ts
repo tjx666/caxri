@@ -1,3 +1,5 @@
+import type { TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import { isDirectoryEntry } from '../../lib/file-entry';
 import { isPathAtOrBelow } from '../../lib/file-path';
 
@@ -17,14 +19,25 @@ export interface ParsedPathBrowserInput {
 }
 
 /**
+ * A typed input the browser refuses before asking Main. Carries its translation key so the dialog can render the
+ * message in the active language; `message` is a snapshot for callers that only read it as an `Error`.
+ */
+export class PathBrowserInputError extends Error {
+    constructor(readonly messageKey: TranslationKey) {
+        super(translate(messageKey));
+        this.name = 'PathBrowserInputError';
+    }
+}
+
+/**
  * Splits the user's POSIX-style path into a directory request and its final filter segment without resolving either in
  * the sandboxed Renderer. Electron Main repeats validation and owns canonical filesystem resolution.
  */
 export function parsePathBrowserInput(value: string): ParsedPathBrowserInput {
     if (/^\$(?:HOME|\{HOME\})(?:\/|$)/u.test(value))
-        throw new Error('Shell path expansion is not supported');
+        throw new PathBrowserInputError('pathBrowser.errors.shellExpansion');
     if (value !== '~' && value.startsWith('~') && !value.startsWith('~/'))
-        throw new Error('Only current-user ~/ paths are supported');
+        throw new PathBrowserInputError('pathBrowser.errors.otherUserHome');
 
     const hasTrailingSlash = value.endsWith('/');
     let kind: ParsedPathBrowserInput['kind'];

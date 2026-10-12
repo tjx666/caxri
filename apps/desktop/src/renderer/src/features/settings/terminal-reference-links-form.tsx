@@ -12,6 +12,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 
 interface TerminalReferenceLinksFormProperties {
     rules: TerminalReferenceLinkRule[];
@@ -42,6 +43,7 @@ export function TerminalReferenceLinksForm({
     rules,
     onChange,
 }: TerminalReferenceLinksFormProperties) {
+    const { t } = useTranslation();
     const [draft, setDraft] = useState<ReferenceRuleDraft>(emptyDraft);
     const [editingIndex, setEditingIndex] = useState<number>();
     const [error, setError] = useState<string>();
@@ -61,7 +63,9 @@ export function TerminalReferenceLinksForm({
             url: draft.url.trim(),
         });
         if (!parsed.success) {
-            setError(parsed.error.issues[0]?.message ?? 'Enter a valid reference rule.');
+            setError(
+                parsed.error.issues[0]?.message ?? t('settings.referenceLinksForm.invalidRule'),
+            );
             return;
         }
         const next = [...rules];
@@ -69,7 +73,9 @@ export function TerminalReferenceLinksForm({
         else next[editingIndex] = parsed.data;
         const validated = terminalReferenceLinksSchema.safeParse(next);
         if (!validated.success) {
-            setError(validated.error.issues[0]?.message ?? 'Reference rules overlap.');
+            setError(
+                validated.error.issues[0]?.message ?? t('settings.referenceLinksForm.overlap'),
+            );
             return;
         }
         onChange(validated.data);
@@ -91,13 +97,17 @@ export function TerminalReferenceLinksForm({
     };
 
     return (
-        <section aria-label="Terminal Reference Links editor">
+        <section aria-label={t('settings.referenceLinksForm.ariaLabel')}>
             <p className="m-0 text-[11px] text-muted">
-                Match a fixed prefix and substitute its identifier into <code>&lt;num&gt;</code> in
-                an HTTP(S) URL. Rules can open links only; they never run commands.
+                {t('settings.referenceLinksForm.descriptionBeforeToken')}
+                <code>&lt;num&gt;</code>
+                {t('settings.referenceLinksForm.descriptionAfterToken')}
             </p>
             {rules.length > 0 ? (
-                <ul className="mt-3 space-y-1" aria-label="Terminal reference link rules">
+                <ul
+                    className="mt-3 space-y-1"
+                    aria-label={t('settings.referenceLinksForm.listLabel')}
+                >
                     {rules.map((rule, index) => (
                         <li
                             className="flex min-w-0 items-center gap-2 rounded border border-border bg-elevated px-2 py-1.5 text-[11px]"
@@ -105,11 +115,18 @@ export function TerminalReferenceLinksForm({
                         >
                             <code className="shrink-0 text-foreground">{rule.prefix}</code>
                             <span className="min-w-0 flex-1 truncate text-muted">
-                                {rule.title ?? 'External reference'} · {rule.url}
+                                {rule.title ?? t('settings.referenceLinksForm.externalReference')} ·{' '}
+                                {rule.url}
                             </span>
-                            <Tooltip content={`Edit ${rule.prefix} reference`}>
+                            <Tooltip
+                                content={t('settings.referenceLinksForm.edit', {
+                                    prefix: rule.prefix,
+                                })}
+                            >
                                 <Button
-                                    aria-label={`Edit ${rule.prefix} reference`}
+                                    aria-label={t('settings.referenceLinksForm.edit', {
+                                        prefix: rule.prefix,
+                                    })}
                                     className="size-6 min-h-0 p-0"
                                     size="icon"
                                     variant="ghost"
@@ -118,9 +135,15 @@ export function TerminalReferenceLinksForm({
                                     <Pencil size={12} />
                                 </Button>
                             </Tooltip>
-                            <Tooltip content={`Delete ${rule.prefix} reference`}>
+                            <Tooltip
+                                content={t('settings.referenceLinksForm.delete', {
+                                    prefix: rule.prefix,
+                                })}
+                            >
                                 <Button
-                                    aria-label={`Delete ${rule.prefix} reference`}
+                                    aria-label={t('settings.referenceLinksForm.delete', {
+                                        prefix: rule.prefix,
+                                    })}
                                     className="size-6 min-h-0 p-0 text-muted hover:text-danger"
                                     size="icon"
                                     variant="ghost"
@@ -134,14 +157,14 @@ export function TerminalReferenceLinksForm({
                 </ul>
             ) : (
                 <p className="mt-3 text-[11px] text-muted">
-                    No user-defined Terminal reference links.
+                    {t('settings.referenceLinksForm.empty')}
                 </p>
             )}
             <div className="mt-3 grid grid-cols-[minmax(8rem,0.8fr)_minmax(8rem,0.8fr)_minmax(14rem,2fr)] gap-2">
                 <Input
-                    aria-label="Reference title"
+                    aria-label={t('settings.referenceLinksForm.titleLabel')}
                     className="bg-elevated"
-                    placeholder="Linear issue"
+                    placeholder={t('settings.referenceLinksForm.titlePlaceholder')}
                     value={draft.title}
                     onChange={(event) => {
                         setDraft((current) => ({ ...current, title: event.target.value }));
@@ -149,7 +172,7 @@ export function TerminalReferenceLinksForm({
                     }}
                 />
                 <Input
-                    aria-label="Reference prefix"
+                    aria-label={t('settings.referenceLinksForm.prefixLabel')}
                     className="bg-elevated font-mono"
                     placeholder="TASK-"
                     value={draft.prefix}
@@ -159,7 +182,7 @@ export function TerminalReferenceLinksForm({
                     }}
                 />
                 <Input
-                    aria-label="Reference URL template"
+                    aria-label={t('settings.referenceLinksForm.urlLabel')}
                     className="bg-elevated font-mono"
                     placeholder="https://linear.app/workspace/issue/<num>"
                     value={draft.url}
@@ -183,7 +206,7 @@ export function TerminalReferenceLinksForm({
                             setDraft((current) => ({ ...current, alphanumeric: checked }))
                         }
                     />
-                    Allow letters in identifier
+                    {t('settings.referenceLinksForm.allowLetters')}
                 </label>
                 <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted">
                     <Switch
@@ -193,12 +216,12 @@ export function TerminalReferenceLinksForm({
                             setDraft((current) => ({ ...current, ignoreCase: checked }))
                         }
                     />
-                    Ignore prefix case
+                    {t('settings.referenceLinksForm.ignoreCase')}
                 </label>
                 <span className="ml-auto flex gap-2">
                     {editingIndex !== undefined && (
                         <Button size="sm" variant="ghost" onClick={resetDraft}>
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                     )}
                     <Button
@@ -212,7 +235,7 @@ export function TerminalReferenceLinksForm({
                         variant="secondary"
                         onClick={save}
                     >
-                        {editingIndex === undefined ? 'Add' : 'Save'}
+                        {t(editingIndex === undefined ? 'common.add' : 'common.save')}
                     </Button>
                 </span>
             </div>

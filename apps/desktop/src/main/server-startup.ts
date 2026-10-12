@@ -2,6 +2,7 @@ import { CAXRI_PROTOCOL_VERSION, errorMessage, isCaxriError } from '@caxri/proto
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import { translateMain } from './locale';
 import type { DesktopServerConnection } from './server-connection';
 
 interface ServerStartupDialog {
@@ -26,12 +27,10 @@ function isIncompatibleServer(error: unknown): boolean {
 
 function incompatibleServerFailureMessage(): { content: string; title: string } {
     return {
-        title: 'Caxri requires a local reset',
+        title: translateMain('desktop.reset.title'),
         content:
-            'This pre-release build does not migrate unpublished Host protocols. Quit Caxri, preview the reset plan, then apply it:\n\n' +
-            'bun run uninstall:caxri\n' +
-            'bun run uninstall:caxri -- --yes\n\n' +
-            'The reset removes Caxri application state and running Terminals, but never Project folders or user files.',
+            `${translateMain('desktop.reset.intro')}\n\n` +
+            `bun run uninstall:caxri\nbun run uninstall:caxri -- --yes\n\n${translateMain('desktop.reset.outro')}`,
     };
 }
 

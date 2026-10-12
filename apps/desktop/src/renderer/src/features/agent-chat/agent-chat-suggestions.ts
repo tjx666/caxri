@@ -1,5 +1,6 @@
 import type { AgentAction } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import type { SuggestionOption } from '../../lib/suggestion-options';
 import type { SessionReferenceCandidate } from '../session/session-reference';
 
@@ -52,24 +53,26 @@ export function agentChatSuggestionFooter(
     list: 'commands' | 'sessions',
     hasMatches: boolean,
 ): string {
-    if (!hasMatches) return 'Esc to dismiss';
-    return list === 'commands'
-        ? '↑↓ to move · Tab to complete · Enter to run · Esc to dismiss'
-        : '↑↓ to move · Enter to cite · Esc to dismiss';
+    if (!hasMatches) return translate('agentChat.slash.footerDismiss');
+    return translate(
+        list === 'commands' ? 'agentChat.slash.footerCommands' : 'agentChat.slash.footerSessions',
+    );
 }
 
 /**
  * The `@` list's row while nothing matches: a query that matches no title, or no other Session to cite at all.
  */
 export function agentChatSessionEmptyText(query: string): string {
-    return query.trim() ? 'No Sessions match' : 'No other Sessions to cite';
+    return translate(
+        query.trim() ? 'agentChat.slash.noSessionMatches' : 'agentChat.slash.noSessionsToCite',
+    );
 }
 
 /**
  * The `@` list's progress row while the chosen Session is condensed into a reference file.
  */
 export function agentChatSessionPreparingText(title: string): string {
-    return `Preparing “${title}”…`;
+    return translate('agentChat.slash.preparingSession', { title });
 }
 
 /**

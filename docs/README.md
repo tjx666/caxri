@@ -37,6 +37,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [grok-build.md](grok-build.md)                                     | Grok Build terminal integration                                |
 | [hook-installation-authority.md](hook-installation-authority.md)   | Provider hook installation authority                           |
 | [hook-turn-recovery.md](hook-turn-recovery.md)                     | Lifecycle hook turn recovery                                   |
+| [i18n.md](i18n.md)                                                 | Interface languages, translation resources, and terminology    |
 | [keybindings.md](keybindings.md)                                   | Keybinding format and chord sequences                          |
 | [low-cost-generation.md](low-cost-generation.md)                   | Automatic Session-naming sandbox                               |
 | [notifications.md](notifications.md)                               | Notification center history and reminders                      |

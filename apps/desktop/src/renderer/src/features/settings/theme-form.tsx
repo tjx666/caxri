@@ -15,6 +15,7 @@ import {
     SelectValue,
 } from '../../components/ui/select';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { SHORT_CONTROL_WIDTH_CLASS_NAME } from './setting-row-layout';
 import type { ThemeImportResult } from './theme-import-error';
 import {
@@ -47,6 +48,7 @@ export function ThemeForm({
     onImport,
     onSelectBuiltin,
 }: ThemeFormProperties) {
+    const { t } = useTranslation();
     const selectedTheme = findMatchingBuiltinTheme(theme);
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -67,14 +69,16 @@ export function ThemeForm({
                         <span>
                             {importResult.kind === 'failed'
                                 ? importResult.message
-                                : `Imported ${importResult.themeName}.`}
+                                : t('settings.themeEditor.importSucceeded', {
+                                      theme: importResult.themeName,
+                                  })}
                         </span>
-                        <Tooltip content="Dismiss">
+                        <Tooltip content={t('common.dismiss')}>
                             <Button
                                 size="icon"
                                 variant="ghost"
                                 className="size-6 shrink-0"
-                                aria-label="Dismiss theme import result"
+                                aria-label={t('settings.themeEditor.dismissImportResult')}
                                 onClick={onDismissImportResult}
                             >
                                 <X aria-hidden="true" size={12} />
@@ -88,7 +92,9 @@ export function ThemeForm({
                     decision instead of two unrelated controls competing for the same space above the swatch grid. */}
                 <Field orientation="horizontal" className="mb-3">
                     <span className="flex min-w-0 items-center gap-3">
-                        <FieldLabel htmlFor="theme-preset">Theme preset</FieldLabel>
+                        <FieldLabel htmlFor="theme-preset">
+                            {t('settings.themeEditor.preset')}
+                        </FieldLabel>
                         <Select
                             value={selectedTheme?.id ?? null}
                             onValueChange={(value) => {
@@ -97,13 +103,15 @@ export function ThemeForm({
                         >
                             <SelectTrigger
                                 id="theme-preset"
-                                aria-label="Theme preset"
+                                aria-label={t('settings.themeEditor.preset')}
                                 className={`${SHORT_CONTROL_WIDTH_CLASS_NAME} flex-none bg-background`}
                             >
                                 <SelectValue>
                                     {selectedTheme?.name ??
                                         (theme.source === 'custom'
-                                            ? `Custom — ${theme.name}`
+                                            ? t('settings.themeEditor.customPreset', {
+                                                  theme: theme.name,
+                                              })
                                             : theme.name)}
                                 </SelectValue>
                             </SelectTrigger>
@@ -117,14 +125,14 @@ export function ThemeForm({
                         </Select>
                     </span>
                     <Button size="sm" variant="secondary" onClick={onImport}>
-                        <Import size={13} /> Import Theme
+                        <Import size={13} /> {t('settings.themeEditor.importTheme')}
                     </Button>
                 </Field>
                 <ThemePreview theme={theme} />
                 {(['colors', 'terminal', 'editor'] as const).map((section) => (
                     <fieldset key={section} className="my-3 min-w-0 border-0 p-0">
                         <legend className="mb-2 text-[11px] font-semibold text-foreground uppercase">
-                            {section[0].toUpperCase() + section.slice(1)}
+                            {t(`settings.themeEditor.section.${section}`)}
                         </legend>
                         {/* A vertical row per token (issue caxri#1289) put ~30 swatches in one tall column with
                             most of each row's width empty. A grid tiles the same swatch-plus-label cells across the
@@ -137,7 +145,12 @@ export function ThemeForm({
                                 >
                                     <input
                                         id={`theme-${section}-${key}`}
-                                        aria-label={`${section} ${humanizeThemeTokenLabel(key)} color`}
+                                        aria-label={t(
+                                            `settings.themeEditor.colorLabel.${section}`,
+                                            {
+                                                token: humanizeThemeTokenLabel(t, key),
+                                            },
+                                        )}
                                         title={key}
                                         type="color"
                                         className="size-6 shrink-0 rounded border border-border bg-transparent p-0"
@@ -152,7 +165,7 @@ export function ThemeForm({
                                             title={key}
                                             className="block truncate text-[11px] text-foreground"
                                         >
-                                            {humanizeThemeTokenLabel(key)}
+                                            {humanizeThemeTokenLabel(t, key)}
                                         </label>
                                         <code className="block truncate text-[10px] text-muted">
                                             {value}
@@ -175,6 +188,7 @@ function ThemeImportWarnings({
     themeId: string;
     warnings: readonly ThemeImportWarning[];
 }) {
+    const { t } = useTranslation();
     const generation = themeImportWarningDismissGeneration(themeId);
     const [dismissedState, setDismissedState] = useState(() => ({
         generation,
@@ -195,12 +209,12 @@ function ThemeImportWarnings({
                         className="mb-3 flex items-start justify-between gap-2 text-[11px]"
                     >
                         <span>{warning.message}</span>
-                        <Tooltip content="Dismiss warning">
+                        <Tooltip content={t('settings.themeEditor.dismissWarning')}>
                             <Button
                                 size="icon"
                                 variant="ghost"
                                 className="size-6 shrink-0"
-                                aria-label="Dismiss warning"
+                                aria-label={t('settings.themeEditor.dismissWarning')}
                                 onClick={() => {
                                     dismissThemeImportWarning(themeId, warning.id);
                                     setDismissedState({

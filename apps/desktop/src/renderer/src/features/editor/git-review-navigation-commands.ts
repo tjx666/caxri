@@ -1,5 +1,6 @@
 import { gitChangesDiffTabPath, parseGitDiffTab } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getSelectedSession } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -131,12 +132,12 @@ export function goToPreviousReviewComment(): void {
  * the next one.
  */
 export async function showPendingReviewComments(): Promise<void> {
-    const summary = await tryCommand('Could not read pending review comments', () =>
+    const summary = await tryCommand(translate('editor.review.readPendingFailed'), () =>
         caxri.request('gitReview.pending', {}),
     );
     const group = summary?.groups[0];
     if (!group) {
-        if (summary) pushToast('info', 'No pending review comments');
+        if (summary) pushToast('info', translate('editor.review.noPending'));
         return;
     }
     if (getSelectedSession()?.id !== group.sessionId) {

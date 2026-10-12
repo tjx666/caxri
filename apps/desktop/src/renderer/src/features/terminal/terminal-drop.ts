@@ -2,6 +2,7 @@ import type { DragEvent } from 'react';
 
 import type { TerminalRecord } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import {
     hasOsFiles,
     hasTerminalDraggedPath,
@@ -47,11 +48,7 @@ export function didPasteDropIntoTerminal(
      * A file promise, such as a Photos item, reaches the page as a `File` with no path on disk, so there is nothing to
      * insert. Say so rather than accept the drop and do nothing.
      */
-    if (hasOsFiles(dataTransfer))
-        pushToast(
-            'warning',
-            'This file has no path on disk to insert. Save it, then drop the saved file.',
-        );
+    if (hasOsFiles(dataTransfer)) pushToast('warning', translate('terminal.drop.noPath'));
     return false;
 }
 

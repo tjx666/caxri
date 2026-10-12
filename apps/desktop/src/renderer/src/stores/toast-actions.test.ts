@@ -4,11 +4,11 @@ import type { ToastActionHandlers, ToastActionId } from './toast-actions';
 import {
     configureToastActions,
     runToastAction,
-    toastActionLabels,
-    UNKNOWN_TOAST_ACTION_REASON,
+    toastActionLabelKeys,
+    unknownToastActionReason,
 } from './toast-actions';
 
-const ACTION_IDS = Object.keys(toastActionLabels) as ToastActionId[];
+const ACTION_IDS = Object.keys(toastActionLabelKeys) as ToastActionId[];
 
 /**
  * Every follow-up wired to a spy that records nothing but the call, so a test can install the whole table and then
@@ -32,7 +32,7 @@ describe('toast action registry', () => {
     it('names every follow-up it can carry', () => {
         // The catalog is what the notification center renders from: an id with no label would put a nameless button in
         // the history days after the toast that offered it expired.
-        for (const id of ACTION_IDS) expect(toastActionLabels[id]).toBeTruthy();
+        for (const id of ACTION_IDS) expect(toastActionLabelKeys[id]).toBeTruthy();
         expect(ACTION_IDS.length).toBeGreaterThan(0);
     });
 
@@ -41,7 +41,7 @@ describe('toast action registry', () => {
 
         // A notification can be raised while the module graph that owns the behavior is still evaluating. Failing
         // closed here is what keeps a button from looking live and then doing nothing.
-        expect(runToastAction({ id: 'settings.open' })).toBe(UNKNOWN_TOAST_ACTION_REASON);
+        expect(runToastAction({ id: 'settings.open' })).toBe(unknownToastActionReason());
     });
 
     it('runs the installed follow-up with the data the notification recorded', () => {

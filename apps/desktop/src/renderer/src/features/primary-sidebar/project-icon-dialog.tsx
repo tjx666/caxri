@@ -11,6 +11,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { closeProjectIconDialog, useDialogStore } from '../../stores/dialogs';
 import { useProjects } from '../../stores/selectors';
@@ -47,6 +48,7 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
         initialProjectIconDraft,
     );
     const [saving, setSaving] = useState(false);
+    const { t } = useTranslation();
 
     const persist = async (shouldClear: boolean): Promise<void> => {
         if (!shouldClear && !iconName) return;
@@ -72,21 +74,24 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
     return (
         <>
             <DialogHeader>
-                <DialogTitle>Customize Project Icon</DialogTitle>
+                <DialogTitle>{t('primarySidebar.projectIcon.title')}</DialogTitle>
                 <DialogDescription>
-                    Choose a controlled icon and semantic color for {project.displayTitle}. The
-                    Project title and root stay unchanged.
+                    {t('primarySidebar.projectIcon.description', {
+                        title: project.displayTitle,
+                    })}
                 </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 p-4">
                 <fieldset>
-                    <legend className="mb-2 text-[11px] font-semibold">Icon</legend>
+                    <legend className="mb-2 text-[11px] font-semibold">
+                        {t('primarySidebar.projectIcon.iconLegend')}
+                    </legend>
                     <div className="grid grid-cols-4 gap-2">
                         {projectIconNames.map((name) => (
                             <button
                                 key={name}
                                 type="button"
-                                aria-label={projectIconRegistry[name].label}
+                                aria-label={t(projectIconRegistry[name].labelKey)}
                                 aria-pressed={iconName === name}
                                 className={cn(
                                     'grid min-h-14 cursor-pointer place-items-center gap-1 rounded border border-border bg-transparent p-2 text-[10px] text-muted hover:bg-elevated hover:text-foreground focus-visible:border-accent focus-visible:outline-none',
@@ -97,17 +102,19 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                                 <ProjectIcon
                                     icon={{ name, ...(iconColor && { color: iconColor }) }}
                                 />
-                                <span>{projectIconRegistry[name].label}</span>
+                                <span>{t(projectIconRegistry[name].labelKey)}</span>
                             </button>
                         ))}
                     </div>
                 </fieldset>
                 <fieldset>
-                    <legend className="mb-2 text-[11px] font-semibold">Color</legend>
+                    <legend className="mb-2 text-[11px] font-semibold">
+                        {t('primarySidebar.projectIcon.colorLegend')}
+                    </legend>
                     <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
-                            aria-label="Default color"
+                            aria-label={t('primarySidebar.projectIcon.defaultColorAriaLabel')}
                             aria-pressed={iconColor === undefined}
                             className={cn(
                                 'flex h-8 cursor-pointer items-center gap-2 rounded border border-border bg-transparent px-2 text-[10px] hover:bg-elevated focus-visible:border-accent focus-visible:outline-none',
@@ -116,13 +123,15 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                             onClick={() => dispatch({ iconColor: undefined, type: 'select-color' })}
                         >
                             <span className="size-3 rounded-full border border-border bg-foreground" />
-                            Default
+                            {t('primarySidebar.projectIcon.defaultColor')}
                         </button>
                         {projectIconColors.map((color) => (
                             <button
                                 key={color}
                                 type="button"
-                                aria-label={`${projectIconColorPresentation[color].label} color`}
+                                aria-label={t('primarySidebar.projectIcon.colorAriaLabel', {
+                                    color: t(projectIconColorPresentation[color].labelKey),
+                                })}
                                 aria-pressed={iconColor === color}
                                 className={cn(
                                     'flex h-8 cursor-pointer items-center gap-2 rounded border border-border bg-transparent px-2 text-[10px] hover:bg-elevated focus-visible:border-accent focus-visible:outline-none',
@@ -136,7 +145,7 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                                         projectIconColorPresentation[color].swatchClassName,
                                     )}
                                 />
-                                {projectIconColorPresentation[color].label}
+                                {t(projectIconColorPresentation[color].labelKey)}
                             </button>
                         ))}
                     </div>
@@ -148,14 +157,14 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                         variant="ghost"
                         onClick={clearIcon}
                     >
-                        Clear icon
+                        {t('primarySidebar.projectIcon.clear')}
                     </Button>
                     <div className="flex gap-2">
                         <Button disabled={saving} size="sm" variant="secondary" onClick={close}>
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button disabled={saving || !iconName} size="sm" onClick={saveIcon}>
-                            Save
+                            {t('common.save')}
                         </Button>
                     </div>
                 </div>

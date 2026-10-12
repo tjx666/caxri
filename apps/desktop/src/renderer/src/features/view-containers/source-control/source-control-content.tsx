@@ -7,6 +7,7 @@ import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import { Button } from '../../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../../components/ui/empty';
 import { useScrollEdge } from '../../../hooks/use-scroll-edge';
+import { useTranslation } from '../../../i18n';
 import type { SourceControlController } from './hooks/use-source-control-controller';
 import { SourceControlHeader } from './source-control-header';
 import { SourceControlHistory } from './source-control-history';
@@ -52,6 +53,7 @@ function SourceControlMessage({
 }: {
     controller: Exclude<SourceControlController, { status: 'ready' }>;
 }) {
+    const { t } = useTranslation();
     if (controller.status === 'loading')
         return (
             <LoadingSkeleton
@@ -65,18 +67,18 @@ function SourceControlMessage({
             ? {
                   description: controller.noContextMessage,
                   icon: <GitBranch aria-hidden="true" size={28} />,
-                  title: 'No Session selected',
+                  title: t('viewContainers.sourceControl.noSession'),
               }
             : controller.status === 'no-repository'
               ? {
-                    description: 'This Project root is not a repository yet.',
+                    description: t('viewContainers.sourceControl.noRepositoryDescription'),
                     icon: <FolderGit2 aria-hidden="true" size={28} />,
-                    title: 'No Git repository',
+                    title: t('viewContainers.sourceControl.noRepository'),
                 }
               : {
                     description: controller.message,
                     icon: <TriangleAlert aria-hidden="true" className="text-danger" size={28} />,
-                    title: 'Git is not available',
+                    title: t('viewContainers.sourceControl.gitUnavailable'),
                 };
 
     return (
@@ -104,7 +106,7 @@ function SourceControlMessage({
                     disabled={controller.isRefreshing}
                     onClick={controller.refresh}
                 >
-                    Retry
+                    {t('common.retry')}
                 </Button>
             )}
         </Empty>

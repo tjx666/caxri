@@ -15,6 +15,7 @@ import {
 } from '../../components/ui/dialog';
 import { Progress } from '../../components/ui/progress';
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 import { useSettings } from '../../stores/selectors';
 import {
     cancelUpdateDownload,
@@ -40,11 +41,12 @@ function UpdateActions({
     state: UpdateState | undefined;
     isSkipped: boolean;
 }) {
+    const { t } = useTranslation();
     if (!state || state.status === 'checking')
         return (
             <Button disabled>
                 <Spinner aria-hidden="true" className="size-3.5" />
-                Checking…
+                {t('updates.action.checking')}
             </Button>
         );
     if (state.status === 'available')
@@ -56,38 +58,38 @@ function UpdateActions({
                 }}
             >
                 <RefreshCw aria-hidden="true" size={14} />
-                Stop Skipping
+                {t('updates.action.stopSkipping')}
             </Button>
         ) : (
             <Button onClick={downloadUpdate}>
                 <Download aria-hidden="true" size={14} />
-                Download Update
+                {t('updates.action.download')}
             </Button>
         );
     if (state.status === 'downloading')
         return (
             <Button variant="secondary" onClick={cancelUpdateDownload}>
-                Cancel Download
+                {t('updates.action.cancelDownload')}
             </Button>
         );
     if (state.status === 'ready' || (state.status === 'error' && state.action === 'open'))
         return (
             <Button onClick={openDownloadedUpdate}>
                 <FolderOpen aria-hidden="true" size={14} />
-                Open DMG
+                {t('updates.action.openDmg')}
             </Button>
         );
     if (state.status === 'error' && state.action === 'download')
         return (
             <Button onClick={downloadUpdate}>
                 <Download aria-hidden="true" size={14} />
-                Retry Download
+                {t('updates.action.retryDownload')}
             </Button>
         );
     return (
         <Button onClick={checkForUpdates} disabled={!canRetryUpdateCheck(state)}>
             <RefreshCw aria-hidden="true" size={14} />
-            {state.status === 'error' ? 'Retry' : 'Check Again'}
+            {t(state.status === 'error' ? 'common.retry' : 'updates.action.checkAgain')}
         </Button>
     );
 }
@@ -109,12 +111,13 @@ function UpdateStatusIcon({ state }: { state: UpdateState | undefined }) {
 }
 
 export function UpdateDialog() {
+    const { t } = useTranslation();
     const isOpen = useUpdateStore((store) => store.open);
     const state = useUpdateStore((store) => store.state);
     const skippedVersion = useSettings()?.['updates.skippedVersion'];
     const isSkipped =
         state?.status === 'available' && isUpdateVersionSkipped(state.version, skippedVersion);
-    const copy = describeUpdateStatus(state, { skippedVersion });
+    const copy = describeUpdateStatus(state, { skippedVersion, t });
     useEffect(subscribeUpdateState, []);
 
     const progress =
@@ -126,10 +129,8 @@ export function UpdateDialog() {
         <Dialog open={isOpen} onOpenChange={(next) => useUpdateStore.getState().setOpen(next)}>
             <DialogContent data-update-status={state?.status ?? 'loading'}>
                 <DialogHeader>
-                    <DialogTitle>Software Update</DialogTitle>
-                    <DialogDescription>
-                        Caxri downloads updates from its official GitHub Release.
-                    </DialogDescription>
+                    <DialogTitle>{t('updates.dialog.title')}</DialogTitle>
+                    <DialogDescription>{t('updates.dialog.description')}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 p-4">
                     <div className="flex items-start gap-3">
@@ -143,15 +144,13 @@ export function UpdateDialog() {
                     </div>
                     {state?.status === 'downloading' && (
                         <Progress
-                            aria-label="Update download progress"
+                            aria-label={t('updates.dialog.downloadProgress')}
                             value={progress === undefined ? null : Math.round(progress)}
                         />
                     )}
                     {shouldExplainUnsignedInstall(state) && (
                         <Alert variant="info" className="bg-background p-3 leading-[1.5]">
-                            Caxri is currently unsigned. After opening the verified DMG, drag Caxri
-                            to Applications and approve replacing the existing app. Running
-                            Terminals are not interrupted by the download.
+                            {t('updates.dialog.unsignedNotice')}
                         </Alert>
                     )}
                     <div className="flex justify-end gap-2">
@@ -162,7 +161,7 @@ export function UpdateDialog() {
                          * reflexive Escape as a skip would bury the update for someone who never decided anything.
                          */}
                         <Button variant="secondary" onClick={closeUpdateDialog}>
-                            Close
+                            {t('common.close')}
                         </Button>
                         {state?.status === 'available' && !isSkipped && (
                             <Button
@@ -172,7 +171,7 @@ export function UpdateDialog() {
                                     void skipUpdateVersion(state.version);
                                 }}
                             >
-                                Skip This Version
+                                {t('updates.dialog.skipVersion')}
                             </Button>
                         )}
                         <UpdateActions state={state} isSkipped={isSkipped} />

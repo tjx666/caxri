@@ -1,5 +1,6 @@
 import type { TerminalRecord } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import type { ContextMenuEntry } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { restartTerminal } from './terminal-commands';
@@ -20,13 +21,11 @@ function restartAgentBlockedReason(
     missingConversationReason: string | undefined,
 ): string | undefined {
     if (!terminal?.provider)
-        return missingConversationReason ?? 'This Session has no Agent Terminal';
-    if (terminal.lastProcessState === 'detached') return 'Resume the detached Agent first';
+        return missingConversationReason ?? translate('terminal.restartAgent.noAgent');
+    if (terminal.lastProcessState === 'detached')
+        return translate('terminal.restartAgent.detached');
     if (!terminal.agentSessionId)
-        return (
-            missingConversationReason ??
-            'Send a message first; there is no conversation to resume yet'
-        );
+        return missingConversationReason ?? translate('terminal.conversation.notStarted');
     return undefined;
 }
 
@@ -45,7 +44,7 @@ export function agentRestartMenuEntry(
 ): ContextMenuEntry {
     const blockedReason = restartAgentBlockedReason(terminal, missingConversationReason);
     return {
-        label: 'Restart Agent',
+        label: translate('terminal.recovery.restartAgent'),
         shortcut: shouldShowShortcut ? readCommandShortcut('terminal.restart') : undefined,
         disabled: blockedReason !== undefined,
         disabledReason: blockedReason,

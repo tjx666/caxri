@@ -1,3 +1,4 @@
+import { translate } from '../i18n';
 import { describeFailure, isCancelledRequest, pushToast } from './toasts';
 
 /**
@@ -11,9 +12,15 @@ import { describeFailure, isCancelledRequest, pushToast } from './toasts';
  */
 export function reportSnapshotFailure(error: unknown, hasSnapshot: boolean): void {
     if (isCancelledRequest(error)) return;
-    const action = hasSnapshot ? 'refresh' : 'load';
     pushToast(
         'error',
-        describeFailure(error, `Unable to ${action} Projects and Sessions from the Server`),
+        describeFailure(
+            error,
+            translate(
+                hasSnapshot
+                    ? 'core.workbench.snapshotRefreshFailed'
+                    : 'core.workbench.snapshotLoadFailed',
+            ),
+        ),
     );
 }

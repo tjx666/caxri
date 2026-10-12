@@ -2,6 +2,7 @@ import type { ProcessExplorerSnapshot } from '@desktop-shared/process-explorer';
 import { Search } from 'lucide-react';
 
 import { Input, InputGroup } from '../../components/ui/input';
+import { useTranslation } from '../../i18n';
 import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import type { ProcessExplorerTotals } from './process-tree';
 
@@ -27,26 +28,27 @@ export function ProcessSummaryBar({
     snapshot?: ProcessExplorerSnapshot;
     totals: ProcessExplorerTotals;
 }) {
+    const { t } = useTranslation();
     const systemMemory =
         snapshot && snapshot.systemMemoryMb > 0 ? formatMemoryMb(snapshot.systemMemoryMb) : '';
     return (
         <section
             className="process-summary flex items-center gap-5 border-b border-border px-4 py-2.5 text-[12px] text-muted"
-            aria-label="Resource summary"
+            aria-label={t('processExplorer.summary.label')}
         >
             <SummaryReading
-                label="CPU"
+                label={t('processExplorer.summary.cpu')}
                 value={snapshot ? formatCpuPercent(totals.cpuPercent) : '—'}
             />
             <span>
                 <SummaryReading
-                    label="Memory"
+                    label={t('processExplorer.summary.memory')}
                     value={snapshot ? formatMemoryMb(totals.memoryMb) : '—'}
                 />
                 {systemMemory && <span className="tabular-nums"> / {systemMemory}</span>}
             </span>
             <SummaryReading
-                label="Processes"
+                label={t('processExplorer.summary.processes')}
                 value={snapshot ? String(totals.processCount) : '—'}
             />
             <InputGroup appearance="workbench" size="dense" className="ml-auto w-60">
@@ -55,8 +57,8 @@ export function ProcessSummaryBar({
                     appearance="embedded"
                     size="dense"
                     type="search"
-                    placeholder="Filter"
-                    aria-label="Filter processes"
+                    placeholder={t('processExplorer.filter.placeholder')}
+                    aria-label={t('processExplorer.filter.label')}
                     value={filter}
                     onChange={(event) => onFilterChange(event.target.value)}
                     onKeyDown={(event) => {

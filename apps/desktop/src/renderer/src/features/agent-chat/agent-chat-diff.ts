@@ -1,5 +1,6 @@
 import type { AgentChatItem, AgentChatItemStatus } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
 import type { GitDecoration } from '../../lib/git-decorations';
 
 export type AgentChatFileChange = Extract<AgentChatItem, { type: 'fileChange' }>['changes'][number];
@@ -222,17 +223,11 @@ export function agentChatChangeDecoration(kind: AgentChatFileChange['kind']): Gi
     }
 }
 
-const CHANGE_KIND_LABEL: Record<AgentChatFileChange['kind'], string> = {
-    add: 'Added',
-    delete: 'Deleted',
-    update: 'Modified',
-};
-
 /**
  * The change kind in words, for the accessible name the status letter alone does not give.
  */
-export function agentChatChangeKindLabel(kind: AgentChatFileChange['kind']): string {
-    return CHANGE_KIND_LABEL[kind];
+export function agentChatChangeKindLabel(kind: AgentChatFileChange['kind'], t: Translate): string {
+    return t(`agentChat.diff.kind.${kind}`);
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { TerminalResourceAlert } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { dismissToastsMatching, pushToast } from '../../stores/toasts';
 
@@ -13,7 +14,7 @@ const liveAlerts = new Map<string, string>();
 function alertSubject(terminal: TerminalResourceAlert['terminal']): string {
     const name = terminal.provider
         ? agentProviderCatalog[terminal.provider].displayName
-        : terminal.title || 'Terminal';
+        : terminal.title || translate('terminal.defaultTitle');
     return terminal.sessionTitle ? `${name} · ${terminal.sessionTitle}` : name;
 }
 
@@ -23,7 +24,11 @@ function alertSubject(terminal: TerminalResourceAlert['terminal']): string {
 export function terminalResourceAlertMessage(alert: TerminalResourceAlert): string {
     const memory = formatMemoryMb(alert.memoryMb);
     const cpu = formatCpuPercent(alert.cpuPercent);
-    return `High resource use: ${alertSubject(alert.terminal)} is using ${memory} of memory and ${cpu} CPU.`;
+    return translate('terminal.resourceAlert.message', {
+        cpu,
+        memory,
+        subject: alertSubject(alert.terminal),
+    });
 }
 
 export function dismissTerminalResourceAlert(terminalId: string): void {
@@ -52,7 +57,9 @@ export function reportTerminalResourceAlert(alert: TerminalResourceAlert): void 
         action: {
             id: 'terminal.stopRunaway',
             params: { terminalId, processId: alert.terminal.processId },
-            accessibleLabel: `Stop ${alertSubject(alert.terminal)}`,
+            accessibleLabel: translate('terminal.resourceAlert.stop', {
+                subject: alertSubject(alert.terminal),
+            }),
         },
     });
 }

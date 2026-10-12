@@ -4,6 +4,7 @@ import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { usePolledQuery } from '../../hooks/use-polled-query';
+import { useTranslation } from '../../i18n';
 import { describeFailure } from '../../stores/toasts';
 import type { CommanderBoardScope } from './commander-board';
 import { commanderBoardRowsInScope, commanderBoardSections } from './commander-board';
@@ -28,6 +29,7 @@ const MemoizedCommanderBoardItem = memo(CommanderBoardItem);
  * Read-only: a row hands its Session to the Workbench window rather than acting on it here.
  */
 export function CommanderBoardView() {
+    const { t } = useTranslation();
     const [scope, setScope] = useCommanderBoardScope();
     const board = usePolledQuery('commander.board', undefined, {
         intervalMs: BOARD_POLL_INTERVAL_MS,
@@ -40,7 +42,7 @@ export function CommanderBoardView() {
     if (!data && board.isError)
         return (
             <div className="commander-board-status flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted">
-                <span>{describeFailure(board.error, 'Unable to load the board')}</span>
+                <span>{describeFailure(board.error, t('agentCommander.board.loadFailed'))}</span>
                 <Button
                     size="sm"
                     variant="secondary"
@@ -50,7 +52,7 @@ export function CommanderBoardView() {
                         void board.refetch();
                     }}
                 >
-                    Retry
+                    {t('common.retry')}
                 </Button>
             </div>
         );
@@ -59,10 +61,10 @@ export function CommanderBoardView() {
             <LoadingSkeleton
                 variant="list"
                 className="commander-board-status min-h-0 flex-1 py-1"
-                label="Loading Agents…"
+                label={t('agentCommander.board.loading')}
             />
         );
-    const sections = commanderBoardSections(commanderBoardRowsInScope(data.rows, scope));
+    const sections = commanderBoardSections(commanderBoardRowsInScope(data.rows, scope), t);
     return (
         <>
             <CommanderBoardScopeBar
@@ -73,9 +75,11 @@ export function CommanderBoardView() {
             />
             {sections.length === 0 ? (
                 <div className="commander-board-empty flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted">
-                    {scope === 'commander'
-                        ? 'No Commander tasks yet. Describe a goal to the Commander, and the Sessions it starts appear here.'
-                        : 'No Sessions yet. Sessions from every Project appear here as their Agents work.'}
+                    {t(
+                        scope === 'commander'
+                            ? 'agentCommander.board.emptyCommander'
+                            : 'agentCommander.board.emptyAll',
+                    )}
                 </div>
             ) : (
                 <div className="commander-board min-h-0 flex-1 overflow-auto p-2">
@@ -126,10 +130,11 @@ function CommanderBoardScopeBar({
     onScopeChange: (scope: CommanderBoardScope) => void;
     scope: CommanderBoardScope;
 }) {
+    const { t } = useTranslation();
     return (
         <div className="commander-board-scope flex flex-none items-center px-3 pt-2 pb-1">
             <ToggleGroup
-                aria-label="Board scope"
+                aria-label={t('agentCommander.board.scopeLabel')}
                 value={[scope]}
                 onValueChange={(next: CommanderBoardScope[]) => {
                     // Pressing the active item unpresses it; the board always shows one scope.
@@ -137,12 +142,15 @@ function CommanderBoardScopeBar({
                     if (picked) onScopeChange(picked);
                 }}
             >
-                <ToggleGroupItem value="commander" aria-label="Sessions the Commander started">
-                    Commander
+                <ToggleGroupItem
+                    value="commander"
+                    aria-label={t('agentCommander.board.scopeCommanderLabel')}
+                >
+                    {t('agentCommander.board.scopeCommander')}
                     <span className="tabular-nums opacity-70">{commanderCount}</span>
                 </ToggleGroupItem>
-                <ToggleGroupItem value="all" aria-label="Every Session">
-                    All
+                <ToggleGroupItem value="all" aria-label={t('agentCommander.board.scopeAllLabel')}>
+                    {t('agentCommander.board.scopeAll')}
                     <span className="tabular-nums opacity-70">{allCount}</span>
                 </ToggleGroupItem>
             </ToggleGroup>

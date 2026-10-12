@@ -7,6 +7,7 @@
 
 import { agentProviderCatalog, agentProviderIds } from '../agent/agents.js';
 import { editorSettingsSpec } from './editor-settings-spec.js';
+import { languageSettingsSpec } from './language-settings-spec.js';
 
 export const settingCategories = [
     { id: 'general', title: 'General' },
@@ -98,26 +99,7 @@ const MEBIBYTE = 1024 * 1024;
 export const MAX_CONFIGURABLE_FILE_BYTES = 16 * MEBIBYTE;
 
 export const settingsSpec = [
-    {
-        kind: 'boolean',
-        key: 'notifications.worktreeFallback',
-        title: 'Worktree fallback reminders',
-        description:
-            'Show a popup when an unavailable worktree returns to its Project. Turn on to restore muted reminders. Applies to all Projects; recent events remain in Notifications.',
-        category: 'notifications',
-        keywords: ['mute', 'unmute', 'silent', 'reminder', 'notification'],
-        default: true,
-    },
-    {
-        kind: 'boolean',
-        key: 'notifications.agentRecovery',
-        title: 'Automatic Agent recovery reminders',
-        description:
-            'Show a popup after automatic Agent recovery. Turn on to restore muted reminders. Applies to all Projects; failures always appear.',
-        category: 'notifications',
-        keywords: ['mute', 'unmute', 'silent', 'reminder', 'notification'],
-        default: true,
-    },
+    ...languageSettingsSpec,
     {
         kind: 'enum',
         key: 'session.defaultAgent',

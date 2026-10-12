@@ -3,6 +3,7 @@ import { useImperativeHandle, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
+import { useTranslation } from '../../../i18n';
 import { draftAfterEditCancel } from '../agent-chat-drafts';
 import type { AgentChatEdit } from '../agent-chat-edit';
 import {
@@ -69,6 +70,7 @@ export function useAgentChatComposerEdit({
     terminalId: string;
     setDraft: (update: (current: string) => string) => void;
 }) {
+    const { t } = useTranslation();
     const [edit, setEditState] = useState(() => readAgentChatEdit(terminalId));
     const setEdit = (next: AgentChatEdit | undefined): void => {
         writeAgentChatEdit(terminalId, next);
@@ -134,10 +136,11 @@ export function useAgentChatComposerEdit({
          * The Send button: "Send edit" while editing, and a planning placeholder while plan mode is on.
          */
         sendAction: active
-            ? agentChatEditSendAction(isTurnRunning, providerName)
+            ? agentChatEditSendAction(isTurnRunning, providerName, t)
             : agentChatSendAction(
                   { isTurnRunning, isBusy, isPlanMode: snapshot?.planMode === true },
                   providerName,
+                  t,
               ),
         /**
          * Whether Send is available as far as the Chat goes (`canSend`). A provider rewinds only a settled

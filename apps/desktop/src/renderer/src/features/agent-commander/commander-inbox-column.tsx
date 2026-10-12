@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { PanelDivider } from '../workbench/panel-divider';
 import { useCommanderBoardUiStore } from './commander-board-store';
@@ -33,6 +34,7 @@ const INBOX_DRAWER_CLASS_NAMES = {
  * Terminal (see {@link INBOX_DRAWER_CLASS_NAMES}), it overlays the Terminal as a drawer instead of squeezing it.
  */
 export function CommanderInboxColumn() {
+    const { t } = useTranslation();
     const isVisible = useCommanderInboxUiStore((state) => state.isVisible);
     const isBoardVisible = useCommanderBoardUiStore((state) => state.isVisible);
     const width = useCommanderInboxUiStore((state) => state.width);
@@ -45,7 +47,7 @@ export function CommanderInboxColumn() {
         <>
             <div className={cn('flex flex-none', drawer.edge)}>
                 <PanelDivider
-                    ariaLabel="Resize Needs you"
+                    ariaLabel={t('agentCommander.window.resizeNeedsYou')}
                     size={width}
                     min={COMMANDER_INBOX_MIN_WIDTH}
                     max={COMMANDER_INBOX_MAX_WIDTH}
@@ -57,7 +59,7 @@ export function CommanderInboxColumn() {
                 />
             </div>
             <aside
-                aria-label="Needs you"
+                aria-label={t('agentCommander.window.needsYou')}
                 className={cn(
                     'agent-commander-inbox flex w-[var(--commander-inbox-width,352px)] flex-none flex-col bg-surface',
                     drawer.column,

@@ -5,6 +5,7 @@ import { Code2, Plus, X } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { useDialogStore } from '../../stores/dialogs';
 import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
@@ -22,23 +23,21 @@ import {
 } from './session-keep-alive';
 
 function Welcome() {
+    const { t } = useTranslation();
     return (
         <div className="welcome mx-auto flex h-full max-w-[540px] flex-col items-center justify-center gap-3 p-6 text-center text-muted">
             <Code2 size={38} />
             <h1 className="mx-0 mt-1 mb-0 text-[15px] text-foreground">
-                Project-first development.
+                {t('workbench.welcome.title')}
             </h1>
-            <p className="m-0 leading-relaxed">
-                Add a folder as a Project, then keep every Agent and Shell Session together beneath
-                it.
-            </p>
+            <p className="m-0 leading-relaxed">{t('workbench.welcome.description')}</p>
             <Button
                 onClick={() => {
                     // eslint-disable-next-line no-void -- intentional floating-promise discard, chooseProjectFolder() reports its own errors via tryCommand
                     void chooseProjectFolder();
                 }}
             >
-                <Plus size={15} /> Add Project
+                <Plus size={15} /> {t('workbench.welcome.addProject')}
             </Button>
         </div>
     );
@@ -53,15 +52,16 @@ function Welcome() {
  * answered by a tab and do not reopen it here.
  */
 function NoSessionSurface() {
+    const { t } = useTranslation();
     const requestId = useDialogStore((state) => state.settingsRequest.id);
     const dismissedId = useDialogStore((state) => state.sessionlessSettingsDismissedId);
     const [mountedRequestId] = useState(requestId);
     if (requestId <= Math.max(mountedRequestId, dismissedId)) return <Welcome />;
     return (
         <div className="relative h-full min-h-0">
-            <Tooltip content="Close Settings">
+            <Tooltip content={t('workbench.closeSettings')}>
                 <Button
-                    aria-label="Close Settings"
+                    aria-label={t('workbench.closeSettings')}
                     className="absolute top-3 right-3 z-10"
                     size="icon"
                     variant="ghost"

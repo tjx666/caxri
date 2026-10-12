@@ -1,5 +1,6 @@
 import type { AgentChatItem } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
 import type { AgentChatDiffLine, AgentChatDiffStat, AgentChatFileChange } from './agent-chat-diff';
 import { agentChatDiffLines, agentChatDiffLinesStat } from './agent-chat-diff';
 import type { AgentChatTrackerArtifact } from './agent-chat-trackers';
@@ -95,11 +96,15 @@ export function agentChatEditedFilesStat(files: readonly AgentChatDiffStat[]): A
 export function agentChatEditedFilesTitle(
     files: ReadonlyArray<Pick<AgentChatEditedFile, 'kind' | 'path'>>,
     basename: (path: string) => string,
+    t: Translate,
 ): string {
     const only = files.at(0);
-    if (!only || files.length !== 1) return `Edited ${files.length} files`;
-    const verb = only.kind === 'add' ? 'Created' : only.kind === 'delete' ? 'Deleted' : 'Edited';
-    return `${verb} ${basename(only.path)}`;
+    if (!only || files.length !== 1)
+        return t('agentChat.artifacts.editedFiles', { count: files.length });
+    const name = basename(only.path);
+    if (only.kind === 'add') return t('agentChat.artifacts.createdFile', { name });
+    if (only.kind === 'delete') return t('agentChat.artifacts.deletedFile', { name });
+    return t('agentChat.artifacts.editedFile', { name });
 }
 
 /**

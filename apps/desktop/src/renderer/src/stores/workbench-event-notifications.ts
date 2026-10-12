@@ -1,5 +1,6 @@
 import type { BootstrapState, ServerEvent } from '@caxri/protocol';
 
+import { translate } from '../i18n';
 import { recordNotification } from './notifications';
 
 type EventPayload<E extends ServerEvent['event']> = Extract<ServerEvent, { event: E }>['payload'];
@@ -14,7 +15,12 @@ export function recordAgentNotification(
     const session = bootstrap?.sessions.find((item) => item.id === payload.sessionId);
     recordNotification({
         kind: 'info',
-        message: `${session?.displayTitle ?? 'Agent'} ${payload.attentionKind === 'waiting' ? 'is waiting for your input.' : 'completed a turn.'}`,
+        message: translate(
+            payload.attentionKind === 'waiting'
+                ? 'core.agentNotification.waiting'
+                : 'core.agentNotification.completed',
+            { title: session?.displayTitle ?? 'Agent' },
+        ),
         projectId: session?.projectId,
         projectTitle: bootstrap?.projects.find((item) => item.id === session?.projectId)
             ?.displayTitle,
@@ -24,10 +30,12 @@ export function recordAgentNotification(
 export function recordProjectStatusAlert(payload: EventPayload<'projectStatus.alert'>): void {
     recordNotification({
         kind: 'error',
-        message:
+        message: translate(
             payload.kind === 'check'
-                ? `CI failed: ${payload.name}`
-                : `${payload.name} deployment failed`,
+                ? 'core.projectStatusAlert.checkFailed'
+                : 'core.projectStatusAlert.deploymentFailed',
+            { name: payload.name },
+        ),
         projectId: `${payload.repository}:${payload.branch}`,
         projectTitle: `${payload.repository} · ${payload.branch}`,
     });

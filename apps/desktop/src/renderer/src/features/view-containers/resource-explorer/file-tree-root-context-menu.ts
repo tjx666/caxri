@@ -1,3 +1,4 @@
+import { translate } from '../../../i18n';
 import type { ContextMenuEntries } from '../../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../../lib/context-menu';
 import { pasteDisabledReason } from './file-operation-state';
@@ -22,11 +23,14 @@ export function fileTreeRootMenu(
         isClipboardEmpty: controller.isRootPasteEmpty,
     });
     return [
-        { label: 'New File', onSelect: controller.createRootFile },
-        { label: 'New Folder', onSelect: controller.createRootFolder },
+        { label: translate('viewContainers.files.newFile'), onSelect: controller.createRootFile },
+        {
+            label: translate('viewContainers.files.newFolder'),
+            onSelect: controller.createRootFolder,
+        },
         CONTEXT_MENU_SEPARATOR,
         {
-            label: 'Paste',
+            label: translate('viewContainers.files.menu.paste'),
             disabled: pasteReason !== undefined,
             disabledReason: pasteReason,
             shortcut: pasteReason === undefined ? 'cmd+v' : undefined,

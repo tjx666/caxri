@@ -5,6 +5,7 @@ import { Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { useTranslation } from '../../i18n';
 
 export interface RuleListFormProperties {
     /**
@@ -67,6 +68,7 @@ export function RuleListForm({
     rules,
     onChange,
 }: RuleListFormProperties) {
+    const { t } = useTranslation();
     const [draft, setDraft] = useState('');
     const [error, setError] = useState<string>();
     const inputReference = useRef<HTMLInputElement>(null);
@@ -118,7 +120,7 @@ export function RuleListForm({
                     }}
                 />
                 <Button disabled={!draft.trim()} size="sm" variant="secondary" onClick={add}>
-                    Add
+                    {t('common.add')}
                 </Button>
             </div>
             {error && (

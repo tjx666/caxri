@@ -1,23 +1,10 @@
 import type { SessionCompactionOutcome, SessionCompactionResult } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { dismissToastsMatching, pushToast, tryCommand } from '../../stores/toasts';
 
-const descriptions: Record<SessionCompactionOutcome, string> = {
-    submitted: 'submitted',
-    unsupported: 'unsupported Agent',
-    not_running: 'Agent stopped',
-    busy: 'busy or compacting',
-    unsafe_input: 'draft or idle state unverified',
-    usage_unavailable: 'usage unavailable',
-    already_compacted: 'already compacted',
-    cache_expired: 'cache estimated expired',
-    changed: 'state changed',
-    failed: 'delivery failed',
-    delivery_unknown: 'delivery unconfirmed',
-};
 const batch = { running: false };
-const progressMessage = 'Checking Sessions for warm-cache compaction…';
 
 /**
  * A short headline plus at most one trailing clause, not the four-clause sentence this used to compose: `pushToast` has
@@ -31,12 +18,25 @@ export function describeSessionCompaction(result: SessionCompactionResult): stri
     for (const item of result.items) counts.set(item.outcome, (counts.get(item.outcome) ?? 0) + 1);
     const submitted = counts.get('submitted') ?? 0;
     counts.delete('submitted');
-    const details = [...counts].map(([outcome, count]) => `${count} ${descriptions[outcome]}`);
-    if (result.deferred) details.push(`${result.deferred} beyond the 200-Session batch limit`);
+    const details = [...counts].map(([outcome, count]: [SessionCompactionOutcome, number]) =>
+        translate(`session.compaction.outcome.${outcome}`, { count }),
+    );
+    if (result.deferred)
+        details.push(translate('session.compaction.deferred', { count: result.deferred }));
     const headline = submitted
-        ? `Compaction requested for ${submitted} ${submitted === 1 ? 'Session' : 'Sessions'}.`
-        : 'No Sessions were eligible for compaction.';
-    return details.length > 0 ? `${headline} Skipped: ${details.join('; ')}.` : headline;
+        ? translate(
+              submitted === 1
+                  ? 'session.compaction.requestedOne'
+                  : 'session.compaction.requestedOther',
+              { count: submitted },
+          )
+        : translate('session.compaction.noneEligible');
+    return details.length > 0
+        ? translate('session.compaction.withSkipped', {
+              headline,
+              details: details.join(translate('session.compaction.detailSeparator')),
+          })
+        : headline;
 }
 
 /**
@@ -45,9 +45,11 @@ export function describeSessionCompaction(result: SessionCompactionResult): stri
 export async function compactWarmSessions(): Promise<void> {
     if (batch.running) return;
     batch.running = true;
+    // Captured once so dismissal matches the exact text that was shown, even if the language changes mid-batch.
+    const progressMessage = translate('session.compaction.progress');
     pushToast('info', progressMessage, { history: false });
     try {
-        const result = await tryCommand('Batch compaction failed', () =>
+        const result = await tryCommand(translate('session.compaction.failed'), () =>
             caxri.request('session.compactWarm', {}),
         );
         dismissToastsMatching((message) => message === progressMessage);

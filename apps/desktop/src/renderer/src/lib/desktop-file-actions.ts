@@ -1,6 +1,7 @@
 import { CaxriError } from '@caxri/protocol';
 
 import { createTerminal } from '../features/terminal/terminal-commands';
+import { translate } from '../i18n';
 import { getSelectedSession } from '../stores/selectors';
 import { tryCommand } from '../stores/toasts';
 import { caxri } from './caxri';
@@ -17,12 +18,12 @@ import { caxri } from './caxri';
  */
 function requireSelectedSessionId(): string {
     const sessionId = getSelectedSession()?.id;
-    if (!sessionId) throw new CaxriError('UNAVAILABLE', 'No Session is selected');
+    if (!sessionId) throw new CaxriError('UNAVAILABLE', translate('core.files.noSessionSelected'));
     return sessionId;
 }
 
 export function revealFile(path: string): Promise<void | undefined> {
-    return tryCommand('Unable to reveal item in Finder', async () => {
+    return tryCommand(translate('core.files.revealFailed'), async () => {
         await caxri.request('files.reveal', { sessionId: requireSelectedSessionId(), path });
     });
 }
@@ -34,7 +35,7 @@ export function revealFile(path: string): Promise<void | undefined> {
  * nothing.
  */
 export function openFileWithDefaultApp(path: string): Promise<void | undefined> {
-    return tryCommand('Unable to open item with the default application', async () => {
+    return tryCommand(translate('core.files.openWithDefaultAppFailed'), async () => {
         await caxri.request('files.openWithDefaultApp', {
             sessionId: requireSelectedSessionId(),
             path,
@@ -51,13 +52,13 @@ export function openFileInTerminal(directory: string): Promise<void> {
  * opaque ID Main issued when it read the file, and Main resolves it back to that file.
  */
 export function revealExternalDocument(documentId: string): Promise<void | undefined> {
-    return tryCommand('Unable to reveal item in Finder', async () => {
+    return tryCommand(translate('core.files.revealFailed'), async () => {
         await caxri.request('externalDocument.reveal', { documentId });
     });
 }
 
 export function openExternalDocumentWithDefaultApp(documentId: string): Promise<void | undefined> {
-    return tryCommand('Unable to open item with the default application', async () => {
+    return tryCommand(translate('core.files.openWithDefaultAppFailed'), async () => {
         await caxri.request('externalDocument.openWithDefaultApp', { documentId });
     });
 }

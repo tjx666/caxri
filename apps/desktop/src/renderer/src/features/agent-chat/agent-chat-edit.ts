@@ -1,6 +1,8 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatRewindableMessageIds, agentChatRewindTarget } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
 
 /**
@@ -132,12 +134,12 @@ export function agentChatEditAvailability(
     const item = snapshot.items.find((candidate) => candidate.id === itemId);
     // Images stay on Server Core and never come back to the composer, as with an edited queued message.
     if (item?.type === 'userMessage' && (item.images?.length ?? 0) > 0)
-        return { canEdit: false, reason: 'Messages with images cannot be edited' };
+        return { canEdit: false, reason: translate('agentChat.edit.imagesUnsupported') };
     const result = agentChatRewindTarget(snapshot, itemId);
     if ('target' in result) return { canEdit: true };
     if (result.refusal === 'turnRunning')
-        return { canEdit: false, reason: 'Stop the running turn to edit from here' };
-    return { canEdit: false, reason: 'This message cannot be edited' };
+        return { canEdit: false, reason: translate('agentChat.edit.stopToEdit') };
+    return { canEdit: false, reason: translate('agentChat.edit.cannotEdit') };
 }
 
 /**
@@ -151,8 +153,8 @@ export function agentChatForkAvailability(
     const result = agentChatRewindTarget(snapshot, itemId);
     if ('target' in result) return { canFork: true };
     if (result.refusal === 'turnRunning')
-        return { canFork: false, reason: 'Stop the running turn to fork from here' };
-    return { canFork: false, reason: 'The conversation cannot fork from this message' };
+        return { canFork: false, reason: translate('agentChat.edit.stopToFork') };
+    return { canFork: false, reason: translate('agentChat.edit.cannotFork') };
 }
 
 /**
@@ -167,8 +169,8 @@ export function agentChatRestoreAvailability(
     const result = agentChatRewindTarget(snapshot, itemId);
     if ('target' in result) return { restoredTurns: result.target.removedTurns };
     if (result.refusal === 'turnRunning')
-        return { reason: 'Stop the running turn to restore code' };
-    return { reason: 'Code cannot be restored to this message' };
+        return { reason: translate('agentChat.edit.stopToRestore') };
+    return { reason: translate('agentChat.edit.cannotRestore') };
 }
 
 /**
@@ -190,8 +192,8 @@ export function agentChatEditRemovedTurns(
  */
 export function agentChatEditCaption(removedTurns: number): string {
     return removedTurns === 1
-        ? 'Editing an earlier message · its turn will be replaced'
-        : `Editing an earlier message · ${removedTurns} turns will be replaced`;
+        ? translate('agentChat.edit.captionOne')
+        : translate('agentChat.edit.captionOther', { count: removedTurns });
 }
 
 /**
@@ -201,10 +203,11 @@ export function agentChatEditCaption(removedTurns: number): string {
 export function agentChatEditSendAction(
     isTurnRunning: boolean,
     providerName: string,
+    t: Translate = translate,
 ): { label: string; tooltip: string; placeholder: string } {
     return {
-        label: 'Send edit',
-        tooltip: isTurnRunning ? 'Stop the running turn to send the edit' : 'Send edit',
-        placeholder: `Edit the message for ${providerName}`,
+        label: t('agentChat.edit.send'),
+        tooltip: t(isTurnRunning ? 'agentChat.edit.stopToSend' : 'agentChat.edit.send'),
+        placeholder: t('agentChat.edit.placeholder', { provider: providerName }),
     };
 }

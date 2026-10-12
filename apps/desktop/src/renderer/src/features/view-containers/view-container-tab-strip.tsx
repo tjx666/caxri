@@ -3,10 +3,12 @@ import type { ReactNode } from 'react';
 import type { ViewCatalogSnapshot, ViewContainerId, ViewContainerLocation } from '@caxri/protocol';
 
 import { ChromeTabs } from '../../components/chrome-tabs';
+import { useTranslation } from '../../i18n';
 import { CatalogIcon } from './catalog-icon';
 import { ContainerBadgeChip } from './container-badge-chip';
 import { ContainerTabTooltip } from './container-tab-tooltip';
 import { useViewBadges } from './hooks/use-view-badges';
+import { viewContainerTitle } from './view-container-labels';
 
 /**
  * The tab strip a `ViewContainerSurface` renders above its containers, kept in its own file so the badge query stays on
@@ -40,11 +42,12 @@ export function ViewContainerTabStrip({
     trailing?: ReactNode;
     onSelectContainer: (id: ViewContainerId) => void;
 }) {
+    const { t } = useTranslation();
     const badges = useViewBadges(catalog, location);
     const containersById = new Map(containers.map((container) => [container.id, container]));
     const tabs = containers.map((container) => ({
         value: container.id,
-        label: container.title,
+        label: viewContainerTitle(container, t),
         description: badges[container.id]?.description,
         // SecondarySidebar tabs are icon-only (the title lives in the tooltip); Panel tabs keep their inline label.
         content: (
@@ -59,7 +62,7 @@ export function ViewContainerTabStrip({
                     )}
                 </span>
                 {location === 'panel' && (
-                    <span data-slot="chrome-tab-label">{container.title}</span>
+                    <span data-slot="chrome-tab-label">{viewContainerTitle(container, t)}</span>
                 )}
             </>
         ),
@@ -89,8 +92,8 @@ export function ViewContainerTabStrip({
                                       commandId={container.commandId}
                                       title={
                                           badges[container.id]
-                                              ? `${container.title}: ${badges[container.id]?.description}`
-                                              : container.title
+                                              ? `${viewContainerTitle(container, t)}: ${badges[container.id]?.description}`
+                                              : viewContainerTitle(container, t)
                                       }
                                       triggerId={`${idPrefix}-tab-${container.id}`}
                                   >

@@ -1,3 +1,4 @@
+import { translate } from '../i18n';
 import { pushToast, tryCommand } from '../stores/toasts';
 import { projectRelativePath } from './file-path';
 
@@ -31,10 +32,13 @@ export function relativePathRoot(
  * Copies an authorized filesystem path and reports the same success and failure messages used by file actions.
  */
 export function copyFilePath(path: string, projectRoot?: string): Promise<void | undefined> {
-    return tryCommand('Unable to copy path', async () => {
+    return tryCommand(translate('core.files.copyPathFailed'), async () => {
         const value = projectRoot ? projectRelativePath(path, projectRoot) : path;
-        if (value === undefined) throw new Error('Path is outside the selected Project');
+        if (value === undefined) throw new Error(translate('core.files.pathOutsideProject'));
         await navigator.clipboard.writeText(value);
-        pushToast('success', projectRoot ? 'Relative path copied' : 'Path copied');
+        pushToast(
+            'success',
+            translate(projectRoot ? 'core.files.relativePathCopied' : 'core.files.pathCopied'),
+        );
     });
 }

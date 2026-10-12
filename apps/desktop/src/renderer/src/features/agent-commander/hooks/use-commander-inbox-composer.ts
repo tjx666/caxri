@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react';
 
 import type { CommanderInboxItem } from '@caxri/protocol';
 
+import { useTranslation } from '../../../i18n';
 import {
     mentionAtCaret,
     suggestionMenuKeyAction,
@@ -30,6 +31,7 @@ export function useCommanderInboxComposer(
     items: readonly CommanderInboxItem[],
     textareaReference: RefObject<HTMLTextAreaElement | null>,
 ) {
+    const { t } = useTranslation();
     const listId = useId();
     const [draft, setDraft] = useState('');
     const [caret, setCaret] = useState(0);
@@ -43,13 +45,13 @@ export function useCommanderInboxComposer(
     const focusEpoch = useCommanderInboxUiStore((state) => state.focusEpoch);
     const target = inboxReplyTarget(items, targetId);
     const mention = mentionAtCaret(draft, caret);
-    const candidates = mention ? inboxMentionCandidates(items, mention.query) : [];
+    const candidates = mention ? inboxMentionCandidates(items, mention.query, t) : [];
     const isPickerOpen =
         mention !== undefined && mention.start !== dismissedMentionStart && candidates.length > 0;
     const activeIndex = Math.min(highlight, Math.max(candidates.length - 1, 0));
     const activeItem = isPickerOpen ? candidates[activeIndex] : undefined;
     const activeOptionId = activeItem
-        ? suggestionOptionId(listId, inboxMentionSuggestion(activeItem).key)
+        ? suggestionOptionId(listId, inboxMentionSuggestion(activeItem, t).key)
         : undefined;
     /**
      * The rows never take focus, so the browser does not scroll the active one into view; arrowing past the list's

@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import type { AgentChatDiffLine, AgentChatFileChange } from './agent-chat-diff';
 import { agentChatDiffLines, agentChatHunkNewStart } from './agent-chat-diff';
 import type { AgentChatEditedFile } from './agent-chat-turn-artifacts';
@@ -203,22 +204,14 @@ export function planAgentChatFileUndo(
     };
 }
 
-const FAILURE_MESSAGE: Record<AgentChatUndoFailure, string> = {
-    truncated: 'its diff was too large to keep in full',
-    changed: 'it changed after the Agent edited it',
-    missing: 'it no longer exists',
-    exists: 'it was created again after the Agent deleted it',
-};
-
 /**
  * The next step for a failure the user can work around. A file that changed after the turn is usually a later turn
  * editing it again, so the toast points at undoing that turn first or at Restore Code to Here, which reverts every turn
  * from a message onward from the provider's own checkpoints instead of reversing this turn's diff.
  */
-const FAILURE_NEXT_STEP: Partial<Record<AgentChatUndoFailure, string>> = {
-    changed:
-        'Undo the later turn that edited it first, or use Restore Code to Here on the message that started this turn.',
-};
+function failureNextStep(reason: AgentChatUndoFailure): string | undefined {
+    return reason === 'changed' ? translate('agentChat.undo.nextStep.changed') : undefined;
+}
 
 /**
  * The toast that explains why nothing was undone, naming the first file that blocked it and, when there is one, what to
@@ -228,8 +221,11 @@ export function agentChatUndoFailureMessage(
     displayPath: string,
     reason: AgentChatUndoFailure,
 ): string {
-    const nextStep = FAILURE_NEXT_STEP[reason];
-    const message = `Nothing was undone: ${displayPath} cannot be restored because ${FAILURE_MESSAGE[reason]}.`;
+    const nextStep = failureNextStep(reason);
+    const message = translate('agentChat.undo.failure', {
+        path: displayPath,
+        reason: translate(`agentChat.undo.failureReason.${reason}`),
+    });
     return nextStep ? `${message} ${nextStep}` : message;
 }
 
@@ -238,6 +234,6 @@ export function agentChatUndoFailureMessage(
  */
 export function agentChatUndoSuccessMessage(fileCount: number): string {
     return fileCount === 1
-        ? 'Undid the changes to 1 file'
-        : `Undid the changes to ${fileCount} files`;
+        ? translate('agentChat.undo.successOne')
+        : translate('agentChat.undo.successOther', { count: fileCount });
 }

@@ -3,6 +3,8 @@ import type { ReactElement } from 'react';
 import type { CommandId } from '@caxri/protocol';
 import { getCommandDefinition } from '@caxri/protocol';
 
+import { useTranslation } from '../i18n';
+import { commandDescription } from '../lib/command-labels';
 import { useCommandShortcut } from '../lib/keybindings';
 import { Tooltip } from './ui/tooltip';
 
@@ -18,10 +20,11 @@ export function CommandTooltip({
     children: ReactElement;
     commandId: CommandId;
 }) {
+    const { t } = useTranslation();
     const shortcut = useCommandShortcut(commandId);
     const command = getCommandDefinition(commandId);
     return (
-        <Tooltip content={command.description} shortcut={shortcut}>
+        <Tooltip content={commandDescription(command, t)} shortcut={shortcut}>
             {children}
         </Tooltip>
     );

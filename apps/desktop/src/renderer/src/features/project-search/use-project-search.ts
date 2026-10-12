@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
+import { useTranslation } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { useSelectedSession } from '../../stores/selectors';
 import { projectSearchQueryKey } from './project-search-query';
@@ -114,6 +115,7 @@ export function useProjectSearchDraft() {
 export type ProjectSearchDraft = ReturnType<typeof useProjectSearchDraft>;
 
 export function useProjectSearch(draft: ProjectSearchDraft): ProjectSearchModel {
+    const { t } = useTranslation();
     const session = useSelectedSession();
     const {
         query,
@@ -232,6 +234,7 @@ export function useProjectSearch(draft: ProjectSearchDraft): ProjectSearchModel 
         setWholeWord,
         terminationMessage: result.data
             ? projectSearchTerminationMessage(
+                  t,
                   result.data.terminationReason,
                   result.data.scannedFiles,
                   result.data.matches.length > 0,

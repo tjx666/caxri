@@ -1,5 +1,6 @@
 import { CheckCircle2, Download, TriangleAlert } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import { useSettings } from '../../stores/selectors';
 import { showUpdateDialog, useUpdateStore } from '../updates/update-commands';
 import { describeUpdateChip } from '../updates/update-presentation';
@@ -24,8 +25,9 @@ const UPDATE_CHIP_ICONS = {
 } as const;
 
 export function UpdateStatusChip() {
+    const { t } = useTranslation();
     const state = useUpdateStore((store) => store.state);
-    const chip = describeUpdateChip(state, useSettings()?.['updates.skippedVersion']);
+    const chip = describeUpdateChip(state, useSettings()?.['updates.skippedVersion'], t);
     if (!chip) return null;
     const ChipIcon = UPDATE_CHIP_ICONS[chip.kind];
     return (

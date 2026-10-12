@@ -4,6 +4,7 @@ import type { MarkdownBlock, MarkdownListItem } from '@caxri/markdown';
 import { isSameMarkdownTree } from '@caxri/markdown';
 import { Square, SquareCheck } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { CodeBlock } from './code-block';
 import { InlineNodes } from './inline-nodes';
@@ -177,6 +178,7 @@ function ListItem({
     isOpen: boolean;
     item: MarkdownListItem;
 }) {
+    const { t } = useTranslation();
     /**
      * Blocks reset their own margins (`my-0`), which beats Tailwind v4's zero-specificity `space-y-*`, so spacing
      * between an item's blocks comes from a flex gap. The `li` itself stays a list item so it keeps its marker.
@@ -197,7 +199,9 @@ function ListItem({
                     item.checked ? 'text-accent' : 'text-muted',
                 )}
             />
-            <span className="sr-only">{item.checked ? 'Done: ' : 'To do: '}</span>
+            <span className="sr-only">
+                {t(item.checked ? 'core.markdown.taskDone' : 'core.markdown.taskTodo')}
+            </span>
             {content}
         </li>
     );

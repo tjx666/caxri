@@ -1,5 +1,6 @@
 import { isCaxriError, parseExternalEditorTab } from '@caxri/protocol';
 
+import type { Translate, TranslationKey } from '../../i18n';
 import {
     openExternalDocumentWithDefaultApp,
     openFileWithDefaultApp,
@@ -13,9 +14,9 @@ import {
  */
 export type DocumentLoadRecovery = 'openWithDefaultApp' | 'retry';
 
-const documentLoadRecoveryLabels: Record<DocumentLoadRecovery, string> = {
-    openWithDefaultApp: 'Open with Default App',
-    retry: 'Retry',
+const documentLoadRecoveryLabels: Record<DocumentLoadRecovery, TranslationKey> = {
+    openWithDefaultApp: 'editor.load.openWithDefaultApp',
+    retry: 'common.retry',
 };
 
 /**
@@ -46,9 +47,10 @@ export function documentLoadRecoveryAction(
     recovery: DocumentLoadRecovery,
     path: string,
     retry: () => void,
+    t: Translate,
 ): { actionLabel: string; onAction: () => void } {
     return {
-        actionLabel: documentLoadRecoveryLabels[recovery],
+        actionLabel: t(documentLoadRecoveryLabels[recovery]),
         onAction: recovery === 'retry' ? retry : () => openDocumentWithDefaultApp(path),
     };
 }

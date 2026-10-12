@@ -4,13 +4,14 @@ import type {
     AgentThroughput,
     AgentThroughputSample,
 } from '@caxri/protocol';
-import { agentProviderCatalog, agentStatusTabLabel } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import { Gauge } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useTerminal } from '../../stores/selectors';
 import type { ProviderStatusAlert } from '../agent-status/agent-provider-status-label';
@@ -22,7 +23,7 @@ import { openAgentStatusTab } from '../agent-status/open-agent-status-tab';
 import { ProviderStatusSummary } from '../agent-status/provider-status-summary';
 import { useAgentProviderStatus } from '../agent-status/use-agent-provider-status';
 import {
-    AGENT_THROUGHPUT_METHOD_NOTE,
+    agentThroughputMethodNote,
     describeThroughputAggregate,
     describeThroughputSample,
     formatThroughputDuration,
@@ -43,6 +44,7 @@ const CHART_HEIGHT = 24;
  * than as a shape. The newest bar is drawn in the foreground ink; the rest stay muted.
  */
 function ThroughputBars({ samples }: { samples: readonly AgentThroughputSample[] }) {
+    const { t } = useTranslation();
     const rates = samples.map((sample) => throughputRate(sample) ?? 0);
     const max = Math.max(...rates);
     if (max <= 0) return null;
@@ -73,7 +75,9 @@ function ThroughputBars({ samples }: { samples: readonly AgentThroughputSample[]
                     );
                 })}
             </svg>
-            <span className="text-muted tabular-nums">max {formatThroughputRate(max)}</span>
+            <span className="text-muted tabular-nums">
+                {t('statusBar.throughput.max', { rate: formatThroughputRate(max) })}
+            </span>
         </span>
     );
 }
@@ -130,24 +134,32 @@ function UnmeasuredThroughputStatus({
     status: Extract<AgentProviderStatus, { state: 'available' }>;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
     const agentName = agentProviderCatalog[provider].displayName;
-    const tabLabel = agentStatusTabLabel(agentName);
+    const tabLabel = t('editor.tab.agentStatus', { agent: agentName });
     return (
         <StatusItem
-            ariaLabel={`Open ${tabLabel} — ${agentName} output speed: not measured yet; API status: ${describeProviderStatus(status)}`}
+            ariaLabel={t('statusBar.throughput.unmeasuredAriaLabel', {
+                tab: tabLabel,
+                agent: agentName,
+                status: describeProviderStatus(status),
+            })}
             className="statusbar-agent-throughput text-muted [&>span]:min-w-[8ch]"
             icon={<ThroughputGlyph alert={alert} />}
             onClick={() => openAgentStatusTab(terminalId)}
             title={
                 <StructuredTooltip
-                    eyebrow={`${agentName} output speed`}
-                    title="Not measured yet"
-                    details={['Shown because the provider reports a problem']}
+                    eyebrow={t('statusBar.throughput.eyebrow', { agent: agentName })}
+                    title={t('statusBar.throughput.notMeasured')}
+                    details={[t('statusBar.throughput.shownForProviderProblem')]}
                     rows={[
-                        { label: 'API status', value: <ProviderStatusSummary status={status} /> },
+                        {
+                            label: t('statusBar.throughput.apiStatus'),
+                            value: <ProviderStatusSummary status={status} />,
+                        },
                     ]}
-                    notes={[AGENT_THROUGHPUT_METHOD_NOTE]}
-                    hint={`Click to open ${tabLabel}`}
+                    notes={[agentThroughputMethodNote(t)]}
+                    hint={t('statusBar.throughput.clickToOpen', { tab: tabLabel })}
                 />
             }
         >
@@ -165,6 +177,7 @@ function UnmeasuredThroughputStatus({
  * (`UnmeasuredThroughputStatus`), so it never holds a slot to say "none".
  */
 export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
+    const { t } = useTranslation();
     const throughputQuery = usePolledQuery(
         'terminal.agentThroughput',
         { terminalId },
@@ -178,7 +191,7 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
     const providerStatus = providerStatusQuery.data;
     const latest = throughput?.samples.at(-1);
     const rate = throughput ? throughputRate(throughput.recent) : undefined;
-    const alert = providerStatusAlert(providerStatus);
+    const alert = providerStatusAlert(providerStatus, t);
     if (throughput && latest && rate !== undefined)
         return (
             <MeasuredThroughputStatus
@@ -222,32 +235,44 @@ function MeasuredThroughputStatus({
     terminalId: string;
     throughput: AgentThroughput;
 }) {
+    const { t } = useTranslation();
     const lastResponseAgo = useRelativeTime(latest.completedAt);
     const label = formatThroughputRate(rate);
     const agentName = agentProviderCatalog[throughput.provider].displayName;
-    const tabLabel = agentStatusTabLabel(agentName);
-    const averageLabel = recentAverageLabel(throughput.recent.responseCount);
+    const tabLabel = t('editor.tab.agentStatus', { agent: agentName });
+    const averageLabel = recentAverageLabel(throughput.recent.responseCount, t);
     // The first turn of an Agent Session is the whole Agent Session: two identical rows read as two different facts.
     const isShowTurn =
         throughput.turn.responseCount > 0 &&
         !isSameThroughputAggregate(throughput.turn, throughput.session);
     return (
         <StatusItem
-            ariaLabel={`Open ${tabLabel} — ${agentName} output speed: ${spokenThroughputRate(rate)}, ${averageLabel.toLowerCase()}${alert ? `, ${alert.label}` : ''}`}
+            ariaLabel={t(
+                alert
+                    ? 'statusBar.throughput.ariaLabelWithAlert'
+                    : 'statusBar.throughput.ariaLabel',
+                {
+                    tab: tabLabel,
+                    agent: agentName,
+                    rate: spokenThroughputRate(rate, t),
+                    average: averageLabel.toLowerCase(),
+                    alert: alert?.label ?? '',
+                },
+            )}
             className="statusbar-agent-throughput [&>span]:min-w-[8ch]"
             icon={<ThroughputGlyph alert={alert} />}
             onClick={() => openAgentStatusTab(terminalId)}
             title={
                 <StructuredTooltip
-                    eyebrow={`${agentName} output speed`}
+                    eyebrow={t('statusBar.throughput.eyebrow', { agent: agentName })}
                     title={label}
                     details={[averageLabel]}
                     rows={[
                         {
-                            label: 'Last response',
+                            label: t('statusBar.throughput.lastResponse'),
                             value: (
                                 <>
-                                    {describeThroughputSample(latest)}
+                                    {describeThroughputSample(latest, t)}
                                     {/* Kept on one line: `1 minute ago` split across two lines read as two facts. */}
                                     {lastResponseAgo && (
                                         <span className="whitespace-nowrap">
@@ -260,8 +285,8 @@ function MeasuredThroughputStatus({
                         ...(isShowTurn
                             ? [
                                   {
-                                      label: 'This turn',
-                                      value: describeThroughputAggregate(throughput.turn),
+                                      label: t('statusBar.throughput.thisTurn'),
+                                      value: describeThroughputAggregate(throughput.turn, t),
                                   },
                               ]
                             : []),
@@ -269,18 +294,24 @@ function MeasuredThroughputStatus({
                             ? []
                             : [
                                   {
-                                      label: 'First token',
-                                      value: `${formatThroughputDuration(throughput.turnTimeToFirstTokenMs)} in the last finished turn`,
+                                      label: t('statusBar.throughput.firstToken'),
+                                      value: t('statusBar.throughput.firstTokenValue', {
+                                          duration: formatThroughputDuration(
+                                              throughput.turnTimeToFirstTokenMs,
+                                          ),
+                                      }),
                                   },
                               ]),
                         {
-                            label: 'Agent Session',
-                            value: describeThroughputAggregate(throughput.session),
+                            label: t('statusBar.throughput.agentSession'),
+                            value: describeThroughputAggregate(throughput.session, t),
                         },
                         ...(throughput.samples.length > 1
                             ? [
                                   {
-                                      label: `Last ${throughput.samples.length}`,
+                                      label: t('statusBar.throughput.lastSamples', {
+                                          count: throughput.samples.length,
+                                      }),
                                       value: <ThroughputBars samples={throughput.samples} />,
                                   },
                               ]
@@ -290,7 +321,7 @@ function MeasuredThroughputStatus({
                             ? []
                             : [
                                   {
-                                      label: 'API status',
+                                      label: t('statusBar.throughput.apiStatus'),
                                       value: (
                                           <ProviderStatusSummary
                                               isError={isProviderStatusError}
@@ -300,8 +331,8 @@ function MeasuredThroughputStatus({
                                   },
                               ]),
                     ]}
-                    notes={[AGENT_THROUGHPUT_METHOD_NOTE]}
-                    hint={`Click to open ${tabLabel}`}
+                    notes={[agentThroughputMethodNote(t)]}
+                    hint={t('statusBar.throughput.clickToOpen', { tab: tabLabel })}
                 />
             }
         >

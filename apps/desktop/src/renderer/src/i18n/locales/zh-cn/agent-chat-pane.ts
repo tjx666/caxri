@@ -1,0 +1,38 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+
+import type { agentChatPane as source } from '../en/agent-chat-pane';
+
+export const agentChatPane: TranslatedNamespace<typeof source> = {
+    'agentChat.pane.filesUnsupported': '{{provider}} 无法恢复文件，只会回退对话',
+    'agentChat.dock.openAsTerminal': '在终端中打开',
+    'agentChat.dock.resume': '恢复',
+    'agentChat.activity.enterHint': '加入队列 ·',
+    'agentChat.activity.steerHint': '引导当前轮次',
+    'agentChat.activity.stopHint': '停止',
+    'agentChat.commands.sendFailed': '消息发送失败',
+    'agentChat.commands.longPasteFailed': '长文本粘贴保存失败',
+    'agentChat.commands.editFailed': '消息编辑失败',
+    'agentChat.commands.forkFailed': '无法分叉对话',
+    'agentChat.commands.restoreFailed': '代码恢复失败',
+    'agentChat.commands.runCommandFailed': '无法运行 /{{name}}',
+    'agentChat.commands.stopAgentFailed': '无法停止 Agent',
+    'agentChat.commands.answerFailed': '无法回复 Agent',
+    'agentChat.commands.saveProjectDefaultFailed': '无法保存项目默认设置',
+    'agentChat.commands.stopTaskFailed': '无法停止任务',
+    'agentChat.commands.removeQueuedFailed': '无法移除排队的消息',
+    'agentChat.commands.sendQueuedFailed': '无法发送排队的消息',
+    'agentChat.commands.resumeQueueFailed': '无法恢复队列',
+    'agentChat.commands.findTranscriptFailed': '找不到对话记录',
+    'agentChat.commands.noTranscript': '此对话在磁盘上没有可供新对话读取的记录。',
+    'agentChat.userMenu.copyMessage': '复制消息',
+    'agentChat.userMenu.editFromHere': '从此处编辑',
+    'agentChat.userMenu.forkFromHere': '从此处分叉',
+    'agentChat.userMenu.restoreCodeToHere': '恢复代码到此处',
+    'agentChat.userMenu.forkOpening': '已在从这条消息打开分叉',
+    'agentChat.userMenu.copyFailed': '无法复制消息',
+    'agentChat.userMenu.selectionCopied': '已复制所选内容',
+    'agentChat.userMenu.messageCopied': '已复制消息',
+    'agentChat.history.loadFailed': '无法加载更早的消息。',
+    'agentChat.history.loading': '正在加载更早的消息…',
+    'agentChat.history.unavailable': '更早的消息无法在对话中显示，{{provider}} 仍保留着全部内容。',
+};

@@ -1,20 +1,18 @@
 import type { LinearIssueSource, ProjectStatusOverviewLinearIssue } from '@caxri/protocol';
 
 import type { StructuredTooltipData } from '../../components/structured-tooltip';
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 
 /**
  * How the chip names each source. The wording is the sentence a reader needs in order to decide how much to trust the
  * chip; a pull request states the link on purpose, a branch name is a convention, and a conversation is an inference.
  */
-const SOURCE_LABELS: Record<LinearIssueSource, string> = {
-    'pull-request': 'From the pull request description',
-    'branch': 'From the branch name',
-    'conversation': 'From this conversation',
+const SOURCE_LABEL_KEYS: Record<LinearIssueSource, TranslationKey> = {
+    'pull-request': 'statusBar.source.pullRequest',
+    'branch': 'statusBar.source.branch',
+    'conversation': 'statusBar.source.conversation',
 };
-
-function linearIssueSourceLabel(source: LinearIssueSource): string {
-    return SOURCE_LABELS[source];
-}
 
 /**
  * The chip's accessible name. The identifier alone is what a sighted user sees, so everything the glyph and its tint
@@ -23,16 +21,25 @@ function linearIssueSourceLabel(source: LinearIssueSource): string {
 export function linearIssueAriaLabel(
     issue: ProjectStatusOverviewLinearIssue,
     extraCount = 0,
+    t: Translate = translate,
 ): string {
+    const identifier = { identifier: issue.identifier };
     return [
-        issue.url ? `Open Linear issue ${issue.identifier}` : `Linear issue ${issue.identifier}`,
+        t(issue.url ? 'statusBar.linear.openIssue' : 'statusBar.linear.issue', identifier),
         issue.title,
         issue.state,
-        linearIssueSourceLabel(issue.source),
-        extraCount > 0 ? `${extraCount} more ${extraCount === 1 ? 'issue' : 'issues'}` : undefined,
+        t(SOURCE_LABEL_KEYS[issue.source]),
+        extraCount > 0
+            ? t(
+                  extraCount === 1
+                      ? 'statusBar.linear.moreIssuesOne'
+                      : 'statusBar.linear.moreIssuesOther',
+                  { count: extraCount },
+              )
+            : undefined,
     ]
         .filter(Boolean)
-        .join(', ');
+        .join(t('statusBar.listSeparator'));
 }
 
 /**
@@ -51,16 +58,17 @@ export function hasOpenableLinearIssue(
 export function linearIssueTooltip(
     issue: ProjectStatusOverviewLinearIssue,
     extra: readonly ProjectStatusOverviewLinearIssue[] = [],
+    t: Translate = translate,
 ): StructuredTooltipData {
     return {
         eyebrow: issue.title ? issue.identifier : undefined,
         title: issue.title ?? issue.identifier,
         details: issue.state ? [issue.state] : [],
-        notes: [linearIssueSourceLabel(issue.source)],
+        notes: [t(SOURCE_LABEL_KEYS[issue.source])],
         links:
             extra.length > 0
                 ? {
-                      label: 'Also referenced',
+                      label: t('statusBar.alsoReferenced'),
                       // A bare identifier says nothing about which issue it is; the title does when it resolved.
                       items: extra.map((other) => ({
                           label: other.title
@@ -73,8 +81,8 @@ export function linearIssueTooltip(
         // With other issues listed, "open in Linear" alone no longer says which one the chip itself opens.
         hint: issue.url
             ? extra.length > 0
-                ? `Click to open ${issue.identifier} in Linear`
-                : 'Click to open in Linear'
+                ? t('statusBar.linear.clickToOpenIdentifier', { identifier: issue.identifier })
+                : t('statusBar.linear.clickToOpen')
             : undefined,
     };
 }

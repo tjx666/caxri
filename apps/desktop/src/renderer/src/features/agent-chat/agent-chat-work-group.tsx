@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { memo, useContext, useId, useMemo, useRef } from 'react';
 
 import type { AgentChatTask, AgentToolKind } from '@caxri/protocol';
-import { agentToolActiveLabel, unwrapShellCommand } from '@caxri/protocol';
+import { unwrapShellCommand } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     Bot,
@@ -32,6 +32,7 @@ import { CodeView } from '../../components/markdown/code-view';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
+import { useTranslation } from '../../i18n';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
 import { agentChatFileChangesStat } from './agent-chat-diff';
@@ -55,6 +56,7 @@ import {
     stripLineNumberGutter,
     summarizeAgentChatWork,
 } from './agent-chat-timeline';
+import { agentChatToolActiveLabel } from './agent-chat-tool-labels';
 import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-agent-chat-task-link';
 
@@ -221,10 +223,16 @@ function WorkGlyph({ kind }: { kind: AgentToolKind | undefined }) {
 const COMMAND_TITLE_LENGTH = 80;
 
 function OutputView({ language, text }: { language: string | undefined; text: string }) {
+    const { t } = useTranslation();
     const output = text.replace(/\n+$/u, '');
-    if (!output) return <p className="m-0 text-muted">No output</p>;
+    if (!output) return <p className="m-0 text-muted">{t('agentChat.workGroup.noOutput')}</p>;
     return (
-        <CodeView className={OUTPUT_CLASS_NAME} code={output} label="Output" language={language} />
+        <CodeView
+            className={OUTPUT_CLASS_NAME}
+            code={output}
+            label={t('agentChat.workGroup.output')}
+            language={language}
+        />
     );
 }
 
@@ -235,6 +243,7 @@ function WorkDetail({
     item: AgentChatWorkItem;
     onOpenFile?: (target: string) => void;
 }) {
+    const { t } = useTranslation();
     switch (item.type) {
         case 'reasoning': {
             return (
@@ -257,7 +266,7 @@ function WorkDetail({
                         <CodeView
                             className={OUTPUT_CLASS_NAME}
                             code={command}
-                            label="Command"
+                            label={t('agentChat.workGroup.command')}
                             language="shell"
                         />
                     )}
@@ -269,12 +278,12 @@ function WorkDetail({
                                 item.exitCode === 0 ? 'text-muted' : 'text-danger',
                             )}
                         >
-                            Exit code {item.exitCode}
+                            {t('agentChat.workGroup.exitCode', { code: item.exitCode })}
                         </p>
                     )}
                     {item.background && (
                         <p className="m-0 text-muted">
-                            Moved to the background; the Agent is told when it finishes.
+                            {t('agentChat.workGroup.movedToBackground')}
                         </p>
                     )}
                 </>
@@ -321,14 +330,18 @@ function WorkDetail({
  * exit code and duration belong to a later notification.
  */
 function CommandFacts({ item }: { item: Extract<AgentChatWorkItem, { type: 'command' }> }) {
+    const { t } = useTranslation();
     return (
         <>
             {item.background && (
-                <span className="shrink-0 rounded bg-surface px-1 text-[11px]">Background</span>
+                <span className="shrink-0 rounded bg-surface px-1 text-[11px]">
+                    {t('agentChat.workGroup.background')}
+                </span>
             )}
             {item.exitCode !== undefined && item.exitCode !== 0 && (
                 <span className="shrink-0 font-mono text-[11px] text-danger tabular-nums">
-                    <span className="sr-only">, </span>Exit {item.exitCode}
+                    <span className="sr-only">, </span>
+                    {t('agentChat.workGroup.exitShort', { code: item.exitCode })}
                 </span>
             )}
         </>
@@ -336,10 +349,11 @@ function CommandFacts({ item }: { item: Extract<AgentChatWorkItem, { type: 'comm
 }
 
 function FileChangeStat({ item }: { item: Extract<AgentChatWorkItem, { type: 'fileChange' }> }) {
+    const { t } = useTranslation();
     const stat = useMemo(() => agentChatFileChangesStat(item.changes), [item.changes]);
     return (
         <>
-            <span className="sr-only">, {diffStatLabel(stat)}</span>
+            <span className="sr-only">, {diffStatLabel(stat, t)}</span>
             <DiffStat additions={stat.additions} deletions={stat.deletions} />
         </>
     );
@@ -353,18 +367,31 @@ function AgentChatTaskOpenButton({
 }: {
     link: NonNullable<ReturnType<typeof useAgentChatTaskLink>>;
 }) {
+    const { t } = useTranslation();
     const { task } = link;
     return (
-        <Tooltip content={task ? `Open ${task.title || 'task'}` : 'Open subagent'}>
+        <Tooltip
+            content={
+                task
+                    ? t('agentChat.timeline.openNamed', {
+                          name: task.title || t('agentChat.workGroup.task'),
+                      })
+                    : t('agentChat.workGroup.openSubagent')
+            }
+        >
             <Button
-                aria-label={task?.kind === 'shell' ? 'Open shell' : 'Open subagent'}
+                aria-label={t(
+                    task?.kind === 'shell'
+                        ? 'agentChat.workGroup.openShell'
+                        : 'agentChat.workGroup.openSubagent',
+                )}
                 className="min-h-6 shrink-0 gap-1 px-1.5 text-muted"
                 size="sm"
                 variant="ghost"
                 onClick={link.open}
             >
                 <PanelRight aria-hidden="true" className="size-3.5" />
-                Open
+                {t('common.open')}
             </Button>
         </Tooltip>
     );
@@ -405,12 +432,13 @@ function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?:
  */
 const AgentChatWorkRow = memo(
     ({ item, onOpenFile }: { item: AgentChatWorkItem; onOpenFile?: (target: string) => void }) => {
-        const presentation = describeAgentChatWork(item);
+        const { t } = useTranslation();
+        const presentation = describeAgentChatWork(item, t);
         const isRunning = isAgentChatWorkRunning(item);
         const link = useAgentChatTaskLink(item);
         const task = link?.task;
-        const taskActivity = task && agentChatTaskActivity(task);
-        const verb = isRunning ? agentToolActiveLabel(presentation) : presentation.label;
+        const taskActivity = task && agentChatTaskActivity(task, t);
+        const verb = isRunning ? agentChatToolActiveLabel(presentation, t) : presentation.label;
         const { path, subject } = presentation;
         return (
             <DisclosureRow
@@ -513,8 +541,9 @@ function AgentChatWorkSummary({
     items: readonly AgentChatWorkItem[];
     onOpenFile?: (target: string) => void;
 }) {
+    const { t } = useTranslation();
     const failureStatus = agentChatWorkGroupFailure(items);
-    const summary = summarizeAgentChatWork(items);
+    const summary = summarizeAgentChatWork(items, t);
     return (
         <DisclosureRow
             containedItems={items}

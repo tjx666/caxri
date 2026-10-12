@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 import { useRef } from 'react';
 
+import { translate } from '../i18n';
 import type { ContextMenuEntries } from '../lib/context-menu';
 import { showContextMenu } from '../lib/context-menu';
 import { tryCommand } from '../stores/toasts';
@@ -43,7 +44,7 @@ export function useContextMenu(
         // eslint-disable-next-line no-void -- intentional floating-promise discard; both steps report their own errors
         void (async () => {
             try {
-                const entries = await tryCommand('Unable to show the menu', () =>
+                const entries = await tryCommand(translate('core.contextMenu.showFailed'), () =>
                     Promise.resolve(latest.current.build()),
                 );
                 if (entries) await showContextMenu(entries, position, close);

@@ -2,6 +2,8 @@ import { createContext } from 'react';
 
 import { escapeRegExp, throttle } from 'es-toolkit';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 
 /**
@@ -49,9 +51,14 @@ export function locateAgentChatFindMatch(
  * `3/12`, `No results` when nothing matches (the Terminal's find bar words it the same), and nothing before a query is
  * typed.
  */
-export function agentChatFindCountLabel(query: string, count: number, activeIndex: number): string {
+export function agentChatFindCountLabel(
+    query: string,
+    count: number,
+    activeIndex: number,
+    t: Translate = translate,
+): string {
     if (!query) return '';
-    if (count === 0) return 'No results';
+    if (count === 0) return t('agentChat.find.noResults');
     return `${activeIndex + 1}/${count}`;
 }
 

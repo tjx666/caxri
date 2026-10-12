@@ -2,6 +2,7 @@ import type { AgentAction } from '@caxri/protocol';
 import { noop } from 'es-toolkit';
 
 import { SuggestionList } from '../../components/suggestion-list';
+import { useTranslation } from '../../i18n';
 import type { SuggestionOption } from '../../lib/suggestion-options';
 import { agentChatMenuGroupHeading } from './agent-chat-slash-commands';
 import { agentChatSuggestionFooter } from './agent-chat-suggestions';
@@ -34,14 +35,23 @@ export function AgentChatSuggestionMenu({
         preparingText: string | undefined;
     };
 }) {
+    const { t } = useTranslation();
     if (commandMenu.isOpen)
         return (
             <SuggestionList
                 activeIndex={commandMenu.activeIndex}
-                emptyText="No matching command or skill"
+                emptyText={t('agentChat.slash.noMatches')}
                 footer={agentChatSuggestionFooter('commands', commandMenu.suggestions.length > 0)}
-                headingAt={(index) => agentChatMenuGroupHeading(commandMenu.matches, index)}
-                label="Commands and skills"
+                headingAt={(index) => {
+                    const heading = agentChatMenuGroupHeading(commandMenu.matches, index);
+                    if (heading === undefined) return;
+                    return t(
+                        heading === 'Commands'
+                            ? 'agentChat.slash.commands'
+                            : 'agentChat.slash.skills',
+                    );
+                }}
+                label={t('agentChat.slash.label')}
                 listId={commandMenu.listId}
                 notice={commandMenu.skillNotice}
                 suggestions={commandMenu.suggestions}
@@ -53,7 +63,7 @@ export function AgentChatSuggestionMenu({
         return (
             <SuggestionList
                 activeIndex={-1}
-                label="Sessions"
+                label={t('agentChat.slash.sessions')}
                 listId={sessionMenu.listId}
                 notice={{ text: sessionMenu.preparingText, isLoading: true }}
                 suggestions={[]}
@@ -67,8 +77,8 @@ export function AgentChatSuggestionMenu({
             activeIndex={sessionMenu.activeIndex}
             emptyText={sessionMenu.emptyText}
             footer={agentChatSuggestionFooter('sessions', sessionMenu.suggestions.length > 0)}
-            headingAt={(index) => (index === 0 ? 'Sessions' : undefined)}
-            label="Sessions"
+            headingAt={(index) => (index === 0 ? t('agentChat.slash.sessions') : undefined)}
+            label={t('agentChat.slash.sessions')}
             listId={sessionMenu.listId}
             suggestions={sessionMenu.suggestions}
             onChoose={sessionMenu.chooseAt}

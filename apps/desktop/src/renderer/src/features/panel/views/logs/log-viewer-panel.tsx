@@ -16,18 +16,21 @@ import {
 } from '../../../../components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '../../../../components/ui/toggle-group';
 import { Tooltip } from '../../../../components/ui/tooltip';
+import type { TranslationKey } from '../../../../i18n';
+import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { filterLogRecords, parseLogFilter } from './log-filter';
 import { useLogPrefillStore } from './log-prefill';
 import { useLogStream } from './use-log-stream';
 
-const FILTER_GRAMMAR_HINT =
-    'Comma-separates patterns as OR (a, b). Prefix a pattern with ! to exclude it (!a). Wrap a pattern in double quotes to match a literal comma or leading ! ("a,b", !"c").';
-
 const ALL_PROCESSES = '__all__';
 
-const PROCESS_OPTIONS: Array<{ value: string; label: string }> = [
-    { value: ALL_PROCESSES, label: 'All processes' },
+/**
+ * Process names are Caxri's own component names (the same words the log records and docs use), so they stay English;
+ * only the "all" choice is a phrase and carries a translation key.
+ */
+const PROCESS_OPTIONS: Array<{ value: string } & ({ label: string } | { labelKey: TranslationKey })> = [
+    { value: ALL_PROCESSES, labelKey: 'panel.logs.allProcesses' },
     { value: 'desktop', label: 'Desktop' },
     { value: 'extension-host', label: 'Extension Host' },
     { value: 'server-core', label: 'Server Core' },
@@ -35,6 +38,13 @@ const PROCESS_OPTIONS: Array<{ value: string; label: string }> = [
 ];
 
 const LEVELS: LogLevel[] = ['error', 'warn', 'info', 'debug'];
+
+const LEVEL_TOGGLE_LABEL_KEYS: Record<LogLevel, TranslationKey> = {
+    error: 'panel.logs.showLevel.error',
+    warn: 'panel.logs.showLevel.warn',
+    info: 'panel.logs.showLevel.info',
+    debug: 'panel.logs.showLevel.debug',
+};
 
 const levelClass: Record<LogLevel, string> = {
     error: 'text-danger',
@@ -58,6 +68,7 @@ function LogRow({
     expanded: boolean;
     onToggle(): void;
 }) {
+    const { t } = useTranslation();
     return (
         <button
             type="button"
@@ -82,7 +93,7 @@ function LogRow({
                     {record.correlationId && `correlationId: ${record.correlationId}\n`}
                     {record.fields
                         ? JSON.stringify(record.fields, undefined, 2)
-                        : 'No detail fields.'}
+                        : t('panel.logs.noDetailFields')}
                 </div>
             )}
         </button>
@@ -95,6 +106,9 @@ function LogRow({
  * the tail until the user scrolls up, and re-locks when they return to the bottom.
  */
 export function LogViewerPanel() {
+    const { t } = useTranslation();
+    const processOptionLabel = (option: (typeof PROCESS_OPTIONS)[number]): string =>
+        'labelKey' in option ? t(option.labelKey) : option.label;
     const [processValue, setProcessValue] = useState<string>(ALL_PROCESSES);
     const [activeLevels, setActiveLevels] = useState<LogLevel[]>([...LEVELS]);
     const [filterText, setFilterText] = useState('');
@@ -166,22 +180,27 @@ export function LogViewerPanel() {
                         value={processValue}
                         onValueChange={(next) => setProcessValue(next ?? ALL_PROCESSES)}
                     >
-                        <SelectTrigger aria-label="Process filter" className="h-6 flex-1 text-[11px]">
+                        <SelectTrigger aria-label={t('panel.logs.processFilter')} className="h-6 flex-1 text-[11px]">
                             <SelectValue>
-                                {PROCESS_OPTIONS.find(({ value }) => value === processValue)?.label}
+                                {(() => {
+                                    const selected = PROCESS_OPTIONS.find(
+                                        ({ value }) => value === processValue,
+                                    );
+                                    return selected && processOptionLabel(selected);
+                                })()}
                             </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                            {PROCESS_OPTIONS.map(({ value, label }) => (
-                                <SelectItem key={value} value={value}>
-                                    {label}
+                            {PROCESS_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {processOptionLabel(option)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    <Tooltip content="Clear the view (history stays on disk)">
+                    <Tooltip content={t('panel.logs.clearViewTooltip')}>
                         <Button
-                            aria-label="Clear log view"
+                            aria-label={t('panel.logs.clearView')}
                             size="icon"
                             variant="ghost"
                             onClick={() => stream.clear()}
@@ -191,18 +210,18 @@ export function LogViewerPanel() {
                     </Tooltip>
                 </div>
                 <div className="flex items-center gap-1">
-                    <Tooltip content={FILTER_GRAMMAR_HINT}>
+                    <Tooltip content={t('panel.logs.filterGrammarHint')}>
                         <Input
-                            aria-label="Filter log records"
+                            aria-label={t('panel.logs.filterRecords')}
                             className="flex-1"
-                            placeholder="Filter (e.g. text, !exclude)"
+                            placeholder={t('panel.logs.filterPlaceholder')}
                             size="compact"
                             value={filterText}
                             onChange={(event) => setFilterText(event.currentTarget.value)}
                         />
                     </Tooltip>
                     <ToggleGroup
-                        aria-label="Level filter"
+                        aria-label={t('panel.logs.levelFilter')}
                         multiple
                         value={activeLevels}
                         onValueChange={(next: LogLevel[]) => setActiveLevels(next)}
@@ -210,7 +229,7 @@ export function LogViewerPanel() {
                         {LEVELS.map((level) => (
                             <ToggleGroupItem
                                 key={level}
-                                aria-label={`Show ${level} records`}
+                                aria-label={t(LEVEL_TOGGLE_LABEL_KEYS[level])}
                                 value={level}
                             >
                                 {level.slice(0, 1).toUpperCase()}
@@ -222,7 +241,10 @@ export function LogViewerPanel() {
                     <div className="flex items-center gap-2 text-[11px] text-muted">
                         {visible.length !== stream.records.length && (
                             <span>
-                                {visible.length} of {stream.records.length}
+                                {t('panel.logs.visibleCount', {
+                                    total: stream.records.length,
+                                    visible: visible.length,
+                                })}
                             </span>
                         )}
                         {hasActiveFilter && (
@@ -232,7 +254,7 @@ export function LogViewerPanel() {
                                 variant="ghost"
                                 onClick={clearFilters}
                             >
-                                Clear filters
+                                {t('panel.logs.clearFilters')}
                             </Button>
                         )}
                     </div>
@@ -241,10 +263,10 @@ export function LogViewerPanel() {
             {showGapBanner && (
                 <div className="flex flex-none items-center gap-2 border-b border-border px-2 py-1 text-[11px] text-warning">
                     <span className="flex-1">
-                        Some records rotated out before they could be fetched.
+                        {t('panel.logs.gapNotice')}
                     </span>
                     <Button
-                        aria-label="Dismiss dropped-records notice"
+                        aria-label={t('panel.logs.dismissGapNotice')}
                         className="text-warning enabled:hover:bg-[color-mix(in_srgb,var(--warning)_18%,transparent)]"
                         size="icon"
                         variant="ghost"
@@ -256,18 +278,22 @@ export function LogViewerPanel() {
             )}
             <div ref={scrollReference} className="min-h-0 flex-1 overflow-auto" onScroll={handleScroll}>
                 {visible.length === 0 && stream.isLoading ? (
-                    <LoadingSkeleton variant="document" label="Loading logs…" lines={10} />
+                    <LoadingSkeleton
+                        variant="document"
+                        label={t('panel.logs.loading')}
+                        lines={10}
+                    />
                 ) : visible.length === 0 ? (
                     <div className="flex flex-col items-center gap-1 px-3 py-4 text-center text-[12px] text-muted">
                         {hasActiveFilter ? (
                             <>
-                                <span>No log records match the filter text or level toggles.</span>
+                                <span>{t('panel.logs.noFilteredRecords')}</span>
                                 <Button size="sm" variant="ghost" onClick={clearFilters}>
-                                    Clear filters
+                                    {t('panel.logs.clearFilters')}
                                 </Button>
                             </>
                         ) : (
-                            'No log records match.'
+                            t('panel.logs.noRecords')
                         )}
                     </div>
                 ) : (

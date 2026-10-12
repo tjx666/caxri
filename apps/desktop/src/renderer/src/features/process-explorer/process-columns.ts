@@ -3,6 +3,8 @@ import type { CSSProperties } from 'react';
 import { clamp } from 'es-toolkit';
 import { z } from 'zod';
 
+import type { TranslationKey } from '../../i18n';
+
 export type ProcessColumnKey = 'cpu' | 'memory' | 'name' | 'pid';
 
 export interface ProcessSort {
@@ -20,7 +22,7 @@ export interface ProcessColumnDefinition {
      */
     isNumeric: boolean;
     key: ProcessColumnKey;
-    label: string;
+    labelKey: TranslationKey;
     minWidth: number;
     /**
      * Width used before the container has been measured and after a reset. `name` additionally auto-fits the remaining
@@ -30,10 +32,34 @@ export interface ProcessColumnDefinition {
 }
 
 export const PROCESS_COLUMNS: readonly ProcessColumnDefinition[] = [
-    { isNumeric: false, key: 'name', label: 'Name', minWidth: 160, width: 420 },
-    { isNumeric: true, key: 'cpu', label: 'CPU', minWidth: 64, width: 96 },
-    { isNumeric: true, key: 'memory', label: 'Memory', minWidth: 80, width: 110 },
-    { isNumeric: true, key: 'pid', label: 'PID', minWidth: 56, width: 90 },
+    {
+        isNumeric: false,
+        key: 'name',
+        labelKey: 'processExplorer.columns.name',
+        minWidth: 160,
+        width: 420,
+    },
+    {
+        isNumeric: true,
+        key: 'cpu',
+        labelKey: 'processExplorer.columns.cpu',
+        minWidth: 64,
+        width: 96,
+    },
+    {
+        isNumeric: true,
+        key: 'memory',
+        labelKey: 'processExplorer.columns.memory',
+        minWidth: 80,
+        width: 110,
+    },
+    {
+        isNumeric: true,
+        key: 'pid',
+        labelKey: 'processExplorer.columns.pid',
+        minWidth: 56,
+        width: 90,
+    },
 ];
 
 /**

@@ -1,5 +1,7 @@
 import { omit } from 'es-toolkit';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import { createStore } from '../../lib/store';
 
 export interface EditorStatus {
@@ -52,6 +54,16 @@ export const useEditorStatusStore = createStore<EditorStatusState>('editor-statu
     },
 }));
 
+/**
+ * Language names that are ordinary words rather than product or format names, so they are translated.
+ */
+const TRANSLATED_LANGUAGE_LABELS: Readonly<Record<string, TranslationKey>> = {
+    jsonc: 'editor.language.jsonc',
+    plaintext: 'editor.language.plaintext',
+    rc: 'editor.language.rc',
+    shell: 'editor.language.shell',
+};
+
 const LANGUAGE_LABELS: Record<string, string> = {
     'caxri-dotenv': 'Dotenv',
     'css': 'CSS',
@@ -63,13 +75,9 @@ const LANGUAGE_LABELS: Record<string, string> = {
     'javascript': 'JavaScript',
     'javascriptreact': 'JavaScript React',
     'json': 'JSON',
-    'jsonc': 'JSON with Comments',
     'markdown': 'Markdown',
-    'plaintext': 'Plain Text',
     'python': 'Python',
-    'rc': 'Configuration',
     'rust': 'Rust',
-    'shell': 'Shell Script',
     'sql': 'SQL',
     'typescript': 'TypeScript',
     'typescriptreact': 'TypeScript React',
@@ -77,7 +85,15 @@ const LANGUAGE_LABELS: Record<string, string> = {
     'yaml': 'YAML',
 };
 
-export function editorLanguageLabel(languageId: string): string {
+/**
+ * `t` defaults to `translate()` for callers outside React; a component passes its `useTranslation()` `t` so the label
+ * follows a language change.
+ */
+export function editorLanguageLabel(languageId: string, t: Translate = translate): string {
+    const translatedKey = Object.hasOwn(TRANSLATED_LANGUAGE_LABELS, languageId)
+        ? TRANSLATED_LANGUAGE_LABELS[languageId]
+        : undefined;
+    if (translatedKey) return t(translatedKey);
     return (
         LANGUAGE_LABELS[languageId] ??
         languageId

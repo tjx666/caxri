@@ -5,6 +5,7 @@ import type {
     CommanderSnapshot,
 } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { createStore } from '../../lib/store';
 import { caxriQueryKey, fetchCaxriQuery, queryClient } from '../../queries/client';
@@ -63,10 +64,7 @@ export function ensureAgentCommander(): Promise<void> {
  */
 export async function readAgentCommanderWorkbench(): Promise<BootstrapState> {
     const snapshot = await caxri.request('commander.snapshot');
-    if (!snapshot)
-        throw new Error(
-            'Agent Commander is no longer set up. Close this window and open it again.',
-        );
+    if (!snapshot) throw new Error(translate('agentCommander.terminal.noLongerSetUp'));
     adoptSnapshot(snapshot);
     return snapshot.workbench;
 }

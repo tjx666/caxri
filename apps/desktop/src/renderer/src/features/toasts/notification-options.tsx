@@ -3,6 +3,7 @@ import { Ellipsis } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 
 export function NotificationOptions({
     onMute,
@@ -11,12 +12,17 @@ export function NotificationOptions({
     onMute: () => void;
     onOpenChange: (isOpen: boolean) => void;
 }) {
+    const { t } = useTranslation();
     return (
         <Popover onOpenChange={onOpenChange}>
-            <Tooltip content="Notification options">
+            <Tooltip content={t('toasts.options.label')}>
                 <PopoverTrigger
                     render={
-                        <Button variant="ghost" size="icon" aria-label="Notification options" />
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={t('toasts.options.label')}
+                        />
                     }
                 >
                     <Ellipsis size={16} />
@@ -24,11 +30,9 @@ export function NotificationOptions({
             </Tooltip>
             <PopoverContent align="end" className="w-64 p-2" side="top">
                 <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onMute}>
-                    Don't show this type again
+                    {t('toasts.options.mute')}
                 </Button>
-                <p className="px-2 pt-1 text-[11px] text-muted">
-                    Applies to all Projects. Restore in Settings → Notifications.
-                </p>
+                <p className="px-2 pt-1 text-[11px] text-muted">{t('toasts.options.muteHint')}</p>
             </PopoverContent>
         </Popover>
     );

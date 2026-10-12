@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 
+import { translate } from '../../../i18n';
 import { pushToast } from '../../../stores/toasts';
 import type { AgentChatAttachment } from '../agent-chat-drafts';
 import {
@@ -93,7 +94,7 @@ export function useAgentChatAttachments(terminalId: string) {
         if (tooLarge.length > 0)
             pushToast('error', agentChatImageRejectionMessage('size', tooLarge));
         if (images.length + tooLarge.length < accepted.length)
-            pushToast('error', 'An image could not be read');
+            pushToast('error', translate('agentChat.images.unreadable'));
         update((current) => [
             ...current,
             ...images.map(({ image, isResized, name }) => ({

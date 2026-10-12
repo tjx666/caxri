@@ -8,6 +8,7 @@ import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useCommandShortcut } from '../../lib/keybindings';
@@ -66,6 +67,7 @@ function SessionCreationMenu({
             state.createSessionMenu?.projectId === project.id &&
             state.createSessionMenu.anchor === anchor,
     );
+    const { t } = useTranslation();
     const settings = useSettings();
     const defaultAgent = settings?.['session.defaultAgent'];
     const openInChat = settings?.['session.openAgentsInChat'];
@@ -107,7 +109,7 @@ function SessionCreationMenu({
         ? { kind: defaultAgent, surface: newAgentSurface(defaultAgent, openInChat) }
         : undefined;
     const splitLabel = splitTarget
-        ? newSessionActionLabel(splitTarget, resolveAgentIcon(splitTarget.kind).label)
+        ? newSessionActionLabel(splitTarget, resolveAgentIcon(splitTarget.kind).label, t)
         : undefined;
     const menuTrigger = (
         <MenuTrigger
@@ -132,7 +134,10 @@ function SessionCreationMenu({
             render={
                 splitLabel
                     ? cloneElement(trigger, {
-                          'aria-label': `${splitLabel} in ${project.displayTitle}`,
+                          'aria-label': t('session.create.actionInProject', {
+                              action: splitLabel,
+                              project: project.displayTitle,
+                          }),
                       })
                     : trigger
             }
@@ -171,7 +176,9 @@ function SessionCreationMenu({
             }}
         >
             {triggerWithTooltip}
-            <MenuContent aria-label={`New Session in ${project.displayTitle}`}>
+            <MenuContent
+                aria-label={t('session.create.newInProject', { project: project.displayTitle })}
+            >
                 {newTerminalAgentChoices(defaultAgent, openInChat).map(
                     ({ isDefault, kind, surface }) => (
                         <MenuItem
@@ -191,7 +198,7 @@ function SessionCreationMenu({
                  */}
                 <MenuItem onClick={() => chooseSessionTerminalKind(project.id, null)}>
                     <SquareDashed className="text-muted" size={14} />
-                    <span className="flex-1 truncate">Start without a Terminal</span>
+                    <span className="flex-1 truncate">{t('session.create.withoutTerminal')}</span>
                 </MenuItem>
                 <MenuSeparator />
                 <OpenInChatMenuItem />
@@ -209,6 +216,7 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
             state.createSessionMenu?.projectId === project.id &&
             state.createSessionMenu.anchor === 'heading',
     );
+    const { t } = useTranslation();
     return (
         <SessionCreationMenu
             anchor="heading"
@@ -227,7 +235,9 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
                     )}
                     size="icon"
                     variant="ghost"
-                    aria-label={`New Session in ${project.displayTitle}`}
+                    aria-label={t('session.create.newInProject', {
+                        project: project.displayTitle,
+                    })}
                     tabIndex={-1}
                 >
                     <SquarePen size={13} />
@@ -257,6 +267,7 @@ export function EmptyProjectSessionMenu({
     roving: boolean;
     rowId: string;
 }) {
+    const { t } = useTranslation();
     return (
         <SessionCreationMenu
             anchor="emptyProject"
@@ -268,14 +279,16 @@ export function EmptyProjectSessionMenu({
                      * Named after the Project because several empty Projects can show this row at once, and "New
                      * Session" alone would read identically for every one of them.
                      */
-                    aria-label={`New Session in ${project.displayTitle}`}
+                    aria-label={t('session.create.newInProject', {
+                        project: project.displayTitle,
+                    })}
                     aria-level={2}
                     aria-selected={false}
                     data-row-id={rowId}
                     role="treeitem"
                     tabIndex={roving ? 0 : -1}
                 >
-                    <SquarePen size={13} /> New Session
+                    <SquarePen size={13} /> {t('session.create.newSession')}
                 </button>
             }
         />

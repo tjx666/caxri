@@ -1,6 +1,9 @@
 import type { Keybinding } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+import { commandTitle } from '../../lib/command-labels';
 import {
     buildShortcutMap,
     keyboardEventShortcut,
@@ -59,6 +62,7 @@ export function describeScreencastKey(
     event: ScreencastKeyboardInput,
     keybindings: readonly Keybinding[],
     options: ScreencastKeyOptions,
+    t: Translate = translate,
 ): ScreencastKeyDescription | undefined {
     if (
         event.isComposing ||
@@ -80,7 +84,7 @@ export function describeScreencastKey(
         const command = commandDefinitions.find((definition) => definition.id === commandId);
         if (!command || (options.editable && !options.commandAllowsEditable(commandId)))
             return undefined;
-        return { commandTitle: command.title, shortcut };
+        return { commandTitle: commandTitle(command, t), shortcut };
     }
 
     if (options.editable || event.key.length === 1) return undefined;
@@ -104,7 +108,7 @@ export const useScreencastStore = createStore<ScreencastState>('screencast', (se
  * Pure so message selection stays independent of notification rendering.
  */
 export function screencastToggleToastMessage(isEnabled: boolean): string {
-    return isEnabled ? 'Screencast Mode on' : 'Screencast Mode off';
+    return translate(isEnabled ? 'screencast.toast.on' : 'screencast.toast.off');
 }
 
 /**

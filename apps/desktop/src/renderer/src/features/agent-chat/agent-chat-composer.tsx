@@ -5,6 +5,7 @@ import type { AgentChatCommand, AgentChatQueuedMessage, AgentChatSnapshot } from
 import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 
 import { Textarea } from '../../components/ui/textarea';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useTerminal } from '../../stores/selectors';
 import { usePaneViewSession } from '../workbench/pane-view-session';
@@ -141,6 +142,7 @@ export function AgentChatComposer({
     supportsImages,
     terminalId,
 }: AgentChatComposerProperties) {
+    const { t } = useTranslation();
     const focusInput = (): void => inputReference.current?.focus();
     const { clearDraft, draft, restoreQueued, setDraft } = useAgentChatDraft({
         inputReference,
@@ -218,13 +220,17 @@ export function AgentChatComposer({
         setDraft,
     });
     const { sendAction } = edit;
-    const sendTooltip = agentChatSendTooltip(sendAction, {
-        block: sendBlock,
-        hasContent,
-        isAttaching,
-        isPreparingReference: sessionMenu.isPreparing,
-        isSending,
-    });
+    const sendTooltip = agentChatSendTooltip(
+        sendAction,
+        {
+            block: sendBlock,
+            hasContent,
+            isAttaching,
+            isPreparingReference: sessionMenu.isPreparing,
+            isSending,
+        },
+        t,
+    );
     const stopAndFocus = (): void => {
         stop();
         focusInput();
@@ -301,7 +307,7 @@ export function AgentChatComposer({
                     )}
                     <Textarea
                         {...(sessionMenu.inputAria ?? menu.inputAria)}
-                        aria-label="Message"
+                        aria-label={t('agentChat.composer.message')}
                         className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
                         maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
                         placeholder={sendAction.placeholder}
@@ -349,6 +355,7 @@ export function AgentChatComposer({
                         canAttachImages={supportsImages}
                         canSaveProjectDefault={canSaveProjectDefault}
                         isAttaching={isAttaching}
+                        isQueueing={!edit.isEditing && (isTurnRunning || isBusy)}
                         isSendable={isSendable}
                         isStopping={isStopping}
                         onCompact={compact}

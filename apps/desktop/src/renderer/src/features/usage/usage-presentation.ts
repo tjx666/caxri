@@ -1,5 +1,7 @@
 import type { UsageReport } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+
 /**
  * Presentation rules shared by the Usage page's cards: bar tones and bases, tile detail facts, and the text twins of
  * muted rows. Kept apart from `usage-metrics.ts`, which owns the report's derived figures and wording.
@@ -51,13 +53,19 @@ export function usageShare(
  * merged pull request changed a line, since `+0 -0 lines` says nothing and wrapped awkwardly beside the opened count.
  */
 export function pullRequestTileDetail(
+    t: Translate,
     totals: Pick<UsageReport['totals'], 'linesAdded' | 'linesDeleted' | 'pullRequestsCreated'>,
     formatLines: (count: number) => string,
 ): string[] {
-    const opened = `${totals.pullRequestsCreated.toLocaleString('en-US')} opened`;
+    const opened = t('usage.pullRequests.opened', {
+        count: totals.pullRequestsCreated.toLocaleString('en-US'),
+    });
     if (totals.linesAdded === 0 && totals.linesDeleted === 0) return [opened];
     return [
-        `+${formatLines(totals.linesAdded)} -${formatLines(totals.linesDeleted)} lines`,
+        t('usage.pullRequests.lines', {
+            added: formatLines(totals.linesAdded),
+            deleted: formatLines(totals.linesDeleted),
+        }),
         opened,
     ];
 }
@@ -67,14 +75,17 @@ export function pullRequestTileDetail(
  * its folder, so its title alone does not say so). Undefined for an ordinary row and for the `Outside Caxri` Project
  * row, whose title already names the state.
  */
-export function usageRowStatusLabel(row: {
-    isDeleted?: boolean;
-    isOutsideCaxri: boolean;
-    isRemoved?: boolean;
-    kind: 'project' | 'session';
-}): string | undefined {
-    if (row.isRemoved) return 'Removed';
-    if (row.isDeleted) return 'Deleted';
-    if (row.isOutsideCaxri && row.kind === 'session') return 'Outside Caxri';
+export function usageRowStatusLabel(
+    t: Translate,
+    row: {
+        isDeleted?: boolean;
+        isOutsideCaxri: boolean;
+        isRemoved?: boolean;
+        kind: 'project' | 'session';
+    },
+): string | undefined {
+    if (row.isRemoved) return t('usage.rowStatus.removed');
+    if (row.isDeleted) return t('usage.rowStatus.deleted');
+    if (row.isOutsideCaxri && row.kind === 'session') return t('usage.rowStatus.outsideCaxri');
     return undefined;
 }

@@ -6,6 +6,7 @@ import { clamp } from 'es-toolkit';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
+import { translate, useTranslation } from '../../i18n';
 import { isDirectoryEntry } from '../../lib/file-entry';
 import { setPathBrowserOpen } from '../../stores/dialogs';
 import { describeFailure } from '../../stores/toasts';
@@ -22,6 +23,7 @@ import {
     completePathQuery,
     parsePathBrowserInput,
     pathBrowserCreateCandidate,
+    PathBrowserInputError,
     pathBrowserInputTransition,
     pathBrowserKeyIntent,
     projectDirectoryPath,
@@ -200,6 +202,7 @@ function applyPathBrowserIntent(
 }
 
 export function usePathBrowser(projectRoot: string, sessionId: string, workbenchProjectId: string) {
+    const { t } = useTranslation();
     const [snapshot, setSnapshot] = useState<PathBrowserSnapshot>();
     const [inputState, setInputState] = useState<PathBrowserInputState>({
         input: '',
@@ -221,7 +224,12 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
     try {
         parsePathBrowserInput(inputState.input);
     } catch (error_) {
-        syntaxError = error_ instanceof Error ? error_ : new Error('Invalid path');
+        syntaxError =
+            error_ instanceof PathBrowserInputError
+                ? new Error(t(error_.messageKey))
+                : error_ instanceof Error
+                  ? error_
+                  : new Error(t('pathBrowser.errors.invalidPath'));
     }
 
     useEffect(() => {
@@ -241,7 +249,8 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                     setInputState({ input: result.input, mode: result.mode });
                 setError(undefined);
             } catch (error_) {
-                if (!isDisposed) setError(toBrowserError(error_, 'Unable to browse files'));
+                if (!isDisposed)
+                    setError(toBrowserError(error_, translate('pathBrowser.errors.browseFailed')));
             } finally {
                 if (!isDisposed) setIsStarting(false);
             }
@@ -290,7 +299,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                 setError(undefined);
             } catch (error_) {
                 if (requestGeneration.current !== generation) return;
-                setError(toBrowserError(error_, 'Unable to browse files'));
+                setError(toBrowserError(error_, translate('pathBrowser.errors.browseFailed')));
             } finally {
                 if (requestGeneration.current === generation) setIsFetching(false);
             }
@@ -376,7 +385,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                 }
             }
         } catch (error_) {
-            setError(toBrowserError(error_, 'Unable to open path'));
+            setError(toBrowserError(error_, translate('pathBrowser.errors.openFailed')));
         } finally {
             setIsNavigating(false);
         }
@@ -422,11 +431,11 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                     sessionId,
                     workbenchProjectId,
                 });
-                if (!opened) throw new Error('Unable to open external file in this Session');
+                if (!opened) throw new Error(translate('pathBrowser.errors.openExternalFailed'));
             }
             closePathBrowser();
         } catch (error_) {
-            setError(toBrowserError(error_, 'Unable to open path'));
+            setError(toBrowserError(error_, translate('pathBrowser.errors.openFailed')));
         } finally {
             setIsNavigating(false);
         }
@@ -478,7 +487,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                 const directory = listed.entries.find(
                     (entry) => entry.kind === 'directory' && entry.name === candidateToCreate.name,
                 );
-                if (!directory) throw new Error('Created folder could not be reopened');
+                if (!directory) throw new Error(translate('pathBrowser.errors.reopenFolderFailed'));
                 await applySnapshotOperation(
                     navigatePathBrowser({
                         browserId: snapshot.browserId,
@@ -492,9 +501,11 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
             setError(
                 toBrowserError(
                     error_,
-                    candidateToCreate.kind === 'directory'
-                        ? 'Unable to create folder'
-                        : 'Unable to create file',
+                    translate(
+                        candidateToCreate.kind === 'directory'
+                            ? 'pathBrowser.errors.createFolderFailed'
+                            : 'pathBrowser.errors.createFileFailed',
+                    ),
                 ),
             );
         } finally {

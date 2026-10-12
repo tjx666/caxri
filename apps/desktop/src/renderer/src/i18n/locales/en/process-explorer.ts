@@ -1,0 +1,45 @@
+export const processExplorer = {
+    // Title bar
+    'processExplorer.title': 'Process Explorer — Caxri',
+    'processExplorer.refresh': 'Refresh processes',
+    'processExplorer.openFailed': 'Unable to open Process Explorer',
+    // Summary bar
+    'processExplorer.summary.label': 'Resource summary',
+    'processExplorer.summary.cpu': 'CPU',
+    'processExplorer.summary.memory': 'Memory',
+    'processExplorer.summary.processes': 'Processes',
+    'processExplorer.filter.placeholder': 'Filter',
+    'processExplorer.filter.label': 'Filter processes',
+    // Table header
+    'processExplorer.columns.name': 'Name',
+    'processExplorer.columns.cpu': 'CPU',
+    'processExplorer.columns.memory': 'Memory',
+    'processExplorer.columns.pid': 'PID',
+    'processExplorer.header.sortBy': 'Sort by {{column}}',
+    'processExplorer.header.resize': 'Resize {{column}} column',
+    // Grid and list messages
+    'processExplorer.gridLabel': 'Caxri processes',
+    'processExplorer.list.loading': 'Loading processes…',
+    'processExplorer.list.empty': 'No Caxri processes found.',
+    'processExplorer.list.noMatch': 'No processes match “{{filter}}”.',
+    'processExplorer.error.sample': 'Unable to sample processes. Try again.',
+    'processExplorer.error.stop': 'Unable to stop {{name}}. Try again.',
+    // Rows
+    'processExplorer.row.highResource': ', high resource use',
+    'processExplorer.row.stopTooltip':
+        'Stop — suspends this Terminal; reopen its Session to resume',
+    'processExplorer.row.stopLabel': 'Stop {{name}}',
+    // Tree grouping
+    'processExplorer.kind.helper': 'Helper',
+    'processExplorer.kind.main': 'Main process',
+    'processExplorer.kind.service': 'Service',
+    'processExplorer.kind.window': 'Window',
+    'processExplorer.terminal': 'Terminal',
+    'processExplorer.untitledSession': 'Untitled Session',
+    'processExplorer.sessionsGroup': 'Sessions',
+    'processExplorer.processCount': '{{count}} processes',
+    // Footer
+    'processExplorer.footer.live': 'Live · updates every {{seconds}} seconds',
+    'processExplorer.footer.noSample': 'No current sample',
+    'processExplorer.footer.updated': 'Updated {{time}}',
+} as const;

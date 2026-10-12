@@ -3,8 +3,10 @@ import { useState } from 'react';
 import type { IntegerSettingSpec } from '@caxri/protocol';
 
 import { Input } from '../../components/ui/input';
+import { useTranslation } from '../../i18n';
 import { formatIntegerSettingValue, parseIntegerSettingInput } from './integer-control-values';
 import { SHORT_CONTROL_WIDTH_CLASS_NAME } from './setting-row-layout';
+import { settingUnitLabel } from './setting-spec-text';
 
 interface IntegerControlProperties {
     id: string;
@@ -44,6 +46,7 @@ export function IntegerControl({
     value,
     onChange,
 }: IntegerControlProperties) {
+    const { t } = useTranslation();
     const scale = spec.display?.scale ?? 1;
     const [draftState, setDraftState] = useState<IntegerDraft>(() => ({
         committed: value,
@@ -53,7 +56,7 @@ export function IntegerControl({
         draftState.committed === value
             ? draftState
             : { committed: value, text: formatIntegerSettingValue(value, spec) };
-    const result = parseIntegerSettingInput(draft.text, spec);
+    const result = parseIntegerSettingInput(t, draft.text, spec);
     const isInvalid = result.status === 'invalid';
     const errorId = `${id}-error`;
     return (
@@ -83,7 +86,7 @@ export function IntegerControl({
                     }}
                     onChange={(event) => {
                         const text = event.target.value;
-                        const next = parseIntegerSettingInput(text, spec);
+                        const next = parseIntegerSettingInput(t, text, spec);
                         setDraftState({
                             committed: next.status === 'valid' ? next.value : draft.committed,
                             text,
@@ -93,7 +96,7 @@ export function IntegerControl({
                 />
                 {spec.display?.unit && (
                     <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-muted">
-                        {spec.display.unit}
+                        {settingUnitLabel(t, spec.display.unit)}
                     </span>
                 )}
             </span>

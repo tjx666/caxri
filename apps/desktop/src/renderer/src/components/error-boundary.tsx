@@ -3,6 +3,8 @@ import { Component } from 'react';
 
 import { Check, X } from 'lucide-react';
 
+import type { TranslationKey } from '../i18n';
+import { translate } from '../i18n';
 import type { CopyFeedbackStatus } from './copy-feedback';
 import {
     COPY_FEEDBACK_RESET_MS,
@@ -11,12 +13,17 @@ import {
 } from './copy-feedback';
 import { Button } from './ui/button';
 
+/**
+ * The copy props are translation keys rather than strings: the window entries render this boundary at module top level,
+ * where a translated string would freeze the language the window started in. The class resolves them with `translate`
+ * when the fallback renders, which reads the active locale and cannot itself throw.
+ */
 interface ErrorBoundaryProperties {
     children: ReactNode;
     /**
      * Message shown when this Renderer entry fails during React rendering.
      */
-    description?: string;
+    descriptionKey?: TranslationKey;
     /**
      * Prefix used by Main's mirrored console log to identify the failed Renderer entry.
      */
@@ -24,11 +31,11 @@ interface ErrorBoundaryProperties {
     /**
      * Label for the full-window reload action.
      */
-    reloadLabel?: string;
+    reloadLabelKey?: TranslationKey;
     /**
      * Heading shown when this Renderer entry fails during React rendering.
      */
-    title?: string;
+    titleKey?: TranslationKey;
 }
 
 interface ErrorBoundaryState {
@@ -127,16 +134,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
         if (!this.state.hasError) return this.props.children;
         const { componentStack, copyStatus, error } = this.state;
         const message = error === undefined ? '' : describeThrown(error);
-        const copyLabel = copyButtonLabel(copyStatus, 'Copy details');
+        const copyLabel = copyButtonLabel(copyStatus, translate('core.errorBoundary.copyDetails'));
         return (
             <main className="renderer-crash-screen flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background px-6 text-foreground">
                 <div className="flex w-full max-w-2xl min-w-0 flex-col gap-3">
                     <h1 className="m-0 text-[15px] font-semibold">
-                        {this.props.title ?? 'Something went wrong'}
+                        {translate(this.props.titleKey ?? 'core.errorBoundary.title')}
                     </h1>
                     <p className="m-0 text-[13px] text-muted">
-                        {this.props.description ??
-                            'Caxri ran into an unexpected error. Reloading will bring back your projects and sessions.'}
+                        {translate(this.props.descriptionKey ?? 'core.errorBoundary.description')}
                     </p>
                     {message && (
                         <p className="renderer-crash-message m-0 font-mono text-[13px] break-words text-danger">
@@ -146,7 +152,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
                     {error !== undefined && (
                         <details className="min-w-0 text-[12px] text-muted">
                             <summary className="w-fit cursor-pointer rounded outline-none hover:text-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)]">
-                                Technical details
+                                {translate('core.errorBoundary.technicalDetails')}
                             </summary>
                             <pre className="renderer-crash-stack mt-2 max-h-[360px] overflow-auto rounded border border-border bg-surface p-3 text-left font-mono text-[11px] leading-[1.5] whitespace-pre-wrap text-muted">
                                 {formatErrorDetails(error, componentStack)}
@@ -155,7 +161,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
                     )}
                     <div className="flex gap-2">
                         <Button type="button" onClick={this.handleReload}>
-                            {this.props.reloadLabel ?? 'Reload'}
+                            {translate(this.props.reloadLabelKey ?? 'common.reload')}
                         </Button>
                         {error !== undefined && (
                             <Button

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utilities';
 
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 import { monaco } from '../../lib/monaco';
 import { releaseStalledEditorWorkers } from '../../lib/monaco-worker-startup';
 import { EditorLoadFailure } from './editor-load-failure';
@@ -20,8 +21,6 @@ import {
     diffWorkerRecoveryReducer,
     initialDiffWorkerRecoveryState,
 } from './git-diff-worker-recovery';
-
-const DIFF_RETRY_LABEL = 'Comparing these two versions again…';
 
 type GitDiffEditorProperties = Omit<DiffEditorProps, 'onMount'> & {
     onMount?: (editor: MonacoDiffEditor, monaco: typeof MonacoModule) => void | (() => void);
@@ -145,6 +144,7 @@ function GitDiffEditorSurface(
  * building a new one, and an unmount is what releases the models the abandoned attempt still held.
  */
 export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
+    const { t } = useTranslation();
     const [computation, dispatchComputation] = useReducer(
         editorLoadReducer,
         initialEditorLoadState,
@@ -201,7 +201,7 @@ export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
                 <div className="absolute inset-0 grid place-items-center bg-background">
                     {isStalled ? (
                         <EditorLoadFailure
-                            actionLabel="Retry"
+                            actionLabel={t('common.retry')}
                             reason={computation.reason}
                             onAction={() => {
                                 /**
@@ -226,7 +226,7 @@ export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
                                 <Spinner className="size-7" />
                             </EmptyMedia>
                             <EmptyTitle className="max-w-80 text-pretty text-muted">
-                                {DIFF_RETRY_LABEL}
+                                {t('editor.gitDiff.retrying')}
                             </EmptyTitle>
                         </Empty>
                     )}

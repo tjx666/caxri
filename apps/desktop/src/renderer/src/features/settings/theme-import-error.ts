@@ -1,5 +1,6 @@
 import { isCaxriError } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { describeFailure } from '../../stores/toasts';
 
 /**
@@ -15,11 +16,12 @@ export type ThemeImportResult =
 const BACKGROUND_ROLES = ['background', 'surface', 'elevated'] as const;
 
 /**
- * Only known theme roles from the Server's validation details become visible CSS token names.
+ * Called from the import handler, outside render, so it reads the active locale through `translate()`. Only known theme
+ * roles from the Server's validation details become visible CSS token names.
  */
 export function describeThemeImportFailure(error: unknown): string {
     if (!isCaxriError(error) || error.code !== 'VALIDATION')
-        return describeFailure(error, 'Theme import failed');
+        return describeFailure(error, translate('settings.themeEditor.importFailed'));
 
     const details = error.details;
     if (
@@ -30,14 +32,21 @@ export function describeThemeImportFailure(error: unknown): string {
         !Number.isFinite(details.requiredRatio) ||
         details.requiredRatio <= 0
     )
-        return describeFailure(error, 'Theme import failed');
+        return describeFailure(error, translate('settings.themeEditor.importFailed'));
 
     const backgroundRole = details.backgroundRole as (typeof BACKGROUND_ROLES)[number];
     const actualRatio = details.actualRatio;
     if (actualRatio === null)
-        return `Theme import failed. --muted and --${backgroundRole} must be opaque to check the required ${details.requiredRatio}:1 contrast.`;
+        return translate('settings.themeEditor.importFailedOpaque', {
+            background: backgroundRole,
+            required: details.requiredRatio,
+        });
     if (typeof actualRatio !== 'number' || !Number.isFinite(actualRatio) || actualRatio < 0)
-        return describeFailure(error, 'Theme import failed');
+        return describeFailure(error, translate('settings.themeEditor.importFailed'));
 
-    return `Theme import failed. --muted has ${actualRatio.toFixed(2)}:1 contrast against --${backgroundRole}; at least ${details.requiredRatio}:1 is required.`;
+    return translate('settings.themeEditor.importFailedContrast', {
+        actual: actualRatio.toFixed(2),
+        background: backgroundRole,
+        required: details.requiredRatio,
+    });
 }

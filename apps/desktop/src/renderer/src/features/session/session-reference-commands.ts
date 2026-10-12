@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
 import { formatSessionReference } from './session-reference';
@@ -7,7 +8,7 @@ import { formatSessionReference } from './session-reference';
  * `undefined` after a toast when the Session has nothing to cite. The conversation itself never reaches the Renderer.
  */
 export function prepareSessionReference(sessionId: string): Promise<string | undefined> {
-    return tryCommand("Couldn't reference that Session", async () =>
+    return tryCommand(translate('session.errors.referenceFailed'), async () =>
         formatSessionReference(await caxri.request('session.conversationReference', { sessionId })),
     );
 }

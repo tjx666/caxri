@@ -1,5 +1,11 @@
 import type { ProjectRecord, SessionContentSearchResult, SessionRecord } from '@caxri/protocol';
 
+import type { Translate } from '../../../i18n';
+
+/**
+ * Joins matches with current Session metadata. `project` is undefined when the Project is gone; the dialog renders the
+ * localized fallback so this helper stays free of display copy.
+ */
 export function contentSearchItems(
     result: SessionContentSearchResult | undefined,
     sessions: ReadonlyArray<
@@ -16,25 +22,30 @@ export function contentSearchItems(
             {
                 ...match,
                 title: session.displayTitle,
-                project: projectById.get(session.projectId)?.displayTitle ?? 'Unknown Project',
+                project: projectById.get(session.projectId)?.displayTitle,
                 isArchived: session.archivedAt !== undefined,
             },
         ];
     });
 }
 
-export function contentSearchCoverage(result: SessionContentSearchResult): string {
-    const coverage = `Searched ${result.scanned} of ${result.total} Sessions`;
+export function contentSearchCoverage(result: SessionContentSearchResult, t: Translate): string {
+    const coverage = t('session.contentSearch.coverage', {
+        scanned: result.scanned,
+        total: result.total,
+    });
     if (!result.partial) return coverage;
     const unavailable =
-        result.unavailable > 0 ? `; ${result.unavailable} without readable conversation data` : '';
+        result.unavailable > 0
+            ? t('session.contentSearch.unavailable', { count: result.unavailable })
+            : '';
     const limit =
         result.reason === 'budget'
-            ? '; search limit reached — retry to search again'
+            ? t('session.contentSearch.budgetLimit')
             : result.reason === 'results'
-              ? '; result limit reached — narrow your query'
+              ? t('session.contentSearch.resultLimit')
               : result.unavailable === 0
-                ? '; some conversation content was skipped or exceeded scan limits'
+                ? t('session.contentSearch.skipped')
                 : '';
-    return `Partial results · ${coverage}${unavailable}${limit}`;
+    return t('session.contentSearch.partial', { coverage: `${coverage}${unavailable}${limit}` });
 }

@@ -13,6 +13,7 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { useTranslation } from '../../i18n';
 import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { cn } from '../../lib/utilities';
 import { openHardwareAccelerationSettings } from '../gpu/gpu-commands';
@@ -40,9 +41,12 @@ const openProcessExplorer = (): void => executeCommand('processExplorer.open');
  * cannot multiply pending attempts.
  */
 function TerminalRendererStatus({ terminalId }: { terminalId: string }) {
-    const renderer = terminalRendererIndicator(useTerminalRendererStatus(terminalId), {
-        isHardwareAccelerationOff: useIsHardwareAccelerationOff(),
-    });
+    const { t } = useTranslation();
+    const renderer = terminalRendererIndicator(
+        useTerminalRendererStatus(terminalId),
+        { isHardwareAccelerationOff: useIsHardwareAccelerationOff() },
+        t,
+    );
     if (!renderer) return null;
     const shared = {
         ariaLabel: renderer.ariaLabel,
@@ -93,9 +97,10 @@ const progressColors = {
 } as const;
 
 function TerminalProgressStatus({ terminalId }: { terminalId: string }) {
+    const { t } = useTranslation();
     const progress = useTerminalProgress(terminalId);
     if (!progress) return null;
-    const label = terminalProgressAriaLabel(progress);
+    const label = terminalProgressAriaLabel(progress, t);
     const ProgressIcon = progressIcons[progress.kind];
     return (
         <StatusInfo
@@ -107,7 +112,7 @@ function TerminalProgressStatus({ terminalId }: { terminalId: string }) {
             icon={<ProgressIcon />}
             title={label}
         >
-            {terminalProgressLabel(progress)}
+            {terminalProgressLabel(progress, t)}
         </StatusInfo>
     );
 }
@@ -129,13 +134,19 @@ function TerminalUsageStatus({
     showMemory: boolean;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
     const usage = usePolledQuery(
         'terminal.resources',
         { terminalId },
         { label: 'terminal.resources', intervalMs: 2_000, staleTime: 1_000, retry: false },
     ).data;
     if (!usage) return null;
-    const childLabel = `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`;
+    const childLabel = t(
+        usage.childProcessCount === 1
+            ? 'statusBar.terminal.childProcessOne'
+            : 'statusBar.terminal.childProcessOther',
+        { count: usage.childProcessCount },
+    );
     const memoryLabel = formatMemoryMb(usage.memoryMb);
     const cpuLabel = formatCpuPercent(usage.cpuPercent);
     /**
@@ -148,25 +159,38 @@ function TerminalUsageStatus({
             {showMemory && (
                 <PriorityChipSlot chip="memory">
                     <StatusItem
-                        ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}${isHigh ? ', high resource use' : ''}`}
+                        ariaLabel={t(
+                            isHigh
+                                ? 'statusBar.terminal.memoryHighAriaLabel'
+                                : 'statusBar.terminal.memoryAriaLabel',
+                            { memory: memoryLabel },
+                        )}
                         className={cn(isHigh && 'text-danger')}
                         icon={<MemoryStick />}
                         title={
                             <StructuredTooltip
                                 title={
                                     isHigh
-                                        ? `High resource use: ${memoryLabel}, ${cpuLabel} CPU`
-                                        : `Terminal memory: ${memoryLabel}`
+                                        ? t('statusBar.terminal.highResourceUse', {
+                                              memory: memoryLabel,
+                                              cpu: cpuLabel,
+                                          })
+                                        : t('statusBar.terminal.memory', { memory: memoryLabel })
                                 }
                                 notes={[
-                                    `Resident memory of this Terminal's whole process tree; CPU ${cpuLabel}`,
+                                    t('statusBar.terminal.memoryNote', { cpu: cpuLabel }),
                                     ...(isHigh
                                         ? [
-                                              `Above ${formatMemoryMb(TERMINAL_RESOURCE_ALERT_THRESHOLDS.memoryMb)} memory or ${TERMINAL_RESOURCE_ALERT_THRESHOLDS.cpuPercent}% CPU`,
+                                              t('statusBar.terminal.memoryThreshold', {
+                                                  memory: formatMemoryMb(
+                                                      TERMINAL_RESOURCE_ALERT_THRESHOLDS.memoryMb,
+                                                  ),
+                                                  cpu: TERMINAL_RESOURCE_ALERT_THRESHOLDS.cpuPercent,
+                                              }),
                                           ]
                                         : []),
                                 ]}
-                                hint="Click to open Process Explorer"
+                                hint={t('statusBar.terminal.clickToOpenProcessExplorer')}
                             />
                         }
                         onClick={openProcessExplorer}
@@ -178,13 +202,15 @@ function TerminalUsageStatus({
             {showChildProcessCount && (
                 <PriorityChipSlot chip="childProcessCount">
                     <StatusItem
-                        ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
+                        ariaLabel={t('statusBar.terminal.childProcessAriaLabel', {
+                            label: childLabel,
+                        })}
                         icon={<Workflow />}
                         title={
                             <StructuredTooltip
                                 title={childLabel}
-                                notes={['Running under this Terminal']}
-                                hint="Click to open Process Explorer"
+                                notes={[t('statusBar.terminal.childProcessNote')]}
+                                hint={t('statusBar.terminal.clickToOpenProcessExplorer')}
                             />
                         }
                         onClick={openProcessExplorer}

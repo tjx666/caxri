@@ -13,6 +13,8 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 
 interface AgentActionSettingsEditorProperties {
     provider: AgentProvider;
@@ -20,10 +22,17 @@ interface AgentActionSettingsEditorProperties {
     onChange: (value: AgentActionsSettings) => void;
 }
 
-const AGENT_ACTION_INVOCATION_PLACEHOLDERS: Record<AgentProvider, string> = {
-    claude: '/deploy',
-    codex: '/goal or $commit',
-    grok: 'Unavailable',
+/**
+ * Example invocations are literal command syntax and stay untranslated; Grok has no actions, so its placeholder is a
+ * translated word instead.
+ */
+const AGENT_ACTION_INVOCATION_PLACEHOLDERS: Record<
+    AgentProvider,
+    { text: string } | { key: TranslationKey }
+> = {
+    claude: { text: '/deploy' },
+    codex: { text: '/goal or $commit' },
+    grok: { key: 'settings.agentActionsEditor.unavailable' },
 };
 
 export function AgentActionSettingsEditor({
@@ -31,6 +40,8 @@ export function AgentActionSettingsEditor({
     value,
     onChange,
 }: AgentActionSettingsEditorProperties) {
+    const { t } = useTranslation();
+    const invocationPlaceholder = AGENT_ACTION_INVOCATION_PLACEHOLDERS[provider];
     const [invocationDraft, setInvocationDraft] = useState('');
     const [descriptionDraft, setDescriptionDraft] = useState('');
     const defaults = defaultAgentActions[provider];
@@ -82,7 +93,7 @@ export function AgentActionSettingsEditor({
     return (
         <div className="flex flex-col gap-2">
             <ul
-                aria-label={`${provider} Agent commands and skills`}
+                aria-label={t('settings.agentActionsEditor.listLabel', { provider })}
                 className="m-0 flex list-none flex-col p-0"
             >
                 {defaultEntries.map(({ action, override }) => (
@@ -96,9 +107,13 @@ export function AgentActionSettingsEditor({
                         <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
                             {override?.description ?? action.description}
                         </span>
-                        <small className="text-[10px] text-muted">Built-in</small>
+                        <small className="text-[10px] text-muted">
+                            {t('settings.agentActionsEditor.builtIn')}
+                        </small>
                         <Switch
-                            aria-label={`Show ${action.invocation}`}
+                            aria-label={t('settings.agentActionsEditor.show', {
+                                invocation: action.invocation,
+                            })}
                             checked={override?.enabled ?? true}
                             disabled={!override && isAtCapacity}
                             onCheckedChange={(checked) => changeEnabled(action.invocation, checked)}
@@ -114,10 +129,12 @@ export function AgentActionSettingsEditor({
                             {invocation}
                         </code>
                         <Input
-                            aria-label={`Description for ${invocation}`}
+                            aria-label={t('settings.agentActionsEditor.descriptionFor', {
+                                invocation,
+                            })}
                             className="min-w-0 flex-1 bg-background"
                             maxLength={MAX_AGENT_ACTION_DESCRIPTION_LENGTH}
-                            placeholder="Optional description"
+                            placeholder={t('settings.agentActionsEditor.optionalDescription')}
                             size="dense"
                             value={value.items[invocation].description ?? ''}
                             onChange={(event) =>
@@ -133,9 +150,11 @@ export function AgentActionSettingsEditor({
                                 })
                             }
                         />
-                        <Tooltip content="Remove command or skill">
+                        <Tooltip content={t('settings.agentActionsEditor.remove')}>
                             <Button
-                                aria-label={`Remove command or skill ${invocation}`}
+                                aria-label={t('settings.agentActionsEditor.removeNamed', {
+                                    invocation,
+                                })}
                                 className="opacity-0 group-focus-within/action:opacity-100 group-hover/action:opacity-100"
                                 size="icon"
                                 variant="ghost"
@@ -149,7 +168,7 @@ export function AgentActionSettingsEditor({
                             </Button>
                         </Tooltip>
                         <Switch
-                            aria-label={`Show ${invocation}`}
+                            aria-label={t('settings.agentActionsEditor.show', { invocation })}
                             checked={value.items[invocation].enabled}
                             onCheckedChange={(checked) => changeEnabled(invocation, checked)}
                         />
@@ -158,9 +177,13 @@ export function AgentActionSettingsEditor({
             </ul>
             <div className="grid grid-cols-[minmax(110px,0.55fr)_minmax(160px,1fr)_auto] items-center gap-2">
                 <Input
-                    aria-label="New command or skill invocation"
+                    aria-label={t('settings.agentActionsEditor.newInvocation')}
                     className="bg-background font-mono"
-                    placeholder={AGENT_ACTION_INVOCATION_PLACEHOLDERS[provider]}
+                    placeholder={
+                        'key' in invocationPlaceholder
+                            ? t(invocationPlaceholder.key)
+                            : invocationPlaceholder.text
+                    }
                     size="dense"
                     value={invocationDraft}
                     onChange={(event) => setInvocationDraft(event.target.value)}
@@ -169,10 +192,10 @@ export function AgentActionSettingsEditor({
                     }}
                 />
                 <Input
-                    aria-label="New command or skill description"
+                    aria-label={t('settings.agentActionsEditor.newDescription')}
                     className="bg-background"
                     maxLength={MAX_AGENT_ACTION_DESCRIPTION_LENGTH}
-                    placeholder="Optional description"
+                    placeholder={t('settings.agentActionsEditor.optionalDescription')}
                     size="dense"
                     value={descriptionDraft}
                     onChange={(event) => setDescriptionDraft(event.target.value)}
@@ -181,23 +204,23 @@ export function AgentActionSettingsEditor({
                     }}
                 />
                 <Button
-                    aria-label="Add command or skill"
+                    aria-label={t('settings.agentActionsEditor.add')}
                     disabled={!isValidDraft || !hasCapacity}
                     size="sm"
                     variant="secondary"
                     onClick={addAction}
                 >
-                    <Plus size={13} /> Add
+                    <Plus size={13} /> {t('common.add')}
                 </Button>
             </div>
             {invocationDraft.trim() && !isValidDraft && (
                 <p className="m-0 text-[11px] text-danger" role="status">
-                    Use an exact invocation starting with / or $, without spaces.
+                    {t('settings.agentActionsEditor.invalidInvocation')}
                 </p>
             )}
             {isValidDraft && !hasCapacity && (
                 <p className="m-0 text-[11px] text-danger" role="status">
-                    Remove an override before adding another command or skill.
+                    {t('settings.agentActionsEditor.atCapacity')}
                 </p>
             )}
         </div>

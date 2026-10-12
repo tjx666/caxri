@@ -7,42 +7,47 @@ import type {
 } from '@caxri/protocol';
 
 import type { StructuredTooltipData } from '../../components/structured-tooltip';
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 
 /**
  * How the chip names each source, in the wording a reader needs to decide how much to trust it: a pull request states
  * the link on purpose, a conversation is something an Agent happened to mention.
  */
-const SOURCE_LABELS: Record<AcceptanceSource, string> = {
-    'pull-request': 'From the pull request description',
-    'conversation': 'From this conversation',
+const SOURCE_LABEL_KEYS: Record<AcceptanceSource, TranslationKey> = {
+    'pull-request': 'statusBar.source.pullRequest',
+    'conversation': 'statusBar.source.conversation',
 };
 
 /**
  * Lifecycle wording, spelled out rather than title-cased from the enum. `delivered` and `accepted` differ by who acted
  * (the Agent finished, a person agreed) and that distinction is the whole reason a reviewer looks at this chip.
  *
- * Kept byte-identical to `acceptanceStatusLabels` in `extensions/status/src/status-labels.ts`, together with
- * {@link VERDICT_LABELS} and its counterpart there. The two cannot share a module: the architecture boundary forbids
- * Desktop importing `extension-api`, and `extension-api` imports nothing, so the copies are the contract: change one
- * and the Status panel row and this chip name the same report two different things, with nothing failing.
+ * The English strings (`statusBar.acceptance.status.*` in the `statusBar` locale module) are kept byte-identical to
+ * `acceptanceStatusLabels` in `extensions/status/src/status-labels.ts`, together with the `verdict.*` strings and their
+ * counterpart there. The two cannot share a module: the architecture boundary forbids Desktop importing
+ * `extension-api`, and `extension-api` imports nothing, so the copies are the contract: change one and the Status panel
+ * row and this chip name the same report two different things, with nothing failing.
  */
-const STATUS_LABELS: Record<AcceptanceStatus, string> = {
-    pending: 'Not started',
-    planned: 'Plan ready',
-    verifying: 'Verifying',
-    repairing: 'Repairing',
-    delivered: 'Awaiting review',
-    accepted: 'Accepted',
-    closed: 'Closed',
-    rejected: 'Rejected',
-    errored: 'Errored',
-};
+function statusLabel(status: AcceptanceStatus, t: Translate): string {
+    return t(`statusBar.acceptance.status.${status}`);
+}
 
-const VERDICT_LABELS: Record<AcceptanceVerdict, string> = {
-    passed: 'Checks passed',
-    failed: 'Checks failed',
-    uncertain: 'Checks inconclusive',
-};
+/**
+ * See {@link statusLabel}: the English text mirrors the Status extension's verdict labels.
+ */
+function verdictLabel(verdict: AcceptanceVerdict, t: Translate): string {
+    return t(`statusBar.acceptance.verdict.${verdict}`);
+}
+
+function moreReports(count: number, t: Translate): string {
+    return t(
+        count === 1
+            ? 'statusBar.acceptance.moreReportsOne'
+            : 'statusBar.acceptance.moreReportsOther',
+        { count },
+    );
+}
 
 /**
  * The densest true statement the chip can make, in order of preference: the check tally, then the lifecycle word, then
@@ -55,12 +60,15 @@ const VERDICT_LABELS: Record<AcceptanceVerdict, string> = {
  * The id is deliberately never shown. It is an opaque UUID that tells a reader nothing, and it names a private
  * acceptance record: the identifier that earns the Linear chip its place has no counterpart here.
  */
-export function acceptanceChipLabel(acceptance: ProjectStatusAcceptance): string {
-    if (acceptance.state === 'unknown') return 'Unknown';
+export function acceptanceChipLabel(
+    acceptance: ProjectStatusAcceptance,
+    t: Translate = translate,
+): string {
+    if (acceptance.state === 'unknown') return t('common.unknown');
     if (acceptance.totalChecks !== undefined && acceptance.passedChecks !== undefined)
         return `${acceptance.passedChecks}/${acceptance.totalChecks}`;
-    if (acceptance.status) return STATUS_LABELS[acceptance.status];
-    return 'Acceptance';
+    if (acceptance.status) return statusLabel(acceptance.status, t);
+    return t('statusBar.acceptance.noun');
 }
 
 /**
@@ -70,23 +78,27 @@ export function acceptanceChipLabel(acceptance: ProjectStatusAcceptance): string
 export function acceptanceAriaLabel(
     acceptance: ProjectStatusOverviewAcceptance,
     extraCount = 0,
+    t: Translate = translate,
 ): string {
     return [
-        acceptance.url ? 'Open acceptance report' : 'Acceptance report',
+        t(acceptance.url ? 'statusBar.acceptance.openReport' : 'statusBar.acceptance.report'),
         acceptance.title,
-        acceptance.round === undefined ? undefined : `Round ${acceptance.round}`,
-        acceptance.status && STATUS_LABELS[acceptance.status],
-        acceptance.verdict && VERDICT_LABELS[acceptance.verdict],
+        acceptance.round === undefined
+            ? undefined
+            : t('statusBar.acceptance.round', { round: acceptance.round }),
+        acceptance.status && statusLabel(acceptance.status, t),
+        acceptance.verdict && verdictLabel(acceptance.verdict, t),
         acceptance.totalChecks === undefined || acceptance.passedChecks === undefined
             ? undefined
-            : `${acceptance.passedChecks} of ${acceptance.totalChecks} checks passed`,
-        SOURCE_LABELS[acceptance.source],
-        extraCount > 0
-            ? `${extraCount} more ${extraCount === 1 ? 'report' : 'reports'}`
-            : undefined,
+            : t('statusBar.acceptance.checksPassed', {
+                  passed: acceptance.passedChecks,
+                  total: acceptance.totalChecks,
+              }),
+        t(SOURCE_LABEL_KEYS[acceptance.source]),
+        extraCount > 0 ? moreReports(extraCount, t) : undefined,
     ]
         .filter(Boolean)
-        .join(', ');
+        .join(t('statusBar.listSeparator'));
 }
 
 /**
@@ -96,6 +108,7 @@ export function acceptanceAriaLabel(
 export function acceptanceTooltip(
     acceptance: ProjectStatusOverviewAcceptance,
     extra: readonly ProjectStatusOverviewAcceptance[] = [],
+    t: Translate = translate,
 ): StructuredTooltipData {
     const round =
         acceptance.round === undefined
@@ -103,25 +116,25 @@ export function acceptanceTooltip(
               // saying, because the same chip would otherwise look identical to a link that pinned that round.
               acceptance.roundCount === undefined || acceptance.roundCount <= 1
                 ? undefined
-                : `Latest of ${acceptance.roundCount} rounds`
-            : `Round ${acceptance.round}`;
+                : t('statusBar.acceptance.latestOfRounds', { count: acceptance.roundCount })
+            : t('statusBar.acceptance.round', { round: acceptance.round });
     const details = [
-        [acceptance.status && STATUS_LABELS[acceptance.status], round]
+        [acceptance.status && statusLabel(acceptance.status, t), round]
             .filter(Boolean)
             .join(' · ') || undefined,
-        acceptance.verdict && VERDICT_LABELS[acceptance.verdict],
+        acceptance.verdict && verdictLabel(acceptance.verdict, t),
     ].filter((line): line is string => Boolean(line));
     const notes = [
-        SOURCE_LABELS[acceptance.source],
+        t(SOURCE_LABEL_KEYS[acceptance.source]),
         extra.length > 0
-            ? `Also referenced: ${extra.length} more ${extra.length === 1 ? 'report' : 'reports'}`
+            ? t('statusBar.acceptance.alsoReferenced', { more: moreReports(extra.length, t) })
             : undefined,
     ].filter((line): line is string => Boolean(line));
     return {
-        eyebrow: acceptance.title ? 'Acceptance report' : undefined,
-        title: acceptance.title ?? 'Acceptance report',
+        eyebrow: acceptance.title ? t('statusBar.acceptance.report') : undefined,
+        title: acceptance.title ?? t('statusBar.acceptance.report'),
         details,
         notes,
-        hint: acceptance.url ? 'Click to open the report' : undefined,
+        hint: acceptance.url ? t('statusBar.acceptance.hint') : undefined,
     };
 }

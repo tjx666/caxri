@@ -1,5 +1,6 @@
 import type { ViewCatalogSnapshot } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import type { ResourceExplorerClient } from './resource-explorer/resource-explorer-client';
 import { createResourceExplorerClient } from './resource-explorer/resource-explorer-client';
@@ -25,7 +26,7 @@ async function resourceExplorerClient(): Promise<ResourceExplorerClient | undefi
 export async function activeResourceExplorerClient(): Promise<ResourceExplorerClient> {
     const client = await resourceExplorerClient();
     if (!client)
-        throw Object.assign(new Error('No Resource Explorer provider is available'), {
+        throw Object.assign(new Error(translate('viewContainers.files.providerMissing')), {
             code: 'PROVIDER_MISSING',
         });
     return client;

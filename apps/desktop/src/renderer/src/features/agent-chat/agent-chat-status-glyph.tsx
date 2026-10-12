@@ -2,6 +2,7 @@ import type { AgentChatItemStatus } from '@caxri/protocol';
 import { Check, Circle, CircleSlash, CircleX } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { AgentChatStatusTone } from './agent-chat-presentation';
 import { agentChatItemStatusLabel, agentChatItemStatusTone } from './agent-chat-presentation';
@@ -18,7 +19,8 @@ const toneClassName: Record<AgentChatStatusTone, string> = {
  * Status glyph for an activity row. The accessible name carries the state, so the glyph never stands alone.
  */
 export function AgentChatStatusGlyph({ status }: { status: AgentChatItemStatus }) {
-    const label = agentChatItemStatusLabel(status);
+    const { t } = useTranslation();
+    const label = agentChatItemStatusLabel(status, t);
     const className = cn('size-3.5 shrink-0', toneClassName[agentChatItemStatusTone(status)]);
     switch (status) {
         case 'running': {

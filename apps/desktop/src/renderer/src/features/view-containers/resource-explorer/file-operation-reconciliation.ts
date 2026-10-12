@@ -4,6 +4,7 @@ import type { FileMutationOperation } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import { clamp, uniq } from 'es-toolkit';
 
+import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
@@ -122,7 +123,7 @@ function scheduleReconciliationRetry(
 ): void {
     const previous = retrying.get(operation.id);
     if (previous) clearTimeout(previous.timer);
-    else pushToast('info', 'File change is still synchronizing in the background');
+    else pushToast('info', translate('viewContainers.files.stillSynchronizing'));
     const attempt = (previous?.attempt ?? 0) + 1;
     const delay = clamp(
         RECONCILIATION_RETRY_BASE_MS * 2 ** (attempt - 1),
@@ -144,20 +145,29 @@ function scheduleReconciliationRetry(
 }
 
 function operationLabel(operation: FileMutationOperation): string {
-    const action =
-        operation.kind === 'create'
-            ? 'Creating item'
-            : operation.kind === 'rename'
-              ? 'Renaming item'
-              : 'Moving item';
-    return operation.phase === 'staged' ? `${action} in background…` : `${action}…`;
+    const isStaged = operation.phase === 'staged';
+    if (operation.kind === 'create')
+        return translate(
+            isStaged
+                ? 'viewContainers.files.creatingInBackground'
+                : 'viewContainers.files.creating',
+        );
+    if (operation.kind === 'rename')
+        return translate(
+            isStaged
+                ? 'viewContainers.files.renamingInBackground'
+                : 'viewContainers.files.renaming',
+        );
+    return translate(
+        isStaged ? 'viewContainers.files.movingInBackground' : 'viewContainers.files.moving',
+    );
 }
 
 function operationSuccess(operation: FileMutationOperation): string {
-    const name = operation.result?.name ?? 'Item';
-    if (operation.kind === 'create') return `'${name}' created`;
-    if (operation.kind === 'rename') return `Renamed to '${name}'`;
-    return `'${name}' moved`;
+    const name = operation.result?.name ?? translate('viewContainers.files.itemFallbackName');
+    if (operation.kind === 'create') return translate('viewContainers.files.created', { name });
+    if (operation.kind === 'rename') return translate('viewContainers.files.renamed', { name });
+    return translate('viewContainers.files.moved', { name });
 }
 
 /**
@@ -270,7 +280,7 @@ export function reconcileFileMutation(
             else if (!didConsumeFailureToastSuppression(operation.id))
                 pushToast(
                     'error',
-                    operation.error?.message ?? 'File operation could not be completed',
+                    operation.error?.message ?? translate('viewContainers.files.operationFailed'),
                 );
         } catch {
             /**
@@ -328,7 +338,7 @@ export function useFileMutationReconciliation(isActive: boolean): void {
     useEffect(() => {
         if (!isActive || !sessionScope) return;
         const reportRecoveryUnavailable = (): void => {
-            pushToast('error', 'File operation recovery is temporarily unavailable');
+            pushToast('error', translate('viewContainers.files.recoveryUnavailable'));
         };
         const queue = createReconciliationQueue(async () => {
             try {

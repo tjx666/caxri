@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
 
@@ -9,7 +10,7 @@ import { tryCommand } from '../../stores/toasts';
 export function revokePermissionAutoAllow(sessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Turning off Always Allow failed', () =>
+    void tryCommand(translate('session.errors.revokeAutoAllowFailed'), () =>
         caxri.request('session.revokePermissionAutoAllow', { sessionId }),
     );
 }

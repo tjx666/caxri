@@ -1,6 +1,7 @@
 import type { AgentChatItem, AgentChatTask } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     agentChatTaskActivity,
     agentChatTaskElapsedMs,
@@ -164,12 +165,13 @@ describe('task timing and usage', () => {
         expect(
             agentChatTaskUsageSummary(
                 task({ id: 'a', usage: { totalTokens: 12_300, toolUses: 1 } }),
+                translate,
             ),
         ).toBe('12.3k tokens · 1 tool use');
-        expect(agentChatTaskUsageSummary(task({ id: 'a', usage: { toolUses: 4 } }))).toBe(
-            '4 tool uses',
-        );
-        expect(agentChatTaskUsageSummary(task({ id: 'a' }))).toBeUndefined();
+        expect(
+            agentChatTaskUsageSummary(task({ id: 'a', usage: { toolUses: 4 } }), translate),
+        ).toBe('4 tool uses');
+        expect(agentChatTaskUsageSummary(task({ id: 'a' }), translate)).toBeUndefined();
     });
 });
 

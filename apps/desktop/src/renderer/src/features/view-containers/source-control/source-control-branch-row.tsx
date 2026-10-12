@@ -3,6 +3,7 @@ import { GitBranch, GitCommitHorizontal } from 'lucide-react';
 
 import { executeCommand } from '../../../commands/execute';
 import { StructuredTooltip } from '../../../components/structured-tooltip';
+import { useTranslation } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { cn } from '../../../lib/utilities';
 import {
@@ -32,9 +33,10 @@ export function SourceControlBranchRow({
     provider: ProviderModel;
     runAction: (action: SourceControlAction) => void;
 }) {
+    const { t } = useTranslation();
     if (!provider.description) return null;
     const Icon = provider.descriptionKind === 'commit' ? GitCommitHorizontal : GitBranch;
-    const { canSwitchBranch, hints, syncAction } = branchRowInteraction(provider);
+    const { canSwitchBranch, hints, syncAction } = branchRowInteraction(provider, t);
     const isInteractive = canSwitchBranch || Boolean(syncAction);
     return (
         <SourceControlTreeRow
@@ -44,7 +46,9 @@ export function SourceControlBranchRow({
                 'git-repository-branch-row flex h-7 w-full min-w-0 items-center gap-1.5 border-0 bg-surface pr-2 pl-2 text-left text-foreground',
                 isInteractive ? 'cursor-pointer hover:bg-elevated' : 'cursor-default',
             )}
-            aria-description={hints.join('. ') || undefined}
+            aria-description={
+                hints.join(t('viewContainers.sourceControl.hintSeparator')) || undefined
+            }
             tooltip={
                 <StructuredTooltip
                     title={provider.description}
@@ -60,7 +64,7 @@ export function SourceControlBranchRow({
                     ? [
                           {
                               id: 'switch-branch',
-                              label: 'Switch Branch…',
+                              label: t('viewContainers.sourceControl.branch.switchBranch'),
                               run: () => executeCommand('git.switchBranch'),
                           },
                       ]
@@ -74,7 +78,7 @@ export function SourceControlBranchRow({
                 if (isOnBadge && syncAction) {
                     // eslint-disable-next-line no-void -- intentional floating-promise discard, a declined confirmation is the only outcome to handle
                     void caxri.window
-                        .showConfirm(branchSyncConfirmRequest(provider, syncAction))
+                        .showConfirm(branchSyncConfirmRequest(provider, syncAction, t))
                         .then((isConfirmed) => isConfirmed && runAction(syncAction));
                     return;
                 }

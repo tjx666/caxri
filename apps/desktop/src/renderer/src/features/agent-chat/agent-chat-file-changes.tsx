@@ -8,6 +8,7 @@ import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { projectRelativePath } from '../../lib/file-path';
 import { gitDecorationClassName } from '../../lib/git-decorations';
@@ -82,8 +83,11 @@ export function AgentChatDiff({
     review?: AgentChatDiffReview;
     truncated: boolean | undefined;
 }) {
+    const { t } = useTranslation();
     if (!truncated && lines.length === 0)
-        return <p className="m-0 px-2 py-1 text-[11px] text-muted">No diff</p>;
+        return (
+            <p className="m-0 px-2 py-1 text-[11px] text-muted">{t('agentChat.changes.noDiff')}</p>
+        );
     const lastLine = lines.reduce(
         (highest, line) => Math.max(highest, line.oldLine ?? 0, line.newLine ?? 0),
         0,
@@ -115,8 +119,12 @@ export function AgentChatDiff({
                                         <button
                                             aria-label={
                                                 line.kind === 'removed'
-                                                    ? `Comment on old line ${line.oldLine}`
-                                                    : `Comment on line ${line.newLine}`
+                                                    ? t('agentChat.changes.commentOnOldLine', {
+                                                          line: String(line.oldLine),
+                                                      })
+                                                    : t('agentChat.changes.commentOnLine', {
+                                                          line: String(line.newLine),
+                                                      })
                                             }
                                             className="flex size-4 cursor-pointer items-center justify-center rounded-sm border-0 bg-accent p-0 text-accent-foreground opacity-0 group-hover/line:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-accent"
                                             type="button"
@@ -166,14 +174,14 @@ export function AgentChatDiff({
                 ))}
                 {truncated && (
                     <p className="m-0 flex items-center gap-2 border-t border-border px-2 py-1 font-sans text-muted">
-                        Diff truncated
+                        {t('agentChat.changes.diffTruncated')}
                         {onOpenDiff && (
                             <button
                                 className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
                                 type="button"
                                 onClick={onOpenDiff}
                             >
-                                Open diff
+                                {t('agentChat.changes.openDiff')}
                             </button>
                         )}
                     </p>
@@ -197,6 +205,7 @@ function FileChangeBlock({
     defaultExpanded: boolean;
     status: AgentChatItemStatus | undefined;
 }) {
+    const { t } = useTranslation();
     const [isExpanded, setExpanded] = useState(defaultExpanded);
     const detailId = useId();
     const session = usePaneViewSession();
@@ -231,7 +240,12 @@ function FileChangeBlock({
                 <button
                     aria-controls={detailId}
                     aria-expanded={isExpanded}
-                    aria-label={`${isExpanded ? 'Hide' : 'Show'} diff: ${displayPath}`}
+                    aria-label={t(
+                        isExpanded
+                            ? 'agentChat.changes.hideDiffFor'
+                            : 'agentChat.changes.showDiffFor',
+                        { path: displayPath },
+                    )}
                     className="flex h-full shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent pr-0.5 pl-1 text-muted hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                     type="button"
                     onClick={() => setExpanded((value) => !value)}
@@ -245,11 +259,13 @@ function FileChangeBlock({
                     />
                     <GitFileStatusLetter className="text-[11px]" decoration={decoration} />
                 </button>
-                <span className="sr-only">{agentChatChangeKindLabel(change.kind)}</span>
+                <span className="sr-only">{agentChatChangeKindLabel(change.kind, t)}</span>
                 {canOpen ? (
-                    <Tooltip content="Open in Editor">
+                    <Tooltip content={t('agentChat.changes.openInEditor')}>
                         <button
-                            aria-label={`Open ${displayPath} in Editor`}
+                            aria-label={t('agentChat.changes.openPathInEditor', {
+                                path: displayPath,
+                            })}
                             className={cn(
                                 pathClassName,
                                 'cursor-pointer border-0 bg-transparent p-0 text-left hover:underline focus-visible:outline focus-visible:outline-accent',
@@ -271,10 +287,12 @@ function FileChangeBlock({
                 ) : (
                     <span className={pathClassName}>{displayPath}</span>
                 )}
-                <span className="sr-only">{diffStatLabel(stat)}</span>
+                <span className="sr-only">{diffStatLabel(stat, t)}</span>
                 {/* Also said at the cut, but a long diff's end is a scroll away: the header says it up front. */}
                 {change.truncated && (
-                    <span className="ml-auto shrink-0 text-[11px] text-muted">Truncated</span>
+                    <span className="ml-auto shrink-0 text-[11px] text-muted">
+                        {t('agentChat.changes.truncated')}
+                    </span>
                 )}
                 <DiffStat
                     additions={stat.additions}
@@ -282,9 +300,9 @@ function FileChangeBlock({
                     deletions={stat.deletions}
                 />
                 {openDiff && (
-                    <Tooltip content="Open diff">
+                    <Tooltip content={t('agentChat.changes.openDiff')}>
                         <button
-                            aria-label={`Open diff: ${displayPath}`}
+                            aria-label={t('agentChat.changes.openDiffFor', { path: displayPath })}
                             className="grid size-5 shrink-0 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                             type="button"
                             onClick={openDiff}

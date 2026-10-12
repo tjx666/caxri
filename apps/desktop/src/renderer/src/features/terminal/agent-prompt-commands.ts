@@ -7,6 +7,7 @@ import {
     MAX_TERMINAL_INPUT_LENGTH,
 } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';
@@ -73,14 +74,14 @@ export function chooseAgentPromptTerminal(
  */
 export async function sendPromptToSessionAgent(prompt: string): Promise<string> {
     if (prompt.length > MAX_AGENT_PROMPT_LENGTH)
-        throw new Error('The prompt is too long to send to an Agent');
+        throw new Error(translate('terminal.agentPrompt.tooLong'));
     const session = getSelectedSession();
     const bootstrap = getBootstrap();
     const terminal =
         session &&
         bootstrap &&
         chooseAgentPromptTerminal(bootstrap.terminals, session.id, getSessionState()?.paneLayout);
-    if (!terminal?.provider) throw new Error('Start an Agent in this Session first');
+    if (!terminal?.provider) throw new Error(translate('terminal.agentPrompt.noAgent'));
     const agentName = agentProviderCatalog[terminal.provider].displayName;
     if (isChatTerminal(terminal)) {
         await caxri.request('agentChat.send', { terminalId: terminal.id, text: prompt });
@@ -89,7 +90,7 @@ export async function sendPromptToSessionAgent(prompt: string): Promise<string> 
     }
     activateTerminal(terminal.id);
     if (!(await whenTerminalAttached(terminal.id, TERMINAL_ATTACH_TIMEOUT_MS)))
-        throw new Error(`${agentName} is not ready for input`);
+        throw new Error(translate('terminal.agentPrompt.notReady', { agent: agentName }));
     await caxri.request('terminal.input', {
         terminalId: terminal.id,
         data: formatReviewTerminalInput(prompt),

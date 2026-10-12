@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
 
+import { translate } from '../../../i18n';
 import {
     settlePinnedSessionReveal,
     usePinnedSessionRevealStore,
@@ -30,7 +31,9 @@ export function usePinnedSessionReveal({
         if (!request) return;
         const session = pinnedSessions.find((candidate) => candidate.id === request.sessionId);
         if (!session) return;
-        settlePinnedSessionReveal(`Pinned ${session.displayTitle}`);
+        settlePinnedSessionReveal(
+            translate('primarySidebar.pinned.pinnedAnnouncement', { title: session.displayTitle }),
+        );
         expandPinned();
         revealSession(session.id);
         scrollPrimarySidebarRowIntoView(primarySidebarPinnedRowId(session.id));

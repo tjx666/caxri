@@ -99,6 +99,7 @@ describe('Main event relay', () => {
             payload: { attempt: 1, downtimeMs: 10, isHostReplaced: false, status: 'reconnected' },
         });
         relay.send({ event: 'runtime.status', payload: { restartCount: 1, status: 'ready' } });
+        relay.send({ event: 'settings.changed', payload: { source: '{}' } });
         relay.send({ event: 'keybindings.changed', payload: { error: 'invalid', source: '[]' } });
         relay.send({
             event: 'host.connectionChanged',
@@ -109,6 +110,6 @@ describe('Main event relay', () => {
             payload: { restartCount: 2, status: 'restarting' },
         });
 
-        expect(onMenuRefreshRequested).toHaveBeenCalledTimes(4);
+        expect(onMenuRefreshRequested).toHaveBeenCalledTimes(5);
     });
 });

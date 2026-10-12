@@ -1,6 +1,8 @@
 import { disposeAllThenRethrow } from '@caxri/utils';
 import type { IDecoration, IDisposable, IMarker, Terminal } from '@xterm/xterm';
 
+import { translate } from '../../i18n';
+
 export type TerminalCommandNavigationDirection = 'next' | 'previous';
 
 export interface TerminalCommandStatus {
@@ -55,9 +57,11 @@ export function terminalCommandDecorationTooltip(
     phase: 'failed' | 'running' | 'succeeded',
     exitStatus?: number,
 ): string {
-    if (phase === 'running') return 'Command running';
-    if (phase === 'succeeded') return 'Command succeeded (exit 0)';
-    return `Command failed (exit ${exitStatus ?? 'unknown'})`;
+    if (phase === 'running') return translate('terminal.command.running');
+    if (phase === 'succeeded') return translate('terminal.command.succeeded');
+    return exitStatus === undefined
+        ? translate('terminal.command.failedUnknown')
+        : translate('terminal.command.failed', { exitStatus });
 }
 
 interface CommandBoundary {
@@ -265,8 +269,8 @@ export class TerminalCommandTracker {
 
 export function formatTerminalCommandCompletionStatus(exitStatus: number): string {
     return exitStatus === 0
-        ? 'Command completed successfully.'
-        : `Command failed with exit status ${exitStatus}.`;
+        ? translate('terminal.command.completedAnnouncement')
+        : translate('terminal.command.failedAnnouncement', { exitStatus });
 }
 
 const navigationHandlers = new Map<

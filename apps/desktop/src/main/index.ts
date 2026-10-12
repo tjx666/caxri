@@ -53,10 +53,10 @@ import { createMainEventRelay } from './event-relay';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
+import { setMainLanguage } from './locale';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
-import { createMenuKeybindingFailureInjection } from './menu-keybinding-failure';
-import { createMenuRefreshController } from './menu-refresh';
+import { createMenuRefreshController, createMenuStateLoader } from './menu-refresh';
 import { createOnDemandWindows } from './on-demand-windows';
 import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
@@ -166,7 +166,11 @@ if (ownsProfileInstance) {
     const e2eAgentPolicy = readE2EAgentPolicy();
     const menuRefreshController = createMenuRefreshController({
         applyKeybindings: installMenu,
-        loadKeybindings: loadMenuKeybindings,
+        loadKeybindings: createMenuStateLoader(
+            () => supervisor,
+            // Chromium's locale, which honors `--lang` like the Renderer's `navigator.language` does.
+            () => [app.getLocale()],
+        ),
     });
     const eventRelay = createMainEventRelay({
         deliver: (message) => {
@@ -529,11 +533,6 @@ if (ownsProfileInstance) {
         });
     }
 
-    const injectMenuKeybindingFailure = createMenuKeybindingFailureInjection();
-    async function loadMenuKeybindings(): Promise<Keybinding[]> {
-        return injectMenuKeybindingFailure((await supervisor.request('keybindings.get')).value);
-    }
-
     function installMenu(keybindings: Keybinding[]): void {
         Menu.setApplicationMenu(
             Menu.buildFromTemplate(
@@ -560,6 +559,7 @@ if (ownsProfileInstance) {
     app.whenReady()
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .then(async () => {
+            setMainLanguage(null, [app.getLocale()]); // Dialogs shown before the first menu read follow the system.
             if (
                 shouldEnableAcceptanceAccessibility({
                     environment: process.env,

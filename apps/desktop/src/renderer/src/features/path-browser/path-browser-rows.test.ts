@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../i18n';
 import type { PathBrowserEntry, PathBrowserRow } from './path-browser-rows';
 import {
     firstSelectablePathBrowserIndex,
@@ -23,9 +24,9 @@ function label(row: PathBrowserRow): string {
         case 'entry':
             return `entry:${row.entry.name}`;
         case 'group':
-            return `group:${row.label}`;
+            return `group:${translate(row.label)}`;
         case 'notice':
-            return `notice:${row.text}`;
+            return `notice:${translate(row.text)}`;
     }
 }
 
@@ -157,14 +158,17 @@ describe('Path browser rows', () => {
             searchStatus: 'skipped',
         });
 
-        expect(grouped.flatMap((row) => (row.kind === 'entry' ? [row.group] : []))).toEqual([
-            'In this folder',
-            'Elsewhere in this Project',
-        ]);
+        expect(
+            grouped.flatMap((row) =>
+                row.kind === 'entry' ? [row.group && translate(row.group)] : [],
+            ),
+        ).toEqual(['In this folder', 'Elsewhere in this Project']);
         // One source needs no disambiguation, so nothing is repeated onto the row.
-        expect(ungrouped.flatMap((row) => (row.kind === 'entry' ? [row.group] : []))).toEqual([
-            undefined,
-        ]);
+        expect(
+            ungrouped.flatMap((row) =>
+                row.kind === 'entry' ? [row.group && translate(row.group)] : [],
+            ),
+        ).toEqual([undefined]);
     });
 
     it('names a truncated folder once, whether or not a search ran beside it', () => {

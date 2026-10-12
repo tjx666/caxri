@@ -1,7 +1,21 @@
-import type { AgentChatItem } from '@caxri/protocol';
+import type { AgentChatItem, AppLocale } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { collectAgentChatTrackers, shellWords, trackerExcerpt } from '../agent-chat-trackers';
+import { translate, useLocaleStore } from '../../../i18n';
+import {
+    collectAgentChatTrackers,
+    shellWords,
+    trackerExcerpt,
+    trackerExcerptText,
+    trackerReferenceText,
+} from '../agent-chat-trackers';
+
+const translateIn =
+    (locale: AppLocale): typeof translate =>
+    (...parameters) => {
+        useLocaleStore.setState({ locale });
+        return translate(...parameters);
+    };
 
 const command = (
     id: string,
@@ -284,8 +298,9 @@ describe('collectAgentChatTrackers', () => {
                 kind: 'acceptance',
                 action: 'created',
                 url: `https://app.lobehub.com/acceptance/${id}`,
-                reference: 'Round 1',
-                excerpt: '4 checks',
+                reference: id.slice(0, 8),
+                round: 1,
+                checks: 4,
             },
         ]);
         expect(
@@ -332,10 +347,29 @@ describe('collectAgentChatTrackers', () => {
                 kind: 'acceptance',
                 action: 'created',
                 url: `https://app.lobehub.com/acceptance/${id}`,
-                reference: 'Round 2',
+                reference: id.slice(0, 8),
+                round: 2,
                 title: 'Show cards',
-                excerpt: '2 checks',
+                checks: 2,
             },
         ]);
+    });
+
+    it('localizes an acceptance round and check count when the card renders', () => {
+        const artifact = {
+            provider: 'lobehub',
+            kind: 'acceptance',
+            action: 'created',
+            url: 'https://app.lobehub.com/acceptance/abcdef12',
+            reference: 'abcdef12',
+            round: 2,
+            checks: 1,
+        } as const;
+        expect(trackerReferenceText(artifact, translateIn('zh-CN'))).not.toBe('Round 2');
+        expect(trackerReferenceText(artifact, translateIn('en'))).toBe('Round 2');
+        expect(trackerExcerptText(artifact, translateIn('en'))).toBe('1 check');
+        expect(trackerReferenceText({ ...artifact, round: undefined }, translateIn('en'))).toBe(
+            'abcdef12',
+        );
     });
 });

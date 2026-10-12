@@ -3,6 +3,7 @@ import { lazy, Suspense, useState } from 'react';
 import type { ThemeTokens } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { configEditorLoadingClassName } from '../../lib/utilities';
 import type { ConfigKind } from './config-edit';
 import { CONFIG_FILE_NAMES } from './config-edit';
@@ -36,6 +37,7 @@ export function ConfigSourceView({
     onChange,
     onRevert,
 }: ConfigSourceViewProperties) {
+    const { t } = useTranslation();
     const fileName = CONFIG_FILE_NAMES[kind];
     const [goToLineRequest, setGoToLineRequest] = useState<{ line: number }>();
     const errorLine = error?.line;
@@ -46,7 +48,7 @@ export function ConfigSourceView({
         >
             <Suspense fallback={<div className={configEditorLoadingClassName} />}>
                 <ConfigEditor
-                    ariaLabel={`${fileName} source`}
+                    ariaLabel={t('settings.source.editorLabel', { fileName })}
                     path={`/caxri/${fileName}`}
                     theme={theme}
                     value={source}
@@ -68,11 +70,11 @@ export function ConfigSourceView({
                                 variant="ghost"
                                 onClick={() => setGoToLineRequest({ line: errorLine })}
                             >
-                                Go to line {errorLine}
+                                {t('settings.source.goToLine', { line: errorLine })}
                             </Button>
                         )}
                         <Button size="sm" variant="ghost" onClick={onRevert}>
-                            Revert changes
+                            {t('settings.source.revert')}
                         </Button>
                     </div>
                 </div>

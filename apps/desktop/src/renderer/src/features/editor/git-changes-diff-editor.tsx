@@ -8,6 +8,7 @@ import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { gitDecorationForFile } from '../../lib/git-decorations';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
@@ -15,7 +16,7 @@ import { describeFailure } from '../../stores/toasts';
 import { usePaneViewSessionId } from '../workbench/pane-view-session';
 import { openFile } from './document-commands';
 import { GitChangesDiffList } from './git-changes-diff-list';
-import { RESOLVED_GIT_DIFF_REASON } from './git-diff-resolution';
+import { RESOLVED_GIT_DIFF_REASON_KEY } from './git-diff-resolution';
 import { GitDiffSurface } from './git-diff-surface';
 import {
     initialStackedEditorHeight,
@@ -49,7 +50,8 @@ function GitChangesDiffResult({
     sessionId: string;
     source: GitDiffTab['source'];
 }) {
-    useToastOnQueryError(isError, error, 'Unable to open Git diff');
+    const { t } = useTranslation();
+    useToastOnQueryError(isError, error, t('editor.gitDiff.openFailed'));
     /**
      * A working-tree diff resolves to `null` when the change is committed, staged, or undone, routinely by an Agent
      * working in the background while the user is still reading this list. The row used to go blank under its own
@@ -57,11 +59,15 @@ function GitChangesDiffResult({
      * retry, because the list header above already refreshes every file at once. See issue #1004.
      */
     if (document === null)
-        return <div className={gitMultiDiffPlaceholderClassName}>{RESOLVED_GIT_DIFF_REASON}</div>;
+        return (
+            <div className={gitMultiDiffPlaceholderClassName}>
+                {t(RESOLVED_GIT_DIFF_REASON_KEY)}
+            </div>
+        );
     if (isError)
         return (
             <div className={gitMultiDiffErrorClassName}>
-                {describeFailure(error, 'Unable to open Git diff')}
+                {describeFailure(error, t('editor.gitDiff.openFailed'))}
             </div>
         );
     if (!document)
@@ -69,7 +75,7 @@ function GitChangesDiffResult({
             <LoadingSkeleton
                 variant="document"
                 className="git-multi-diff-placeholder h-[360px]"
-                label="Loading diff…"
+                label={t('editor.gitDiff.loading')}
             />
         );
     return (
@@ -168,6 +174,7 @@ function GitChangesDiffItem({
     sessionId: string;
     source: GitDiffTab['source'];
 }) {
+    const { t } = useTranslation();
     const { active, containerRef } = useNearMultiDiffViewport();
     const [expanded, setExpanded] = useState(true);
     /**
@@ -199,12 +206,12 @@ function GitChangesDiffItem({
                     <span className="truncate">{label}</span>
                 </button>
                 {repositoryRootPath && file.kind !== 'deleted' && (
-                    <Tooltip content="Open File">
+                    <Tooltip content={t('editor.gitDiff.openFile')}>
                         <Button
                             className="git-multi-diff-open-file size-6"
                             size="icon"
                             variant="ghost"
-                            aria-label={`Open ${file.path}`}
+                            aria-label={t('editor.gitDiff.openFileNamed', { path: file.path })}
                             // openFile (not openEditorTab): it reads the file first and only creates
                             // the tab on success, so a missing path toasts instead of leaving a tab
                             // stuck on "Loading file…".
@@ -297,6 +304,7 @@ function WorkingChangesDiffEditor({
     tab: Extract<GitDiffTab, { kind: 'changes' }>;
     tabPath: string;
 }) {
+    const { t } = useTranslation();
     const sessionId = usePaneViewSessionId();
     const {
         data: summary,
@@ -307,24 +315,27 @@ function WorkingChangesDiffEditor({
         { sessionId: sessionId ?? '' },
         { enabled: Boolean(sessionId) },
     );
-    useToastOnQueryError(isError, error, 'Unable to open Git changes');
+    useToastOnQueryError(isError, error, t('editor.gitDiff.openChangesFailed'));
     if (!sessionId) return null;
     if (isError)
         return (
             <div className={emptyWorkClassName}>
-                {describeFailure(error, 'Unable to open Git changes')}
+                {describeFailure(error, t('editor.gitDiff.openChangesFailed'))}
             </div>
         );
-    if (!summary) return <LoadingSkeleton variant="document" label="Loading changes…" />;
+    if (!summary)
+        return <LoadingSkeleton variant="document" label={t('editor.load.loadingChanges')} />;
     const repo = summary.isRepository
         ? summary.repositories.find((candidate) => candidate.id === tab.repositoryId)
         : undefined;
     if (!repo)
-        return <div className={emptyWorkClassName}>Git repository is no longer available</div>;
+        return (
+            <div className={emptyWorkClassName}>{t('editor.gitDiff.repositoryUnavailable')}</div>
+        );
     return (
         <ChangesDiffList
             changedFileCount={repo.changedFileCount}
-            emptyLabel="Working tree clean."
+            emptyLabel={t('editor.gitDiff.workingTreeClean')}
             files={repo.files}
             repositoryId={repo.id}
             repositoryRootPath={repo.rootPath}
@@ -343,6 +354,7 @@ function PullRequestChangesDiffEditor({
     tab: Extract<GitDiffTab, { kind: 'changes' }>;
     tabPath: string;
 }) {
+    const { t } = useTranslation();
     const sessionId = usePaneViewSessionId();
     const {
         data: pullRequest,
@@ -362,21 +374,26 @@ function PullRequestChangesDiffEditor({
     const repoRootPath = summary?.isRepository
         ? summary.repositories.find((candidate) => candidate.id === tab.repositoryId)?.rootPath
         : undefined;
-    useToastOnQueryError(isError, error, 'Unable to open pull request changes');
+    useToastOnQueryError(isError, error, t('editor.gitDiff.openPullRequestChangesFailed'));
     if (!sessionId) return null;
     if (isError)
         return (
             <div className={emptyWorkClassName}>
-                {describeFailure(error, 'Unable to open pull request changes')}
+                {describeFailure(error, t('editor.gitDiff.openPullRequestChangesFailed'))}
             </div>
         );
     if (pullRequest === undefined)
-        return <LoadingSkeleton variant="document" label="Loading pull request changes…" />;
+        return (
+            <LoadingSkeleton
+                variant="document"
+                label={t('editor.gitDiff.loadingPullRequestChanges')}
+            />
+        );
     if (pullRequest === null)
-        return <div className={emptyWorkClassName}>No pull request for this branch.</div>;
+        return <div className={emptyWorkClassName}>{t('editor.gitDiff.noPullRequest')}</div>;
     return (
         <ChangesDiffList
-            emptyLabel="Pull request has no file changes."
+            emptyLabel={t('editor.gitDiff.pullRequestEmpty')}
             files={pullRequest.files}
             repositoryId={pullRequest.repositoryId}
             repositoryRootPath={repoRootPath}

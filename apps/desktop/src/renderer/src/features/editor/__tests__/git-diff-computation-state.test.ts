@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { editorLoadReducer, initialEditorLoadState } from '../editor-load-state';
 import {
-    DIFF_STALL_REASON,
-    DIFF_WORKER_NOT_STARTED_REASON,
+    DIFF_STALL_REASON_KEY,
+    DIFF_WORKER_NOT_STARTED_REASON_KEY,
     gitDiffComputationAction,
 } from '../git-diff-computation-state';
+
+const DIFF_STALL_REASON = translate(DIFF_STALL_REASON_KEY);
+const DIFF_WORKER_NOT_STARTED_REASON = translate(DIFF_WORKER_NOT_STARTED_REASON_KEY);
 
 describe('Git diff computation state', () => {
     it('turns a stall into a failure the user can read and act on', () => {

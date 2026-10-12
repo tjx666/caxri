@@ -1,6 +1,7 @@
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
 
+import { useTranslation } from '../../i18n';
 import { EditorLoadFailure } from './editor-load-failure';
 import { editorRenderFailureReason } from './editor-load-state';
 
@@ -11,6 +12,20 @@ interface EditorErrorBoundaryProperties {
      * failed only for as long as it is the one on screen.
      */
     resetKey: string;
+}
+
+/**
+ * The boundary's fallback, split out because a class component cannot read the translation hook.
+ */
+function EditorRenderFailure({ error, onReload }: { error: unknown; onReload: () => void }) {
+    const { t } = useTranslation();
+    return (
+        <EditorLoadFailure
+            actionLabel={t('editor.load.reloadWindow')}
+            reason={t(editorRenderFailureReason(error))}
+            onAction={onReload}
+        />
+    );
 }
 
 interface EditorErrorBoundaryState {
@@ -62,12 +77,6 @@ export class EditorErrorBoundary extends Component<
 
     render(): ReactNode {
         if (!this.state.hasError) return this.props.children;
-        return (
-            <EditorLoadFailure
-                actionLabel="Reload window"
-                reason={editorRenderFailureReason(this.state.error)}
-                onAction={this.handleReload}
-            />
-        );
+        return <EditorRenderFailure error={this.state.error} onReload={this.handleReload} />;
     }
 }

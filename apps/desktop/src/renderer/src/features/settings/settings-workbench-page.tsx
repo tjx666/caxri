@@ -3,6 +3,9 @@ import { Braces, SlidersHorizontal } from 'lucide-react';
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
+import type { ConfigKind } from './config-edit';
 import { CONFIG_KINDS } from './config-edit';
 import { ConfigSourceView } from './config-source-view';
 import { KeybindingsForm } from './keybindings-form';
@@ -11,12 +14,19 @@ import { ThemeForm } from './theme-form';
 import type { SettingsPageController } from './use-settings-page-controller';
 import { useSettingsPageController } from './use-settings-page-controller';
 
+const TAB_LABELS: Record<ConfigKind, TranslationKey> = {
+    keybindings: 'settings.page.tab.keybindings',
+    settings: 'settings.page.tab.settings',
+    theme: 'settings.page.tab.theme',
+};
+
 /**
  * Same header copy and classes as the former `DialogHeader`/`DialogTitle`/`DialogDescription` trio, reproduced as plain
  * markup: a Workbench tab has no popup chrome to draw them from and no close button to reserve `pr-12` for.
  */
 function SettingsWorkbenchView(controller: SettingsPageController) {
     const { commitSource, sourceErrors, state, tab, updateSource, view } = controller;
+    const { t } = useTranslation();
 
     const sourceView = state.theme.value && (
         <ConfigSourceView
@@ -42,9 +52,9 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
             <div className="bg-surface pt-3 pr-4 pb-2 pl-4">
                 {/* The workbench tab and the section strip below both say "Settings"; a third visible copy only
                  * repeated them, so the heading stays for assistive tech alone. */}
-                <h1 className="sr-only">Settings</h1>
+                <h1 className="sr-only">{t('settings.page.heading')}</h1>
                 <p className="m-0 text-[11px] leading-[1.45] text-muted">
-                    Changes apply immediately and are stored as editable files.
+                    {t('settings.page.intro')}
                 </p>
             </div>
             {/*
@@ -55,20 +65,20 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
              */}
             <div className="flex items-center bg-surface pl-1">
                 <ChromeTabs
-                    ariaLabel="Settings sections"
+                    ariaLabel={t('settings.page.sections')}
                     className="flex flex-1 self-stretch"
                     idPrefix="settings"
                     items={CONFIG_KINDS.map((value) => ({
                         value,
-                        label: value[0].toUpperCase() + value.slice(1),
-                        content: value[0].toUpperCase() + value.slice(1),
+                        label: t(TAB_LABELS[value]),
+                        content: t(TAB_LABELS[value]),
                     }))}
                     tabClassName="min-h-9 px-3"
                     value={tab}
                     onValueChange={controller.changeTab}
                 />
                 <ToggleGroup
-                    aria-label="Settings view"
+                    aria-label={t('settings.page.viewToggle')}
                     className="mr-2"
                     value={[view]}
                     onValueChange={(next: Array<'ui' | 'source'>) => {
@@ -81,13 +91,21 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                         else controller.showUi();
                     }}
                 >
-                    <Tooltip content="UI">
-                        <ToggleGroupItem aria-label="UI" size="dense" value="ui">
+                    <Tooltip content={t('settings.page.view.ui')}>
+                        <ToggleGroupItem
+                            aria-label={t('settings.page.view.ui')}
+                            size="dense"
+                            value="ui"
+                        >
                             <SlidersHorizontal size={14} />
                         </ToggleGroupItem>
                     </Tooltip>
-                    <Tooltip content="Source">
-                        <ToggleGroupItem aria-label="Source" size="dense" value="source">
+                    <Tooltip content={t('settings.page.view.source')}>
+                        <ToggleGroupItem
+                            aria-label={t('settings.page.view.source')}
+                            size="dense"
+                            value="source"
+                        >
                             <Braces size={14} />
                         </ToggleGroupItem>
                     </Tooltip>

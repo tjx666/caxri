@@ -8,6 +8,7 @@ import { useRelativeTime } from '@/hooks/use-relative-time';
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Kbd } from '../../components/ui/kbd';
+import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
@@ -79,6 +80,7 @@ function SessionMruRow({
     terminal?: TerminalRecord;
 }) {
     const lastOpened = useRelativeTime(session.lastOpenedAt);
+    const { t } = useTranslation();
     return (
         <div
             id={`session-mru-option-${session.id}`}
@@ -117,7 +119,9 @@ function SessionMruRow({
                 </strong>
                 <span className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
                     <ProjectIcon className="flex-none" icon={project?.icon} size={11} />
-                    <span className="truncate">{project?.displayTitle ?? 'Unknown Project'}</span>
+                    <span className="truncate">
+                        {project?.displayTitle ?? t('session.unknownProject')}
+                    </span>
                 </span>
             </span>
             <span className="flex-none text-[11px] text-muted tabular-nums">{lastOpened}</span>
@@ -137,6 +141,7 @@ function SessionMruHint({
 }: {
     heldModifiers: SessionMruShortcutInvocation['heldModifiers'];
 }) {
+    const { t } = useTranslation();
     const shortcut = useCommandShortcut('session.switchMru');
     const [releaseParts = []] = formatShortcutChords(
         heldModifiers.map((modifier) => HELD_MODIFIER_CHORD_NAMES[modifier]).join('+'),
@@ -146,26 +151,26 @@ function SessionMruHint({
             {shortcut && (
                 <span className="inline-flex items-center gap-1">
                     <ShortcutBadge compact shortcut={shortcut} />
-                    Next
+                    {t('common.next')}
                 </span>
             )}
             <span className="inline-flex items-center gap-1">
                 <Kbd size="compact">⇧</Kbd>
-                Previous
+                {t('common.previous')}
             </span>
             <span className="inline-flex items-center gap-1">
                 <Kbd size="compact">Esc</Kbd>
-                Cancel
+                {t('common.cancel')}
             </span>
             {releaseParts.length > 0 && (
                 <span className="ml-auto inline-flex items-center gap-1">
-                    Release
+                    {t('session.mru.release')}
                     {releaseParts.map((part) => (
                         <Kbd key={part} size="compact">
                             {part}
                         </Kbd>
                     ))}
-                    to switch
+                    {t('session.mru.toSwitch')}
                 </span>
             )}
         </div>
@@ -185,6 +190,7 @@ export function SessionMruSwitcher() {
 
 function SessionMruSwitcherPanel() {
     const view = useSessionMruSwitcherView();
+    const { t } = useTranslation();
     const {
         candidateIds,
         projects,
@@ -217,12 +223,16 @@ function SessionMruSwitcherPanel() {
                 onMouseDown={() => useSessionMruSwitcherStore.getState().cancel()}
             />
             <p className="sr-only" aria-atomic="true" role="status">
-                {`Selected ${selected.displayTitle}, ${selectedIndex + 1} of ${candidates.length}`}
+                {t('session.mru.selectedStatus', {
+                    title: selected.displayTitle,
+                    position: selectedIndex + 1,
+                    total: candidates.length,
+                })}
             </p>
             <div className="session-mru-switcher motion-safe:animate-in fade-in-0 zoom-in-95 pointer-events-auto relative flex w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)] duration-(--motion-overlay-enter)">
                 <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
                     <span className="text-[11px] font-bold tracking-[0.04em] text-foreground uppercase">
-                        Recently used Sessions
+                        {t('session.mru.title')}
                     </span>
                     <span className="text-[11px] text-muted tabular-nums">
                         {selectedIndex + 1} / {candidates.length}
@@ -232,7 +242,7 @@ function SessionMruSwitcherPanel() {
                     ref={listReference}
                     className="max-h-[min(360px,50vh)] overflow-y-auto p-1.5"
                     aria-activedescendant={`session-mru-option-${selected.id}`}
-                    aria-label="Recently used Sessions"
+                    aria-label={t('session.mru.title')}
                     role="listbox"
                     tabIndex={-1}
                 >

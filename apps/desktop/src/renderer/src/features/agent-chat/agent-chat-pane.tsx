@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useTerminal } from '../../stores/selectors';
@@ -94,6 +95,7 @@ export function AgentChatPane({
     supportsRewindFiles: boolean;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
     const query = useCaxriQuery('agentChat.read', { terminalId }, { staleTime: Infinity });
     const snapshot = query.data;
     const projectRoot = usePaneViewSession()?.rootPath;
@@ -183,11 +185,12 @@ export function AgentChatPane({
                   void switchTerminalSurfaceTo(terminal, 'pty');
               }
             : undefined;
-    const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName);
+    const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName, t);
     const recoveryNotice = agentChatRecoveryNotice(
         snapshot,
         { isLoadError: query.isError, processState },
         providerName,
+        t,
     );
     const recover = (): void => {
         /**
@@ -291,7 +294,7 @@ export function AgentChatPane({
                                     <p className="m-0 text-[13px] text-muted">{emptyMessage}</p>
                                     {processState !== 'detached' && (
                                         <p className="m-0 text-[11px] leading-4 text-muted">
-                                            {agentChatEmptyHint(supportsImages)}
+                                            {agentChatEmptyHint(supportsImages, t)}
                                         </p>
                                     )}
                                 </div>
@@ -343,7 +346,7 @@ export function AgentChatPane({
                     handleReference: composerEdit,
                     filesUnsupportedReason: supportsRewindFiles
                         ? undefined
-                        : `${providerName} cannot restore files; only the conversation rewinds`,
+                        : t('agentChat.pane.filesUnsupported', { provider: providerName }),
                     onEditingChange: setEditingId,
                 }}
                 inputReference={inputReference}

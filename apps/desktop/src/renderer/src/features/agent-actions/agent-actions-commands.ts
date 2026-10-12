@@ -1,5 +1,6 @@
 import type { AgentActionRecentSettings } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
 import { canSendTerminalInput } from '../terminal/terminal-pane-handlers';
@@ -20,7 +21,7 @@ export async function didSendAgentActionInputSteps(
         }
         if (!canSendTerminalInput(terminalId)) return false;
         // eslint-disable-next-line no-await-in-loop -- the next step must not overtake this PTY write
-        const receipt = await tryCommand('Unable to send Agent command or skill', () =>
+        const receipt = await tryCommand(translate('agentActions.sendFailed'), () =>
             caxri.request('terminal.input', { terminalId, data: step.data }),
         );
         if (receipt === undefined) return false;
@@ -36,7 +37,7 @@ export async function recordRecentAgentAction(
     terminalId: string,
     invocation: string,
 ): Promise<AgentActionRecentSettings | undefined> {
-    return tryCommand('Unable to save recent Agent action', () =>
+    return tryCommand(translate('agentActions.saveRecentFailed'), () =>
         caxri.request('agentActions.recordRecent', { terminalId, invocation }),
     );
 }

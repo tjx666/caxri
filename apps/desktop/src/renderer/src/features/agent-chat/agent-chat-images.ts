@@ -7,6 +7,8 @@ import {
     MAX_AGENT_CHAT_THUMBNAIL_LENGTH,
 } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
+
 /**
  * Image attachments for the Chat composer. The full image is read once, sent to the provider, and dropped; the
  * projection and the transcript keep only a small thumbnail made here.
@@ -52,7 +54,24 @@ const RESIZABLE_IMAGE_TYPES: ReadonlySet<string> = new Set([
     'image/webp',
 ]);
 
-export const AGENT_CHAT_IMAGE_RESIZED_NOTE = `Resized to fit the ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB limit`;
+/**
+ * The tooltip on a resized attachment, saying what is sent is not the original file.
+ */
+export function agentChatImageResizedNote(): string {
+    return translate('agentChat.images.resizedNote', {
+        size: MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024,
+    });
+}
+
+/**
+ * An attachment's alt text when it was resized: its name plus the resized note.
+ */
+export function agentChatResizedImageLabel(name: string): string {
+    return translate('agentChat.images.resizedLabel', {
+        name,
+        size: MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024,
+    });
+}
 
 export type AgentChatImageRejection = 'count' | 'size' | 'total' | 'type';
 
@@ -122,21 +141,29 @@ export function agentChatImageRejectionMessage(
     fileNames: readonly string[] = [],
 ): string {
     const named = (message: string): string =>
-        fileNames.length > 0 ? `${message}: ${fileNames.join(', ')}` : message;
+        fileNames.length > 0
+            ? translate('agentChat.images.namedRejection', { message, names: fileNames.join(', ') })
+            : message;
     switch (rejection) {
         case 'count': {
-            return `A message can include up to ${MAX_AGENT_CHAT_IMAGES} images`;
+            return translate('agentChat.images.tooMany', { count: MAX_AGENT_CHAT_IMAGES });
         }
         case 'size': {
-            return named(`Images must be ${MAX_AGENT_CHAT_IMAGE_BYTES / MEGABYTE} MB or smaller`);
+            return named(
+                translate('agentChat.images.tooLarge', {
+                    size: MAX_AGENT_CHAT_IMAGE_BYTES / MEGABYTE,
+                }),
+            );
         }
         case 'total': {
             return named(
-                `Images in one message must add up to ${MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES / MEGABYTE} MB or less`,
+                translate('agentChat.images.totalTooLarge', {
+                    size: MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES / MEGABYTE,
+                }),
             );
         }
         case 'type': {
-            return 'Only PNG, JPEG, GIF, and WebP images can be attached';
+            return translate('agentChat.images.unsupportedType');
         }
     }
 }
@@ -171,9 +198,16 @@ export function agentChatInsertedImagePathMessage(
 ): string | undefined {
     if (rejections.length === 0) return undefined;
     const reason = rejections.includes('type')
-        ? 'Only PNG, JPEG, GIF, and WebP images can be attached'
-        : `GIFs over ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB cannot be attached`;
-    return `${reason}. Inserted the ${rejections.length === 1 ? 'path' : 'paths'} instead`;
+        ? translate('agentChat.images.unsupportedType')
+        : translate('agentChat.images.gifTooLarge', {
+              size: MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024,
+          });
+    return translate(
+        rejections.length === 1
+            ? 'agentChat.images.insertedPathOne'
+            : 'agentChat.images.insertedPathOther',
+        { reason },
+    );
 }
 
 /**
@@ -181,7 +215,7 @@ export function agentChatInsertedImagePathMessage(
  * nothing. A drop or pick needs no message: it cites the image by path instead.
  */
 export function agentChatImagesUnsupportedMessage(providerName: string): string {
-    return `${providerName} Chat does not accept images`;
+    return translate('agentChat.images.unsupportedProvider', { provider: providerName });
 }
 
 /**

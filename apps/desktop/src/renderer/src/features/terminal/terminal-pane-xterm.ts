@@ -6,6 +6,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import type { ITerminalAddon } from '@xterm/xterm';
 import { Terminal } from '@xterm/xterm';
 
+import { translate } from '../../i18n';
 import { pushToast } from '../../stores/toasts';
 import { beginRendererPerformanceTerminalStage } from '../renderer-performance/controller';
 import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
@@ -98,11 +99,9 @@ export function createTerminalPaneXterm({
     const unicode11 = new Unicode11Addon();
     const osc52Clipboard = new ControlledOsc52Clipboard({
         enabled: () => latest().osc52ClipboardWrite,
-        onBlocked: (reason) => pushToast('info', OSC52_BLOCK_MESSAGES[reason]),
+        onBlocked: (reason) => pushToast('info', translate(OSC52_BLOCK_MESSAGES[reason])),
         onWriteFailure: (error) => {
-            onError(
-                'A Terminal program could not write to the clipboard. Check diagnostics for details.',
-            );
+            onError(translate('terminal.osc52.writeFailed'));
             reportTerminalOsc52ClipboardWriteFailure(error, container, latest().terminalId);
         },
         writeClipboard: (text) => navigator.clipboard.writeText(text),

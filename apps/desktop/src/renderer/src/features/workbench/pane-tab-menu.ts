@@ -6,17 +6,19 @@ import {
     paneTabIdsToClose,
 } from '@caxri/protocol';
 
+import type { TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { closeDocumentTabFamily } from '../editor/document-commands';
 import { splitPaneTab } from './pane-actions';
 
-const closeLabels: Record<PaneTabCloseMode, string> = {
-    one: 'Close',
-    others: 'Close Others',
-    right: 'Close to the Right',
-    editors: 'Close Editors',
-    all: 'Close All',
+const closeLabelKeys: Record<PaneTabCloseMode, TranslationKey> = {
+    one: 'workbench.tabMenu.close.one',
+    others: 'workbench.tabMenu.close.others',
+    right: 'workbench.tabMenu.close.right',
+    editors: 'workbench.tabMenu.close.editors',
+    all: 'workbench.tabMenu.close.all',
 };
 
 /**
@@ -32,18 +34,18 @@ const terminalCloseModes: readonly PaneTabCloseMode[] = [
 ];
 const documentCloseModes: readonly PaneTabCloseMode[] = ['one', 'others', 'right', 'all'];
 
-const splitLabels: Record<PaneSplitSide, string> = {
-    left: 'Split Left',
-    right: 'Split Right',
-    up: 'Split Up',
-    down: 'Split Down',
+const splitLabelKeys: Record<PaneSplitSide, TranslationKey> = {
+    left: 'workbench.tabMenu.split.left',
+    right: 'workbench.tabMenu.split.right',
+    up: 'workbench.tabMenu.split.up',
+    down: 'workbench.tabMenu.split.down',
 };
 
-const splitDisabledReasons = {
-    'missing': 'This tab is no longer open',
-    'only-tab': 'Open another tab in this pane first',
-    'pane-limit': `A Workbench holds at most ${MAX_PANE_LAYOUT_PANES} panes`,
-} as const;
+const splitDisabledReasonKeys = {
+    'missing': 'workbench.tabMenu.splitBlocked.missing',
+    'only-tab': 'workbench.tabMenu.splitBlocked.onlyTab',
+    'pane-limit': 'workbench.tabMenu.splitBlocked.paneLimit',
+} as const satisfies Record<string, TranslationKey>;
 
 /**
  * The context menu every pane tab gets, whatever it holds.
@@ -54,7 +56,8 @@ const splitDisabledReasons = {
  *
  * `paneLayout` is the caller's reactive read rather than the imperative `getPaneLayout` other actions use: the builder
  * runs when the menu opens and reads the layout from the latest render, so "Close to the Right" and Split reflect tabs
- * opened or closed around this one.
+ * opened or closed around this one. Labels are translated here, when the menu opens, so they follow the current
+ * language.
  */
 export function paneTabMenu({
     paneId,
@@ -74,15 +77,19 @@ export function paneTabMenu({
         paneLayout && findTab(paneLayout, tabId)?.tab.resource.kind === 'terminal';
     return [
         ...(isTerminalTab ? terminalCloseModes : documentCloseModes).map((mode) => ({
-            label: closeLabels[mode],
+            label: translate(closeLabelKeys[mode]),
             disabled: (paneLayout ? paneTabIdsToClose(paneLayout, tabId, mode) : []).length === 0,
             onSelect: () => closeDocumentTabFamily(tabId, mode),
         })),
         CONTEXT_MENU_SEPARATOR,
         ...(['left', 'right', 'up', 'down'] as const).map((side) => ({
-            label: splitLabels[side],
+            label: translate(splitLabelKeys[side]),
             disabled: splitBlockedReason !== undefined,
-            disabledReason: splitBlockedReason && splitDisabledReasons[splitBlockedReason],
+            disabledReason:
+                splitBlockedReason &&
+                translate(splitDisabledReasonKeys[splitBlockedReason], {
+                    count: MAX_PANE_LAYOUT_PANES,
+                }),
             onSelect: () => splitPaneTab(tabId, paneId, side),
         })),
         ...(resourceEntries ? [CONTEXT_MENU_SEPARATOR, ...resourceEntries] : []),

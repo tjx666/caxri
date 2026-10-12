@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useRef } from 'react';
 
 import type { ThemeTokens } from '@caxri/protocol';
 
+import { useTranslation } from '../../i18n';
 import { renderMermaidDiagram } from './markdown-diagrams';
 
 /**
@@ -13,6 +14,7 @@ import { renderMermaidDiagram } from './markdown-diagrams';
  * with the parser's error below it, until the source parses again.
  */
 export function MermaidPreview({ source, theme }: { source: string; theme: ThemeTokens }) {
+    const { t } = useTranslation();
     const diagramReference = useRef<HTMLElement>(null);
     const deferredSource = useDeferredValue(source);
     const isEmpty = deferredSource.trim() === '';
@@ -29,13 +31,13 @@ export function MermaidPreview({ source, theme }: { source: string; theme: Theme
     return (
         <div className="caxri-markdown h-full min-h-0 overflow-auto bg-background px-8 py-6 text-foreground">
             {isEmpty ? (
-                <p className="text-muted">This diagram is empty.</p>
+                <p className="text-muted">{t('preview.mermaid.empty')}</p>
             ) : (
                 // A figure rather than an image: an image hides its children from assistive technology, and the
                 // parse error rendered inside it has to be readable.
                 <figure
                     ref={diagramReference}
-                    aria-label="Mermaid diagram"
+                    aria-label={t('preview.mermaid.label')}
                     className="caxri-markdown-diagram caxri-mermaid-file-diagram m-0"
                     data-testid="mermaid-preview"
                 />

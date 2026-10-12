@@ -1,23 +1,25 @@
 import type { ExtensionError } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+
 /**
  * Closed protocol reasons keep extension internals and local paths out of recovery UI.
  */
-export function describeExtensionFailure(error: ExtensionError): string {
+export function describeExtensionFailure(error: ExtensionError, t: Translate): string {
     switch (error.code) {
         case 'EXTENSION_HOST_UNAVAILABLE':
         case 'GENERATION_EXPIRED':
-            return 'The extension connection was interrupted. Retry to reconnect.';
+            return t('viewContainers.extensionFailure.interrupted');
         case 'PROVIDER_TIMEOUT':
-            return 'The extension did not respond in time. Try again.';
+            return t('viewContainers.extensionFailure.timeout');
         case 'PROVIDER_CAPACITY':
-            return 'The extension is busy. Wait a moment, then try again.';
+            return t('viewContainers.extensionFailure.busy');
         case 'CAPABILITY_DENIED':
         case 'PROJECT_SCOPE_DENIED':
-            return 'The extension does not have access to this operation or Project.';
+            return t('viewContainers.extensionFailure.denied');
         case 'PAYLOAD_TOO_LARGE':
-            return 'The extension returned more data than this view can display.';
+            return t('viewContainers.extensionFailure.tooLarge');
         default:
-            return 'The extension could not load this view. Retry, or check the extension configuration.';
+            return t('viewContainers.extensionFailure.generic');
     }
 }

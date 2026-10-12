@@ -4,6 +4,7 @@ import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
 import { Field, FieldLabel } from '../../components/ui/field';
 import { Textarea } from '../../components/ui/textarea';
+import { useTranslation } from '../../i18n';
 import type { BugReportDraft } from './bug-report';
 import { BugReportScreenshotField } from './bug-report-screenshot-field';
 
@@ -52,6 +53,7 @@ export function BugReportForm({
     screenshotError,
     updateDraft,
 }: BugReportFormProperties) {
+    const { t } = useTranslation();
     const actualReference = useRef<HTMLTextAreaElement>(null);
 
     /**
@@ -102,8 +104,7 @@ export function BugReportForm({
             )}
             {!contextError && !hasTargets && (
                 <Alert variant="info" className="text-[12px]">
-                    No running Agent in this Session — you can still copy the report to paste
-                    manually.
+                    {t('bugReport.form.noRunningAgent')}
                 </Alert>
             )}
             <BugReportScreenshotField
@@ -117,28 +118,32 @@ export function BugReportForm({
                 onRemove={onRemoveScreenshot}
             />
             <Field>
-                <FieldLabel htmlFor="bug-report-actual">Actual behavior</FieldLabel>
+                <FieldLabel htmlFor="bug-report-actual">
+                    {t('bugReport.form.actualLabel')}
+                </FieldLabel>
                 <Textarea
                     ref={actualReference}
                     id="bug-report-actual"
                     maxLength={12_000}
-                    placeholder="What happened?"
+                    placeholder={t('bugReport.form.actualPlaceholder')}
                     value={draft.actual}
                     onChange={(event) => updateDraft('actual', event.target.value)}
                 />
             </Field>
             <Field>
-                <FieldLabel htmlFor="bug-report-expected">Expected behavior</FieldLabel>
+                <FieldLabel htmlFor="bug-report-expected">
+                    {t('bugReport.form.expectedLabel')}
+                </FieldLabel>
                 <Textarea
                     id="bug-report-expected"
                     maxLength={12_000}
-                    placeholder="What should have happened?"
+                    placeholder={t('bugReport.form.expectedPlaceholder')}
                     value={draft.expected}
                     onChange={(event) => updateDraft('expected', event.target.value)}
                 />
             </Field>
             <Field>
-                <FieldLabel htmlFor="bug-report-steps">Reproduction steps (optional)</FieldLabel>
+                <FieldLabel htmlFor="bug-report-steps">{t('bugReport.form.stepsLabel')}</FieldLabel>
                 <Textarea
                     id="bug-report-steps"
                     maxLength={12_000}
@@ -157,11 +162,11 @@ export function BugReportForm({
                         variant="ghost"
                         onClick={onDiscardDraft}
                     >
-                        Discard Draft
+                        {t('bugReport.form.discardDraft')}
                     </Button>
                 )}
                 <Button disabled={!canPreview || busy} onClick={onPreview}>
-                    {busy ? 'Preparing…' : 'Preview Report'}
+                    {t(busy ? 'bugReport.form.preparing' : 'bugReport.form.previewReport')}
                 </Button>
             </div>
         </div>

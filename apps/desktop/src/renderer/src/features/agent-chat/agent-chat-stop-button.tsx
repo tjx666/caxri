@@ -3,6 +3,7 @@ import { Square } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 
 /**
  * The composer's one primary action, Send or Stop: a filled `--foreground` circle with a `--background` glyph, the way
@@ -23,10 +24,19 @@ export function AgentChatStopButton({
     isStopping: boolean;
     onStop: () => void;
 }) {
+    const { t } = useTranslation();
     return (
-        <Tooltip content={isStopping ? 'Stopping…' : 'Stop (Esc)'}>
+        <Tooltip
+            content={t(
+                isStopping
+                    ? 'agentChat.composer.stoppingTooltip'
+                    : 'agentChat.composer.stopTooltip',
+            )}
+        >
             <Button
-                aria-label={isStopping ? 'Stopping' : 'Stop'}
+                aria-label={t(
+                    isStopping ? 'agentChat.composer.stopping' : 'agentChat.composer.stop',
+                )}
                 aria-disabled={isStopping || undefined}
                 className={AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME}
                 size="icon"

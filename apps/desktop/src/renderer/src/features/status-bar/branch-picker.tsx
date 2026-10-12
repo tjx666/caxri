@@ -9,6 +9,7 @@ import { Dialog, PickerDialogContent } from '../../components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { switchBranch } from './branch-commands';
@@ -28,6 +29,7 @@ export function BranchPicker({
     sessionId: string;
     showTrigger?: boolean;
 }) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [switching, setSwitching] = useState<string>();
     useStatusBarPickerRequest('branch', () => setOpen(true));
@@ -62,11 +64,11 @@ export function BranchPicker({
             // `aria-labelledby` outranks `aria-label`, so this string (not a prop on
             // `CommandInput`) is the search field's accessible name. The popup keeps
             // `Branches` as its own dialog name above.
-            label="Search branches"
+            label={t('statusBar.branch.searchLabel')}
             defaultValue={branch}
             filter={pickerSearchScore}
         >
-            <CommandInput autoFocus placeholder="Search branches…" />
+            <CommandInput autoFocus placeholder={t('statusBar.branch.searchPlaceholder')} />
             <CommandList className="max-h-[min(360px,var(--available-height))]">
                 <PickerQueryStatus noun="branches" query={branchesQuery} />
                 {branches.map(({ name, committedAt }, index) => (
@@ -107,11 +109,17 @@ export function BranchPicker({
                     if (!switching) setOpen(isOpen);
                 }}
             >
-                <PickerDialogContent aria-label="Branches">{content}</PickerDialogContent>
+                <PickerDialogContent aria-label={t('statusBar.branch.dialogLabel')}>
+                    {content}
+                </PickerDialogContent>
             </Dialog>
         );
     }
 
+    const switchingLabel = switching
+        ? t('statusBar.branch.switching', { branch: switching })
+        : undefined;
+    const triggerLabel = switchingLabel ?? t('statusBar.branch.switchFrom', { branch });
     return (
         <Popover
             open={open}
@@ -121,7 +129,7 @@ export function BranchPicker({
             }}
         >
             <Tooltip
-                content={switching ? `Switching to ${switching}…` : `Switch branch from ${branch}`}
+                content={triggerLabel}
                 // Same reason as the Workbench Root trigger: an open menu must not sit under its own trigger's tooltip.
                 disabled={open}
             >
@@ -131,9 +139,7 @@ export function BranchPicker({
                     aria-haspopup="listbox"
                     aria-disabled={Boolean(switching)}
                     aria-busy={Boolean(switching)}
-                    aria-label={
-                        switching ? `Switching to ${switching}…` : `Switch branch from ${branch}`
-                    }
+                    aria-label={triggerLabel}
                     className={cn(
                         statusItemClassName,
                         // Capped rather than shrinking, so the bar can measure its natural width (`chip-priority.ts`).
@@ -146,14 +152,14 @@ export function BranchPicker({
                         <GitBranch size={13} className="flex-none" />
                     )}
                     <span className="min-w-0 truncate" role={switching ? 'status' : undefined}>
-                        {switching ? `Switching to ${switching}…` : branch}
+                        {switching ? switchingLabel : branch}
                     </span>
                 </PopoverTrigger>
             </Tooltip>
             <PopoverContent
                 side="top"
                 className="w-96 max-w-[calc(100vw-16px)]"
-                aria-label="Branches"
+                aria-label={t('statusBar.branch.dialogLabel')}
             >
                 {content}
             </PopoverContent>

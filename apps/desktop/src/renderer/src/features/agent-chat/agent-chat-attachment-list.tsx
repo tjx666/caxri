@@ -5,9 +5,10 @@ import { LoaderCircle, Minimize2, X } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import type { AgentChatAttachment } from './agent-chat-drafts';
 import { agentChatAttachmentLabel, agentChatAttachmentName } from './agent-chat-drafts';
-import { AGENT_CHAT_IMAGE_RESIZED_NOTE } from './agent-chat-images';
+import { agentChatImageResizedNote } from './agent-chat-images';
 
 /**
  * Reading an image is usually instant; only one that takes longer (a large image being resized) shows a placeholder, so
@@ -16,6 +17,7 @@ import { AGENT_CHAT_IMAGE_RESIZED_NOTE } from './agent-chat-images';
 const PENDING_CHIP_DELAY_MS = 300;
 
 function PendingAttachmentChip() {
+    const { t } = useTranslation();
     const [isVisible, setVisible] = useState(false);
     useEffect(() => {
         const timer = setTimeout(() => setVisible(true), PENDING_CHIP_DELAY_MS);
@@ -24,7 +26,7 @@ function PendingAttachmentChip() {
     if (!isVisible) return null;
     return (
         <li
-            aria-label="Preparing image"
+            aria-label={t('agentChat.attachments.preparing')}
             className="flex size-16 items-center justify-center rounded-md border border-border text-muted"
         >
             <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" />
@@ -46,6 +48,7 @@ function AttachmentThumbnail({
     index: number;
     onPreview: () => void;
 }) {
+    const { t } = useTranslation();
     const label = agentChatAttachmentLabel(attachment, index);
     const thumbnail = (
         <span className="relative block">
@@ -64,7 +67,7 @@ function AttachmentThumbnail({
                 </span>
             )}
             <button
-                aria-label={`Preview ${label}`}
+                aria-label={t('agentChat.attachments.preview', { name: label })}
                 className="absolute inset-0 cursor-zoom-in rounded-md border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-accent"
                 type="button"
                 onClick={onPreview}
@@ -72,7 +75,7 @@ function AttachmentThumbnail({
         </span>
     );
     return attachment.isResized ? (
-        <Tooltip content={AGENT_CHAT_IMAGE_RESIZED_NOTE}>{thumbnail}</Tooltip>
+        <Tooltip content={agentChatImageResizedNote()}>{thumbnail}</Tooltip>
     ) : (
         thumbnail
     );
@@ -97,13 +100,14 @@ export function AgentChatAttachmentList({
      */
     pendingCount?: number;
 }) {
+    const { t } = useTranslation();
     const [previewId, setPreviewId] = useState<string>();
     const previewIndex = attachments.findIndex((attachment) => attachment.id === previewId);
     const preview = previewIndex === -1 ? undefined : attachments[previewIndex];
     return (
         <>
             <ul
-                aria-label="Attached images"
+                aria-label={t('agentChat.attachments.label')}
                 className="m-0 flex list-none flex-wrap gap-2 px-3 pt-3 pb-0 empty:hidden"
             >
                 {attachments.map((attachment, index) => (
@@ -114,7 +118,9 @@ export function AgentChatAttachmentList({
                             onPreview={() => setPreviewId(attachment.id)}
                         />
                         <Button
-                            aria-label={`Remove ${agentChatAttachmentName(attachment, index)}`}
+                            aria-label={t('agentChat.attachments.remove', {
+                                name: agentChatAttachmentName(attachment, index),
+                            })}
                             className="absolute top-1 right-1 size-5 shadow-sm"
                             size="icon"
                             type="button"

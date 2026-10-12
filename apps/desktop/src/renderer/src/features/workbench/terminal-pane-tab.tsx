@@ -4,6 +4,7 @@ import { CircleAlert, Pause } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useSessionState } from '../../stores/selectors';
 import { WorkTab } from '../tabs/work-tab';
@@ -58,6 +59,7 @@ export function TerminalPaneTab({
     tab,
     terminal,
 }: PaneTabProperties & { isOnlySessionTerminal: boolean; terminal: TerminalRecord }) {
+    const { t } = useTranslation();
     const paneLayout = useSessionState(usePaneViewSessionId())?.paneLayout;
     const progress = useTerminalProgress(terminal.id);
     const isCompacting = terminal.agentOperation === 'compacting';
@@ -70,9 +72,9 @@ export function TerminalPaneTab({
             fill
             accessory={
                 isCompacting ? (
-                    <Tooltip content="The Agent is summarizing earlier context before continuing.">
+                    <Tooltip content={t('workbench.tab.compactingTooltip')}>
                         <span
-                            aria-label="Compacting context"
+                            aria-label={t('workbench.tab.compacting')}
                             aria-live="polite"
                             className="terminal-agent-operation inline-flex flex-none items-center text-foreground"
                             data-agent-operation="compacting"
@@ -83,7 +85,7 @@ export function TerminalPaneTab({
                     </Tooltip>
                 ) : progress ? (
                     <span
-                        aria-label={terminalProgressAriaLabel(progress)}
+                        aria-label={terminalProgressAriaLabel(progress, t)}
                         className={cn(
                             'terminal-progress-tab inline-flex flex-none items-center gap-1 tabular-nums',
                             /**
@@ -96,22 +98,22 @@ export function TerminalPaneTab({
                             progress.kind === 'paused' && 'text-warning',
                         )}
                         data-terminal-progress-state={progress.kind}
-                        title={terminalProgressAriaLabel(progress)}
+                        title={terminalProgressAriaLabel(progress, t)}
                     >
                         {progress.kind === 'indeterminate' ? (
                             <Spinner aria-hidden="true" size={11} />
                         ) : (
                             ProgressIcon && <ProgressIcon aria-hidden="true" size={11} />
                         )}
-                        {progress.kind !== 'indeterminate' && terminalProgressLabel(progress)}
+                        {progress.kind !== 'indeterminate' && terminalProgressLabel(progress, t)}
                     </span>
                 ) : undefined
             }
             closable={closable}
-            closeLabel="Close Terminal"
+            closeLabel={t('workbench.tab.closeTerminal')}
             icon={terminal.kind}
             label={terminalTabLabel(displayTitle)}
-            labelTooltip={terminalTabTooltip(displayTitle, terminal)}
+            labelTooltip={terminalTabTooltip(displayTitle, terminal, t)}
             showActiveAccent={showActiveAccent}
             showTrailingSeparator={showTrailingSeparator}
             tabId={workTabId(tab.id)}

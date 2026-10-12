@@ -1,5 +1,6 @@
 import type { CommanderInboxItem } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { showConfirm } from '../../stores/confirmations';
@@ -27,7 +28,7 @@ export function replyToCommanderInboxItem(
     body: string,
 ): Promise<CommanderInboxItem | undefined> {
     return tryCommand(
-        'Unable to send the reply',
+        translate('agentCommander.inboxCommands.replyFailed'),
         () => caxri.request('commander.inbox.reply', { id: itemId, body }),
         { refresh: invalidateCommanderInbox },
     );
@@ -48,16 +49,17 @@ export async function answerCommanderInboxItem(
 
 export async function dismissCommanderInboxItem(item: CommanderInboxItem): Promise<void> {
     const isConfirmed = await showConfirm({
-        title: 'Dismiss this item?',
-        message:
+        title: translate('agentCommander.inboxCommands.dismissTitle'),
+        message: translate(
             item.kind === 'merge'
-                ? 'The Commander is told you will not merge this pull request from the Inbox. The pull request itself stays open.'
-                : 'The Commander is told you dismissed this question without an answer.',
-        confirmLabel: 'Dismiss',
+                ? 'agentCommander.inboxCommands.dismissMergeMessage'
+                : 'agentCommander.inboxCommands.dismissQuestionMessage',
+        ),
+        confirmLabel: translate('common.dismiss'),
     });
     if (!isConfirmed) return;
     await tryCommand(
-        'Unable to dismiss this item',
+        translate('agentCommander.inboxCommands.dismissFailed'),
         () => caxri.request('commander.inbox.dismiss', { id: item.id }),
         { refresh: invalidateCommanderInbox },
     );
@@ -70,16 +72,21 @@ export async function dismissCommanderInboxItem(item: CommanderInboxItem): Promi
 export async function mergeCommanderInboxItem(item: CommanderInboxItem): Promise<void> {
     const pullRequest = item.pullRequest;
     if (!pullRequest) return;
+    const pullRequestName = `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}`;
     const isConfirmed = await showConfirm({
-        title: `Merge ${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}?`,
-        message: `Merges commit ${pullRequest.headSha.slice(0, 7)}, the one the Commander verified, with the repository's preferred merge method. GitHub refuses if new commits landed.`,
-        confirmLabel: 'Merge',
+        title: translate('agentCommander.inboxCommands.mergeTitle', {
+            pullRequest: pullRequestName,
+        }),
+        message: translate('agentCommander.inboxCommands.mergeMessage', {
+            sha: pullRequest.headSha.slice(0, 7),
+        }),
+        confirmLabel: translate('agentCommander.inbox.merge'),
     });
     if (!isConfirmed) return;
     // The merge waits on GitHub, so the card shows it pending from the confirmation until the reply.
     const result = await runCommanderInboxAction(item.id, 'merge', () =>
         tryCommand(
-            'Unable to merge this pull request',
+            translate('agentCommander.inboxCommands.mergeFailed'),
             () => caxri.request('commander.inbox.merge', { id: item.id, revision: item.revision }),
             { refresh: invalidateCommanderInbox },
         ),
@@ -87,6 +94,6 @@ export async function mergeCommanderInboxItem(item: CommanderInboxItem): Promise
     if (result)
         pushToast(
             'success',
-            `Merged ${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}`,
+            translate('agentCommander.inboxCommands.merged', { pullRequest: pullRequestName }),
         );
 }

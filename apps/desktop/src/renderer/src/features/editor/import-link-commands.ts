@@ -2,6 +2,7 @@ import { isVirtualEditorTabPath, MAX_RESOLVED_IMPORTS } from '@caxri/protocol';
 import { editorModelPath, parseEditorModelPath } from '@desktop-shared/editor-state';
 import type { CancellationToken, editor, IDisposable, languages, Uri } from 'monaco-editor';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getSelectedSession } from '../../stores/selectors';
 import { sessionViewScope } from '../../stores/session-view';
@@ -169,7 +170,7 @@ export async function openImportLinkAtCursor(): Promise<void> {
         position.column,
     );
     if (!match) {
-        pushToast('info', 'Put the cursor on an import path to open it.');
+        pushToast('info', translate('editor.importLink.noImport'));
         return;
     }
     await resolveAndOpenImport(document.sessionId, document.path, match.specifier);
@@ -191,12 +192,12 @@ async function resolveAndOpenImport(
             specifiers: [specifier],
         }));
     } catch {
-        pushToast('error', `Unable to resolve ${specifier}`);
+        pushToast('error', translate('editor.importLink.resolveFailed', { specifier }));
         return;
     }
     const path = resolved.find((entry) => entry.specifier === specifier)?.path;
     if (!path) {
-        pushToast('info', `${specifier} does not resolve to a file in this Project.`);
+        pushToast('info', translate('editor.importLink.notInProject', { specifier }));
         return;
     }
     await openFileForSession(sessionId, path);

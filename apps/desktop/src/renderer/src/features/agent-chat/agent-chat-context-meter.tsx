@@ -4,6 +4,7 @@ import { formatTokens } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { AgentChatContextUsage } from './agent-chat-context';
 
@@ -46,11 +47,12 @@ function ContextCard({
     percent: number;
     usage: AgentChatContextUsage;
 }) {
+    const { t } = useTranslation();
     const rows = usage.breakdown;
     return (
         <span className="flex flex-col gap-2 text-[12px]">
             <span className="flex items-baseline justify-between gap-3">
-                <span className="font-medium">Context</span>
+                <span className="font-medium">{t('agentChat.context.title')}</span>
                 <span className="tabular-nums">
                     {formatTokens(usage.totalTokens)}
                     <span className="text-muted"> / {formatTokens(usage.window)}</span>
@@ -88,8 +90,10 @@ function ContextCard({
             )}
             {usage.modelWindow && (
                 <span className="text-[11px] leading-4 text-muted">
-                    Auto-compacts at {formatTokens(usage.window)} of the{' '}
-                    {formatTokens(usage.modelWindow)} window
+                    {t('agentChat.context.autoCompacts', {
+                        window: formatTokens(usage.window),
+                        modelWindow: formatTokens(usage.modelWindow),
+                    })}
                 </span>
             )}
             {onCompact && (
@@ -100,7 +104,7 @@ function ContextCard({
                     variant="secondary"
                     onClick={onCompact}
                 >
-                    Compact
+                    {t('agentChat.context.compact')}
                 </Button>
             )}
         </span>
@@ -127,9 +131,13 @@ export function AgentChatContextMeter({
     onCompact?: () => void;
     usage: AgentChatContextUsage;
 }) {
+    const { t } = useTranslation();
     const percent = Math.round(usage.used * 100);
-    const tokens = `${formatTokens(usage.totalTokens)} / ${formatTokens(usage.window)} tokens`;
-    const description = `${percent}% of context used, ${tokens}`;
+    const description = t('agentChat.context.meterLabel', {
+        percent,
+        tokens: formatTokens(usage.totalTokens),
+        window: formatTokens(usage.window),
+    });
     return (
         <Popover>
             <PopoverTrigger

@@ -2,7 +2,16 @@ import { useState } from 'react';
 
 import type { AgentChatTurn } from '@caxri/protocol';
 
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
+import type { AgentChatTurnAnnouncement } from './agent-chat-turn-announcement';
 import { agentChatTurnAnnouncement } from './agent-chat-turn-announcement';
+
+const ANNOUNCEMENT_KEYS: Record<AgentChatTurnAnnouncement, TranslationKey> = {
+    'Reply ready': 'agentChat.timeline.announcement.replyReady',
+    'Turn failed': 'agentChat.timeline.announcement.turnFailed',
+    'Stopped': 'agentChat.timeline.announcement.stopped',
+};
 
 /**
  * A polite live region that tells a screen reader user how the turn they were waiting on ended, since the reply lands
@@ -19,7 +28,8 @@ export function AgentChatTurnAnnouncer({
 }) {
     const [watchedTurnId, setWatchedTurnId] = useState(activeTurnId);
     const [endedTurnId, setEndedTurnId] = useState<string | undefined>();
-    const [message, setMessage] = useState('');
+    const { t } = useTranslation();
+    const [message, setMessage] = useState<AgentChatTurnAnnouncement | ''>('');
     if (activeTurnId !== watchedTurnId) {
         setWatchedTurnId(activeTurnId);
         setEndedTurnId(watchedTurnId);
@@ -32,7 +42,7 @@ export function AgentChatTurnAnnouncer({
     }
     return (
         <div aria-live="polite" className="sr-only" role="status">
-            {message}
+            {message && t(ANNOUNCEMENT_KEYS[message])}
         </div>
     );
 }

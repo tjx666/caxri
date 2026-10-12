@@ -1,6 +1,7 @@
 import type { ServerEvent } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { pushToast } from '../../stores/toasts';
 
 /**
@@ -14,7 +15,7 @@ export function reportTerminalOutputRecovery(
     if (payload.status === 'recovered')
         pushToast(
             'success',
-            `Sent Esc and continue to ${providerName} after a matched recovery rule.`,
+            translate('terminal.outputRecovery.recovered', { provider: providerName }),
             {
                 type: 'agent-recovery',
                 action: { id: 'settings.open' },
@@ -23,7 +24,7 @@ export function reportTerminalOutputRecovery(
     else
         pushToast(
             'error',
-            `Automatic recovery paused for ${providerName} after 3 attempts in 10 minutes.`,
+            translate('terminal.outputRecovery.paused', { provider: providerName }),
             { action: { id: 'settings.open' } },
         );
 }

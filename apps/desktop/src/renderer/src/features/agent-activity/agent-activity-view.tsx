@@ -6,6 +6,7 @@ import { CheckCheck, Hand, Hourglass, Moon, TriangleAlert, Zap } from 'lucide-re
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
+import { useTranslation } from '../../i18n';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
@@ -76,6 +77,7 @@ type RenderRow =
  * the Primary Side Bar's body rather than sharing it; see `primary-sidebar.tsx`.
  */
 export function AgentActivityView() {
+    const { t } = useTranslation();
     const now = useAgentActivityClock();
     const allProjects = useProjects();
     const sessions = useSessions() ?? NO_RECORDS;
@@ -168,10 +170,10 @@ export function AgentActivityView() {
     const renderRows = useMemo(
         () =>
             groups.flatMap<RenderRow>((group) => [
-                { group, heading: agentActivityHeadingPresentation(group), kind: 'heading' },
+                { group, heading: agentActivityHeadingPresentation(group, t), kind: 'heading' },
                 ...group.rows.map((row) => ({ kind: 'session' as const, row })),
             ]),
-        [groups],
+        [groups, t],
     );
     /**
      * `narrow` ("8m ago") rather than the prose form the Session cards use. A row here spends its one line on a Project
@@ -210,7 +212,7 @@ export function AgentActivityView() {
     if (groups.length === 0)
         return (
             <div className="agent-activity-empty flex min-h-0 flex-1 items-center justify-center p-6 text-center text-xs text-muted">
-                No Agent Session is waiting on you.
+                {t('agentActivity.empty')}
             </div>
         );
 
@@ -238,7 +240,7 @@ export function AgentActivityView() {
         // Fire-and-forget: `tryCommand` turns any rejection into exactly one toast, and the Server keeps the same
         // generation unread so the next focus event can retry it.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void tryCommand('Unable to mark the Session read', () =>
+        void tryCommand(t('agentActivity.markReadFailed'), () =>
             markSessionRead(row.session.id, row.session.attentionEpoch),
         );
         if (focusAfterRead) focusRow(focusAfterRead);
@@ -253,7 +255,7 @@ export function AgentActivityView() {
             >
                 <div
                     ref={treeReference}
-                    aria-label="Activity"
+                    aria-label={t('agentActivity.treeLabel')}
                     className="flex flex-col gap-0.5"
                     role="tree"
                     onKeyDown={(event) => {

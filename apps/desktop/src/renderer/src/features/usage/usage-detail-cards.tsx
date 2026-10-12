@@ -1,15 +1,24 @@
 import type { UsageReport } from '@caxri/protocol';
-import { formatDuration, formatLineCount, formatTokens, formatUsd } from '@caxri/protocol';
+import { formatLineCount, formatTokens, formatUsd } from '@caxri/protocol';
 import { Archive, GitMerge } from 'lucide-react';
 
 import { ReportCard } from '../../components/report-card';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { openExternalUrl } from '../../lib/external-link';
+import { localizedDuration } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
 import { ShareBar } from './share-bar';
 import { UsageCost } from './usage-cost';
-import { countLabel, topCaption, usageCostDisplay, usageSessionCount } from './usage-metrics';
+import {
+    countLabel,
+    formatMetric,
+    topCaption,
+    usageCostDisplay,
+    usageSessionCount,
+} from './usage-metrics';
 import { usageRowStatusLabel, usageShare, usageShareBasis } from './usage-presentation';
 import { UsageSessionTitle } from './usage-session-title';
 import {
@@ -24,7 +33,12 @@ function openPullRequest(url: string): void {
     void openExternalUrl(url, (message) => pushToast('error', message));
 }
 
-const MODEL_COLUMNS = ['Input', 'Output', 'Cache', 'Cost'];
+const MODEL_COLUMNS: readonly TranslationKey[] = [
+    'usage.models.input',
+    'usage.models.output',
+    'usage.models.cache',
+    'usage.cost.title',
+];
 const MODEL_ROWS = 12;
 const PROJECT_ROWS = 10;
 const SESSION_ROWS = 15;
@@ -43,21 +57,26 @@ function rowCost(report: UsageReport, costUsd: number, tokens: number) {
 }
 
 function ModelsCard({ report }: { report: UsageReport }) {
+    const { t } = useTranslation();
     return (
         <ReportCard
-            title="Models"
-            caption={topCaption(Math.min(MODEL_ROWS, report.models.length), report.models.length)}
+            title={t('usage.models.title')}
+            caption={topCaption(
+                t,
+                Math.min(MODEL_ROWS, report.models.length),
+                report.models.length,
+            )}
         >
             {report.models.length === 0 ? (
-                <p className="m-0 text-[12px] text-muted">No model usage in this range.</p>
+                <p className="m-0 text-[12px] text-muted">{t('usage.models.empty')}</p>
             ) : (
                 <table className="w-full table-fixed border-collapse">
                     <thead>
                         <tr>
-                            <th className={tableHeadClass}>Model</th>
+                            <th className={tableHeadClass}>{t('usage.models.model')}</th>
                             {MODEL_COLUMNS.map((label) => (
                                 <th key={label} className={cn(numericHeadClass, 'w-20')}>
-                                    {label}
+                                    {t(label)}
                                 </th>
                             ))}
                         </tr>
@@ -86,7 +105,9 @@ function ModelsCard({ report }: { report: UsageReport }) {
                                     {row.isPriced ? (
                                         formatUsd(row.costUsd)
                                     ) : (
-                                        <span className="text-muted">No price</span>
+                                        <span className="text-muted">
+                                            {t('usage.cost.noPrice')}
+                                        </span>
                                     )}
                                 </td>
                             </tr>
@@ -102,14 +123,18 @@ function ProjectsCard({ report }: { report: UsageReport }) {
     const top = report.projects.slice(0, PROJECT_ROWS);
     const basis = usageShareBasis(report);
     const total = { costUsd: report.totals.costUsd, tokens: report.totals.tokens.total };
+    const { t } = useTranslation();
     return (
-        <ReportCard title="Projects" caption={topCaption(top.length, report.projects.length)}>
+        <ReportCard
+            title={t('usage.projects.title')}
+            caption={topCaption(t, top.length, report.projects.length)}
+        >
             {top.length === 0 ? (
-                <p className="m-0 text-[12px] text-muted">No Project usage in this range.</p>
+                <p className="m-0 text-[12px] text-muted">{t('usage.projects.empty')}</p>
             ) : (
                 <div className="grid gap-3">
                     {top.map((row) => {
-                        const status = usageRowStatusLabel({ ...row, kind: 'project' });
+                        const status = usageRowStatusLabel(t, { ...row, kind: 'project' });
                         return (
                             <div key={row.projectId} className="grid gap-1">
                                 <div className="flex items-center justify-between gap-3 text-[12px]">
@@ -137,13 +162,13 @@ function ProjectsCard({ report }: { report: UsageReport }) {
                                 <ShareBar share={usageShare(row, total, basis)} />
                                 <div className="flex justify-between gap-3 text-[11px] text-muted tabular-nums">
                                     <span>
-                                        {formatTokens(row.tokens)} tokens ·{' '}
-                                        {usageSessionCount(row.sessions, row.isOutsideCaxri)}
+                                        {formatMetric(t, row.tokens, 'tokens')} ·{' '}
+                                        {usageSessionCount(t, row.sessions, row.isOutsideCaxri)}
                                     </span>
                                     <span>
-                                        {formatDuration(row.activeMs)}
+                                        {localizedDuration(row.activeMs, t)}
                                         {row.pullRequestsMerged > 0 &&
-                                            ` · ${countLabel(row.pullRequestsMerged, 'merged pull request')}`}
+                                            ` · ${countLabel(t, row.pullRequestsMerged, 'mergedPullRequest')}`}
                                     </span>
                                 </div>
                             </div>
@@ -157,22 +182,29 @@ function ProjectsCard({ report }: { report: UsageReport }) {
 
 function SessionsCard({ report }: { report: UsageReport }) {
     const rows = report.sessions.slice(0, SESSION_ROWS);
+    const { t } = useTranslation();
     return (
         <ReportCard
-            title="Most expensive Sessions"
-            caption={topCaption(rows.length, report.sessions.length)}
+            title={t('usage.sessions.title')}
+            caption={topCaption(t, rows.length, report.sessions.length)}
         >
             {rows.length === 0 ? (
-                <p className="m-0 text-[12px] text-muted">No Session usage in this range.</p>
+                <p className="m-0 text-[12px] text-muted">{t('usage.sessions.empty')}</p>
             ) : (
                 <table className="w-full table-fixed border-collapse">
                     <thead>
                         <tr>
-                            <th className={tableHeadClass}>Session</th>
-                            <th className={cn(tableHeadClass, 'w-40')}>Project</th>
-                            <th className={cn(numericHeadClass, 'w-20')}>Tokens</th>
-                            <th className={cn(numericHeadClass, 'w-24')}>Agent time</th>
-                            <th className={cn(numericHeadClass, 'w-20')}>Cost</th>
+                            <th className={tableHeadClass}>{t('usage.sessions.session')}</th>
+                            <th className={cn(tableHeadClass, 'w-40')}>
+                                {t('usage.sessions.project')}
+                            </th>
+                            <th className={cn(numericHeadClass, 'w-20')}>{t('usage.tokens')}</th>
+                            <th className={cn(numericHeadClass, 'w-24')}>
+                                {t('usage.agentTime.title')}
+                            </th>
+                            <th className={cn(numericHeadClass, 'w-20')}>
+                                {t('usage.cost.title')}
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -191,14 +223,17 @@ function SessionsCard({ report }: { report: UsageReport }) {
                                         </span>
                                         <UsageSessionTitle row={row} />
                                         {/* The text twin of the muted title, as on the Projects card. */}
-                                        {usageRowStatusLabel({ ...row, kind: 'session' }) && (
+                                        {usageRowStatusLabel(t, { ...row, kind: 'session' }) && (
                                             <span className="flex-none text-[11px] text-muted">
-                                                {usageRowStatusLabel({ ...row, kind: 'session' })}
+                                                {usageRowStatusLabel(t, {
+                                                    ...row,
+                                                    kind: 'session',
+                                                })}
                                             </span>
                                         )}
                                         {row.isArchived && (
                                             <Archive
-                                                aria-label="Archived"
+                                                aria-label={t('usage.sessions.archived')}
                                                 className="flex-none text-muted"
                                                 size={12}
                                             />
@@ -206,8 +241,9 @@ function SessionsCard({ report }: { report: UsageReport }) {
                                         {row.pullRequestsMerged > 0 && (
                                             <span
                                                 aria-label={countLabel(
+                                                    t,
                                                     row.pullRequestsMerged,
-                                                    'merged pull request',
+                                                    'mergedPullRequest',
                                                 )}
                                                 className="flex flex-none items-center gap-0.5 text-[11px] text-merged"
                                             >
@@ -219,7 +255,9 @@ function SessionsCard({ report }: { report: UsageReport }) {
                                 </td>
                                 <td className={cn(cellClass, 'text-muted')}>{row.projectTitle}</td>
                                 <td className={numericCellClass}>{formatTokens(row.tokens)}</td>
-                                <td className={numericCellClass}>{formatDuration(row.activeMs)}</td>
+                                <td className={numericCellClass}>
+                                    {localizedDuration(row.activeMs, t)}
+                                </td>
                                 <td className={numericCellClass}>
                                     <UsageCost display={rowCost(report, row.costUsd, row.tokens)} />
                                 </td>
@@ -233,23 +271,24 @@ function SessionsCard({ report }: { report: UsageReport }) {
 }
 
 function PullRequestsCard({ report }: { report: UsageReport }) {
+    const { t } = useTranslation();
     const { pullRequestsMerged, costUsd } = report.totals;
     const shown = Math.min(PULL_REQUEST_ROWS, report.pullRequests.length);
     const captions = [
-        topCaption(shown, report.pullRequests.length),
+        topCaption(t, shown, report.pullRequests.length),
         pullRequestsMerged > 0 && costUsd > 0
-            ? `est. ${formatUsd(costUsd / pullRequestsMerged)} per merged pull request`
+            ? t('usage.pullRequests.costPerMerged', {
+                  cost: formatUsd(costUsd / pullRequestsMerged),
+              })
             : undefined,
     ].filter(Boolean);
     return (
         <ReportCard
-            title="Merged pull requests"
+            title={t('usage.pullRequests.title')}
             caption={captions.length > 0 ? captions.join(' · ') : undefined}
         >
             {report.pullRequests.length === 0 ? (
-                <p className="m-0 text-[12px] text-muted">
-                    No pull request opened by an Agent was merged in this range.
-                </p>
+                <p className="m-0 text-[12px] text-muted">{t('usage.pullRequests.empty')}</p>
             ) : (
                 <ul className="m-0 grid list-none gap-1 p-0">
                     {report.pullRequests.slice(0, PULL_REQUEST_ROWS).map((row) => (

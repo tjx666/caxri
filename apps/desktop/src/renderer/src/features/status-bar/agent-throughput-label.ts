@@ -1,5 +1,8 @@
 import type { AgentThroughputAggregate, AgentThroughputSample } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 /**
  * The shortest duration a rate is computed from. Transcript timestamps are coarse, so a response measured in a few
  * milliseconds divided its tokens by almost nothing and printed `40,000 tok/s`; below this floor the token count is
@@ -37,20 +40,25 @@ export function formatThroughputRate(rate: number): string {
 /**
  * The spoken form of {@link formatThroughputRate} for accessible names: `62 tokens per second`.
  */
-export function spokenThroughputRate(rate: number): string {
-    if (rate < 1) return 'less than 1 token per second';
+export function spokenThroughputRate(rate: number, t: Translate = translate): string {
+    if (rate < 1) return t('statusBar.throughput.spokenRateBelowOne');
     const rounded = Math.round(rate);
-    return `${groupedCount.format(rounded)} ${rounded === 1 ? 'token' : 'tokens'} per second`;
+    return t(
+        rounded === 1
+            ? 'statusBar.throughput.spokenRateOne'
+            : 'statusBar.throughput.spokenRateOther',
+        { count: groupedCount.format(rounded) },
+    );
 }
 
 /**
  * The one phrase every surface (status-bar chip, its hover card, the Agent status tab) uses for the headline figure:
  * `Average of the last 12 responses`.
  */
-export function recentAverageLabel(responseCount: number): string {
+export function recentAverageLabel(responseCount: number, t: Translate = translate): string {
     return responseCount === 1
-        ? 'Last response only'
-        : `Average of the last ${responseCount} responses`;
+        ? t('statusBar.throughput.lastResponseOnly')
+        : t('statusBar.throughput.recentAverage', { count: responseCount });
 }
 
 /**
@@ -82,16 +90,32 @@ export function formatThroughputDuration(milliseconds: number): string {
 /**
  * `3,210 tokens in 52s · 62 tok/s`, with the response count when more than one response is folded in.
  */
-export function describeThroughputAggregate(aggregate: AgentThroughputAggregate): string {
+export function describeThroughputAggregate(
+    aggregate: AgentThroughputAggregate,
+    t: Translate = translate,
+): string {
     const rate = throughputRate(aggregate);
-    const responses =
-        aggregate.responseCount > 1 ? ` across ${aggregate.responseCount} responses` : '';
-    return `${groupedCount.format(aggregate.outputTokens)} tokens in ${formatThroughputDuration(aggregate.durationMs)}${responses}${rate === undefined ? '' : ` · ${formatThroughputRate(rate)}`}`;
+    const parameters = {
+        tokens: groupedCount.format(aggregate.outputTokens),
+        duration: formatThroughputDuration(aggregate.durationMs),
+        count: aggregate.responseCount,
+    };
+    const tokens = t(
+        aggregate.responseCount > 1
+            ? 'statusBar.throughput.tokensAcrossResponses'
+            : 'statusBar.throughput.tokensIn',
+        parameters,
+    );
+    return `${tokens}${rate === undefined ? '' : ` · ${formatThroughputRate(rate)}`}`;
 }
 
-export function describeThroughputSample(sample: AgentThroughputSample): string {
-    return describeThroughputAggregate({ ...sample, responseCount: 1 });
+export function describeThroughputSample(
+    sample: AgentThroughputSample,
+    t: Translate = translate,
+): string {
+    return describeThroughputAggregate({ ...sample, responseCount: 1 }, t);
 }
 
-export const AGENT_THROUGHPUT_METHOD_NOTE =
-    "Output tokens divided by each request's time, read from the Agent's own transcript. Includes waiting for the first token; excludes tool execution.";
+export function agentThroughputMethodNote(t: Translate = translate): string {
+    return t('statusBar.throughput.methodNote');
+}

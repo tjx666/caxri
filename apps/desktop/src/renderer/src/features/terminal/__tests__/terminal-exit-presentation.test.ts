@@ -2,7 +2,7 @@ import type { ProcessState } from '@caxri/protocol';
 import { settingCategories, settingsSpecByKey } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { getTerminalExitPresentation, SUSPENDED_DETAIL } from '../terminal-exit-presentation';
+import { getTerminalExitPresentation, suspendedDetail } from '../terminal-exit-presentation';
 
 describe('getTerminalExitPresentation', () => {
     it.each([
@@ -20,7 +20,7 @@ describe('getTerminalExitPresentation', () => {
         [
             'suspended',
             {
-                detail: SUSPENDED_DETAIL,
+                detail: suspendedDetail(),
                 icon: 'pending',
                 label: 'Suspended in the background, resuming',
                 tone: 'neutral',
@@ -90,6 +90,6 @@ describe('getTerminalExitPresentation', () => {
         const category = settingsSpecByKey['terminal.idleSuspension.enabled'].category;
         expect(settingsSpecByKey['terminal.suspendUntouchedAgents'].category).toBe(category);
         const title = settingCategories.find((entry) => entry.id === category)?.title;
-        expect(SUSPENDED_DETAIL).toContain(`Settings > ${title}.`);
+        expect(suspendedDetail()).toContain(`Settings > ${title}.`);
     });
 });
