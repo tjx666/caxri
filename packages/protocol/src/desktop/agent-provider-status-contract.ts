@@ -33,9 +33,49 @@ export type AgentProviderStatusFailureReason = z.infer<
 
 const statusTextSchema = z.string().max(500);
 
+/**
+ * One stretch of time a status page recorded a component as not operational.
+ */
+export const agentProviderStatusImpactSchema = z.strictObject({
+    /**
+     * Epoch milliseconds.
+     */
+    startAt: z.number(),
+    /**
+     * Epoch milliseconds; absent while the impact is still open.
+     */
+    endAt: z.number().optional(),
+    status: agentProviderServiceStatusSchema,
+});
+
+/**
+ * A component's recent history as its status page publishes it: the page's own uptime figure over the window and the
+ * raw impact intervals. Intervals rather than per-day buckets, so the Renderer can split days in the user's time zone.
+ */
+export const agentProviderStatusUptimeSchema = z.strictObject({
+    /**
+     * Epoch milliseconds the history window starts and ends.
+     */
+    windowStart: z.number(),
+    windowEnd: z.number(),
+    /**
+     * The page's uptime percentage for the window, when it publishes one.
+     */
+    percent: z.number().min(0).max(100).optional(),
+    /**
+     * Epoch milliseconds the page started recording this component; days before it have no data.
+     */
+    dataAvailableSince: z.number().optional(),
+    impacts: z.array(agentProviderStatusImpactSchema).max(1_000),
+});
+
 export const agentProviderStatusComponentSchema = z.strictObject({
     name: statusTextSchema,
     status: agentProviderServiceStatusSchema,
+    /**
+     * Present only when the page publishes component history (incident.io) and it could be read.
+     */
+    uptime: agentProviderStatusUptimeSchema.optional(),
 });
 
 export const agentProviderStatusIncidentSchema = z.strictObject({
@@ -98,10 +138,12 @@ export const agentProviderStatusSchema = z.discriminatedUnion('state', [
 ]);
 export type AgentProviderStatus = z.infer<typeof agentProviderStatusSchema>;
 export type AgentProviderStatusIncident = z.infer<typeof agentProviderStatusIncidentSchema>;
+export type AgentProviderStatusComponent = z.infer<typeof agentProviderStatusComponentSchema>;
+export type AgentProviderStatusUptime = z.infer<typeof agentProviderStatusUptimeSchema>;
 
 export const agentProviderStatusDesktopMethods = {
     /**
-     * The provider's public service status (OpenAI's Codex components, Claude's API and Claude Code components) so a
+     * The provider's public service status (OpenAI's Codex API component, Claude's API and Claude Code components) so a
      * slow or failing Agent can be told apart from a provider incident. Main reads the status page through Chromium's
      * network stack, so the system proxy applies; the Renderer's CSP forbids the request and Server Core's Node `fetch`
      * ignores the system proxy. Null for a provider without a public status page.

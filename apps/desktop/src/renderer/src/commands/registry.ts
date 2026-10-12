@@ -144,6 +144,7 @@ export interface CommandContext {
         openPathBrowser(): void;
         openProjectSearch(): void;
         openSessionContentSearch(): void;
+        openCommanderHandover(): void;
     };
     windows: {
         openAgentCommander(): void;

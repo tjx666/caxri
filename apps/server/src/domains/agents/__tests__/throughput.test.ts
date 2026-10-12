@@ -35,6 +35,27 @@ describe('ThroughputAccumulator', () => {
         });
     });
 
+    it('splits the session by model and speed tier, moving a re-reported response with it', () => {
+        const accumulator = new ThroughputAccumulator();
+        accumulator.response({ ...response('a', 100, 1_000), model: 'm1' });
+        accumulator.response({ ...response('b', 200, 1_000), model: 'm1', speed: 'fast' });
+        accumulator.response({ ...response('c', 300, 1_000), model: 'm1', speed: 'fast' });
+        // The same response re-reported after its model was learned no longer counts under the old variant.
+        accumulator.response({ ...response('c', 400, 2_000), model: 'm2', speed: 'fast' });
+        expect(accumulator.snapshot('codex')?.byModel).toEqual([
+            { model: 'm1', durationMs: 1_000, outputTokens: 100, responseCount: 1 },
+            { model: 'm1', speed: 'fast', durationMs: 1_000, outputTokens: 200, responseCount: 1 },
+            { model: 'm2', speed: 'fast', durationMs: 2_000, outputTokens: 400, responseCount: 1 },
+        ]);
+        expect(accumulator.snapshot('codex')?.samples.at(-1)).toEqual({
+            completedAt: 0,
+            durationMs: 2_000,
+            outputTokens: 400,
+            model: 'm2',
+            speed: 'fast',
+        });
+    });
+
     it('weights the recent window by tokens and bounds the retained samples', () => {
         const accumulator = new ThroughputAccumulator();
         for (let index = 0; index < AGENT_THROUGHPUT_SAMPLE_LIMIT + 5; index += 1)

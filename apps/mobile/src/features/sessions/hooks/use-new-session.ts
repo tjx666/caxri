@@ -5,13 +5,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 
 import { useMobileClient } from '../../connection/mobile-client-provider';
-import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
+import { classifyMobileWriteFailure } from '../../connection/mobile-write-failure';
 import { useHostSessions } from '../components/host-sessions-provider';
 import {
     acknowledgeCheckedUncertainCreate,
     availableNewSessionAgent,
     canCreateNewSession,
     markUncertainSessionsChecked,
+    newSessionCreateFailure,
     newSessionDefaultSurface,
     newSessionSurface,
     projectFilterAfterCreate,
@@ -120,20 +121,8 @@ export const useNewSession = () => {
                     ...(selectedSurface && { surface: selectedSurface }),
                 });
             } catch (error) {
-                const canRetry =
-                    error instanceof MobileGatewayRequestError &&
-                    ['CAPACITY', 'CONFLICT', 'FORBIDDEN', 'NOT_FOUND', 'VALIDATION'].includes(
-                        error.code,
-                    );
                 setNewSessionCreateState(
-                    canRetry
-                        ? { kind: 'failed', message: error.message }
-                        : {
-                              kind: 'uncertain',
-                              checkedSessions: false,
-                              message:
-                                  'Caxri did not confirm whether the Session was created. Check Sessions before trying again.',
-                          },
+                    newSessionCreateFailure(classifyMobileWriteFailure(error)),
                 );
                 return;
             }

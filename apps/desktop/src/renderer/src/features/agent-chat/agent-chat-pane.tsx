@@ -37,7 +37,6 @@ import {
     isAgentChatBusy,
 } from './agent-chat-presentation';
 import { isAgentChatMessageRailShown } from './agent-chat-rail-marks';
-import { announceAgentChatSelectionCopy } from './agent-chat-selection-copy';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
 import { agentChatTimelineEntryKey } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
@@ -215,13 +214,21 @@ export function AgentChatPane({
                 <AgentChatFindScope
                     contentReference={contentReference}
                     focusComposer={focusComposer}
+                    hasUnsearchedHistory={history.hasMore || history.history.truncated}
                     scrollReference={scrollReference}
                     stopFollowing={stopFollowing}
                     terminalId={terminalId}
                 >
+                    {/* A named log, so screen readers can find the transcript, and focusable so the keyboard can scroll
+                        it without a pointer. `aria-live` is off because a log is polite by default, which would read
+                        every streamed token aloud; `AgentChatTurnAnnouncer` owns what is announced. */}
                     <div
-                        className="h-full overflow-y-auto"
+                        aria-label={t('agentChat.timeline.transcriptLabel')}
+                        aria-live="off"
+                        className="h-full overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent"
                         ref={scrollReference}
+                        role="log"
+                        tabIndex={0}
                         onScroll={onScroll}
                     >
                         <div
@@ -231,7 +238,6 @@ export function AgentChatPane({
                                 isAgentChatMessageRailShown(railMarks) && 'pl-7',
                             )}
                             ref={contentReference}
-                            onCopy={announceAgentChatSelectionCopy}
                         >
                             <AgentChatHistoryHead
                                 hasFailed={history.history.status === 'failed'}

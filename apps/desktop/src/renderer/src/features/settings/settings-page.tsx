@@ -32,10 +32,10 @@ export interface SettingsPageProperties {
     agentExecutableFocusRequest?: { id: number; provider: AgentProvider };
     gitExclusionsFocusRequestId?: number;
     /**
-     * Scrolls one `argv.jsonc` boot-flag row into view. One request for both flags, because they differ only by which
-     * row they land on.
+     * Scrolls one row into view: an `argv.jsonc` boot flag or the Agent suspension setting. One request for all of
+     * them, because they differ only by which row they land on.
      */
-    argvRowFocusRequest?: { id: number; rowId: string };
+    rowFocusRequest?: { id: number; rowId: string };
     trustedDomainsFocusRequestId?: number;
     notificationsFocusRequestId?: number;
     /**
@@ -187,7 +187,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const handledAgentActionsFocusRequest = useRef(0);
     const handledAgentExecutableFocusRequest = useRef(0);
     const handledGitExclusionsFocusRequest = useRef(0);
-    const handledArgvRowFocusRequest = useRef(0);
+    const handledRowFocusRequest = useRef(0);
     const handledNotificationsFocusRequest = useRef(0);
 
     useFocusOnRevision(properties.searchFocusRequestId, searchInputReference);
@@ -283,12 +283,8 @@ export function SettingsPage(properties: SettingsPageProperties) {
     }, [list, properties.gitExclusionsFocusRequestId, virtualizer, virtualItems.length]);
 
     useEffect(() => {
-        const request = properties.argvRowFocusRequest;
-        if (
-            !request ||
-            handledArgvRowFocusRequest.current === request.id ||
-            virtualItems.length === 0
-        )
+        const request = properties.rowFocusRequest;
+        if (!request || handledRowFocusRequest.current === request.id || virtualItems.length === 0)
             return;
         const index = list.findIndex(
             (item) => item.kind === 'row' && item.row.id === request.rowId,
@@ -299,9 +295,9 @@ export function SettingsPage(properties: SettingsPageProperties) {
          * list, and scrolling it before the virtualizer has a range silently does nothing, which is exactly how this
          * arrives from the status bar's debugging chip and the GPU crash card.
          */
-        handledArgvRowFocusRequest.current = request.id;
+        handledRowFocusRequest.current = request.id;
         virtualizer.scrollToIndex(index, { align: 'start' });
-    }, [list, properties.argvRowFocusRequest, virtualizer, virtualItems.length]);
+    }, [list, properties.rowFocusRequest, virtualizer, virtualItems.length]);
 
     useEffect(() => {
         const requestId = properties.notificationsFocusRequestId;

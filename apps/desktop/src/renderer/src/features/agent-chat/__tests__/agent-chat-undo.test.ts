@@ -2,8 +2,11 @@ import type { AgentChatEditedFile, AgentChatFileChange } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentChatRedoFailureMessage,
+    agentChatRedoSuccessMessage,
     agentChatUndoFailureMessage,
     agentChatUndoSuccessMessage,
+    planAgentChatFileRedo,
     planAgentChatFileUndo,
     revertAgentChatUpdate,
 } from '../agent-chat-undo';
@@ -120,10 +123,6 @@ describe('planAgentChatFileUndo', () => {
             path: '/project/a.ts',
             reason: 'changed',
         });
-        expect(planAgentChatFileUndo(file, undefined)).toMatchObject({
-            ok: false,
-            reason: 'missing',
-        });
     });
 
     it('restores a deleted file and refuses when it exists again or the diff was cut', () => {
@@ -143,6 +142,112 @@ describe('planAgentChatFileUndo', () => {
             { path: '/project/a.ts', kind: 'update', diff: '@@\n-a\n+b', truncated: true },
         ]);
         expect(planAgentChatFileUndo(cut, 'b')).toMatchObject({ ok: false, reason: 'truncated' });
+    });
+});
+
+describe('planAgentChatFileUndo on a turn already undone', () => {
+    const none = { ok: true, step: { path: '/project/a.ts', action: 'none' } };
+
+    it('recognizes an update file already back at its content from before the turn', () => {
+        const file = edited([
+            {
+                path: '/project/a.ts',
+                kind: 'update',
+                diff: '@@ -1,3 +1,3 @@\n one\n-two\n+TWO\n three',
+            },
+            {
+                path: '/project/a.ts',
+                kind: 'update',
+                diff: '@@ -1,3 +1,3 @@\n one\n-TWO\n+2\n three',
+            },
+        ]);
+        expect(planAgentChatFileUndo(file, 'one\n2\nthree\n')).toEqual({
+            ok: true,
+            step: { path: '/project/a.ts', action: 'write', content: 'one\ntwo\nthree\n' },
+        });
+        expect(planAgentChatFileUndo(file, 'one\ntwo\nthree\n')).toEqual(none);
+    });
+
+    it('recognizes a created file already gone and a deleted file already back', () => {
+        const created = edited(
+            [{ path: '/project/a.ts', kind: 'add', diff: '@@\n+line one\n+line two' }],
+            'add',
+        );
+        expect(planAgentChatFileUndo(created, undefined)).toEqual(none);
+        const deleted = edited(
+            [{ path: '/project/a.ts', kind: 'delete', diff: 'one\ntwo\n' }],
+            'delete',
+        );
+        expect(planAgentChatFileUndo(deleted, 'one\ntwo\n')).toEqual(none);
+        expect(planAgentChatFileUndo(deleted, 'other\n')).toMatchObject({
+            ok: false,
+            reason: 'exists',
+        });
+    });
+
+    it('still reports a file changed to something that is neither before nor after the turn', () => {
+        const file = edited([
+            {
+                path: '/project/a.ts',
+                kind: 'update',
+                diff: '@@ -1,3 +1,3 @@\n one\n-two\n+TWO\n three',
+            },
+        ]);
+        expect(planAgentChatFileUndo(file, 'one\nlater\nthree\n')).toMatchObject({
+            ok: false,
+            reason: 'changed',
+        });
+    });
+
+    it('prefers undoing an append that also replays onto its own result', () => {
+        const file = edited([
+            { path: '/project/a.ts', kind: 'update', diff: '@@ -1,3 +1,4 @@\n a\n b\n c\n+d' },
+        ]);
+        expect(planAgentChatFileUndo(file, 'a\nb\nc\nd\n')).toEqual({
+            ok: true,
+            step: { path: '/project/a.ts', action: 'write', content: 'a\nb\nc\n' },
+        });
+    });
+});
+
+describe('planAgentChatFileRedo', () => {
+    const file = { path: '/project/a.ts', displayPath: 'a.ts', before: 'b\n', after: 'a\n' };
+
+    it('puts back what the Undo replaced while the file holds what the Undo wrote', () => {
+        expect(planAgentChatFileRedo(file, 'a\n')).toEqual({
+            ok: true,
+            step: { path: '/project/a.ts', action: 'write', content: 'b\n' },
+        });
+        expect(planAgentChatFileRedo({ ...file, after: undefined }, undefined)).toEqual({
+            ok: true,
+            step: { path: '/project/a.ts', action: 'restore', content: 'b\n' },
+        });
+        expect(planAgentChatFileRedo({ ...file, before: undefined }, 'a\n')).toEqual({
+            ok: true,
+            step: { path: '/project/a.ts', action: 'trash' },
+        });
+    });
+
+    it('refuses to overwrite a file that changed after the Undo', () => {
+        expect(planAgentChatFileRedo(file, 'later\n')).toMatchObject({
+            ok: false,
+            reason: 'changed',
+        });
+        expect(planAgentChatFileRedo(file, undefined)).toMatchObject({
+            ok: false,
+            reason: 'missing',
+        });
+        expect(planAgentChatFileRedo({ ...file, after: undefined }, 'new\n')).toMatchObject({
+            ok: false,
+            reason: 'exists',
+        });
+    });
+
+    it('names the blocking file and counts the files redone', () => {
+        expect(agentChatRedoFailureMessage('src/a.ts', 'changed')).toBe(
+            'Nothing was redone: src/a.ts cannot be restored because it changed after the Undo.',
+        );
+        expect(agentChatRedoSuccessMessage(2)).toBe('Redid the changes to 2 files');
     });
 });
 

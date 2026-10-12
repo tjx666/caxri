@@ -14,6 +14,7 @@ import {
 
 import { NoticeBanner } from '../../components/notice-banner';
 import type { MobileTheme } from '../../theme/tokens';
+import { useMobileClient } from '../connection/mobile-client-provider';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
 import { ConversationList } from '../conversation/conversation-view';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
@@ -63,6 +64,7 @@ const AgentChatBody = ({
     theme: MobileTheme;
 }) => {
     const { pending, snapshot } = chat;
+    const { retryConnection } = useMobileClient();
     /**
      * The finished turns the user unfolded, by turn id. The list owns it so FlashList can recycle a row for any turn.
      */
@@ -151,12 +153,23 @@ const AgentChatBody = ({
             </View>
         );
     // Offline with no saved copy, the read cannot start; say so instead of spinning until the connection returns.
+    // Retry starts a foreground reconnect now, the same step the Conversation's Retry takes while disconnected, instead
+    // of leaving the reader to wait out the backoff.
     if (!snapshot && !isConnected)
         return (
             <View style={styles.status} testID="agent-chat-status-offline">
                 <Text style={[styles.statusText, { color: theme.muted }]}>
                     Reconnect to load this Chat.
                 </Text>
+                <Pressable
+                    accessibilityHint="Reconnects to Caxri on your computer."
+                    accessibilityRole="button"
+                    onPress={retryConnection}
+                    style={[styles.bannerButton, { backgroundColor: theme.surface }]}
+                    testID="agent-chat-reconnect"
+                >
+                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>Retry</Text>
+                </Pressable>
             </View>
         );
     if (!snapshot || snapshot.status === 'starting')

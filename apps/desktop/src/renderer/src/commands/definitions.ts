@@ -381,6 +381,9 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('agentCommander.stop', (context) => context.windows.stopAgentCommander(), {
         when: (context) => context.remote.isLocalOnlyAvailable(),
     }),
+    fromCatalog('agentCommander.handOver', (context) => context.dialogs.openCommanderHandover(), {
+        when: (context) => context.remote.isLocalOnlyAvailable(),
+    }),
     fromCatalog(
         'developer.toggleScreencastMode',
         (context) => context.developer.toggleScreencastMode(),

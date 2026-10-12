@@ -49,16 +49,18 @@ export function locateAgentChatFindMatch(
 
 /**
  * `3/12`, `No results` when nothing matches (the Terminal's find bar words it the same), and nothing before a query is
- * typed.
+ * typed. Find searches only the messages the pane has loaded, so while older history is not loaded (or cannot be shown
+ * in Chat at all) an empty result says `No results in loaded messages` rather than claiming the whole conversation.
  */
 export function agentChatFindCountLabel(
     query: string,
     count: number,
     activeIndex: number,
-    t: Translate = translate,
+    { isPartial = false, t = translate }: { isPartial?: boolean; t?: Translate } = {},
 ): string {
     if (!query) return '';
-    if (count === 0) return t('agentChat.find.noResults');
+    if (count === 0)
+        return t(isPartial ? 'agentChat.find.noResultsLoaded' : 'agentChat.find.noResults');
     return `${activeIndex + 1}/${count}`;
 }
 

@@ -17,6 +17,11 @@ export const statusBar = {
     'statusBar.throughput.tokensIn': '{{tokens}} tokens in {{duration}}',
     'statusBar.throughput.tokensAcrossResponses':
         '{{tokens}} tokens in {{duration}} across {{count}} responses',
+    'statusBar.throughput.speed.fast': 'Fast',
+    'statusBar.throughput.speed.flex': 'Flex',
+    'statusBar.throughput.speed.standard': 'Standard',
+    'statusBar.throughput.speed.unknown': 'Mode not recorded',
+    'statusBar.throughput.unknownModel': 'Unknown model',
     'statusBar.throughput.methodNote':
         "Output tokens divided by each request's time, read from the Agent's own transcript. Includes waiting for the first token; excludes tool execution.",
     'statusBar.throughput.max': 'max {{rate}}',
@@ -35,7 +40,7 @@ export const statusBar = {
     'statusBar.throughput.thisTurn': 'This turn',
     'statusBar.throughput.firstToken': 'First token',
     'statusBar.throughput.firstTokenValue': '{{duration}} in the last finished turn',
-    'statusBar.throughput.agentSession': 'Agent Session',
+    'statusBar.throughput.agentSession': 'Conversation',
     'statusBar.throughput.lastSamples': 'Last {{count}}',
     'statusBar.usage.tokensInput': '{{count}} input',
     'statusBar.usage.tokensOutput': '{{count}} output',
@@ -51,7 +56,8 @@ export const statusBar = {
     'statusBar.usage.noPrice': 'No price',
     'statusBar.usage.models': 'Models',
     'statusBar.usage.limit': '{{window}} limit',
-    'statusBar.usage.limitUsed': '{{percent}}% used',
+    'statusBar.usage.limitLeft': '{{percent}}% left',
+    'statusBar.usage.chipLimitLeft': '{{window}} {{percent}}% left',
     'statusBar.usage.limitsAsOf': 'Limits as of',
     'statusBar.usage.methodNote':
         "Tokens and cost are read from this conversation's own transcript and priced at API list prices, the same rules as the Usage page. Plan limits are account-wide: the newest reading from any conversation.",

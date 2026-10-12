@@ -135,6 +135,8 @@ export const commandDescriptions = {
         'Open the cross-Project Agent board beside the Commander Agent',
     'commands.description.agentCommander.stop':
         'Stop the Agent Commander running in the background; opening it again resumes the same conversation',
+    'commands.description.agentCommander.handOver':
+        'Pick Sessions, or Agent conversations started outside Caxri, for the Agent Commander to take over',
     'commands.description.processExplorer.open': 'Inspect Caxri process resource usage',
     'commands.description.developer.toggleScreencastMode':
         'Show clicks and Caxri shortcuts for external screen recording',

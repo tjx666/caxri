@@ -8,9 +8,19 @@ import { useRelativeTime } from '@/hooks/use-relative-time';
 import { StructuredTooltip } from '../../components/structured-tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
-import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
+import {
+    localizedLimitReset,
+    localizedLimitWindowName,
+    remainingLimitPercent,
+} from '../../lib/usage-format';
+import { cn } from '../../lib/utilities';
 import { openEditorTab } from '../editor/document-commands';
-import { agentUsageCostLabel, agentUsageLabel, currentLimitWindows } from './agent-usage-label';
+import {
+    agentUsageCostLabel,
+    agentUsageLabel,
+    agentUsageLimitTone,
+    currentLimitWindows,
+} from './agent-usage-label';
 import { StatusItem } from './status-item';
 
 /**
@@ -50,15 +60,16 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     if (!readout) return null;
     // The poll time, not the render time, decides which limit windows have reset, keeping render pure.
     const now = dataUpdatedAt;
-    const label = agentUsageLabel(readout, now);
+    const label = agentUsageLabel(readout, now, t);
     const agentName = agentProviderCatalog[readout.provider].displayName;
     const { tokens } = readout;
     const cost = agentUsageCostLabel(readout);
     const limitWindows = currentLimitWindows(readout.limit, now);
+    const limitTone = agentUsageLimitTone(readout, now);
     return (
         <StatusItem
             ariaLabel={t('statusBar.usage.ariaLabel', { agent: agentName, label })}
-            className="statusbar-agent-usage"
+            className={cn('statusbar-agent-usage', limitTone === 'warning' && 'text-warning')}
             icon={<ChartColumn />}
             onClick={() => openEditorTab(usageTabPath())}
             title={
@@ -87,8 +98,8 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
                             : []),
                         { label: t('statusBar.usage.models'), value: readout.models.join(', ') },
                         ...limitWindows.map((window) => {
-                            const used = t('statusBar.usage.limitUsed', {
-                                percent: Math.round(window.usedPercent),
+                            const used = t('statusBar.usage.limitLeft', {
+                                percent: remainingLimitPercent(window.usedPercent),
                             });
                             return {
                                 label: t('statusBar.usage.limit', {

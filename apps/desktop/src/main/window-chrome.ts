@@ -51,9 +51,12 @@ export function mainWindowChromeOptions(
         /**
          * On macOS the window starts as a translucent `vibrancy` material behind a transparent page, so the inline
          * startup loader in `renderer/index.html` floats the Caxri mark over the blurred desktop before any bundle has
-         * run; the mounted workbench then paints its own opaque theme background over the material. Other platforms
-         * keep the deliberate color literal (the one left in the app), which mirrors the default theme's `--background`
-         * and prevents a white flash on launch; an imported theme cannot change it.
+         * run; the mounted workbench then paints its own opaque theme background over the material. The material
+         * follows the system appearance (Electron has no per-window dark override short of `nativeTheme.themeSource`,
+         * which would also flip menus and dialogs), so in a light appearance it is a white sheet: the loader paints
+         * this same `#282a36` over it under `prefers-color-scheme: light` and the launch never shows white. Other
+         * platforms keep the deliberate color literal, which mirrors the default theme's `--background` and prevents a
+         * white flash on launch; an imported theme cannot change it.
          */
         ...(platform === 'darwin'
             ? { backgroundColor: '#00000000', vibrancy: 'under-window' as const }

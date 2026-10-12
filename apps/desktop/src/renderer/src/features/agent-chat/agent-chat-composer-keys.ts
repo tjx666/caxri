@@ -1,7 +1,7 @@
 import { agentChatEscapeAction, agentChatSubmitDelivery } from './agent-chat-presentation';
 
 /**
- * The fields of a composer `keydown` the Chat's shortcuts read; `isComposing` comes from the native event.
+ * The fields of a composer `keydown` the Chat's shortcuts read; `isComposing` comes from `isImeComposing`.
  */
 export interface AgentChatComposerKey {
     altKey: boolean;

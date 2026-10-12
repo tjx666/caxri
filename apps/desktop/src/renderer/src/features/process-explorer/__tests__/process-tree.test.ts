@@ -2,7 +2,7 @@ import type { TerminalProcessEntry } from '@caxri/protocol';
 import type { ProcessExplorerEntry } from '@desktop-shared/process-explorer';
 import { describe, expect, it } from 'vitest';
 
-import type { ProcessTreeNode } from './process-tree';
+import type { ProcessTreeNode } from '../process-tree';
 import {
     buildProcessTree,
     CAXRI_GROUP_ID,
@@ -15,7 +15,7 @@ import {
     SESSIONS_GROUP_ID,
     setProcessNodeExpanded,
     setProcessSubtreeExpanded,
-} from './process-tree';
+} from '../process-tree';
 
 function process(
     pid: number,

@@ -11,10 +11,12 @@ import { agentChatAnsweredNotice, formatLongPasteReference } from '@caxri/protoc
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { createStore } from '../../lib/store';
 import { getBootstrap } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { didSelectSession } from '../session/session-commands';
+import { sessionTitleForDisplay } from '../session/session-title';
 import {
     createTerminalForSession,
     RESTART_AGENT_FAILED,
@@ -125,19 +127,58 @@ export async function forkAgentChat(
         const session = getBootstrap()?.sessions.find(
             (candidate) => candidate.id === forked.sessionId,
         );
-        pushToast('success', agentChatForkSuccessMessage(session?.displayTitle));
+        pushToast(
+            'success',
+            agentChatForkSuccessMessage(
+                session && sessionTitleForDisplay(session.displayTitle, translate),
+            ),
+        );
     });
+}
+
+interface AgentChatRestoreState {
+    /**
+     * Messages whose Restore Code to Here is running, from the click through its confirmation and the restore itself,
+     * keyed by {@link agentChatRestoreKey}. A store rather than component state, so the hover row and the right-click
+     * menu share it and a remount mid-restore does not offer a second one.
+     */
+    restoring: ReadonlySet<string>;
+}
+
+export const useAgentChatRestoreStore = createStore<AgentChatRestoreState>(
+    'agentChatRestore',
+    () => ({ restoring: new Set() }),
+);
+
+export const agentChatRestoreKey = (terminalId: string, itemId: string): string =>
+    `${terminalId}:${itemId}`;
+
+function withKey(keys: ReadonlySet<string>, key: string, isPresent: boolean): ReadonlySet<string> {
+    const next = new Set(keys);
+    if (isPresent) next.add(key);
+    else next.delete(key);
+    return next;
+}
+
+function setRestoring(key: string, isRestoring: boolean): void {
+    useAgentChatRestoreStore.setState(({ restoring }) => ({
+        restoring: withKey(restoring, key, isRestoring),
+    }));
 }
 
 /**
  * "Restore code to here": puts back the files the turns from message `itemId` onward changed and keeps the
  * conversation. It overwrites the user's own edits since, so it asks first in the same native dialog an edit that
  * reverts files uses; Cancel is the default. A success toast confirms it, since the transcript itself does not change.
+ * While one runs for a message, a second request for it is ignored.
  */
 export async function restoreAgentChatFiles(
     terminalId: string,
     request: { itemId: string; providerName: string; restoredTurns: number },
 ): Promise<void> {
+    const key = agentChatRestoreKey(terminalId, request.itemId);
+    if (useAgentChatRestoreStore.getState().restoring.has(key)) return;
+    setRestoring(key, true);
     await tryCommand(translate('agentChat.commands.restoreFailed'), async () => {
         const { confirmed } = await caxri.request('agentChat.confirmRevertFiles', {
             providerName: request.providerName,
@@ -147,6 +188,7 @@ export async function restoreAgentChatFiles(
         await caxri.request('agentChat.restoreFiles', { terminalId, itemId: request.itemId });
         pushToast('success', agentChatRestoreSuccessMessage(request.restoredTurns));
     });
+    setRestoring(key, false);
 }
 
 /**
@@ -231,14 +273,42 @@ export function saveAgentChatProjectDefault(
     );
 }
 
+interface AgentChatTaskStopState {
+    /**
+     * Tasks a Stop was requested for, keyed by {@link agentChatTaskKey}, so the stop square can show `Stopping` until
+     * the task reports that it ended. Shared by every surface that offers Stop. An entry leaves only when the request
+     * fails: once the task ends no surface offers Stop for it any more, and a task id is never reused.
+     */
+    stopping: ReadonlySet<string>;
+}
+
+export const useAgentChatTaskStopStore = createStore<AgentChatTaskStopState>(
+    'agentChatTaskStop',
+    () => ({ stopping: new Set() }),
+);
+
+export const agentChatTaskKey = (terminalId: string, taskId: string): string =>
+    `${terminalId}:${taskId}`;
+
 /**
- * Stops one subagent or background shell without ending the turn or the Chat.
+ * Stops one subagent or background shell without ending the turn or the Chat. A second request while one is pending is
+ * ignored; a failed one clears the pending state so Stop can be tried again.
  */
 export function stopAgentChatTask(terminalId: string, taskId: string): void {
+    const key = agentChatTaskKey(terminalId, taskId);
+    if (useAgentChatTaskStopStore.getState().stopping.has(key)) return;
+    const setStopping = (isStopping: boolean): void =>
+        useAgentChatTaskStopStore.setState(({ stopping }) => ({
+            stopping: withKey(stopping, key, isStopping),
+        }));
+    setStopping(true);
     // eslint-disable-next-line no-void -- tryCommand reports stop failures through the toast
-    void tryCommand(translate('agentChat.commands.stopTaskFailed'), () =>
-        caxri.request('agentChat.stopTask', { terminalId, taskId }),
-    );
+    void tryCommand(translate('agentChat.commands.stopTaskFailed'), async () => {
+        await caxri.request('agentChat.stopTask', { terminalId, taskId });
+        return true;
+    }).then((isRequested) => {
+        if (isRequested !== true) setStopping(false);
+    });
 }
 
 /**

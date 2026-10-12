@@ -27,11 +27,11 @@ export const processExplorer: TranslatedNamespace<typeof source> = {
     'processExplorer.list.empty': '未找到 Caxri 进程。',
     'processExplorer.list.noMatch': '没有与“{{filter}}”匹配的进程。',
     'processExplorer.error.sample': '无法采集进程信息，请重试。',
-    'processExplorer.error.stop': '无法停止 {{name}}，请重试。',
+    'processExplorer.error.stop': '无法挂起 {{name}}，请重试。',
     // Rows
     'processExplorer.row.highResource': '，资源占用高',
-    'processExplorer.row.stopTooltip': '停止：挂起此终端，重新打开其会话即可恢复',
-    'processExplorer.row.stopLabel': '停止 {{name}}',
+    'processExplorer.row.stopTooltip': '挂起此终端，重新打开其会话即可恢复',
+    'processExplorer.row.stopLabel': '挂起 {{name}}',
     // Tree grouping
     'processExplorer.kind.helper': '辅助进程',
     'processExplorer.kind.main': '主进程',

@@ -16,6 +16,8 @@ import {
 } from '@caxri/protocol';
 
 import { notifyListeners } from '../../lib/notify-listeners';
+import { classifyMobileWriteFailure } from '../connection/mobile-write-failure';
+import { agentChatSendFailureMessage } from './agent-chat-model';
 
 /**
  * A message the phone is sending that the Chat's projection does not show yet, as Desktop shows one
@@ -173,12 +175,12 @@ export const agentChatPendingStore = new AgentChatPendingStore();
 export const agentChatPendingKey = (scope: string | null, terminalId: string): string =>
     JSON.stringify([scope, terminalId]);
 
-export const AGENT_CHAT_SEND_ERROR = 'Your message was not sent. Try again.';
-
 /**
  * Sends a message without waiting for the round trip, as Desktop's composer does: the message shows at once where it
  * lands and the composer clears; a failed send takes the row away, puts the text and images back ahead of anything
- * typed since, and reports why. A delivered one stays until the projection shows it, bounded by its TTL.
+ * typed since, and reports why (`agentChatSendFailureMessage`: "not sent" only when the write provably did not happen,
+ * otherwise a prompt to check the Chat before sending again). A delivered one stays until the projection shows it,
+ * bounded by its TTL.
  */
 export const sendAgentChatMessageOptimistically = async ({
     clearComposer,
@@ -209,10 +211,10 @@ export const sendAgentChatMessageOptimistically = async ({
     clearComposer();
     try {
         await send();
-    } catch {
+    } catch (error) {
         store.dropMessage(key, id);
         returnUnsent();
-        reportError(AGENT_CHAT_SEND_ERROR);
+        reportError(agentChatSendFailureMessage(classifyMobileWriteFailure(error)));
         return;
     }
     store.expireMessage(key, id);

@@ -90,6 +90,6 @@ describe('getTerminalExitPresentation', () => {
         const category = settingsSpecByKey['terminal.idleSuspension.enabled'].category;
         expect(settingsSpecByKey['terminal.suspendUntouchedAgents'].category).toBe(category);
         const title = settingCategories.find((entry) => entry.id === category)?.title;
-        expect(suspendedDetail()).toContain(`Settings > ${title}.`);
+        expect(suspendedDetail()).toContain(`Settings › ${title}.`);
     });
 });

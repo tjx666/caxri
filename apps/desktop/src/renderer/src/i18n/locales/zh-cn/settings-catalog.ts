@@ -24,6 +24,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.workbench.language.description':
         '界面的显示语言。跟随系统时，系统语言为中文则使用简体中文。',
     'settings.workbench.language.nullLabel': '跟随系统',
+    'settings.workbench.language.nullLabelResolved': '跟随系统（{{language}}）',
 
     'settings.notifications.worktreeFallback.title': 'Worktree 回退提醒',
     'settings.notifications.worktreeFallback.description':
@@ -94,17 +95,17 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.terminal.gpuAcceleration.option.on': '开启',
     'settings.terminal.gpuAcceleration.option.off': '关闭',
 
-    'settings.terminal.suspendUntouchedAgents.title': '暂停打开后从未使用的 Agent',
+    'settings.terminal.suspendUntouchedAgents.title': '挂起打开后从未使用的 Agent',
     'settings.terminal.suspendUntouchedAgents.description':
-        '切换到其他会话后，暂停你从未输入过内容的 Agent 以节省内存。回来时会从中断处继续。',
+        '切换到其他会话后，挂起你从未输入过内容的 Agent 以节省内存。回来时会从中断处继续。',
 
-    'settings.terminal.idleSuspension.enabled.title': '在后台暂停空闲的 Agent',
+    'settings.terminal.idleSuspension.enabled.title': '在后台挂起空闲的 Agent',
     'settings.terminal.idleSuspension.enabled.description':
-        '暂停已完成工作、并在你未查看的会话中等待的 Agent，以节省内存。回来时会从中断处继续。',
+        '挂起已完成工作、并在你未查看的会话中等待的 Agent，以节省内存。回来时会从中断处继续。',
 
-    'settings.terminal.idleSuspension.afterMinutes.title': '空闲 Agent 暂停时间',
+    'settings.terminal.idleSuspension.afterMinutes.title': '空闲 Agent 挂起时间',
     'settings.terminal.idleSuspension.afterMinutes.description':
-        'Agent 在你未查看的会话中等待多久后被暂停。仅在“在后台暂停空闲的 Agent”开启时生效。',
+        'Agent 在你未查看的会话中等待多久后被挂起。仅在“在后台挂起空闲的 Agent”开启时生效。',
 
     'settings.terminal.osc52ClipboardWrite.title': '允许 OSC 52 写入剪贴板',
     'settings.terminal.osc52ClipboardWrite.description':

@@ -12,6 +12,7 @@ import { useSessionTitleScroll } from '../primary-sidebar/hooks/use-session-titl
 import { SessionActivityCard } from '../primary-sidebar/session-activity-card';
 import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { SessionRowMenu } from '../primary-sidebar/session-row-menu';
+import { sessionTitleForDisplay } from '../session/session-title';
 import { AgentActivityRowTrigger } from './agent-activity-row-trigger';
 import type { AgentActivityRow } from './agent-activity-rows';
 
@@ -64,7 +65,10 @@ export function AgentActivityRowItem({
     // Same title-reveal hook `active-session-row.tsx` uses (DESIGN.md: "Hovered or keyboard-focused clipped sidebar
     // titles may scroll solely to reveal their text"), so a clipped title behaves the same in either body of the side
     // bar. Called here because `AgentActivityRowTrigger` is invoked as a plain function and cannot own hooks.
-    const titleScroll = useSessionTitleScroll(session.displayTitle, isRenaming || menuOpen);
+    const titleScroll = useSessionTitleScroll(
+        sessionTitleForDisplay(session.displayTitle, t),
+        isRenaming || menuOpen,
+    );
     const trigger = AgentActivityRowTrigger({
         beginRename,
         canMarkRead,
@@ -106,7 +110,7 @@ export function AgentActivityRowItem({
                 />
                 {canMarkRead && !isRenaming && (
                     <AgentActivityMarkReadButton
-                        sessionTitle={session.displayTitle}
+                        sessionTitle={sessionTitleForDisplay(session.displayTitle, t)}
                         onMarkRead={onMarkRead}
                     />
                 )}

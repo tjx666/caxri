@@ -1,6 +1,11 @@
 import type { AgentUsageReadout, UsageLimit } from '@caxri/protocol';
 import { formatTokens, formatUsd } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+import { remainingLimitPercent } from '../../lib/usage-format';
+import { LIMIT_WARNING_PERCENT } from '../usage/usage-presentation';
+
 type LimitWindow = UsageLimit['windows'][number];
 
 /**
@@ -36,15 +41,46 @@ export function agentUsageCostLabel(readout: AgentUsageReadout): string | undefi
 
 /**
  * The chip text: conversation tokens, estimated cost, and the shortest live rate-limit window, e.g. `1.2M · $3.40 · 5h
- * 62%`. Cost follows {@link agentUsageCostLabel}. The limit is the newest account-wide reading the Server has seen,
+ * 38% left`. Cost follows {@link agentUsageCostLabel}. The limit is the newest account-wide reading the Server has seen,
  * which may come from another conversation, so the hover card states its age.
  */
-export function agentUsageLabel(readout: AgentUsageReadout, now: number): string {
+export function agentUsageLabel(
+    readout: AgentUsageReadout,
+    now: number,
+    t: Translate = translate,
+): string {
     const parts = [formatTokens(readout.tokens.total)];
     const cost = agentUsageCostLabel(readout);
     if (cost) parts.push(cost);
     const window = currentLimitWindows(readout.limit, now).at(0);
     if (window)
-        parts.push(`${shortWindowName(window.windowMinutes)} ${Math.round(window.usedPercent)}%`);
+        parts.push(
+            t('statusBar.usage.chipLimitLeft', {
+                window: shortWindowName(window.windowMinutes),
+                percent: remainingLimitPercent(window.usedPercent),
+            }),
+        );
     return parts.join(' · ');
+}
+
+/**
+ * The chip's limit readout turns `--warning` at the same share the Usage page's limit bars do
+ * (`LIMIT_WARNING_PERCENT`), so the status bar and the page never disagree about one window. Unlike the output-speed
+ * gauge, which DESIGN.md keeps threshold-free because "slow" is the reader's call, a rate limit is a hard stop, so
+ * approaching it earns a colour; it stays a warning rather than `--danger` because nothing has failed yet.
+ */
+export type AgentUsageLimitTone = 'warning';
+
+/**
+ * The tone of the limit window the chip shows (the shortest live one), or undefined below the warning threshold or
+ * without a live window. It follows the displayed figure so the colour never disagrees with the number beside it.
+ */
+export function agentUsageLimitTone(
+    readout: AgentUsageReadout,
+    now: number,
+): AgentUsageLimitTone | undefined {
+    const window = currentLimitWindows(readout.limit, now).at(0);
+    if (!window) return undefined;
+    const used = Math.round(window.usedPercent);
+    return used >= LIMIT_WARNING_PERCENT ? 'warning' : undefined;
 }

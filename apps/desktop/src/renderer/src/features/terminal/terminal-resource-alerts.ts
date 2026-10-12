@@ -5,6 +5,7 @@ import { translate } from '../../i18n';
 import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { isLocalOnlyAvailable } from '../../stores/environment';
 import { dismissToastsMatching, pushToast } from '../../stores/toasts';
+import { sessionTitleForDisplay } from '../session/session-title';
 
 /**
  * The live alert message per Terminal, so a `cleared` event or a Stop can retract exactly the toast it raised. The
@@ -16,7 +17,9 @@ function alertSubject(terminal: TerminalResourceAlert['terminal']): string {
     const name = terminal.provider
         ? agentProviderCatalog[terminal.provider].displayName
         : terminal.title || translate('terminal.defaultTitle');
-    return terminal.sessionTitle ? `${name} · ${terminal.sessionTitle}` : name;
+    return terminal.sessionTitle
+        ? `${name} · ${sessionTitleForDisplay(terminal.sessionTitle, translate)}`
+        : name;
 }
 
 /**

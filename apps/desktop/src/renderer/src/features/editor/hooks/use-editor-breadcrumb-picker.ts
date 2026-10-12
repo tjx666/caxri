@@ -7,6 +7,7 @@ import { projectRelativePath } from '@caxri/protocol';
 import { useTranslation } from '../../../i18n';
 import { resolveEntryKind } from '../../../lib/file-entry';
 import { parentDirectoryPath } from '../../../lib/file-path';
+import { isImeComposing } from '../../../lib/ime';
 import { useCaxriQuery } from '../../../queries/client';
 import { tryCommand } from '../../../stores/toasts';
 import type { EditorBreadcrumbSegment } from '../editor-breadcrumbs-model';
@@ -145,7 +146,7 @@ export function useEditorBreadcrumbPicker({
             }
             default: {
                 if (
-                    event.nativeEvent.isComposing ||
+                    isImeComposing(event) ||
                     event.key.length !== 1 ||
                     event.altKey ||
                     event.ctrlKey ||

@@ -12,12 +12,7 @@ import type {
     ServerEvent,
     SettingsTarget,
 } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    BUG_REPORT_JPEG_DATA_URL_PREFIX,
-    CaxriError,
-    themeImportExtensions,
-} from '@caxri/protocol';
+import { agentProviderCatalog, BUG_REPORT_JPEG_DATA_URL_PREFIX, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { app, clipboard, ClipboardItem, dialog, nativeImage, net, shell } from 'electron';
@@ -62,6 +57,7 @@ import {
     isEnvironmentRequest,
     unconfiguredEnvironment,
 } from './main-environment-methods';
+import { diagnosticsExportDialogOptions, themeImportDialogOptions } from './native-file-dialogs';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { requestWindowOr } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
@@ -393,17 +389,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     const path = await themeImportFixture.choose();
                     return supervisor.request('theme.importPath', { path });
                 }
-                const result = await dialog.showOpenDialog(mainWindow!, {
-                    title: 'Import Theme',
-                    properties: ['openFile'],
-                    filters: [
-                        {
-                            name: 'Theme files',
-                            extensions: [...themeImportExtensions, 'vsix'],
-                        },
-                        { name: 'All Files', extensions: ['*'] },
-                    ],
-                });
+                const result = await dialog.showOpenDialog(mainWindow!, themeImportDialogOptions());
                 const path = result.filePaths[0];
                 return !path || result.canceled
                     ? null
@@ -555,11 +541,10 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return { path: target };
             }
             case 'diagnostics.export': {
-                const result = await dialog.showSaveDialog(mainWindow!, {
-                    title: 'Export Diagnostics',
-                    defaultPath: `caxri-diagnostics-${new Date().toISOString().replaceAll(':', '-')}.zip`,
-                    filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
-                });
+                const result = await dialog.showSaveDialog(
+                    mainWindow!,
+                    diagnosticsExportDialogOptions(new Date()),
+                );
                 if (result.canceled || !result.filePath) return null;
                 return supervisor.request(
                     'diagnostics.exportPath',

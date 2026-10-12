@@ -426,4 +426,19 @@ describe('application menu', () => {
             'Command+Shift+B',
         );
     });
+
+    it('registers the Window and Help menus with their AppKit roles and translated labels', () => {
+        const template = buildAppMenuTemplate({
+            keybindings: [],
+            dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
+            openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
+        });
+
+        expect(template.find((item) => item.label === 'Window')?.role).toBe('windowMenu');
+        expect(template.find((item) => item.label === 'Help')?.role).toBe('help');
+    });
 });

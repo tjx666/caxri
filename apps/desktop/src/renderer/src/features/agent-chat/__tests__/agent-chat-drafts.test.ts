@@ -140,7 +140,7 @@ describe('returning an unsent message', () => {
         writeAgentChatDraft('chat-r', 'typed since');
         writeAgentChatAttachments('chat-r', [image('later')]);
         returnUnsentAgentChatMessage('chat-r', 'failed', [image('sent')]);
-        expect(readAgentChatDraft('chat-r')).toBe('failed\ntyped since');
+        expect(readAgentChatDraft('chat-r')).toBe('failed\n\ntyped since');
         expect(readAgentChatAttachments('chat-r').map(({ id }) => id)).toEqual(['sent', 'later']);
 
         // A composer that mounted after the send read the stored state then; only it can merge what was typed since.
@@ -150,7 +150,7 @@ describe('returning an unsent message', () => {
         );
         returnUnsentAgentChatMessage('chat-r', 'again', [image('other')]);
         expect(received).toEqual([{ text: 'again', count: 1 }]);
-        expect(readAgentChatDraft('chat-r')).toBe('failed\ntyped since');
+        expect(readAgentChatDraft('chat-r')).toBe('failed\n\ntyped since');
         unsubscribe();
         writeAgentChatDraft('chat-r', '');
         writeAgentChatAttachments('chat-r', []);

@@ -137,7 +137,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flexDirection: 'row',
         gap: 6,
-        minHeight: 44,
+        // The header is the file's expand toggle; 48dp is the mobile minimum touch target.
+        minHeight: 48,
         paddingHorizontal: 10,
     },
     letter: { fontFamily: 'monospace', fontSize: 12, fontWeight: '700' },

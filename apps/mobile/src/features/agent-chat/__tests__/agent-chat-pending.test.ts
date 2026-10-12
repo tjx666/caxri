@@ -3,7 +3,6 @@ import { AGENT_CHAT_PENDING_ACCEPTED_TTL_MS } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-    AGENT_CHAT_SEND_ERROR,
     agentChatPendingKey,
     AgentChatPendingStore,
     answerAgentChatRequestOptimistically,
@@ -115,7 +114,7 @@ describe('sendAgentChatMessageOptimistically', () => {
         expect(order).toEqual(['error:null', 'clear:1']);
     });
 
-    it('takes a failed send away, returns it to the composer, and says it was not sent', async () => {
+    it('takes a failed send away, returns it to the composer, and says why it failed', async () => {
         const store = new AgentChatPendingStore();
         const reportError = vi.fn();
         const returnUnsent = vi.fn();
@@ -126,14 +125,16 @@ describe('sendAgentChatMessageOptimistically', () => {
                 message: message('a'),
                 reportError,
                 returnUnsent,
-                send: () => Promise.reject(new Error('offline')),
+                send: () => Promise.reject(new Error('Caxri is reconnecting.')),
                 snapshot: snapshot(),
                 store,
             }),
         ).resolves.toBeUndefined();
         expect(store.get(KEY).messages).toEqual([]);
         expect(returnUnsent).toHaveBeenCalledTimes(1);
-        expect(reportError).toHaveBeenLastCalledWith(AGENT_CHAT_SEND_ERROR);
+        expect(reportError).toHaveBeenLastCalledWith(
+            'Your message was not sent. Reconnect to Caxri and try again.',
+        );
     });
 });
 

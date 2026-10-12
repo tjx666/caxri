@@ -21,6 +21,7 @@ export const agentStatus = {
     'agentStatus.summary.readFailed': 'Could not read the status page',
     'agentStatus.summary.checking': 'Checking…',
     // Agent status tab
+    'agentStatus.page.agentFallback': 'Agent',
     'agentStatus.page.terminalClosed': 'This Terminal is no longer open; figures stop updating.',
     // Output speed section
     'agentStatus.throughput.title': 'Output speed',
@@ -30,7 +31,16 @@ export const agentStatus = {
     'agentStatus.throughput.notMeasured':
         'No response has been measured yet. Speed appears after the Agent finishes its first response.',
     'agentStatus.throughput.chartLabel': 'Output speed of the last {{count}} responses',
-    'agentStatus.throughput.barDescription': '{{sample}}, finished {{time}}',
+    'agentStatus.throughput.barDescription': '{{variant}}: {{sample}}, finished {{time}}',
+    'agentStatus.throughput.byModel': 'By model',
+    'agentStatus.throughput.byModelCaption': 'Every measured response in this Agent Session',
+    'agentStatus.throughput.byModel.model': 'Model',
+    'agentStatus.throughput.byModel.mode': 'Mode',
+    'agentStatus.throughput.byModel.rate': 'Speed',
+    'agentStatus.throughput.byModel.responses': 'Responses',
+    'agentStatus.throughput.byModel.tokens': 'Output tokens',
+    'agentStatus.throughput.byModel.unknownNote':
+        'The transcript recorded no mode for some responses: Codex writes it only after the mode changes during the conversation.',
     'agentStatus.throughput.recentAverage': 'Recent average',
     'agentStatus.throughput.lastResponse': 'Last response',
     'agentStatus.throughput.thisTurn': 'This turn',
@@ -38,7 +48,7 @@ export const agentStatus = {
     'agentStatus.throughput.firstToken': 'First token',
     'agentStatus.throughput.firstTokenNotReported': 'Not reported for the last finished turn',
     'agentStatus.throughput.firstTokenLastTurn': 'In the last finished turn',
-    'agentStatus.throughput.agentSession': 'Agent Session',
+    'agentStatus.throughput.agentSession': 'Conversation',
     'agentStatus.throughput.chartCaption':
         'Last {{count}} responses, oldest first; the dashed line is the recent average',
     'agentStatus.throughput.chartPending': 'The chart appears after a second measured response.',
@@ -52,6 +62,13 @@ export const agentStatus = {
     'agentStatus.provider.checkedAgo': 'Checked {{time}}',
     'agentStatus.provider.updatedAgo': 'updated {{time}}',
     'agentStatus.provider.unavailable': '{{reason}}. Caxri tries again every minute.',
+    'agentStatus.provider.uptime': '{{percent}}% uptime',
+    'agentStatus.provider.uptimeChartLabel':
+        '{{component}} status for each of the last {{count}} days',
+    'agentStatus.provider.uptimeDay': '{{date}}: {{status}}',
+    'agentStatus.provider.uptimeNoData': 'No data',
+    'agentStatus.provider.uptimeStart': '{{count}} days ago',
+    'agentStatus.provider.uptimeEnd': 'Today',
     'agentStatus.provider.activeIncidents': 'Active incidents',
     'agentStatus.provider.noIncidents': 'No open incident affects these components.',
 } as const;
