@@ -108,10 +108,7 @@ export interface RemoteServerSupervisorOptions {
     /**
      * Test seam for the askpass bridge; production uses `AskpassBridge.create`.
      */
-    createAskpass?: () => Promise<{
-        close(): Promise<void>;
-        environment(): Record<string, string>;
-    }>;
+    createAskpass?: () => Promise<Pick<AskpassBridge, 'beginAttempt' | 'close' | 'environment'>>;
 }
 
 interface AttachTarget {
@@ -138,7 +135,7 @@ function decodeBase64Json(value: string | undefined): unknown {
  * with it, so `DesktopServerConnection`'s existing reconnect loop calls `ensure()` again, which starts a new master.
  */
 export class RemoteServerSupervisor implements DesktopServerSupervisor {
-    private askpass?: { close(): Promise<void>; environment(): Record<string, string> };
+    private askpass?: Pick<AskpassBridge, 'beginAttempt' | 'close' | 'environment'>;
     private connection?: RemoteTransport;
     private connectionOpenedAt = 0;
     private current?: AttachTarget;
@@ -281,6 +278,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         const connection =
             this.options.createTransport?.(transportOptions) ?? new SshConnection(transportOptions);
         const startedAt = Date.now();
+        this.askpass?.beginAttempt();
         await connection.start();
         if (this.isDisposed) {
             await connection.stop();

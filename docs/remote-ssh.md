@@ -22,7 +22,10 @@ behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) rec
   status bar shows the SSH Host; while connecting, an overlay names the current phase (connecting,
   probing, installing, starting, forwarding).
 - **Prompts**: passwords, key passphrases, 2FA codes, and new host-key confirmations appear as a
-  dialog inside that window. Answers go straight to OpenSSH and are never logged.
+  dialog inside that window. Answers go straight to OpenSSH and are never logged. When OpenSSH asks
+  the same password or passphrase again within one attempt, it rejected the previous answer, so the
+  dialog says so and numbers the retry. Cancel ends the attempt at once: OpenSSH would otherwise
+  treat each refused prompt as one failed try and keep asking.
 - **Reconnect**: a dropped connection retries with backoff. A failure that needs the user
   (authentication, a changed host key, a cancelled prompt) stops retrying and shows a Reconnect
   button; the same action is the `Reconnect to SSH Host` command.
@@ -146,5 +149,4 @@ coming from the jump container's address, which proves the traffic did not bypas
 
 - Trash, Reveal, open with the default app, and external editors have no remote equivalent yet;
   Agent Chat undo of a created file relies on Trash.
-- A wrong key passphrase is asked again by OpenSSH up to its own retry limit.
 - Remote stack traces carry no source maps (they are dropped from the remote layer to keep it small).

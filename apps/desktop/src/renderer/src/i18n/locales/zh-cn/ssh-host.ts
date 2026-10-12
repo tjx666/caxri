@@ -67,6 +67,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.askpass.verifyTitle': '验证 {{destination}}',
     'sshHost.askpass.inputLabel': '回应',
     'sshHost.askpass.privacy': 'Caxri 只把此回应交给 OpenSSH，不会保存。',
+    'sshHost.askpass.retry': 'OpenSSH 拒绝了上一次的回应，请重试（第 {{count}} 次重试）。',
     'sshHost.askpass.failed': '无法回应 SSH Host',
 
     // 停止 SSH Host 上的 Server

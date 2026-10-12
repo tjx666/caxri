@@ -61,7 +61,7 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH askpass (integration)', ()
         if (root) await rm(root, { force: true, recursive: true });
     });
 
-    async function writeConfig(name: string): Promise<string> {
+    async function writeConfig(name: string, authentications = 'publickey'): Promise<string> {
         const path = join(root, `${name}.config`);
         await writeFile(
             path,
@@ -72,7 +72,7 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH askpass (integration)', ()
                 `  User ${host.user}`,
                 `  IdentityFile ${join(root, 'key')}`,
                 '  IdentitiesOnly yes',
-                '  PreferredAuthentications publickey',
+                `  PreferredAuthentications ${authentications}`,
                 '  StrictHostKeyChecking ask',
                 `  UserKnownHostsFile ${join(root, `${name}.known_hosts`)}`,
                 // `ProxyJump` would resolve the jump alias against this generated file, which does not define it; the
@@ -91,13 +91,20 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH askpass (integration)', ()
     async function connect(
         config: string,
         answer: (kind: string) => string | null,
-    ): Promise<{ error?: unknown; kinds: string[]; ms: number }> {
+    ): Promise<{
+        error?: unknown;
+        kinds: string[];
+        ms: number;
+        retries: Array<number | undefined>;
+    }> {
         const kinds: string[] = [];
+        const retries: Array<number | undefined> = [];
         const bridge = await AskpassBridge.create({
             directory: join(root, 'ctl'),
             electronExecutable: process.execPath,
             handler: (request) => {
                 kinds.push(request.kind);
+                retries.push(request.retry);
                 return Promise.resolve(answer(request.kind));
             },
         });
@@ -119,7 +126,7 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH askpass (integration)', ()
         const ms = Date.now() - startedAt;
         await connection.stop();
         await bridge.close();
-        return { ms, kinds, ...(error !== undefined && { error }) };
+        return { ms, kinds, retries, ...(error !== undefined && { error }) };
     }
 
     it('asks to confirm a new host key, then for the key passphrase', async () => {
@@ -140,6 +147,21 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH askpass (integration)', ()
         expect((result.error as SshConnectionError).reason).toBe('authentication');
         expect(result.kinds[0]).toBe('confirm');
         expect(result.kinds.slice(1).every((kind) => kind === 'secret')).toBe(true);
+        // OpenSSH asks again after each rejected passphrase; every repeat is numbered as a retry.
+        const passphraseRetries = result.retries.slice(1);
+        expect(passphraseRetries.length).toBeGreaterThan(1);
+        expect(passphraseRetries).toEqual(
+            passphraseRetries.map((_, index) => (index === 0 ? undefined : index)),
+        );
+    }, 60_000);
+
+    it('stops at the first cancelled prompt instead of asking again', async () => {
+        // Password fallback is where OpenSSH keeps asking: each refused password prompt is one failed try.
+        const config = await writeConfig('cancel', 'publickey,password');
+        const result = await connect(config, (kind) => (kind === 'confirm' ? 'yes' : null));
+        expect(result.error).toBeInstanceOf(SshConnectionError);
+        expect((result.error as SshConnectionError).reason).toBe('authentication');
+        expect(result.kinds).toEqual(['confirm', 'secret']);
     }, 60_000);
 
     it('classifies a refused host key as hostKey', async () => {
