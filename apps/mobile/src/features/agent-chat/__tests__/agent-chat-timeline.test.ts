@@ -7,6 +7,7 @@ import {
     agentChatTurnTone,
     buildAgentChatTimeline,
     toggleAgentChatTurn,
+    withAgentChatPendingEntries,
 } from '../agent-chat-timeline';
 
 type Timeline = Parameters<typeof buildAgentChatTimeline>[0];
@@ -286,5 +287,26 @@ describe('agentChatChangeRows', () => {
         expect(agentChatChangeColor('add')).toBe('gitAdded');
         expect(agentChatChangeColor('delete')).toBe('gitDeleted');
         expect(agentChatChangeColor('update')).toBe('gitModified');
+    });
+});
+
+describe('withAgentChatPendingEntries', () => {
+    it('ends the timeline with recorded answers, then the messages still on their way', () => {
+        const built = buildAgentChatTimeline({ items: [], turns: [] });
+        expect(withAgentChatPendingEntries(built, { notices: [], timeline: [] })).toBe(built);
+        const entries = withAgentChatPendingEntries(built, {
+            notices: [
+                { id: 'answer:r1', type: 'notice', kind: 'answered', message: 'Color: Blue' },
+            ],
+            timeline: [{ id: 'p1', text: 'Run the tests', imageUris: ['file:///a.jpg'] }],
+        });
+        expect(entries.map((entry) => [entry.kind, entry.id])).toEqual([
+            ['message', 'pending:answer:r1'],
+            ['pending', 'pending:p1'],
+        ]);
+        expect(entries.at(-1)).toMatchObject({
+            text: 'Run the tests',
+            imageUris: ['file:///a.jpg'],
+        });
     });
 });

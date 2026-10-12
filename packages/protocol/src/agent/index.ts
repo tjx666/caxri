@@ -4,6 +4,7 @@ export * from './agent-chat-contract.js';
 export * from './agent-chat-diff.js';
 export * from './agent-chat-methods.js';
 export * from './agent-chat-models.js';
+export * from './agent-chat-pending.js';
 export * from './agent-chat-permissions.js';
 export * from './agent-chat-presentation.js';
 export * from './agent-chat-queue.js';

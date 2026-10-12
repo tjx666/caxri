@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import type {
     AgentChatModelRequest,
@@ -7,6 +7,7 @@ import type {
     AgentChatResponse,
     AgentChatSnapshot,
 } from '@caxri/protocol';
+import { agentChatPendingView } from '@caxri/protocol';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useReadCache } from '../read-cache/read-cache-context';
@@ -15,6 +16,11 @@ import {
     liveReadSaveScope,
     trimChatSnapshot,
 } from '../read-cache/read-cache-model';
+import {
+    agentChatPendingKey,
+    agentChatPendingStore,
+    answerAgentChatRequestOptimistically,
+} from './agent-chat-pending';
 import { startAgentChatReader } from './agent-chat-sync';
 
 /**
@@ -41,6 +47,33 @@ export interface AgentChatState {
      */
     status: 'loading' | 'ready' | 'error' | 'stale';
 }
+
+const NO_PENDING = agentChatPendingStore.get('');
+
+/**
+ * The Chat's sends and answers still ahead of its projection (`agent-chat-pending.ts`), pruned as the projection shows
+ * them, so a pending row and the real one never appear together.
+ */
+const useAgentChatPending = (key: string | null, snapshot: AgentChatSnapshot | undefined) => {
+    const subscribe = useCallback(
+        (listener: () => void) =>
+            key === null ? () => {} : agentChatPendingStore.subscribe(key, listener),
+        [key],
+    );
+    const read = useCallback(
+        () => (key === null ? NO_PENDING : agentChatPendingStore.get(key)),
+        [key],
+    );
+    const state = useSyncExternalStore(subscribe, read, read);
+    useEffect(() => {
+        if (key !== null) agentChatPendingStore.prune(key, snapshot);
+    }, [key, snapshot]);
+    const view = useMemo(
+        () => agentChatPendingView(state.messages, state.answers, snapshot),
+        [snapshot, state.answers, state.messages],
+    );
+    return { ...view, sendCount: state.sendCount };
+};
 
 const initialState = (): AgentChatState => ({
     error: null,
@@ -78,6 +111,12 @@ export const useAgentChat = ({
     const stored = record.terminalId === terminalId ? record.state : initialState();
     const state: AgentChatState =
         !observable && stored.snapshot ? { ...stored, status: 'stale' } : stored;
+    /**
+     * Where this Chat's optimistic sends and answers live; see `agent-chat-pending.ts`.
+     */
+    const pendingKey =
+        terminalId === null ? null : agentChatPendingKey(connectionScopeKey, terminalId);
+    const pending = useAgentChatPending(pendingKey, stored.snapshot);
 
     useEffect(() => {
         if (terminalId === null || !observable || connectionScopeKey === null) return;
@@ -181,16 +220,26 @@ export const useAgentChat = ({
         if (terminalId === null) return;
         await request('mobile.agentChat.interrupt', { terminalId });
     }, [request, terminalId]);
+    /**
+     * Answers optimistically: the card leaves at once and comes back, rejecting, when the Server refuses.
+     */
     const respond = useCallback(
         async (target: AgentChatRequest, response: AgentChatResponse): Promise<void> => {
-            if (terminalId === null) return;
-            await request('mobile.agentChat.respond', {
-                terminalId,
-                requestId: target.id,
+            if (terminalId === null || pendingKey === null) return;
+            await answerAgentChatRequestOptimistically({
+                key: pendingKey,
+                request: target,
                 response,
+                respond: async () => {
+                    await request('mobile.agentChat.respond', {
+                        terminalId,
+                        requestId: target.id,
+                        response,
+                    });
+                },
             });
         },
-        [request, terminalId],
+        [pendingKey, request, terminalId],
     );
     /**
      * Switches the model, effort, ultracode, permission level, or plan mode the next turn uses; Core validates the
@@ -236,6 +285,8 @@ export const useAgentChat = ({
         ...state,
         configure,
         interrupt,
+        pending,
+        pendingKey,
         refresh,
         removeQueued,
         respond,

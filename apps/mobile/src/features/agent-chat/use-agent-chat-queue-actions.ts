@@ -16,9 +16,12 @@ import type { AgentChatController } from './use-agent-chat';
  * an inline error when the Server refuses; Resume shows its own busy state, since the header it lives in stays.
  */
 export const useAgentChatQueueActions = (
-    chat: Pick<AgentChatController, 'removeQueued' | 'resumeQueue' | 'sendQueuedNow' | 'snapshot'>,
+    chat: Pick<
+        AgentChatController,
+        'pending' | 'removeQueued' | 'resumeQueue' | 'sendQueuedNow' | 'snapshot'
+    >,
 ) => {
-    const { removeQueued, resumeQueue, sendQueuedNow, snapshot } = chat;
+    const { pending, removeQueued, resumeQueue, sendQueuedNow, snapshot } = chat;
     const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
     const [storedError, setError] = useState<AgentChatQueueError | null>(null);
     const [isResuming, setResuming] = useState(false);
@@ -32,8 +35,8 @@ export const useAgentChatQueueActions = (
         [pendingIds, queue],
     );
     const entries = useMemo(
-        () => agentChatQueueEntries(queue, isTurnRunning, livePendingIds),
-        [isTurnRunning, livePendingIds, queue],
+        () => agentChatQueueEntries(queue, isTurnRunning, livePendingIds, pending.queue),
+        [isTurnRunning, livePendingIds, pending.queue, queue],
     );
     const header = agentChatQueueHeader(snapshot, isTurnRunning, entries.length);
 

@@ -4,9 +4,13 @@ import { describe, expect, it } from 'vitest';
 import {
     applyLatestConversationPage,
     applyOlderConversationPage,
+    CONVERSATION_SEND_FOLLOW_HOLD_MS,
     conversationTurnDivider,
+    followConversationToLatest,
     groupConversationItems,
+    isConversationFollowing,
     isConversationObservableThroughBlur,
+    isNewConversationSend,
     mergeLatestConversationItems,
     prependConversationPage,
     shouldFallbackToTerminal,
@@ -243,5 +247,36 @@ describe('conversationTurnDivider', () => {
             label: 'Failed after 4s',
             tone: 'danger',
         });
+    });
+});
+
+describe("following the user's own send", () => {
+    it('counts only a send made after the list first looked', () => {
+        expect(isNewConversationSend(undefined, 1)).toBe(false);
+        expect(isNewConversationSend(1, 1)).toBe(false);
+        expect(isNewConversationSend(1, 2)).toBe(true);
+        expect(isNewConversationSend(1, undefined)).toBe(false);
+    });
+
+    it('keeps following while the list carries the user to their message, then only near the end', () => {
+        const holdUntil = 1_000 + CONVERSATION_SEND_FOLLOW_HOLD_MS;
+        expect(isConversationFollowing(5_000, 800, 1_000, holdUntil)).toBe(true);
+        expect(isConversationFollowing(5_000, 800, holdUntil, holdUntil)).toBe(false);
+        expect(isConversationFollowing(0, 800, holdUntil, holdUntil)).toBe(true);
+    });
+
+    it('scrolls to the end now and again on the next frame, once the new row has measured', () => {
+        const calls: string[] = [];
+        let frame: (() => void) | undefined;
+        followConversationToLatest({
+            follow: () => calls.push('follow'),
+            nextFrame: (run) => {
+                frame = run;
+            },
+            scrollToEnd: () => calls.push('scroll'),
+        });
+        expect(calls).toEqual(['follow', 'scroll']);
+        frame?.();
+        expect(calls).toEqual(['follow', 'scroll', 'scroll']);
     });
 });
