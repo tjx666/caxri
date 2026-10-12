@@ -1,7 +1,10 @@
 import type { AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatEffortLabel, agentChatModelLabel, findAgentChatModel } from '@caxri/protocol';
 
-type ModelSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'effort' | 'model' | 'models'>;
+type ModelSnapshot = Pick<
+    AgentChatSnapshot,
+    'activeTurnId' | 'effort' | 'model' | 'models' | 'ultracode'
+>;
 
 /**
  * What the composer's model row shows: the same model and effort names as the Desktop composer's menu trigger.
@@ -11,6 +14,10 @@ type ModelSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'effort' | 'model'
 export interface AgentChatModelTrigger {
     model: string;
     effort?: string;
+    /**
+     * Claude Code's ultracode is on, shown as the Desktop trigger's `Ultracode` mode word after the effort.
+     */
+    isUltracode: boolean;
     isInteractive: boolean;
     accessibilityLabel: string;
 }
@@ -21,12 +28,29 @@ export const agentChatModelTrigger = (
 ): AgentChatModelTrigger | undefined => {
     const label = agentChatModelLabel(snapshot);
     if (!label) return undefined;
+    const isUltracode = snapshot?.ultracode === true;
     return {
         ...label,
+        isUltracode,
         isInteractive: canConfigure && (snapshot?.models?.length ?? 0) > 0,
-        accessibilityLabel: `Model: ${label.model}${label.effort ? `, ${label.effort} effort` : ''}`,
+        accessibilityLabel: `Model: ${label.model}${label.effort ? `, ${label.effort} effort` : ''}${isUltracode ? ', ultracode on' : ''}`,
     };
 };
+
+/**
+ * The sheet's Ultracode switch, with the Desktop menu's words, or `undefined` while the provider does not offer it for
+ * the current model (any Codex or Grok Build Chat, and Claude models without it), so the row disappears with it.
+ */
+export const agentChatUltracodeToggle = (
+    snapshot: Pick<AgentChatSnapshot, 'ultracode'> | undefined,
+): { label: string; description: string; isOn: boolean } | undefined =>
+    snapshot?.ultracode === undefined
+        ? undefined
+        : {
+              label: 'Ultracode',
+              description: 'Multi-agent workflows at any effort',
+              isOn: snapshot.ultracode,
+          };
 
 export interface AgentChatModelOption {
     id: string;
@@ -90,7 +114,9 @@ export const agentChatEffortHint = (snapshot: ModelSnapshot | undefined): string
 export const agentChatConfigureFailureMessage = (change: AgentChatModelRequest): string => {
     if (change.model !== undefined) return 'Unable to switch the model. Try again.';
     if (change.effort !== undefined) return 'Unable to switch the reasoning effort. Try again.';
-    return 'Unable to switch the model. Try again.';
+    return change.ultracode
+        ? 'Unable to turn on Ultracode. Try again.'
+        : 'Unable to turn off Ultracode. Try again.';
 };
 
 /**

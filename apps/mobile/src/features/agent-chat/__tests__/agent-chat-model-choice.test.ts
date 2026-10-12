@@ -8,6 +8,7 @@ import {
     agentChatModelOptions,
     agentChatModelSheetNote,
     agentChatModelTrigger,
+    agentChatUltracodeToggle,
     currentAgentChatConfigureError,
 } from '../agent-chat-model-choice';
 
@@ -31,6 +32,7 @@ describe('Agent Chat model choice', () => {
         ).toEqual({
             model: 'Opus',
             effort: 'Extra high',
+            isUltracode: false,
             isInteractive: true,
             accessibilityLabel: 'Model: Opus, Extra high effort',
         });
@@ -135,5 +137,32 @@ describe('Agent Chat model choice', () => {
             ),
         ).toBeNull();
         expect(currentAgentChatConfigureError(null, scope)).toBeNull();
+    });
+
+    it('offers Ultracode only while the provider reports it for the model, and marks the trigger', () => {
+        expect(agentChatUltracodeToggle({ ultracode: false })).toEqual({
+            label: 'Ultracode',
+            description: 'Multi-agent workflows at any effort',
+            isOn: false,
+        });
+        expect(agentChatUltracodeToggle({ ultracode: true })?.isOn).toBe(true);
+        // Codex, Grok Build, and a Claude model without ultracode report no `ultracode` at all.
+        expect(agentChatUltracodeToggle({})).toBeUndefined();
+        expect(agentChatUltracodeToggle(undefined)).toBeUndefined();
+        expect(
+            agentChatModelTrigger(
+                { model: 'claude-opus-5-5', effort: 'high', models, ultracode: true },
+                true,
+            ),
+        ).toMatchObject({
+            isUltracode: true,
+            accessibilityLabel: 'Model: Opus, High effort, ultracode on',
+        });
+        expect(agentChatConfigureFailureMessage({ ultracode: true })).toBe(
+            'Unable to turn on Ultracode. Try again.',
+        );
+        expect(agentChatConfigureFailureMessage({ ultracode: false })).toBe(
+            'Unable to turn off Ultracode. Try again.',
+        );
     });
 });

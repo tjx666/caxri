@@ -230,7 +230,8 @@ export async function invokeMobileAgentChatRequest(
         case 'mobile.agentChat.configure': {
             /**
              * Core validates the switch against the Chat's listed models (`resolveAgentChatModelChange`), so a phone
-             * holding a stale list cannot choose a model or effort the provider never offered.
+             * holding a stale list cannot choose a model or effort the provider never offered, nor turn on ultracode
+             * for a model without it.
              */
             await forward({
                 method: 'agentChat.configure',
@@ -238,6 +239,9 @@ export async function invokeMobileAgentChatRequest(
                     terminalId,
                     ...(request.params.model !== undefined && { model: request.params.model }),
                     ...(request.params.effort !== undefined && { effort: request.params.effort }),
+                    ...(request.params.ultracode !== undefined && {
+                        ultracode: request.params.ultracode,
+                    }),
                 },
             });
             return null;
