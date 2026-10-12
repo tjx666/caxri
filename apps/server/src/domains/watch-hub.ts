@@ -1,9 +1,11 @@
+import type { FileWatchLimitAlert } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import parcelWatcher from '@parcel/watcher';
 
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
+import { isMustRescanAdvisory, watchFailureFields, WatchLimitAlerts } from './watch-failures';
 
 /**
  * Hard cap on concurrently active native subscriptions. Native watcher capacity (FSEvents streams, file descriptors) is
@@ -36,20 +38,6 @@ const NATIVE_RETRY_MAX_DELAY_MS = 300_000;
 const RESCAN_THROTTLE_MS = 1_000;
 
 type WatchMode = 'native' | 'polling' | 'disposed';
-
-/**
- * Matches the macOS FSEvents "must rescan" advisory. `@parcel/watcher@2.6.0`'s `FSEventsBackend.cc` attaches one of
- * three messages to a batch when `kFSEventStreamEventFlagMustScanSubDirs` is set ("Events were dropped by the FSEvents
- * client.", "Events were dropped by the kernel.", or "Too many events.") always followed by "File system must be
- * re-scanned." (see `src/macos/FSEventsBackend.cc:82-88`). The stream itself keeps running and its callback stays
- * registered (contrast `Watcher::notifyError` in `src/Watcher.cc:113-120`, which really does tear the subscription
- * down), so this is advisory, not a dead subscription: the caller should reconcile once and keep watching natively
- * instead of degrading to polling.
- */
-function isMustRescanAdvisory(error: unknown): boolean {
-    const message = errorMessage(error, '');
-    return /must be re-scanned/i.test(message) || /events were dropped/i.test(message);
-}
 
 interface WatchFallback {
     intervalMs: number;
@@ -135,6 +123,11 @@ export interface WatchHubOptions {
     logger?: StructuredLogger;
     maxNativeSubscriptions?: number;
     /**
+     * Receives {@link WatchLimitAlerts}' raised and cleared alerts when a native watch degrades because of a kernel
+     * limit.
+     */
+    onLimitAlert?: (alert: FileWatchLimitAlert) => void;
+    /**
      * Test seam: replaces the native backend for every registration made through this hub.
      */
     subscribe?: typeof parcelWatcher.subscribe;
@@ -216,12 +209,14 @@ export class WatchHub {
     private readonly logger?: StructuredLogger;
     private readonly maxNativeSubscriptions: number;
     private readonly subscribeOverride?: typeof parcelWatcher.subscribe;
+    private readonly limitAlerts?: WatchLimitAlerts<Registration>;
 
     constructor(options: WatchHubOptions = {}) {
         this.logger = options.logger;
         this.maxNativeSubscriptions =
             options.maxNativeSubscriptions ?? DEFAULT_MAX_NATIVE_SUBSCRIPTIONS;
         this.subscribeOverride = options.subscribe;
+        if (options.onLimitAlert) this.limitAlerts = new WatchLimitAlerts(options.onLimitAlert);
     }
 
     /**
@@ -372,6 +367,7 @@ export class WatchHub {
             entry.mode = 'native';
             entry.fallbackActive = false;
             entry.nativeRetryDelayMs = NATIVE_RETRY_INITIAL_DELAY_MS;
+            this.limitAlerts?.recovered(entry);
             this.warnOnNativePressure();
             this.logger?.write('info', logEventCatalog.watchHub.nativeRestored, {
                 fields: { label: entry.label },
@@ -540,7 +536,7 @@ export class WatchHub {
         } catch (error) {
             if (entry.mode === 'disposed' || !this.registrations.has(entry)) return entry;
             this.logger?.write('warn', logEventCatalog.watchHub.subscribeFailed, {
-                fields: { label: entry.label, error: errorMessage(error, 'unknown') },
+                fields: { label: entry.label, ...watchFailureFields(error) },
             });
             if (!options.fallback) {
                 this.registrations.delete(entry);
@@ -590,10 +586,12 @@ export class WatchHub {
         // The advisory that armed the window belonged to a native subscription that is now gone; the poll loop owns
         // reconciliation from here, so a window left armed would spend one more reconcile on nothing.
         this.closeRescanWindow(entry);
-        if (error !== undefined)
+        if (error !== undefined) {
             this.logger?.write('warn', logEventCatalog.watchHub.fallback, {
-                fields: { label: entry.label, error: errorMessage(error, 'unknown') },
+                fields: { label: entry.label, ...watchFailureFields(error) },
             });
+            this.limitAlerts?.degraded(entry, error);
+        }
         const subscription = entry.subscription;
         entry.subscription = undefined;
         // The native subscription already failed or is being replaced; releasing it must never block the fallback.
@@ -630,6 +628,7 @@ export class WatchHub {
         entry.nativeRetryTimer = undefined;
         this.closeRescanWindow(entry);
         this.leaveFallbackTimer(entry);
+        this.limitAlerts?.recovered(entry);
         const subscription = entry.subscription;
         entry.subscription = undefined;
         if (subscription) await this.releaseSubscription(subscription);

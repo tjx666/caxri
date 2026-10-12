@@ -16,6 +16,7 @@ import type { ServerEvent } from '@caxri/protocol';
  * - `subscribeUnsavedEditorRequests` answers `editor.unsavedRequest`, and `subscribeExternalDocumentSync` handles
  *   `externalDocument.changed`.
  * - `environment.changed` and `environment.connectionReused` go to `subscribeEnvironment` in `stores/environment.ts`.
+ * - `files.watchLimitAlert` goes to `subscribeFileWatchLimitAlerts` in `features/ssh-host/file-watch-limit-alert.ts`.
  */
 const WORKBENCH_IGNORED_EVENTS = [
     'agent.dispatch.changed',
@@ -35,6 +36,7 @@ const WORKBENCH_IGNORED_EVENTS = [
     'externalDocument.changed',
     'files.changed',
     'files.operationChanged',
+    'files.watchLimitAlert',
     'git.changed',
     'gitReview.changed',
     'projectStatus.changed',

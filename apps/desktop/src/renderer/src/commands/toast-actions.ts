@@ -53,6 +53,14 @@ export const toastActionHandlers: ToastActionHandlers = {
         },
     },
     'agentCommander.open': { run: () => executeCommand('agentCommander.open') },
+    'clipboard.copyCommand': {
+        run: ({ text }) => {
+            // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast
+            void tryCommand(translate('toasts.copyCommandFailed'), () =>
+                navigator.clipboard.writeText(text),
+            );
+        },
+    },
     'diagnostics.copyFailure': {
         run: ({ text }) => {
             // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast

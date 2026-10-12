@@ -32,6 +32,7 @@ export type TransientServerEvent = Extract<
             | 'environment.changed'
             | 'environment.connectionReused'
             | 'externalDocument.changed'
+            | 'files.watchLimitAlert'
             | 'host.connectionChanged'
             | 'gpu.recoveryRequested'
             | 'gitReview.changed'
@@ -94,6 +95,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * A change notice for a document the Renderer may no longer have open; a later Renderer re-reads what it opens.
      */
     'externalDocument.changed',
+    /**
+     * The Server re-raises the alert for the next watch that hits the limit, and a replay after a reconnect would
+     * re-notify an episode the user may already have dismissed.
+     */
+    'files.watchLimitAlert',
     /**
      * A one-shot Main-side resync trigger: replaying it after the Renderer already re-attached would only force a
      * redundant snapshot round-trip.

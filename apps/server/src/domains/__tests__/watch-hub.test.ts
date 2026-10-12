@@ -457,6 +457,84 @@ describe('WatchHub', () => {
         await hub.close();
     });
 
+    it('raises a limit alert when inotify watches run out and clears it once native watching returns', async () => {
+        const limitError = new Error(
+            "inotify_add_watch on '/watched/a' failed: No space left on device",
+        );
+        let attempt = 0;
+        const subscribe = vi.fn(() => {
+            attempt += 1;
+            return attempt === 1
+                ? Promise.reject(limitError)
+                : Promise.resolve({ unsubscribe: () => Promise.resolve() });
+        }) as unknown as typeof parcelWatcher.subscribe;
+        const { logger, write } = writeLogger();
+        const onLimitAlert = vi.fn();
+        const hub = new WatchHub({ subscribe, logger, onLimitAlert });
+        const handle = await hub.register({
+            label: 'files-root',
+            root: '/watched',
+            onEvents: () => {},
+            fallback: { intervalMs: 100, pollOnce: () => {} },
+        });
+
+        expect(handle.mode).toBe('polling');
+        expect(onLimitAlert.mock.calls).toEqual([[{ state: 'raised', reason: 'watch-limit' }]]);
+        const fallback = write.mock.calls.find((call) => call[1] === 'watch_hub.fallback');
+        expect(fallback?.[2]).toMatchObject({ fields: { reason: 'watch-limit' } });
+
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(handle.mode).toBe('native');
+        expect(onLimitAlert).toHaveBeenLastCalledWith({ state: 'cleared' });
+        await hub.close();
+    });
+
+    it('keeps the limit alert raised until the last limited watch goes away', async () => {
+        const subscribe = vi.fn((root: string) =>
+            Promise.reject(
+                new Error(
+                    root === '/other'
+                        ? 'Unable to initialize inotify: Too many open files'
+                        : 'native backend unavailable',
+                ),
+            ),
+        ) as unknown as typeof parcelWatcher.subscribe;
+        const onLimitAlert = vi.fn();
+        const hub = new WatchHub({ subscribe, onLimitAlert });
+        const fallback = { intervalMs: 100, pollOnce: () => {} };
+        const unrelated = await hub.register({
+            label: 'a',
+            root: '/gone',
+            onEvents: () => {},
+            fallback,
+        });
+        expect(onLimitAlert).not.toHaveBeenCalled();
+        const first = await hub.register({
+            label: 'b',
+            root: '/other',
+            onEvents: () => {},
+            fallback,
+        });
+        const second = await hub.register({
+            label: 'c',
+            root: '/other',
+            onEvents: () => {},
+            fallback,
+        });
+        expect(onLimitAlert).toHaveBeenCalledTimes(2);
+        expect(onLimitAlert).toHaveBeenLastCalledWith({
+            state: 'raised',
+            reason: 'instance-limit',
+        });
+
+        await unrelated.dispose();
+        await first.dispose();
+        expect(onLimitAlert).toHaveBeenCalledTimes(2);
+        await second.dispose();
+        expect(onLimitAlert).toHaveBeenLastCalledWith({ state: 'cleared' });
+        await hub.close();
+    });
+
     it('stops retrying a fallback-degraded subscription once disposed', async () => {
         const subscribe = vi.fn(() =>
             Promise.reject(new Error('native backend unavailable')),

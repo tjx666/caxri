@@ -96,4 +96,8 @@ export const sshHost = {
     'sshHost.folderPicker.invalidPath':
         'Enter an absolute path such as /srv/app, or a path in your home folder such as ~/app.',
     'sshHost.folderPicker.open': 'Open',
+    'sshHost.watchLimit.watches':
+        'The SSH Host ran out of file watches (fs.inotify.max_user_watches), so the file tree and Git status may take a few seconds to update. Ask an administrator to raise the limit; Caxri switches back on its own.',
+    'sshHost.watchLimit.instances':
+        'The SSH Host ran out of file watchers (fs.inotify.max_user_instances), so the file tree and Git status may take a few seconds to update. Ask an administrator to raise the limit; Caxri switches back on its own.',
 } as const;
