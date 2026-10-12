@@ -5,7 +5,6 @@ import { agentChatPermissionModes } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     BotMessageSquare,
-    ChevronDown,
     Eye,
     FilePen,
     Hand,
@@ -55,15 +54,22 @@ const TRIGGER_CLASS_NAME =
     'flex h-7 min-w-0 shrink cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 text-[12px] leading-4 text-muted transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated data-popup-open:text-foreground';
 
 /**
+ * Full access tints the whole trigger, shield and name alike and through hover and open, as the Codex app does, so the
+ * riskiest level reads differently at a glance.
+ */
+const FULL_ACCESS_TRIGGER_CLASS_NAME =
+    'text-warning hover:text-warning data-popup-open:text-warning';
+
+/**
  * The Chat's permission level and the menu that switches it, beside `+`, which owns plan mode. Only the levels the
- * provider runs natively are offered. Full access carries a `--warning` shield so the riskiest level reads differently
- * at a glance. Like the model picker, a choice shows at once with a spinner until the snapshot confirms it, and reverts
- * with a toast when it fails; picking a level closes the menu. A provider that applies a switch only with the next turn
- * (Codex) says so while a turn runs: the menu notes it, and the trigger adds `from next turn` until that turn ends.
- * Launch settings no level matches read as a checked "Custom" row. "Use as Project default" saves the current choice
- * for the Project's new Chats of this provider, shows as a checked "Project default" once saved, and stays visible but
- * disabled, with the reason, while the level is Custom; see `docs/agent-chat.md`. The Agent Commander window omits it,
- * because Main's Commander policy refuses Project writes.
+ * provider runs natively are offered. Like the Codex app, the trigger carries no disclosure chevron, and Full access
+ * reads in `--warning`. Like the model picker, a choice shows at once with a spinner until the snapshot confirms it,
+ * and reverts with a toast when it fails; picking a level closes the menu. A provider that applies a switch only with
+ * the next turn (Codex) says so while a turn runs: the menu notes it, and the trigger adds `from next turn` until that
+ * turn ends. Launch settings no level matches read as a checked "Custom" row. "Use as Project default" saves the
+ * current choice for the Project's new Chats of this provider, shows as a checked "Project default" once saved, and
+ * stays visible but disabled, with the reason, while the level is Custom; see `docs/agent-chat.md`. The Agent Commander
+ * window omits it, because Main's Commander policy refuses Project writes.
  */
 export function AgentChatPermissionMenu({
     canSaveProjectDefault,
@@ -97,19 +103,23 @@ export function AgentChatPermissionMenu({
     const { projectDefault } = view;
     return (
         <Menu open={isOpen} onOpenChange={setOpen}>
-            <MenuTrigger aria-label={view.ariaLabel} className={TRIGGER_CLASS_NAME}>
-                <Icon className={`size-3.5 shrink-0 ${view.isFullAccess ? 'text-warning' : ''}`} />
+            <MenuTrigger
+                aria-label={view.ariaLabel}
+                className={cn(
+                    TRIGGER_CLASS_NAME,
+                    view.isFullAccess && FULL_ACCESS_TRIGGER_CLASS_NAME,
+                )}
+            >
+                <Icon className="size-3.5 shrink-0" />
                 <span className="truncate">{view.label}</span>
                 {view.pendingCaption && (
                     <span className="truncate text-[11px] text-muted">{view.pendingCaption}</span>
                 )}
-                {isPending ? (
+                {isPending && (
                     <Spinner
                         aria-label={t('agentChat.model.switching')}
                         className="size-3 shrink-0"
                     />
-                ) : (
-                    <ChevronDown className="size-3 shrink-0" />
                 )}
             </MenuTrigger>
             {/* The trigger sits at the composer's leading edge, so the menu opens aligned to its start. */}
