@@ -7,9 +7,17 @@ describe('remoteDebuggingChipCopy', () => {
         expect(remoteDebuggingChipCopy({ transport: 'disabled' })).toBeUndefined();
     });
 
+    /**
+     * DESIGN.md keeps a standing mode icon-only on the bar, so the copy carries no visible label for a chip to render.
+     */
+    it('gives the chip no visible label, only an accessible name and a tooltip', () => {
+        const copy = remoteDebuggingChipCopy({ port: '9224', transport: 'port' });
+        expect(copy).not.toHaveProperty('text');
+        expect(copy).toHaveProperty('description');
+    });
+
     it('names the loopback address a listening port accepts connections on', () => {
         const copy = remoteDebuggingChipCopy({ port: '9224', transport: 'port' });
-        expect(copy?.text).toBe('Debug port');
         expect(copy?.description).toContain('127.0.0.1:9224');
         expect(copy?.description).toContain('act as you');
     });
@@ -30,7 +38,6 @@ describe('remoteDebuggingChipCopy', () => {
      */
     it('still discloses a port whose number the launch never fixed', () => {
         const copy = remoteDebuggingChipCopy({ transport: 'port' });
-        expect(copy?.text).toBe('Debug port');
         expect(copy?.description).toContain('loopback port');
         expect(copy?.description).not.toContain('pipe');
     });
@@ -41,7 +48,6 @@ describe('remoteDebuggingChipCopy', () => {
      */
     it('describes a pipe without inventing an address', () => {
         const copy = remoteDebuggingChipCopy({ transport: 'pipe' });
-        expect(copy?.text).toBe('Debug pipe');
         expect(copy?.description).not.toContain('127.0.0.1');
         expect(copy?.description).toContain('pipe');
     });
