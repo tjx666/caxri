@@ -20,6 +20,12 @@ export const AGENT_CHAT_USER_MESSAGE_ATTRIBUTE = 'data-agent-chat-user-message';
 const PREVIEW_LENGTH = 120;
 
 /**
+ * The most ticks the rail draws: about as many as a rail in an ordinary window can space apart. Past it the ticks merge
+ * into a solid bar, and history read back has no bound, so thousands of ticks would neither read nor render cheaply.
+ */
+export const MAX_AGENT_CHAT_RAIL_MARKS = 120;
+
+/**
  * Whether the message rail shows: a conversation with one message has nowhere to jump, so it appears from the second.
  * The transcript reads the same rule to make room for the rail at its left edge.
  */
@@ -50,6 +56,21 @@ export function agentChatRailMarks(
         marks.push({ id, preview: agentChatRailPreview(text, images?.length ?? 0) });
     }
     return marks;
+}
+
+/**
+ * At most {@link MAX_AGENT_CHAT_RAIL_MARKS} of `marks`, spread evenly from the first message to the last, so a long
+ * conversation keeps a rail of the same shape whose ticks each stand for a stretch of it.
+ */
+export function sampleAgentChatRailMarks(
+    marks: readonly AgentChatRailMark[],
+): readonly AgentChatRailMark[] {
+    if (marks.length <= MAX_AGENT_CHAT_RAIL_MARKS) return marks;
+    const step = (marks.length - 1) / (MAX_AGENT_CHAT_RAIL_MARKS - 1);
+    return Array.from(
+        { length: MAX_AGENT_CHAT_RAIL_MARKS },
+        (_, index) => marks[Math.round(index * step)],
+    );
 }
 
 /**

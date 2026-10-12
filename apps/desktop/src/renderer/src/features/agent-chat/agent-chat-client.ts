@@ -9,6 +9,7 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, isQueryMethod, queryClient } from '../../queries/client';
+import { subscribeAgentChatHistoryRetention } from './agent-chat-history-client';
 
 /**
  * Patches held per Chat or task while its read is in flight. Past this many the read is simply repeated, which costs
@@ -207,6 +208,7 @@ function invalidateAgentChatQueries(queryClient: QueryClient): void {
 export function subscribeAgentChatPatches(queryClient: QueryClient): () => void {
     const cache = createAgentChatPatchCache(queryClient);
     const taskCache = createAgentChatTaskPatchCache(queryClient);
+    const unsubscribeHistory = subscribeAgentChatHistoryRetention(queryClient);
     const unsubscribe = caxri.onEvent((event) => {
         switch (event.event) {
             case 'agentChat.patch': {
@@ -228,6 +230,7 @@ export function subscribeAgentChatPatches(queryClient: QueryClient): () => void 
     });
     return () => {
         unsubscribe();
+        unsubscribeHistory();
         cache.dispose();
         taskCache.dispose();
     };

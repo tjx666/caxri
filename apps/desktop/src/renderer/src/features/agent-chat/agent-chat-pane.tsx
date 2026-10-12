@@ -23,6 +23,7 @@ import { AgentChatComposer } from './agent-chat-composer';
 import { AgentChatDock } from './agent-chat-dock';
 import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatFindScope } from './agent-chat-find-scope';
+import { AgentChatHistoryHead } from './agent-chat-history-head';
 import type { AgentChatHost } from './agent-chat-host';
 import { agentChatHostCapabilities } from './agent-chat-host';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
@@ -36,10 +37,10 @@ import {
     agentChatSendBlock,
     isAgentChatBusy,
 } from './agent-chat-presentation';
-import { agentChatRailMarks, isAgentChatMessageRailShown } from './agent-chat-rail-marks';
+import { isAgentChatMessageRailShown } from './agent-chat-rail-marks';
 import { announceAgentChatSelectionCopy } from './agent-chat-selection-copy';
-import { agentChatDayBreaks } from './agent-chat-time';
-import { buildAgentChatTimeline } from './agent-chat-timeline';
+import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
+import { agentChatTimelineEntryKey } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
@@ -48,10 +49,12 @@ import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
+import { useAgentChatHistory } from './hooks/use-agent-chat-history';
 import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
+import { useAgentChatTimelines } from './hooks/use-agent-chat-timelines';
 
 /**
  * The structured surface of a Chat Terminal (ADR 0012): the conversation Server Core projects from the provider's own
@@ -146,21 +149,26 @@ export function AgentChatPane({
         [terminalId],
     );
     useAgentChatActivationFocus(inputReference, { isShown, terminalId });
-    const items = snapshot?.items;
-    const turns = snapshot?.turns;
-    const activeTurnId = snapshot?.activeTurnId;
-    const timeline = useMemo(
-        () => (items && turns ? buildAgentChatTimeline(items, turns, activeTurnId) : []),
-        [items, turns, activeTurnId],
+    const history = useAgentChatHistory(terminalId, snapshot, {
+        scrollReference,
+        contentReference,
+        stopFollowing,
+    });
+    const olderItems = history.history.items;
+    const { settledChunks, timeline, dayBreaks, railMarks } = useAgentChatTimelines(
+        snapshot,
+        history.history,
     );
-    const dayBreaks = useMemo(() => agentChatDayBreaks(timeline), [timeline]);
-    const railMarks = useMemo(() => agentChatRailMarks(timeline), [timeline]);
     const railMarkIds = useMemo(() => railMarks.map((mark) => mark.id), [railMarks]);
     const rail = useAgentChatMessageRail(scrollReference, contentReference, railMarkIds);
-    const jumpToMessage = (id: string): void => {
-        stopFollowing();
-        rail.jumpTo(id);
-    };
+    const { jumpTo } = rail;
+    const jumpToMessage = useCallback(
+        (id: string): void => {
+            stopFollowing();
+            jumpTo(id);
+        },
+        [jumpTo, stopFollowing],
+    );
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId);
     /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
@@ -233,33 +241,32 @@ export function AgentChatPane({
                             ref={contentReference}
                             onCopy={announceAgentChatSelectionCopy}
                         >
-                            {snapshot?.truncated && (
-                                <p className="m-0 text-center text-[11px] text-muted">
-                                    Earlier messages are not shown: Chat keeps only the recent part
-                                    of a long conversation. {providerName} still has all of it.
-                                    {openAsTerminal && (
-                                        <>
-                                            {' '}
-                                            <button
-                                                className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
-                                                type="button"
-                                                onClick={openAsTerminal}
-                                            >
-                                                Open as Terminal
-                                            </button>
-                                        </>
-                                    )}
-                                </p>
-                            )}
+                            <AgentChatHistoryHead
+                                hasFailed={history.history.status === 'failed'}
+                                hasMore={history.hasMore}
+                                isLoading={history.history.status === 'loading'}
+                                isUnavailable={history.history.truncated}
+                                loadedCount={olderItems.length}
+                                providerName={providerName}
+                                scrollReference={scrollReference}
+                                onLoad={history.loadOlder}
+                                onOpenAsTerminal={openAsTerminal}
+                            />
                             <AgentChatExpansionContext value={expansion}>
                                 <AgentChatTaskLinksContext value={taskLinks}>
                                     <AgentChatTerminalContext value={terminalId}>
+                                        {/*
+                                         * History read back is not in the projection, so it never offers Edit, Fork,
+                                         * or Restore; keeping it outside the actions, which change with every patch,
+                                         * lets a patch skip it.
+                                         */}
+                                        <AgentChatSettledTimeline
+                                            chunks={settledChunks}
+                                            onOpenFile={openFile}
+                                        />
                                         <AgentChatEditContext value={editActions}>
                                             {timeline.map((entry) => {
-                                                const key =
-                                                    entry.kind === 'item'
-                                                        ? entry.item.id
-                                                        : entry.id;
+                                                const key = agentChatTimelineEntryKey(entry);
                                                 const dayBreak = dayBreaks.get(key);
                                                 return (
                                                     <Fragment key={key}>

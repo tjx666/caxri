@@ -19,7 +19,11 @@ export function useIsAgentChatClamped(
          * One pixel of slack absorbs sub-pixel line boxes that would otherwise read as a permanent cut.
          */
         const measure = (): void => setCut(element.scrollHeight > element.clientHeight + 1);
-        measure();
+        /**
+         * Measured only from the observer, which reports right after the browser lays the box out: reading the height
+         * on mount forces a layout per message, and a page of history read back mounts a hundred of them at once. A
+         * message offscreen in that history is not laid out at all (`content-visibility: auto`) until it scrolls near.
+         */
         const observer = new ResizeObserver(measure);
         observer.observe(element);
         return () => observer.disconnect();
