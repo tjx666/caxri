@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -178,6 +179,12 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
  * from the same buffer the source tab edits.
  */
 test('previews PDF, CSV, and Mermaid files', async () => {
+    // Reading `sample.bin` as text is refused and logged in Main and Server Core; the Renderer then opens it as a
+    // no-preview tab instead of showing an error.
+    allowE2EErrors([
+        { source: 'desktop', event: 'ipc.request_failed', code: 'IO', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'IO', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-preview-formats-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -195,6 +202,7 @@ test('previews PDF, CSV, and Mermaid files', async () => {
         ),
         writeFile(join(root, 'flow.mmd'), 'graph LR\n  Draft --> Review\n', 'utf8'),
         writeFile(join(root, 'broken.mmd'), 'graph LR\n  Draft -->\n', 'utf8'),
+        writeFile(join(root, 'sample.bin'), Buffer.from([0x89, 0x50, 0x00, 0xff, 0x00, 0x01])),
     ]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
@@ -243,6 +251,13 @@ test('previews PDF, CSV, and Mermaid files', async () => {
         await expect(page.locator('.empty-work[role="alert"]')).toContainText(
             'This file is not a valid PDF, or it is damaged.',
         );
+
+        // A binary file has no text to edit: it opens a no-preview tab whose way forward is Finder, not an error toast.
+        await page.getByRole('treeitem', { name: 'sample.bin', exact: true }).click();
+        await expect(page.getByRole('tab', { name: 'Preview: sample.bin' })).toBeVisible();
+        await expect(page.getByText('No preview is available for this file.')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Reveal in Finder' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Open Source' })).toHaveCount(0);
 
         await page.getByRole('treeitem', { name: 'cities.csv', exact: true }).click();
         await expect(page.getByRole('tab', { name: 'cities.csv', exact: true })).toBeVisible();

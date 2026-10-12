@@ -3,7 +3,6 @@ import type {
     FileDocument,
     PaneLayout,
     PaneTabCloseMode,
-    SessionState,
 } from '@caxri/protocol';
 import {
     activePane,
@@ -12,6 +11,7 @@ import {
     filePreviewTabPath,
     findResourceTabs,
     findTab,
+    isBinaryFileReadError,
     isVirtualEditorTabPath,
     openResource,
     paneTabIdsToClose,
@@ -20,7 +20,6 @@ import {
     remapPaneLayoutPaths,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import type { EditorDocument } from '@desktop-shared/editor-state';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { translate } from '../../i18n';
@@ -40,13 +39,8 @@ import {
 } from '../../stores/session-view';
 import type { ToastActionParameters } from '../../stores/toast-actions';
 import { tryCommand } from '../../stores/toasts';
-import {
-    patchSessionState,
-    persistSessionState,
-    refreshWorkbench,
-    useWorkbenchStore,
-} from '../../stores/workbench';
-import { shouldOpenAsPreview } from '../preview/preview-registry';
+import { patchSessionState, persistSessionState } from '../../stores/workbench';
+import { previewOnlyTabPath } from '../preview/preview-registry';
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
 import {
@@ -67,6 +61,7 @@ import {
     remapPendingDocumentOperations,
     trackDocumentOperation,
 } from './pending-document-operations';
+import { persistOpenedEditorTab, sessionStateOf } from './session-pane-state';
 
 interface OpenFileOptions {
     focus?: boolean;
@@ -78,82 +73,8 @@ interface OpenFileOptions {
     preview?: boolean;
 }
 
-export function sessionStateOf(sessionId: string): SessionState | undefined {
-    return useWorkbenchStore
-        .getState()
-        .bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
-}
-
 function isDocumentDirty(sessionId: string, path: string, workbenchProjectId?: string): boolean {
     return getSessionDocuments(sessionId, workbenchProjectId)?.[path]?.dirty === true;
-}
-
-/**
- * `openResource`'s write can lose a race against a brand-new Session's own initial Terminal-attach write and come back
- * `CONFLICT` ("stale revision") even though nothing the caller did was wrong: both writes originate from opening this
- * same Session for the first time (see `pickCommanderFileLinkSession` in Main), and the Session's very first
- * `session.updateState` has nothing to rebase against locally. Retrying once against a refreshed snapshot is safe
- * because opening a resource is idempotent: recomputing `openResource` either reveals the tab this retry adds, or
- * discovers the resource is already open from whichever write actually won (issue #1409).
- *
- * Retries only on `onStaleWrite`, never by inferring it from the pane layout: a later command (e.g. a close) can
- * supersede this attempt before it settles, leaving a genuine failure looking just like a lost race, and bails if the
- * Session's Workbench Root changed mid-flight. `paneId` is pinned once by the caller instead of re-resolved on every
- * retry, so a pane switch mid-flight cannot scatter the same file across two panes.
- */
-async function persistOpenedEditorTab(
-    sessionId: string,
-    path: string,
-    paneId: string,
-    isPreview: boolean,
-    next: SessionState,
-    wasOpen: boolean,
-    replacedDocuments: EditorDocument[],
-    retriesLeft: number,
-): Promise<void> {
-    const workbenchProjectId = next.workbenchProjectId;
-    let isStale = false;
-    const persisted = await useWorkbenchStore.getState().patchSessionState(
-        next,
-        undefined,
-        () => {
-            const currentView = useSessionViewStore.getState();
-            if (!wasOpen) currentView.evictDocument(sessionId, path, workbenchProjectId);
-            for (const document of replacedDocuments)
-                currentView.cacheDocument(sessionId, document, workbenchProjectId);
-        },
-        undefined,
-        true,
-        () => {
-            isStale = true;
-        },
-    );
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- isStale is set from the onStaleWrite callback above, across an await
-    if (persisted || !isStale || retriesLeft <= 0) return;
-    await refreshWorkbench();
-    const current = sessionStateOf(sessionId);
-    if (!current || current.workbenchProjectId !== workbenchProjectId) return;
-    // The pinned pane already shows this file; the write that won the race added it, nothing left to persist.
-    const alreadyThere = findResourceTabs(current.paneLayout, { kind: 'file', path }).some(
-        (occurrence) => occurrence.pane.id === paneId,
-    );
-    if (alreadyThere) return;
-    const opened = openResource(
-        current.paneLayout,
-        { kind: 'file', path },
-        { paneId, preview: isPreview },
-    );
-    if (opened === current.paneLayout) return;
-    await persistOpenedEditorTab(
-        sessionId,
-        path,
-        paneId,
-        isPreview,
-        { ...current, paneLayout: opened },
-        wasOpen,
-        replacedDocuments,
-        retriesLeft - 1,
-    );
 }
 
 /**
@@ -330,9 +251,10 @@ export async function openFileForSession(
      * A format with no text form (a PDF) opens as its preview tab: a text read could only fail on the binary content.
      * Routing here covers every open path at once (Files, Quick Open, project search, Terminal links).
      */
-    if (shouldOpenAsPreview(path)) {
+    const previewTabPath = previewOnlyTabPath(path, sessionStateOf(session.id)?.paneLayout);
+    if (previewTabPath) {
         supersedePendingFileOpens();
-        const didOpen = didOpenEditorTabForSession(session.id, filePreviewTabPath(path), {
+        const didOpen = didOpenEditorTabForSession(session.id, previewTabPath, {
             paneId: options.paneId,
             preview: options.preview,
         });
@@ -343,7 +265,16 @@ export async function openFileForSession(
     markEditorOpenStarted();
     try {
         const opened = await tryCommand(translate('editor.document.openFileFailed'), async () => {
-            const document = await caxri.request('files.read', { sessionId: session.id, path });
+            /**
+             * Binary content is only known once read. Such a file has no text to edit, so it opens as a no-preview tab
+             * offering Reveal in Finder instead of failing with a toast (https://github.com/tjx666/caxri/issues/1921).
+             */
+            let document: FileDocument | undefined;
+            try {
+                document = await caxri.request('files.read', { sessionId: session.id, path });
+            } catch (error) {
+                if (!isBinaryFileReadError(error)) throw error;
+            }
             if (
                 !isCurrentFileOpenIntent(intent) ||
                 operation.discarded ||
@@ -352,8 +283,16 @@ export async function openFileForSession(
                     ?.workbenchProjectId !== operation.workbenchProjectId
             )
                 return false;
-            markEditorDocumentReady();
             const currentPath = operation.path;
+            if (!document) {
+                const didOpen = didOpenEditorTabForSession(
+                    session.id,
+                    filePreviewTabPath(currentPath),
+                    { paneId: options.paneId, preview: options.preview },
+                );
+                return didOpen && currentPath;
+            }
+            markEditorDocumentReady();
             useSessionViewStore.getState().cacheDocument(
                 session.id,
                 {

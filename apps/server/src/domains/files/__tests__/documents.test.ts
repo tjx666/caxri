@@ -18,7 +18,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MAX_PREVIEW_ASSET_BYTES, MAX_PREVIEW_DOCUMENT_BYTES } from '@caxri/protocol';
+import {
+    isBinaryFileReadError,
+    MAX_PREVIEW_ASSET_BYTES,
+    MAX_PREVIEW_DOCUMENT_BYTES,
+} from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -43,6 +47,20 @@ afterEach(async () => {
 });
 
 describe('DocumentService', () => {
+    it('refuses binary content with the stable binary reason callers branch on', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-binary-read-'));
+        const root = await realpath(directory);
+        temporaryDirectories.push(root);
+        const path = join(root, 'sample.bin');
+        await writeFile(path, Buffer.from([0x89, 0x50, 0x00, 0x01]));
+        const service = new DocumentService(
+            () => Promise.resolve({ path, root }),
+            createLogger(join(root, 'logs')),
+            () => 1_024,
+        );
+        await expect(service.read('session', path)).rejects.toSatisfy(isBinaryFileReadError);
+    });
+
     it('rejects a conditional mobile save after an external content change', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-save-'));
         const root = await realpath(directory);
