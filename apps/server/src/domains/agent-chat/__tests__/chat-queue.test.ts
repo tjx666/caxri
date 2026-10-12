@@ -16,13 +16,23 @@ type Sent =
 const image: AgentChatImageInput = { mediaType: 'image/png', data: 'AAAA', thumbnail: '' };
 
 /**
- * A queue over an idle Chat whose provider records each input it receives; `failNext` makes the next send throw.
+ * A queue over an idle Chat whose provider records each input it receives and starts a turn for it, as a real provider
+ * does; `failNext` makes the next send throw, and `duringSend` runs after the turn started but before the delivery
+ * resolves.
  */
 function queueFixture() {
     const sent: Sent[] = [];
-    const state: { snapshot: Partial<AgentChatSnapshot>; failNext: boolean } = {
+    const state: {
+        snapshot: Partial<AgentChatSnapshot>;
+        failNext: boolean;
+        duringSend?: () => void;
+    } = {
         snapshot: { status: 'ready', queue: [] },
         failNext: false,
+    };
+    const startTurn = (): void => {
+        state.snapshot = { ...state.snapshot, activeTurnId: 'turn-sent' };
+        state.duringSend?.();
     };
     const session = {
         send: vi.fn((message: { text: string; images?: unknown[] }) => {
@@ -35,10 +45,12 @@ function queueFixture() {
                 text: message.text,
                 imageCount: message.images?.length ?? 0,
             });
+            startTurn();
             return Promise.resolve();
         }),
         runCommand: vi.fn((name: string) => {
             sent.push({ kind: 'command', name });
+            startTurn();
             return Promise.resolve();
         }),
     } as unknown as AgentChatProviderSession;
@@ -81,7 +93,15 @@ function queueFixture() {
         await chain;
     };
     const queuedTexts = () => state.snapshot.queue?.map((entry) => entry.text);
-    return { endTurn, hold, queue, queuedTexts, sent, state };
+    /**
+     * Waits until no settled delivery chains another dispatch.
+     */
+    const settle = async (): Promise<void> => {
+        const current = chain;
+        await current;
+        if (chain !== current) await settle();
+    };
+    return { endTurn, hold, queue, queuedTexts, sent, settle, state };
 }
 
 const message = (text: string, images: AgentChatImageInput[] = []) => ({
@@ -161,6 +181,42 @@ describe('ChatFollowUpQueue dispatch', () => {
         await endTurn();
         expect(sent).toEqual([]);
         expect(queuedTexts()).toEqual(['first', 'second', '/compact']);
+        expect(state.snapshot.queuePaused).toBe(true);
+    });
+
+    it('keeps draining when each turn ends before its delivery resolves', async () => {
+        const { endTurn, hold, queue, queuedTexts, sent, settle, state } = queueFixture();
+        hold();
+        queue.add(message('first'));
+        queue.add(command('compact'));
+        queue.add(message('last'));
+        // The provider starts and finishes the turn before the send call returns, as a turn start response and its
+        // completion read from one stdout chunk do; both projection changes arrive while the dispatch is in flight.
+        state.duringSend = () => {
+            queue.dispatch();
+            state.snapshot = { ...state.snapshot, activeTurnId: undefined };
+            queue.dispatch();
+        };
+        await endTurn();
+        await settle();
+        expect(sent).toEqual([
+            { kind: 'message', text: 'first', imageCount: 0 },
+            { kind: 'command', name: 'compact' },
+            { kind: 'message', text: 'last', imageCount: 0 },
+        ]);
+        expect(queuedTexts()).toEqual([]);
+    });
+
+    it('does not send again after a failed delivery pauses the queue', async () => {
+        const { endTurn, hold, queue, queuedTexts, sent, settle, state } = queueFixture();
+        hold();
+        queue.add(message('first'));
+        queue.add(command('compact'));
+        state.failNext = true;
+        await endTurn();
+        await settle();
+        expect(sent).toEqual([]);
+        expect(queuedTexts()).toEqual(['first', '/compact']);
         expect(state.snapshot.queuePaused).toBe(true);
     });
 });
