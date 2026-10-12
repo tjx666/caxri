@@ -1,11 +1,16 @@
 import { CaxriError } from '@caxri/protocol';
 
 import { isRecord, stringField } from './chat-items';
-import type { ChatForkTarget, ChatRewindTarget } from './chat-provider';
+import type { ChatForkReleaseFailure, ChatForkTarget, ChatRewindTarget } from './chat-provider';
 import type { JsonRpcConnection } from './json-rpc-connection';
 import { JsonRpcRequestError } from './json-rpc-connection';
 
 const REVERT_REQUEST_TIMEOUT_MS = 30_000;
+
+function releaseFailure(error: unknown): ChatForkReleaseFailure {
+    if (error instanceof JsonRpcRequestError) return 'rejected';
+    return error instanceof CaxriError && error.code === 'TIMEOUT' ? 'timedOut' : 'stopped';
+}
 
 /**
  * `thread/revert` removes `beforeTurnId` and every later turn from the thread's own record (a new rollout under the
@@ -39,12 +44,14 @@ export async function revertCodexThread(
 /**
  * `thread/fork` with `beforeTurnId` copies the thread up to just before `target.turnId` into a new thread (a rollout of
  * its own) and leaves the source untouched. The app-server also loads the fork, so this process unsubscribes from it at
- * once: the new Chat resumes it in its own app-server, and two processes must not drive one thread.
+ * once: the new Chat resumes it in its own app-server, and two processes must not drive one thread. A failed
+ * unsubscribe does not fail the fork, whose record is already written; `onUnsubscribeFailed` reports why (#1750).
  */
 export async function forkCodexThread(
     connection: JsonRpcConnection,
     threadId: string | undefined,
     target: ChatForkTarget,
+    onUnsubscribeFailed: (reason: ChatForkReleaseFailure) => void,
 ): Promise<string> {
     let forked: unknown;
     try {
@@ -67,8 +74,9 @@ export async function forkCodexThread(
     if (!id) throw new CaxriError('UNAVAILABLE', 'Codex did not report the forked thread');
     try {
         await connection.request('thread/unsubscribe', { threadId: id }, REVERT_REQUEST_TIMEOUT_MS);
-    } catch {
+    } catch (error) {
         // The fork is already written; a subscription left open ends with this app-server.
+        onUnsubscribeFailed(releaseFailure(error));
     }
     return id;
 }

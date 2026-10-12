@@ -45,7 +45,8 @@ interface ChatForkHost {
  * "Fork from here": the provider copies its record up to just before user message `itemId` into a new Agent Session (in
  * the source Chat's send chain, so no turn starts meanwhile), then a new Session opens it as a Chat. The source Chat
  * keeps running unchanged. Logs `agent_chat.forked` with a closed outcome and the malformed record lines the provider
- * skipped.
+ * skipped; `orphaned` marks a failure after the provider already wrote the forked record, which then stays in the
+ * provider's store with no Session to open it (#1750).
  */
 export async function forkChat(
     host: ChatForkHost,
@@ -59,6 +60,7 @@ export async function forkChat(
     const startedAt = Date.now();
     let keptTurns: number | undefined;
     let skippedRecords: number | undefined;
+    let agentSessionId: string | undefined;
     const log = (outcome: 'failed' | 'forked' | 'refused', code: string | null = null): void =>
         logger.write('info', logEventCatalog.agentChat.forked, {
             fields: {
@@ -68,13 +70,13 @@ export async function forkChat(
                 code,
                 keptTurns: keptTurns ?? null,
                 skippedRecords: skippedRecords ?? null,
+                orphaned: outcome === 'failed' && agentSessionId !== undefined,
                 durationMs: Date.now() - startedAt,
             },
         });
     try {
         const projectId = database.getSession(terminal.sessionId)?.projectId;
         if (!projectId) throw new CaxriError('NOT_FOUND', 'Session not found');
-        let agentSessionId: string | undefined;
         await host.enqueue(terminalId, async (session, state) => {
             const { snapshot } = state.projection;
             const result = agentChatRewindTarget(snapshot, itemId);

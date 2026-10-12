@@ -2,6 +2,9 @@ import { glob, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import type { Mock } from 'vitest';
 import { describe, expect, it, vi } from 'vitest';
 
 import { inheritChatPermission } from '../../session/creation';
@@ -13,6 +16,15 @@ type Provider = 'claude' | 'codex' | 'grok';
 
 function userTexts(snapshot: AgentChatSnapshot): string[] {
     return snapshot.items.flatMap((item) => (item.type === 'userMessage' ? [item.text] : []));
+}
+
+/**
+ * The fields of the one `agent_chat.forked` record.
+ */
+function forkedFields(logWrite: Mock<StructuredLogger['write']>) {
+    const records = logWrite.mock.calls.filter(([, event]) => event === 'agent_chat.forked');
+    expect(records).toHaveLength(1);
+    return records[0]?.[2]?.fields;
 }
 
 function isSettled(snapshot: AgentChatSnapshot, turns: number): boolean {
@@ -178,7 +190,56 @@ describe('AgentChatService fork', () => {
             service.fork(terminal.id, messageId('second'), createSession),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
         expect(createSession).not.toHaveBeenCalled();
-        const forked = logWrite.mock.calls.find(([, event]) => event === 'agent_chat.forked');
-        expect(forked?.[2]?.fields).toMatchObject({ outcome: 'refused', code: 'CONFLICT' });
+        expect(forkedFields(logWrite)).toMatchObject({
+            outcome: 'refused',
+            code: 'CONFLICT',
+            orphaned: false,
+        });
+    });
+
+    it('logs the forked record as orphaned when the new Session cannot be created', async () => {
+        const { service, terminal, messageId, logWrite, fakeLog } = await threeTurns('codex');
+        const failing = vi.fn<CreateForkSession>(() =>
+            Promise.reject(new CaxriError('NOT_FOUND', 'Project not found')),
+        );
+        await expect(service.fork(terminal.id, messageId('second'), failing)).rejects.toMatchObject(
+            { code: 'NOT_FOUND' },
+        );
+        // Codex already wrote the fork, and no Session opens it.
+        expect(await fakeLog('codex', 'thread-forks.jsonl')).toHaveLength(1);
+        expect(forkedFields(logWrite)).toMatchObject({
+            outcome: 'failed',
+            code: 'NOT_FOUND',
+            orphaned: true,
+        });
+    });
+
+    it('does not call a failure orphaned when the provider wrote nothing', async () => {
+        const { service, terminal, messageId, logWrite } = await threeTurns('codex');
+        const failing = vi.fn<CreateForkSession>(() =>
+            Promise.reject(new CaxriError('NOT_FOUND', 'Project not found')),
+        );
+        await expect(service.fork(terminal.id, messageId('first'), failing)).rejects.toThrow();
+        expect(forkedFields(logWrite)).toMatchObject({ outcome: 'failed', orphaned: false });
+    });
+
+    it('logs why Codex could not release the fork and still opens it', async () => {
+        const { service, terminal, messageId, createSession, logWrite, failCodexUnsubscribe } =
+            await threeTurns('codex');
+        await failCodexUnsubscribe();
+        await service.fork(terminal.id, messageId('second'), createSession);
+
+        expect(createSession).toHaveBeenCalledOnce();
+        const released = logWrite.mock.calls.filter(
+            ([, event]) => event === 'agent_chat.fork_release_failed',
+        );
+        expect(released).toEqual([
+            [
+                'debug',
+                'agent_chat.fork_release_failed',
+                { fields: { terminalId: terminal.id, reason: 'rejected' } },
+            ],
+        ]);
+        expect(forkedFields(logWrite)).toMatchObject({ outcome: 'forked', orphaned: false });
     });
 });

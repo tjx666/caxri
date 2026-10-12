@@ -485,6 +485,10 @@ draft first and then selects it, so the new composer mounts with the text.
 - The new Chat keeps the source Chat's stored permission level and plan mode, so a fork of a Chat
   narrowed to Ask for approval or Read only, or running in plan mode, never starts broader. A source that stored
   no choice leaves the fork on the Project default, like any new Chat.
+- A fork whose new Session cannot be created after the provider already forked leaves that record
+  in the provider's store with no Session to open it; Caxri does not delete it, and logs the failure
+  as `orphaned`. A Codex fork whose `thread/unsubscribe` fails still opens, and the failure is
+  logged with its reason.
 
 | Provider    | Fork                                                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -977,10 +981,13 @@ or `resendFailed` when the record was rewound but the restart or the edited mess
 closed reason `capability`, `turnRunning`, `notTurnStart`, or `unknownMessage`; the error code;
 provider, whether files were reverted, turns removed, duration through the restart and send),
 `agent_chat.files_restored` (closed outcome `restored`, `refused`, or `failed`, the same closed
-reason, the error code, provider, turns whose file changes were undone, duration), and
+reason, the error code, provider, turns whose file changes were undone, duration),
 `agent_chat.forked` (closed outcome `forked`, `refused`, or `failed`, the error code when it did not
-fork, provider, turns kept, malformed transcript lines skipped (Claude Code only), duration). A refusal names its reason; a driver that lacks file restore
-although its catalog entry offers it logs `failed` with reason `capability`. None of them carries
+fork, provider, turns kept, malformed transcript lines skipped (Claude Code only), whether a failure
+left the provider's forked record `orphaned`, duration), and `agent_chat.fork_release_failed` (debug
+level, closed reason `rejected`, `timedOut`, or `stopped` when Codex could not unsubscribe from a
+fork it loaded). A refusal names its reason; a driver that lacks file restore although its catalog
+entry offers it logs `failed` with reason `capability`. None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
