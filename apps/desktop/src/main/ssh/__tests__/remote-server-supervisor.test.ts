@@ -75,7 +75,11 @@ describe('remote server supervisor', () => {
                 return Promise.resolve({} as ServerClient);
             },
             createAskpass: () =>
-                Promise.resolve({ close: () => Promise.resolve(), environment: () => ({}) }),
+                Promise.resolve({
+                    beginAttempt: () => {},
+                    close: () => Promise.resolve(),
+                    environment: () => ({}),
+                }),
             createTransport: () => {
                 const transport = new LocalTransport(hostEnvironment(home, shims), startFailure);
                 transports.push(transport);
@@ -301,7 +305,8 @@ describe('remote server supervisor', () => {
             const supervisor = createSupervisor({
                 createAskpass: () =>
                     new Promise((resolve) => {
-                        finishCreate = () => resolve({ close, environment: () => ({}) });
+                        finishCreate = () =>
+                            resolve({ beginAttempt: () => {}, close, environment: () => ({}) });
                     }),
             });
             const ensured = captureRejection(supervisor.ensure());
