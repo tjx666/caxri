@@ -15,7 +15,6 @@ export interface AppMenuOptions {
     dispatchCommand: (command: CommandId, isViaAccelerator: boolean) => void;
     openProcessExplorer: () => void;
     openAgentCommander: () => void;
-    stopAgentCommander: () => void;
     /**
      * The Workbench window, which runs every command-backed item. Absent while it is closed.
      */
@@ -143,7 +142,6 @@ export function buildAppMenuTemplate({
     dispatchCommand,
     openAgentCommander,
     openProcessExplorer,
-    stopAgentCommander,
     workbenchWindow,
     focusWorkbench,
     isFollowingAppZoom,
@@ -173,11 +171,11 @@ export function buildAppMenuTemplate({
              */
             if (definition.id === 'processExplorer.open') return openProcessExplorer();
             /**
-             * Like Process Explorer, the Agent Commander menu must work while its own window is focused, and the
-             * Workbench Renderer is not the one that should run it.
+             * Like Process Explorer, Open Agent Commander must work while its own window is focused, and the Workbench
+             * Renderer is not the one that should run it. Stop is an ordinary Workbench command: only a Renderer can
+             * ask before a running Commander turn ends.
              */
             if (definition.id === 'agentCommander.open') return openAgentCommander();
-            if (definition.id === 'agentCommander.stop') return stopAgentCommander();
             const isViaAccelerator = event.triggeredByAccelerator === true;
             const workbench = workbenchWindow();
             switch (

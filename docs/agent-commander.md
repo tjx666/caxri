@@ -161,7 +161,9 @@ window. A stopped Commander shows no chip. While the Inbox holds open items, a s
 reads `1 needs you` or `N need you` and opens the window; it is never hidden for width, because the
 main window has no other trace that the Commander is waiting on the owner. **View > Stop Agent Commander** (also in the Command
 Palette) and the window's **Stop** button run `agentCommander.stop`: Main closes the window, then
-calls `commander.stop`. Main logs a failed stop as `agent_commander.stop_failed` with its error
+calls `commander.stop`. Every entry asks **Stop the running turn?** (**Stop and Close**) first while the
+Commander is working; the menu and the Command Palette run in the Workbench, which reads
+`commander.status` because it cannot see the Commander's Terminal. Main logs a failed stop as `agent_commander.stop_failed` with its error
 code.
 
 ## Server model
