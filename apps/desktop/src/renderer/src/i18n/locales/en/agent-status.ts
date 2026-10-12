@@ -16,7 +16,8 @@ export const agentStatus = {
     'agentStatus.phase.resolved': 'Resolved',
     'agentStatus.phase.postmortem': 'Postmortem',
     'agentStatus.moreIncidents': '+{{count}} more',
-    'agentStatus.incidentWithPhase': '{{name}} ({{phase}})',
+    // Follows the incident name in its own untruncated span, so the leading space separates the two.
+    'agentStatus.incidentPhase': ' ({{phase}})',
     // Status-bar card summary
     'agentStatus.summary.readFailed': 'Could not read the status page',
     'agentStatus.summary.checking': 'Checking…',
