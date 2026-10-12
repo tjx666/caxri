@@ -7,8 +7,13 @@ vi.mock('../../../lib/caxri', () => ({
 
 import { useEnvironmentStore } from '../../../stores/environment';
 import { dismissToast } from '../../../stores/toasts';
-import { didReplySshHostPrompt, stopSshHostServer } from '../ssh-host-commands';
-import { pickSshHostFolder, settleSshHostFolder } from '../ssh-host-dialogs-store';
+import { connectToSshHost, didReplySshHostPrompt, stopSshHostServer } from '../ssh-host-commands';
+import {
+    pickSshHostFolder,
+    setConnectSshHostOpen,
+    settleSshHostFolder,
+    useSshHostDialogsStore,
+} from '../ssh-host-dialogs-store';
 
 beforeEach(() => {
     mocks.request.mockReset();
@@ -59,5 +64,48 @@ describe('pickSshHostFolder', () => {
         await expect(first).resolves.toBeUndefined();
         settleSshHostFolder('/home/dev/app');
         await expect(second).resolves.toBe('/home/dev/app');
+    });
+});
+
+describe('connectToSshHost', () => {
+    it('keeps the picker open with the destination pending until Main opens the window', async () => {
+        const opened = Promise.withResolvers<undefined>();
+        mocks.request.mockReturnValueOnce(opened.promise);
+        setConnectSshHostOpen(true);
+
+        const connecting = connectToSshHost('work');
+        expect(useSshHostDialogsStore.getState()).toMatchObject({
+            isConnectOpen: true,
+            connectingDestination: 'work',
+        });
+        await connectToSshHost('other');
+        expect(mocks.request).toHaveBeenCalledTimes(1);
+
+        opened.resolve(undefined);
+        await connecting;
+        expect(mocks.request).toHaveBeenCalledWith('remote.connect', { destination: 'work' });
+        expect(useSshHostDialogsStore.getState()).toMatchObject({ isConnectOpen: false });
+        expect(useSshHostDialogsStore.getState().connectingDestination).toBeUndefined();
+    });
+
+    it('leaves a picker reopened during the wait alone', async () => {
+        const opened = Promise.withResolvers<undefined>();
+        mocks.request.mockReturnValueOnce(opened.promise);
+        setConnectSshHostOpen(true);
+        const connecting = connectToSshHost('work');
+
+        setConnectSshHostOpen(false);
+        setConnectSshHostOpen(true);
+        opened.resolve(undefined);
+        await connecting;
+
+        expect(useSshHostDialogsStore.getState()).toMatchObject({ isConnectOpen: true });
+    });
+
+    it('closes the picker after a failure it reported', async () => {
+        mocks.request.mockRejectedValueOnce(new Error('no window'));
+        setConnectSshHostOpen(true);
+        await connectToSshHost('work');
+        expect(useSshHostDialogsStore.getState()).toMatchObject({ isConnectOpen: false });
     });
 });
