@@ -135,3 +135,38 @@ export async function runQuestion(io: FakeCodexIo, turn: FakeTurn) {
     const answer = response?.answers?.color?.answers[0];
     await io.streamMessage(turn, `You chose ${answer ?? 'nothing'}.`, 0);
 }
+
+/**
+ * `several questions`: three questions in one request, the first with a recommended option and the last free-text only;
+ * the reply lists every answer, with `-` for a question left unanswered.
+ */
+export async function runQuestions(io: FakeCodexIo, turn: FakeTurn) {
+    const item = { type: 'dynamicToolCall', id: crypto.randomUUID() };
+    const question = (id: string, header: string, text: string, labels: string[]) => ({
+        id,
+        header,
+        question: text,
+        isOther: true,
+        isSecret: false,
+        options: labels.map((label) => ({ label, description: `${label} description` })),
+    });
+    const response = (await io.serverRequest('item/tool/requestUserInput', {
+        turnId: turn.id,
+        itemId: item.id,
+        questions: [
+            question('split', 'Split', 'How should traffic split?', [
+                'Per user (Recommended)',
+                'Per request',
+            ]),
+            question('scope', 'Scope', 'Which users count as free?', [
+                'Free and Hobby',
+                'Free only',
+            ]),
+            question('fallback', 'Fallback', 'Anything else to keep in mind?', []),
+        ],
+    })) as QuestionResponse | undefined;
+    const answers = ['split', 'scope', 'fallback'].map(
+        (id) => response?.answers?.[id]?.answers[0] ?? '-',
+    );
+    await io.streamMessage(turn, `You answered ${answers.join(' / ')}.`, 0);
+}

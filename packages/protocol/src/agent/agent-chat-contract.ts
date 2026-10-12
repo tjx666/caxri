@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
 import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
-import { agentChatRequestSchema } from './agent-chat-requests.js';
+import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-requests.js';
 import { agentChatUsageSchema } from './agent-chat-usage.js';
 
 /**
@@ -287,6 +287,17 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          */
         kind: z.enum(['error', 'compacted', 'retrying', 'answered']),
         message: z.string().max(2_000).optional(),
+        /**
+         * For `answered`: every question asked with the answer given (empty when the user skipped it), so a Client can
+         * list them as the Codex app does instead of the one-line `message` digest, which stays for Clients that show
+         * plain text.
+         */
+        answers: z
+            .array(
+                z.strictObject({ question: z.string().max(2_000), answer: z.string().max(2_000) }),
+            )
+            .max(MAX_AGENT_CHAT_QUESTIONS)
+            .optional(),
     }),
 ]);
 
