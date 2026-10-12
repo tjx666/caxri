@@ -1,22 +1,19 @@
-import process from 'node:process';
-
 import type { ServerEvent } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 
-import { createAgentNotificationDelivery } from './agent-notification-delivery';
+import type { AgentNotificationDelivery } from './agent-notification-delivery';
 import type { AgentNotificationCoordinator } from './agent-notifications';
 import { createAgentNotificationCoordinator } from './agent-notifications';
-import { createAlerterNotificationDriver } from './alerter-notification';
 import type { DesktopServerConnection } from './server-connection';
 
 interface DesktopAgentNotificationOptions {
     /**
-     * Icon for the alerter fallback used by unsigned builds; see `resolveNotificationAppIconPath`.
+     * The process-wide delivery shared with delivery-failure alerts; see `AgentNotificationDelivery`.
      */
-    appIconPath?: string;
+    delivery: AgentNotificationDelivery;
     focusMainWindow: () => Promise<BrowserWindow>;
     getWindow: () => BrowserWindow | undefined;
     logger: () => StructuredLogger | undefined;
@@ -48,18 +45,13 @@ export async function activateAgentNotificationSession(
  * before changing durable selection, so stale system notifications cannot navigate to an archived or deleted Session.
  */
 export function createDesktopAgentNotifications({
-    appIconPath,
+    delivery,
     focusMainWindow,
     getWindow,
     logger,
     supervisor,
     sendEvent,
 }: DesktopAgentNotificationOptions): AgentNotificationCoordinator {
-    const delivery = createAgentNotificationDelivery({
-        alerter: createAlerterNotificationDriver({ appIconPath }),
-        forceNative: process.env.CAXRI_E2E === '1',
-        logger,
-    });
     return createAgentNotificationCoordinator({
         activateSession: (sessionId) =>
             activateAgentNotificationSession({ focusMainWindow, supervisor }, sessionId),

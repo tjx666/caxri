@@ -14,6 +14,7 @@
  * - `table`: a reply with a Markdown table and a fenced code block.
  * - `subagent`: a foreground `Agent` subagent whose own frames carry `parent_tool_use_id`, with `task_*` frames and a
  *   subagent transcript (`subagents/agent-<id>.jsonl` plus `.meta.json`) beside the session transcript.
+ * - `workflow`: a `Workflow` tool call whose `local_workflow` task runs until `stop_task`; `quick workflow` finishes it.
  * - `background agent`: a background subagent that keeps running until `stop_task`.
  * - `quick background`: a background Bash command that finishes on its own and then wakes the main thread, which starts a
  *   turn without a user message.
@@ -58,12 +59,7 @@ import {
 } from './fake-claude-models.ts';
 import { streamPlannedReply } from './fake-claude-replies.ts';
 import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
-import {
-    runSubagent,
-    startBackgroundAgent,
-    startBackgroundShell,
-    taskControl,
-} from './fake-claude-tasks.ts';
+import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
 
 type Json = Record<string, unknown>;
 
@@ -411,18 +407,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
         }, 100);
         return;
     }
-    if (text.includes('background agent')) {
-        startBackgroundAgent(scenarioIo, startedAt);
-        return;
-    }
-    if (text.includes('quick background')) {
-        startBackgroundShell(scenarioIo, startedAt, 300);
-        return;
-    }
-    if (text.includes('background')) {
-        startBackgroundShell(scenarioIo, startedAt);
-        return;
-    }
+    if (didStartBackgroundTask(scenarioIo, startedAt, text)) return;
     if (text.includes('fail')) {
         result(startedAt, 'The fake model is overloaded.', true);
         return;

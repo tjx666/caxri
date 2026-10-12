@@ -191,6 +191,53 @@ describe('Claude Code background work in Agent Chat', () => {
         await until((snapshot) => snapshot.tasks?.[0]?.status === 'stopped');
     });
 
+    it('lists a workflow by its name with its progress until it completes', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'run a quick workflow' });
+        const listed = await until(
+            (snapshot) => !snapshot.activeTurnId && snapshot.tasks?.[0]?.status === 'running',
+        );
+        const row = listed.items.find(
+            (item) => item.type === 'toolCall' && item.name === 'Workflow',
+        );
+        expect(listed.tasks).toEqual([
+            expect.objectContaining({
+                kind: 'agent',
+                title: 'review',
+                itemId: row?.id,
+                isBackground: true,
+                canStop: true,
+            }),
+        ]);
+
+        const done = await until((snapshot) => snapshot.tasks?.[0]?.status === 'completed');
+        expect(done.tasks?.[0]).toMatchObject({
+            title: 'review',
+            canStop: false,
+            lastToolName: 'Agent',
+            summary: 'Finished',
+            usage: { totalTokens: 0, toolUses: 0, durationMs: 300 },
+        });
+    });
+
+    it('stops a running workflow', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'start a workflow' });
+        const listed = await until(
+            (snapshot) => !snapshot.activeTurnId && snapshot.tasks?.[0]?.lastToolName === 'Agent',
+        );
+        const taskId = listed.tasks?.[0]?.id ?? '';
+        expect(listed.tasks?.[0]).toMatchObject({ status: 'running', canStop: true });
+
+        await service.stopTask(terminal.id, taskId);
+        const stopped = await until((snapshot) => snapshot.tasks?.[0]?.status === 'stopped');
+        expect(stopped.tasks?.[0]).toMatchObject({
+            title: 'review',
+            canStop: false,
+            summary: 'Stopped',
+        });
+    });
+
     it('shows a turn Claude Code starts on its own after a background task finishes', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'quick background job' });

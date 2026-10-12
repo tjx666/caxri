@@ -155,13 +155,20 @@ export async function createPdfViewerSession({
     };
     const viewer = new PDFViewer(options);
     linkService.setViewer(viewer);
-    const report = (): void =>
+    let isDisposed = false;
+    /**
+     * The last report is the position a reload restores, so a disposed viewer must not overwrite it with the reset
+     * state pdf.js passes through while it tears the document down.
+     */
+    const report = (): void => {
+        if (isDisposed) return;
         onViewChange({
             pageNumber: viewer.currentPageNumber,
             pageCount: document.numPages,
             scale: viewer.currentScale,
             scaleValue: viewer.currentScaleValue,
         });
+    };
     eventBus.on('pagesinit', () => {
         viewer.currentScaleValue = restored?.scaleValue ?? INITIAL_SCALE;
         /**
@@ -236,6 +243,7 @@ export async function createPdfViewerSession({
             );
         },
         dispose: () => {
+            isDisposed = true;
             resize.disconnect();
             abort.abort();
             viewer.cleanup();

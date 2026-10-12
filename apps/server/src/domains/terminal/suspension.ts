@@ -4,7 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
-import { isStandaloneEscape } from '../agents';
+import { isMidTurnSignal, isStandaloneEscape } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { agentCommanderIdentity } from '../db';
 import { isPtyTerminal } from '../pty-guard';
@@ -18,6 +18,20 @@ import { decideTerminalSuspensions, lastActiveAt } from './suspension-policy';
 const TERMINAL_SUSPENSION_SWEEP_INTERVAL_MS = 15_000;
 
 type ParkReason = TerminalSuspensionReason | 'archived' | 'detached' | 'requested' | 'terminated';
+
+/**
+ * Why a resumed Terminal was parked: the park reason this process recorded, or `beforeRestart` for a Terminal an
+ * earlier Server Core left `suspended` or `detached`, whose reason and park time died with that process.
+ */
+type ResumeReason = ParkReason | 'beforeRestart';
+
+/**
+ * The durable states a later Agent launch resumes from; `stopped` is final and never restored.
+ */
+const PARKED_STATES: ReadonlySet<TerminalRecord['lastProcessState']> = new Set([
+    'detached',
+    'suspended',
+]);
 
 /**
  * The durable state and lifecycle cause each park writes. Only a terminate is final: `stopped` is never restored, while
@@ -81,10 +95,10 @@ export class TerminalSuspensionService {
     private readonly launchParkings = new Map<string, Promise<boolean>>();
     private readonly samples = new Map<string, TerminalActivitySample>();
     /**
-     * Terminals this process parked in a resumable state, with why and when, so the launch that resumes one can log how
-     * long it stayed parked. In memory only: a park from before a Server Core restart resumes without that record.
+     * Terminals parked in a resumable state, with why and when, so the launch that resumes one can log how long it
+     * stayed parked. In memory only, so `start` seeds an Agent an earlier Server Core left `suspended` with no time.
      */
-    private readonly parked = new Map<string, { at: number; reason: ParkReason }>();
+    private readonly parked = new Map<string, { at?: number; reason: ResumeReason }>();
     private readonly startedAt: number;
     private lastSelectedSessionId: string | undefined;
     private poller: WatchHandle | undefined;
@@ -284,7 +298,8 @@ export class TerminalSuspensionService {
 
     /**
      * Sessions that are not selected at startup are treated as deselected now, so a Server restart never suspends on
-     * the strength of a selection change it did not observe.
+     * the strength of a selection change it did not observe. An Agent still `suspended` or `detached` was parked by an
+     * earlier Server Core; it is seeded as parked without a time so its resume is still counted (GitHub issue #1784).
      */
     start(): void {
         const selected = this.options.selectedSessionId();
@@ -292,6 +307,9 @@ export class TerminalSuspensionService {
         this.lastSelectedSessionId = selected;
         for (const session of this.options.database.listSessions())
             if (session.id !== selected) this.deselectedAt.set(session.id, now);
+        for (const terminal of this.options.database.listTerminals())
+            if (terminal.provider && PARKED_STATES.has(terminal.lastProcessState))
+                this.parked.set(terminal.id, { reason: 'beforeRestart' });
         this.poller = this.options.watchHub.registerPoller({
             intervalMs: this.options.sweepIntervalMs ?? TERMINAL_SUSPENSION_SWEEP_INTERVAL_MS,
             label: 'terminal-suspension',
@@ -302,8 +320,9 @@ export class TerminalSuspensionService {
     }
 
     /**
-     * A new Agent launch. When this process parked the Terminal earlier, the launch is its resume (Session selection,
-     * `session.resume`, or a manual restart), and the time it spent parked is logged against the original reason.
+     * A new Agent launch. When the Terminal was parked, the launch is its resume (Session selection, `session.resume`,
+     * or a manual restart), and the time it spent parked is logged against the original reason; `null` when an earlier
+     * Server Core parked it.
      */
     observeLaunch(terminalId: string): void {
         const now = this.now();
@@ -317,7 +336,7 @@ export class TerminalSuspensionService {
                 provider: record?.provider ?? null,
                 reason: parked.reason,
                 sessionId: record?.sessionId ?? null,
-                suspendedForMs: now - parked.at,
+                suspendedForMs: parked.at === undefined ? null : now - parked.at,
                 terminalId,
             },
         });
@@ -342,11 +361,16 @@ export class TerminalSuspensionService {
      * accepts its resolution or the turn starts, ends, or is interrupted. A raw completion does not end the turn: the
      * coordinator may defer a parent `Stop` until its background subagents finish, so only `observeAppliedLifecycle`
      * closes it. A subagent-scoped signal (`agentId` set) never starts the main turn.
+     *
+     * A main-scope mid-turn signal (`isMidTurnSignal`) reopens the turn: `observeInput` takes every standalone Escape
+     * as an interrupt, so without this an Escape that only closed a picker would leave a running turn guarded by the
+     * idle clock alone (GitHub issue #1785).
      */
     observeLifecycle(signal: Pick<AgentLifecycleSignal, 'agentId' | 'phase' | 'terminalId'>): void {
         const sample = this.sample(signal.terminalId);
         const now = this.now();
         sample.lastSignalAt = now;
+        if (isMidTurnSignal(signal)) sample.turnInFlight = true;
         const isMainScope = signal.agentId === undefined;
         switch (signal.phase) {
             case 'turnStarted':

@@ -5,6 +5,12 @@ import process from 'node:process';
 
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
+import {
+    chooseContextMenuItem,
+    contextMenuLabels,
+    dismissContextMenu,
+    expectNoContextMenu,
+} from './support/native-context-menu.ts';
 import { stubPackagedProjectDialog } from './support/packaged-project-dialog.ts';
 
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
@@ -130,7 +136,7 @@ test('Extension tree inline actions are reachable and runnable from the keyboard
         const open = actions.locator('[data-tree-item-action="e2e.row-actions.open"]');
         await expect(child).toBeVisible();
         await expect(row).toHaveAccessibleDescription(
-            'Actions: Merge Fixture, Open Fixture. Press Right Arrow to reach them.',
+            'Actions: Merge Fixture, Open Fixture. Press Right Arrow to reach them, or Shift+F10 for a menu.',
         );
         // The actions stay out of the tab order until the keyboard enters them, so the tree keeps one Tab stop.
         await expect(merge).toHaveAttribute('tabindex', '-1');
@@ -189,6 +195,26 @@ test('Extension tree inline actions are reachable and runnable from the keyboard
         await running.page.keyboard.press('Enter');
         await expect(dialog).toBeHidden();
         await expect(tree.getByRole('treeitem', { name: 'Merges: 1', exact: true })).toBeVisible();
+
+        // The row's context menu lists the same actions in button order and runs what the buttons run, confirmation
+        // included. Shift+F10 opens it from the keyboard, anchored under the row.
+        await row.focus();
+        await running.page.keyboard.press('Shift+F10');
+        expect(await contextMenuLabels(running.app)).toEqual(['Merge Fixture', 'Open Fixture']);
+        await chooseContextMenuItem(running.app, 'Merge Fixture');
+        await expect(dialog).toBeVisible();
+        await expect(dialog.getByRole('button', { name: 'Merge', exact: true })).toBeFocused();
+        await running.page.keyboard.press('Enter');
+        await expect(dialog).toBeHidden();
+        await expect(tree.getByRole('treeitem', { name: 'Merges: 2', exact: true })).toBeVisible();
+        await row.click({ button: 'right' });
+        expect(await contextMenuLabels(running.app)).toEqual(['Merge Fixture', 'Open Fixture']);
+        await dismissContextMenu(running.app);
+        // A row with nothing to run opens no menu at all rather than an empty one.
+        await tree
+            .getByRole('treeitem', { name: 'Merges: 2', exact: true })
+            .click({ button: 'right' });
+        await expectNoContextMenu(running.app);
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });

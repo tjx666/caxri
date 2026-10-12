@@ -105,7 +105,8 @@ export function extensionTreeHorizontalIntent(
 /**
  * The visually hidden summary a row with inline actions announces, following {@link extensionTreeHorizontalIntent}: on a
  * collapsed branch Right expands it first, so promising "Right Arrow reaches them" there would send a screen reader
- * user into the children instead. Each action's state explanation (`tooltip`) is spoken beside its name.
+ * user into the children instead. Each action's state explanation (`tooltip`) is spoken beside its name. `Shift+F10`
+ * opens the same actions in the row's context menu from either state, so it is named as the shorter way to them.
  */
 export function extensionTreeActionsHint(
     actions: ReadonlyArray<{ command: { title: string }; tooltip?: string }>,
@@ -115,6 +116,6 @@ export function extensionTreeActionsHint(
         .map(({ command, tooltip }) => (tooltip ? `${command.title} (${tooltip})` : command.title))
         .join(', ');
     return isCollapsedBranch
-        ? `Actions: ${names}. Press Right Arrow to expand the row, then Right Arrow again to reach them.`
-        : `Actions: ${names}. Press Right Arrow to reach them.`;
+        ? `Actions: ${names}. Press Right Arrow to expand the row, then Right Arrow again to reach them, or Shift+F10 for a menu.`
+        : `Actions: ${names}. Press Right Arrow to reach them, or Shift+F10 for a menu.`;
 }

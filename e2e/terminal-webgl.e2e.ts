@@ -20,6 +20,7 @@ import {
     typeTerminal,
     waitForNewTerminalId,
 } from './support/helpers.ts';
+import { runningWork } from './support/running-work.ts';
 import {
     createTerminalGlyphFixture,
     terminalEdgeGlyphEvidence,
@@ -295,7 +296,7 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         await expect(surfaces).toHaveCount(2);
         await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer', 'webgl');
         await expect(surfaces.nth(1)).toHaveAttribute('data-terminal-renderer', 'webgl');
-        const runningBeforeLoss = await pageRequest<number>(running.page, 'terminal.runningCount');
+        const runningBeforeLoss = await runningWork(running.page);
         /**
          * Playwright escapes non-ASCII static text inside `String.raw`; runtime substitutions keep the PTY glyphs.
          */
@@ -376,9 +377,7 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
                 .locator('.terminal-pane:has(.xterm-helper-textarea:focus)')
                 .getAttribute('data-terminal-id'),
         ).toBe(focusedTerminalId);
-        await expect
-            .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
-            .toBe(runningBeforeLoss);
+        await expect.poll(() => runningWork(running.page)).toEqual(runningBeforeLoss);
         let retryRecords: StructuredLogRecord[] = [];
         await expect
             .poll(async () => {

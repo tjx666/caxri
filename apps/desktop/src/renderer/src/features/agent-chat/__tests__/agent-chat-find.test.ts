@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    AGENT_CHAT_FIND_REPAINT_INTERVAL_MS,
     agentChatFindCountLabel,
     agentChatFindOccurrences,
+    createAgentChatFindRepaintScheduler,
     isAgentChatTurnFoldMatch,
     locateAgentChatFindMatch,
     stepAgentChatFindIndex,
@@ -104,5 +106,55 @@ describe('isAgentChatTurnFoldMatch', () => {
     it('waits for a query long enough not to match nearly every message', () => {
         expect(isAgentChatTurnFoldMatch(fold, 'lo')).toBe(false);
         expect(isAgentChatTurnFoldMatch(fold, 'loo')).toBe(true);
+    });
+});
+
+describe('createAgentChatFindRepaintScheduler', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('repaints the first change after a quiet spell at once', () => {
+        const repaint = vi.fn();
+        const repaints = createAgentChatFindRepaintScheduler(repaint);
+        repaints.schedule();
+        expect(repaint).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(AGENT_CHAT_FIND_REPAINT_INTERVAL_MS * 4);
+        expect(repaint).toHaveBeenCalledTimes(1);
+        repaints.schedule();
+        expect(repaint).toHaveBeenCalledTimes(2);
+    });
+
+    it('bounds repaints while a reply streams and repaints once after its last change', () => {
+        const repaint = vi.fn();
+        const repaints = createAgentChatFindRepaintScheduler(repaint);
+        const streamMs = 2000;
+        const chunkMs = 16;
+        for (let elapsed = 0; elapsed < streamMs; elapsed += chunkMs) {
+            repaints.schedule();
+            vi.advanceTimersByTime(chunkMs);
+        }
+        const whileStreaming = repaint.mock.calls.length;
+        expect(whileStreaming).toBeGreaterThan(1);
+        expect(whileStreaming).toBeLessThanOrEqual(
+            Math.ceil(streamMs / AGENT_CHAT_FIND_REPAINT_INTERVAL_MS) + 1,
+        );
+        vi.advanceTimersByTime(AGENT_CHAT_FIND_REPAINT_INTERVAL_MS);
+        expect(repaint).toHaveBeenCalledTimes(whileStreaming + 1);
+        vi.advanceTimersByTime(AGENT_CHAT_FIND_REPAINT_INTERVAL_MS * 4);
+        expect(repaint).toHaveBeenCalledTimes(whileStreaming + 1);
+    });
+
+    it('drops a pending repaint once cancelled', () => {
+        const repaint = vi.fn();
+        const repaints = createAgentChatFindRepaintScheduler(repaint);
+        repaints.schedule();
+        repaints.schedule();
+        repaints.cancel();
+        vi.advanceTimersByTime(AGENT_CHAT_FIND_REPAINT_INTERVAL_MS * 4);
+        expect(repaint).toHaveBeenCalledTimes(1);
     });
 });

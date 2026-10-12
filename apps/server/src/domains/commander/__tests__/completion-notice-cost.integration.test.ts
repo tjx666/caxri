@@ -8,7 +8,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { AgentLifecycleSignal } from '../../agents';
 import type { CaxriDatabaseConnection } from '../../db';
 import { CaxriDatabase } from '../../db';
-import { createCommanderCompletionNotifier } from '../completion-notice';
+import { createCommanderCompletionNotifier } from '../completion-notice-delivery';
 
 /**
  * The Commander record's created-Session cap (`MAX_COMMANDER_SESSIONS` in `service.ts`).

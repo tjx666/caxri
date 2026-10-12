@@ -16,6 +16,7 @@ import {
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
+import { runningWork } from './support/running-work.ts';
 
 const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
 
@@ -65,7 +66,7 @@ test('Session archive hides active navigation, parks its Terminals, and restores
             'Archived investigation',
         );
         await expect(running.page.locator('.session-card')).toHaveCount(2);
-        const runningCount = () => pageRequest<number>(running.page, 'terminal.runningCount');
+        const runningCount = () => runningWork(running.page);
         const runningBeforeArchive = await runningCount();
 
         const secondRow = sessionCard(running.page, secondSessionId).locator('..');
@@ -75,7 +76,10 @@ test('Session archive hides active navigation, parks its Terminals, and restores
         await expect(sessionCard(running.page, secondSessionId)).toHaveCount(0);
         await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/);
         // An archived Session has no viewer, so its live Terminal is parked (suspended) rather than kept resident.
-        await expect.poll(runningCount).toBe(runningBeforeArchive - 1);
+        await expect.poll(runningCount).toEqual({
+            ...runningBeforeArchive,
+            terminals: runningBeforeArchive.terminals - 1,
+        });
         await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
         const archivedEntry = running.page.locator('aside .archived-sessions-entry');
         await expect(archivedEntry).toHaveAccessibleName('Archived Sessions (1)');
@@ -98,7 +102,7 @@ test('Session archive hides active navigation, parks its Terminals, and restores
         // Restoring alone leaves the Terminal parked; selecting the Session relaunches it.
         await sessionCard(running.page, secondSessionId).click();
         await expect(sessionCard(running.page, secondSessionId)).toHaveClass(/active/);
-        await expect.poll(runningCount).toBe(runningBeforeArchive);
+        await expect.poll(runningCount).toEqual(runningBeforeArchive);
         const snapshot = await pageRequest<{
             sessions: Array<{ archivedAt?: number; id: string }>;
         }>(running.page, 'app.bootstrap');

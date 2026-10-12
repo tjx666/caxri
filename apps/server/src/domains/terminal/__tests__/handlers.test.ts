@@ -3,24 +3,28 @@ import { describe, expect, it, vi } from 'vitest';
 import { createTerminalHandlers } from '../handlers';
 import type { TerminalManager } from '../index';
 
-function handlers(countRunning: (sessionId?: string) => number) {
+function handlers(
+    runningTerminals: (sessionId?: string) => number,
+    liveChats: (sessionId?: string) => number,
+) {
     return createTerminalHandlers({
-        countRunning,
+        countLiveChats: liveChats,
         database: { getTerminal: vi.fn() },
         resourceMonitor: { processes: vi.fn(() => []), readingOverride: vi.fn() },
-        terminals: {} as TerminalManager,
+        terminals: { runningCount: runningTerminals } as unknown as TerminalManager,
         terminalSuspension: { suspendOnRequest: vi.fn() },
     });
 }
 
 describe('terminal.runningCount', () => {
-    it('reports the shared running count, so a Chat-only window still asks before closing', async () => {
-        const countRunning = vi.fn((sessionId?: string) => (sessionId === 'session-1' ? 1 : 2));
-        const runningCount = handlers(countRunning)['terminal.runningCount'];
+    it('reports running Terminals and Chats separately, so a Chat-only window still asks before closing', async () => {
+        const runningTerminals = vi.fn((sessionId?: string) => (sessionId === 'session-1' ? 0 : 2));
+        const liveChats = vi.fn((sessionId?: string) => (sessionId === 'session-1' ? 1 : 3));
+        const runningCount = handlers(runningTerminals, liveChats)['terminal.runningCount'];
 
-        expect(await runningCount({})).toBe(2);
-        expect(await runningCount({ sessionId: 'session-1' })).toBe(1);
-        expect(countRunning).toHaveBeenNthCalledWith(1, undefined);
-        expect(countRunning).toHaveBeenNthCalledWith(2, 'session-1');
+        expect(await runningCount({})).toEqual({ terminals: 2, chats: 3 });
+        expect(await runningCount({ sessionId: 'session-1' })).toEqual({ terminals: 0, chats: 1 });
+        expect(runningTerminals.mock.calls).toEqual([[undefined], ['session-1']]);
+        expect(liveChats.mock.calls).toEqual([[undefined], ['session-1']]);
     });
 });

@@ -1,11 +1,36 @@
 import type { AgentOperation } from '@caxri/protocol';
 
+import type { AgentLifecycleSignal } from './hooks/contract';
+
 /**
  * A single Escape byte submitted on its own is the user interrupting the Agent. Exact matching excludes Shift+Enter and
  * navigation escape sequences, which arrive as longer payloads.
  */
 export function isStandaloneEscape(data: string): boolean {
     return data === '\u{1B}';
+}
+
+/**
+ * Main-thread phases a provider sends only from inside a running turn, without ending it.
+ */
+const midTurnPhases: ReadonlySet<AgentLifecycleSignal['phase']> = new Set([
+    'attentionRequested',
+    'attentionResolved',
+    'shellToolFailed',
+    'shellToolFinished',
+    'shellToolStarted',
+    'toolBatchFinished',
+]);
+
+/**
+ * Whether a signal proves the main turn is still running. A {@link isStandaloneEscape} keystroke is taken as an
+ * interrupt at face value, so an Escape the TUI consumed for something else (closing a picker) also ends the turn for
+ * every consumer that tracks one; this is the evidence that heals that misread. A subagent signal (`agentId` set) says
+ * nothing about the main turn. `sessionIdentified` and compaction are excluded because SessionStart also fires at
+ * launch and resume, and a manual compaction runs between turns.
+ */
+export function isMidTurnSignal(signal: Pick<AgentLifecycleSignal, 'agentId' | 'phase'>): boolean {
+    return signal.agentId === undefined && midTurnPhases.has(signal.phase);
 }
 
 interface RunningTurnIdentity {

@@ -477,7 +477,12 @@ class CodexChatSession implements AgentChatProviderSession {
 
     async fork(target: ChatForkTarget): Promise<ChatFork> {
         return {
-            agentSessionId: await forkCodexThread(this.requireConnection(), this.threadId, target),
+            agentSessionId: await forkCodexThread(
+                this.requireConnection(),
+                this.threadId,
+                target,
+                (reason) => this.options.onForkReleaseFailed(reason),
+            ),
         };
     }
 

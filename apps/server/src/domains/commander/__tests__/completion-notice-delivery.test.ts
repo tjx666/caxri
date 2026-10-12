@@ -2,7 +2,7 @@ import type { AgentDelegationReceipt, SessionRecord, TerminalRecord } from '@cax
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
-import { createCommanderCompletionNotifier } from '../completion-notice';
+import { createCommanderCompletionNotifier } from '../completion-notice-delivery';
 import { commanderRowReader } from './commander-rows-fake';
 import { pendingStore } from './pending-notices-fake';
 

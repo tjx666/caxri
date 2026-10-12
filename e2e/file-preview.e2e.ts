@@ -219,6 +219,24 @@ test('previews PDF, CSV, and Mermaid files', async () => {
         await page.getByRole('menuitemradio', { name: 'Fit Width' }).click();
         await expect(zoom).toHaveAttribute('aria-label', fitted ?? '');
 
+        // Regenerating the file on disk swaps the new copy in without a click, at the reader's page and zoom.
+        await page.getByRole('button', { name: 'Zoom In' }).click();
+        await expect(zoom).not.toHaveAttribute('aria-label', fitted ?? '');
+        const zoomed = await zoom.getAttribute('aria-label');
+        await pdf.evaluate((element) => {
+            element.scrollTop = element.scrollHeight;
+        });
+        await expect(pageField).toHaveValue('2');
+        await writeFile(
+            join(root, 'manual.pdf'),
+            syntheticPdf(['Rewritten page one', 'Rewritten page two', 'Rewritten page three']),
+        );
+        await expect(pdf.locator('.page')).toHaveCount(3);
+        await expect(pdf).toContainText('Rewritten page two');
+        await expect(page.getByText('of 3', { exact: true })).toBeVisible();
+        await expect(pageField).toHaveValue('2');
+        await expect(zoom).toHaveAttribute('aria-label', zoomed ?? '');
+
         await page.getByRole('treeitem', { name: 'broken.pdf', exact: true }).click();
         await expect(page.locator('.empty-work[role="alert"]')).toContainText(
             'This file is not a valid PDF, or it is damaged.',

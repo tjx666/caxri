@@ -284,14 +284,22 @@ dropped; the pickers cap their own width instead.
 Acceptance outranks Linear because it reports whether the current work passed, which changes what
 the reviewer does next; the pull request survives longest because it is the branch's identity.
 The right side follows the active tab: a normal file shows
-current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
-process-tree memory, and child count. Terminal progress takes an hourglass (`Hourglass`), because
-`Gauge` belongs to the Agent output-speed chip that sits beside it. The memory chip turns `--danger` while that Terminal's tree is
+current-line blame, selection, cursor position, and language; an external file (opened from outside
+the Project, such as from a Terminal link) shows the same minus blame, since there is no Project
+history to blame it against; a Terminal shows Terminal progress, process-tree memory, and child
+count. Terminal progress takes an hourglass (`Hourglass`), because `Gauge` belongs to the Agent
+output-speed chip that sits beside it. The memory chip turns `--danger` while that Terminal's tree is
 above the shared resource-alert thresholds (see `docs/process-explorer.md`), and its tooltip names
 the CPU reading and the threshold, so a runaway Agent is visible before its alert toast fires.
 An Agent Terminal also shows its Agent's output speed (`62 tok/s`) once the Agent's transcript has a
 measured response. It is a persistent gauge, not a transient Agent operation, so it lives here. It
 carries no threshold colour: the number is measured, and what counts as slow is the reader's call.
+The one colour it can carry is the provider's: while the Agent's provider reports maintenance or
+degraded performance a `--warning` dot marks the gauge glyph's top-right corner, and a partial or
+major outage marks it `--danger`. The dot is drawn into the glyph, so the chip keeps its width as it
+comes and goes, and the chip's accessible name ends with the same status in words
+(`API status: Partial outage`). An operational provider, an unread or unreadable status page, and a
+provider without one show no dot.
 The hover card breaks it down by last response, turn, and Agent Session (the turn row folds into the
 Agent Session row while both cover the same responses), lists provider incidents as at most one line
 plus `+N more`, charts the recent responses, and states the method (see `docs/agent-throughput.md`).

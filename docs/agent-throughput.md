@@ -23,7 +23,8 @@ last response, the current turn, the whole Agent Session, Codex's own time-to-fi
 turn, and a bar chart of the last `AGENT_THROUGHPUT_SAMPLE_LIMIT` (20) responses. While the turn
 covers exactly the same responses as the Agent Session (its first turn), the card drops the turn row
 and shows only the Agent Session row, since two identical rows would read as two different facts.
-There are no thresholds or colours: what counts as slow is the reader's call.
+There are no thresholds or colours on the number: what counts as slow is the reader's call. The
+only colour the chip carries is the provider's status dot (see [Provider API status](#provider-api-status)).
 
 Clicking the chip, or running `Show Agent Status` (`terminal.showAgentStatus`, available only while
 the active tab is an Agent Terminal), opens an Agent status tab (`caxri-agent-status://<terminalId>`)
@@ -39,7 +40,9 @@ speed appears after its first one. A reading already on screen outranks a later 
 
 A response whose start was never recorded (a resumed rollout, a compaction request, a Claude
 message with no input after the previous one) is skipped rather than estimated. Until the first
-measured response the chip is absent instead of holding a placeholder.
+measured response the chip is absent instead of holding a placeholder, unless the provider's status
+page reports a problem: then it shows a muted dash placeholder with the status dot, so an incident is
+visible before the first prompt.
 
 ## Providers
 
@@ -74,6 +77,14 @@ Claude's `Claude API` and `Claude Code` components from its Statuspage summary, 
 `Codex` group from its incident.io page. Grok has no public status page, so its status row is
 omitted. Unresolved incidents touching those components are listed with their phase and latest
 update; incidents on other components (such as claude.ai) are left out.
+
+While the reading says something is wrong, the chip itself shows it without a hover: maintenance or
+degraded performance draws a `--warning` dot on the gauge glyph's corner, and a partial or major
+outage a `--danger` one, the same status-to-tone mapping the status tab's dots use. The chip's
+accessible name ends with the status in words (`API status: Partial outage`). An operational
+provider, a first read still pending, a provider without a status page, and a page Caxri could not
+read raise no dot, because none of them is evidence of an incident (`providerStatusAlert` in
+`apps/desktop/src/renderer/src/features/agent-status/agent-provider-status-label.ts`).
 
 `agentProviderStatus.read` is a Desktop Main method
 (`apps/desktop/src/main/agent-provider-status.ts`). Main fetches through Electron's `net.fetch`

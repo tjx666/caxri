@@ -4,6 +4,7 @@ import {
     agentChatAttachmentLabel,
     agentChatAttachmentName,
     appendToAgentChatDraft,
+    draftAfterEditCancel,
     draftAfterSend,
     draftWithInsertion,
     readAgentChatAttachments,
@@ -43,7 +44,12 @@ describe('Agent Chat drafts', () => {
 
     it('releases the images and edit of a Chat that is gone, keeping those of open Chats and every text draft', () => {
         const image = { mediaType: 'image/png', data: 'AAAA', thumbnail: 'AAAA' } as const;
-        const edit = { itemId: 'message-1', restoreFiles: false, previousDraft: '' };
+        const edit = {
+            itemId: 'message-1',
+            restoreFiles: false,
+            previousDraft: '',
+            appendedDraft: '',
+        };
         for (const terminalId of ['chat-open', 'chat-closed']) {
             writeAgentChatDraft(terminalId, `draft of ${terminalId}`);
             writeAgentChatAttachments(terminalId, [{ id: `${terminalId}-image`, image }]);
@@ -57,6 +63,41 @@ describe('Agent Chat drafts', () => {
         expect(readAgentChatDraft('chat-closed')).toBe('draft of chat-closed');
         expect(readAgentChatAttachments('chat-open')).toHaveLength(1);
         expect(readAgentChatEdit('chat-open')).toEqual(edit);
+    });
+
+    it('keeps a review comment added during "Edit from here" for Cancel to put back', () => {
+        writeAgentChatEdit('chat-e', {
+            itemId: 'u1',
+            restoreFiles: false,
+            previousDraft: 'set aside',
+            appendedDraft: '',
+        });
+        writeAgentChatDraft('chat-e', 'edited message');
+        appendToAgentChatDraft('chat-e', 'first comment');
+        expect(readAgentChatDraft('chat-e')).toBe('edited message\n\nfirst comment');
+
+        const received: string[] = [];
+        const unsubscribe = subscribeAgentChatDraftAppends('chat-e', (text) => received.push(text));
+        appendToAgentChatDraft('chat-e', 'second comment');
+        unsubscribe();
+        expect(received).toEqual(['second comment']);
+
+        const edit = readAgentChatEdit('chat-e');
+        // A sent edit carries the comments in its message, so the draft it brings back stays as it was.
+        expect(edit?.previousDraft).toBe('set aside');
+        expect(edit && draftAfterEditCancel(edit)).toBe(
+            'set aside\n\nfirst comment\n\nsecond comment',
+        );
+        writeAgentChatEdit('chat-e', undefined);
+    });
+
+    it('puts back only the set-aside draft when nothing was appended during the edit', () => {
+        expect(draftAfterEditCancel({ previousDraft: 'set aside', appendedDraft: '' })).toBe(
+            'set aside',
+        );
+        expect(draftAfterEditCancel({ previousDraft: '', appendedDraft: 'comment' })).toBe(
+            'comment',
+        );
     });
 
     it('clears only the text that was sent, keeping anything typed while the send was in flight', () => {

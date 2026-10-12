@@ -78,10 +78,16 @@ export const logEventCatalog = {
         /**
          * One "Fork from here" with a closed `outcome` (`forked`, `refused`, `failed`), the error `code` when it did
          * not fork, the provider, the turns the fork keeps, `skippedRecords` (the malformed transcript lines a provider
-         * that reads its own record skipped, Claude Code only, else null), and the duration through creating the new
-         * Session. Never carries message text or paths.
+         * that reads its own record skipped, Claude Code only, else null), whether a failure left the provider's forked
+         * record `orphaned` (written, but no Session opens it), and the duration through creating the new Session.
+         * Never carries message text or paths.
          */
         forked: 'agent_chat.forked',
+        /**
+         * A fork succeeded but the provider could not release the forked conversation it also loaded (Codex
+         * `thread/unsubscribe`), with a closed `reason` (`rejected`, `timedOut`, `stopped`).
+         */
+        forkReleaseFailed: 'agent_chat.fork_release_failed',
         /**
          * One "Restore code to here" with a closed `outcome` (`restored`, `refused`, `failed`), a closed `reason` for a
          * refusal or capability failure (`capability`, `turnRunning`, `notTurnStart`, `unknownMessage`, else null), the
@@ -184,6 +190,18 @@ export const logEventCatalog = {
     },
     database: {
         sessionStateRepaired: 'db.session_state_repaired',
+        /**
+         * A Server-owned write advanced a Session state revision: the closed `reason` (`serviceWrite`,
+         * `rootFirstVisit`, `terminalTabRepair`, `unreadableRepair`, `terminalCreated`, `terminalClosed`,
+         * `terminalMovedAway`, `projectPruned`) and the stored `revision`. Client writes are not recorded per write.
+         */
+        sessionStateRevisionAdvanced: 'db.session_state_revision_advanced',
+        /**
+         * A Session state write rejected as stale: `currentRevision`, `writtenRevision`, and the last recorded write in
+         * this Server Core lifetime as `lastWriteReason` (the closed reason, `clientWrite`, or `unrecorded`),
+         * `lastWriteRevision`, and `lastWriteAgeMs`.
+         */
+        sessionStateStaleWrite: 'db.session_state_stale_write',
         sessionStateUnchanged: 'db.session_state_unchanged',
     },
     diagnostics: {
@@ -450,9 +468,10 @@ export const logEventCatalog = {
         restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
         resumeSkipped: 'terminal.resume_skipped',
         /**
-         * An Agent launch that resumed a Terminal this Server Core parked earlier: the closed park `reason` (`idle`,
-         * `untouched`, `archived`, `detached`, `requested`), the provider, and `suspendedForMs`. A park from before a
-         * Server Core restart resumes without this record.
+         * An Agent launch that resumed a parked Terminal: the closed park `reason` (`idle`, `untouched`, `archived`,
+         * `detached`, `requested`), the provider, and `suspendedForMs`. An Agent an earlier Server Core left
+         * `suspended` or `detached` logs `reason: 'beforeRestart'` with `suspendedForMs: null`, since its park time was
+         * in memory.
          */
         resumed: 'terminal.resumed',
         suspendFailed: 'terminal.suspend_failed',

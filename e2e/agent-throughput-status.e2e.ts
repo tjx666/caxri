@@ -138,10 +138,15 @@ test('the status bar shows the active Agent Terminal output speed and usage from
         await mkdir(dirname(transcriptPath), { recursive: true });
 
         const chip = running.page.locator('.statusbar-agent-throughput');
-        // Nothing is measured before the first response, so the chip holds no slot.
+        // Nothing is measured before the first response, but Claude Code is degraded on the fixture page, so the chip
+        // already holds a muted placeholder whose glyph carries the warning dot.
         await writeFile(transcriptPath, prompt(0));
         await expect(running.page.locator('.statusbar')).toBeVisible();
-        await expect(chip).toHaveCount(0);
+        await expect(chip).toHaveText('—');
+        await expect(chip.locator('[data-provider-status="warning"]')).toHaveCount(1);
+        await expect(chip).toHaveAccessibleName(
+            /output speed: not measured yet; API status: Degraded/,
+        );
 
         // 200 tokens in 4 s, then 400 tokens in 4 s: 600 tokens over 8 s.
         await appendFile(
@@ -156,6 +161,9 @@ test('the status bar shows the active Agent Terminal output speed and usage from
         // A further 300 tokens in 2 s moves the token-weighted rate to 900 tokens over 10 s.
         await appendFile(transcriptPath, toolResult(10) + response(12, 'msg-3', 300));
         await expect(chip).toHaveText('90 tok/s');
+        // Claude Code is degraded on the fixture page: the glyph carries a warning dot, and the name says so in words.
+        await expect(chip.locator('[data-provider-status="warning"]')).toHaveCount(1);
+        await expect(chip).toHaveAccessibleName(/, API status: Degraded performance$/);
         await testInfo.attach('agent-throughput-chip', {
             body: await running.page.locator('.statusbar').screenshot(),
             contentType: 'image/png',

@@ -342,6 +342,7 @@ export function AgentChatPane({
                 inputReference={inputReference}
                 isBusy={isAgentChatBusy(snapshot)}
                 isQueuePaused={snapshot?.queuePaused ?? false}
+                isShown={isShown}
                 providerName={providerName}
                 onSent={jumpToLatest}
                 queue={snapshot?.queue}

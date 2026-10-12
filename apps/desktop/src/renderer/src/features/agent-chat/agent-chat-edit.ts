@@ -11,9 +11,15 @@ export interface AgentChatEdit {
     itemId: string;
     restoreFiles: boolean;
     /**
-     * The draft the composer held before the message replaced it, put back when the edit is cancelled.
+     * The draft the composer held before the message replaced it, put back when the edit is cancelled or sent.
      */
     previousDraft: string;
+    /**
+     * Text another surface appended to the Chat's message during the edit (a turn review comment), as paragraphs, empty
+     * when none was. It lands in the edited message too, so a sent edit carries it; Cancel discards the edited message,
+     * so it puts this back after `previousDraft` (`draftAfterEditCancel`) instead of silently dropping it.
+     */
+    appendedDraft: string;
 }
 
 export const AGENT_CHAT_EDITS_STORAGE_KEY = 'caxri.agent-chat.edits';
@@ -44,20 +50,24 @@ export function parsePersistedAgentChatEdits(value: unknown): Map<string, AgentC
         const [terminalId, edit] = entry as unknown[];
         if (typeof terminalId !== 'string' || !terminalId || typeof edit !== 'object' || !edit)
             continue;
-        const { itemId, restoreFiles, previousDraft } = edit as Record<string, unknown>;
+        const { itemId, restoreFiles, previousDraft, appendedDraft } = edit as Record<
+            string,
+            unknown
+        >;
         if (
             typeof itemId === 'string' &&
             itemId &&
             typeof restoreFiles === 'boolean' &&
-            typeof previousDraft === 'string'
+            typeof previousDraft === 'string' &&
+            typeof appendedDraft === 'string'
         )
-            parsed.set(terminalId, { itemId, restoreFiles, previousDraft });
+            parsed.set(terminalId, { itemId, restoreFiles, previousDraft, appendedDraft });
     }
     return parsed;
 }
 
 /**
- * The entries to persist, oldest first: the newest edits whose held-back drafts fit both bounds.
+ * The entries to persist, oldest first: the newest edits whose held-back drafts and appended comments fit both bounds.
  */
 export function persistableAgentChatEdits(
     current: ReadonlyMap<string, AgentChatEdit>,
@@ -66,7 +76,7 @@ export function persistableAgentChatEdits(
     let characters = 0;
     for (const entry of [...current].toReversed()) {
         if (kept.length >= MAX_PERSISTED_AGENT_CHAT_EDITS) break;
-        characters += entry[1].previousDraft.length;
+        characters += entry[1].previousDraft.length + entry[1].appendedDraft.length;
         if (characters > MAX_PERSISTED_AGENT_CHAT_EDIT_CHARACTERS) break;
         kept.push(entry);
     }

@@ -1,8 +1,10 @@
 import { Buffer } from 'node:buffer';
+import type { FileHandle } from 'node:fs/promises';
 import {
     link,
     mkdir,
     mkdtemp,
+    open,
     readFile,
     rename,
     rm,
@@ -15,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import {
     openLinkedExternalDocument,
@@ -166,6 +168,46 @@ describe('external document changes on disk', () => {
         await rm(document.displayPath);
 
         expect(await externalDocumentDiskState(document.id)).toBe('unchanged');
+    });
+
+    /**
+     * The watcher reacts to Caxri's own save, and a read landing between the truncate and the last write would hand the
+     * Renderer a half-written file to replace its buffer with. The save is held right after it truncated the file, so
+     * the read provably lands inside that window.
+     */
+    it('refuses a read while its own save is writing, then reads the saved content', async () => {
+        const { directory, document } = await externalFile('guide.md', '# Before the save\n');
+        const scratch = await open(join(directory, 'scratch.md'), 'w');
+        const fileHandle = Object.getPrototypeOf(scratch) as FileHandle;
+        await scratch.close();
+        const heldBeforeWrite = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        const writeSpy = vi.spyOn(fileHandle, 'write');
+        writeSpy.mockImplementation(async function (this: FileHandle, ...parameters: unknown[]) {
+            heldBeforeWrite.resolve();
+            await release.promise;
+            // Only the first write is held: restoring hands it and the rest of the save to the real method.
+            writeSpy.mockRestore();
+            return this.write(...(parameters as Parameters<FileHandle['write']>));
+        });
+        onTestFinished(() => {
+            release.resolve();
+            writeSpy.mockRestore();
+        });
+
+        const saving = writeExternalDocument(document.id, '# After the save\n');
+        await heldBeforeWrite.promise;
+        expect(await readFile(document.displayPath, 'utf8')).toBe('');
+        await expect(readExternalDocument(document.id)).rejects.toMatchObject({
+            code: 'CONFLICT',
+            message: 'Document is being saved',
+        });
+
+        release.resolve();
+        await saving;
+        expect(await readExternalDocument(document.id)).toMatchObject({
+            content: '# After the save\n',
+        });
     });
 });
 

@@ -11,14 +11,16 @@ import type { AgentChatSessionHost } from './chat-provider';
 import { ChatTaskList } from './chat-tasks';
 import { claudeAssistantItems, text } from './claude-items';
 import { ClaudeStream } from './claude-stream';
+import { claudeTaskStatus, claudeTaskUsage } from './claude-task-fields';
 import { settleClaudeToolItem } from './claude-tool-results';
 
 /**
- * Background work a Claude Code Chat lists: subagents (`Agent`, formerly `Task`) and background shells (`Bash
- * run_in_background`). Claude Code reports them as `system/task_*` frames keyed by its own `task_id`, plus a
- * `background_tasks_changed` level signal; subagent conversation frames carry the spawning tool call's id as
- * `parent_tool_use_id`. Caxri keys a subagent by that tool call id (the timeline row's id, so the row opens the tab),
- * and a background shell by Claude Code's `task_id` with `itemId` naming its Bash row. Inputs are untrusted JSON.
+ * Background work a Claude Code Chat lists: subagents (`Agent`, formerly `Task`), workflows (`Workflow`, a
+ * `local_workflow` task), and background shells (`Bash run_in_background`). Claude Code reports them as `system/task_*`
+ * frames keyed by its own `task_id`, plus a `background_tasks_changed` level signal; subagent conversation frames carry
+ * the spawning tool call's id as `parent_tool_use_id`. Caxri keys a subagent by that tool call id (the timeline row's
+ * id, so the row opens the tab), and a background shell by Claude Code's `task_id` with `itemId` naming its Bash row. A
+ * workflow is listed as a background `agent` task named by its script's `workflow_name`. Inputs are untrusted JSON.
  *
  * @see https://code.claude.com/docs/en/agent-sdk/typescript
  */
@@ -44,6 +46,10 @@ interface KnownTask {
     kind: AgentChatTask['kind'];
     toolUseId?: string;
     description: string;
+    /**
+     * A workflow keeps its name as its title; a `task_updated` description does not rename it.
+     */
+    isWorkflow?: boolean;
 }
 
 /**
@@ -51,43 +57,6 @@ interface KnownTask {
  * reached through a runtime check rather than a type.
  */
 type TaskOutputReader = (taskId: string) => Promise<unknown>;
-
-function taskStatus(status: unknown): AgentChatTask['status'] | undefined {
-    switch (status) {
-        case 'pending':
-        case 'running':
-        case 'paused': {
-            return 'running';
-        }
-        case 'completed':
-        case 'failed': {
-            return status;
-        }
-        case 'killed':
-        case 'stopped': {
-            return 'stopped';
-        }
-        default: {
-            return undefined;
-        }
-    }
-}
-
-function taskUsage(usage: unknown): AgentChatTask['usage'] | undefined {
-    if (!isRecord(usage)) return undefined;
-    const count = (value: unknown) =>
-        typeof value === 'number' && Number.isFinite(value) && value >= 0
-            ? Math.trunc(value)
-            : undefined;
-    const totalTokens = count(usage.total_tokens);
-    const toolUses = count(usage.tool_uses);
-    const durationMs = count(usage.duration_ms);
-    return {
-        ...(totalTokens !== undefined && { totalTokens }),
-        ...(toolUses !== undefined && { toolUses }),
-        ...(durationMs !== undefined && { durationMs }),
-    };
-}
 
 export class ClaudeTasks {
     private readonly list: ChatTaskList;
@@ -249,7 +218,10 @@ export class ClaudeTasks {
         const toolUseId = stringField(message.tool_use_id);
         const description = text(message.description);
         const agentType = stringField(message.subagent_type);
+        // A workflow always runs in the background (its tool call returns at once) and reports no `is_backgrounded`.
+        const isWorkflow = message.task_type === 'local_workflow';
         const isAgent =
+            isWorkflow ||
             message.task_type === 'local_agent' ||
             (toolUseId !== undefined && this.list.get(clip(toolUseId, 200))?.kind === 'agent');
         if (isAgent) {
@@ -259,17 +231,20 @@ export class ClaudeTasks {
                 kind: 'agent',
                 ...(toolUseId && { toolUseId }),
                 description,
+                ...(isWorkflow && { isWorkflow }),
             });
             this.claudeIds.set(id, claudeId);
             const existing = this.list.get(id);
             const isBackground =
-                typeof message.is_backgrounded === 'boolean'
+                isWorkflow ||
+                (typeof message.is_backgrounded === 'boolean'
                     ? message.is_backgrounded
-                    : (existing?.isBackground ?? false);
+                    : (existing?.isBackground ?? false));
+            // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty description names nothing
+            const agentTitle = description || existing?.title || agentType || 'Agent';
             this.list.upsert(id, {
                 kind: 'agent',
-                // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty description names nothing
-                title: description || existing?.title || agentType || 'Agent',
+                title: isWorkflow ? (stringField(message.workflow_name) ?? 'Workflow') : agentTitle,
                 ...(toolUseId && { itemId: id }),
                 ...(agentType && { agentType }),
                 isBackground,
@@ -289,7 +264,7 @@ export class ClaudeTasks {
         const patch = isRecord(message.patch) ? message.patch : undefined;
         if (!claudeId || !patch) return;
         const known = this.known.get(claudeId);
-        const status = taskStatus(patch.status);
+        const status = claudeTaskStatus(patch.status);
         if (!known?.id) {
             if (known && patch.is_backgrounded === true && (!status || status === 'running'))
                 this.listShell(claudeId, known);
@@ -308,7 +283,9 @@ export class ClaudeTasks {
         this.list.upsert(task.id, {
             isBackground,
             ...(task.status === 'running' && { canStop: task.kind === 'shell' || isBackground }),
-            ...(description && task.kind === 'agent' && { title: description }),
+            ...(description &&
+                task.kind === 'agent' &&
+                !known.isWorkflow && { title: description }),
         });
     }
 
@@ -316,7 +293,7 @@ export class ClaudeTasks {
         const claudeId = stringField(message.task_id);
         const id = claudeId && this.listedId(claudeId);
         if (!id || this.list.get(id)?.status !== 'running') return;
-        const usage = taskUsage(message.usage);
+        const usage = claudeTaskUsage(message.usage);
         const lastToolName = stringField(message.last_tool_name);
         const summary = stringField(message.summary);
         this.list.upsert(id, {
@@ -330,12 +307,12 @@ export class ClaudeTasks {
         const claudeId = stringField(message.task_id);
         if (!claudeId) return;
         const id = this.listedId(claudeId);
-        const status = taskStatus(message.status);
+        const status = claudeTaskStatus(message.status);
         if (!id || !status || status === 'running') {
             if (!id) this.known.delete(claudeId);
             return;
         }
-        const usage = taskUsage(message.usage);
+        const usage = claudeTaskUsage(message.usage);
         const summary = stringField(message.summary);
         this.finish(id, status, { ...(usage && { usage }), ...(summary && { summary }) });
         // A finished shell's output can be read once more; this is its final tail.

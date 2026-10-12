@@ -1,34 +1,26 @@
 import { useEffect } from 'react';
 
-import { MessageSquareWarning, Power } from 'lucide-react';
-
-import { Button } from '../../components/ui/button';
-import { Tooltip, TooltipProvider } from '../../components/ui/tooltip';
+import { TooltipProvider } from '../../components/ui/tooltip';
 import { useWorkbenchAppearance } from '../../hooks/use-workbench-appearance';
 import { queryClient } from '../../queries/client';
-import { useProjectById, useTerminal } from '../../stores/selectors';
 import { subscribeAgentChatPatches } from '../agent-chat/agent-chat-client';
 import { ConfirmationDialog } from '../confirmations/confirmation-dialog';
-import { AgentSurfaceToggle } from '../terminal/agent-surface-toggle';
-import { canSwitchTerminalSurface } from '../terminal/terminal-surface-commands';
 import { ToastOutlet } from '../toasts/toast-outlet';
 import { useWindowZoomFactor } from '../window-zoom/use-window-zoom-factor';
+import { AgentCommanderHeader } from './agent-commander-header';
+import { useCommanderBoardUiStore } from './commander-board-store';
 import { CommanderBoardView } from './commander-board-view';
-import { useAgentCommanderStore } from './commander-client';
-import { stopCommander } from './commander-commands';
-import { openCommanderInboxCount } from './commander-inbox';
 import { CommanderInboxColumn } from './commander-inbox-column';
-import { setCommanderInboxVisible, useCommanderInboxUiStore } from './commander-inbox-store';
 import { useCommanderShortcuts } from './commander-shortcuts';
 import { CommanderTerminal } from './commander-terminal';
 import { useAgentCommander } from './hooks/use-agent-commander';
-import { useCommanderInbox } from './hooks/use-commander-inbox';
 
 /**
  * The Agent Commander window: the board of every Workbench Session on the left, the Commander's own Terminal in the
- * middle, and on the right the Inbox of what the Commander raised for the user ("Needs you"), which the user can hide.
- * It renders no Workbench chrome and runs no Workbench commands; menu accelerators stay with the Workbench window, and
- * the keyboard reaches only its Terminal's own actions.
+ * middle, and on the right the Inbox of what the Commander raised for the user ("Needs you"). The user can collapse the
+ * board and hide the Inbox from the title bar, and the Terminal takes the freed width. It renders no Workbench chrome
+ * and runs no Workbench commands; menu accelerators stay with the Workbench window, and the keyboard reaches only its
+ * Terminal's own actions.
  */
 export function AgentCommanderApp() {
     const { retry, status } = useAgentCommander();
@@ -37,17 +29,20 @@ export function AgentCommanderApp() {
     useCommanderShortcuts();
     // The Chat pane reads its projection from the query cache, which these patches keep current once it runs as a Chat.
     useEffect(() => subscribeAgentChatPatches(queryClient), []);
+    const isBoardVisible = useCommanderBoardUiStore((state) => state.isVisible);
     return (
         <TooltipProvider>
             <div className="agent-commander flex h-screen w-screen flex-col bg-background text-foreground">
                 <AgentCommanderHeader />
                 <div className="relative flex min-h-0 flex-1">
-                    <aside
-                        aria-label="Sessions"
-                        className="agent-commander-board flex w-90 flex-none flex-col bg-surface"
-                    >
-                        <CommanderBoardView />
-                    </aside>
+                    {isBoardVisible && (
+                        <aside
+                            aria-label="Sessions"
+                            className="agent-commander-board flex w-90 flex-none flex-col bg-surface"
+                        >
+                            <CommanderBoardView />
+                        </aside>
+                    )}
                     <main className="agent-commander-terminal relative min-h-0 min-w-0 flex-1">
                         <CommanderTerminal onRetry={retry} status={status} />
                     </main>
@@ -57,81 +52,5 @@ export function AgentCommanderApp() {
                 <ToastOutlet />
             </div>
         </TooltipProvider>
-    );
-}
-
-/**
- * The window's whole title bar, and its drag region. Its left padding clears the macOS `hiddenInset` traffic lights,
- * the same zoom-aware clearance the Workbench's collapsed header uses. The Workbench tab rail's `Terminal | Chat`
- * switch sits beside Stop, so the Commander opens as either surface with the same control and shortcut.
- */
-function AgentCommanderHeader() {
-    const workspacePath = useAgentCommanderStore((state) => state.workspacePath);
-    const terminalId = useAgentCommanderStore((state) => state.identity?.terminalId);
-    const projectId = useAgentCommanderStore((state) => state.identity?.projectId);
-    const projectTitle = useProjectById(projectId)?.displayTitle;
-    const terminal = useTerminal(terminalId ?? '');
-    return (
-        <header className="agent-commander-header flex h-11 flex-none items-center gap-2 bg-surface pr-3 pl-(--traffic-light-clearance) [-webkit-app-region:drag]">
-            <h1 className="m-0 flex-none text-[13px] font-medium">Agent Commander</h1>
-            {workspacePath && (
-                /*
-                 * The workspace is a long generated folder, so the bar names its Project and the full path waits in
-                 * the tooltip. The label opts out of the drag region: a drag region swallows the hover a tooltip needs.
-                 */
-                <Tooltip content={workspacePath}>
-                    <span className="agent-commander-workspace min-w-0 truncate text-[12px] text-muted [-webkit-app-region:no-drag]">
-                        {projectTitle ?? workspacePath.split('/').at(-1)}
-                    </span>
-                </Tooltip>
-            )}
-            <div className="ml-auto flex flex-none items-center gap-2 [-webkit-app-region:no-drag]">
-                <InboxToggle />
-                {terminal && canSwitchTerminalSurface(terminal) && (
-                    <AgentSurfaceToggle terminal={terminal} />
-                )}
-                <Tooltip content="Stop the Commander and close this window. Tasks it delegated keep running, and opening it again resumes the same conversation.">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="agent-commander-stop text-muted"
-                        onClick={stopCommander}
-                    >
-                        <Power size={13} />
-                        Stop
-                    </Button>
-                </Tooltip>
-            </div>
-        </header>
-    );
-}
-
-/**
- * Shows or hides the Inbox column, counting the open items so a hidden Inbox still says that something waits. Its
- * flagged message is the Commander Inbox's own glyph: the `Inbox` tray marks the Peer Inbox's held peer messages, and
- * the bell belongs to the status bar's notification center.
- */
-function InboxToggle() {
-    const isVisible = useCommanderInboxUiStore((state) => state.isVisible);
-    const { data } = useCommanderInbox();
-    const count = data ? openCommanderInboxCount(data.items) : 0;
-    return (
-        <Tooltip content={isVisible ? 'Hide Needs you' : 'Show Needs you'}>
-            <Button
-                aria-pressed={isVisible}
-                variant="ghost"
-                size="sm"
-                className="agent-commander-inbox-toggle text-muted"
-                onClick={() => setCommanderInboxVisible(!isVisible)}
-            >
-                <MessageSquareWarning size={13} />
-                Needs you
-                {count > 0 && (
-                    <span className="agent-commander-inbox-count rounded-full bg-badge px-1.5 text-[10px] leading-4 text-badge-foreground">
-                        {count}
-                    </span>
-                )}
-            </Button>
-        </Tooltip>
     );
 }

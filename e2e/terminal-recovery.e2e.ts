@@ -17,6 +17,7 @@ import {
     sessionCard,
     VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
+import { runningWork } from './support/running-work.ts';
 
 interface PersistedTerminalGridSnapshot {
     cols: number;
@@ -311,7 +312,7 @@ test('live Terminal restores the authoritative screen after Renderer output back
             terminals: Array<{ id: string; processId?: number }>;
         }>(running.page, 'app.bootstrap');
         expect(after.terminals.find(({ id }) => id === terminalId)?.processId).toBe(processId);
-        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+        await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
     } finally {
         try {
             await running.app.close();
@@ -390,7 +391,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         await typeTerminal(running.page, String.raw`printf 'RETURNED_TO_SHELL\n'`);
         await expect(rows).toContainText('RETURNED_TO_SHELL');
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
-        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+        await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
 
         await input.focus();
         await running.page.keyboard.press('Meta+Shift+A');
@@ -478,7 +479,7 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
         await expect(stopped).toHaveCount(0);
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(tabCount);
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
-        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+        await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
 
         await typeTerminal(running.page, 'kill -9 $$');
         const dead = running.page.locator('[data-terminal-exit-state="dead"]');
@@ -488,7 +489,7 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
         await running.page.keyboard.press('Meta+Shift+R');
         await expect(dead).toHaveCount(0);
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
-        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+        await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
     } finally {
         try {
             await running.app.close();
@@ -742,9 +743,7 @@ render();
                 .locator('.terminal-pane')
                 .getAttribute('data-terminal-id');
             if (!terminalId) throw new Error('Terminal identity was not rendered');
-            await expect
-                .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
-                .toBe(1);
+            await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.setBounds({ width: 1200, height: 800 }),
             );
@@ -777,9 +776,7 @@ render();
 
             await running.app.close();
             running = await launchCaxri(launchOptions);
-            await expect
-                .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
-                .toBe(1);
+            await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
             await expect.poll(() => firstAgentGrid(gridLog, 2)).toBe(expectedGrid);
             expect(await waitForStableAgentGrid(running.page, gridLog, 2)).toBe(expectedGrid);
         } finally {

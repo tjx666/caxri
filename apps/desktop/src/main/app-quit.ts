@@ -2,6 +2,10 @@ import type { GitReviewPendingSummary } from '@caxri/protocol';
 import { errorMessage, toWireError } from '@caxri/protocol';
 import type { BrowserWindow, Dialog } from 'electron';
 
+import type { RunningWork } from './confirmations';
+import { runningWorkPhrase, runningWorkTotal } from './confirmations';
+import type { DesktopServerConnection } from './server-connection';
+
 export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
 export type AppQuitOutcome = 'cancelled' | 'kept-running' | 'stop-failed' | 'stopped';
 export type AppQuitIntent = 'relaunch' | 'system-shutdown' | 'user';
@@ -20,7 +24,10 @@ type AppQuitFailureStage =
     | 'stop';
 
 export interface AppQuitImpact {
-    activePtyCount: number;
+    /**
+     * Running work by kind, so the prompt words it the same way the window-close and deletion confirmations do.
+     */
+    running: RunningWork;
     otherClientCount: number;
 }
 
@@ -51,11 +58,29 @@ export interface AppQuitOptions {
      * loss may have already lost anyway.
      */
     readPendingReviewComments: () => Promise<GitReviewPendingSummary>;
-    readStatus: () => Promise<{ activePtyCount: number; clientCount: number }>;
+    readStatus: () => Promise<AppQuitStatus>;
     /**
      * Stops Server Core and owns disposal of the Desktop attachment so a closing transport cannot start recovery.
      */
     stopServer: () => Promise<void>;
+}
+
+export interface AppQuitStatus {
+    clientCount: number;
+    running: RunningWork;
+}
+
+/**
+ * Reads who else is connected and what is still running, in one round of parallel requests.
+ */
+export async function readAppQuitStatus(
+    server: Pick<DesktopServerConnection, 'request'>,
+): Promise<AppQuitStatus> {
+    const [status, running] = await Promise.all([
+        server.request('host.status'),
+        server.request('terminal.runningCount'),
+    ]);
+    return { clientCount: status.clientCount, running };
 }
 
 export interface AppQuitPrompt {
@@ -88,8 +113,8 @@ export function appQuitPrompt(impact: AppQuitImpact): AppQuitPrompt {
          * The question lives in `message` because macOS sheets and alerts do not show `title`; the title is only for
          * platforms that draw one.
          */
-        message: `Quit Caxri while ${impact.activePtyCount} ${plural(impact.activePtyCount, 'task')} ${
-            impact.activePtyCount === 1 ? 'is' : 'are'
+        message: `Quit Caxri while ${runningWorkPhrase(impact.running)} ${
+            runningWorkTotal(impact.running) === 1 ? 'is' : 'are'
         } running?`,
         detail: `Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent sessions so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.${
             otherClientDetail
@@ -268,7 +293,7 @@ async function decideAppQuit(options: AppQuitOptions): Promise<AppQuitDecision> 
     if ((await options.decideUnsavedEditors()) === 'cancel') return 'cancel';
     if ((await decidePendingReviewComments(options)) === 'cancel') return 'cancel';
 
-    let status: { activePtyCount: number; clientCount: number };
+    let status: AppQuitStatus;
     try {
         status = await options.readStatus();
     } catch (error) {
@@ -277,10 +302,11 @@ async function decideAppQuit(options: AppQuitOptions): Promise<AppQuitDecision> 
     }
 
     const impact = {
-        activePtyCount: status.activePtyCount,
+        running: status.running,
         otherClientCount: Math.max(0, status.clientCount - 1),
     };
-    if (impact.activePtyCount === 0) return impact.otherClientCount === 0 ? 'stop' : 'keep-running';
+    if (runningWorkTotal(impact.running) === 0)
+        return impact.otherClientCount === 0 ? 'stop' : 'keep-running';
 
     try {
         return await options.confirm(impact);

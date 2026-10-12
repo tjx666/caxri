@@ -224,6 +224,20 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         await expect(list).toBeVisible();
         await message.press('Escape');
         await expect(list).toHaveCount(0);
+        // Coming back to a draft that ends in `@word` waits for the user again, as a restored draft does: the composer
+        // is reused across Sessions, so the caret it followed before the switch must not reopen the list.
+        await message.fill('@lo');
+        await expect(list).toBeVisible();
+        const citingSessionId = (
+            await pageRequest<BootstrapState>(page, 'app.bootstrap')
+        ).terminals.find((terminal) => terminal.id === citingTerminalId)?.sessionId;
+        await pageRequest(page, 'session.select', { sessionId: shellId });
+        await expect(message).toBeHidden();
+        await pageRequest(page, 'session.select', { sessionId: citingSessionId });
+        await expect(message).toHaveValue('@lo');
+        await expect(list).toHaveCount(0);
+        await message.click();
+        await expect(list).toBeVisible();
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
