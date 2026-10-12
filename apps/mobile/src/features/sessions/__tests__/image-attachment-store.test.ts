@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ImageAttachment } from '../image-attachment-store';
 import {
     completeImageAttachment,
+    expireImageAttachments,
+    IMAGE_ATTACHMENT_REUSE_MS,
     imageAttachmentAccessibilityLabel,
     imageAttachmentKey,
     ImageAttachmentStore,
@@ -56,6 +58,7 @@ describe('composer image attachment store', () => {
         const ready = completeImageAttachment(
             [attachment({ thumbnail: { id: 'image_t', base64: 'REVG' } })],
             'image_a',
+            1_000,
         );
         expect(ready).toEqual([
             {
@@ -63,9 +66,18 @@ describe('composer image attachment store', () => {
                 uri: 'file:///a.jpg',
                 progress: 1,
                 state: 'ready',
+                uploadedAt: 1_000,
                 thumbnail: { id: 'image_t' },
             },
         ]);
+    });
+
+    it('fails a ready image the Server has likely deleted, so Send waits instead of referencing it', () => {
+        const ready = completeImageAttachment([attachment()], 'image_a', 0);
+        expect(expireImageAttachments(ready, IMAGE_ATTACHMENT_REUSE_MS)).toBe(ready);
+        const expired = expireImageAttachments(ready, IMAGE_ATTACHMENT_REUSE_MS + 1);
+        expect(expired[0]).toMatchObject({ state: 'failed' });
+        expect(imageAttachmentWaitReason(expired)).not.toBeNull();
     });
 });
 

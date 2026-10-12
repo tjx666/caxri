@@ -72,14 +72,18 @@ describe('Source Control default mode', () => {
         expect(load).not.toHaveBeenCalled();
     });
 
-    it('opens a never-persisted scope in Pull Request mode once the branch has a pull request, until the user picks a mode', async () => {
+    it('opens in Pull Request mode once the branch has a pull request, until the user picks a mode', async () => {
         const { git, provider } = createHarness();
         vi.mocked(git.summary).mockResolvedValue(cleanSummary);
         vi.mocked(git.pullRequestChanges).mockResolvedValue(pullRequest);
         const cancellation = new CancellationTokenSource();
         try {
-            // No persisted mode yet, so the provider picks one.
-            await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+            // The first request only restores the persisted mode, which is not a user choice: the Renderer persists
+            // whatever mode the provider reported, including the default Working Tree mode.
+            await provider.provideView(
+                { scopeId, preferredModeId: 'working', refresh: 0 },
+                cancellation.token,
+            );
             await vi.waitFor(async () => {
                 const view = await provider.provideView(
                     { scopeId, preferredModeId: 'working', refresh: 0 },
@@ -101,28 +105,6 @@ describe('Source Control default mode', () => {
                 cancellation.token,
             );
             expect(kept.selectedModeId).toBe('working');
-        } finally {
-            cancellation.dispose();
-            provider.dispose();
-        }
-    });
-
-    it('keeps a restored Working Tree mode even when the branch has a pull request', async () => {
-        const { git, provider } = createHarness();
-        vi.mocked(git.summary).mockResolvedValue(cleanSummary);
-        vi.mocked(git.pullRequestChanges).mockResolvedValue(pullRequest);
-        const cancellation = new CancellationTokenSource();
-        try {
-            await provider.provideView(
-                { scopeId, preferredModeId: 'working', refresh: 0 },
-                cancellation.token,
-            );
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            const view = await provider.provideView(
-                { scopeId, preferredModeId: 'working', refresh: 0 },
-                cancellation.token,
-            );
-            expect(view.selectedModeId).toBe('working');
         } finally {
             cancellation.dispose();
             provider.dispose();
