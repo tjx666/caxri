@@ -137,8 +137,10 @@ runner serves every session, and a full pass costs 20-25 minutes of it, so spend
 cannot meaningfully judge starves every sibling delivery queued behind it. Three classes of change
 therefore skip waiting on `checks`/`e2e` once their own local gates and `guards` pass:
 
-- **Documentation only**: `docs/`, `AGENTS.md`, `.agents/**`, or another tracked `.md` that no
-  shipped code reads. Open a pull request from a branch (no separate worktree needed for a
+- **Documentation only**: `docs/`, `AGENTS.md`, Markdown and skill `agents/openai.yaml` metadata
+  under `.agents/`, or another tracked `.md` that no shipped code reads. Scripts under `.agents/`,
+  such as `.agents/skills/switch-worktree/scripts/worktree-processes.ts`, are code and take the
+  third class's gates. Open a pull request from a branch (no separate worktree needed for a
   documentation-only diff) and merge it as soon as `guards` reports success, without waiting for
   `checks`/`e2e`.
 - **Renderer styling only**: token, spacing, color, or layout values with no behavior change,
