@@ -2,6 +2,7 @@
  * Session creation, switching, archive management, content search, and Session lifecycle toasts (`features/session/`).
  */
 export const session = {
+    'session.untitled': 'Untitled',
     'session.unknownProject': 'Unknown Project',
 
     // Session creation menu and dialog

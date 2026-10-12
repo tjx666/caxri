@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 
 import { Input, InputGroup } from '../../components/ui/input';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import type { ProcessExplorerTotals } from './process-tree';
 
@@ -62,7 +63,7 @@ export function ProcessSummaryBar({
                     value={filter}
                     onChange={(event) => onFilterChange(event.target.value)}
                     onKeyDown={(event) => {
-                        if (!filter || event.key !== 'Escape') return;
+                        if (!filter || event.key !== 'Escape' || isImeComposing(event)) return;
                         event.preventDefault();
                         onFilterChange('');
                     }}

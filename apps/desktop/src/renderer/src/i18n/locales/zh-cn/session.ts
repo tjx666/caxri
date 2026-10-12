@@ -3,6 +3,7 @@ import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namesp
 import type { session as source } from '../en/session';
 
 export const session: TranslatedNamespace<typeof source> = {
+    'session.untitled': '未命名',
     'session.unknownProject': '未知项目',
 
     // Session creation menu and dialog

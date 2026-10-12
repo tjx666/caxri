@@ -10,6 +10,7 @@ import {
     agentProviderCatalog,
     formatTokens,
     formatUsd,
+    isCaxriError,
     localDateWeekday,
     shiftLocalDate,
 } from '@caxri/protocol';
@@ -394,6 +395,37 @@ export function usageScanCaption(
  */
 export function didUsageRefreshFail(query: { data: unknown; isError: boolean }): boolean {
     return query.data !== undefined && query.isError;
+}
+
+/**
+ * The closed set of reasons the Usage page names when its first report fails. The Server's message is diagnostic text
+ * (a path, an errno, a stack-shaped sentence) and never reaches the page; the reason is chosen from the error code.
+ */
+export type UsageLoadFailureReason = 'unavailable' | 'unreadable' | 'unknown';
+
+export function usageLoadFailureReason(error: unknown): UsageLoadFailureReason {
+    if (!isCaxriError(error)) return 'unknown';
+    switch (error.code) {
+        case 'UNAVAILABLE':
+        case 'TIMEOUT':
+        case 'CAPACITY':
+        case 'CANCELLED': {
+            return 'unavailable';
+        }
+        case 'IO':
+        case 'PATH_DENIED':
+        case 'FORBIDDEN':
+        case 'NOT_FOUND': {
+            return 'unreadable';
+        }
+        default: {
+            return 'unknown';
+        }
+    }
+}
+
+export function usageLoadFailureText(t: Translate, error: unknown): string {
+    return t(`usage.loadFailedReason.${usageLoadFailureReason(error)}`);
 }
 
 /**

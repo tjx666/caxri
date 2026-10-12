@@ -326,7 +326,7 @@ describe('commanderTaskBadge', () => {
         });
         expect(badge).toMatchObject({
             icon: 'taken-over',
-            label: 'Taken over by you',
+            label: 'Taken back by you',
             toneClassName: 'text-warning',
         });
         expect(badge?.title).toContain('no longer drives it');

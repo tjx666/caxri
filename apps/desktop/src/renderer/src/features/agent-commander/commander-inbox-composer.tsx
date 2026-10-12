@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import { inboxMentionSuggestion } from './commander-inbox';
 import { useCommanderInboxComposer } from './hooks/use-commander-inbox-composer';
 
@@ -52,7 +53,15 @@ export function CommanderInboxComposer({ items }: { items: readonly CommanderInb
                         </Tooltip>
                     </>
                 ) : (
-                    <span>{t('agentCommander.composer.mentionHint')}</span>
+                    <span
+                        className={cn(
+                            'commander-inbox-hint transition-colors',
+                            composer.isHintFlashing && 'text-foreground',
+                        )}
+                        data-flashing={composer.isHintFlashing || undefined}
+                    >
+                        {t('agentCommander.composer.mentionHint')}
+                    </span>
                 )}
             </div>
             <div className="flex items-end gap-1.5">

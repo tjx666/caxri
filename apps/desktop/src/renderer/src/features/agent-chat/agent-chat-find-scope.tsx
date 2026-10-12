@@ -14,6 +14,7 @@ export function AgentChatFindScope({
     children,
     contentReference,
     focusComposer,
+    hasUnsearchedHistory,
     scrollReference,
     stopFollowing,
     terminalId,
@@ -21,6 +22,10 @@ export function AgentChatFindScope({
     children: ReactNode;
     contentReference: RefObject<HTMLDivElement | null>;
     focusComposer: () => void;
+    /**
+     * Older history exists beyond what the pane has loaded, so an empty search result covers only the loaded messages.
+     */
+    hasUnsearchedHistory: boolean;
     /**
      * The conversation's scroll view, which find scrolls to reveal a match after `stopFollowing` stops it following the
      * latest output.
@@ -39,7 +44,7 @@ export function AgentChatFindScope({
     return (
         <AgentChatFindQueryContext value={find.searched}>
             <div className="flex h-full min-h-0 flex-col">
-                {find.bar && <AgentChatFindBar {...find.bar} />}
+                {find.bar && <AgentChatFindBar {...find.bar} isPartial={hasUnsearchedHistory} />}
                 <div className="relative min-h-0 flex-1">{children}</div>
             </div>
         </AgentChatFindQueryContext>

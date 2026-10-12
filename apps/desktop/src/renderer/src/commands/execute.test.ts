@@ -190,6 +190,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openPathBrowser: record('dialogs.openPathBrowser'),
                 openProjectSearch: record('dialogs.openProjectSearch'),
                 openSessionContentSearch: record('dialogs.openSessionContentSearch'),
+                openCommanderHandover: record('dialogs.openCommanderHandover'),
             },
             windows: {
                 openAgentCommander: record('windows.openAgentCommander'),

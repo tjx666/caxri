@@ -1,5 +1,4 @@
 import type { CommanderInboxItem } from '@caxri/protocol';
-import { commanderInboxKindLabel } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,6 +7,7 @@ import {
     inboxMentionCandidates,
     inboxMentionSuggestion,
     inboxReplyTarget,
+    insertInboxMentionTrigger,
     removeInboxMention,
 } from '../commander-inbox';
 
@@ -110,7 +110,7 @@ describe('Inbox mentions', () => {
             item({ id: 'c', title: 'Table', status: 'closed' }),
         ];
         expect(inboxMentionCandidates(items, 'TABLE').map(({ id }) => id)).toEqual(['a']);
-        expect(inboxMentionCandidates(items, 'hands').map(({ id }) => id)).toEqual(['b']);
+        expect(inboxMentionCandidates(items, 'needs you').map(({ id }) => id)).toEqual(['b']);
         expect(removeInboxMention('Use @tab two tables', { start: 4, end: 8 })).toEqual({
             text: 'Use  two tables',
             caret: 4,
@@ -126,7 +126,7 @@ describe('Inbox mentions', () => {
             key: 'b',
             label: 'Log in to the registry',
             isLabelLiteral: false,
-            description: commanderInboxKindLabel('hands'),
+            description: 'Needs you',
         });
     });
 
@@ -137,5 +137,14 @@ describe('Inbox mentions', () => {
         expect(inboxReplyTarget([merge, question], 'm')?.id).toBe('m');
         expect(inboxReplyTarget([merge, question, item({ id: 'r' })], undefined)).toBeUndefined();
         expect(inboxReplyTarget([question], 'gone')).toBeUndefined();
+    });
+});
+
+describe('insertInboxMentionTrigger', () => {
+    it('starts a mention at the caret as its own word', () => {
+        expect(insertInboxMentionTrigger('', 0)).toEqual({ text: '@', caret: 1 });
+        expect(insertInboxMentionTrigger('Ship it', 7)).toEqual({ text: 'Ship it @', caret: 9 });
+        expect(insertInboxMentionTrigger('Ship it ', 8)).toEqual({ text: 'Ship it @', caret: 9 });
+        expect(insertInboxMentionTrigger('Ship it', 4)).toEqual({ text: 'Ship @ it', caret: 6 });
     });
 });

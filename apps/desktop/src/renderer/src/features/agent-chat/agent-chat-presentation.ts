@@ -383,6 +383,36 @@ export function agentChatSendTooltip(
 }
 
 /**
+ * Whether Enter on an open slash list with no matching row is held for confirmation rather than sending the draft: the
+ * first press on a draft is held (it may be a mistyped command), and a second press on the same draft sends it as
+ * text.
+ */
+export function shouldConfirmUnmatchedSend(state: {
+    /**
+     * The draft a previous Enter was already held for, if any.
+     */
+    confirmingDraft: string | undefined;
+    draft: string;
+    matchCount: number;
+}): boolean {
+    return state.matchCount === 0 && state.confirmingDraft !== state.draft;
+}
+
+/**
+ * Why Enter did not send a typed draft, for the composer to announce and show briefly, or `undefined` when it sent or
+ * there was nothing to send. Without it a refused Enter does nothing visible: the Send button's tooltip says why, but
+ * only to someone pointing at it. The reason is the one that tooltip gives (`agentChatSendTooltip`).
+ */
+export function agentChatSendRefusal(
+    action: { tooltip: string },
+    state: Parameters<typeof agentChatSendTooltip>[1] & { isSendable: boolean },
+    t: Translate = translate,
+): string | undefined {
+    if (state.isSendable || !state.hasContent) return undefined;
+    return agentChatSendTooltip(action, state, t);
+}
+
+/**
  * Escape interrupts a running turn, as it does in the Codex TUI; the draft is kept for the next message. An IME
  * composition owns Escape (it dismisses the candidate list), and a held key must not fire a stream of interrupts.
  */

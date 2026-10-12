@@ -278,7 +278,7 @@ describe('theme.import', () => {
             expect.objectContaining({
                 filters: [
                     {
-                        name: 'Theme files',
+                        name: 'Theme Files',
                         extensions: [...themeImportExtensions, 'vsix'],
                     },
                     { name: 'All Files', extensions: ['*'] },

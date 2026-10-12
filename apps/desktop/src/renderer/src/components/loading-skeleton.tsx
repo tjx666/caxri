@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
+
 import { cn } from '@/lib/utilities';
 
+import { scheduleLoadingSkeletonReveal } from './loading-skeleton-delay';
 import { Skeleton } from './ui/skeleton';
 
 /**
@@ -65,14 +68,20 @@ type LoadingSkeletonProperties = {
  * A loading placeholder shaped like the content it stands in for, so a surface keeps its layout while it waits instead
  * of collapsing to a centered "Loading…" line and then jumping when the rows arrive. The region is one `role="status"`
  * named by `label`, so assistive tech still hears what is loading.
+ *
+ * The region mounts at once (still `aria-busy`, still named), but its shapes wait `LOADING_SKELETON_DELAY_MS`: a local
+ * load that finishes first never flashes a skeleton.
  */
 export function LoadingSkeleton(properties: LoadingSkeletonProperties) {
     const { label, className } = properties;
+    const [isRevealed, setRevealed] = useState(false);
+    useEffect(() => scheduleLoadingSkeletonReveal(() => setRevealed(true)), []);
     const region = {
         'role': 'status',
         'aria-label': label,
         'aria-busy': true,
     } as const;
+    if (!isRevealed) return <div {...region} className={cn('min-w-0', className)} />;
     if (properties.variant === 'list') {
         const { rows = 6, indent = 8 } = properties;
         return (

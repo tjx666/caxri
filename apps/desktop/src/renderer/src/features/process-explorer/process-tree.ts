@@ -9,6 +9,7 @@ import type {
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
+import { sessionTitleForDisplay } from '../session/session-title';
 import type { ProcessColumnKey, ProcessSort } from './process-columns';
 import { DEFAULT_PROCESS_SORT } from './process-columns';
 
@@ -190,7 +191,9 @@ export function buildProcessTree(
             isHigh: false,
             kind: 'session' as const,
             memoryMb: 0,
-            name: terminal.sessionTitle || t('processExplorer.untitledSession'),
+            name: terminal.sessionTitle
+                ? sessionTitleForDisplay(terminal.sessionTitle, t)
+                : t('processExplorer.untitledSession'),
         };
         session.children.push(terminalNode);
         session.cpuPercent += usage.cpuPercent;

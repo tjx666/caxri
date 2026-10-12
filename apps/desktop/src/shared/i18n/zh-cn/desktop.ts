@@ -116,6 +116,12 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.unsaved.detail': '如果不保存，你的更改将会丢失。',
     'desktop.unsaved.save': '保存',
     'desktop.unsaved.dontSave': '不保存',
+    'desktop.unsaved.saveAll': '全部保存',
+    'desktop.unsaved.quitOne': '退出前要保存对“{{name}}”所做的更改吗？',
+    'desktop.unsaved.quitOther': '退出前要保存对 {{count}} 个文件所做的更改吗？',
+    'desktop.unsaved.closeOne': '关闭窗口前要保存对“{{name}}”所做的更改吗？',
+    'desktop.unsaved.closeOther': '关闭窗口前要保存对 {{count}} 个文件所做的更改吗？',
+    'desktop.unsaved.more': '以及另外 {{count}} 个',
 
     'desktop.revertFiles.title': '还原文件更改',
     'desktop.revertFiles.messageOne': '要还原 {{provider}} 在这一轮中更改的文件吗？',
@@ -171,6 +177,11 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.externalFile.detail':
         '{{path}}\n\n此文件不在任何已添加的项目中。Caxri 会在编辑器中打开它而不添加项目，保存时会写回此文件。信任该文件夹后，打开 {{folder}} 下的文件将不再提示。',
     'desktop.externalFile.trustFolder': '信任文件夹并打开',
+    'desktop.themeImport.title': '导入主题',
+    'desktop.themeImport.themeFiles': '主题文件',
+    'desktop.fileFilter.allFiles': '所有文件',
+    'desktop.diagnosticsExport.title': '导出诊断信息',
+    'desktop.diagnosticsExport.zipArchive': 'ZIP 压缩包',
     'desktop.chooseProjectFolder': '选择项目文件夹',
 
     'desktop.fallback.thisProject': '此项目',

@@ -10,12 +10,12 @@ export const usage = {
     'usage.caption.priceBasis': 'Costs are API list-price estimates',
     'usage.caption.updating': '{{range}} · Updating',
     'usage.refreshFailed': "Couldn't refresh",
-    'usage.scope.label': 'Agent Sessions counted',
+    'usage.scope.label': 'Conversations counted',
     'usage.scope.caxri': 'Caxri',
     'usage.scope.caxriDescription': 'Agents started in Caxri Sessions',
     'usage.scope.thisMac': 'This Mac',
     'usage.scope.thisMacDescription':
-        'Every Agent Session on this Mac, including ones run outside Caxri',
+        'Every Agent conversation on this Mac, including ones run outside Caxri',
     'usage.filter.agent': 'Agent',
     'usage.filter.allAgents': 'All Agents',
     'usage.filter.range': 'Range',
@@ -29,7 +29,7 @@ export const usage = {
     'usage.rangeLabel.90d': 'Last 90 days',
     'usage.rangeLabel.365d': 'Last year',
     'usage.rangeLabel.all': 'All time',
-    'usage.empty.scanning': 'Reading Agent transcripts on this Mac…',
+    'usage.empty.scanning': 'Reading Agent conversations on this Mac…',
     'usage.empty.agentFilter': 'No {{agent}} usage in this range',
     'usage.empty.showAllAgents': 'Show all Agents',
     'usage.empty.noUsage': 'No Agent usage yet',
@@ -37,8 +37,11 @@ export const usage = {
         'Start an Agent in a Session; its tokens, cost, and pull requests show up here.',
     'usage.empty.showThisMac': 'Show This Mac',
     'usage.loadFailed': 'Usage could not be loaded',
-    'usage.loadFailedFallback': 'The usage report failed.',
-    'usage.loading': 'Reading Agent transcripts…',
+    'usage.loadFailedReason.unavailable':
+        "Caxri's Server didn't answer in time. It may still be starting.",
+    'usage.loadFailedReason.unreadable': "Caxri couldn't read the Agent transcripts on this Mac.",
+    'usage.loadFailedReason.unknown': 'Something went wrong while building the usage report.',
+    'usage.loading': 'Reading Agent conversations…',
     'usage.scan.readingOne': 'Reading {{count}} more transcript…',
     'usage.scan.readingOther': 'Reading {{count}} more transcripts…',
 
@@ -63,8 +66,8 @@ export const usage = {
     'usage.weekday.thursday': 'Thursday',
     'usage.weekday.friday': 'Friday',
     'usage.weekday.saturday': 'Saturday',
-    'usage.count.agentSessionOne': '{{count}} Agent Session',
-    'usage.count.agentSessionOther': '{{count}} Agent Sessions',
+    'usage.count.agentSessionOne': '{{count}} conversation',
+    'usage.count.agentSessionOther': '{{count}} conversations',
     'usage.count.dayOne': '{{count}} day',
     'usage.count.dayOther': '{{count}} days',
     'usage.count.mergedPullRequestOne': '{{count}} merged pull request',
@@ -172,9 +175,9 @@ export const usage = {
     'usage.coverage.countsWithOutside':
         'Counts {{counted}}, plus {{outside}} run outside Caxri on this Mac.',
     'usage.coverage.unavailableOne':
-        '{{count}} Agent Session has no transcript on this machine, so their usage is missing.',
+        '{{count}} conversation has no transcript on this machine, so its usage is missing.',
     'usage.coverage.unavailableOther':
-        '{{count}} Agent Sessions have no transcript on this machine, so their usage is missing.',
+        '{{count}} conversations have no transcript on this machine, so their usage is missing.',
     'usage.coverage.checkingPullRequests': 'Checking {{pullRequests}} on GitHub.',
     'usage.coverage.unpricedModels':
         'No price for {{models}}; their usage is left out of every cost figure.',

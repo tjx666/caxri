@@ -12,7 +12,8 @@ export type SettingsView =
     | 'hardware-acceleration'
     | 'remote-debugging'
     | 'notifications'
-    | 'git-exclusions';
+    | 'git-exclusions'
+    | 'agent-suspension';
 
 /**
  * Which control the open Session-creation menu belongs under. The Project heading's New Session button and the

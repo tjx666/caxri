@@ -1,6 +1,8 @@
 import type { AgentUsageReadout, UsageLimit } from '@caxri/protocol';
 import { formatTokens, formatUsd } from '@caxri/protocol';
 
+import { LIMIT_WARNING_PERCENT } from '../usage/usage-presentation';
+
 type LimitWindow = UsageLimit['windows'][number];
 
 /**
@@ -47,4 +49,26 @@ export function agentUsageLabel(readout: AgentUsageReadout, now: number): string
     if (window)
         parts.push(`${shortWindowName(window.windowMinutes)} ${Math.round(window.usedPercent)}%`);
     return parts.join(' · ');
+}
+
+/**
+ * The chip's limit readout turns `--warning` at the same share the Usage page's limit bars do
+ * (`LIMIT_WARNING_PERCENT`), so the status bar and the page never disagree about one window. Unlike the output-speed
+ * gauge, which DESIGN.md keeps threshold-free because "slow" is the reader's call, a rate limit is a hard stop, so
+ * approaching it earns a colour; it stays a warning rather than `--danger` because nothing has failed yet.
+ */
+export type AgentUsageLimitTone = 'warning';
+
+/**
+ * The tone of the limit window the chip shows (the shortest live one), or undefined below the warning threshold or
+ * without a live window. It follows the displayed figure so the colour never disagrees with the number beside it.
+ */
+export function agentUsageLimitTone(
+    readout: AgentUsageReadout,
+    now: number,
+): AgentUsageLimitTone | undefined {
+    const window = currentLimitWindows(readout.limit, now).at(0);
+    if (!window) return undefined;
+    const used = Math.round(window.usedPercent);
+    return used >= LIMIT_WARNING_PERCENT ? 'warning' : undefined;
 }

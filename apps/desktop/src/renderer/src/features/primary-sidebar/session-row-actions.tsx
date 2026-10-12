@@ -6,6 +6,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { archiveSession } from '../session/session-archive-commands';
 import { setSessionPinned } from '../session/session-commands';
+import { sessionTitleForDisplay } from '../session/session-title';
 
 /**
  * The Session hover-action chip, shared with the Activity row's mark-read button so a Session's pointer actions look
@@ -36,7 +37,7 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
                     type="button"
                     className={`${sessionRowActionButton} aria-pressed:text-accent`}
                     aria-label={t('primarySidebar.sessionRow.pinAriaLabel', {
-                        title: session.displayTitle,
+                        title: sessionTitleForDisplay(session.displayTitle, t),
                     })}
                     aria-pressed={pinned}
                     tabIndex={-1}
@@ -50,7 +51,7 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
                     type="button"
                     className={sessionRowActionButton}
                     aria-label={t('primarySidebar.sessionRow.archiveAriaLabel', {
-                        title: session.displayTitle,
+                        title: sessionTitleForDisplay(session.displayTitle, t),
                     })}
                     aria-keyshortcuts="Delete"
                     tabIndex={-1}

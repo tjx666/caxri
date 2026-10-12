@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
 import type { Translate } from '../../i18n';
 import { translate, useLocaleStore } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 import { editGitReviewComment, removeGitReviewComment } from './git-review-comment-commands';
 import type { GitReviewComment } from './git-review-comments';
 
@@ -62,6 +63,7 @@ export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     onKeyDown={(event) => {
+                        if (isImeComposing(event)) return;
                         if (event.key === 'Enter' && event.metaKey) {
                             event.preventDefault();
                             save();

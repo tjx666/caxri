@@ -1,6 +1,11 @@
-import type { AgentChatQueuedMessage, AgentChatQueueEntry } from '@caxri/protocol';
+import type {
+    AgentChatQueuedMessage,
+    AgentChatQueueEntry,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
 import { agentChatQueueEntry } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 
@@ -76,5 +81,68 @@ function queueEntryView(
                   : translate('agentChat.queue.imageCountOther', { count: imageCount }),
         canEdit: imageCount === 0,
         editText: message.text,
+    };
+}
+
+/**
+ * The queue card's header line. `tone` picks the glyph and color: `failed` (`--danger`) when Server Core could not send
+ * the queued messages it took, `paused` (`--warning`) after the user's Stop or a send whose delivery is unknown, and
+ * `normal` while the queue simply waits. `resumeLabel` is the header's action, present only while paused: `Retry` after
+ * a failure, since resuming re-sends what failed, and `Resume` otherwise.
+ */
+export interface AgentChatQueueHeader {
+    tone: 'failed' | 'normal' | 'paused';
+    text: string;
+    resumeLabel?: string;
+}
+
+export function agentChatQueueHeader(
+    snapshot: Pick<AgentChatSnapshot, 'queuePauseReason' | 'queuePaused'> | undefined,
+    isTurnRunning: boolean,
+    entries: ReadonlyArray<Pick<AgentChatQueueEntryView, 'commandLabel'>>,
+    t: Translate = translate,
+): AgentChatQueueHeader {
+    if (snapshot?.queuePaused) {
+        switch (snapshot.queuePauseReason) {
+            case 'sendFailed': {
+                return {
+                    tone: 'failed',
+                    text: t('agentChat.queue.sendFailed'),
+                    resumeLabel: t('common.retry'),
+                };
+            }
+            case 'deliveryUnknown': {
+                return {
+                    tone: 'paused',
+                    text: t('agentChat.queue.pausedDeliveryUnknown'),
+                    resumeLabel: t('agentChat.queue.resume'),
+                };
+            }
+            case 'stopped':
+            case undefined: {
+                return {
+                    tone: 'paused',
+                    text: t('agentChat.queue.paused'),
+                    resumeLabel: t('agentChat.queue.resume'),
+                };
+            }
+        }
+    }
+    if (!isTurnRunning) return { tone: 'normal', text: t('agentChat.queue.queued') };
+    /**
+     * Server Core joins the run of messages at the head of the queue into one turn; a command keeps a turn of its own,
+     * so only two leading messages make "together" true.
+     */
+    const isJoined =
+        entries.length >= 2 &&
+        entries[0].commandLabel === undefined &&
+        entries[1].commandLabel === undefined;
+    return {
+        tone: 'normal',
+        text: t(
+            isJoined
+                ? 'agentChat.queue.queuedTogetherAfterTurn'
+                : 'agentChat.queue.queuedAfterTurn',
+        ),
     };
 }

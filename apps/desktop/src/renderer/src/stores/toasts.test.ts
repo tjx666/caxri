@@ -8,11 +8,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
+import { applyLanguagePreference } from '../i18n';
 import { syncNotificationSettings, useNotificationStore } from './notifications';
 import type { ToastActionHandler, ToastActionHandlers, ToastActionId } from './toast-actions';
 import { configureToastActions, toastActionLabelKeys } from './toast-actions';
 import {
     describeFailure,
+    describeFailureNotice,
     dismissToast,
     getToasts,
     muteNotification,
@@ -339,6 +341,62 @@ describe('Sonner notification adapter', () => {
         expect(describeFailure(new CaxriError('IO', 'IO: write failed'), 'Save failed')).toBe(
             'Save failed. write failed.',
         );
+    });
+
+    describe('in a locale the Server does not write', () => {
+        beforeEach(() => {
+            applyLanguagePreference('zh-CN');
+        });
+        afterEach(() => {
+            applyLanguagePreference(null);
+        });
+
+        it.each([
+            ['CONFLICT', '与较新的更改冲突，请刷新后重试。'],
+            ['NOT_FOUND', '目标已不存在。'],
+            ['PATH_DENIED', '不允许访问该位置。'],
+            ['UNAVAILABLE', 'Caxri 尚未就绪。'],
+            ['INTERNAL', '发生内部错误。'],
+        ] as const)(
+            'maps %s to a localized reason and keeps the raw text as detail',
+            (code, reason) => {
+                expect(
+                    describeFailureNotice(
+                        new CaxriError(code, 'Branch main already exists'),
+                        '重命名失败',
+                    ),
+                ).toEqual({
+                    message: `重命名失败：${reason}`,
+                    detail: 'Branch main already exists',
+                });
+            },
+        );
+
+        it('never leaves English or an English period in the toast sentence', () => {
+            const { message } = describeFailureNotice(new Error('socket hang up'), '保存失败');
+            expect(message).toBe('保存失败：无法完成该操作。');
+            expect(message).not.toMatch(/[A-Za-z]|\.$/u);
+        });
+
+        it('still prefers the errno reason, which already names the cause', () => {
+            const error = Object.assign(new Error("ENOENT: open '/tmp/a.txt'"), { code: 'ENOENT' });
+            expect(describeFailureNotice(error, '保存失败').message).toBe(
+                '保存失败：该文件已不存在。',
+            );
+        });
+
+        it('tryCommand offers the hidden raw text through Copy details', async () => {
+            await tryCommand('保存失败', () =>
+                Promise.reject(new CaxriError('CONFLICT', 'Branch main already exists')),
+            );
+
+            const [entry] = useNotificationStore.getState().entries;
+            expect(entry.message).toBe('保存失败：与较新的更改冲突，请刷新后重试。');
+            expect(entry.action).toEqual({
+                id: 'diagnostics.copyFailure',
+                params: { text: 'Branch main already exists' },
+            });
+        });
     });
 
     it('tryCommand resolves with the run() result on success without refreshing', async () => {

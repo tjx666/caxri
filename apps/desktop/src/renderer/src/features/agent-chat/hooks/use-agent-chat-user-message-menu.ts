@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import { translate } from '../../../i18n';
 import { pushToast, tryCommand } from '../../../stores/toasts';
+import { agentChatRestoreKey, useAgentChatRestoreStore } from '../agent-chat-commands';
 import { agentChatUserMessageMenu } from '../agent-chat-user-message-menu';
 import { useAgentChatEdit } from './use-agent-chat-edit';
+import { useAgentChatTerminal } from './use-agent-chat-terminal';
 
 /**
  * The selected text when the document selection lies inside `container`, so a right-click on a highlighted phrase
@@ -41,8 +43,9 @@ function copyFromMenu(value: string, isSelection: boolean): void {
 }
 
 /**
- * A user message's Fork in-flight state, shared by its hover-row button and its right-click menu so neither can start a
- * second fork, and the `onContextMenu` handler that opens the menu built by {@link agentChatUserMessageMenu}.
+ * A user message's Fork and Restore Code to Here in-flight states, shared by its hover-row buttons and its right-click
+ * menu so neither can start a second one, and the `onContextMenu` handler that opens the menu built by
+ * {@link agentChatUserMessageMenu}.
  */
 export function useAgentChatUserMessageMenu({
     container,
@@ -52,9 +55,19 @@ export function useAgentChatUserMessageMenu({
     container: RefObject<HTMLElement | null>;
     id: string;
     text: string;
-}): { isForking: boolean; fork: () => void; onContextMenu: (event: MouseEvent) => void } {
+}): {
+    isForking: boolean;
+    isRestoring: boolean;
+    fork: () => void;
+    onContextMenu: (event: MouseEvent) => void;
+} {
     const edit = useAgentChatEdit();
+    const terminalId = useAgentChatTerminal();
     const [isForking, setIsForking] = useState(false);
+    const isRestoring = useAgentChatRestoreStore(
+        ({ restoring }) =>
+            terminalId !== undefined && restoring.has(agentChatRestoreKey(terminalId, id)),
+    );
     const fork = (): void => {
         const run = edit?.fork?.run;
         if (!run || isForking) return;
@@ -71,11 +84,14 @@ export function useAgentChatUserMessageMenu({
             fork: edit?.fork?.availability(id),
             restore: edit?.restore?.availability(id),
             isForking,
+            isRestoring,
             onCopy: (value) => copyFromMenu(value, value !== text),
             onEdit: () => edit?.startEdit(id, text),
             onFork: fork,
-            onRestore: () => edit?.restore?.run(id),
+            onRestore: () => {
+                if (!isRestoring) edit?.restore?.run(id);
+            },
         });
     });
-    return { isForking, fork, onContextMenu };
+    return { isForking, isRestoring, fork, onContextMenu };
 }

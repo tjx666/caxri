@@ -47,7 +47,27 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
     if (chat.isPending)
         return <LoadingSkeleton variant="document" label={t('agentChat.review.loading')} />;
     if (chat.isError)
-        return <div className={STATE_CLASS_NAME}>{t('agentChat.review.unavailable')}</div>;
+        return (
+            <div className={STATE_CLASS_NAME} role="alert">
+                {t('agentChat.review.unavailable')}
+                <div className="flex items-center gap-2">
+                    <Button
+                        aria-disabled={chat.isFetching || undefined}
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- the query owns the refetch result and error state
+                            if (!chat.isFetching) void chat.refetch();
+                        }}
+                    >
+                        {t('common.retry')}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => revealAgentChat(terminalId)}>
+                        {t('agentChat.review.backToChat')}
+                    </Button>
+                </div>
+            </div>
+        );
     if (files.length === 0)
         return (
             <div className={STATE_CLASS_NAME}>

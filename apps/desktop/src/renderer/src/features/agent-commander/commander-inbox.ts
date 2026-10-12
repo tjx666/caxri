@@ -164,6 +164,20 @@ export function removeInboxMention(
 }
 
 /**
+ * Starts an `@` mention at the caret, so Enter on a reply with no item to answer opens the picker instead of doing
+ * nothing. The `@` gets a space before it when it would otherwise join the word at the caret, because only an `@` that
+ * begins a word opens the picker; choosing an item removes the `@` again and leaves the typed answer intact.
+ */
+export function insertInboxMentionTrigger(
+    text: string,
+    caret: number,
+): { caret: number; text: string } {
+    const before = text.slice(0, caret);
+    const trigger = before === '' || /\s$/u.test(before) ? '@' : ' @';
+    return { text: before + trigger + text.slice(caret), caret: caret + trigger.length };
+}
+
+/**
  * An `@` picker row for an Inbox item: its title, with its kind beside it.
  */
 export function inboxMentionSuggestion(

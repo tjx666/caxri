@@ -1,4 +1,5 @@
 import type { UsageDay } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
@@ -24,6 +25,8 @@ import {
     usageDayTooltip,
     usageEmptyState,
     usageHourTooltip,
+    usageLoadFailureReason,
+    usageLoadFailureText,
     usageRangeLabel,
     usageScanCaption,
     usageSessionCount,
@@ -232,11 +235,11 @@ describe('usage page captions', () => {
         ).toBe('Across 81 Sessions + 120 outside');
     });
 
-    it('counts Agent Sessions run outside Caxri as Agent Sessions, not Sessions', () => {
+    it('counts Agent Sessions run outside Caxri as conversations, not Sessions', () => {
         expect(usageSessionCount(translate, 1, false)).toBe('1 Session');
         expect(usageSessionCount(translate, 3, false)).toBe('3 Sessions');
-        expect(usageSessionCount(translate, 1, true)).toBe('1 Agent Session');
-        expect(usageSessionCount(translate, 2819, true)).toBe('2,819 Agent Sessions');
+        expect(usageSessionCount(translate, 1, true)).toBe('1 conversation');
+        expect(usageSessionCount(translate, 2819, true)).toBe('2,819 conversations');
     });
 
     it('shows scan progress only while transcripts remain', () => {
@@ -268,7 +271,7 @@ describe('usage page captions', () => {
             },
         };
         expect(usageCoverageNotes(translate, { ...base, scope: 'caxri' })[1]).toBe(
-            'Counts 2 Agent Sessions started in Caxri Sessions, including archived and deleted Sessions.',
+            'Counts 2 conversations started in Caxri Sessions, including archived and deleted Sessions.',
         );
         expect(
             usageCoverageNotes(translate, {
@@ -277,7 +280,7 @@ describe('usage page captions', () => {
                 coverage: { ...base.coverage, outsideCaxri: { agentSessions: 5, pendingScans: 0 } },
             })[1],
         ).toBe(
-            'Counts 2 Agent Sessions started in Caxri Sessions, including archived and deleted Sessions, plus 5 run outside Caxri on this Mac.',
+            'Counts 2 conversations started in Caxri Sessions, including archived and deleted Sessions, plus 5 run outside Caxri on this Mac.',
         );
     });
 
@@ -294,7 +297,7 @@ describe('usage page captions', () => {
                     unpricedModels: [],
                 },
             }).join(' ');
-        expect(coverage(0)).toContain('1 Agent Session has no transcript on this machine');
+        expect(coverage(0)).toContain('1 conversation has no transcript on this machine');
         expect(coverage(2)).not.toContain('no transcript');
     });
 });
@@ -477,5 +480,28 @@ describe('unpriced usage', () => {
         expect(isUsageUnpriced(report(1.5, 10, ['mystery-model']))).toBe(false);
         expect(isUsageUnpriced(report(0, 0, ['mystery-model']))).toBe(false);
         expect(isUsageUnpriced(report(0, 10, []))).toBe(false);
+    });
+});
+
+describe('usageLoadFailureReason', () => {
+    it('names a closed reason from the error code instead of the raw message', () => {
+        expect(
+            usageLoadFailureReason(new CaxriError('TIMEOUT', 'request timed out after 30000ms')),
+        ).toBe('unavailable');
+        expect(usageLoadFailureReason(new CaxriError('UNAVAILABLE', 'socket closed'))).toBe(
+            'unavailable',
+        );
+        expect(usageLoadFailureReason(new CaxriError('IO', 'EACCES: /some/path'))).toBe(
+            'unreadable',
+        );
+        expect(usageLoadFailureReason(new CaxriError('INTERNAL', 'boom'))).toBe('unknown');
+        expect(usageLoadFailureReason(new Error('plain'))).toBe('unknown');
+        expect(usageLoadFailureReason('string rejection')).toBe('unknown');
+    });
+
+    it('never echoes the Server message', () => {
+        const text = usageLoadFailureText(translate, new CaxriError('IO', 'EACCES: /private/x'));
+        expect(text).not.toContain('EACCES');
+        expect(text).toBe(translate('usage.loadFailedReason.unreadable'));
     });
 });

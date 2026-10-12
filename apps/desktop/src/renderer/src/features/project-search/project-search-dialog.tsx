@@ -6,6 +6,7 @@ import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 import { setProjectSearchOpen, useDialogStore } from '../../stores/dialogs';
 import { sessionViewScope } from '../../stores/session-view';
 import { openFile } from '../editor/document-commands';
@@ -141,6 +142,7 @@ function ProjectSearchDialogBody({ draft }: { draft: ProjectSearchDraft }) {
         discard(openSearchMatch(sessionId, match, shouldOpenToSide));
     };
     const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+        if (isImeComposing(event)) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
             const delta = event.key === 'ArrowDown' ? 1 : -1;
