@@ -1,5 +1,6 @@
 import type { TerminalRecord } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { moveTerminalToNewSession } from '../session/session-commands';
@@ -27,9 +28,9 @@ export async function terminalTabMenuEntries(
         terminal.provider && agentRestartMenuEntry(terminal),
         CONTEXT_MENU_SEPARATOR,
         {
-            label: 'Move to New Session',
+            label: translate('terminal.tabMenu.moveToNewSession'),
             disabled: isOnlySessionTerminal,
-            disabledReason: 'This is the only tab open in this Session',
+            disabledReason: translate('terminal.tabMenu.onlyTab'),
             onSelect: () => moveTerminalToNewSession(terminal.id, isOnlySessionTerminal),
         },
         CONTEXT_MENU_SEPARATOR,

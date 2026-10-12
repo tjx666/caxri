@@ -3,12 +3,14 @@ import { FilePlus, FolderPlus, RefreshCw, SquareMinus } from 'lucide-react';
 import { PanelHeader } from '../../../components/panel-header';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import type { ResourceExplorerController } from './hooks/use-resource-explorer-controller';
 
 const captionActionClassName = 'shrink-0';
 
 export function ResourceExplorerHeader({ controller }: { controller: ResourceExplorerController }) {
+    const { t } = useTranslation();
     const {
         collapseFolders,
         createRootFile,
@@ -29,23 +31,23 @@ export function ResourceExplorerHeader({ controller }: { controller: ResourceExp
             titleAttribute={session.rootPath}
             actions={
                 <>
-                    <Tooltip content="New File">
+                    <Tooltip content={t('viewContainers.files.newFile')}>
                         <Button
                             className={captionActionClassName}
                             size="icon"
                             variant="ghost"
-                            aria-label="New File"
+                            aria-label={t('viewContainers.files.newFile')}
                             onClick={createRootFile}
                         >
                             <FilePlus size={13} />
                         </Button>
                     </Tooltip>
-                    <Tooltip content="New Folder">
+                    <Tooltip content={t('viewContainers.files.newFolder')}>
                         <Button
                             className={captionActionClassName}
                             size="icon"
                             variant="ghost"
-                            aria-label="New Folder"
+                            aria-label={t('viewContainers.files.newFolder')}
                             onClick={createRootFolder}
                         >
                             <FolderPlus size={13} />
@@ -56,13 +58,13 @@ export function ResourceExplorerHeader({ controller }: { controller: ResourceExp
                      * any gesture in Caxri (an Agent writing files in a Terminal, a branch switch, a script) so this
                      * is the action that says "read the disk again" without also throwing away where the user is.
                      */}
-                    <Tooltip content="Refresh Files">
+                    <Tooltip content={t('viewContainers.files.refresh')}>
                         <Button
                             aria-busy={isRefreshing || undefined}
                             className={captionActionClassName}
                             size="icon"
                             variant="ghost"
-                            aria-label="Refresh Files"
+                            aria-label={t('viewContainers.files.refresh')}
                             onClick={refreshFiles}
                         >
                             <RefreshCw
@@ -72,12 +74,12 @@ export function ResourceExplorerHeader({ controller }: { controller: ResourceExp
                             />
                         </Button>
                     </Tooltip>
-                    <Tooltip content="Collapse Folders">
+                    <Tooltip content={t('viewContainers.files.collapseFolders')}>
                         <Button
                             className={captionActionClassName}
                             size="icon"
                             variant="ghost"
-                            aria-label="Collapse Folders"
+                            aria-label={t('viewContainers.files.collapseFolders')}
                             onClick={collapseFolders}
                         >
                             <SquareMinus size={13} />

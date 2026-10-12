@@ -8,6 +8,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../../components/ui/dialog';
+import { useTranslation } from '../../../i18n';
 import {
     resolveFileConflictChoice,
     useFileConflictDialogStore,
@@ -20,6 +21,7 @@ import {
  * caller owning local dialog state.
  */
 export function FileConflictDialog() {
+    const { t } = useTranslation();
     const request = useFileConflictDialogStore((state) => state.request);
     const contentReference = useRef<HTMLDivElement>(null);
     const isOpen = Boolean(request);
@@ -44,11 +46,16 @@ export function FileConflictDialog() {
                     }
                 >
                     <DialogHeader>
-                        <DialogTitle>&ldquo;{request.name}&rdquo; already exists</DialogTitle>
+                        <DialogTitle>
+                            {t('viewContainers.files.conflict.title', { name: request.name })}
+                        </DialogTitle>
                         <DialogDescription>
-                            {request.folderGated
-                                ? `An item named "${request.name}" already exists in this folder. Folders cannot replace or be replaced — keep both to move it under a new name.`
-                                : `An item named "${request.name}" already exists in this folder. Replacing it overwrites the existing file and cannot be undone.`}
+                            {t(
+                                request.folderGated
+                                    ? 'viewContainers.files.conflict.folderDescription'
+                                    : 'viewContainers.files.conflict.fileDescription',
+                                { name: request.name },
+                            )}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex justify-end gap-2 p-4">
@@ -56,21 +63,21 @@ export function FileConflictDialog() {
                             variant="secondary"
                             onClick={() => resolveFileConflictChoice('keep-both')}
                         >
-                            Keep Both
+                            {t('viewContainers.files.conflict.keepBoth')}
                         </Button>
                         <Button
                             data-conflict-cancel
                             variant="secondary"
                             onClick={() => resolveFileConflictChoice('cancel')}
                         >
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         {!request.folderGated && (
                             <Button
                                 variant="danger"
                                 onClick={() => resolveFileConflictChoice('replace')}
                             >
-                                Replace
+                                {t('viewContainers.files.conflict.replace')}
                             </Button>
                         )}
                     </div>

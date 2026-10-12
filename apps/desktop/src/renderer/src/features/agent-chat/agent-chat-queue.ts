@@ -1,5 +1,7 @@
 import type { AgentChatQueuedMessage } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
+
 /**
  * One queued follow-up as its card renders it.
  */
@@ -13,7 +15,7 @@ export interface AgentChatQueueEntryView {
     imageLabel: string | undefined;
     /**
      * `Steer` while a turn runs, because sending now joins that turn; `Send now` when the Chat is idle (a paused
-     * queue).
+     * queue). An identity, not display text: the card translates it.
      */
     sendNowLabel: 'Send now' | 'Steer';
     /**
@@ -45,8 +47,8 @@ export function agentChatQueueEntries(
                 imageCount === 0
                     ? undefined
                     : imageCount === 1
-                      ? '1 image'
-                      : `${imageCount} images`,
+                      ? translate('agentChat.queue.imageCountOne')
+                      : translate('agentChat.queue.imageCountOther', { count: imageCount }),
             sendNowLabel: isTurnRunning ? 'Steer' : 'Send now',
             canSendNow: !(isTurnRunning && entry.command),
             canEdit: imageCount === 0,

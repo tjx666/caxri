@@ -3,6 +3,7 @@ import { useImperativeHandle } from 'react';
 
 import type { TerminalRecord } from '@caxri/protocol';
 
+import { translate } from '../../../i18n';
 import { pushToast } from '../../../stores/toasts';
 import { terminalDropInput, terminalFilesInput } from '../../terminal/terminal-drop';
 import { draftWithInsertion } from '../agent-chat-drafts';
@@ -71,11 +72,7 @@ export function useAgentChatComposerInput({
             insertText(input);
             return true;
         }
-        if (files.length > 0)
-            pushToast(
-                'warning',
-                'This file has no path on disk to insert. Save it, then drop the saved file.',
-            );
+        if (files.length > 0) pushToast('warning', translate('agentChat.composer.fileHasNoPath'));
         return false;
     };
     const longPaste = useAgentChatLongPaste({ insert: insertText, terminalId });

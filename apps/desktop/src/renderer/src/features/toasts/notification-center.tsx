@@ -16,6 +16,7 @@ import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { NotificationEntry } from '../../stores/notifications';
 import {
@@ -24,7 +25,7 @@ import {
     useNotificationStore,
 } from '../../stores/notifications';
 import type { ToastAction } from '../../stores/toast-actions';
-import { runToastAction, toastActionLabels } from '../../stores/toast-actions';
+import { runToastAction, toastActionLabelKeys } from '../../stores/toast-actions';
 import { muteNotification } from '../../stores/toasts';
 
 /**
@@ -52,6 +53,7 @@ function muteEntry(entry: NotificationEntry): void {
 }
 
 function NotificationRow({ entry }: { entry: NotificationEntry }) {
+    const { t } = useTranslation();
     const muted = useNotificationStore(
         (state) =>
             Boolean(entry.type && state.mutedTypes.includes(entry.type)) &&
@@ -105,13 +107,15 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted">
                     <span>
                         {entry.projectTitle ??
-                            (entry.type ? notificationTypes[entry.type].title : 'Caxri')}
+                            (entry.type ? t(notificationTypes[entry.type].titleKey) : 'Caxri')}
                     </span>
                     <time dateTime={new Date(entry.timestamp).toISOString()}>
                         {entry.timeLabel}
                     </time>
-                    {entry.count > 1 && <span>{entry.count} occurrences</span>}
-                    {muted && <span>Muted</span>}
+                    {entry.count > 1 && (
+                        <span>{t('toasts.center.occurrences', { count: entry.count })}</span>
+                    )}
+                    {muted && <span>{t('toasts.center.muted')}</span>}
                 </div>
                 {actions.length > 0 &&
                     (unavailableReason ? (
@@ -133,7 +137,7 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                                     aria-label={action.accessibleLabel}
                                     onClick={() => runAction(action)}
                                 >
-                                    {toastActionLabels[action.id]}
+                                    {t(toastActionLabelKeys[action.id])}
                                 </Button>
                             ))}
                         </div>
@@ -145,16 +149,16 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                         className="mt-1 text-muted"
                         onClick={() => muteEntry(entry)}
                     >
-                        <BellOff size={12} /> Don't show this type again
+                        <BellOff size={12} /> {t('toasts.options.mute')}
                     </Button>
                 )}
             </div>
-            <Tooltip content="Remove notification">
+            <Tooltip content={t('toasts.center.remove')}>
                 <Button
                     variant="ghost"
                     size="icon"
                     className="shrink-0 text-muted"
-                    aria-label="Remove notification"
+                    aria-label={t('toasts.center.remove')}
                     onClick={() => useNotificationStore.getState().remove(entry.id)}
                 >
                     <X size={14} />
@@ -165,23 +169,25 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
 }
 
 export function NotificationCenter() {
+    const { t } = useTranslation();
     const entries = useNotificationStore((state) => state.entries);
     const isOpen = useNotificationStore((state) => state.isOpen);
     const unread = useNotificationStore(
         (state) => state.entries.filter((entry) => entry.unread).length,
     );
+    const triggerLabel = unread
+        ? t('toasts.center.titleUnread', { count: unread })
+        : t('toasts.center.title');
     return (
         <Popover open={isOpen} onOpenChange={useNotificationStore.getState().setOpen}>
-            <Tooltip content={unread ? `Notifications (${unread} unread)` : 'Notifications'}>
+            <Tooltip content={triggerLabel}>
                 <PopoverTrigger
                     render={
                         <Button
                             variant="ghost"
                             size="sm"
                             className="shrink-0 text-muted"
-                            aria-label={
-                                unread ? `Notifications (${unread} unread)` : 'Notifications'
-                            }
+                            aria-label={triggerLabel}
                         />
                     }
                 >
@@ -193,37 +199,37 @@ export function NotificationCenter() {
                 side="top"
                 align="end"
                 className="flex w-96 max-w-full flex-col"
-                aria-label="Notifications"
+                aria-label={t('toasts.center.title')}
             >
                 <div className="flex items-center justify-between border-b border-border px-3 py-2">
-                    <h2 className="text-[13px] font-medium">Notifications</h2>
+                    <h2 className="text-[13px] font-medium">{t('toasts.center.title')}</h2>
                     <div className="flex gap-1">
-                        <Tooltip content="Clear all notifications">
+                        <Tooltip content={t('toasts.center.clearAll')}>
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 disabled={entries.length === 0}
-                                aria-label="Clear all notifications"
+                                aria-label={t('toasts.center.clearAll')}
                                 onClick={useNotificationStore.getState().clear}
                             >
                                 <CheckCheck size={16} />
                             </Button>
                         </Tooltip>
-                        <Tooltip content="Notification settings">
+                        <Tooltip content={t('toasts.center.settings')}>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                aria-label="Notification settings"
+                                aria-label={t('toasts.center.settings')}
                                 onClick={openNotificationSettings}
                             >
                                 <Settings size={16} />
                             </Button>
                         </Tooltip>
-                        <Tooltip content="Close notifications">
+                        <Tooltip content={t('toasts.center.close')}>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                aria-label="Close notifications"
+                                aria-label={t('toasts.center.close')}
                                 onClick={() => useNotificationStore.getState().setOpen(false)}
                             >
                                 <X size={16} />
@@ -233,17 +239,17 @@ export function NotificationCenter() {
                 </div>
                 {entries.length === 0 ? (
                     <p className="px-4 py-8 text-center text-[12px] text-muted">
-                        No recent notifications
+                        {t('toasts.center.empty')}
                     </p>
                 ) : (
-                    <ul className="max-h-96 overflow-y-auto" aria-label="Recent notifications">
+                    <ul className="max-h-96 overflow-y-auto" aria-label={t('toasts.center.list')}>
                         {entries.map((entry) => (
                             <NotificationRow key={entry.id} entry={entry} />
                         ))}
                     </ul>
                 )}
                 <p className="border-t border-border px-3 py-2 text-[11px] text-muted">
-                    Recent activity from this window. Cleared when the window reloads.
+                    {t('toasts.center.footer')}
                 </p>
             </PopoverContent>
         </Popover>

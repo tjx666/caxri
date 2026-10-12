@@ -23,6 +23,7 @@ import { pathBasename } from '@caxri/utils';
 import type { EditorDocument } from '@desktop-shared/editor-state';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { remapPath } from '../../lib/file-path';
 import {
@@ -253,7 +254,7 @@ export async function cacheDocument(
     let failure: { error: unknown } | undefined;
     try {
         // The label matches the sentence the editor surface paints, so one failure is not described two ways.
-        await tryCommand("Couldn't open this file", async () => {
+        await tryCommand(translate('editor.document.openFailed'), async () => {
             try {
                 const document = await caxri.request('files.read', { sessionId, path });
                 if (!operation.discarded) {
@@ -276,10 +277,7 @@ export async function cacheDocument(
                         operation.path
                     ];
                     if (!cached)
-                        throw new CaxriError(
-                            'CAPACITY',
-                            'There is no room left for another open file. Save or close some files, then try again.',
-                        );
+                        throw new CaxriError('CAPACITY', translate('editor.document.noRoom'));
                 }
             } catch (error) {
                 // Recorded and rethrown rather than handled here, so `tryCommand` keeps sole ownership of the toast
@@ -344,7 +342,7 @@ export async function openFileForSession(
     const operation = trackDocumentOperation(session.id, path);
     markEditorOpenStarted();
     try {
-        const opened = await tryCommand('Unable to open file', async () => {
+        const opened = await tryCommand(translate('editor.document.openFileFailed'), async () => {
             const document = await caxri.request('files.read', { sessionId: session.id, path });
             if (
                 !isCurrentFileOpenIntent(intent) ||
@@ -434,7 +432,7 @@ export async function didSaveDocumentAt(sessionId: string, path: string): Promis
     let isSaved = false;
     try {
         await tryCommand(
-            'Save failed',
+            translate('editor.document.saveFailed'),
             async () => {
                 const result = await writeEditorDocument(sessionId, path, document.content);
                 if (!operation.discarded) {
@@ -500,9 +498,7 @@ interface FileTabTarget {
 }
 
 export function saveRetryUnavailableReason(target: SaveRetryTarget): string | undefined {
-    return retrySaveTarget(target)
-        ? undefined
-        : 'Save retry is no longer available because the editor was closed or its Project changed.';
+    return retrySaveTarget(target) ? undefined : translate('editor.document.saveRetryUnavailable');
 }
 
 /**
@@ -624,7 +620,7 @@ function remapOpenEditorsInSession(
         current.editorRemapOperationId === operationId
     )
         return persistSessionState(current, {
-            failureLabel: 'Moved editor state could not be saved',
+            failureLabel: translate('editor.document.moveStateSaveFailed'),
             reportFailure: false,
             retainOnFailure: true,
         });
@@ -641,7 +637,7 @@ function remapOpenEditorsInSession(
         ),
         ...(operationId && { editorRemapOperationId: operationId }),
     };
-    const failureLabel = 'Moved editor state could not be saved';
+    const failureLabel = translate('editor.document.moveStateSaveFailed');
     if (isDurable)
         return persistSessionState(nextState, {
             failureLabel,
@@ -693,5 +689,6 @@ export async function remapOpenEditorsDurably(
                 ) ?? Promise.resolve(true),
         ),
     );
-    if (saved.some((result) => !result)) throw new Error('Moved editor state could not be saved');
+    if (saved.some((result) => !result))
+        throw new Error(translate('editor.document.moveStateSaveFailed'));
 }

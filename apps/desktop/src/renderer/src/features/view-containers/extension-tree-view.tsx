@@ -6,6 +6,7 @@ import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 
 import { executeCommand } from '../../commands/execute';
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
+import { useTranslation } from '../../i18n';
 import { useExtensionTreeViewState, useSessionViewScope } from '../../stores/selectors';
 import { useLogPrefillStore } from '../panel/views/logs/log-prefill';
 import { cancelTreeChildrenRequest, ROOT_HANDLE } from './extension-tree-client';
@@ -99,6 +100,7 @@ export function ExtensionTreeView({
     title: string;
     viewId: string;
 }) {
+    const { t } = useTranslation();
     const { sessionId, workbenchProjectId } = useSessionViewScope();
     const persisted = useExtensionTreeViewState(viewId);
     const scope = useMemo(
@@ -124,7 +126,7 @@ export function ExtensionTreeView({
                     onRefresh={refreshAction ? () => {} : undefined}
                 />
                 <div className="flex min-h-0 flex-1 items-center justify-center p-3 text-xs text-muted">
-                    Select a Session to load this view.
+                    {t('viewContainers.extensionTree.noSession')}
                 </div>
             </div>
         );
@@ -185,6 +187,7 @@ function ExtensionTreeViewContent({
     };
     title: string;
 }) {
+    const { t } = useTranslation();
     const scrollElement = useRef<HTMLDivElement>(null);
     useScrollEdge(scrollElement);
     const [treeState, updateTreeState] = useExtensionTreeState(scope, persisted);
@@ -215,13 +218,14 @@ function ExtensionTreeViewContent({
         refreshLock.current = id;
         setPendingRefresh({ afterRootLoad: rootLoads.started, id });
         // eslint-disable-next-line no-void -- the header remains busy until the provider's resulting root load completes
-        void dispatchExtensionViewAction(refreshAction.commandId, `Refresh ${title}`).then(
-            (result) => {
-                if (result === 'executed') return;
-                if (refreshLock.current === id) refreshLock.current = undefined;
-                setPendingRefresh((current) => (current?.id === id ? undefined : current));
-            },
-        );
+        void dispatchExtensionViewAction(
+            refreshAction.commandId,
+            t('viewContainers.extensionTree.refresh', { title }),
+        ).then((result) => {
+            if (result === 'executed') return;
+            if (refreshLock.current === id) refreshLock.current = undefined;
+            setPendingRefresh((current) => (current?.id === id ? undefined : current));
+        });
     };
 
     // React Compiler skips this component (see the virtualizer note below), so row identity is preserved by hand:

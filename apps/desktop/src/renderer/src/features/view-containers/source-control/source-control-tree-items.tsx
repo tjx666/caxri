@@ -8,6 +8,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { DiffStat } from '../../../components/diff-stat';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { useTranslation } from '../../../i18n';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { startFilePathDrag } from '../../../lib/file-drag';
@@ -277,6 +278,7 @@ function SourceControlVirtualRow({
     offset: number;
     row: SourceControlVisibleRow;
 }) {
+    const { t } = useTranslation();
     const { depth, node } = row;
     const position = { transform: `translateY(${offset}px)` };
     const setInfo = { 'aria-posinset': row.positionInSet, 'aria-setsize': row.setSize };
@@ -293,7 +295,7 @@ function SourceControlVirtualRow({
                     style={{ paddingLeft: 8 + depth * 14 }}
                     aria-expanded={isExpanded}
                     aria-keyshortcuts="Alt"
-                    aria-description={node.lineStats && diffStatLabel(node.lineStats)}
+                    aria-description={node.lineStats && diffStatLabel(node.lineStats, t)}
                     data-path={node.path}
                     {...setInfo}
                     draggable={Boolean(directoryPath)}
@@ -368,7 +370,7 @@ function SourceControlVirtualRow({
                 style={{ paddingLeft: 10 + depth * 14 }}
                 data-path={resource.path}
                 aria-label={resource.accessibilityLabel}
-                aria-description={resource.lineStats && diffStatLabel(resource.lineStats)}
+                aria-description={resource.lineStats && diffStatLabel(resource.lineStats, t)}
                 aria-keyshortcuts={openablePath ? 'Alt' : undefined}
                 {...setInfo}
                 draggable={Boolean(resourcePath)}

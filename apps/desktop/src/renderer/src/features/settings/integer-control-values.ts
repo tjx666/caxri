@@ -1,5 +1,8 @@
 import type { IntegerSettingSpec } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { settingUnitLabel } from './setting-spec-text';
+
 /**
  * `incomplete` is deliberately not `invalid`. `<input type="number">` reports an empty string for text it cannot parse
  * yet, so `2.` (the keystroke in the middle of typing `2.5` into a setting that expects decimals) arrives here looking
@@ -32,21 +35,31 @@ function formatBound(value: number, side: 'lower' | 'upper'): string {
     return String((side === 'lower' ? Math.ceil(scaled) : Math.floor(scaled)) / factor);
 }
 
-function withUnit(sentence: string, spec: IntegerSettingSpec): string {
-    return spec.display?.unit ? `${sentence} ${spec.display.unit}.` : `${sentence}.`;
-}
-
-function rangeMessage(spec: IntegerSettingSpec): string {
+function rangeMessage(t: Translate, spec: IntegerSettingSpec): string {
     const scale = displayScale(spec);
     const lower = formatBound(spec.min / scale, 'lower');
     const upper = formatBound(spec.max / scale, 'upper');
-    return withUnit(`Enter a number between ${lower} and ${upper}`, spec);
+    const unit = spec.display?.unit;
+    return unit
+        ? t('settings.integerControl.rangeWithUnit', {
+              lower,
+              unit: settingUnitLabel(t, unit),
+              upper,
+          })
+        : t('settings.integerControl.range', { lower, upper });
 }
 
-function wholeNumberMessage(spec: IntegerSettingSpec): string {
+function wholeNumberMessage(t: Translate, spec: IntegerSettingSpec): string {
     const lower = formatBound(spec.min, 'lower');
     const upper = formatBound(spec.max, 'upper');
-    return withUnit(`Enter a whole number between ${lower} and ${upper}`, spec);
+    const unit = spec.display?.unit;
+    return unit
+        ? t('settings.integerControl.wholeNumberWithUnit', {
+              lower,
+              unit: settingUnitLabel(t, unit),
+              upper,
+          })
+        : t('settings.integerControl.wholeNumber', { lower, upper });
 }
 
 /**
@@ -68,6 +81,7 @@ export function formatIntegerSettingValue(value: number, spec: IntegerSettingSpe
  * recreate the same divergence between the visible text and the stored value.
  */
 export function parseIntegerSettingInput(
+    t: Translate,
     source: string,
     spec: IntegerSettingSpec,
 ): IntegerSettingInputResult {
@@ -77,9 +91,9 @@ export function parseIntegerSettingInput(
     if (!Number.isFinite(shown)) return { status: 'incomplete' };
     const scale = displayScale(spec);
     if (scale === 1 && Math.trunc(shown) !== shown)
-        return { error: wholeNumberMessage(spec), status: 'invalid' };
+        return { error: wholeNumberMessage(t, spec), status: 'invalid' };
     const value = scale === 1 ? shown : Math.round(shown * scale);
     return Number.isSafeInteger(value) && value >= spec.min && value <= spec.max
         ? { status: 'valid', value }
-        : { error: rangeMessage(spec), status: 'invalid' };
+        : { error: rangeMessage(t, spec), status: 'invalid' };
 }

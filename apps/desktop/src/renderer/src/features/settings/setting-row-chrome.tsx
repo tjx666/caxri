@@ -11,6 +11,7 @@ import {
     FieldTitle,
 } from '../../components/ui/field';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import type { SettingRowDescriptor } from './settings-registry';
 
 interface SettingRowChromeProperties {
@@ -51,6 +52,7 @@ export function SettingRowChrome({
     fullWidth,
     labelFor,
 }: SettingRowChromeProperties) {
+    const { t } = useTranslation();
     const labelBlock = (
         <FieldContent>
             <span className="flex items-center gap-1.5">
@@ -60,9 +62,11 @@ export function SettingRowChrome({
                     <FieldTitle>{row.title}</FieldTitle>
                 )}
                 {modified && resettable && (
-                    <Tooltip content="Reset to default">
+                    <Tooltip content={t('settings.page.resetToDefault')}>
                         <Button
-                            aria-label={`Reset ${row.accessibleTitle} to default`}
+                            aria-label={t('settings.page.resetRowToDefault', {
+                                title: row.accessibleTitle,
+                            })}
                             className="size-5 min-h-0 p-0 text-muted opacity-0 group-focus-within/setting:opacity-100 group-hover/setting:opacity-100 hover:text-foreground"
                             size="icon"
                             variant="ghost"
@@ -75,7 +79,9 @@ export function SettingRowChrome({
                 {row.detail && (
                     <Tooltip content={row.detail}>
                         <Button
-                            aria-label={`More about ${row.accessibleTitle}`}
+                            aria-label={t('settings.page.moreAbout', {
+                                title: row.accessibleTitle,
+                            })}
                             className="size-5 min-h-0 p-0 text-muted hover:text-foreground"
                             size="icon"
                             variant="ghost"

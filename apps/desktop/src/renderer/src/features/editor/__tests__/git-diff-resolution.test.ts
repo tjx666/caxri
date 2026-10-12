@@ -1,10 +1,11 @@
 import type { GitDiffDocument } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
-    RESOLVED_GIT_DIFF_ACTION_LABEL,
-    RESOLVED_GIT_DIFF_PENDING_LABEL,
-    RESOLVED_GIT_DIFF_REASON,
+    RESOLVED_GIT_DIFF_ACTION_LABEL_KEY,
+    RESOLVED_GIT_DIFF_PENDING_LABEL_KEY,
+    RESOLVED_GIT_DIFF_REASON_KEY,
     resolvedGitDiffActionLabel,
     resolveNullGitDiffState,
 } from '../git-diff-resolution';
@@ -57,17 +58,20 @@ describe('resolveNullGitDiffState', () => {
 
 describe('resolvedGitDiffActionLabel', () => {
     it('distinguishes an idle check from one in flight', () => {
-        expect(resolvedGitDiffActionLabel(false)).toBe(RESOLVED_GIT_DIFF_ACTION_LABEL);
-        expect(resolvedGitDiffActionLabel(true)).toBe(RESOLVED_GIT_DIFF_PENDING_LABEL);
-        expect(RESOLVED_GIT_DIFF_ACTION_LABEL).not.toBe(RESOLVED_GIT_DIFF_PENDING_LABEL);
+        expect(resolvedGitDiffActionLabel(false)).toBe(RESOLVED_GIT_DIFF_ACTION_LABEL_KEY);
+        expect(resolvedGitDiffActionLabel(true)).toBe(RESOLVED_GIT_DIFF_PENDING_LABEL_KEY);
+        expect(translate(RESOLVED_GIT_DIFF_ACTION_LABEL_KEY)).not.toBe(
+            translate(RESOLVED_GIT_DIFF_PENDING_LABEL_KEY),
+        );
     });
 });
 
 describe('RESOLVED_GIT_DIFF_REASON', () => {
     it('names what happened to the file rather than what the app did to the tab', () => {
-        expect(RESOLVED_GIT_DIFF_REASON).toBe(
+        const reason = translate(RESOLVED_GIT_DIFF_REASON_KEY);
+        expect(reason).toBe(
             'This file no longer differs from what the diff compared. The change was committed or undone.',
         );
-        expect(RESOLVED_GIT_DIFF_REASON).not.toContain('closed');
+        expect(reason).not.toContain('closed');
     });
 });

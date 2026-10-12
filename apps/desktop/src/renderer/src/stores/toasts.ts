@@ -5,6 +5,8 @@ import { errorMessage, isCaxriError } from '@caxri/protocol';
 import type { ToastT } from 'sonner';
 import { toast } from 'sonner';
 
+import type { TranslationKey } from '../i18n';
+import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import type { NotificationType } from './notifications';
 import {
@@ -15,7 +17,7 @@ import {
     syncNotificationSettings,
 } from './notifications';
 import type { ToastAction } from './toast-actions';
-import { runToastAction, toastActionLabels } from './toast-actions';
+import { runToastAction, toastActionLabelKeys } from './toast-actions';
 
 const activeReminderToasts = new Map<string | number, NotificationType>();
 const openReminderMenus = new Set<string | number>();
@@ -88,14 +90,11 @@ export interface ToastOptions {
  * Sonner's label for a follow-up: the visible word, plus a screen-reader name when the word alone is ambiguous.
  */
 function toastButtonLabel(action: ToastAction): ReactNode {
-    if (!action.accessibleLabel) return toastActionLabels[action.id];
+    const label = translate(toastActionLabelKeys[action.id]);
+    if (!action.accessibleLabel) return label;
     return [
         createElement('span', { className: 'sr-only', key: 'accessible' }, action.accessibleLabel),
-        createElement(
-            'span',
-            { 'aria-hidden': true, 'key': 'visible' },
-            toastActionLabels[action.id],
-        ),
+        createElement('span', { 'aria-hidden': true, 'key': 'visible' }, label),
     ];
 }
 
@@ -218,7 +217,7 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
  * Commit the single preference before hiding anything, so failed writes never pretend to have muted reminders.
  */
 export async function muteNotification(type: NotificationType): Promise<void> {
-    await tryCommand('Unable to mute notifications', async () => {
+    await tryCommand(translate('toasts.muteFailed'), async () => {
         const result = await caxri.request('settings.patch', {
             changes: [{ key: notificationTypes[type].key, value: false }],
         });
@@ -239,16 +238,16 @@ export function dismissToast(id?: number | string): void {
     toast.dismiss(id);
 }
 
-const errnoReasons: Record<string, string> = {
-    ENOENT: 'The file no longer exists.',
-    ENOTDIR: 'The path is not a directory.',
-    EISDIR: 'The path is a directory, not a file.',
-    EACCES: 'Permission was denied.',
-    EPERM: 'Permission was denied.',
-    ENOSPC: 'The disk is full.',
-    EEXIST: 'A file with that name already exists.',
-    EPIPE: 'The connection was interrupted.',
-    ECONNREFUSED: 'The service refused the connection.',
+const errnoReasons: Partial<Record<string, TranslationKey>> = {
+    ENOENT: 'toasts.failure.errno.ENOENT',
+    ENOTDIR: 'toasts.failure.errno.ENOTDIR',
+    EISDIR: 'toasts.failure.errno.EISDIR',
+    EACCES: 'toasts.failure.errno.EACCES',
+    EPERM: 'toasts.failure.errno.EPERM',
+    ENOSPC: 'toasts.failure.errno.ENOSPC',
+    EEXIST: 'toasts.failure.errno.EEXIST',
+    EPIPE: 'toasts.failure.errno.EPIPE',
+    ECONNREFUSED: 'toasts.failure.errno.ECONNREFUSED',
 };
 
 /**
@@ -268,21 +267,22 @@ function redactAbsolutePaths(message: string): string {
 export function describeFailure(error: unknown, label: string): string {
     const rawMessage = errorMessage(error, '');
     const errorCode = (error as { code?: unknown } | null)?.code;
-    const errno =
-        typeof errorCode === 'string' && errnoReasons[errorCode]
-            ? errorCode
-            : /\b(?:ENOENT|ENOTDIR|EISDIR|EACCES|EPERM|ENOSPC|EEXIST|EPIPE|ECONNREFUSED)\b/u.exec(
-                  rawMessage,
-              )?.[0];
-    const fallback = isCaxriError(error)
-        ? error.code === 'UNAVAILABLE'
-            ? 'Caxri is not ready yet.'
-            : error.code === 'TIMEOUT'
-              ? 'Caxri did not respond in time.'
-              : 'The operation could not be completed.'
-        : 'The operation could not be completed.';
-    const reason = errno
-        ? errnoReasons[errno]
+    const errnoReason =
+        (typeof errorCode === 'string' ? errnoReasons[errorCode] : undefined) ??
+        errnoReasons[
+            /\b(?:ENOENT|ENOTDIR|EISDIR|EACCES|EPERM|ENOSPC|EEXIST|EPIPE|ECONNREFUSED)\b/u.exec(
+                rawMessage,
+            )?.[0] ?? ''
+        ];
+    const fallback = translate(
+        isCaxriError(error) && error.code === 'UNAVAILABLE'
+            ? 'toasts.failure.notReady'
+            : isCaxriError(error) && error.code === 'TIMEOUT'
+              ? 'toasts.failure.timedOut'
+              : 'toasts.failure.couldNotComplete',
+    );
+    const reason = errnoReason
+        ? translate(errnoReason)
         : redactAbsolutePaths(rawMessage)
               .replaceAll(
                   /\b(?:VALIDATION|NOT_FOUND|PATH_DENIED|CAPACITY|UNAVAILABLE|TIMEOUT|CANCELLED|CONFLICT|FORBIDDEN|IO|GIT|INTERNAL)\b:?\s*/gu,
@@ -291,8 +291,12 @@ export function describeFailure(error: unknown, label: string): string {
               .replaceAll(/\bE[A-Z0-9]{2,}\b:?\s*/gu, '')
               .replaceAll(/\s+/gu, ' ')
               .trim() || fallback;
-    const sentence = /[.!?]$/u.test(reason) ? reason : `${reason}.`;
-    return `${redactAbsolutePaths(label).replaceAll(/[.:!?\s]+$/gu, '')}. ${sentence}`;
+    // Full-width marks count too: a translated label or reason already ends in Chinese punctuation.
+    const sentence = /[.!?。！？]$/u.test(reason) ? reason : `${reason}.`;
+    return translate('toasts.failure.withReason', {
+        label: redactAbsolutePaths(label).replaceAll(/[.:!?。：！？\s]+$/gu, ''),
+        reason: sentence,
+    });
 }
 
 /**
@@ -337,7 +341,7 @@ export async function tryCommand<T>(
             pushToast('error', describeFailure(error, label), {
                 action: recovery && {
                     ...recovery,
-                    accessibleLabel: `${toastActionLabels[recovery.id]} ${redactAbsolutePaths(label)}`,
+                    accessibleLabel: `${translate(toastActionLabelKeys[recovery.id])} ${redactAbsolutePaths(label)}`,
                 },
             });
         }

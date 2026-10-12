@@ -8,6 +8,7 @@ import type { EditorDocument } from '@desktop-shared/editor-state';
 import { executeCommand } from '../../commands/execute';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useResourceLoad } from '../../hooks/use-resource-load';
+import { useTranslation } from '../../i18n';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { useProjectById, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
@@ -18,7 +19,7 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { ImagePreview } from './image-preview';
 import { MarkdownPreview } from './markdown-preview';
 import { MermaidPreview } from './mermaid-preview';
-import { PREVIEW_LOADING_LABEL, previewerForPath } from './preview-registry';
+import { PREVIEW_LOADING_LABEL_KEY, previewerForPath } from './preview-registry';
 import { previewViewStateKey } from './preview-view-state';
 
 /**
@@ -55,6 +56,7 @@ function TextPreviewSurface({
     path: string;
     children: (document: EditorDocument) => ReactNode;
 }) {
+    const { t } = useTranslation();
     const document = useDocument(sessionId, path, workbenchProjectId);
     const load = useCallback(() => cacheDocument(sessionId, path), [path, sessionId]);
     const { failure, retry } = useResourceLoad({
@@ -71,8 +73,8 @@ function TextPreviewSurface({
             // Recovery is the same free-path Open File the user reached it through (Cmd+P), because an external file
             // outside every Project can only come back through an explicit open.
             <EditorLoadFailure
-                actionLabel="Open File…"
-                reason="This file is outside every Project and is no longer open. Open it again to preview it."
+                actionLabel={t('preview.externalClosed.action')}
+                reason={t('preview.externalClosed.reason')}
                 tone="interrupted"
                 onAction={() => executeCommand('pathBrowser.open')}
             />
@@ -81,10 +83,10 @@ function TextPreviewSurface({
         return failure ? (
             <EditorLoadFailure
                 {...describeDocumentReadFailure(failure.error)}
-                {...documentLoadRecoveryAction(documentReadRecovery(failure.error), path, retry)}
+                {...documentLoadRecoveryAction(documentReadRecovery(failure.error), path, retry, t)}
             />
         ) : (
-            <LoadingSkeleton variant="document" label={PREVIEW_LOADING_LABEL} />
+            <LoadingSkeleton variant="document" label={t(PREVIEW_LOADING_LABEL_KEY)} />
         );
     return children(document);
 }
@@ -97,13 +99,13 @@ function TextPreviewSurface({
  * same file previewed in two panes keeps two positions.
  */
 export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePreviewTab }) {
+    const { t } = useTranslation();
     const session = usePaneViewSession();
     const project = useProjectById(session?.workbenchProjectId);
     const theme = useTheme();
     if (!session || !project || !theme) return null;
     const previewer = previewerForPath(tab.path);
-    if (!previewer)
-        return <div className={emptyWorkClassName}>No preview is available for this file.</div>;
+    if (!previewer) return <div className={emptyWorkClassName}>{t('preview.unavailable')}</div>;
     const viewStateKey = previewViewStateKey(session.id, paneId, tab.path);
     const textSurface = (render: (document: EditorDocument) => ReactNode) => (
         <TextPreviewSurface
@@ -165,7 +167,9 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
         case 'table': {
             return textSurface((document) => (
                 <Suspense
-                    fallback={<LoadingSkeleton variant="document" label={PREVIEW_LOADING_LABEL} />}
+                    fallback={
+                        <LoadingSkeleton variant="document" label={t(PREVIEW_LOADING_LABEL_KEY)} />
+                    }
                 >
                     <CsvPreview
                         path={tab.path}
@@ -178,7 +182,9 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
         case 'pdf': {
             return (
                 <Suspense
-                    fallback={<LoadingSkeleton variant="document" label={PREVIEW_LOADING_LABEL} />}
+                    fallback={
+                        <LoadingSkeleton variant="document" label={t(PREVIEW_LOADING_LABEL_KEY)} />
+                    }
                 >
                     <PdfPreview
                         path={tab.path}

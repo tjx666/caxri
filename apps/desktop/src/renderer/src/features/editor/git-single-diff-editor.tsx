@@ -10,6 +10,7 @@ import type { editor as Monaco } from 'monaco-editor';
 import { useEditorOptions } from '@/hooks/use-editor-options';
 import { languageEditorOptions } from '@/lib/editor-options';
 
+import { useTranslation } from '../../i18n';
 import { bindGitReviewCommentEditor } from './git-review-comment-binding';
 import { bindSingleDiffEditor } from './git-single-diff-binding';
 
@@ -41,6 +42,7 @@ export function GitSingleDiffEditor({
     sessionId: string;
     sourceKey: string;
 }) {
+    const { t } = useTranslation();
     const isAdded = document.original === '';
     const kind = isAdded ? 'added' : 'deleted';
     const [editor, setEditor] = useState<Monaco.IStandaloneCodeEditor | null>(null);
@@ -93,7 +95,11 @@ export function GitSingleDiffEditor({
                 ...editorOptions,
                 ...languageEditorOptions(isAdded ? modifiedLanguage : originalLanguage),
                 glyphMargin: true,
-                ariaLabel: kind === 'added' ? 'Added file contents' : 'Deleted file contents',
+                ariaLabel: t(
+                    kind === 'added'
+                        ? 'editor.gitDiff.addedContents'
+                        : 'editor.gitDiff.deletedContents',
+                ),
                 readOnly: true,
                 wordWrap: 'off',
                 ...(onContentHeightChange && {

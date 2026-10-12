@@ -1,6 +1,8 @@
 import type { RemoteDebuggingState } from '@caxri/protocol';
 
 import type { StructuredTooltipData } from '../../components/structured-tooltip';
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 
 export interface RemoteDebuggingChipCopy {
     /**
@@ -27,34 +29,41 @@ export interface RemoteDebuggingChipCopy {
  */
 export function remoteDebuggingChipCopy(
     state: RemoteDebuggingState,
+    t: Translate = translate,
 ): RemoteDebuggingChipCopy | undefined {
     if (state.transport === 'disabled') return undefined;
     const where =
         state.transport === 'pipe'
-            ? 'through a pipe opened by whatever started Caxri'
+            ? t('statusBar.remoteDebugging.wherePipe')
             : state.port
-              ? `on 127.0.0.1:${state.port}`
-              : 'on a loopback port';
-    const consequence =
-        'Anything that connects can read every window and act as you; nothing on another machine can reach it.';
+              ? t('statusBar.remoteDebugging.wherePort', { port: state.port })
+              : t('statusBar.remoteDebugging.whereLoopback');
+    const consequence = t('statusBar.remoteDebugging.consequence');
     return {
-        text: state.transport === 'pipe' ? 'Debug pipe' : 'Debug port',
-        description: `Caxri accepts debugging connections ${where}. ${consequence} Click to open the setting.`,
+        text: t(
+            state.transport === 'pipe'
+                ? 'statusBar.remoteDebugging.pipeText'
+                : 'statusBar.remoteDebugging.portText',
+        ),
+        description: t('statusBar.remoteDebugging.description', { where, consequence }),
         tooltip: {
-            title: 'Accepting debugging connections',
+            title: t('statusBar.remoteDebugging.title'),
             rows: [
                 state.transport === 'pipe'
-                    ? { label: 'Channel', value: 'Pipe opened by whatever started Caxri' }
+                    ? {
+                          label: t('statusBar.remoteDebugging.channel'),
+                          value: t('statusBar.remoteDebugging.channelPipe'),
+                      }
                     : {
-                          label: 'Address',
+                          label: t('statusBar.remoteDebugging.address'),
                           value: state.port
                               ? `127.0.0.1:${state.port}`
-                              : 'Loopback, port chosen at launch',
+                              : t('statusBar.remoteDebugging.addressLoopback'),
                           isCode: Boolean(state.port),
                       },
             ],
             notes: [consequence],
-            hint: 'Click to open the setting',
+            hint: t('statusBar.remoteDebugging.hint'),
         },
     };
 }

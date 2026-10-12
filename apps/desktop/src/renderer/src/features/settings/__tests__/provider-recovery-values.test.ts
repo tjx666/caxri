@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { parseRecoveryDelay, parseRecoveryPatterns } from '../provider-recovery-values';
 
 describe('parseRecoveryPatterns', () => {
     it('trims blank lines and removes case-insensitive duplicates', () => {
-        expect(parseRecoveryPatterns(' API timeout \n\napi TIMEOUT\n retry failed ')).toEqual({
+        expect(
+            parseRecoveryPatterns(translate, ' API timeout \n\napi TIMEOUT\n retry failed '),
+        ).toEqual({
             ok: true,
             patterns: ['API timeout', 'retry failed'],
         });
@@ -12,7 +15,7 @@ describe('parseRecoveryPatterns', () => {
 
     it('rejects an oversized pattern set without truncating user input', () => {
         const source = Array.from({ length: 21 }, (_, index) => `failure-${index}`).join('\n');
-        expect(parseRecoveryPatterns(source)).toEqual({
+        expect(parseRecoveryPatterns(translate, source)).toEqual({
             ok: false,
             error: 'Add at most 20 patterns.',
         });

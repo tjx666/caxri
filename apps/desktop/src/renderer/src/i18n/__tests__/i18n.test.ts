@@ -1,8 +1,8 @@
+import { interpolate } from '@desktop-shared/i18n/interpolate';
+import { resolveAppLocale } from '@desktop-shared/i18n/locale';
 import { en as lobeEn } from '@lobehub/ui/i18n';
 import { describe, expect, it } from 'vitest';
 
-import { interpolate } from '../interpolate';
-import { resolveAppLocale } from '../locale';
 import { useLocaleStore } from '../locale-store';
 import { enResources } from '../locales/en';
 import { zhCNResources } from '../locales/zh-cn';

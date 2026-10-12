@@ -1,15 +1,27 @@
 import { ArrowUpRight, CircleDot, ClipboardCheck, GitPullRequest, ListChecks } from 'lucide-react';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
 import { LinearLogoIcon } from '../../icons/brands/linear-logo-icon';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import type { AgentChatTrackerArtifact } from './agent-chat-trackers';
 
-const KIND_LABEL: Record<AgentChatTrackerArtifact['kind'], string> = {
-    pull: 'pull request',
-    issue: 'issue',
-    acceptance: 'acceptance report',
+const ACTION_LABEL_KEYS: Record<
+    AgentChatTrackerArtifact['action'],
+    Record<AgentChatTrackerArtifact['kind'], TranslationKey>
+> = {
+    created: {
+        pull: 'agentChat.tracker.createdPull',
+        issue: 'agentChat.tracker.createdIssue',
+        acceptance: 'agentChat.tracker.createdAcceptance',
+    },
+    updated: {
+        pull: 'agentChat.tracker.updatedPull',
+        issue: 'agentChat.tracker.updatedIssue',
+        acceptance: 'agentChat.tracker.updatedAcceptance',
+    },
 };
 
 /**
@@ -30,8 +42,8 @@ const KIND_ICON = {
 /**
  * `Created pull request`, `Updated issue`: what the Agent did, in the words a reader scans for.
  */
-function actionLabel(artifact: AgentChatTrackerArtifact): string {
-    return `${artifact.action === 'created' ? 'Created' : 'Updated'} ${KIND_LABEL[artifact.kind]}`;
+function actionLabel(artifact: AgentChatTrackerArtifact, t: Translate): string {
+    return t(ACTION_LABEL_KEYS[artifact.action][artifact.kind]);
 }
 
 /**
@@ -43,14 +55,20 @@ function actionLabel(artifact: AgentChatTrackerArtifact): string {
 export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerArtifact }) {
     const Mark = PROVIDER_MARK[artifact.provider];
     const KindIcon = KIND_ICON[artifact.kind];
-    const label = actionLabel(artifact);
+    const { t } = useTranslation();
+    const label = actionLabel(artifact, t);
     // An acceptance round ingested with `--requirement "$VAR"` carries no readable title; name the report instead of
     // promoting `Round N` to the headline.
     const title =
-        artifact.title ?? (artifact.kind === 'acceptance' ? 'Acceptance report' : undefined);
+        artifact.title ??
+        (artifact.kind === 'acceptance' ? t('agentChat.tracker.acceptanceTitle') : undefined);
     return (
         <button
-            aria-label={`${label}: ${title ?? artifact.reference}, ${artifact.reference}. Open in browser`}
+            aria-label={t('agentChat.tracker.cardLabel', {
+                action: label,
+                title: title ?? artifact.reference,
+                reference: artifact.reference,
+            })}
             className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
             data-agent-chat-tracker={artifact.provider}
             type="button"

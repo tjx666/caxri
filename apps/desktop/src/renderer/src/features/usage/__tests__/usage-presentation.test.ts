@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     LIMIT_WARNING_PERCENT,
     limitBarTone,
@@ -53,6 +54,7 @@ describe('pull request tile detail', () => {
     it('leaves out a line count that changed nothing', () => {
         expect(
             pullRequestTileDetail(
+                translate,
                 { linesAdded: 0, linesDeleted: 0, pullRequestsCreated: 1200 },
                 lines,
             ),
@@ -62,6 +64,7 @@ describe('pull request tile detail', () => {
     it('keeps the line count and the opened count as separate facts', () => {
         expect(
             pullRequestTileDetail(
+                translate,
                 { linesAdded: 12, linesDeleted: 3, pullRequestsCreated: 2 },
                 lines,
             ),
@@ -72,19 +75,39 @@ describe('pull request tile detail', () => {
 describe('usage row status labels', () => {
     it('names every state a muted row stands for', () => {
         expect(
-            usageRowStatusLabel({ isRemoved: true, isOutsideCaxri: false, kind: 'project' }),
+            usageRowStatusLabel(translate, {
+                isRemoved: true,
+                isOutsideCaxri: false,
+                kind: 'project',
+            }),
         ).toBe('Removed');
         expect(
-            usageRowStatusLabel({ isRemoved: false, isOutsideCaxri: true, kind: 'project' }),
+            usageRowStatusLabel(translate, {
+                isRemoved: false,
+                isOutsideCaxri: true,
+                kind: 'project',
+            }),
         ).toBeUndefined();
         expect(
-            usageRowStatusLabel({ isDeleted: true, isOutsideCaxri: false, kind: 'session' }),
+            usageRowStatusLabel(translate, {
+                isDeleted: true,
+                isOutsideCaxri: false,
+                kind: 'session',
+            }),
         ).toBe('Deleted');
         expect(
-            usageRowStatusLabel({ isDeleted: false, isOutsideCaxri: true, kind: 'session' }),
+            usageRowStatusLabel(translate, {
+                isDeleted: false,
+                isOutsideCaxri: true,
+                kind: 'session',
+            }),
         ).toBe('Outside Caxri');
         expect(
-            usageRowStatusLabel({ isDeleted: false, isOutsideCaxri: false, kind: 'session' }),
+            usageRowStatusLabel(translate, {
+                isDeleted: false,
+                isOutsideCaxri: false,
+                kind: 'session',
+            }),
         ).toBeUndefined();
     });
 });

@@ -1,5 +1,6 @@
 import type { AutomaticNamingNotice, BootstrapState } from '@caxri/protocol';
 
+import { translate } from '../i18n';
 import { pushToast } from './toasts';
 
 /**
@@ -37,9 +38,12 @@ export function reportAutomaticNamingNotices(
         const subject = describeSubject(bootstrap, notice.sessionId);
         pushToast(
             'info',
-            notice.reason === 'sandboxBoundaryConflict'
-                ? `${subject}: Automatic naming is blocked by the Project sandbox boundary. Choose a more specific Project folder and restart the Agent.`
-                : `${subject}: Automatic naming is unavailable because its sandbox paths could not be verified. Restart the Agent after correcting the paths.`,
+            translate(
+                notice.reason === 'sandboxBoundaryConflict'
+                    ? 'core.automaticNaming.sandboxBoundaryConflict'
+                    : 'core.automaticNaming.unverifiedPaths',
+                { subject },
+            ),
         );
     }
 }

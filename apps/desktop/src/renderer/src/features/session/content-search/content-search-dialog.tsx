@@ -7,6 +7,7 @@ import {
     DialogTitle,
 } from '../../../components/ui/dialog';
 import { Input } from '../../../components/ui/input';
+import { useTranslation } from '../../../i18n';
 import { setSessionContentSearchOpen, useDialogStore } from '../../../stores/dialogs';
 import { openContentSearchResult } from './content-search-commands';
 import { contentSearchCoverage } from './content-search-model';
@@ -25,23 +26,21 @@ export function ContentSearchDialog() {
 
 function ContentSearchDialogBody() {
     const search = useContentSearch();
+    const { t } = useTranslation();
     return (
         <>
             <DialogHeader>
-                <DialogTitle>Search Session Content</DialogTitle>
-                <DialogDescription>
-                    Search user and assistant messages across active and archived Sessions. Tool
-                    output is excluded.
-                </DialogDescription>
+                <DialogTitle>{t('session.contentSearch.title')}</DialogTitle>
+                <DialogDescription>{t('session.contentSearch.description')}</DialogDescription>
             </DialogHeader>
             <div className="px-4 pb-3">
                 <Input
                     autoFocus
-                    aria-label="Search Session Content"
+                    aria-label={t('session.contentSearch.title')}
                     maxLength={200}
                     value={search.query}
                     onChange={(event) => search.setQuery(event.target.value)}
-                    placeholder="Search conversation text…"
+                    placeholder={t('session.contentSearch.placeholder')}
                 />
             </div>
             <div
@@ -49,39 +48,41 @@ function ContentSearchDialogBody() {
                 aria-busy={search.isLoading}
             >
                 {!search.isActive && (
-                    <p className="text-muted">Enter text to find a conversation.</p>
+                    <p className="text-muted">{t('session.contentSearch.prompt')}</p>
                 )}
                 {search.isLoading && (
                     <p role="status" className="text-muted">
-                        Searching Sessions…
+                        {t('session.contentSearch.searching')}
                     </p>
                 )}
                 {search.isError && (
                     <div role="alert" className="flex items-center gap-3">
-                        <span>Could not search Session content.</span>
+                        <span>{t('session.contentSearch.failed')}</span>
                         <Button variant="secondary" onClick={search.retry}>
-                            Retry
+                            {t('common.retry')}
                         </Button>
                     </div>
                 )}
                 {!search.isLoading && search.result && (
                     <>
                         <p role="status" className="mb-3 text-xs text-muted">
-                            {contentSearchCoverage(search.result)}
+                            {contentSearchCoverage(search.result, t)}
                         </p>
                         {search.result.partial && (
                             <Button variant="secondary" size="sm" onClick={search.retry}>
-                                Retry search
+                                {t('session.contentSearch.retrySearch')}
                             </Button>
                         )}
                         {search.items.length === 0 && (
                             <p className="py-4 text-muted">
-                                {search.result.partial
-                                    ? 'No matches in the searched content.'
-                                    : 'No matching Sessions.'}
+                                {t(
+                                    search.result.partial
+                                        ? 'session.contentSearch.noMatchesPartial'
+                                        : 'session.contentSearch.noMatches',
+                                )}
                             </p>
                         )}
-                        <ul aria-label="Session content results" className="grid gap-2">
+                        <ul aria-label={t('session.contentSearch.results')} className="grid gap-2">
                             {search.items.map((item) => (
                                 <li key={item.sessionId}>
                                     <button
@@ -91,10 +92,13 @@ function ContentSearchDialogBody() {
                                     >
                                         <span className="truncate font-medium">{item.title}</span>
                                         <span className="text-xs text-muted">
-                                            {item.project} · {item.provider} ·{' '}
-                                            {item.isArchived
-                                                ? 'Archived · View in Archived Sessions'
-                                                : 'Active · Open Session'}
+                                            {item.project ?? t('session.unknownProject')} ·{' '}
+                                            {item.provider} ·{' '}
+                                            {t(
+                                                item.isArchived
+                                                    ? 'session.contentSearch.archivedResult'
+                                                    : 'session.contentSearch.activeResult',
+                                            )}
                                         </span>
                                         <span className="line-clamp-3 text-sm break-words">
                                             {item.snippet}

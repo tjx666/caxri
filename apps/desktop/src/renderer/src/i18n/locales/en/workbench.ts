@@ -1,1 +1,45 @@
-export const workbench = {} as const;
+export const workbench = {
+    'workbench.welcome.title': 'Project-first development.',
+    'workbench.welcome.description':
+        'Add a folder as a Project, then keep every Agent and Shell Session together beneath it.',
+    'workbench.welcome.addProject': 'Add Project',
+    'workbench.closeSettings': 'Close Settings',
+    'workbench.resizePanel': 'Resize Panel',
+
+    'workbench.pane.empty': 'No Terminal in this Session.',
+    'workbench.pane.tabListLabel': 'Open tabs in pane {{index}} of {{count}}',
+    'workbench.pane.resizeHorizontalSplit': 'Resize horizontal split',
+    'workbench.pane.resizeVerticalSplit': 'Resize vertical split',
+    'workbench.pane.dropZone.center': 'Move to pane',
+    'workbench.pane.dropZone.left': 'Split left',
+    'workbench.pane.dropZone.right': 'Split right',
+    'workbench.pane.dropZone.up': 'Split up',
+    'workbench.pane.dropZone.down': 'Split down',
+
+    'workbench.tab.closeEditor': 'Close Editor',
+    'workbench.tab.closeTerminal': 'Close Terminal',
+    'workbench.tab.compacting': 'Compacting context',
+    'workbench.tab.compactingTooltip':
+        'The Agent is summarizing earlier context before continuing.',
+
+    'workbench.tabMenu.close.one': 'Close',
+    'workbench.tabMenu.close.others': 'Close Others',
+    'workbench.tabMenu.close.right': 'Close to the Right',
+    'workbench.tabMenu.close.editors': 'Close Editors',
+    'workbench.tabMenu.close.all': 'Close All',
+    'workbench.tabMenu.split.left': 'Split Left',
+    'workbench.tabMenu.split.right': 'Split Right',
+    'workbench.tabMenu.split.up': 'Split Up',
+    'workbench.tabMenu.split.down': 'Split Down',
+    'workbench.tabMenu.splitBlocked.missing': 'This tab is no longer open',
+    'workbench.tabMenu.splitBlocked.onlyTab': 'Open another tab in this pane first',
+    'workbench.tabMenu.splitBlocked.paneLimit': 'A Workbench holds at most {{count}} panes',
+
+    'workbench.rootPrompt.label': 'New Git worktree',
+    'workbench.rootPrompt.message': 'A new Git worktree was created for this Session.',
+    'workbench.rootPrompt.focusHint': 'Press Shift+Escape to focus this notice.',
+    'workbench.rootPrompt.notNow': 'Not Now',
+    'workbench.rootPrompt.continue': 'Continue Session in Worktree',
+    'workbench.rootPrompt.continueFailed': 'Unable to continue in worktree',
+    'workbench.rootPrompt.dismissFailed': 'Unable to dismiss worktree suggestion',
+} as const;

@@ -2,6 +2,7 @@ import { LoaderCircle, Sparkles } from 'lucide-react';
 
 import { Input } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { sessionRowActionButton } from './session-row-actions';
 
 interface SessionRenameInputProperties {
@@ -44,6 +45,7 @@ export function SessionRenameInput({
     suggesting,
 }: SessionRenameInputProperties) {
     const errorId = `session-rename-error-${sessionId}`;
+    const { t } = useTranslation();
     return (
         <>
             {/*
@@ -57,7 +59,7 @@ export function SessionRenameInput({
                 ref={focusInput}
                 appearance="workbench"
                 className="session-rename -mx-1.25 -my-0.5 w-auto flex-1 text-[13px] font-medium text-foreground"
-                aria-label={`Rename ${title}`}
+                aria-label={t('primarySidebar.rename.inputAriaLabel', { title })}
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? errorId : undefined}
                 value={value}
@@ -93,11 +95,14 @@ export function SessionRenameInput({
                 size="compact"
             />
             {canSuggest && (
-                <Tooltip content="Rename with AI" shortcut="shift+enter">
+                <Tooltip
+                    content={t('primarySidebar.sessionMenu.renameWithAi')}
+                    shortcut="shift+enter"
+                >
                     <button
                         type="button"
                         className={`${sessionRowActionButton} session-rename-suggest flex-none disabled:cursor-default`}
-                        aria-label={`Rename ${title} with AI`}
+                        aria-label={t('primarySidebar.rename.suggestAriaLabel', { title })}
                         aria-keyshortcuts="Shift+Enter"
                         disabled={suggesting}
                         tabIndex={-1}

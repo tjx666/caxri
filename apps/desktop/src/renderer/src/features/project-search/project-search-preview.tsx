@@ -5,6 +5,7 @@ import type { FileSearchMatch } from '@caxri/protocol';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
+import { useTranslation } from '../../i18n';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
@@ -47,6 +48,7 @@ export function ProjectSearchPreview({
 }) {
     // Everything below renders from `previewed`, so a sweep keeps showing the last settled file instead of flashing a
     // spinner per row it passes over.
+    const { t } = useTranslation();
     const previewed = useDebouncedValue(match, PREVIEW_SETTLE_MS);
     const document = useCaxriQuery(
         'files.read',
@@ -60,17 +62,18 @@ export function ProjectSearchPreview({
             document.data ? searchSnippetLines(document.data.content, previewed?.line) : NO_LINES,
         [document.data, previewed?.line],
     );
-    if (!match) return <PreviewMessage>Select a result to preview it.</PreviewMessage>;
+    if (!match) return <PreviewMessage>{t('projectSearch.preview.empty')}</PreviewMessage>;
     if (!previewed || document.isPending)
         return (
             <LoadingSkeleton
                 variant="document"
                 className="min-h-0 flex-1"
-                label="Loading preview…"
+                label={t('projectSearch.preview.loading')}
                 lines={9}
             />
         );
-    if (document.isError) return <PreviewMessage>Unable to read this file.</PreviewMessage>;
+    if (document.isError)
+        return <PreviewMessage>{t('projectSearch.preview.readFailed')}</PreviewMessage>;
     const name = previewed.relativePath.split('/').at(-1) ?? previewed.relativePath;
     return (
         <div className="search-preview flex min-h-0 flex-1 flex-col">

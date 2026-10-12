@@ -2,6 +2,7 @@ import type { MouseEvent, RefObject } from 'react';
 import { useState } from 'react';
 
 import { useContextMenu } from '../../../hooks/use-context-menu';
+import { translate } from '../../../i18n';
 import { pushToast, tryCommand } from '../../../stores/toasts';
 import { agentChatUserMessageMenu } from '../agent-chat-user-message-menu';
 import { useAgentChatEdit } from './use-agent-chat-edit';
@@ -26,9 +27,16 @@ function selectionInside(container: HTMLElement | null): string {
  */
 function copyFromMenu(value: string, isSelection: boolean): void {
     // eslint-disable-next-line no-void -- tryCommand reports a failed copy through the toast
-    void tryCommand('Unable to copy the message', async () => {
+    void tryCommand(translate('agentChat.userMenu.copyFailed'), async () => {
         await navigator.clipboard.writeText(value);
-        pushToast('success', isSelection ? 'Selection copied' : 'Message copied');
+        pushToast(
+            'success',
+            translate(
+                isSelection
+                    ? 'agentChat.userMenu.selectionCopied'
+                    : 'agentChat.userMenu.messageCopied',
+            ),
+        );
     });
 }
 

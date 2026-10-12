@@ -1,7 +1,8 @@
 import type { AppLocale } from '@caxri/protocol';
+import { resolveAppLocale } from '@desktop-shared/i18n/locale';
 
 import { createStore } from '../lib/store';
-import { resolveAppLocale, systemLanguages } from './locale';
+import { systemLanguages } from './locale';
 
 interface LocaleState {
     /**

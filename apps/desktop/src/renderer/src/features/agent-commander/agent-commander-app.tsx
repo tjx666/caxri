@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { TooltipProvider } from '../../components/ui/tooltip';
 import { useWorkbenchAppearance } from '../../hooks/use-workbench-appearance';
+import { useTranslation } from '../../i18n';
 import { queryClient } from '../../queries/client';
 import { subscribeAgentChatPatches } from '../agent-chat/agent-chat-client';
 import { ConfirmationDialog } from '../confirmations/confirmation-dialog';
@@ -23,6 +24,7 @@ import { useAgentCommander } from './hooks/use-agent-commander';
  * Terminal's own actions.
  */
 export function AgentCommanderApp() {
+    const { t } = useTranslation();
     const { retry, status } = useAgentCommander();
     useWorkbenchAppearance();
     useWindowZoomFactor();
@@ -37,7 +39,7 @@ export function AgentCommanderApp() {
                 <div className="relative flex min-h-0 flex-1">
                     {isBoardVisible && (
                         <aside
-                            aria-label="Sessions"
+                            aria-label={t('agentCommander.window.sessionsLabel')}
                             className="agent-commander-board flex w-90 flex-none flex-col bg-surface"
                         >
                             <CommanderBoardView />

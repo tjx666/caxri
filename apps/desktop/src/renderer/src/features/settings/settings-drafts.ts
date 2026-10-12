@@ -9,6 +9,8 @@ import { appSettingsFileSchema, keybindingsFileSchema, themeTokensSchema } from 
 import type { ParseError } from 'jsonc-parser';
 import { parse, printParseErrorCode } from 'jsonc-parser';
 
+import type { TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import type { ConfigKind } from './config-edit';
 import { CONFIG_FILE_NAMES } from './config-edit';
 
@@ -299,24 +301,28 @@ export interface ConfigSourceError {
 export type ConfigParseResult<Kind extends ConfigKind> =
     { ok: true; value: ConfigValues[Kind] } | ({ ok: false } & ConfigSourceError);
 
-const PARSE_ERROR_DESCRIPTIONS: Record<ReturnType<typeof printParseErrorCode>, string> = {
-    'InvalidSymbol': 'An invalid symbol was found',
-    'InvalidNumberFormat': 'This number is not valid',
-    'PropertyNameExpected': 'A property name is missing',
-    'ValueExpected': 'A value is missing',
-    'ColonExpected': 'A colon : is missing',
-    'CommaExpected': 'A comma , is missing',
-    'CloseBraceExpected': 'A closing brace } is missing',
-    'CloseBracketExpected': 'A closing bracket ] is missing',
-    'EndOfFileExpected': 'Extra content appears after the JSON value',
-    'InvalidCommentToken': 'This comment is not valid',
-    'UnexpectedEndOfComment': 'This comment is not closed',
-    'UnexpectedEndOfString': 'This string is not closed',
-    'UnexpectedEndOfNumber': 'This number is incomplete',
-    'InvalidUnicode': 'This Unicode escape is not valid',
-    'InvalidEscapeCharacter': 'This escape character is not valid',
-    'InvalidCharacter': 'An invalid character was found',
-    '<unknown ParseErrorCode>': 'Invalid JSON syntax',
+/**
+ * Parse errors are shown in the source view and computed from event handlers, so they translate through `translate()`
+ * when raised rather than through a hook.
+ */
+const PARSE_ERROR_DESCRIPTIONS: Record<ReturnType<typeof printParseErrorCode>, TranslationKey> = {
+    'InvalidSymbol': 'settings.source.parseError.invalidSymbol',
+    'InvalidNumberFormat': 'settings.source.parseError.invalidNumberFormat',
+    'PropertyNameExpected': 'settings.source.parseError.propertyNameExpected',
+    'ValueExpected': 'settings.source.parseError.valueExpected',
+    'ColonExpected': 'settings.source.parseError.colonExpected',
+    'CommaExpected': 'settings.source.parseError.commaExpected',
+    'CloseBraceExpected': 'settings.source.parseError.closeBraceExpected',
+    'CloseBracketExpected': 'settings.source.parseError.closeBracketExpected',
+    'EndOfFileExpected': 'settings.source.parseError.endOfFileExpected',
+    'InvalidCommentToken': 'settings.source.parseError.invalidCommentToken',
+    'UnexpectedEndOfComment': 'settings.source.parseError.unexpectedEndOfComment',
+    'UnexpectedEndOfString': 'settings.source.parseError.unexpectedEndOfString',
+    'UnexpectedEndOfNumber': 'settings.source.parseError.unexpectedEndOfNumber',
+    'InvalidUnicode': 'settings.source.parseError.invalidUnicode',
+    'InvalidEscapeCharacter': 'settings.source.parseError.invalidEscapeCharacter',
+    'InvalidCharacter': 'settings.source.parseError.invalidCharacter',
+    '<unknown ParseErrorCode>': 'settings.source.parseError.unknown',
 };
 
 function parseJsonc(
@@ -334,7 +340,11 @@ function parseJsonc(
     const before = source.slice(0, first.offset).split('\n');
     return {
         ok: false,
-        error: `${PARSE_ERROR_DESCRIPTIONS[printParseErrorCode(first.error)]} on line ${before.length}, column ${(before.at(-1)?.length ?? 0) + 1}`,
+        error: translate('settings.source.parseLocation', {
+            column: (before.at(-1)?.length ?? 0) + 1,
+            description: translate(PARSE_ERROR_DESCRIPTIONS[printParseErrorCode(first.error)]),
+            line: before.length,
+        }),
         line: before.length,
     };
 }
@@ -369,6 +379,6 @@ export function parseConfigSource<Kind extends ConfigKind>(
     const path = issue?.path.length ? `${issue.path.map(String).join('.')}: ` : '';
     return {
         ok: false,
-        error: `${CONFIG_FILE_NAMES[kind]}: ${path}${issue?.message ?? 'Invalid configuration'}`,
+        error: `${CONFIG_FILE_NAMES[kind]}: ${path}${issue?.message ?? translate('settings.source.invalidConfiguration')}`,
     };
 }

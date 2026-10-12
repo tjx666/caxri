@@ -1,16 +1,24 @@
 import type { KeyboardEvent } from 'react';
 
-import type { KeybindingConflict } from '@caxri/protocol';
+import type { CommandDefinition, KeybindingConflict } from '@caxri/protocol';
 import { commandDefinitions, formatShortcut, normalizeShortcut } from '@caxri/protocol';
 import { AlertTriangle, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Button } from '../../components/ui/button';
+import type { Translate } from '../../i18n';
+import { useTranslation } from '../../i18n';
+import { commandTitle } from '../../lib/command-labels';
 import type { KeybindingRow, RecordingState } from './keybinding-editor';
 
-const titleByCommand = new Map<string, string>(
-    commandDefinitions.map((command) => [command.id, command.title]),
+const definitionById = new Map<string, CommandDefinition>(
+    commandDefinitions.map((command) => [command.id, command]),
 );
+
+function conflictCommandTitle(command: string, t: Translate): string {
+    const definition = definitionById.get(command);
+    return definition ? commandTitle(definition, t) : command;
+}
 
 interface KeybindingRowItemProperties {
     conflictsByKey: Map<string, KeybindingConflict>;
@@ -38,9 +46,11 @@ export function KeybindingRowItem({
     recording,
     row,
 }: KeybindingRowItemProperties) {
+    const { t } = useTranslation();
     const conflict = row.key ? conflictsByKey.get(normalizeShortcut(row.key)) : undefined;
     const conflictId = conflict ? `keybinding-conflict-${row.id}` : undefined;
     const isRecording = recording?.rowId === row.id;
+    const title = commandTitle({ id: row.command, title: row.title }, t);
     return (
         <li
             aria-describedby={conflictId}
@@ -53,7 +63,7 @@ export function KeybindingRowItem({
                     clutter) — the title's native tooltip surfaces it on hover, and the
                     `sr-only` span keeps it in the accessible name for anyone else. */}
                 <strong className="block truncate text-[12px] text-foreground" title={row.command}>
-                    {row.title}
+                    {title}
                     <span className="sr-only"> — {row.command}</span>
                 </strong>
                 {conflict && (
@@ -64,28 +74,32 @@ export function KeybindingRowItem({
                         className="flex items-center gap-1 text-[10px] text-danger"
                     >
                         <AlertTriangle aria-hidden="true" size={11} />
-                        {conflict.reason === 'chordPrefix' ? (
-                            // Not "conflicts with": nothing else has to be bound for this
-                            // to be dead. The chord opens a sequence, so dispatch waits
-                            // for a second key instead of ever running this command.
-                            <>Never fires: {formatShortcut(conflict.key)} starts a chord sequence</>
-                        ) : (
-                            <>
-                                Conflicts with{' '}
-                                {conflict.commands
-                                    .flatMap((command) =>
-                                        command === row.command
-                                            ? []
-                                            : [titleByCommand.get(command) ?? command],
-                                    )
-                                    .join(', ')}
-                            </>
-                        )}
+                        {conflict.reason === 'chordPrefix'
+                            ? // Not "conflicts with": nothing else has to be bound for this
+                              // to be dead. The chord opens a sequence, so dispatch waits
+                              // for a second key instead of ever running this command.
+                              t('settings.keybindingEditor.neverFires', {
+                                  shortcut: formatShortcut(conflict.key),
+                              })
+                            : t('settings.keybindingEditor.conflictsWith', {
+                                  commands: conflict.commands
+                                      .flatMap((command) =>
+                                          command === row.command
+                                              ? []
+                                              : [conflictCommandTitle(command, t)],
+                                      )
+                                      .join(', '),
+                              })}
                     </p>
                 )}
             </div>
             <Button
-                aria-label={`${row.key ? 'Edit' : 'Add'} shortcut for ${row.title}`}
+                aria-label={t(
+                    row.key
+                        ? 'settings.keybindingEditor.editShortcutFor'
+                        : 'settings.keybindingEditor.addShortcutFor',
+                    { command: title },
+                )}
                 aria-describedby={conflictId}
                 className="min-w-36"
                 data-keybinding-command={row.command}
@@ -111,11 +125,11 @@ export function KeybindingRowItem({
                                 mistyped first chord looks unrecoverable without leaving
                                 recording. */}
                             <span className="text-[10px] text-accent-foreground/80">
-                                Enter save · ⌫ clear · Esc cancel
+                                {t('settings.keybindingEditor.recordingHint')}
                             </span>
                         </span>
                     ) : (
-                        'Press shortcut · Esc to cancel'
+                        t('settings.keybindingEditor.pressShortcut')
                     )
                 ) : row.key ? (
                     // Borderless: the Button above is already this chip's chrome, so the
@@ -130,14 +144,16 @@ export function KeybindingRowItem({
                     />
                 ) : (
                     <>
-                        <Pencil size={12} /> Add Shortcut
+                        <Pencil size={12} /> {t('settings.keybindingEditor.addShortcut')}
                     </>
                 )}
             </Button>
             <div className="flex min-w-16 justify-end gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                 {row.bindingIndex !== undefined && (
                     <Button
-                        aria-label={`Remove shortcut for ${row.title}`}
+                        aria-label={t('settings.keybindingEditor.removeShortcutFor', {
+                            command: title,
+                        })}
                         size="icon"
                         variant="ghost"
                         onClick={() => onRemove(row)}
@@ -147,7 +163,9 @@ export function KeybindingRowItem({
                 )}
                 {row.defaultKey && row.key !== row.defaultKey && (
                     <Button
-                        aria-label={`Reset shortcut for ${row.title}`}
+                        aria-label={t('settings.keybindingEditor.resetShortcutFor', {
+                            command: title,
+                        })}
                         size="icon"
                         variant="ghost"
                         onClick={() => onReset(row)}

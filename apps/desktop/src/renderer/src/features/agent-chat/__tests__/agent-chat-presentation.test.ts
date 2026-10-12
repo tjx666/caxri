@@ -159,11 +159,13 @@ describe('agentChatRecoveryNotice', () => {
 describe('agentChatSendAction', () => {
     it('sends when idle, queues while busy, and offers steering only during a turn', () => {
         expect(agentChatSendAction({ isTurnRunning: false, isBusy: false }, 'Codex')).toEqual({
+            kind: 'send',
             label: 'Send',
             tooltip: 'Send (Enter)',
             placeholder: 'Message Codex',
         });
         expect(agentChatSendAction({ isTurnRunning: false, isBusy: true }, 'Codex')).toMatchObject({
+            kind: 'queue',
             label: 'Queue message',
             tooltip: 'Queue (Enter)',
         });

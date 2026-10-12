@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import type { SessionStatusSummary } from './session-status';
 
 /**
@@ -16,9 +17,16 @@ export function describeProjectSessionCount(
     sessionCount: number,
     agentSummary?: SessionStatusSummary,
 ): string {
-    const name = `${displayTitle} (${sessionCount} ${sessionCount === 1 ? 'Session' : 'Sessions'})`;
+    const name = translate(
+        sessionCount === 1
+            ? 'primarySidebar.projectHeading.nameOne'
+            : 'primarySidebar.projectHeading.nameOther',
+        { count: sessionCount, title: displayTitle },
+    );
     const agentStatus = agentSummary && describeProjectAgentStatus(agentSummary);
-    return agentStatus ? `${name}, ${agentStatus}` : name;
+    return agentStatus
+        ? translate('primarySidebar.projectHeading.withStatus', { name, status: agentStatus })
+        : name;
 }
 
 function describeProjectAgentStatus({
@@ -26,8 +34,16 @@ function describeProjectAgentStatus({
     running,
 }: SessionStatusSummary): string | undefined {
     const parts = [
-        running > 0 && `${running} running`,
-        attention > 0 && `${attention} ${attention === 1 ? 'needs' : 'need'} attention`,
+        running > 0 && translate('primarySidebar.projectHeading.running', { count: running }),
+        attention > 0 &&
+            translate(
+                attention === 1
+                    ? 'primarySidebar.projectHeading.attentionOne'
+                    : 'primarySidebar.projectHeading.attentionOther',
+                { count: attention },
+            ),
     ].filter(Boolean);
-    return parts.length > 0 ? parts.join(', ') : undefined;
+    return parts.length > 0
+        ? parts.join(translate('primarySidebar.projectHeading.separator'))
+        : undefined;
 }

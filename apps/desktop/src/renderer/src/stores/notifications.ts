@@ -1,5 +1,6 @@
 import type { AppSettings } from '@caxri/protocol';
 
+import type { TranslationKey } from '../i18n';
 import { createStore } from '../lib/store';
 import type { ToastAction } from './toast-actions';
 
@@ -7,9 +8,12 @@ import type { ToastAction } from './toast-actions';
  * Stable event identities keep preferences independent of message text and Project names.
  */
 export const notificationTypes = {
-    'worktree-fallback': { key: 'notifications.worktreeFallback', title: 'Worktree fallback' },
-    'agent-recovery': { key: 'notifications.agentRecovery', title: 'Automatic Agent recovery' },
-} as const;
+    'worktree-fallback': {
+        key: 'notifications.worktreeFallback',
+        titleKey: 'toasts.type.worktreeFallback',
+    },
+    'agent-recovery': { key: 'notifications.agentRecovery', titleKey: 'toasts.type.agentRecovery' },
+} as const satisfies Record<string, { key: string; titleKey: TranslationKey }>;
 
 export type NotificationType = keyof typeof notificationTypes;
 type NotificationKind = 'info' | 'success' | 'warning' | 'error';

@@ -1,4 +1,5 @@
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 
 interface AgentMessageApprovalBodyProperties {
     /**
@@ -26,6 +27,7 @@ export function AgentMessageApprovalBody({
     failed,
     onRetry,
 }: AgentMessageApprovalBodyProperties) {
+    const { t } = useTranslation();
     return (
         <div className="min-h-24 rounded border border-border bg-background p-3 text-[11px] leading-5">
             {body !== undefined || isExpired ? (
@@ -39,18 +41,14 @@ export function AgentMessageApprovalBody({
                 </pre>
             ) : failed ? (
                 <div role="alert" data-testid="agent-message-body-error">
-                    <p className="m-0 text-danger">The complete message could not be read.</p>
-                    <p className="m-0 mt-1 text-muted">
-                        Approve and Deny stay available without it — approving only delivers this
-                        message and grants nothing. Retry loads the full text if you want to read it
-                        first.
-                    </p>
+                    <p className="m-0 text-danger">{t('agentInbox.body.readFailed')}</p>
+                    <p className="m-0 mt-1 text-muted">{t('agentInbox.body.readFailedHint')}</p>
                     <Button variant="secondary" size="sm" className="mt-2" onClick={onRetry}>
-                        Retry
+                        {t('common.retry')}
                     </Button>
                 </div>
             ) : (
-                <p className="m-0 text-muted">Loading the complete message…</p>
+                <p className="m-0 text-muted">{t('agentInbox.body.loading')}</p>
             )}
         </div>
     );

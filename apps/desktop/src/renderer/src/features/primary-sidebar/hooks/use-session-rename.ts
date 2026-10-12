@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionRecord } from '@caxri/protocol';
 
 import { useLatestReference } from '../../../hooks/use-latest-reference';
+import { translate } from '../../../i18n';
 import { clearSessionRenameRequest, useDialogStore } from '../../../stores/dialogs';
 import { didRenameSession } from '../../session/session-commands';
 import { suggestSessionTitle } from '../../session/session-title-suggestion-commands';
@@ -187,7 +188,7 @@ export function useSessionRename(
         if (suggestionReference.current?.sessionId === sessionId) return;
         const decision = decideSessionRename(renameValue, renameBaselineReference.current);
         if (decision.kind === 'empty') {
-            setRenameError('Session name is required');
+            setRenameError(translate('primarySidebar.rename.required'));
             return;
         }
         finishRename(sessionId, true);

@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 
 import type { ThemeTokens } from '@caxri/protocol';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 
 interface ThemePreviewProperties {
@@ -14,6 +15,7 @@ type PreviewStyle = CSSProperties & Record<`--preview-${string}`, string>;
 const previewBarClassName = 'flex items-center gap-2 bg-[var(--preview-surface)] px-2 py-1';
 
 export function ThemePreview({ theme }: ThemePreviewProperties) {
+    const { t } = useTranslation();
     const style: PreviewStyle = {
         '--preview-accent': theme.colors.accent,
         '--preview-background': theme.terminal.background,
@@ -32,7 +34,7 @@ export function ThemePreview({ theme }: ThemePreviewProperties) {
         <section
             className="mb-4 overflow-hidden rounded-md border border-[var(--preview-border)] bg-[var(--preview-background)] font-['Caxri_JetBrains_Mono',_monospace] text-[11px] leading-[1.5] text-[var(--preview-foreground)] shadow-[0_8px_24px_var(--shadow)]"
             style={style}
-            aria-label="Theme preview"
+            aria-label={t('settings.themeEditor.preview')}
         >
             <header
                 className={cn(
@@ -44,7 +46,9 @@ export function ThemePreview({ theme }: ThemePreviewProperties) {
                 <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                     ~/code/caxri
                 </strong>
-                <i className="text-[var(--preview-muted)] not-italic">Terminal</i>
+                <i className="text-[var(--preview-muted)] not-italic">
+                    {t('settings.themeEditor.previewTerminal')}
+                </i>
             </header>
             <div className="min-h-28 p-3">
                 <p className="mb-1">

@@ -8,14 +8,15 @@ import type {
 } from '@caxri/protocol';
 import {
     agentProviderCatalog,
-    formatDuration,
-    formatLimitReset,
-    formatPercent,
     formatTokens,
     formatUsd,
     localDateWeekday,
     shiftLocalDate,
 } from '@caxri/protocol';
+
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
+import { localizedDuration, localizedLimitReset } from '../../lib/usage-format';
 
 /**
  * The heatmap always shows the trailing 53 weeks, GitHub style: one column per week, Sunday on top.
@@ -24,82 +25,87 @@ export const HEATMAP_WEEKS = 53;
 
 export type UsageMetric = 'tokens' | 'cost';
 
-const SHORT_MONTHS = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+const SHORT_MONTHS: readonly TranslationKey[] = [
+    'usage.month.jan',
+    'usage.month.feb',
+    'usage.month.mar',
+    'usage.month.apr',
+    'usage.month.may',
+    'usage.month.jun',
+    'usage.month.jul',
+    'usage.month.aug',
+    'usage.month.sep',
+    'usage.month.oct',
+    'usage.month.nov',
+    'usage.month.dec',
 ];
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+export const WEEKDAYS: readonly TranslationKey[] = [
+    'usage.weekday.sunday',
+    'usage.weekday.monday',
+    'usage.weekday.tuesday',
+    'usage.weekday.wednesday',
+    'usage.weekday.thursday',
+    'usage.weekday.friday',
+    'usage.weekday.saturday',
+];
 
 /**
  * The Usage page's one date format, `Mar 7, 2026`, for every date it prints.
  */
-export function formatDate(date: string): string {
+export function formatDate(t: Translate, date: string): string {
     const [year, month, day] = date.split('-').map(Number);
-    return `${SHORT_MONTHS[month - 1]} ${day}, ${year}`;
+    return t('usage.date.format', { day, month: t(SHORT_MONTHS[month - 1]), year });
 }
 
 /**
  * {@link formatDate} for an epoch-millisecond timestamp, read in the local zone.
  */
-function formatTimestampDate(timestamp: number): string {
+export function formatTimestampDate(t: Translate, timestamp: number): string {
     const date = new Date(timestamp);
     return formatDate(
+        t,
         `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
     );
 }
 
 /**
+ * The nouns {@link countLabel} counts, each with a `One` and an `Other` key in the `usage.count` group.
+ */
+type UsageCountUnit =
+    'agentSession' | 'day' | 'mergedPullRequest' | 'model' | 'pullRequest' | 'session';
+
+/**
  * `1 pull request`, `3 pull requests`.
  */
-export function countLabel(count: number, singular: string, plural = `${singular}s`): string {
-    return `${count.toLocaleString('en-US')} ${count === 1 ? singular : plural}`;
+export function countLabel(t: Translate, count: number, unit: UsageCountUnit): string {
+    return t(`usage.count.${unit}${count === 1 ? 'One' : 'Other'}`, {
+        count: count.toLocaleString('en-US'),
+    });
 }
 
 /**
  * A truncated list's caption, `Top 12 of 40`, or nothing when every row is shown.
  */
-export function topCaption(shown: number, total: number): string | undefined {
-    return total > shown ? `Top ${shown} of ${total}` : undefined;
+export function topCaption(t: Translate, shown: number, total: number): string | undefined {
+    return total > shown ? t('usage.topCaption', { shown, total }) : undefined;
 }
-
-const RANGE_LABELS: Record<UsageRange, string> = {
-    '7d': 'Last 7 days',
-    '30d': 'Last 30 days',
-    '90d': 'Last 90 days',
-    '365d': 'Last year',
-    'all': 'All time',
-};
 
 /**
  * What the page caption says for a range the user just picked, before its report arrives.
  */
-export function usageRangeLabel(range: UsageRange): string {
-    return RANGE_LABELS[range];
+export function usageRangeLabel(t: Translate, range: UsageRange): string {
+    return t(`usage.rangeLabel.${range}`);
 }
 
 /**
  * The Activity card's accessible name, which follows the metric the chart is drawn in.
  */
-export function activityCardLabel(metric: UsageMetric): string {
-    return metric === 'tokens' ? 'Token activity' : 'Cost activity';
+export function activityCardLabel(t: Translate, metric: UsageMetric): string {
+    return t(metric === 'tokens' ? 'usage.activity.tokenLabel' : 'usage.activity.costLabel');
 }
 
-function monthLabel(date: string): string {
-    return SHORT_MONTHS[Number(date.slice(5, 7)) - 1];
-}
-
-function weekdayName(index: number): string {
-    return WEEKDAYS[index];
+function monthLabel(t: Translate, date: string): string {
+    return t(SHORT_MONTHS[Number(date.slice(5, 7)) - 1]);
 }
 
 export function formatHour(hour: number): string {
@@ -110,27 +116,33 @@ function metricValue(day: Pick<UsageDay, 'tokens' | 'costUsd'>, metric: UsageMet
     return metric === 'tokens' ? day.tokens : day.costUsd;
 }
 
-export function formatMetric(value: number, metric: UsageMetric): string {
-    return metric === 'tokens' ? `${formatTokens(value)} tokens` : formatUsd(value);
+export function formatMetric(t: Translate, value: number, metric: UsageMetric): string {
+    return metric === 'tokens'
+        ? t('usage.metric.tokens', { tokens: formatTokens(value) })
+        : formatUsd(value);
 }
 
 /**
  * Hover text for one heatmap day: every figure the cell's color stands for, since the color alone is only a quartile.
  */
-export function usageDayTooltip(date: string, day: UsageDay | undefined): string {
+export function usageDayTooltip(t: Translate, date: string, day: UsageDay | undefined): string {
     const detail =
         !day || day.tokens === 0
-            ? 'No usage'
-            : `${formatTokens(day.tokens)} tokens · ${formatUsd(day.costUsd)} · ${formatDuration(day.activeMs)} active`;
-    return `${formatDate(date)} · ${detail}`;
+            ? t('usage.noUsage')
+            : t('usage.activity.dayDetail', {
+                  cost: formatUsd(day.costUsd),
+                  duration: localizedDuration(day.activeMs, t),
+                  tokens: formatTokens(day.tokens),
+              });
+    return `${formatDate(t, date)} · ${detail}`;
 }
 
 /**
  * Hover text for one Time of day bar, naming the hour as a span so `11:00` does not read as a single instant.
  */
-export function usageHourTooltip(hour: number, tokens: number): string {
+export function usageHourTooltip(t: Translate, hour: number, tokens: number): string {
     const span = `${formatHour(hour)}–${formatHour((hour + 1) % 24)}`;
-    return `${span} · ${tokens > 0 ? `${formatTokens(tokens)} tokens` : 'No usage'}`;
+    return `${span} · ${tokens > 0 ? formatMetric(t, tokens, 'tokens') : t('usage.noUsage')}`;
 }
 
 interface HeatmapCell {
@@ -170,6 +182,7 @@ function quartileLevels(values: readonly number[]): (value: number) => number {
  * Lays the trailing {@link HEATMAP_WEEKS} weeks ending `today` out as week columns starting on Sunday.
  */
 export function buildHeatmap(
+    t: Translate,
     activity: readonly UsageDay[],
     today: string,
     metric: UsageMetric,
@@ -191,13 +204,13 @@ export function buildHeatmap(
             level: 0,
             monthLabel:
                 week === 0 || firstOfMonth
-                    ? monthLabel(firstOfMonth?.date ?? shiftLocalDate(start, 6))
+                    ? monthLabel(t, firstOfMonth?.date ?? shiftLocalDate(start, 6))
                     : undefined,
         });
     }
     // A label squeezed in front of the first full month would overlap it, and the leading partial month is the same
     // month as today's a year earlier, so labelling it printed `Oct` at both ends of the chart.
-    if (weeks[1]?.monthLabel || weeks[0].monthLabel === monthLabel(today))
+    if (weeks[1]?.monthLabel || weeks[0].monthLabel === monthLabel(t, today))
         weeks[0].monthLabel = undefined;
     const dayLevel = quartileLevels(weeks.flatMap((week) => week.cells.map((cell) => cell.value)));
     const weekLevel = quartileLevels(weeks.map((week) => week.total));
@@ -313,6 +326,7 @@ export function pendingTranscriptScans(report: {
 }
 
 export function usageEmptyState(
+    t: Translate,
     report: {
         coverage: Pick<UsageReport['coverage'], 'agentSessions' | 'pendingScans' | 'outsideCaxri'>;
         totals: { tokens: Pick<UsageReport['totals']['tokens'], 'total'> };
@@ -326,7 +340,9 @@ export function usageEmptyState(
     if (agent !== undefined && (agentSessions === 0 || report.totals.tokens.total === 0))
         return {
             kind: 'agentFilter',
-            title: `No ${agentProviderCatalog[agent].displayName} usage in this range`,
+            title: t('usage.empty.agentFilter', {
+                agent: agentProviderCatalog[agent].displayName,
+            }),
         };
     if (agentSessions === 0) return { kind: 'noUsage' };
     return undefined;
@@ -337,64 +353,39 @@ export function usageEmptyState(
  * the Sessions rather than as more of them.
  */
 export function agentTimeDetail(
+    t: Translate,
     totals: Pick<UsageReport['totals'], 'sessionsWithUsage' | 'outsideSessionsWithUsage'>,
 ): string {
-    const sessions = `Across ${countLabel(totals.sessionsWithUsage, 'Session')}`;
+    const sessions = countLabel(t, totals.sessionsWithUsage, 'session');
     return totals.outsideSessionsWithUsage > 0
-        ? `${sessions} + ${totals.outsideSessionsWithUsage.toLocaleString('en-US')} outside`
-        : sessions;
+        ? t('usage.agentTime.acrossWithOutside', {
+              outside: totals.outsideSessionsWithUsage.toLocaleString('en-US'),
+              sessions,
+          })
+        : t('usage.agentTime.across', { sessions });
 }
 
 /**
  * A row's count. Rows that include Agent Sessions run outside Caxri count Agent Sessions, not Sessions, because those
  * have no Caxri Session.
  */
-export function usageSessionCount(count: number, isOutsideCaxri: boolean): string {
-    return countLabel(count, isOutsideCaxri ? 'Agent Session' : 'Session');
+export function usageSessionCount(t: Translate, count: number, isOutsideCaxri: boolean): string {
+    return countLabel(t, count, isOutsideCaxri ? 'agentSession' : 'session');
 }
 
 /**
  * The page caption's progress note while the Server is still reading transcripts in the background.
  */
-export function usageScanCaption(report: {
-    coverage: Pick<UsageReport['coverage'], 'pendingScans' | 'outsideCaxri'>;
-}): string | undefined {
+export function usageScanCaption(
+    t: Translate,
+    report: { coverage: Pick<UsageReport['coverage'], 'pendingScans' | 'outsideCaxri'> },
+): string | undefined {
     const pending = pendingTranscriptScans(report);
     return pending > 0
-        ? `Reading ${pending.toLocaleString('en-US')} more ${pending === 1 ? 'transcript' : 'transcripts'}…`
+        ? t(pending === 1 ? 'usage.scan.readingOne' : 'usage.scan.readingOther', {
+              count: pending.toLocaleString('en-US'),
+          })
         : undefined;
-}
-
-/**
- * The footnotes under the report: what it counts, what it is missing, and why.
- */
-export function usageCoverageNotes(
-    report: Pick<UsageReport, 'coverage' | 'pricing' | 'scope'>,
-): string[] {
-    const { coverage, pricing } = report;
-    const counted = `${countLabel(coverage.agentSessions, 'Agent Session')} started in Caxri Sessions, including archived and deleted Sessions`;
-    const outside = coverage.outsideCaxri?.agentSessions ?? 0;
-    const notes = [
-        `Costs are estimated from public API list prices (${pricing.source === 'bundled' ? 'bundled price list' : `LiteLLM prices updated ${pricing.updatedAt ? formatTimestampDate(pricing.updatedAt) : 'recently'}`}); a subscription plan bills differently.`,
-        report.scope === 'all'
-            ? `Counts ${counted}, plus ${outside.toLocaleString('en-US')} run outside Caxri on this Mac.`
-            : `Counts ${counted}.`,
-    ];
-    // An unread row has no aggregate yet either; only a finished scan proves the transcript is gone.
-    if (coverage.unavailable > 0 && coverage.pendingScans === 0)
-        notes.push(
-            `${coverage.unavailable.toLocaleString('en-US')} ${coverage.unavailable === 1 ? 'Agent Session has' : 'Agent Sessions have'} no transcript on this machine, so their usage is missing.`,
-        );
-    if (coverage.pendingPullRequests > 0)
-        notes.push(
-            `Checking ${countLabel(coverage.pendingPullRequests, 'pull request')} on GitHub.`,
-        );
-    if (coverage.unpricedModels.length > 0)
-        // Worded like every cost cell ("No price") rather than "$0", which read as "this usage was free".
-        notes.push(
-            `No price for ${coverage.unpricedModels.join(', ')}; their usage is left out of every cost figure.`,
-        );
-    return notes;
 }
 
 /**
@@ -409,9 +400,13 @@ export function didUsageRefreshFail(query: { data: unknown; isError: boolean }):
  * The burn-rate card's caption: the 30-day pace projected to a month. Prefixed `est.` and suffixed with the price
  * basis, because a dollar figure on its own reads as a bill and a subscription plan is billed differently.
  */
-export function burnRateCaption(last30DaysCostUsd: number, isUnpriced = false): string {
-    if (isUnpriced) return 'Last 30 days · no price for the models used';
-    return `Last 30 days · est. ${formatUsd((last30DaysCostUsd / 30) * 30.4)}/month at API prices`;
+export function burnRateCaption(
+    t: Translate,
+    last30DaysCostUsd: number,
+    isUnpriced = false,
+): string {
+    if (isUnpriced) return t('usage.burn.captionUnpriced');
+    return t('usage.burn.caption', { cost: formatUsd((last30DaysCostUsd / 30) * 30.4) });
 }
 
 /**
@@ -445,57 +440,6 @@ export function canOpenUsageSession(
 }
 
 /**
- * The shortest Agent time an hourly rate is projected from. A few seconds of measured activity extrapolated to an hour
- * printed `144M output tokens per active hour` against a total of 2k tokens.
- */
-const MIN_HOURLY_RATE_ACTIVE_MS = 60_000;
-
-/**
- * The Highlights card's sentences, in display order. Each one appears only when its figure is meaningful.
- */
-export function buildUsageInsights(
-    report: Pick<UsageReport, 'activity' | 'models' | 'projects'> & {
-        totals: Pick<
-            UsageReport['totals'],
-            'activeMs' | 'cacheSavingsUsd' | 'costUsd' | 'pullRequestsMerged'
-        > & { tokens: Pick<UsageReport['totals']['tokens'], 'output'> };
-    },
-): string[] {
-    const highlights = activityHighlights(report.activity);
-    const { totals } = report;
-    const topProject = report.projects.at(0);
-    const topModel = report.models.at(0);
-    const output = totals.tokens.output;
-    const insights: string[] = [];
-    if (highlights.busiestDay)
-        insights.push(
-            `Busiest day: ${formatDate(highlights.busiestDay.date)} with ${formatTokens(highlights.busiestDay.tokens)} tokens${highlights.busiestDay.costUsd > 0 ? ` (${formatUsd(highlights.busiestDay.costUsd)})` : ''}.`,
-        );
-    // "Day of the week", not "weekday": the busiest one is often a Saturday or Sunday.
-    if (highlights.busiestWeekday !== undefined)
-        insights.push(`${weekdayName(highlights.busiestWeekday)} is your busiest day of the week.`);
-    if (topProject && totals.costUsd > 0)
-        insights.push(
-            `${topProject.title} accounts for ${formatPercent(topProject.costUsd / totals.costUsd)} of the spend.`,
-        );
-    // A model whose spend is $0 (unpriced, or nothing billed yet) does not receive "most spend".
-    if (topModel && topModel.costUsd > 0) insights.push(`Most spend goes to ${topModel.model}.`);
-    if (totals.cacheSavingsUsd > 0)
-        insights.push(
-            `Prompt caching saved ${formatUsd(totals.cacheSavingsUsd)}, ${formatPercent(totals.cacheSavingsUsd / (totals.cacheSavingsUsd + totals.costUsd))} of what the same tokens would cost uncached.`,
-        );
-    if (output > 0 && totals.activeMs >= MIN_HOURLY_RATE_ACTIVE_MS)
-        insights.push(
-            `Agents wrote ${formatTokens(Math.round(output / (totals.activeMs / 3_600_000)))} output tokens per active hour.`,
-        );
-    if (totals.pullRequestsMerged > 0)
-        insights.push(
-            `Each merged pull request took ${formatDuration(totals.activeMs / totals.pullRequestsMerged)} of Agent time on average.`,
-        );
-    return insights;
-}
-
-/**
  * A plan-limit window as of the report. Once `resetsAt` has passed, the percentage the Agent last reported belongs to a
  * window that no longer exists, and the next figure arrives only with the Agent's next response, so the window is
  * `reset` rather than a stale `resets now`. Judged against `generatedAt`, which moves with every refresh, so render
@@ -506,20 +450,20 @@ export type LimitWindowState = { kind: 'active'; resetLabel?: string } | { kind:
 export function limitWindowState(
     window: UsageLimit['windows'][number],
     generatedAt: number,
+    t: Translate = translate,
 ): LimitWindowState {
     if (window.resetsAt === undefined) return { kind: 'active' };
     if (window.resetsAt <= generatedAt) return { kind: 'reset' };
-    return { kind: 'active', resetLabel: formatLimitReset(window.resetsAt, generatedAt) };
+    return { kind: 'active', resetLabel: localizedLimitReset(window.resetsAt, generatedAt, t) };
 }
 
 /**
  * How a cost cell reads when some usage has no known price: `No price` when nothing in it could be priced (a `$0` there
- * would claim it was free), and `partial` when the figure leaves some usage out. Matches the Models table.
+ * would claim it was free), and `partial` when the figure leaves some usage out. Matches the Models table. The unpriced
+ * variant carries no label: `UsageCost` words it in the active language.
  */
 export type UsageCostDisplay =
-    | { kind: 'priced'; label: string }
-    | { kind: 'partial'; label: string }
-    | { kind: 'unpriced'; label: 'No price' };
+    { kind: 'priced'; label: string } | { kind: 'partial'; label: string } | { kind: 'unpriced' };
 
 export function usageCostDisplay({
     costUsd,
@@ -530,7 +474,7 @@ export function usageCostDisplay({
     hasTokens: boolean;
     hasUnpriced: boolean;
 }): UsageCostDisplay {
-    if (hasUnpriced && hasTokens && costUsd <= 0) return { kind: 'unpriced', label: 'No price' };
+    if (hasUnpriced && hasTokens && costUsd <= 0) return { kind: 'unpriced' };
     if (hasUnpriced) return { kind: 'partial', label: formatUsd(costUsd) };
     return { kind: 'priced', label: formatUsd(costUsd) };
 }
@@ -549,13 +493,16 @@ export function hasUnpricedProviderModel(
  * The cost tile's detail: which figure is incomplete comes first, since every other number on the page inherits it.
  */
 export function costTileDetail(
+    t: Translate,
     report: Pick<UsageReport, 'coverage'> & {
         totals: Pick<UsageReport['totals'], 'cacheSavingsUsd'>;
     },
     isUnpriced = false,
 ): string {
     const unpriced = report.coverage.unpricedModels.length;
-    if (isUnpriced) return `${countLabel(unpriced, 'model')} without a known price`;
-    if (unpriced > 0) return `Partial: ${countLabel(unpriced, 'model')} unpriced`;
-    return `${formatUsd(report.totals.cacheSavingsUsd)} cache savings`;
+    if (isUnpriced)
+        return t('usage.cost.unpricedModels', { models: countLabel(t, unpriced, 'model') });
+    if (unpriced > 0)
+        return t('usage.cost.partialModels', { models: countLabel(t, unpriced, 'model') });
+    return t('usage.cost.cacheSavings', { savings: formatUsd(report.totals.cacheSavingsUsd) });
 }

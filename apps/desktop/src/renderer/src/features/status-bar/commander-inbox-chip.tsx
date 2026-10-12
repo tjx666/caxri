@@ -3,6 +3,7 @@ import { ListTodo } from 'lucide-react';
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
+import { useTranslation } from '../../i18n';
 import { openCommanderInboxCount } from '../agent-commander/commander-inbox';
 import { commanderInboxChipCopy } from './commander-status-label';
 import { StatusItem } from './status-item';
@@ -20,6 +21,7 @@ const COMMANDER_INBOX_FALLBACK_REFETCH_INTERVAL_MS = 5 * 60_000;
  * window has no other trace of it.
  */
 export function CommanderInboxChip() {
+    const { t } = useTranslation();
     const { data } = usePolledQuery(
         'commander.inbox.list',
         {},
@@ -28,7 +30,7 @@ export function CommanderInboxChip() {
             intervalMs: COMMANDER_INBOX_FALLBACK_REFETCH_INTERVAL_MS,
         },
     );
-    const copy = commanderInboxChipCopy(data ? openCommanderInboxCount(data.items) : 0);
+    const copy = commanderInboxChipCopy(data ? openCommanderInboxCount(data.items) : 0, t);
     if (!copy) return null;
     return (
         <StatusItem

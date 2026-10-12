@@ -1,5 +1,6 @@
 import { errorMessage, externalEditorTabPath, isExternalEditorTabPath } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { getSelectedSession } from '../../stores/selectors';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
@@ -86,9 +87,9 @@ export async function openLinkedExternalDocument(
             workbenchProjectId: session.workbenchProjectId,
             document,
         });
-        if (!opened) throw new Error('Unable to open the linked file in this Session');
+        if (!opened) throw new Error(translate('editor.external.openInSessionFailed'));
         if (shouldPreview) openFilePreview(opened);
     } catch (error) {
-        pushToast('error', errorMessage(error, 'Unable to open the linked file'));
+        pushToast('error', errorMessage(error, translate('editor.external.openFailed')));
     }
 }

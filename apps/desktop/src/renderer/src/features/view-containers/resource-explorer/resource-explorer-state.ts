@@ -1,6 +1,8 @@
 import type { FileEntry, PaneTab } from '@caxri/protocol';
 import { collectTreeSubtree, pathBasename } from '@caxri/utils';
 
+import type { Translate } from '../../../i18n';
+import { translate } from '../../../i18n';
 import { isDirectoryEntry } from '../../../lib/file-entry';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitChildRepoDescription, gitDecorationDescription } from '../../../lib/git-decorations';
@@ -142,21 +144,27 @@ export function isFileTreeDirectory(
  *
  * @param entry The row the tooltip describes.
  * @param childRepo Set when the directory is a repository of its own, which the icon shows but does not name.
+ * @param t The caller's `useTranslation()` function; defaults to the snapshot `translate` for non-React callers.
  */
 export function fileTreeRowTooltip(
     entry: Pick<FileEntry, 'gitIgnored' | 'kind' | 'linkKind' | 'linkTarget' | 'path'>,
     childRepo?: GitChildRepoKind,
+    t: Translate = translate,
 ): string {
     if (entry.kind !== 'symlink') {
         const qualifiers = [
-            childRepo === 'submodule' ? 'Git submodule' : undefined,
-            childRepo === 'nested' ? 'nested Git repository' : undefined,
-            entry.gitIgnored ? 'Git ignored' : undefined,
+            childRepo === 'submodule' ? t('viewContainers.files.row.gitSubmodule') : undefined,
+            childRepo === 'nested' ? t('viewContainers.files.row.nestedRepository') : undefined,
+            entry.gitIgnored ? t('viewContainers.files.row.gitIgnored') : undefined,
         ].filter(Boolean);
         return qualifiers.length === 0 ? entry.path : `${entry.path} (${qualifiers.join(', ')})`;
     }
     const target = entry.linkTarget === undefined ? '' : ` → ${entry.linkTarget}`;
-    const linkKind = entry.linkKind === 'broken' ? 'broken symlink' : 'symlink';
+    const linkKind = t(
+        entry.linkKind === 'broken'
+            ? 'viewContainers.files.row.brokenSymlink'
+            : 'viewContainers.files.row.symlink',
+    );
     return `${entry.path}${target} (${linkKind})`;
 }
 
@@ -164,10 +172,25 @@ export function fileTreeRowTooltip(
  * The screen-reader description of a symlink row. It carries the same facts the tooltip gives a sighted mouse user:
  * where the link points and whether it resolves, minus the path already announced as the row's own name.
  */
-export function symlinkRowDescription(entry: Pick<FileEntry, 'linkKind' | 'linkTarget'>): string {
-    const target = entry.linkTarget === undefined ? '' : ` to ${entry.linkTarget}`;
-    const unresolved = entry.linkKind === 'broken' ? ', which does not resolve' : '';
-    return `Symlink${target}${unresolved}.`;
+export function symlinkRowDescription(
+    entry: Pick<FileEntry, 'linkKind' | 'linkTarget'>,
+    t: Translate = translate,
+): string {
+    const isBroken = entry.linkKind === 'broken';
+    if (entry.linkTarget === undefined)
+        return t(
+            isBroken
+                ? 'viewContainers.files.row.symlinkBrokenDescription'
+                : 'viewContainers.files.row.symlinkDescription',
+        );
+    return t(
+        isBroken
+            ? 'viewContainers.files.row.symlinkBrokenTargetDescription'
+            : 'viewContainers.files.row.symlinkTargetDescription',
+        {
+            target: entry.linkTarget,
+        },
+    );
 }
 
 /**
@@ -184,9 +207,10 @@ export function fileTreeRowDescription(
     entry: Pick<FileEntry, 'kind' | 'linkKind' | 'linkTarget'>,
     childRepo: GitChildRepoKind | undefined,
     decoration: GitDecoration | undefined,
+    t: Translate = translate,
 ): string {
     return [
-        entry.kind === 'symlink' ? symlinkRowDescription(entry) : undefined,
+        entry.kind === 'symlink' ? symlinkRowDescription(entry, t) : undefined,
         childRepo ? gitChildRepoDescription(childRepo) : undefined,
         decoration ? gitDecorationDescription(decoration.kind) : undefined,
     ]

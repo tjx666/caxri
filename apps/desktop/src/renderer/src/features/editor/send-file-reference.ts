@@ -1,6 +1,7 @@
 import type { MethodResult, SessionRecord } from '@caxri/protocol';
 import { isVirtualEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import {
@@ -124,7 +125,7 @@ export async function sendActiveFileReferenceToTerminal(): Promise<void> {
         getSessionState()?.paneLayout,
     );
     if (!terminal) {
-        pushToast('error', 'Open a Terminal in this Session first');
+        pushToast('error', translate('editor.sendReference.noTerminal'));
         return;
     }
     const text = formatFileReference({
@@ -135,7 +136,7 @@ export async function sendActiveFileReferenceToTerminal(): Promise<void> {
     });
     activateTerminal(terminal.id);
     if (!(await whenTerminalAttached(terminal.id, TERMINAL_ATTACH_TIMEOUT_MS))) {
-        pushToast('error', 'Terminal is not ready for input');
+        pushToast('error', translate('editor.sendReference.terminalNotReady'));
         return;
     }
     sendTerminalSequence(terminal.id, text);

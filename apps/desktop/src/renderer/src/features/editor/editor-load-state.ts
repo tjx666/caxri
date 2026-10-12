@@ -1,3 +1,5 @@
+import type { TranslationKey } from '../../i18n';
+
 interface EditorLoadAttempt {
     /**
      * The attempt whose outcome the surface is currently waiting for. `retried` bumps it, which is what makes a retry
@@ -79,11 +81,9 @@ export function editorLoadReducer(
  * A failed chunk load carries no cause a user can act on (the file it names is a build asset, not their document) so
  * the recovery sentence replaces the technical one instead of quoting it.
  */
-export const EDITOR_LOAD_FAILURE_REASON =
-    "The editor didn't load. Reloading the window usually fixes it.";
+export const EDITOR_LOAD_FAILURE_REASON_KEY = 'editor.load.editorFailed' satisfies TranslationKey;
 
-const EDITOR_RENDER_FAILURE_REASON =
-    'This tab ran into an error. Reloading the window usually fixes it.';
+const EDITOR_RENDER_FAILURE_REASON_KEY = 'editor.load.renderFailed' satisfies TranslationKey;
 
 /**
  * Chromium's message for a rejected `import()`, and Vite's for a lazy chunk whose stylesheet failed to preload. Both
@@ -96,8 +96,8 @@ const CHUNK_LOAD_FAILURE_PATTERN =
  * The sentence the editor pane shows after its surface threw while rendering. Only the reason differs: a chunk that
  * never loaded and a surface that threw both recover the same way, by reloading the window.
  */
-export function editorRenderFailureReason(error: unknown): string {
+export function editorRenderFailureReason(error: unknown): TranslationKey {
     return error instanceof Error && CHUNK_LOAD_FAILURE_PATTERN.test(error.message)
-        ? EDITOR_LOAD_FAILURE_REASON
-        : EDITOR_RENDER_FAILURE_REASON;
+        ? EDITOR_LOAD_FAILURE_REASON_KEY
+        : EDITOR_RENDER_FAILURE_REASON_KEY;
 }

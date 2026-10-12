@@ -2,6 +2,8 @@ import { useCallback, useSyncExternalStore } from 'react';
 
 import { notifyListeners } from '@caxri/utils';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
 
 export interface TerminalRendererIndicator {
@@ -50,20 +52,22 @@ interface TerminalRendererSettingsAction {
 /**
  * Preference-driven fallback uses the settings write; failures instead retry the mounted renderer directly.
  */
-const ENABLE_GPU_ACCELERATION: TerminalRendererConfirmAction = {
-    confirmLabel: 'Turn On',
-    message:
-        'Terminals start drawing with the GPU immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
-    preference: 'on',
-    title: 'Turn on GPU acceleration for Terminals?',
-};
+function enableGpuAcceleration(t: Translate): TerminalRendererConfirmAction {
+    return {
+        confirmLabel: t('terminal.renderer.enable.confirmLabel'),
+        message: t('terminal.renderer.enable.message'),
+        preference: 'on',
+        title: t('terminal.renderer.enable.title'),
+    };
+}
 
-const RETRY_GPU_ACCELERATION: TerminalRendererConfirmAction = {
-    confirmLabel: 'Retry GPU',
-    message:
-        'Retry GPU rendering for this Terminal and reset the graphics failure limit for this window. Your Terminal and Agent keep running, and settings stay unchanged. If the attempt fails, the Terminal keeps using software rendering.',
-    title: 'Retry GPU rendering?',
-};
+function retryGpuAcceleration(t: Translate): TerminalRendererConfirmAction {
+    return {
+        confirmLabel: t('terminal.renderer.retry.confirmLabel'),
+        message: t('terminal.renderer.retry.message'),
+        title: t('terminal.renderer.retry.title'),
+    };
+}
 
 /**
  * `unsupported` normally means a live `getContext('webgl2')` probe failed, which a later re-probe can pass, so the
@@ -71,10 +75,9 @@ const RETRY_GPU_ACCELERATION: TerminalRendererConfirmAction = {
  * the app declined at boot, and offering it would relabel a settled no as something still worth clicking (DESIGN.md
  * principle 9). Only then is Settings the honest answer, and it is also the only route back from that state.
  */
-const OPEN_HARDWARE_ACCELERATION_SETTINGS: TerminalRendererSettingsAction = {
-    opensSettings: true,
-    title: 'Open Settings',
-};
+function openHardwareAccelerationSettings(t: Translate): TerminalRendererSettingsAction {
+    return { opensSettings: true, title: t('terminal.recovery.openSettings') };
+}
 
 /**
  * The status bar only speaks up while a Terminal is degraded: a WebGL renderer is the healthy default and says nothing,
@@ -83,45 +86,57 @@ const OPEN_HARDWARE_ACCELERATION_SETTINGS: TerminalRendererSettingsAction = {
 export function terminalRendererIndicator(
     status: TerminalRendererStatus | undefined,
     options: TerminalRendererIndicatorOptions = {},
+    t: Translate = translate,
 ): TerminalRendererIndicator | undefined {
     if (status?.mode !== 'dom' || status.reason === 'disposed') return undefined;
     const isBootDisabled = status.reason === 'unsupported' && options.isHardwareAccelerationOff;
-    const detail = terminalRendererDetail(status, Boolean(isBootDisabled));
+    const detail = terminalRendererDetail(status, Boolean(isBootDisabled), t);
     const isRetrying = ['deferred', 'failed', 'scheduled', 'trying'].includes(status.retryState);
     const action: TerminalRendererIndicatorAction | undefined = isBootDisabled
-        ? OPEN_HARDWARE_ACCELERATION_SETTINGS
+        ? openHardwareAccelerationSettings(t)
         : status.reason === 'disabled'
-          ? ENABLE_GPU_ACCELERATION
+          ? enableGpuAcceleration(t)
           : !isRetrying || status.reason === 'context-loss-limit'
-            ? RETRY_GPU_ACCELERATION
+            ? retryGpuAcceleration(t)
             : undefined;
     // An actionable chip leads with what clicking does, matching the `Open Process Explorer, …` chips beside it, so
     // the accessible name and the tooltip promise exactly the same thing. A confirming action's title is already a
     // question, so it reads as the promise directly.
-    const lead = action ? `${action.title} — ` : '';
+    const summary = t('terminal.renderer.summary', { detail });
+    const description = action
+        ? t('terminal.renderer.withAction', { action: action.title, summary })
+        : summary;
     return {
         ...(action && { action }),
-        ariaLabel: `${lead}Terminal is using software rendering. ${detail}`,
-        label: 'Software',
-        title: `${lead}Terminal is using software rendering. ${detail}`,
+        ariaLabel: description,
+        label: t('terminal.renderer.label'),
+        title: description,
     };
 }
 
-function terminalRendererDetail(status: TerminalRendererStatus, isBootDisabled: boolean): string {
-    if (status.reason === 'disabled') return 'GPU acceleration is turned off in Settings.';
-    if (isBootDisabled)
-        return 'Hardware acceleration is turned off, so no Terminal in any window can use the GPU.';
-    if (status.reason === 'unsupported') return 'The GPU is unavailable in this window right now.';
+function terminalRendererDetail(
+    status: TerminalRendererStatus,
+    isBootDisabled: boolean,
+    t: Translate,
+): string {
+    if (status.reason === 'disabled') return t('terminal.renderer.detail.disabled');
+    if (isBootDisabled) return t('terminal.renderer.detail.hardwareOff');
+    if (status.reason === 'unsupported') return t('terminal.renderer.detail.unsupported');
     if (status.reason === 'context-loss-limit')
-        return 'Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.';
-    const cause =
+        return t('terminal.renderer.detail.contextLossLimit');
+    const cause = t(
         status.reason === 'context-loss'
-            ? 'GPU drawing was interrupted.'
-            : 'GPU drawing failed to start.';
+            ? 'terminal.renderer.detail.interrupted'
+            : 'terminal.renderer.detail.loadFailed',
+    );
     if (status.retryState === 'exhausted')
-        return `${cause} Retries exhausted; click to retry GPU rendering.`;
+        return t('terminal.renderer.detail.exhausted', { cause });
     if (['deferred', 'failed', 'scheduled', 'trying'].includes(status.retryState))
-        return `${cause} Trying the GPU again (${status.retryAttemptCount}/${status.retryLimit}).`;
+        return t('terminal.renderer.detail.retrying', {
+            attempt: status.retryAttemptCount,
+            cause,
+            limit: status.retryLimit,
+        });
     return cause;
 }
 

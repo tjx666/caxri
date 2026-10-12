@@ -9,6 +9,8 @@ import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { Spinner } from '../../components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { Translate, TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import {
@@ -21,19 +23,21 @@ import {
 import { UsageSections } from './usage-sections';
 import { useUsageReport } from './use-usage-report';
 
-const RANGES: ReadonlyArray<{ value: UsageRange; label: string }> = [
-    { value: '7d', label: '7D' },
-    { value: '30d', label: '30D' },
-    { value: '90d', label: '90D' },
-    { value: '365d', label: '1Y' },
-    { value: 'all', label: 'All' },
-];
-const SCOPES: ReadonlyArray<{ value: UsageScope; label: string; description: string }> = [
-    { value: 'caxri', label: 'Caxri', description: 'Agents started in Caxri Sessions' },
+const RANGES: readonly UsageRange[] = ['7d', '30d', '90d', '365d', 'all'];
+const SCOPES: ReadonlyArray<{
+    value: UsageScope;
+    labelKey: TranslationKey;
+    descriptionKey: TranslationKey;
+}> = [
+    {
+        value: 'caxri',
+        labelKey: 'usage.scope.caxri',
+        descriptionKey: 'usage.scope.caxriDescription',
+    },
     {
         value: 'all',
-        label: 'This Mac',
-        description: 'Every Agent Session on this Mac, including ones run outside Caxri',
+        labelKey: 'usage.scope.thisMac',
+        descriptionKey: 'usage.scope.thisMacDescription',
     },
 ];
 const ALL_AGENTS = 'all';
@@ -48,12 +52,15 @@ const LOCAL_TIME_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone || 
  * The date range plus the price basis: every dollar figure below is an API list-price estimate, not what a subscription
  * plan bills, and the page header is the one line every card sits under.
  */
-function rangeCaption(report: UsageReport): string {
+function rangeCaption(t: Translate, report: UsageReport): string {
     const range = report.rangeStart
-        ? `${formatDate(report.rangeStart)} to ${formatDate(report.today)}`
-        : `All time through ${formatDate(report.today)}`;
-    const scan = usageScanCaption(report);
-    return `${range} · Costs are API list-price estimates${scan ? ` · ${scan}` : ''}`;
+        ? t('usage.caption.range', {
+              end: formatDate(t, report.today),
+              start: formatDate(t, report.rangeStart),
+          })
+        : t('usage.caption.allTime', { end: formatDate(t, report.today) });
+    const scan = usageScanCaption(t, report);
+    return `${range} · ${t('usage.caption.priceBasis')}${scan ? ` · ${scan}` : ''}`;
 }
 
 function UsageBody({
@@ -71,12 +78,13 @@ function UsageBody({
      */
     onShowThisMac?: () => void;
 }) {
-    const empty = usageEmptyState(report, agent);
+    const { t } = useTranslation();
+    const empty = usageEmptyState(t, report, agent);
     if (empty?.kind === 'scanning')
         return (
             <Empty className="h-full">
                 <Spinner aria-hidden="true" />
-                <EmptyTitle>Reading Agent transcripts on this Mac…</EmptyTitle>
+                <EmptyTitle>{t('usage.empty.scanning')}</EmptyTitle>
             </Empty>
         );
     if (empty?.kind === 'agentFilter')
@@ -87,7 +95,7 @@ function UsageBody({
                 </EmptyMedia>
                 <EmptyTitle>{empty.title}</EmptyTitle>
                 <Button size="sm" variant="secondary" onClick={onShowAllAgents}>
-                    Show all Agents
+                    {t('usage.empty.showAllAgents')}
                 </Button>
             </Empty>
         );
@@ -97,13 +105,13 @@ function UsageBody({
                 <EmptyMedia>
                     <ChartColumn aria-hidden="true" size={24} />
                 </EmptyMedia>
-                <EmptyTitle>No Agent usage yet</EmptyTitle>
+                <EmptyTitle>{t('usage.empty.noUsage')}</EmptyTitle>
                 <p className="m-0 max-w-[420px] text-[12px] text-muted">
-                    Start an Agent in a Session; its tokens, cost, and pull requests show up here.
+                    {t('usage.empty.noUsageDescription')}
                 </p>
                 {onShowThisMac && (
                     <Button size="sm" variant="secondary" onClick={onShowThisMac}>
-                        Show This Mac
+                        {t('usage.empty.showThisMac')}
                     </Button>
                 )}
             </Empty>
@@ -117,6 +125,7 @@ function UsageBody({
  * see `docs/usage.md`.
  */
 export function UsageWorkbenchPage() {
+    const { t } = useTranslation();
     const [scope, setScope] = useState<UsageScope>('caxri');
     const [range, setRange] = useState<UsageRange>('30d');
     const [agent, setAgent] = useState<AgentFilter>(ALL_AGENTS);
@@ -145,29 +154,31 @@ export function UsageWorkbenchPage() {
         >
             <div className="flex flex-wrap items-end justify-between gap-3 bg-surface pt-4 pr-4 pb-3 pl-4">
                 <div className="min-w-0">
-                    <h1 className="m-0 text-[15px] font-semibold">Usage</h1>
+                    <h1 className="m-0 text-[15px] font-semibold">{t('usage.title')}</h1>
                     <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
                         {isShowingPreviousSelection ? (
                             <span className="inline-flex items-center gap-1.5">
-                                {usageRangeLabel(range)} · Updating
+                                {t('usage.caption.updating', {
+                                    range: usageRangeLabel(t, range),
+                                })}
                                 <Spinner aria-hidden="true" className="size-3" />
                             </span>
                         ) : report ? (
-                            rangeCaption(report)
+                            rangeCaption(t, report)
                         ) : (
-                            'Tokens, estimated cost, and outcomes of Agents in Caxri Sessions'
+                            t('usage.caption.default')
                         )}
                         {didUsageRefreshFail(query) && (
                             <>
                                 {' · '}
-                                <span className="text-danger">Couldn&apos;t refresh</span>
+                                <span className="text-danger">{t('usage.refreshFailed')}</span>
                                 {' · '}
                                 <button
                                     type="button"
                                     className="cursor-pointer rounded-sm border-0 bg-transparent p-0 text-[11px] text-foreground underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
                                     onClick={retry}
                                 >
-                                    Retry
+                                    {t('common.retry')}
                                 </button>
                             </>
                         )}
@@ -175,26 +186,30 @@ export function UsageWorkbenchPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                     <ToggleGroup
-                        aria-label="Agent Sessions counted"
+                        aria-label={t('usage.scope.label')}
                         value={[scope]}
                         onValueChange={(next: UsageScope[]) => {
                             if (next[0]) setScope(next[0]);
                         }}
                     >
                         {SCOPES.map((item) => (
-                            <Tooltip key={item.value} content={item.description}>
-                                <ToggleGroupItem value={item.value}>{item.label}</ToggleGroupItem>
+                            <Tooltip key={item.value} content={t(item.descriptionKey)}>
+                                <ToggleGroupItem value={item.value}>
+                                    {t(item.labelKey)}
+                                </ToggleGroupItem>
                             </Tooltip>
                         ))}
                     </ToggleGroup>
                     <ToggleGroup
-                        aria-label="Agent"
+                        aria-label={t('usage.filter.agent')}
                         value={[agent]}
                         onValueChange={(next: AgentFilter[]) => {
                             if (next[0]) setAgent(next[0]);
                         }}
                     >
-                        <ToggleGroupItem value={ALL_AGENTS}>All Agents</ToggleGroupItem>
+                        <ToggleGroupItem value={ALL_AGENTS}>
+                            {t('usage.filter.allAgents')}
+                        </ToggleGroupItem>
                         {agentProviderIds.map((provider) => (
                             <Tooltip
                                 key={provider}
@@ -210,15 +225,15 @@ export function UsageWorkbenchPage() {
                         ))}
                     </ToggleGroup>
                     <ToggleGroup
-                        aria-label="Range"
+                        aria-label={t('usage.filter.range')}
                         value={[range]}
                         onValueChange={(next: UsageRange[]) => {
                             if (next[0]) setRange(next[0]);
                         }}
                     >
                         {RANGES.map((item) => (
-                            <ToggleGroupItem key={item.value} value={item.value}>
-                                {item.label}
+                            <ToggleGroupItem key={item} value={item}>
+                                {t(`usage.rangeShort.${item}`)}
                             </ToggleGroupItem>
                         ))}
                     </ToggleGroup>
@@ -240,19 +255,19 @@ export function UsageWorkbenchPage() {
                     />
                 ) : query.isError ? (
                     <Empty className="h-full">
-                        <EmptyTitle className="text-danger">Usage could not be loaded</EmptyTitle>
+                        <EmptyTitle className="text-danger">{t('usage.loadFailed')}</EmptyTitle>
                         <p className="m-0 max-w-[420px] text-[12px] text-muted">
-                            {errorMessage(query.error, 'The usage report failed.')}
+                            {errorMessage(query.error, t('usage.loadFailedFallback'))}
                         </p>
                         <Button size="sm" variant="secondary" onClick={retry}>
                             <RefreshCw aria-hidden="true" size={12} />
-                            Retry
+                            {t('common.retry')}
                         </Button>
                     </Empty>
                 ) : (
                     <Empty className="h-full">
                         <Spinner aria-hidden="true" />
-                        <EmptyTitle>Reading Agent transcripts…</EmptyTitle>
+                        <EmptyTitle>{t('usage.loading')}</EmptyTitle>
                     </Empty>
                 )}
             </div>

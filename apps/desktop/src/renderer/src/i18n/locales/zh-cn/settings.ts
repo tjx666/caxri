@@ -1,10 +1,20 @@
 import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
 
 import type { settings as source } from '../en/settings';
+import { settingsAgents } from './settings-agents';
+import { settingsCatalog } from './settings-catalog';
+import { settingsForms } from './settings-forms';
+import { settingsKeybindings } from './settings-keybindings';
+import { settingsMobile } from './settings-mobile';
+import { settingsPage } from './settings-page';
+import { settingsTheme } from './settings-theme';
 
 export const settings: TranslatedNamespace<typeof source> = {
-    'settings.workbench.language.title': '语言',
-    'settings.workbench.language.description':
-        '界面的显示语言。跟随系统时，系统语言为中文则使用简体中文。',
-    'settings.workbench.language.nullLabel': '跟随系统',
+    ...settingsCatalog,
+    ...settingsPage,
+    ...settingsAgents,
+    ...settingsMobile,
+    ...settingsKeybindings,
+    ...settingsTheme,
+    ...settingsForms,
 };

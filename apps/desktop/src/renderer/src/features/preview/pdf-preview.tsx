@@ -17,13 +17,19 @@ import {
     MenuTrigger,
 } from '../../components/ui/menu';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { documentLoadRecoveryAction } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
 import type { PdfViewerSession, PdfViewState } from './pdf-document';
 import { createPdfViewerSession } from './pdf-document';
 import type { PdfZoomChoice } from './pdf-toolbar-model';
-import { describePdfView, parsePdfPageInput, PDF_ZOOM_CHOICES } from './pdf-toolbar-model';
-import { PREVIEW_LOADING_LABEL } from './preview-registry';
+import {
+    describePdfView,
+    parsePdfPageInput,
+    PDF_ZOOM_CHOICES,
+    pdfZoomChoiceLabel,
+} from './pdf-toolbar-model';
+import { PREVIEW_LOADING_LABEL_KEY } from './preview-registry';
 import { readPreviewViewState, rememberPreviewViewState } from './preview-view-state';
 import { usePdfDocument } from './use-pdf-document';
 
@@ -59,9 +65,10 @@ function PageField({
     pageNumber: number;
     onGoToPage: (pageNumber: number) => void;
 }) {
+    const { t } = useTranslation();
     return (
         <Input
-            aria-label="Page"
+            aria-label={t('preview.pdf.page')}
             appearance="inline"
             className="w-10 text-center tabular-nums"
             defaultValue={String(pageNumber)}
@@ -96,14 +103,16 @@ function ZoomMenu({
     view: PdfViewState;
     onZoom: (choice: PdfZoomChoice) => void;
 }) {
-    const checked =
-        PDF_ZOOM_CHOICES.find(
-            ({ choice }) => choice === view.scaleValue || choice === Number(view.scaleValue),
-        )?.label ?? null;
+    const { t } = useTranslation();
+    const checkedChoice = PDF_ZOOM_CHOICES.find(
+        (choice) => choice === view.scaleValue || choice === Number(view.scaleValue),
+    );
+    // The radio value is the choice itself, so the checked row does not depend on the display language.
+    const checked = checkedChoice === undefined ? null : String(checkedChoice);
     return (
         <Menu>
             <MenuTrigger
-                aria-label={`Zoom: ${Math.round(view.scale * 100)}%`}
+                aria-label={t('preview.pdf.zoomLabel', { percent: Math.round(view.scale * 100) })}
                 render={
                     <Button
                         className="w-16 gap-0.5 px-1 text-[12px] tabular-nums"
@@ -118,14 +127,14 @@ function ZoomMenu({
             <MenuContent align="end" className="min-w-32">
                 <MenuRadioGroup
                     value={checked}
-                    onValueChange={(label: string) => {
-                        const option = PDF_ZOOM_CHOICES.find((entry) => entry.label === label);
-                        if (option) onZoom(option.choice);
+                    onValueChange={(value: string) => {
+                        const option = PDF_ZOOM_CHOICES.find((choice) => String(choice) === value);
+                        if (option !== undefined) onZoom(option);
                     }}
                 >
-                    {PDF_ZOOM_CHOICES.map(({ label }) => (
-                        <MenuRadioItem key={label} closeOnClick value={label}>
-                            {label}
+                    {PDF_ZOOM_CHOICES.map((choice) => (
+                        <MenuRadioItem key={choice} closeOnClick value={String(choice)}>
+                            {pdfZoomChoiceLabel(choice, t)}
                         </MenuRadioItem>
                     ))}
                 </MenuRadioGroup>
@@ -151,6 +160,7 @@ function PdfDocumentView({
     viewStateKey: string;
     onRetry: () => void;
 }) {
+    const { t } = useTranslation();
     const containerReference = useRef<HTMLDivElement>(null);
     const viewerReference = useRef<HTMLDivElement>(null);
     const sessionReference = useRef<PdfViewerSession | undefined>(undefined);
@@ -211,8 +221,8 @@ function PdfDocumentView({
     if (failedDocument === document)
         return (
             <EditorLoadFailure
-                actionLabel="Retry"
-                reason="Couldn't display this PDF."
+                actionLabel={t('common.retry')}
+                reason={t('preview.pdf.displayFailed')}
                 onAction={onRetry}
             />
         );
@@ -232,13 +242,15 @@ function PdfDocumentView({
                     pageNumber={view.pageNumber}
                     onGoToPage={(pageNumber) => act((session) => session.goToPage(pageNumber))}
                 />
-                <span className="min-w-0 flex-1 truncate">of {view.pageCount}</span>
+                <span className="min-w-0 flex-1 truncate">
+                    {t('preview.pdf.pageCount', { count: view.pageCount })}
+                </span>
                 <span aria-live="polite" className="sr-only">
                     {announcement}
                 </span>
                 <ToolbarButton
                     icon={<ZoomOut aria-hidden="true" size={14} />}
-                    label="Zoom Out"
+                    label={t('preview.pdf.zoomOut')}
                     onClick={() => act((session) => session.zoomOut())}
                 />
                 <ZoomMenu
@@ -247,14 +259,14 @@ function PdfDocumentView({
                 />
                 <ToolbarButton
                     icon={<ZoomIn aria-hidden="true" size={14} />}
-                    label="Zoom In"
+                    label={t('preview.pdf.zoomIn')}
                     onClick={() => act((session) => session.zoomIn())}
                 />
             </div>
             <div className="relative min-h-0 flex-1">
                 <div
                     ref={containerReference}
-                    aria-label="PDF preview"
+                    aria-label={t('preview.pdf.label')}
                     className="caxri-pdf-preview absolute inset-0 overflow-auto"
                     data-testid="pdf-preview"
                     role="document"
@@ -287,11 +299,12 @@ export function PdfPreview({
     viewStateKey: string;
     workbenchProjectId: string | undefined;
 }) {
+    const { t } = useTranslation();
     const { state, retry } = usePdfDocument(sessionId, workbenchProjectId, path);
     if (state.status === 'failed')
         return (
             <EditorLoadFailure
-                {...documentLoadRecoveryAction(state.failure.recovery, path, retry)}
+                {...documentLoadRecoveryAction(state.failure.recovery, path, retry, t)}
                 reason={state.failure.reason}
                 tone={state.failure.tone}
             />
@@ -301,7 +314,7 @@ export function PdfPreview({
             <LoadingSkeleton
                 variant="document"
                 className="bg-background"
-                label={PREVIEW_LOADING_LABEL}
+                label={t(PREVIEW_LOADING_LABEL_KEY)}
             />
         );
     return (

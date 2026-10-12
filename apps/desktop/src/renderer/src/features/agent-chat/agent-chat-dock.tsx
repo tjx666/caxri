@@ -2,6 +2,7 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { CircleAlert, Info, RotateCcw, SquareTerminal, Unplug } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { AgentChatPlanCard } from './agent-chat-plan-card';
 import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
@@ -27,6 +28,7 @@ function AgentChatRecoveryBanner({
     onOpenAsTerminal: (() => void) | undefined;
     onRecover: () => void;
 }) {
+    const { t } = useTranslation();
     if (!notice) return null;
     const isFailure = notice.kind === 'failed';
     const isDetached = notice.kind === 'detached';
@@ -50,12 +52,12 @@ function AgentChatRecoveryBanner({
             {notice.canOpenAsTerminal && onOpenAsTerminal && (
                 <Button size="sm" variant="secondary" onClick={onOpenAsTerminal}>
                     <SquareTerminal className="size-3.5" />
-                    Open as Terminal
+                    {t('agentChat.dock.openAsTerminal')}
                 </Button>
             )}
             <Button size="sm" variant="secondary" onClick={onRecover}>
                 <RotateCcw className="size-3.5" />
-                {isDetached ? 'Resume' : 'Retry'}
+                {t(isDetached ? 'agentChat.dock.resume' : 'common.retry')}
             </Button>
         </div>
     );

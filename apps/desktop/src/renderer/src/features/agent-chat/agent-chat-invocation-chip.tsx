@@ -4,6 +4,7 @@ import { Package, SquareSlash } from 'lucide-react';
 
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import { AgentChatMessage } from './agent-chat-message';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
@@ -17,6 +18,7 @@ const CHIP_CLASS_NAME =
  * read only while the popover is open.
  */
 export function AgentChatInvocationChip({ invocation }: { invocation: string }) {
+    const { t } = useTranslation();
     const terminalId = useAgentChatTerminal();
     const [isOpen, setIsOpen] = useState(false);
     const Icon = invocation.startsWith('$') ? Package : SquareSlash;
@@ -30,7 +32,7 @@ export function AgentChatInvocationChip({ invocation }: { invocation: string }) 
     return (
         <Popover open={isOpen} onOpenChange={setIsOpen}>
             <PopoverTrigger
-                aria-label={`Show ${invocation}`}
+                aria-label={t('agentChat.slash.showInvocation', { invocation })}
                 className={`${CHIP_CLASS_NAME} cursor-pointer border-0 text-[13px] leading-5 transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-accent/25 focus-visible:outline focus-visible:outline-accent data-popup-open:bg-accent/25`}
             >
                 {label}
@@ -51,6 +53,7 @@ function AgentChatInvocationDetails({
     invocation: string;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
     const action = useCaxriQuery('agentActions.read', { terminalId, invocation }, { retry: false });
     return (
         <div className="flex max-h-[min(28rem,var(--available-height))] flex-col">
@@ -67,7 +70,7 @@ function AgentChatInvocationDetails({
                 {/* The raw error names Server Core internals; the user only needs to know the file is not readable. */}
                 {action.error && (
                     <p className="m-0 text-[12px] text-muted">
-                        The instructions for {invocation} could not be loaded.
+                        {t('agentChat.slash.instructionsUnavailable', { invocation })}
                     </p>
                 )}
                 {action.data && (

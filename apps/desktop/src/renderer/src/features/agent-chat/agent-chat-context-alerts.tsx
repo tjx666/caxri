@@ -3,6 +3,7 @@ import { Gauge, MessageSquarePlus, Timer, TimerOff } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { agentChatContextAlerts } from './agent-chat-context';
 import { useClockTick } from './hooks/use-clock-tick';
@@ -38,6 +39,7 @@ export function AgentChatContextAlerts({
     onContinueInNewChat: () => void;
     usage: AgentChatUsage;
 }) {
+    const { t } = useTranslation();
     const alerts = agentChatContextAlerts(usage, useClockTick('minute'));
     if (!alerts.cache && !alerts.pressure) return null;
     const canCompact = alerts.pressure !== undefined && onCompact !== undefined;
@@ -80,7 +82,7 @@ export function AgentChatContextAlerts({
             {(isExpired || canCompact) && (
                 <span className="-mr-1.5 ml-auto flex shrink-0 items-center gap-1">
                     {isExpired && (
-                        <Tooltip content="Open a new Chat that reads this conversation's transcript and continues the work. Your draft goes with it.">
+                        <Tooltip content={t('agentChat.context.continueTooltip')}>
                             <Button
                                 aria-disabled={isContinuing || undefined}
                                 className={ACTION_CLASS}
@@ -89,7 +91,7 @@ export function AgentChatContextAlerts({
                                 onClick={onContinueInNewChat}
                             >
                                 <MessageSquarePlus aria-hidden className="size-3.5" />
-                                Continue in new Chat
+                                {t('agentChat.context.continueInNewChat')}
                             </Button>
                         </Tooltip>
                     )}
@@ -100,7 +102,7 @@ export function AgentChatContextAlerts({
                             variant="secondary"
                             onClick={onCompact}
                         >
-                            Compact
+                            {t('agentChat.context.compact')}
                         </Button>
                     )}
                 </span>

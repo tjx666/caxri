@@ -9,6 +9,7 @@ import { ArrowDown, ArrowUp, FileSymlink, GitCommitHorizontal, GitPullRequest } 
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
 import { previewTabSwitch } from '../preview/preview-commands';
@@ -59,6 +60,7 @@ export function EditorTabActions({ path, paneId }: { paneId?: string; path: stri
 }
 
 function FileEditorTabActions({ path }: { path: string }) {
+    const { t } = useTranslation();
     const session = usePaneViewSession();
     const headQuery = useCaxriQuery(
         'git.fileHead',
@@ -73,11 +75,11 @@ function FileEditorTabActions({ path }: { path: string }) {
     if (!head) return <span aria-hidden="true" className="block w-14 flex-none" />;
     return (
         <>
-            <Tooltip content="Open Last Commit Changes">
+            <Tooltip content={t('editor.tabActions.openLastCommitChanges')}>
                 <Button
                     size="icon"
                     variant="ghost"
-                    aria-label="Open Last Commit Changes"
+                    aria-label={t('editor.tabActions.openLastCommitChanges')}
                     onClick={() =>
                         openEditorTab(
                             gitCommitFileDiffTabPath(head.repositoryId, head.sha, head.path),
@@ -87,11 +89,11 @@ function FileEditorTabActions({ path }: { path: string }) {
                     <GitCommitHorizontal aria-hidden="true" size={14} />
                 </Button>
             </Tooltip>
-            <Tooltip content="Open Pull Request Changes">
+            <Tooltip content={t('editor.tabActions.openPullRequestChanges')}>
                 <Button
                     size="icon"
                     variant="ghost"
-                    aria-label="Open Pull Request Changes"
+                    aria-label={t('editor.tabActions.openPullRequestChanges')}
                     onClick={() =>
                         openEditorTab(gitPullRequestFileDiffTabPath(head.repositoryId, head.path))
                     }
@@ -112,6 +114,7 @@ function GitDiffTabActions({
     tab: Extract<GitDiffTab, { kind: 'commit-file' | 'file' }>;
     tabPath: string;
 }) {
+    const { t } = useTranslation();
     const session = usePaneViewSession();
     const actionState = useDiffEditorActionState(tabPath, paneId);
     const summary = useCaxriQuery(
@@ -126,13 +129,16 @@ function GitDiffTabActions({
     const isDeleted = currentFile?.kind === 'deleted';
     const openPath = resolveRepoFilePath(repo?.rootPath, tab.path);
     const canOpen = Boolean(session && openPath && !isDeleted);
+    const openLabel = t(
+        isDeleted ? 'editor.tabActions.fileDeleted' : 'editor.tabActions.openCurrentFile',
+    );
     return (
         <>
-            <Tooltip content="Previous Change">
+            <Tooltip content={t('editor.tabActions.previousChange')}>
                 <Button
                     size="icon"
                     variant="ghost"
-                    aria-label="Previous Change"
+                    aria-label={t('editor.tabActions.previousChange')}
                     disabled={!actionState.hasChanges}
                     onClick={() => {
                         if (paneId) didNavigateDiffEditor(tabPath, paneId, 'previous');
@@ -141,11 +147,11 @@ function GitDiffTabActions({
                     <ArrowUp aria-hidden="true" size={14} />
                 </Button>
             </Tooltip>
-            <Tooltip content="Next Change">
+            <Tooltip content={t('editor.tabActions.nextChange')}>
                 <Button
                     size="icon"
                     variant="ghost"
-                    aria-label="Next Change"
+                    aria-label={t('editor.tabActions.nextChange')}
                     disabled={!actionState.hasChanges}
                     onClick={() => {
                         if (paneId) didNavigateDiffEditor(tabPath, paneId, 'next');
@@ -154,11 +160,11 @@ function GitDiffTabActions({
                     <ArrowDown aria-hidden="true" size={14} />
                 </Button>
             </Tooltip>
-            <Tooltip content={isDeleted ? 'File was deleted' : 'Open Current File'}>
+            <Tooltip content={openLabel}>
                 <Button
                     size="icon"
                     variant="ghost"
-                    aria-label={isDeleted ? 'File was deleted' : 'Open Current File'}
+                    aria-label={openLabel}
                     disabled={!canOpen}
                     onClick={() => {
                         if (!session || !openPath) return;

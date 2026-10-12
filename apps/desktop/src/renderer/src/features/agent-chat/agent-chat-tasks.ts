@@ -6,6 +6,9 @@ import type {
 } from '@caxri/protocol';
 import { formatShortDuration, formatTokens } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 /**
  * Tool names whose row starts a subagent, compared without case or separators: Claude Code's `Task` and `Agent`, and
  * Codex's collab `spawnAgent` (also seen as `spawn_agent`).
@@ -124,11 +127,20 @@ export function formatAgentChatTaskElapsed(elapsedMs: number | undefined): strin
 /**
  * `12.3k tokens · 8 tool uses`, from whatever usage the provider reported.
  */
-export function agentChatTaskUsageSummary(task: Pick<AgentChatTask, 'usage'>): string | undefined {
+export function agentChatTaskUsageSummary(
+    task: Pick<AgentChatTask, 'usage'>,
+    t: Translate,
+): string | undefined {
     const parts: string[] = [];
     const { totalTokens, toolUses } = task.usage ?? {};
-    if (totalTokens) parts.push(`${formatTokens(totalTokens)} tokens`);
-    if (toolUses) parts.push(toolUses === 1 ? '1 tool use' : `${toolUses} tool uses`);
+    if (totalTokens)
+        parts.push(t('agentChat.tasks.usageTokens', { tokens: formatTokens(totalTokens) }));
+    if (toolUses)
+        parts.push(
+            toolUses === 1
+                ? t('agentChat.tasks.toolUseOne')
+                : t('agentChat.tasks.toolUseOther', { count: toolUses }),
+        );
     return parts.length > 0 ? parts.join(' · ') : undefined;
 }
 
@@ -151,14 +163,17 @@ export function agentChatTaskGlyphStatus(status: AgentChatTask['status']): Agent
 
 /**
  * What a running task is doing now, for its timeline row and strip entry: the provider's progress line, else the tool
- * it last used. An ended task shows its final summary.
+ * it last used. An ended task shows its final summary. A component passes its `t` so the label follows a language
+ * change; `translate` is only the fallback for callers that have not been given one.
  */
 export function agentChatTaskActivity(
     task: Pick<AgentChatTask, 'lastToolName' | 'status' | 'summary'>,
+    t: Translate = translate,
 ): string | undefined {
     const summary = task.summary?.trim();
     if (summary) return summary;
-    if (task.status === 'running' && task.lastToolName) return `Using ${task.lastToolName}`;
+    if (task.status === 'running' && task.lastToolName)
+        return t('agentChat.tasks.usingTool', { tool: task.lastToolName });
     return undefined;
 }
 

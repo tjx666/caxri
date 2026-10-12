@@ -3,6 +3,7 @@ import { isPinnedSession } from '@caxri/protocol';
 import { Archive, Pin, PinOff } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { archiveSession } from '../session/session-archive-commands';
 import { setSessionPinned } from '../session/session-commands';
 
@@ -23,13 +24,20 @@ export const sessionRowActionButton =
  */
 export function SessionRowActions({ session }: { session: SessionRecord }) {
     const pinned = isPinnedSession(session);
+    const { t } = useTranslation();
     return (
         <div className="session-row-actions pointer-events-none absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100">
-            <Tooltip content={pinned ? 'Unpin Session' : 'Pin Session'}>
+            <Tooltip
+                content={t(
+                    pinned ? 'primarySidebar.sessionMenu.unpin' : 'primarySidebar.sessionMenu.pin',
+                )}
+            >
                 <button
                     type="button"
                     className={`${sessionRowActionButton} aria-pressed:text-accent`}
-                    aria-label={`Pin ${session.displayTitle}`}
+                    aria-label={t('primarySidebar.sessionRow.pinAriaLabel', {
+                        title: session.displayTitle,
+                    })}
                     aria-pressed={pinned}
                     tabIndex={-1}
                     onClick={() => setSessionPinned(session.id, !pinned)}
@@ -37,11 +45,13 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
                     {pinned ? <PinOff size={12} /> : <Pin size={12} />}
                 </button>
             </Tooltip>
-            <Tooltip content="Archive Session">
+            <Tooltip content={t('primarySidebar.sessionRow.archive')}>
                 <button
                     type="button"
                     className={sessionRowActionButton}
-                    aria-label={`Archive ${session.displayTitle}`}
+                    aria-label={t('primarySidebar.sessionRow.archiveAriaLabel', {
+                        title: session.displayTitle,
+                    })}
                     aria-keyshortcuts="Delete"
                     tabIndex={-1}
                     onClick={() => archiveSession(session.id)}

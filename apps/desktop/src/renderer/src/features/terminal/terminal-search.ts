@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+
 export const TERMINAL_SEARCH_HIGHLIGHT_LIMIT = 1_000;
 
 export interface TerminalSearchOptions {
@@ -111,13 +113,18 @@ export function openTerminalSearch(terminalId: string): void {
     openHandlers.get(terminalId)?.();
 }
 
-export function terminalSearchResultLabel(query: string, results: TerminalSearchResults): string {
+export function terminalSearchResultLabel(
+    t: Translate,
+    query: string,
+    results: TerminalSearchResults,
+): string {
     if (!query) return '';
     if (results.error) return results.error;
-    if (results.resultCount === 0) return 'No results';
+    if (results.resultCount === 0) return t('terminal.search.noResults');
     if (results.resultCount > TERMINAL_SEARCH_HIGHLIGHT_LIMIT)
-        return `${TERMINAL_SEARCH_HIGHLIGHT_LIMIT}+ results`;
-    if (results.resultIndex < 0) return `${results.resultCount} results`;
+        return t('terminal.search.resultsOverLimit', { count: TERMINAL_SEARCH_HIGHLIGHT_LIMIT });
+    if (results.resultIndex < 0)
+        return t('terminal.search.resultCount', { count: results.resultCount });
     return `${results.resultIndex + 1}/${results.resultCount}`;
 }
 

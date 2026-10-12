@@ -1,34 +1,37 @@
 import type { AgentUsageReadout } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    formatLimitReset,
-    formatLimitWindowName,
-    formatTokens,
-    formatUsd,
-    usageTabPath,
-} from '@caxri/protocol';
+import { agentProviderCatalog, formatTokens, formatUsd, usageTabPath } from '@caxri/protocol';
 import { ChartColumn } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import type { Translate } from '../../i18n';
+import { useTranslation } from '../../i18n';
+import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
 import { openEditorTab } from '../editor/document-commands';
 import { agentUsageCostLabel, agentUsageLabel, currentLimitWindows } from './agent-usage-label';
 import { StatusItem } from './status-item';
-
-const AGENT_USAGE_METHOD_NOTE =
-    "Tokens and cost are read from this conversation's own transcript and priced at API list prices, the same rules as the Usage page. Plan limits are account-wide: the newest reading from any conversation.";
 
 /**
  * `121k: 120k input, 900 output, 80k cache read`. Cache kinds the provider never reported are left out rather than
  * listed as zero.
  */
-function describeTokens(tokens: AgentUsageReadout['tokens']): string {
-    const parts = [`${formatTokens(tokens.input)} input`, `${formatTokens(tokens.output)} output`];
-    if (tokens.cacheRead > 0) parts.push(`${formatTokens(tokens.cacheRead)} cache read`);
-    if (tokens.cacheWrite > 0) parts.push(`${formatTokens(tokens.cacheWrite)} cache write`);
-    return `${formatTokens(tokens.total)}: ${parts.join(', ')}`;
+function describeTokens(tokens: AgentUsageReadout['tokens'], t: Translate): string {
+    const parts = [
+        t('statusBar.usage.tokensInput', { count: formatTokens(tokens.input) }),
+        t('statusBar.usage.tokensOutput', { count: formatTokens(tokens.output) }),
+    ];
+    if (tokens.cacheRead > 0)
+        parts.push(t('statusBar.usage.tokensCacheRead', { count: formatTokens(tokens.cacheRead) }));
+    if (tokens.cacheWrite > 0)
+        parts.push(
+            t('statusBar.usage.tokensCacheWrite', { count: formatTokens(tokens.cacheWrite) }),
+        );
+    return t('statusBar.usage.tokensSummary', {
+        total: formatTokens(tokens.total),
+        parts: parts.join(t('statusBar.usage.listSeparator')),
+    });
 }
 
 /**
@@ -37,6 +40,7 @@ function describeTokens(tokens: AgentUsageReadout['tokens']): string {
  * usage, so it never holds a slot to say "none".
  */
 export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
+    const { t } = useTranslation();
     const { data: readout, dataUpdatedAt } = usePolledQuery(
         'terminal.agentUsage',
         { terminalId },
@@ -53,36 +57,55 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const limitWindows = currentLimitWindows(readout.limit, now);
     return (
         <StatusItem
-            ariaLabel={`Open Usage — ${agentName} conversation usage: ${label}`}
+            ariaLabel={t('statusBar.usage.ariaLabel', { agent: agentName, label })}
             className="statusbar-agent-usage"
             icon={<ChartColumn />}
             onClick={() => openEditorTab(usageTabPath())}
             title={
                 <StructuredTooltip
-                    eyebrow={`${agentName} conversation usage`}
+                    eyebrow={t('statusBar.usage.eyebrow', { agent: agentName })}
                     title={label}
                     rows={[
-                        { label: 'Tokens', value: describeTokens(tokens) },
+                        { label: t('statusBar.usage.tokens'), value: describeTokens(tokens, t) },
                         {
-                            label: 'Est. cost',
+                            label: t('statusBar.usage.estimatedCost'),
                             value: cost
-                                ? `${formatUsd(readout.costUsd)}${readout.unpricedModels.length > 0 ? ' (partial)' : ''}`
-                                : 'No price',
+                                ? readout.unpricedModels.length > 0
+                                    ? t('statusBar.usage.partialCost', {
+                                          cost: formatUsd(readout.costUsd),
+                                      })
+                                    : formatUsd(readout.costUsd)
+                                : t('statusBar.usage.noPrice'),
                         },
                         ...(cost && readout.unpricedModels.length > 0
-                            ? [{ label: 'No price', value: readout.unpricedModels.join(', ') }]
+                            ? [
+                                  {
+                                      label: t('statusBar.usage.noPrice'),
+                                      value: readout.unpricedModels.join(', '),
+                                  },
+                              ]
                             : []),
-                        { label: 'Models', value: readout.models.join(', ') },
-                        ...limitWindows.map((window) => ({
-                            label: `${formatLimitWindowName(window.windowMinutes)} limit`,
-                            value: `${Math.round(window.usedPercent)}% used${window.resetsAt === undefined ? '' : ` · ${formatLimitReset(window.resetsAt, now)}`}`,
-                        })),
+                        { label: t('statusBar.usage.models'), value: readout.models.join(', ') },
+                        ...limitWindows.map((window) => {
+                            const used = t('statusBar.usage.limitUsed', {
+                                percent: Math.round(window.usedPercent),
+                            });
+                            return {
+                                label: t('statusBar.usage.limit', {
+                                    window: localizedLimitWindowName(window.windowMinutes, t),
+                                }),
+                                value:
+                                    window.resetsAt === undefined
+                                        ? used
+                                        : `${used} · ${localizedLimitReset(window.resetsAt, now, t)}`,
+                            };
+                        }),
                         ...(limitObservedAgo && limitWindows.length > 0
-                            ? [{ label: 'Limits as of', value: limitObservedAgo }]
+                            ? [{ label: t('statusBar.usage.limitsAsOf'), value: limitObservedAgo }]
                             : []),
                     ]}
-                    notes={[AGENT_USAGE_METHOD_NOTE]}
-                    hint="Click to open Usage"
+                    notes={[t('statusBar.usage.methodNote')]}
+                    hint={t('statusBar.usage.clickToOpen')}
                 />
             }
         >

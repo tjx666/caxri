@@ -12,6 +12,8 @@ import {
     CommandList,
 } from '../../components/ui/command';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
+import { useTranslation } from '../../i18n';
+import { commandCategory, commandDescription, commandTitle } from '../../lib/command-labels';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
@@ -26,6 +28,7 @@ import {
 } from '../session/session-commands';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
 import {
+    getDynamicCommandPaletteValue,
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
     isCommandVisibleInPalette,
@@ -41,21 +44,24 @@ const commandItemMetaClassName = 'inline-flex flex-none items-center gap-2 text-
  * secondary line benefits every command, not just the ones whose title alone is ambiguous.
  */
 function CommandRow({ command }: { command: (typeof commandDefinitions)[number] }) {
+    const { t } = useTranslation();
     const shortcut = useCommandShortcut(command.id);
     return (
         <CommandItem
-            value={getStaticCommandPaletteValue(command)}
+            value={getStaticCommandPaletteValue(command, t)}
             onSelect={() => {
                 setPaletteOpen(false);
                 executeCommand(command.id);
             }}
         >
             <span className="flex min-w-0 flex-col gap-0.5">
-                <span>{command.title}</span>
-                <span className="truncate text-[11px] text-muted">{command.description}</span>
+                <span>{commandTitle(command, t)}</span>
+                <span className="truncate text-[11px] text-muted">
+                    {commandDescription(command, t)}
+                </span>
             </span>
             <small className={commandItemMetaClassName}>
-                {command.category}
+                {commandCategory(command.category, t)}
                 {shortcut && (
                     <ShortcutBadge
                         compact
@@ -75,21 +81,22 @@ function DynamicCommandRow({
     catalog: ViewCatalogSnapshot;
     command: { id: string; title: string; description?: string };
 }) {
+    const { t } = useTranslation();
     return (
         <CommandItem
-            value={`Extension ${command.title} ${command.id} ${command.description ?? ''}`}
+            value={getDynamicCommandPaletteValue(command, t)}
             onSelect={() => {
                 setPaletteOpen(false);
                 didExecuteViewCatalogCommand(catalog, command.id);
             }}
         >
             <span className="flex min-w-0 flex-col gap-0.5">
-                <span>{command.title}</span>
+                <span>{commandTitle(command, t)}</span>
                 {command.description && (
                     <span className="truncate text-[11px] text-muted">{command.description}</span>
                 )}
             </span>
-            <small className={commandItemMetaClassName}>Extension</small>
+            <small className={commandItemMetaClassName}>{t('palette.source.extension')}</small>
         </CommandItem>
     );
 }
@@ -113,6 +120,7 @@ export function CommandPalette() {
 }
 
 function CommandPaletteBody() {
+    const { t } = useTranslation();
     const onOpenChange = setPaletteOpen;
     const projects = useProjects() ?? NO_RECORDS;
     /**
@@ -145,12 +153,12 @@ function CommandPaletteBody() {
     };
     return (
         <>
-            <DialogTitle className="sr-only">Command Palette</DialogTitle>
-            <Command label="Command Palette" className="w-full">
-                <CommandInput autoFocus placeholder="Search projects, sessions, and commands…" />
+            <DialogTitle className="sr-only">{t('palette.title')}</DialogTitle>
+            <Command label={t('palette.title')} className="w-full">
+                <CommandInput autoFocus placeholder={t('palette.searchPlaceholder')} />
                 <CommandList>
-                    <CommandEmpty>No Project, Session, or command found.</CommandEmpty>
-                    <CommandGroup heading="Projects">
+                    <CommandEmpty>{t('palette.empty')}</CommandEmpty>
+                    <CommandGroup heading={t('palette.group.projects')}>
                         {projectResults.map((project) => (
                             <CommandItem
                                 key={project.id}
@@ -161,11 +169,13 @@ function CommandPaletteBody() {
                                 }}
                             >
                                 <span>{project.displayTitle}</span>
-                                <small className={commandItemMetaClassName}>Project</small>
+                                <small className={commandItemMetaClassName}>
+                                    {t('palette.source.project')}
+                                </small>
                             </CommandItem>
                         ))}
                     </CommandGroup>
-                    <CommandGroup heading="Sessions">
+                    <CommandGroup heading={t('palette.group.sessions')}>
                         {sessions.map((session) => {
                             const project = projects.find((item) => item.id === session.projectId);
                             return (
@@ -184,13 +194,13 @@ function CommandPaletteBody() {
                                 >
                                     <span>{session.displayTitle}</span>
                                     <small className={commandItemMetaClassName}>
-                                        {project?.displayTitle ?? 'Session'}
+                                        {project?.displayTitle ?? t('palette.source.session')}
                                     </small>
                                 </CommandItem>
                             );
                         })}
                     </CommandGroup>
-                    <CommandGroup heading="Commands">
+                    <CommandGroup heading={t('palette.group.commands')}>
                         {commandDefinitions.map((command) =>
                             command.requiresArguments ||
                             !isCommandVisibleInPalette(command, whenContext) ? null : (

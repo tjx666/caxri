@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     agentChatChangeDecoration,
     agentChatChangeKindLabel,
@@ -126,9 +127,9 @@ describe('file change presentation', () => {
         expect(agentChatChangeDecoration('add')).toEqual({ kind: 'added', letter: 'A' });
         expect(agentChatChangeDecoration('delete')).toEqual({ kind: 'deleted', letter: 'D' });
         expect(agentChatChangeDecoration('update')).toEqual({ kind: 'modified', letter: 'M' });
-        expect(agentChatChangeKindLabel('add')).toBe('Added');
-        expect(agentChatChangeKindLabel('delete')).toBe('Deleted');
-        expect(agentChatChangeKindLabel('update')).toBe('Modified');
+        expect(agentChatChangeKindLabel('add', translate)).toBe('Added');
+        expect(agentChatChangeKindLabel('delete', translate)).toBe('Deleted');
+        expect(agentChatChangeKindLabel('update', translate)).toBe('Modified');
     });
 
     it('opens only a path that exists: applied changes keep added files, pending ones keep deleted files', () => {

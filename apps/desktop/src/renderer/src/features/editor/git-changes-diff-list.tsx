@@ -5,6 +5,7 @@ import type { GitDiffTab, GitFileStatus } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { openSettings } from '../../stores/dialogs';
 import { useSettings } from '../../stores/selectors';
 import { findPaneTabId } from '../workbench/pane-actions';
@@ -49,6 +50,7 @@ function GitDiffExclusionActions({
     showExcludedTabPath: string;
     tabPath: string;
 }) {
+    const { t } = useTranslation();
     return (
         <div className="git-multi-diff-excluded-actions flex flex-none items-center gap-1">
             <Button
@@ -58,7 +60,7 @@ function GitDiffExclusionActions({
                 variant="ghost"
                 onClick={() => showExcludedGitDiffFiles(tabPath, showExcludedTabPath)}
             >
-                Show them
+                {t('editor.gitDiff.showExcluded')}
             </Button>
             <Button
                 aria-describedby={noticeId}
@@ -67,7 +69,7 @@ function GitDiffExclusionActions({
                 variant="ghost"
                 onClick={() => openSettings('git-exclusions')}
             >
-                Edit exclusions…
+                {t('editor.gitDiff.editExclusions')}
             </Button>
         </div>
     );
@@ -96,6 +98,7 @@ export function GitChangesDiffList({
     tabPath: string;
     truncated?: boolean;
 }) {
+    const { t } = useTranslation();
     const noticeId = useId();
     const settings = useSettings() ?? defaultAppSettings;
     const filtered = filterGitDiffFiles(
@@ -116,7 +119,7 @@ export function GitChangesDiffList({
                         aria-live="polite"
                         className="min-w-0 flex-1 truncate"
                     >
-                        {describeHiddenGitDiffFiles(filtered.hiddenCount, false)}
+                        {describeHiddenGitDiffFiles(filtered.hiddenCount, false, false, t)}
                     </span>
                     <GitDiffExclusionActions
                         noticeId={noticeId}
@@ -131,13 +134,13 @@ export function GitChangesDiffList({
                     aria-live="polite"
                     className="git-multi-diff-truncated sticky top-0 z-10 border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
                 >
-                    {describeTruncatedGitChanges(files.length, changedFileCount ?? files.length)}
+                    {describeTruncatedGitChanges(files.length, changedFileCount ?? files.length, t)}
                 </div>
             )}
             {filtered.files.length === 0 ? (
                 <div className={emptyWorkClassName}>
                     <span id={noticeId} role="status" aria-live="polite">
-                        {describeHiddenGitDiffFiles(filtered.hiddenCount, true, truncated)}
+                        {describeHiddenGitDiffFiles(filtered.hiddenCount, true, truncated, t)}
                     </span>
                     <GitDiffExclusionActions
                         noticeId={noticeId}

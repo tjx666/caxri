@@ -77,6 +77,8 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
             options.deliver(isTransientServerEvent(event) ? event : journal.publish(event));
             if (
                 (event.event === 'keybindings.changed' && !event.payload.error) ||
+                // The menu labels follow `workbench.language`; the event names no key, so any change rebuilds it.
+                event.event === 'settings.changed' ||
                 (event.event === 'state.changed' &&
                     event.payload.kind === 'full' &&
                     event.payload.reason === 'unknown') ||

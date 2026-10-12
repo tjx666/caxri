@@ -6,6 +6,7 @@ import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { TooltipProvider } from '../../components/ui/tooltip';
 import { useContainerWidth } from '../../hooks/use-container-width';
+import { useTranslation } from '../../i18n';
 import { createVisibilityAwarePoll } from '../../lib/poll-scheduler';
 import { applyCssTheme } from '../../lib/theme-css';
 import { cn } from '../../lib/utilities';
@@ -25,6 +26,11 @@ import { useProcessTreeNavigation } from './use-process-tree-navigation';
 
 const SAMPLE_INTERVAL_MS = 2_000;
 
+/**
+ * Kept as data rather than a sentence so the message follows a language change made while it is shown.
+ */
+type ProcessExplorerError = { kind: 'sample' } | { kind: 'stop'; name: string };
+
 const processMessageClassName = 'process-message grid min-h-[120px] place-items-center text-muted';
 
 /**
@@ -40,7 +46,7 @@ function ProcessListMessage({
     isRefreshing,
     onRetry,
 }: {
-    error?: string;
+    error?: ProcessExplorerError;
     filter: string;
     hasProcesses: boolean;
     hasRows: boolean;
@@ -48,32 +54,45 @@ function ProcessListMessage({
     isRefreshing: boolean;
     onRetry: () => void;
 }) {
+    const { t } = useTranslation();
     if (error)
         return (
             <div className={cn(processMessageClassName, 'process-error text-danger')}>
-                <p role="alert">{error}</p>
+                <p role="alert">
+                    {error.kind === 'sample'
+                        ? t('processExplorer.error.sample')
+                        : t('processExplorer.error.stop', { name: error.name })}
+                </p>
                 <Button
                     size="sm"
                     variant="secondary"
                     aria-disabled={isRefreshing}
                     onClick={onRetry}
                 >
-                    Retry
+                    {t('common.retry')}
                 </Button>
             </div>
         );
-    if (!hasSnapshot) return <LoadingSkeleton variant="list" label="Loading processes…" rows={8} />;
+    if (!hasSnapshot)
+        return (
+            <LoadingSkeleton variant="list" label={t('processExplorer.list.loading')} rows={8} />
+        );
     if (!hasProcesses)
-        return <div className={processMessageClassName}>No Caxri processes found.</div>;
+        return <div className={processMessageClassName}>{t('processExplorer.list.empty')}</div>;
     if (!hasRows)
-        return <div className={processMessageClassName}>No processes match “{filter.trim()}”.</div>;
+        return (
+            <div className={processMessageClassName}>
+                {t('processExplorer.list.noMatch', { filter: filter.trim() })}
+            </div>
+        );
     return null;
 }
 
 export function ProcessExplorerApp() {
+    const { t } = useTranslation();
     const [snapshot, setSnapshot] = useState<ProcessExplorerSnapshot>();
     const [filter, setFilter] = useState('');
-    const [error, setError] = useState<string>();
+    const [error, setError] = useState<ProcessExplorerError>();
     const [refreshing, setRefreshing] = useState(false);
     const refreshInFlight = useRef(false);
     const rowsReference = useRef<HTMLDivElement>(null);
@@ -98,7 +117,7 @@ export function ProcessExplorerApp() {
                 // (`console-error-fields.ts`), which is what separates a one-off sampling failure from a repeating one.
                 console.error('processExplorer.snapshot failed', error_);
                 setSnapshot(undefined);
-                setError('Unable to sample processes. Try again.');
+                setError({ kind: 'sample' });
             } finally {
                 refreshInFlight.current = false;
                 setRefreshing(false);
@@ -133,8 +152,8 @@ export function ProcessExplorerApp() {
         };
     }, [refresh]);
     const roots = useMemo(
-        () => (snapshot ? buildProcessTree(snapshot, table.sort) : []),
-        [snapshot, table.sort],
+        () => (snapshot ? buildProcessTree(snapshot, table.sort, t) : []),
+        [snapshot, t, table.sort],
     );
     const visibleRoots = useMemo(() => filterProcessTree(roots, filter), [filter, roots]);
     const totals = useMemo(
@@ -151,7 +170,7 @@ export function ProcessExplorerApp() {
                 await globalThis.processExplorer.stopTerminal(terminalId);
             } catch (error_: unknown) {
                 console.error('processExplorer.stopTerminal failed', error_);
-                setError(`Unable to stop ${name}. Try again.`);
+                setError({ kind: 'stop', name });
                 return;
             }
             refresh();
@@ -182,7 +201,7 @@ export function ProcessExplorerApp() {
                     ref={gridReference}
                     className="process-grid min-h-0 overflow-auto"
                     role="treegrid"
-                    aria-label="Caxri processes"
+                    aria-label={t('processExplorer.gridLabel')}
                     aria-busy={refreshing}
                     style={processColumnWidthStyle(widths)}
                 >

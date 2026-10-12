@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import type { AgentChatPendingSelection } from '../agent-chat-model-selection';
 import {
     agentChatConfigureFailureMessage,
     agentChatMenuModel,
+    agentChatModelTriggerText,
     agentChatSelectionView,
     isAgentChatSelectionSettled,
 } from '../agent-chat-model-selection';
@@ -110,5 +112,28 @@ describe('agentChatMenuModel', () => {
         expect(agentChatMenuModel({ model: undefined, models: withDefault })?.id).toBe('default');
         expect(agentChatMenuModel({ model: undefined, models })).toBeUndefined();
         expect(agentChatMenuModel({ model: 'unlisted', models: withDefault })).toBeUndefined();
+    });
+});
+
+describe('agentChatModelTriggerText', () => {
+    it('names the trigger with the model, effort, and ultracode state', () => {
+        expect(
+            agentChatModelTriggerText(
+                translate,
+                { model: 'fast', effort: 'high', ultracode: true },
+                { model: 'Fast', effort: 'High' },
+            ),
+        ).toEqual({
+            modelName: 'Fast',
+            effortName: 'High',
+            ariaLabel: 'Model: Fast, High effort, ultracode on',
+        });
+    });
+
+    it('translates the unreported model as Default', () => {
+        expect(
+            agentChatModelTriggerText(translate, { ultracode: false }, { model: 'Default' })
+                .ariaLabel,
+        ).toBe('Model: Default');
     });
 });

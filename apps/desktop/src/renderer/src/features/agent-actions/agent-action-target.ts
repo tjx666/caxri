@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+
 export type AgentActionTargetTitle =
     | { kind: 'shared'; title: string }
     | { kind: 'distinct'; sessionTitle: string; terminalTitle: string };
@@ -10,9 +12,16 @@ function normalizedTitle(title: string | undefined, fallback: string): string {
 export function resolveAgentActionTargetTitle(
     sessionTitle: string | undefined,
     terminalTitle: string | undefined,
+    t: Translate,
 ): AgentActionTargetTitle {
-    const normalizedSessionTitle = normalizedTitle(sessionTitle, 'Session');
-    const normalizedTerminalTitle = normalizedTitle(terminalTitle, 'Terminal');
+    const normalizedSessionTitle = normalizedTitle(
+        sessionTitle,
+        t('agentActions.target.fallbackSession'),
+    );
+    const normalizedTerminalTitle = normalizedTitle(
+        terminalTitle,
+        t('agentActions.target.fallbackTerminal'),
+    );
     if (normalizedSessionTitle === normalizedTerminalTitle)
         return { kind: 'shared', title: normalizedSessionTitle };
     return {
@@ -25,8 +34,13 @@ export function resolveAgentActionTargetTitle(
 export function describeAgentActionTarget(
     providerName: string,
     target: AgentActionTargetTitle,
+    t: Translate,
 ): string {
     return target.kind === 'shared'
-        ? `Target: ${providerName}; ${target.title}`
-        : `Target: ${providerName}; Session: ${target.sessionTitle}; Terminal: ${target.terminalTitle}`;
+        ? t('agentActions.target.sharedLabel', { provider: providerName, title: target.title })
+        : t('agentActions.target.distinctLabel', {
+              provider: providerName,
+              session: target.sessionTitle,
+              terminal: target.terminalTitle,
+          });
 }

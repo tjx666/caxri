@@ -1,17 +1,12 @@
 import type { UsageLimit, UsageReport } from '@caxri/protocol';
-import {
-    formatDuration,
-    formatLimitWindowName,
-    formatLineCount,
-    formatPercent,
-    formatTokens,
-    formatUsd,
-} from '@caxri/protocol';
+import { formatLineCount, formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 
 import { ReportCard, StatTile } from '../../components/report-card';
 import { Progress } from '../../components/ui/progress';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useRelativeTime } from '../../hooks/use-relative-time';
+import { useTranslation } from '../../i18n';
+import { localizedDuration, localizedLimitWindowName } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { ProviderLabel } from './provider-label';
 import { ShareBar } from './share-bar';
@@ -20,21 +15,21 @@ import { UsageCost } from './usage-cost';
 import { UsageDetailCards } from './usage-detail-cards';
 import {
     agentTimeDetail,
-    buildUsageInsights,
     burnRateCaption,
     computeStreaks,
     costTileDetail,
     countLabel,
     formatHour,
+    formatMetric,
     hasUnpricedProviderModel,
     isUsageUnpriced,
     limitWindowState,
     peakHour,
     usageCostDisplay,
-    usageCoverageNotes,
     usageHourTooltip,
     usageSessionCount,
 } from './usage-metrics';
+import { buildUsageInsights, usageCoverageNotes } from './usage-notes';
 import {
     limitBarTone,
     pullRequestTileDetail,
@@ -43,6 +38,7 @@ import {
 } from './usage-presentation';
 
 function KpiTiles({ report }: { report: UsageReport }) {
+    const { t } = useTranslation();
     const { totals } = report;
     const streaks = computeStreaks(report.activity, report.today);
     const cacheRate = totals.tokens.total > 0 ? totals.tokens.cacheRead / totals.tokens.total : 0;
@@ -52,32 +48,38 @@ function KpiTiles({ report }: { report: UsageReport }) {
         // so viewport breakpoints kept six columns in a 600px pane and clipped every figure.
         <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-2">
             <StatTile
-                label="Est. API cost"
-                value={isUnpriced ? 'No price' : formatUsd(totals.costUsd)}
-                detail={costTileDetail(report, isUnpriced)}
+                label={t('usage.kpi.cost')}
+                value={isUnpriced ? t('usage.cost.noPrice') : formatUsd(totals.costUsd)}
+                detail={costTileDetail(t, report, isUnpriced)}
             />
             <StatTile
-                label="Tokens"
+                label={t('usage.tokens')}
                 value={formatTokens(totals.tokens.total)}
-                detail={`${formatPercent(cacheRate)} cache reads`}
+                detail={t('usage.kpi.cacheReads', { percent: formatPercent(cacheRate) })}
             />
             <StatTile
-                label="Agent time"
-                value={formatDuration(totals.activeMs)}
-                detail={agentTimeDetail(totals)}
+                label={t('usage.agentTime.title')}
+                value={localizedDuration(totals.activeMs, t)}
+                detail={agentTimeDetail(t, totals)}
             />
             <StatTile
-                label="Sessions"
-                value={`${totals.sessionsCreated.toLocaleString('en-US')} created`}
-                detail={`${totals.sessionsArchived.toLocaleString('en-US')} archived`}
+                label={t('usage.kpi.sessions')}
+                value={t('usage.kpi.sessionsCreated', {
+                    count: totals.sessionsCreated.toLocaleString('en-US'),
+                })}
+                detail={t('usage.kpi.sessionsArchived', {
+                    count: totals.sessionsArchived.toLocaleString('en-US'),
+                })}
             />
             <StatTile
-                label="Pull requests"
-                value={`${totals.pullRequestsMerged.toLocaleString('en-US')} merged`}
+                label={t('usage.kpi.pullRequests')}
+                value={t('usage.kpi.pullRequestsMerged', {
+                    count: totals.pullRequestsMerged.toLocaleString('en-US'),
+                })}
                 detail={
                     // A comma, not ` · `: when the tile is narrow the second fact wraps, and a comma may end a line
                     // where a dangling middle dot read as a broken separator.
-                    pullRequestTileDetail(totals, formatLineCount).map((fact, index, facts) => (
+                    pullRequestTileDetail(t, totals, formatLineCount).map((fact, index, facts) => (
                         <span key={fact}>
                             <span className="whitespace-nowrap">
                                 {fact}
@@ -90,22 +92,23 @@ function KpiTiles({ report }: { report: UsageReport }) {
             />
             {/* Read from the trailing-year activity, like the Activity card, so the range selector does not move it. */}
             <StatTile
-                label="Streak (past year)"
-                value={countLabel(streaks.current, 'day')}
-                detail={`Longest ${countLabel(streaks.longest, 'day')}`}
+                label={t('usage.kpi.streak')}
+                value={countLabel(t, streaks.current, 'day')}
+                detail={t('usage.kpi.longestStreak', {
+                    days: countLabel(t, streaks.longest, 'day'),
+                })}
             />
         </div>
     );
 }
 
 function InsightsCard({ report }: { report: UsageReport }) {
-    const insights = buildUsageInsights(report);
+    const { t } = useTranslation();
+    const insights = buildUsageInsights(t, report);
     return (
-        <ReportCard title="Highlights">
+        <ReportCard title={t('usage.insights.title')}>
             {insights.length === 0 ? (
-                <p className="m-0 text-[12px] text-muted">
-                    Highlights appear once Agents have used some tokens.
-                </p>
+                <p className="m-0 text-[12px] text-muted">{t('usage.insights.empty')}</p>
             ) : (
                 <ul className="m-0 grid list-disc gap-1 pl-4 text-[12px] leading-[1.5]">
                     {insights.map((insight) => (
@@ -118,7 +121,8 @@ function InsightsCard({ report }: { report: UsageReport }) {
 }
 
 function CoverageNote({ report }: { report: UsageReport }) {
-    const notes = usageCoverageNotes(report);
+    const { t } = useTranslation();
+    const notes = usageCoverageNotes(t, report);
     return (
         <div className="grid gap-1 text-[11px] leading-[1.5] text-muted">
             {notes.map((note) => (
@@ -132,14 +136,22 @@ function CoverageNote({ report }: { report: UsageReport }) {
 
 function BurnCard({ report }: { report: UsageReport }) {
     const { today, last7Days, last30Days } = report.windows;
+    const { t } = useTranslation();
     const isUnpriced = isUsageUnpriced(report);
     const rows = [
-        { label: 'Today', window: today, perDay: today.costUsd },
-        { label: 'Last 7 days', window: last7Days, perDay: last7Days.costUsd / 7 },
-        { label: 'Last 30 days', window: last30Days, perDay: last30Days.costUsd / 30 },
+        { label: t('usage.burn.today'), window: today, perDay: today.costUsd },
+        { label: t('usage.rangeLabel.7d'), window: last7Days, perDay: last7Days.costUsd / 7 },
+        {
+            label: t('usage.rangeLabel.30d'),
+            window: last30Days,
+            perDay: last30Days.costUsd / 30,
+        },
     ];
     return (
-        <ReportCard title="Burn rate" caption={burnRateCaption(last30Days.costUsd, isUnpriced)}>
+        <ReportCard
+            title={t('usage.burn.title')}
+            caption={burnRateCaption(t, last30Days.costUsd, isUnpriced)}
+        >
             <div className="grid gap-2">
                 {rows.map(({ label, window, perDay }) => (
                     <div
@@ -148,14 +160,15 @@ function BurnCard({ report }: { report: UsageReport }) {
                     >
                         <span className="text-[12px] text-muted">{label}</span>
                         <span className="text-[11px] text-muted tabular-nums">
-                            {formatTokens(window.tokens)} tokens
-                            {!isUnpriced && ` · ${formatUsd(perDay)}/day`}
+                            {formatMetric(t, window.tokens, 'tokens')}
+                            {!isUnpriced &&
+                                ` · ${t('usage.burn.perDay', { cost: formatUsd(perDay) })}`}
                         </span>
                         <UsageCost
                             className="min-w-16 text-right text-[13px] font-semibold"
                             display={
                                 isUnpriced
-                                    ? { kind: 'unpriced', label: 'No price' }
+                                    ? { kind: 'unpriced' }
                                     : { kind: 'priced', label: formatUsd(window.costUsd) }
                             }
                         />
@@ -175,8 +188,9 @@ function LimitWindowRow({
     observedAgo: string | undefined;
     window: UsageLimit['windows'][number];
 }) {
-    const name = formatLimitWindowName(window.windowMinutes);
-    const state = limitWindowState(window, generatedAt);
+    const { t } = useTranslation();
+    const name = localizedLimitWindowName(window.windowMinutes, t);
+    const state = limitWindowState(window, generatedAt, t);
     const isReset = state.kind === 'reset';
     return (
         <div className="grid gap-1">
@@ -184,11 +198,13 @@ function LimitWindowRow({
                 <span className="text-muted">{name}</span>
                 {isReset ? (
                     <span className="text-muted">
-                        Window reset; usage not reported since {observedAgo ?? 'then'}
+                        {observedAgo
+                            ? t('usage.limits.resetSince', { time: observedAgo })
+                            : t('usage.limits.resetSinceUnknown')}
                     </span>
                 ) : (
                     <span className="tabular-nums">
-                        {Math.round(window.usedPercent)}% used
+                        {t('usage.limits.used', { percent: Math.round(window.usedPercent) })}
                         {state.resetLabel && (
                             <span className="text-muted"> · {state.resetLabel}</span>
                         )}
@@ -198,9 +214,9 @@ function LimitWindowRow({
             {/* A reset window's last percentage belongs to the window that ended, so its bar is dimmed, not dropped. */}
             <Progress
                 variant={limitBarTone(window.usedPercent) === 'warning' ? 'meterWarning' : 'meter'}
-                aria-label={
-                    isReset ? `${name} limit, reset since last reported` : `${name} limit used`
-                }
+                aria-label={t(isReset ? 'usage.limits.resetLabel' : 'usage.limits.usedLabel', {
+                    name,
+                })}
                 className={cn(isReset && 'opacity-40')}
                 value={window.usedPercent}
             />
@@ -209,6 +225,7 @@ function LimitWindowRow({
 }
 
 function ProviderLimits({ generatedAt, limit }: { generatedAt: number; limit: UsageLimit }) {
+    const { t } = useTranslation();
     const observedAgo = useRelativeTime(limit.observedAt);
     return (
         <div className="grid gap-2">
@@ -217,7 +234,7 @@ function ProviderLimits({ generatedAt, limit }: { generatedAt: number; limit: Us
                 <span className="text-[11px] text-muted">
                     {limit.planType && <span className="capitalize">{limit.planType}</span>}
                     {limit.planType && observedAgo && ' · '}
-                    {observedAgo && `as of ${observedAgo}`}
+                    {observedAgo && t('usage.limits.asOf', { time: observedAgo })}
                 </span>
             </div>
             {limit.windows.map((window) => (
@@ -233,12 +250,10 @@ function ProviderLimits({ generatedAt, limit }: { generatedAt: number; limit: Us
 }
 
 function LimitsCard({ report }: { report: UsageReport }) {
+    const { t } = useTranslation();
     if (report.limits.length === 0) return null;
     return (
-        <ReportCard
-            title="Plan limits"
-            caption="Current windows, account-wide, as last reported by the Agent"
-        >
+        <ReportCard title={t('usage.limits.title')} caption={t('usage.limits.caption')}>
             <div className="grid gap-3">
                 {report.limits.map((limit) => (
                     <ProviderLimits
@@ -255,10 +270,11 @@ function LimitsCard({ report }: { report: UsageReport }) {
 function AgentsCard({ report }: { report: UsageReport }) {
     const basis = usageShareBasis(report);
     const total = { costUsd: report.totals.costUsd, tokens: report.totals.tokens.total };
+    const { t } = useTranslation();
     return (
-        <ReportCard title="Agents">
+        <ReportCard title={t('usage.agents.title')}>
             {report.providers.length === 0 ? (
-                <p className="m-0 text-[12px] text-muted">No Agent usage in this range.</p>
+                <p className="m-0 text-[12px] text-muted">{t('usage.agents.empty')}</p>
             ) : (
                 <div className="grid gap-3">
                     {report.providers.map((row) => (
@@ -286,17 +302,18 @@ function AgentsCard({ report }: { report: UsageReport }) {
                             />
                             <div className="flex justify-between gap-3 text-[11px] text-muted tabular-nums">
                                 <span>
-                                    {formatTokens(row.tokens.total)} tokens ·{' '}
-                                    {formatPercent(
-                                        row.tokens.total > 0
-                                            ? row.tokens.cacheRead / row.tokens.total
-                                            : 0,
-                                    )}{' '}
-                                    cached
+                                    {t('usage.agents.tokensCached', {
+                                        percent: formatPercent(
+                                            row.tokens.total > 0
+                                                ? row.tokens.cacheRead / row.tokens.total
+                                                : 0,
+                                        ),
+                                        tokens: formatTokens(row.tokens.total),
+                                    })}
                                 </span>
                                 <span>
-                                    {usageSessionCount(row.sessions, report.scope === 'all')} ·{' '}
-                                    {formatDuration(row.activeMs)}
+                                    {usageSessionCount(t, row.sessions, report.scope === 'all')} ·{' '}
+                                    {localizedDuration(row.activeMs, t)}
                                 </span>
                             </div>
                         </div>
@@ -310,23 +327,28 @@ function AgentsCard({ report }: { report: UsageReport }) {
 function HourOfDayCard({ report }: { report: UsageReport }) {
     const peak = Math.max(0, ...report.hourOfDay);
     const busiest = peakHour(report.hourOfDay);
+    const { t } = useTranslation();
     return (
         <ReportCard
-            title="Time of day"
-            caption={busiest === undefined ? undefined : `Peak at ${formatHour(busiest)}`}
+            title={t('usage.hours.title')}
+            caption={
+                busiest === undefined
+                    ? undefined
+                    : t('usage.hours.peak', { hour: formatHour(busiest) })
+            }
         >
             <div
                 aria-label={
                     busiest === undefined
-                        ? 'No usage'
-                        : `Most tokens are used around ${formatHour(busiest)}`
+                        ? t('usage.noUsage')
+                        : t('usage.hours.peakLabel', { hour: formatHour(busiest) })
                 }
                 className="grid h-20 grid-cols-24 items-end gap-0.5"
                 role="img"
             >
                 {/* The full-height column is the trigger, so a quiet hour is as easy to hover as the peak. */}
                 {report.hourOfDay.map((tokens, hour) => (
-                    <Tooltip key={hour} content={usageHourTooltip(hour, tokens)}>
+                    <Tooltip key={hour} content={usageHourTooltip(t, hour, tokens)}>
                         <div className="flex h-full items-end">
                             <div
                                 className={cn(

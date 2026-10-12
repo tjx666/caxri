@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { describeFailure } from '../../stores/toasts';
 import { commanderInboxSections, inboxReplyTarget } from './commander-inbox';
 import { CommanderInboxCard } from './commander-inbox-card';
@@ -16,16 +17,19 @@ import { useCommanderInbox } from './hooks/use-commander-inbox';
  * verified as ready to merge, with one reply box under them.
  */
 export function CommanderInboxView() {
+    const { t } = useTranslation();
     const inbox = useCommanderInbox();
     const { data } = inbox;
     return (
         <>
             <div className="flex h-9 flex-none items-center gap-2 px-3">
-                <h2 className="m-0 text-[12px] font-medium">Needs you</h2>
-                <Tooltip content="Hide this column">
+                <h2 className="m-0 text-[12px] font-medium">
+                    {t('agentCommander.window.needsYou')}
+                </h2>
+                <Tooltip content={t('agentCommander.inbox.hideColumn')}>
                     <button
                         type="button"
-                        aria-label="Hide Needs you"
+                        aria-label={t('agentCommander.window.hideNeedsYou')}
                         className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded text-muted hover:text-foreground"
                         onClick={() => setCommanderInboxVisible(false)}
                     >
@@ -35,7 +39,9 @@ export function CommanderInboxView() {
             </div>
             {!data && inbox.isError && (
                 <div className="commander-inbox-status flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted">
-                    <span>{describeFailure(inbox.error, 'Unable to load the Inbox')}</span>
+                    <span>
+                        {describeFailure(inbox.error, t('agentCommander.inbox.loadFailed'))}
+                    </span>
                     <Button
                         size="sm"
                         variant="secondary"
@@ -45,7 +51,7 @@ export function CommanderInboxView() {
                             void inbox.refetch();
                         }}
                     >
-                        Retry
+                        {t('common.retry')}
                     </Button>
                 </div>
             )}
@@ -53,7 +59,7 @@ export function CommanderInboxView() {
                 <LoadingSkeleton
                     variant="list"
                     className="commander-inbox-status min-h-0 flex-1 py-1"
-                    label="Loading Inbox…"
+                    label={t('agentCommander.inbox.loading')}
                 />
             )}
             {data && <CommanderInboxList generatedAt={data.generatedAt} items={data.items} />}
@@ -68,15 +74,15 @@ function CommanderInboxList({
     generatedAt: number;
     items: readonly CommanderInboxItem[];
 }) {
+    const { t } = useTranslation();
     const targetId = useCommanderInboxUiStore((state) => state.targetId);
     const target = inboxReplyTarget(items, targetId);
-    const sections = commanderInboxSections(items);
+    const sections = commanderInboxSections(items, t);
     return (
         <>
             {sections.length === 0 ? (
                 <div className="commander-inbox-empty flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-xs text-muted">
-                    Nothing needs you. When the Commander has a question or a pull request ready to
-                    merge, it appears here.
+                    {t('agentCommander.inbox.empty')}
                 </div>
             ) : (
                 <div className="commander-inbox min-h-0 flex-1 overflow-auto px-2 pb-2">

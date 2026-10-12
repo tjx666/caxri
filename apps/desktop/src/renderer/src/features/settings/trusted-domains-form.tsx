@@ -1,5 +1,6 @@
 import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '@caxri/protocol';
 
+import { useTranslation } from '../../i18n';
 import { RuleListForm } from './rule-list-form';
 
 interface TrustedDomainsFormProperties {
@@ -16,26 +17,29 @@ export function TrustedDomainsForm({
     rules,
     onChange,
 }: TrustedDomainsFormProperties) {
+    const { t } = useTranslation();
     return (
         <RuleListForm
-            ariaLabel="Trusted Domains editor"
+            ariaLabel={t('settings.trustedDomainsForm.ariaLabel')}
             description={
                 <>
-                    Exact origins match one scheme and port. Use an explicit{' '}
-                    <code>*.example.com</code> rule for that domain and its subdomains. Loopback
-                    hosts are trusted by default.
+                    {t('settings.trustedDomainsForm.descriptionBeforeExample')}
+                    <code>*.example.com</code>
+                    {t('settings.trustedDomainsForm.descriptionAfterExample')}
                 </>
             }
             placeholder="https://example.com"
-            inputLabel="Trusted domain rule"
-            listLabel="Trusted domain rules"
-            emptyText="No user-defined trusted domains."
+            inputLabel={t('settings.trustedDomainsForm.inputLabel')}
+            listLabel={t('settings.trustedDomainsForm.listLabel')}
+            emptyText={t('settings.trustedDomainsForm.empty')}
             normalize={normalizeTrustedDomainRule}
-            invalidMessage="Enter an HTTP(S) origin or an explicit https://*.example.com rule."
-            duplicateMessage="This domain is already trusted."
+            invalidMessage={t('settings.trustedDomainsForm.invalid')}
+            duplicateMessage={t('settings.trustedDomainsForm.duplicate')}
             maximum={MAX_TRUSTED_DOMAINS}
-            maximumMessage={`Trusted Domains supports at most ${MAX_TRUSTED_DOMAINS} rules.`}
-            removeLabel={(rule) => `Remove trusted domain ${rule}`}
+            maximumMessage={t('settings.trustedDomainsForm.maximum', {
+                maximum: MAX_TRUSTED_DOMAINS,
+            })}
+            removeLabel={(rule) => t('settings.trustedDomainsForm.remove', { rule })}
             focusRequestId={focusRequestId}
             rules={rules}
             onChange={onChange}

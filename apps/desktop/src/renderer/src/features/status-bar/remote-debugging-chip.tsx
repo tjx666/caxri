@@ -1,6 +1,7 @@
 import { Bug } from 'lucide-react';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import { openSettings } from '../../stores/dialogs';
 import { remoteDebuggingChipCopy } from './remote-debugging-label';
@@ -16,8 +17,9 @@ import { StatusItem } from './status-item';
  * are settled at boot, so one read per window is enough.
  */
 export function RemoteDebuggingChip() {
+    const { t } = useTranslation();
     const { data } = useCaxriQuery('argv.get', undefined, { staleTime: Infinity });
-    const copy = data && remoteDebuggingChipCopy(data.remoteDebugging);
+    const copy = data && remoteDebuggingChipCopy(data.remoteDebugging, t);
     if (!copy) return null;
     return (
         <StatusItem

@@ -3,6 +3,7 @@ import type { ThemeTokens } from '@caxri/protocol';
 import { delay, Semaphore } from 'es-toolkit';
 import type Mermaid from 'mermaid';
 
+import { translate } from '../../i18n';
 import { MemoCache } from '../../lib/memo-cache';
 
 /**
@@ -164,7 +165,7 @@ function reportDiagramFailure(element: HTMLElement, error: unknown): void {
     const message = element.ownerDocument.createElement('p');
     message.className = 'caxri-markdown-diagram-error';
     message.textContent =
-        error instanceof Error ? error.message : 'This diagram could not be rendered.';
+        error instanceof Error ? error.message : translate('preview.mermaid.renderFailed');
     element.append(message);
 }
 

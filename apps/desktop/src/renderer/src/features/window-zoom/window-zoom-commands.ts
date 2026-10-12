@@ -1,5 +1,6 @@
 import { settingsSpecByKey } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { tryCommand } from '../../stores/toasts';
 import { applyFormEdit } from '../settings/config-edit';
 import { getSettings, updateSettings } from '../settings/settings-client';
@@ -33,7 +34,7 @@ export function stepWindowZoom(step: WindowZoomStep): Promise<unknown> {
     const previous = zoomQueue.tail;
     const current = (async () => {
         await previous;
-        return tryCommand('Unable to change the zoom level', async () => {
+        return tryCommand(translate('windowZoom.changeFailed'), async () => {
             const { source, value } = await getSettings();
             const level = value['window.zoomLevel'];
             const next = nextWindowZoomLevel(level, step);

@@ -1,3 +1,4 @@
+import { translate } from '../../../i18n';
 import { isPathAtOrBelow } from '../../../lib/file-path';
 import { createStore } from '../../../lib/store';
 
@@ -101,7 +102,9 @@ export function useIsPathBlockedByFileOperations(projectId: string, path: string
 /**
  * Shared copy for every Paste/Duplicate menu entry disabled by an in-flight file operation.
  */
-export const FILE_OPERATION_BUSY_REASON = 'Busy — a file operation is in progress here';
+export function fileOperationBusyReason(): string {
+    return translate('viewContainers.files.busyReason');
+}
 
 /**
  * Why Paste cannot run into a directory, or `undefined` while it can. An empty clipboard wins over a busy target:
@@ -114,8 +117,8 @@ export function pasteDisabledReason({
     isBlocked: boolean;
     isClipboardEmpty: boolean;
 }): string | undefined {
-    if (isClipboardEmpty) return 'Nothing to paste';
-    if (isBlocked) return FILE_OPERATION_BUSY_REASON;
+    if (isClipboardEmpty) return translate('viewContainers.files.nothingToPaste');
+    if (isBlocked) return fileOperationBusyReason();
     return undefined;
 }
 

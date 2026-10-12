@@ -6,6 +6,8 @@ import { TriangleAlert } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { Translate } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { DelimitedTable } from './csv-table';
 import {
@@ -89,7 +91,15 @@ function TableRow({
  * The warning bar above the table: parse problems and the bounds that cut the table off, plus the way to the whole
  * file. Both say the table is not the full truth of the source, so the source tab is the recovery for both.
  */
-function TableWarnings({ messages, path }: { messages: readonly string[]; path: string }) {
+function TableWarnings({
+    messages,
+    path,
+    t,
+}: {
+    messages: readonly string[];
+    path: string;
+    t: Translate;
+}) {
     return (
         <div
             className="flex min-h-7 flex-none items-center gap-2 bg-surface py-0.5 pr-1 pl-3 text-warning"
@@ -103,7 +113,7 @@ function TableWarnings({ messages, path }: { messages: readonly string[]; path: 
                 variant="ghost"
                 onClick={() => openPreviewSource(path)}
             >
-                Open Source
+                {t('preview.openSource')}
             </Button>
         </div>
     );
@@ -126,11 +136,15 @@ export function CsvPreview({
     source: string;
     viewStateKey: string;
 }) {
+    const { t } = useTranslation();
     const scrollReference = useRef<HTMLDivElement>(null);
     const deferredSource = useDeferredValue(source);
-    const table = useMemo(() => parseDelimitedTable(deferredSource, path), [deferredSource, path]);
+    const table = useMemo(
+        () => parseDelimitedTable(deferredSource, path, t),
+        [deferredSource, path, t],
+    );
     const template = useMemo(() => gridTemplate(table), [table]);
-    const warnings = [describeTableIssues(table), describeTableLimits(table)].filter(
+    const warnings = [describeTableIssues(table, t), describeTableLimits(table, t)].filter(
         (message): message is string => message !== undefined,
     );
     // TanStack Virtual is knowingly incompatible with React Compiler memoization; the compiler skips this component,
@@ -160,17 +174,17 @@ export function CsvPreview({
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-background text-[12px] text-foreground">
-            {warnings.length > 0 && <TableWarnings messages={warnings} path={path} />}
+            {warnings.length > 0 && <TableWarnings messages={warnings} path={path} t={t} />}
             {table.header.length === 0 ? (
                 <div className="empty-work flex min-h-0 flex-1 items-center justify-center text-muted">
-                    This file has no rows.
+                    {t('preview.table.noRows')}
                 </div>
             ) : (
                 // react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- rows are absolutely positioned by the virtualizer, which a native <table> layout cannot host.
                 <div
                     ref={scrollReference}
                     aria-colcount={table.header.length + 1}
-                    aria-label="Table preview"
+                    aria-label={t('preview.table.label')}
                     aria-rowcount={table.rows.length + 1}
                     className="min-h-0 flex-1 overflow-auto"
                     role="table"
@@ -194,7 +208,7 @@ export function CsvPreview({
                                     className="sticky left-0 border-r border-border bg-background"
                                     role="columnheader"
                                 >
-                                    <span className="sr-only">Row</span>
+                                    <span className="sr-only">{t('preview.table.rowHeader')}</span>
                                 </span>
                                 {table.header.map((label, column) => (
                                     <span
@@ -234,7 +248,7 @@ export function CsvPreview({
                 </div>
             )}
             <div className="flex h-6 flex-none items-center justify-center bg-surface text-[11px] text-muted tabular-nums">
-                {describeTableSize(table)}
+                {describeTableSize(table, t)}
             </div>
         </div>
     );

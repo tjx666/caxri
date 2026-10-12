@@ -2,4 +2,56 @@ import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namesp
 
 import type { toasts as source } from '../en/toasts';
 
-export const toasts: TranslatedNamespace<typeof source> = {};
+export const toasts: TranslatedNamespace<typeof source> = {
+    'toasts.failure.withReason': '{{label}}：{{reason}}',
+    'toasts.failure.notReady': 'Caxri 尚未就绪。',
+    'toasts.failure.timedOut': 'Caxri 未能及时响应。',
+    'toasts.failure.couldNotComplete': '无法完成该操作。',
+    'toasts.failure.errno.ENOENT': '该文件已不存在。',
+    'toasts.failure.errno.ENOTDIR': '该路径不是目录。',
+    'toasts.failure.errno.EISDIR': '该路径是目录，而不是文件。',
+    'toasts.failure.errno.EACCES': '权限被拒绝。',
+    'toasts.failure.errno.EPERM': '权限被拒绝。',
+    'toasts.failure.errno.ENOSPC': '磁盘已满。',
+    'toasts.failure.errno.EEXIST': '已存在同名文件。',
+    'toasts.failure.errno.EPIPE': '连接已中断。',
+    'toasts.failure.errno.ECONNREFUSED': '服务拒绝了连接。',
+    'toasts.muteFailed': '无法静音通知',
+
+    'toasts.action.copyDetails': '复制详细信息',
+    'toasts.action.restoreDiscardedChanges': '恢复我的更改',
+    'toasts.action.openOnGitHub': '在 GitHub 上打开',
+    'toasts.action.viewDetails': '查看详细信息',
+    'toasts.action.undo': '撤销',
+    'toasts.action.openSettings': '打开设置',
+    'toasts.action.turnOffHardwareAcceleration': '关闭硬件加速…',
+    'toasts.action.stop': '停止',
+    'toasts.action.showUpdate': '查看更新',
+
+    'toasts.actionUnavailable.unknown': 'Caxri 无法执行此操作。',
+    'toasts.actionUnavailable.missingSession': '该会话已不存在。',
+    'toasts.actionUnavailable.sessionMovedOn': '此会话在那次切换之后已发生变化。',
+    'toasts.copyDetailsFailed': '复制详细信息失败',
+
+    'toasts.type.worktreeFallback': 'Worktree 回退',
+    'toasts.type.agentRecovery': 'Agent 自动恢复',
+
+    'toasts.outlet.label': '通知',
+    'toasts.outlet.dismiss': '忽略通知',
+
+    'toasts.options.label': '通知选项',
+    'toasts.options.mute': '不再显示此类通知',
+    'toasts.options.muteHint': '适用于所有项目。可在“设置 → 通知”中恢复。',
+
+    'toasts.center.title': '通知',
+    'toasts.center.titleUnread': '通知（{{count}} 条未读）',
+    'toasts.center.occurrences': '{{count}} 次',
+    'toasts.center.muted': '已静音',
+    'toasts.center.remove': '移除通知',
+    'toasts.center.clearAll': '清除所有通知',
+    'toasts.center.settings': '通知设置',
+    'toasts.center.close': '关闭通知',
+    'toasts.center.empty': '暂无最近的通知',
+    'toasts.center.list': '最近的通知',
+    'toasts.center.footer': '此窗口的最近活动。窗口重新加载后会清除。',
+};

@@ -1,5 +1,6 @@
-import type { TranslationParameters as TranslationParameters } from './interpolate';
-import { interpolate } from './interpolate';
+import type { TranslationParameters } from '@desktop-shared/i18n/interpolate';
+import { interpolate } from '@desktop-shared/i18n/interpolate';
+
 import { useLocaleStore } from './locale-store';
 import type { TranslationKey } from './resources';
 import { localeDictionaries } from './resources';

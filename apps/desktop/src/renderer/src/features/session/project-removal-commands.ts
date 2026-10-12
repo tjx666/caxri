@@ -1,5 +1,6 @@
 import type { BootstrapState } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/invalidation';
@@ -17,7 +18,7 @@ export function deleteProject(projectId?: string): void {
     if (!bootstrap || !project) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Project deletion failed', async () => {
+    void tryCommand(translate('session.errors.deleteProjectFailed'), async () => {
         const result = await caxri.request('project.delete', { projectId: project.id });
         if ('canceled' in result) return;
         await dropProjectFromWorkbench(bootstrap, project.id);
@@ -39,7 +40,7 @@ export function hideSelectedProject(projectId?: string): void {
     if (!bootstrap || !project) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Project could not be hidden', async () => {
+    void tryCommand(translate('session.errors.hideProjectFailed'), async () => {
         await caxri.request('project.hide', { projectId: project.id });
         await dropProjectFromWorkbench(bootstrap, project.id);
     });

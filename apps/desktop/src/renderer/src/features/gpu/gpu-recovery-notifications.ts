@@ -1,9 +1,10 @@
+import { translate } from '../../i18n';
 import type { ToastKind, ToastOptions } from '../../stores/toasts';
 import { pushToast } from '../../stores/toasts';
 import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
 
-/**
- * One name for the degraded state across every notice, the confirmation, and the Settings row: the state is "software
+/*
+ * Copy rules for the `gpu.notice.*` strings. One name for the degraded state across every notice, the confirmation, and the Settings row: the state is "software
  * rendering" and the setting that decides it is "hardware acceleration". The same condition used to answer to five
  * names at once (GPU process crash, GPU acceleration, DOM renderer, WebGL2, GPU Safe Mode), which made one physical
  * event read as several unrelated problems. Implementation words stay out of the copy entirely (DESIGN.md principle 3):
@@ -12,17 +13,12 @@ import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
  * Each message also states that Terminals keep working, because a notice that only reports a failure reads as data loss
  * (DESIGN.md principle 9).
  *
- * `GPU_PROCESS_RECOVERY_MESSAGE` names the status bar's own recovery path instead of implying a restart is the only way
+ * `gpu.notice.gpuProcessRecovery` names the status bar's own recovery path instead of implying a restart is the only way
  * back: the "Software" renderer chip already retries GPU rendering for the affected Terminal without a restart
  * (DESIGN.md "Status bar"), and the previous wording never told the reader that chip existed. The toast's own action
  * stays "Turn off hardware acceleration…", the other of the two recovery routes that DESIGN.md section documents.
  */
-const GPU_PROCESS_RECOVERY_MESSAGE =
-    'A graphics failure interrupted drawing. Affected Terminals switched to software rendering. Retry GPU rendering from the status bar.';
-const SOFTWARE_RENDERING_PINNED_MESSAGE =
-    'Caxri switched to software rendering after repeated graphics failures, and stays there until it restarts. Terminals keep working, but drawing may feel slower. Settings can turn hardware acceleration off for every launch, or leave it on to try the GPU again next time.';
-const TERMINAL_GPU_FALLBACK_MESSAGE =
-    'A graphics failure interrupted drawing in one Terminal. Caxri switched it to software rendering; it keeps working.';
+
 const GPU_INCIDENT_MERGE_MS = 500;
 const MAX_REMEMBERED_GPU_INCIDENTS = 64;
 const MAX_REMEMBERED_FAILED_TERMINALS = 256;
@@ -122,7 +118,7 @@ export function createGpuRecoveryNotificationCoordinator(
     function notifyGpuProcessRecovery(correlationId: string): void {
         if (!didClaimGpuIncident(correlationId)) return;
         beginGlobalIncident();
-        options.pushToast('warning', GPU_PROCESS_RECOVERY_MESSAGE, {
+        options.pushToast('warning', translate('gpu.notice.gpuProcessRecovery'), {
             // The offer is reachable from nowhere else: notification history deliberately keeps no action callbacks, so
             // once this card expires the route is gone even though the crash it reports has not been undone. A
             // four-second window also assumes the user was watching the moment drawing failed. The card therefore stays
@@ -143,7 +139,7 @@ export function createGpuRecoveryNotificationCoordinator(
         // here turns the crash that tripped the budget into this single escalated notice instead of a pair.
         if (correlationId) didClaimGpuIncident(correlationId);
         beginGlobalIncident();
-        options.pushToast('warning', SOFTWARE_RENDERING_PINNED_MESSAGE, {
+        options.pushToast('warning', translate('gpu.notice.softwareRenderingPinned'), {
             persist: true,
             action: openSettingsAction(),
         });
@@ -186,7 +182,7 @@ export function createGpuRecoveryNotificationCoordinator(
             const handle = options.setTimer(() => {
                 pendingLocalFallbacks.delete(input.terminalId);
                 rememberFailedTerminal(input.terminalId);
-                options.pushToast('warning', TERMINAL_GPU_FALLBACK_MESSAGE);
+                options.pushToast('warning', translate('gpu.notice.terminalFallback'));
             }, GPU_INCIDENT_MERGE_MS);
             pendingLocalFallbacks.set(input.terminalId, handle);
         },

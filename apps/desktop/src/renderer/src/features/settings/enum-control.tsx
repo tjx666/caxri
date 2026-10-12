@@ -9,7 +9,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import { useTranslation } from '../../i18n';
 import { SHORT_CONTROL_WIDTH_CLASS_NAME } from './setting-row-layout';
+import { settingNullLabel, settingOptionLabel } from './setting-spec-text';
 
 /**
  * Sentinel `SelectItem` value standing in for `null` on nullable enum settings: Base UI Select items need a non-null
@@ -40,11 +42,11 @@ export function EnumControl({
     renderOptionIcon,
     onChange,
 }: EnumControlProperties) {
+    const { t } = useTranslation();
     const selected = value ?? NULL_OPTION;
+    const nullLabel = settingNullLabel(t, spec);
     const labelFor = (option: string): string =>
-        option === NULL_OPTION
-            ? (spec.nullLabel ?? '')
-            : (spec.options.find((entry) => entry.value === option)?.label ?? option);
+        option === NULL_OPTION ? (nullLabel ?? '') : settingOptionLabel(t, spec, option);
     return (
         <Select
             value={selected}
@@ -63,11 +65,11 @@ export function EnumControl({
                 </SelectValue>
             </SelectTrigger>
             <SelectContent>
-                {spec.nullLabel !== undefined && (
+                {nullLabel !== undefined && (
                     <SelectItem value={NULL_OPTION}>
                         <span className="flex items-center gap-2">
                             {renderOptionIcon?.(null)}
-                            {spec.nullLabel}
+                            {nullLabel}
                         </span>
                     </SelectItem>
                 )}
@@ -75,7 +77,7 @@ export function EnumControl({
                     <SelectItem key={option.value} value={option.value}>
                         <span className="flex items-center gap-2">
                             {renderOptionIcon?.(option.value)}
-                            {option.label}
+                            {settingOptionLabel(t, spec, option.value)}
                         </span>
                     </SelectItem>
                 ))}

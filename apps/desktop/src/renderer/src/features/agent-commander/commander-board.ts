@@ -10,6 +10,8 @@ import type {
 import { agentProviderCatalog, commanderBoardGroupIds } from '@caxri/protocol';
 import { isEqual, omit } from 'es-toolkit';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
 import {
@@ -25,13 +27,13 @@ import {
 /**
  * The Workbench Activity view's group names, so the same Session reads the same in both windows.
  */
-const GROUP_LABELS: Record<CommanderBoardGroupId, string> = {
-    attention: 'Needs attention',
-    failed: 'Failed',
-    finished: 'Recently finished',
-    idle: 'Idle',
-    waiting: 'Waiting',
-    working: 'Working',
+const GROUP_LABEL_KEYS: Record<CommanderBoardGroupId, TranslationKey> = {
+    attention: 'agentCommander.board.group.attention',
+    failed: 'agentCommander.board.group.failed',
+    finished: 'agentCommander.board.group.finished',
+    idle: 'agentCommander.board.group.idle',
+    waiting: 'agentCommander.board.group.waiting',
+    working: 'agentCommander.board.group.working',
 };
 
 interface CommanderBoardSection {
@@ -46,11 +48,12 @@ interface CommanderBoardSection {
  */
 export function commanderBoardSections(
     rows: readonly CommanderBoardRow[],
+    t: Translate = translate,
 ): CommanderBoardSection[] {
     const rowsByGroup = Map.groupBy(rows, (row) => row.group);
     return commanderBoardGroupIds.flatMap((id) => {
         const groupRows = rowsByGroup.get(id);
-        return groupRows ? [{ id, label: GROUP_LABELS[id], rows: groupRows }] : [];
+        return groupRows ? [{ id, label: t(GROUP_LABEL_KEYS[id]), rows: groupRows }] : [];
     });
 }
 
@@ -139,15 +142,15 @@ export type CommanderProcessIconId = 'exited' | 'failed' | 'interrupted' | 'star
  * the row's glyph already turns into the unplugged shape for it.
  */
 const PROCESS_PRESENTATION: Partial<
-    Record<ProcessState, { icon?: CommanderProcessIconId; phrase: string }>
+    Record<ProcessState, { icon?: CommanderProcessIconId; phraseKey: TranslationKey }>
 > = {
-    dead: { icon: 'exited', phrase: 'Exited' },
-    detached: { phrase: 'Detached' },
-    failed: { icon: 'failed', phrase: 'Failed to start' },
-    interrupted: { icon: 'interrupted', phrase: 'Interrupted' },
-    starting: { icon: 'starting', phrase: 'Starting' },
-    stopped: { icon: 'exited', phrase: 'Exited' },
-    suspended: { icon: 'suspended', phrase: 'Suspended' },
+    dead: { icon: 'exited', phraseKey: 'agentCommander.board.process.exited' },
+    detached: { phraseKey: 'agentCommander.board.process.detached' },
+    failed: { icon: 'failed', phraseKey: 'agentCommander.board.process.failed' },
+    interrupted: { icon: 'interrupted', phraseKey: 'agentCommander.board.process.interrupted' },
+    starting: { icon: 'starting', phraseKey: 'agentCommander.board.process.starting' },
+    stopped: { icon: 'exited', phraseKey: 'agentCommander.board.process.exited' },
+    suspended: { icon: 'suspended', phraseKey: 'agentCommander.board.process.suspended' },
 };
 
 interface CommanderRowPresentation {
@@ -177,7 +180,10 @@ interface CommanderRowPresentation {
  * same Session reads the same in both windows, and a board of several working Agents does not turn into a wall of
  * green.
  */
-export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPresentation {
+export function commanderRowPresentation(
+    row: CommanderBoardRow,
+    t: Translate = translate,
+): CommanderRowPresentation {
     const { agent } = row;
     /**
      * A turn or question recorded before the Agent exited is not happening any more. Without a live Agent the row reads
@@ -193,10 +199,16 @@ export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPr
         isAgentAlive ? agent.operation : undefined,
     );
     const process = agent ? PROCESS_PRESENTATION[agent.processState] : undefined;
-    const statePhrase = agent ? (process?.phrase ?? activity.label) : 'No Terminal';
+    const statePhrase = agent
+        ? process
+            ? t(process.phraseKey)
+            : activity.label
+        : t('agentCommander.board.noTerminal');
     const processIcon = process?.icon;
     const agentLabel =
-        !agent || agent.kind === 'shell' ? 'Shell' : agentProviderCatalog[agent.kind].displayName;
+        !agent || agent.kind === 'shell'
+            ? t('agentCommander.board.shell')
+            : agentProviderCatalog[agent.kind].displayName;
     if (agent?.processState === 'detached')
         return {
             agentLabel,
@@ -218,7 +230,9 @@ export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPr
     return {
         agentLabel,
         glyph,
-        glyphLabel: row.hasUnread ? `Unread. ${activity.label}` : activity.label,
+        glyphLabel: row.hasUnread
+            ? t('agentCommander.board.unread', { state: activity.label })
+            : activity.label,
         ...(processIcon && { processIcon }),
         statePhrase,
         toneClassName: TONE_TEXT_CLASSNAME[tone],
@@ -263,11 +277,13 @@ const CHECKS_ICONS: Partial<
  * same in both windows. Lifecycle and checks keep separate tones, because a red open PR was once mistaken for a closed
  * one. A failed lookup hides the chip, as the Activity view does, since the cached state and checks may be stale.
  */
-export function commanderPullRequestBadge({
-    pullRequest,
-    pullRequestUnavailable,
-}: Pick<CommanderBoardRow, 'pullRequest' | 'pullRequestUnavailable'>):
-    CommanderPullRequestBadge | undefined {
+export function commanderPullRequestBadge(
+    {
+        pullRequest,
+        pullRequestUnavailable,
+    }: Pick<CommanderBoardRow, 'pullRequest' | 'pullRequestUnavailable'>,
+    t: Translate = translate,
+): CommanderPullRequestBadge | undefined {
     if (!pullRequest || pullRequestUnavailable) return undefined;
     const presentation = sessionPullRequestPresentation(pullRequest);
     const checksIcon = presentation.checksTone && CHECKS_ICONS[presentation.checksTone];
@@ -275,7 +291,7 @@ export function commanderPullRequestBadge({
         .filter(Boolean)
         .join(' · ');
     return {
-        ariaLabel: `${presentation.ariaLabel} Open in browser.`,
+        ariaLabel: t('agentCommander.board.pullRequestOpen', { label: presentation.ariaLabel }),
         ...(checksIcon && { checksIcon }),
         ...(presentation.checksLabel && { checksLabel: presentation.checksLabel }),
         ...(presentation.checksTone && {
@@ -304,84 +320,82 @@ export type CommanderTaskIconId =
 const TASK_PRESENTATION: Record<
     AgentDelegationReceipt['status'],
     {
-        description: string;
+        descriptionKey: TranslationKey;
         icon: CommanderTaskIconId;
-        label: string;
+        labelKey: TranslationKey;
         tone: SessionActivityPresentation['tone'];
     }
 > = {
     answer_unavailable: {
-        description: 'The Agent finished, but its answer could not be read back.',
+        descriptionKey: 'agentCommander.task.description.answerUnavailable',
         icon: 'failed',
-        label: 'Failed',
+        labelKey: 'agentCommander.task.label.failed',
         tone: 'danger',
     },
     awaiting_ready: {
-        description: 'The Agent is starting and has not begun the task yet.',
+        descriptionKey: 'agentCommander.task.description.awaitingReady',
         icon: 'starting',
-        label: 'Starting',
+        labelKey: 'agentCommander.task.label.starting',
         tone: 'neutral',
     },
     blocked: {
-        description: 'The Agent stopped to ask a question, usually one the Commander answers.',
+        descriptionKey: 'agentCommander.task.description.blocked',
         icon: 'blocked',
-        label: 'Blocked',
+        labelKey: 'agentCommander.task.label.blocked',
         tone: 'warning',
     },
     collecting: {
-        description: 'The Agent finished its turn; the Commander is reading its answer.',
+        descriptionKey: 'agentCommander.task.description.collecting',
         icon: 'running',
-        label: 'Running',
+        labelKey: 'agentCommander.task.label.running',
         tone: 'neutral',
     },
     completed: {
-        description:
-            'The Agent gave its final answer. The Commander still verifies it before reporting.',
+        descriptionKey: 'agentCommander.task.description.completed',
         icon: 'answered',
-        label: 'Answered',
+        labelKey: 'agentCommander.task.label.answered',
         tone: 'neutral',
     },
     failed: {
-        description: 'The task failed.',
+        descriptionKey: 'agentCommander.task.description.failed',
         icon: 'failed',
-        label: 'Failed',
+        labelKey: 'agentCommander.task.label.failed',
         tone: 'danger',
     },
     human_intervened: {
-        description:
-            'You typed into this Session while the task ran, so it is yours now. The Commander no longer drives it or sends it follow-ups.',
+        descriptionKey: 'agentCommander.task.description.humanIntervened',
         icon: 'taken-over',
-        label: 'Taken over by you',
+        labelKey: 'agentCommander.task.label.takenOver',
         tone: 'warning',
     },
     interrupted: {
-        description: 'The task stopped before the Agent finished.',
+        descriptionKey: 'agentCommander.task.description.interrupted',
         icon: 'stopped',
-        label: 'Stopped',
+        labelKey: 'agentCommander.task.label.stopped',
         tone: 'neutral',
     },
     launching: {
-        description: 'The Commander is launching an Agent for this task.',
+        descriptionKey: 'agentCommander.task.description.launching',
         icon: 'starting',
-        label: 'Starting',
+        labelKey: 'agentCommander.task.label.starting',
         tone: 'neutral',
     },
     requested: {
-        description: 'The Commander is launching an Agent for this task.',
+        descriptionKey: 'agentCommander.task.description.launching',
         icon: 'starting',
-        label: 'Starting',
+        labelKey: 'agentCommander.task.label.starting',
         tone: 'neutral',
     },
     running: {
-        description: 'The Agent is working on the task.',
+        descriptionKey: 'agentCommander.task.description.running',
         icon: 'running',
-        label: 'Running',
+        labelKey: 'agentCommander.task.label.running',
         tone: 'neutral',
     },
     submitting: {
-        description: 'The Commander is handing the task to the Agent.',
+        descriptionKey: 'agentCommander.task.description.submitting',
         icon: 'starting',
-        label: 'Starting',
+        labelKey: 'agentCommander.task.label.starting',
         tone: 'neutral',
     },
 };
@@ -389,6 +403,10 @@ const TASK_PRESENTATION: Record<
 interface CommanderTaskBadge {
     icon: CommanderTaskIconId;
     label: string;
+    /**
+     * The status label's key, so the row can expose the English label as a stable `data-*` value in every locale.
+     */
+    labelKey: TranslationKey;
     /**
      * What the status means for the user, the failure reason, and the delegation ID so the user can find the task in
      * the Commander conversation.
@@ -402,26 +420,37 @@ interface CommanderTaskBadge {
  */
 export function commanderTaskBadge(
     task: CommanderBoardRow['task'],
+    t: Translate = translate,
 ): CommanderTaskBadge | undefined {
     if (!task) return undefined;
     if (task.status === 'blocked' && task.failure === 'startup_waiting')
         return {
             icon: 'blocked',
             // Not "Needs you": that names the Commander Inbox column, and this task need not have an Inbox item.
-            label: 'Waiting at startup',
-            title: `Waiting at startup. The Agent is running but has not started, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own. Task ${task.delegationId}.`,
+            label: t('agentCommander.task.label.waitingAtStartup'),
+            labelKey: 'agentCommander.task.label.waitingAtStartup',
+            title: t('agentCommander.task.waitingAtStartupTitle', {
+                delegationId: task.delegationId,
+            }),
             toneClassName: TONE_TEXT_CLASSNAME.warning,
         };
-    const { description, icon, label, tone } = TASK_PRESENTATION[task.status];
+    const { descriptionKey, icon, labelKey, tone } = TASK_PRESENTATION[task.status];
+    const label = t(labelKey);
     // A takeover's reason is the takeover itself; every other failure names its cause.
     const reason =
         task.failure && task.status !== 'human_intervened'
-            ? ` Reason: ${task.failure.replaceAll('_', ' ')}.`
+            ? t('agentCommander.task.reason', { reason: task.failure.replaceAll('_', ' ') })
             : '';
     return {
         icon,
         label,
-        title: `${label}. ${description}${reason} Task ${task.delegationId}.`,
+        labelKey,
+        title: t('agentCommander.task.title', {
+            delegationId: task.delegationId,
+            description: t(descriptionKey),
+            label,
+            reason,
+        }),
         toneClassName: TONE_TEXT_CLASSNAME[tone],
     };
 }

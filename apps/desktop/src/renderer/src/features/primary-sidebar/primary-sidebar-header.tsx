@@ -7,6 +7,7 @@ import { executeCommand } from '../../commands/execute';
 import { CaxriLogo } from '../../components/caxri-logo';
 import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { useProjects, useSessions } from '../../stores/selectors';
 import { agentAttentionCount } from '../agent-activity/agent-activity-rows';
 import { topLevelProjects } from './project-visibility';
@@ -34,6 +35,7 @@ function ActivityModeToggle({ isActivityMode }: { isActivityMode: boolean }) {
         () => agentAttentionCount(topLevelProjects(allProjects ?? NO_RECORDS), sessions),
         [allProjects, sessions],
     );
+    const { t } = useTranslation();
     const badge = attentionCount > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(attentionCount);
 
     return (
@@ -42,7 +44,11 @@ function ActivityModeToggle({ isActivityMode }: { isActivityMode: boolean }) {
                 className="primary-sidebar-activity-toggle relative text-muted enabled:hover:text-foreground aria-pressed:bg-list-active-selection-background aria-pressed:text-foreground"
                 size="icon"
                 variant="ghost"
-                aria-label={isActivityMode ? 'Show Projects' : 'Show Activity'}
+                aria-label={t(
+                    isActivityMode
+                        ? 'primarySidebar.header.showProjects'
+                        : 'primarySidebar.header.showActivity',
+                )}
                 aria-pressed={isActivityMode}
                 data-activity-mode={isActivityMode}
                 onClick={() => executeCommand('primarySidebar.toggleActivity')}
@@ -68,8 +74,13 @@ function ActivityModeToggle({ isActivityMode }: { isActivityMode: boolean }) {
                     here instead, where it can carry its own noun. */}
                 <span className="sr-only">
                     {attentionCount === 0
-                        ? 'No Session needs attention'
-                        : `${attentionCount} ${attentionCount === 1 ? 'Session needs' : 'Sessions need'} attention`}
+                        ? t('primarySidebar.header.attentionNone')
+                        : t(
+                              attentionCount === 1
+                                  ? 'primarySidebar.header.attentionOne'
+                                  : 'primarySidebar.header.attentionOther',
+                              { count: attentionCount },
+                          )}
                 </span>
             </Button>
         </CommandTooltip>

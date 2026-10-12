@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { PanelHeader } from '../../components/panel-header';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 
 export function ExtensionTreeHeader({
@@ -16,7 +17,8 @@ export function ExtensionTreeHeader({
     onRefresh?: () => void;
     title: string;
 }) {
-    const refreshLabel = `Refresh ${title}`;
+    const { t } = useTranslation();
+    const refreshLabel = t('viewContainers.extensionTree.refresh', { title });
     const isUnavailable = disabled || isRefreshing;
     return (
         <PanelHeader

@@ -1,6 +1,7 @@
 import type { MarkdownBlock } from '@caxri/markdown';
 import { tableToHtml, tableToMarkdown } from '@caxri/markdown';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { writeRichToClipboardWithFeedback } from '../copy-feedback';
 import { CopyIconButton } from './copy-icon-button';
@@ -22,6 +23,7 @@ const alignClassName = {
  * Markdown into an editor.
  */
 export function TableBlock({ block }: { block: TableBlockNode }) {
+    const { t } = useTranslation();
     const { variant } = useMarkdownContext();
     const isTranscript = variant === 'transcript';
     const cellClassName = (column: number) =>
@@ -81,7 +83,7 @@ export function TableBlock({ block }: { block: TableBlockNode }) {
                         html: tableToHtml(block),
                     })
                 }
-                label="Copy table"
+                label={t('core.copy.table')}
             />
         </div>
     );

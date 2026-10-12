@@ -10,7 +10,7 @@ vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { syncNotificationSettings, useNotificationStore } from './notifications';
 import type { ToastActionHandler, ToastActionHandlers, ToastActionId } from './toast-actions';
-import { configureToastActions, toastActionLabels } from './toast-actions';
+import { configureToastActions, toastActionLabelKeys } from './toast-actions';
 import {
     describeFailure,
     dismissToast,
@@ -127,7 +127,7 @@ describe('Sonner notification adapter', () => {
         overrides: Partial<{ [Id in ToastActionId]: ToastActionHandler<Id> }> = {},
     ): void {
         const handlers = {} as ToastActionHandlers;
-        for (const id of Object.keys(toastActionLabels))
+        for (const id of Object.keys(toastActionLabelKeys))
             Object.assign(handlers, { [id]: { run: () => {} } });
         configureToastActions(Object.assign(handlers, overrides));
     }

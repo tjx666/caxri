@@ -19,10 +19,12 @@ import {
  * refuses an unsendable draft itself.
  */
 function AgentChatSendButton({
+    isQueueing,
     isSendable,
     sendAction,
     tooltip,
 }: {
+    isQueueing: boolean;
     isSendable: boolean;
     sendAction: { label: string; tooltip: string };
     tooltip: string;
@@ -37,7 +39,7 @@ function AgentChatSendButton({
                 type="submit"
                 variant="ghost"
             >
-                {sendAction.label === 'Queue message' ? (
+                {isQueueing ? (
                     <CornerDownLeft className="size-4" strokeWidth={2.25} />
                 ) : (
                     <ArrowUp className="size-4" strokeWidth={2.25} />
@@ -56,6 +58,7 @@ export function AgentChatComposerActions({
     canAttachImages,
     canSaveProjectDefault,
     isAttaching,
+    isQueueing,
     isSendable,
     isStopping,
     onCompact,
@@ -79,6 +82,11 @@ export function AgentChatComposerActions({
      * Whether picked images are still being read or a long paste saved, which turns Attach files into a spinner.
      */
     isAttaching: boolean;
+    /**
+     * Whether Send queues the message rather than sending it now, which swaps its glyph. Decided from the Chat's state
+     * rather than the action's label, which is translated display text.
+     */
+    isQueueing: boolean;
     isSendable: boolean;
     isStopping: boolean;
     /**
@@ -132,6 +140,7 @@ export function AgentChatComposerActions({
                 <AgentChatStopButton isStopping={isStopping} onStop={onStop} />
             ) : (
                 <AgentChatSendButton
+                    isQueueing={isQueueing}
                     isSendable={isSendable}
                     sendAction={sendAction}
                     tooltip={sendTooltip}

@@ -6,6 +6,8 @@ import type {
     AgentSkillScope,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+
 /**
  * Plain-language health caption for a provider's lifecycle-hook adapter. DESIGN.md principle 3 forbids implementation
  * vocabulary like "drifted" or "awaiting first trusted event". Every state the user cannot resolve just by waiting
@@ -13,43 +15,46 @@ import type {
  * names.
  */
 export function hookHealthLabel(
+    t: Translate,
     isEnabled: boolean,
     health: AgentHookHealthMap[AgentProvider] | undefined,
 ): string {
-    if (!isEnabled) return 'Disabled';
-    if (!health) return 'Checking installation…';
+    if (!isEnabled) return t('settings.providerHealth.hook.disabled');
+    if (!health) return t('settings.providerHealth.hook.checking');
     const label = (() => {
         switch (health.kind) {
             case 'unsupported':
-                return 'Not available on this platform';
+                return t('settings.providerHealth.hook.unsupported');
             case 'notInstalled':
                 // `AgentHookManager.reconcileNow()` appends `health.message`: "Install the {CLI} CLI, then restart
                 // Caxri.", whenever an install hint exists (the common case), so this base label states only the
                 // status and leaves the specific instruction to that message (DESIGN.md principle 6, "say each
                 // meaning once"; same fix already applied to the `drifted` case in `hookHealthFor`). Without a
                 // message (e.g. another profile owns install authority), this label alone still reads correctly.
-                return 'Not in effect';
+                return t('settings.providerHealth.hook.notInstalled');
             case 'installedPending':
-                return 'Not in effect until your next Agent session';
+                return t('settings.providerHealth.hook.installedPending');
             case 'incompatible':
-                return 'Newer installation is incomplete';
+                return t('settings.providerHealth.hook.incompatible');
             case 'active':
-                return 'Active';
+                return t('settings.providerHealth.hook.active');
             case 'stale':
-                return 'Out of date — restart Agent Terminals to update it';
+                return t('settings.providerHealth.hook.stale');
             case 'drifted':
-                return 'Changed outside Caxri — restart Agent Terminals to reapply it';
+                return t('settings.providerHealth.hook.drifted');
             case 'conflict':
                 // The cause is in the user's own configuration (a hook policy, foreign inline hooks, a symlink to a
                 // missing file) and `health.message` names it and the fix, so no restart advice here: restarting
                 // cannot resolve it, and once it is resolved the row moves on to "Not in effect until your next Agent
                 // session", which carries that step.
-                return 'Blocked by your configuration';
+                return t('settings.providerHealth.hook.conflict');
             case 'error':
-                return 'Setup failed — restart Agent Terminals to try again';
+                return t('settings.providerHealth.hook.error');
         }
     })();
-    return health.message ? `${label} — ${health.message}` : label;
+    return health.message
+        ? t('settings.providerHealth.hook.withMessage', { label, message: health.message })
+        : label;
 }
 
 /**
@@ -57,10 +62,13 @@ export function hookHealthLabel(
  * active.
  */
 export function hookHealthCaption(
+    t: Translate,
     isEnabled: boolean,
     health: AgentHookHealthMap[AgentProvider] | undefined,
 ): string {
-    return `Installation: ${hookHealthLabel(isEnabled, health)}`;
+    return t('settings.providerHealth.hook.caption', {
+        label: hookHealthLabel(t, isEnabled, health),
+    });
 }
 
 /**
@@ -130,18 +138,22 @@ export function skillScopeHealth(
 }
 
 export function skillScopeSummary(
+    t: Translate,
     health: AgentSkillHealth | undefined,
     installation: AgentSkillInstallationHealth | undefined,
     scope: AgentSkillScope,
 ): string {
-    const label = scope === 'local' ? 'Project local' : 'Global';
-    if (!health) return `${label} · Checking installation…`;
+    const parameters = { scope: t(`settings.providerHealth.skill.scope.${scope}`) };
+    if (!health) return t('settings.providerHealth.skill.checking', parameters);
     if (scope === 'local' && !health.selectedProjectId)
-        return `${label} · Select a Project to inspect`;
-    if (!installation) return `${label} · Unable to inspect this location`;
+        return t('settings.providerHealth.skill.selectProject', parameters);
+    if (!installation) return t('settings.providerHealth.skill.uninspectable', parameters);
     // `Missing · not installed` said one thing twice.
     if (installation.status === 'missing' || !installation.installedVersion)
-        return `${label} · Not installed`;
-    const status = installation.status[0].toUpperCase() + installation.status.slice(1);
-    return `${label} · ${status} · installed v${installation.installedVersion}`;
+        return t('settings.providerHealth.skill.notInstalled', parameters);
+    return t('settings.providerHealth.skill.installed', {
+        ...parameters,
+        status: t(`settings.providerHealth.skill.status.${installation.status}`),
+        version: installation.installedVersion,
+    });
 }

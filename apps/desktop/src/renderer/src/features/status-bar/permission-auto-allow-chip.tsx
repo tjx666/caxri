@@ -1,12 +1,10 @@
 import { ShieldCheck } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession } from '../../stores/selectors';
 import { revokePermissionAutoAllow } from '../session/permission-auto-allow-commands';
 import { StatusItem } from './status-item';
-
-const PERMISSION_AUTO_ALLOW_CHIP_LABEL =
-    'Always allow is on for this Session: every Agent permission request is allowed automatically. Click to turn it off.';
 
 /**
  * Standing disclosure for the selected Session's "Always allow in this Session" grant (issue caxri#1295), which a
@@ -16,6 +14,7 @@ const PERMISSION_AUTO_ALLOW_CHIP_LABEL =
  * a grant or revoke from a phone shows up here without polling.
  */
 export function PermissionAutoAllowChip() {
+    const { t } = useTranslation();
     const session = useSelectedSession();
     const sessionId = session?.id;
     const { data } = useCaxriQuery(
@@ -27,12 +26,12 @@ export function PermissionAutoAllowChip() {
     return (
         <StatusItem
             icon={<ShieldCheck />}
-            ariaLabel={PERMISSION_AUTO_ALLOW_CHIP_LABEL}
-            title={PERMISSION_AUTO_ALLOW_CHIP_LABEL}
+            ariaLabel={t('statusBar.permissionAutoAllow.description')}
+            title={t('statusBar.permissionAutoAllow.description')}
             className="text-muted"
             onClick={() => revokePermissionAutoAllow(sessionId)}
         >
-            Always Allow
+            {t('statusBar.permissionAutoAllow.label')}
         </StatusItem>
     );
 }

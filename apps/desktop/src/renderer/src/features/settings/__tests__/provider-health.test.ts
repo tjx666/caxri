@@ -1,6 +1,7 @@
 import type { AgentSkillHealth } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     hookHealthCaption,
     hookHealthLabel,
@@ -13,32 +14,34 @@ import {
 
 describe('hookHealthLabel', () => {
     it('reports disabled and pending states before health arrives', () => {
-        expect(hookHealthLabel(false, undefined)).toBe('Disabled');
-        expect(hookHealthLabel(true, undefined)).toBe('Checking installation…');
+        expect(hookHealthLabel(translate, false, undefined)).toBe('Disabled');
+        expect(hookHealthLabel(translate, true, undefined)).toBe('Checking installation…');
     });
 
     it('maps every health kind to user language and appends the detail message', () => {
-        expect(hookHealthLabel(true, { kind: 'active' })).toBe('Active');
-        expect(hookHealthCaption(true, { kind: 'active' })).toBe('Installation: Active');
-        expect(hookHealthLabel(true, { kind: 'notInstalled' })).toBe('Not in effect');
+        expect(hookHealthLabel(translate, true, { kind: 'active' })).toBe('Active');
+        expect(hookHealthCaption(translate, true, { kind: 'active' })).toBe('Installation: Active');
+        expect(hookHealthLabel(translate, true, { kind: 'notInstalled' })).toBe('Not in effect');
         // Issue #1345: `health.message` already carries the actionable instruction ("Install the {CLI} CLI, then
         // restart Caxri."), so the base label must not restate "install": regression for the duplicated wording.
         expect(
-            hookHealthLabel(true, {
+            hookHealthLabel(translate, true, {
                 kind: 'notInstalled',
                 message: 'Install the Codex CLI, then restart Caxri.',
             }),
         ).toBe('Not in effect — Install the Codex CLI, then restart Caxri.');
-        expect(hookHealthLabel(true, { kind: 'installedPending' })).toBe(
+        expect(hookHealthLabel(translate, true, { kind: 'installedPending' })).toBe(
             'Not in effect until your next Agent session',
         );
-        expect(hookHealthLabel(true, { kind: 'incompatible', installedSchema: 99 })).toBe(
-            'Newer installation is incomplete',
+        expect(
+            hookHealthLabel(translate, true, { kind: 'incompatible', installedSchema: 99 }),
+        ).toBe('Newer installation is incomplete');
+        expect(hookHealthLabel(translate, true, { kind: 'stale' })).toContain(
+            'restart Agent Terminals',
         );
-        expect(hookHealthLabel(true, { kind: 'stale' })).toContain('restart Agent Terminals');
         // Issue #1622: restarting cannot fix the user's own configuration, so a conflict names only the cause and fix.
         expect(
-            hookHealthLabel(true, {
+            hookHealthLabel(translate, true, {
                 kind: 'conflict',
                 message:
                     'settings.json is a symlink to a missing file. Restore the link target or remove the link.',
@@ -46,7 +49,7 @@ describe('hookHealthLabel', () => {
         ).toBe(
             'Blocked by your configuration — settings.json is a symlink to a missing file. Restore the link target or remove the link.',
         );
-        expect(hookHealthLabel(true, { kind: 'error', message: 'EPERM' })).toBe(
+        expect(hookHealthLabel(translate, true, { kind: 'error', message: 'EPERM' })).toBe(
             'Setup failed — restart Agent Terminals to try again — EPERM',
         );
     });
@@ -111,20 +114,26 @@ describe('skillScopeHealth / skillScopeSummary', () => {
     });
 
     it('summarizes loading, missing-project, uninspectable, and installed states', () => {
-        expect(skillScopeSummary(undefined, undefined, 'global')).toBe(
+        expect(skillScopeSummary(translate, undefined, undefined, 'global')).toBe(
             'Global · Checking installation…',
         );
         expect(
-            skillScopeSummary({ ...health, selectedProjectId: undefined }, undefined, 'local'),
+            skillScopeSummary(
+                translate,
+                { ...health, selectedProjectId: undefined },
+                undefined,
+                'local',
+            ),
         ).toBe('Project local · Select a Project to inspect');
-        expect(skillScopeSummary(health, undefined, 'global')).toBe(
+        expect(skillScopeSummary(translate, health, undefined, 'global')).toBe(
             'Global · Unable to inspect this location',
         );
-        expect(skillScopeSummary(health, health.installations[0], 'global')).toBe(
+        expect(skillScopeSummary(translate, health, health.installations[0], 'global')).toBe(
             'Global · Compatible · installed v1.2.3',
         );
         expect(
             skillScopeSummary(
+                translate,
                 health,
                 { ...health.installations[0], status: 'missing', installedVersion: undefined },
                 'global',

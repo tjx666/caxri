@@ -1,8 +1,5 @@
+import type { GitDiffTab } from '@caxri/protocol';
 import {
-    agentStatusTabLabel,
-    agentTaskTabLabel,
-    agentTranscriptTabLabel,
-    filePreviewTabLabel,
     gitDiffTabLabel,
     isSettingsTabPath,
     isUsageTabPath,
@@ -13,14 +10,49 @@ import {
     parseExternalEditorTab,
     parseFilePreviewTab,
     parseGitDiffTab,
-    SETTINGS_TAB_LABEL,
-    USAGE_TAB_LABEL,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { shouldOpenAsPreview } from '../preview/preview-registry';
 
-const OUTSIDE_PROJECT_DESCRIPTION = 'Outside every Project';
+/**
+ * Localized counterparts of `@caxri/protocol`'s English tab label helpers (`gitDiffTabLabel`,
+ * `agentTranscriptTabLabel`, `agentTaskTabLabel`, `agentStatusTabLabel`, `filePreviewTabLabel`, and the Settings and
+ * Usage labels). The protocol versions stay English because Main and the CLI share them; the Renderer's tab rail
+ * translates the same shapes here.
+ */
+function diffTabLabel(tab: GitDiffTab, t: Translate): string {
+    if (tab.kind !== 'changes') return gitDiffTabLabel(tab);
+    return t(
+        tab.source === 'pull-request' ? 'editor.tab.pullRequestChanges' : 'editor.tab.changes',
+        {
+            repository: tab.repositoryName,
+        },
+    );
+}
+
+function transcriptTabLabel(terminalTitle: string | undefined, t: Translate): string {
+    return terminalTitle
+        ? t('editor.tab.transcriptNamed', { title: terminalTitle })
+        : t('editor.tab.transcript');
+}
+
+function taskTabLabel(
+    task: { kind: 'agent' | 'shell'; title: string } | undefined,
+    t: Translate,
+): string {
+    const title = task?.title.trim();
+    if (title) return title;
+    return task?.kind === 'shell' ? 'Shell' : t('editor.tab.subagent');
+}
+
+function previewTabLabel(path: string, t: Translate): string {
+    const external = parseExternalEditorTab(path);
+    const name = external ? external.name : path.slice(path.lastIndexOf('/') + 1);
+    return shouldOpenAsPreview(path) ? name : t('editor.tab.preview', { name });
+}
 
 function directorySegments(displayPath: string): string[] {
     return displayPath.split('/').slice(0, -1).filter(Boolean);
@@ -80,6 +112,7 @@ export function documentTabPresentation(
          */
         task?: { kind: 'agent' | 'shell'; title: string };
     },
+    t: Translate = translate,
 ) {
     const diff = parseGitDiffTab(path);
     const transcript = parseAgentTranscriptTab(path);
@@ -92,23 +125,21 @@ export function documentTabPresentation(
     const isSettings = isSettingsTabPath(path);
     const isUsage = isUsageTabPath(path);
     const label = diff
-        ? gitDiffTabLabel(diff)
+        ? diffTabLabel(diff, t)
         : transcript
-          ? agentTranscriptTabLabel(options.transcriptTitle)
+          ? transcriptTabLabel(options.transcriptTitle, t)
           : agentTask
-            ? agentTaskTabLabel(options.task)
+            ? taskTabLabel(options.task, t)
             : agentStatus
-              ? agentStatusTabLabel(options.agentName)
+              ? t('editor.tab.agentStatus', { agent: options.agentName ?? 'Agent' })
               : turnReview
-                ? 'Turn changes'
+                ? t('editor.tab.turnChanges')
                 : preview
-                  ? filePreviewTabLabel(preview.path, {
-                        isOnlyView: shouldOpenAsPreview(preview.path),
-                    })
+                  ? previewTabLabel(preview.path, t)
                   : isSettings
-                    ? SETTINGS_TAB_LABEL
+                    ? t('editor.tab.settings')
                     : isUsage
-                      ? USAGE_TAB_LABEL
+                      ? t('editor.tab.usage')
                       : (external?.name ?? pathBasename(path));
     const isOutsideProject = Boolean(external) || Boolean(previewExternal);
     const detail =
@@ -119,7 +150,7 @@ export function documentTabPresentation(
         /**
          * Spoken after the label (never replacing it): the tab is a file outside every Project.
          */
-        ...(isOutsideProject && { accessibleDetail: OUTSIDE_PROJECT_DESCRIPTION }),
+        ...(isOutsideProject && { accessibleDetail: t('editor.tab.outsideProject') }),
         /**
          * Muted parent directory shown beside a repeated external filename, the way VS Code tells same-named tabs
          * apart.

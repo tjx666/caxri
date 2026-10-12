@@ -7,6 +7,7 @@ import { ChevronRight } from 'lucide-react';
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import type { PopoverActions } from '../../components/ui/popover';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { useTranslation } from '../../i18n';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
 import { cn } from '../../lib/utilities';
@@ -35,6 +36,7 @@ export function EditorBreadcrumbs({
     sessionId: string;
     workbenchProjectId: string;
 }) {
+    const { t } = useTranslation();
     const segments = editorBreadcrumbSegments(path, projectRoot);
     const decoration = useGitDecoration(path);
     const decorationDescriptionId = useId();
@@ -108,7 +110,9 @@ export function EditorBreadcrumbs({
                     <nav
                         aria-label={
                             accessibilityLabel ??
-                            `File breadcrumbs: ${segments.at(-1)?.relativePath ?? path}`
+                            t('editor.breadcrumbs.fileLabel', {
+                                path: segments.at(-1)?.relativePath ?? path,
+                            })
                         }
                         className="editor-breadcrumbs flex min-w-0 flex-1 items-center overflow-x-auto px-2 text-[12px] text-muted"
                     >
@@ -136,7 +140,9 @@ export function EditorBreadcrumbs({
                                             aria-current={
                                                 segment.kind === 'file' ? 'page' : undefined
                                             }
-                                            aria-label={`Browse ${segment.relativePath}`}
+                                            aria-label={t('editor.breadcrumbs.browse', {
+                                                path: segment.relativePath,
+                                            })}
                                             aria-describedby={
                                                 decoration && segment.kind === 'file'
                                                     ? decorationDescriptionId
@@ -181,7 +187,11 @@ export function EditorBreadcrumbs({
                         ))}
                     </nav>
                     {payload && (
-                        <PopoverContent aria-label={`Browse ${payload.relativePath}`}>
+                        <PopoverContent
+                            aria-label={t('editor.breadcrumbs.browse', {
+                                path: payload.relativePath,
+                            })}
+                        >
                             <EditorBreadcrumbPicker
                                 key={payload.path}
                                 onOpenFile={openFileFromPicker}

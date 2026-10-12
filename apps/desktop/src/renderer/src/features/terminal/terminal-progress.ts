@@ -3,6 +3,9 @@ import { useCallback, useSyncExternalStore } from 'react';
 import { notifyListeners } from '@caxri/utils';
 import { clamp } from 'es-toolkit';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 export type TerminalProgress =
     | { kind: 'error'; value: number }
     | { kind: 'indeterminate' }
@@ -14,18 +17,26 @@ export interface TerminalProgressUpdate {
     value: number;
 }
 
-export function terminalProgressLabel(progress: TerminalProgress): string {
-    if (progress.kind === 'indeterminate') return 'In progress';
-    if (progress.kind === 'error') return `Error ${progress.value}%`;
-    if (progress.kind === 'paused') return `Paused ${progress.value}%`;
+export function terminalProgressLabel(
+    progress: TerminalProgress,
+    t: Translate = translate,
+): string {
+    if (progress.kind === 'indeterminate') return t('terminal.progress.inProgress');
+    if (progress.kind === 'error') return t('terminal.progress.error', { value: progress.value });
+    if (progress.kind === 'paused') return t('terminal.progress.paused', { value: progress.value });
     return `${progress.value}%`;
 }
 
-export function terminalProgressAriaLabel(progress: TerminalProgress): string {
-    if (progress.kind === 'indeterminate') return 'Terminal progress: in progress';
-    if (progress.kind === 'error') return `Terminal progress: error at ${progress.value} percent`;
-    if (progress.kind === 'paused') return `Terminal progress: paused at ${progress.value} percent`;
-    return `Terminal progress: ${progress.value} percent`;
+export function terminalProgressAriaLabel(
+    progress: TerminalProgress,
+    t: Translate = translate,
+): string {
+    if (progress.kind === 'indeterminate') return t('terminal.progress.inProgressAria');
+    if (progress.kind === 'error')
+        return t('terminal.progress.errorAria', { value: progress.value });
+    if (progress.kind === 'paused')
+        return t('terminal.progress.pausedAria', { value: progress.value });
+    return t('terminal.progress.normalAria', { value: progress.value });
 }
 
 type RequestFrame = (callback: () => void) => number;

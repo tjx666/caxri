@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { useTranslation } from '../i18n';
 import { cn } from '../lib/utilities';
 
 /**
@@ -43,6 +44,7 @@ export function StatTile({
     value: string | undefined;
     detail?: ReactNode;
 }) {
+    const { t } = useTranslation();
     return (
         <div className="min-w-0 rounded-md border border-border bg-surface px-4 py-3">
             <div className="truncate text-[11px] text-muted">{label}</div>
@@ -52,7 +54,7 @@ export function StatTile({
                         <span aria-hidden="true" className="font-normal text-muted">
                             —
                         </span>
-                        <span className="sr-only">Not measured</span>
+                        <span className="sr-only">{t('core.reportCard.notMeasured')}</span>
                     </>
                 )}
             </div>

@@ -1,0 +1,113 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+
+import type { agentChatChanges as source } from '../en/agent-chat-changes';
+
+export const agentChatChanges: TranslatedNamespace<typeof source> = {
+    // File change blocks and their diffs
+    'agentChat.changes.noDiff': '无差异',
+    'agentChat.changes.commentOnOldLine': '评论旧版第 {{line}} 行',
+    'agentChat.changes.commentOnLine': '评论第 {{line}} 行',
+    'agentChat.changes.diffTruncated': '差异已截断',
+    'agentChat.changes.openDiff': '打开差异',
+    'agentChat.changes.openDiffFor': '打开差异：{{path}}',
+    'agentChat.changes.showDiffFor': '显示差异：{{path}}',
+    'agentChat.changes.hideDiffFor': '隐藏差异：{{path}}',
+    'agentChat.changes.openInEditor': '在编辑器中打开',
+    'agentChat.changes.openPathInEditor': '在编辑器中打开 {{path}}',
+    'agentChat.changes.truncated': '已截断',
+    'agentChat.diff.kind.add': '已添加',
+    'agentChat.diff.kind.delete': '已删除',
+    'agentChat.diff.kind.update': '已修改',
+
+    // Turn changes card
+    'agentChat.artifacts.editedFiles': '编辑了 {{count}} 个文件',
+    'agentChat.artifacts.createdFile': '创建了 {{name}}',
+    'agentChat.artifacts.deletedFile': '删除了 {{name}}',
+    'agentChat.artifacts.editedFile': '编辑了 {{name}}',
+    'agentChat.changes.showFileChanges': '显示更改：{{path}}，{{stat}}',
+    'agentChat.changes.hideFileChanges': '隐藏更改：{{path}}，{{stat}}',
+    'agentChat.changes.viewAllWithStat': '查看更改，{{stat}}',
+    'agentChat.changes.hideAllWithStat': '隐藏更改，{{stat}}',
+    'agentChat.changes.viewChanges': '查看更改',
+    'agentChat.changes.hideChanges': '隐藏更改',
+    'agentChat.undo.undone': '已撤销',
+    'agentChat.undo.truncatedTooltip': '有差异过大，未能完整保留，因此无法撤销此轮',
+    'agentChat.undo.tooltip': '将文件恢复到此轮之前的状态',
+    'agentChat.undo.button': '撤销',
+    'agentChat.review.tooltip': '在对话旁审阅此轮的更改并添加评论',
+    'agentChat.review.button': '审阅',
+
+    // Turn review tab
+    'agentChat.review.loading': '正在加载更改…',
+    'agentChat.review.unavailable': '此对话已无法审阅。',
+    'agentChat.review.noChanges': '此轮没有可审阅的文件更改。',
+    'agentChat.review.backToChat': '返回对话',
+    'agentChat.review.title': '本轮更改',
+    'agentChat.review.fileCountOne': '1 个文件',
+    'agentChat.review.fileCountOther': '{{count}} 个文件',
+
+    // Review comment card
+    'agentChat.review.commentGroup': '审阅评论',
+    'agentChat.review.commentOnThisLine': '评论此行',
+    'agentChat.review.commentOnLines': '评论 {{count}} 行',
+    'agentChat.review.extendHint': '按住 Shift 点击 + 扩展范围',
+    'agentChat.review.commentLabel': '评论',
+    'agentChat.review.commentPlaceholder': '让 Agent 修改点什么…',
+    'agentChat.review.addToChat': '添加到对话',
+    'agentChat.review.commentOnRange': '评论 {{range}}',
+    'agentChat.review.noteHeading': '审阅 · {{range}}',
+    'agentChat.review.addedToChat': '已添加到对话',
+    'agentChat.review.side.original': '旧',
+    'agentChat.review.side.modified': '新',
+
+    // Undo toasts
+    'agentChat.undo.failedTitle': '无法撤销 Agent 的更改',
+    'agentChat.undo.partial': '撤销中途停止：部分文件已恢复。',
+    'agentChat.undo.failure': '未撤销任何内容：无法恢复 {{path}}，因为{{reason}}。',
+    'agentChat.undo.failureReason.truncated': '它的差异过大，未能完整保留',
+    'agentChat.undo.failureReason.changed': '它在 Agent 编辑后又被修改过',
+    'agentChat.undo.failureReason.missing': '它已不存在',
+    'agentChat.undo.failureReason.exists': '它在 Agent 删除后又被重新创建',
+    'agentChat.undo.nextStep.changed':
+        '请先撤销之后编辑过它的那一轮，或在开启此轮的消息上使用“恢复代码到此处”。',
+    'agentChat.undo.successOne': '已撤销 1 个文件的更改',
+    'agentChat.undo.successOther': '已撤销 {{count}} 个文件的更改',
+
+    // Edit, restore, and fork from a message
+    'agentChat.undo.replaceTurnsTitle': '替换之后的 {{count}} 轮？',
+    'agentChat.undo.replaceTurnsMessage':
+        '发送此编辑会从对话中移除这条消息所在的一轮及其后的 {{count}} 轮。如需保留，请取消并改用“从此处分叉”。',
+    'agentChat.undo.replaceTurnsConfirm': '替换',
+    'agentChat.undo.restoreSuccessOne': '已恢复 1 轮更改的代码',
+    'agentChat.undo.restoreSuccessOther': '已恢复 {{count}} 轮更改的代码',
+    'agentChat.undo.forkSuccess': '已分叉到新会话',
+    'agentChat.undo.forkSuccessNamed': '已分叉到新会话：{{title}}',
+
+    // Background tasks
+    'agentChat.tasks.usageTokens': '{{tokens}} tokens',
+    'agentChat.tasks.toolUseOne': '1 次工具调用',
+    'agentChat.tasks.toolUseOther': '{{count}} 次工具调用',
+    'agentChat.tasks.usingTool': '正在使用 {{tool}}',
+    'agentChat.tasks.shell': 'Shell',
+    'agentChat.tasks.subagent': '子 Agent',
+    'agentChat.tasks.openTask': '打开 {{title}}',
+    'agentChat.tasks.stop': '停止',
+    'agentChat.tasks.stopTask': '停止 {{title}}',
+    'agentChat.tasks.backgroundWork': '后台任务',
+    'agentChat.tasks.runningCount': '{{count}} 个运行中',
+    'agentChat.tasks.endedCount': '{{count}} 个已结束',
+    'agentChat.tasks.dismissEnded': '清除已结束的后台任务',
+    'agentChat.tasks.endedList': '已结束的后台任务',
+    'agentChat.tasks.earlierHidden': '较早的消息未显示：对话只保留较长子 Agent 对话的最近部分。',
+    'agentChat.tasks.emptyRunning': '子 Agent 尚未报告任何内容。',
+    'agentChat.tasks.empty': '子 Agent 没有报告任何内容。',
+    'agentChat.tasks.unavailable': '此任务已不可用。',
+    'agentChat.tasks.unavailableDetail': 'Agent 已没有它的记录，例如在重启之后。',
+    'agentChat.tasks.loadFailed': '无法加载此任务。',
+    'agentChat.tasks.showingLatestOutput': '仅显示最新输出',
+    'agentChat.tasks.outputCapped': '输出已停止推送；命令可能仍在运行',
+    'agentChat.tasks.outputLabel': '输出',
+    'agentChat.tasks.noOutputYet': '暂无输出',
+    'agentChat.tasks.noOutput': '无输出',
+    'agentChat.tasks.loading': '正在加载任务…',
+};

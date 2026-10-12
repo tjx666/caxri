@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/button';
 import { Input, InputGroup } from '../../components/ui/input';
 import { Kbd } from '../../components/ui/kbd';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import {
     answerAgentChatQuestion,
@@ -46,6 +47,7 @@ function QuestionOptionRow({
     onSelect: () => void;
     option: QuestionOption;
 }) {
+    const { t } = useTranslation();
     const { isRecommended, text } = agentChatQuestionOption(option.label);
     const descriptionId = useId();
     return (
@@ -85,7 +87,7 @@ function QuestionOptionRow({
                     <span className={cn(isRecommended && 'font-semibold')}>{text}</span>
                     {isRecommended && (
                         <span className="rounded-full bg-accent px-1.5 text-[10px] leading-4 font-semibold text-accent-foreground">
-                            Recommended
+                            {t('agentChat.request.recommended')}
                         </span>
                     )}
                 </span>
@@ -129,6 +131,7 @@ export function AgentChatQuestionForm({
     respond: (response: AgentChatResponse) => void;
     title: string;
 }) {
+    const { t } = useTranslation();
     const [index, setIndex] = useState(0);
     /**
      * Answers to the questions already passed; read only when the next answer arrives, so it never re-renders the card.
@@ -187,15 +190,18 @@ export function AgentChatQuestionForm({
                 {/* The title already says how many questions there are; this says which one is showing. */}
                 {request.questions.length > 1 && (
                     <span
-                        aria-label={`Question ${index + 1} of ${request.questions.length}`}
+                        aria-label={t('agentChat.request.questionPosition', {
+                            index: index + 1,
+                            count: request.questions.length,
+                        })}
                         className="shrink-0 text-[11px] text-muted tabular-nums"
                     >
                         {index + 1}/{request.questions.length}
                     </span>
                 )}
-                <Tooltip content="Dismiss without answering">
+                <Tooltip content={t('agentChat.request.dismissTooltip')}>
                     <Button
-                        aria-label="Dismiss question"
+                        aria-label={t('agentChat.request.dismiss')}
                         className="-my-1 -mr-1.5 size-6"
                         disabled={isAnswering}
                         size="icon"
@@ -247,9 +253,13 @@ export function AgentChatQuestionForm({
                         <Pencil aria-hidden className="size-3.5 shrink-0 text-muted" />
                         <Input
                             appearance="embedded"
-                            aria-label={`Other answer: ${question.question}`}
+                            aria-label={t('agentChat.request.otherAnswerFor', {
+                                question: question.question,
+                            })}
                             disabled={isAnswering}
-                            placeholder={`Or tell ${providerName} something else`}
+                            placeholder={t('agentChat.request.otherAnswerPlaceholder', {
+                                provider: providerName,
+                            })}
                             size="dense"
                             value={typed}
                             onChange={(event) => setTyped(event.target.value)}
@@ -257,7 +267,7 @@ export function AgentChatQuestionForm({
                     </InputGroup>
                 ) : (
                     <span className="flex-1 text-[11px] text-muted">
-                        Double-click an option to answer
+                        {t('agentChat.request.doubleClickHint')}
                     </span>
                 )}
                 <Button
@@ -266,10 +276,10 @@ export function AgentChatQuestionForm({
                     variant="ghost"
                     onClick={() => answer(undefined)}
                 >
-                    Skip
+                    {t('agentChat.request.skip')}
                 </Button>
                 <Button disabled={!submitted || isAnswering} size="sm" type="submit">
-                    {isLast ? 'Submit' : 'Next'}
+                    {t(isLast ? 'agentChat.request.submit' : 'agentChat.request.next')}
                 </Button>
             </div>
         </form>

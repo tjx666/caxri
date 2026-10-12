@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 
+import { useTranslation } from '../../../i18n';
 import { resolveEntryKind } from '../../../lib/file-entry';
 import { parentDirectoryPath, projectRelativePath } from '../../../lib/file-path';
 import { useCaxriQuery } from '../../../queries/client';
@@ -46,6 +47,7 @@ export function useEditorBreadcrumbPicker({
     segment: EditorBreadcrumbSegment;
     sessionId: string;
 }): EditorBreadcrumbPickerState {
+    const { t } = useTranslation();
     const optionIdPrefix = useId();
     const listboxReference = useRef<HTMLDivElement>(null);
     const activation = useRef(0);
@@ -62,7 +64,7 @@ export function useEditorBreadcrumbPicker({
     );
     const listing = useCaxriQuery('files.list', { sessionId, directory: currentDirectory });
     const entries = listing.data?.entries ?? EMPTY_ENTRIES;
-    const directoryLabel = editorBreadcrumbDirectoryLabel(currentDirectory, projectRoot);
+    const directoryLabel = editorBreadcrumbDirectoryLabel(currentDirectory, projectRoot, t);
     const activePath = entries.some((entry) => entry.path === requestedActivePath)
         ? requestedActivePath
         : adjacentBreadcrumbPickerPath(entries, undefined, 'first');
@@ -77,7 +79,7 @@ export function useEditorBreadcrumbPicker({
     const activateEntry = (entry: FileEntry): void => {
         const intent = ++activation.current;
         // eslint-disable-next-line no-void -- tryCommand owns error presentation
-        void tryCommand('Unable to open path', async () => {
+        void tryCommand(t('editor.breadcrumbs.openPathFailed'), async () => {
             const kind = await resolveEntryKind(sessionId, entry);
             if (intent !== activation.current) return;
             if (kind === 'directory') {

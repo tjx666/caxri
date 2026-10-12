@@ -4,6 +4,7 @@ import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { WebLink } from '../../components/markdown/web-link';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { linkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { AgentChatInvocationChip } from './agent-chat-invocation-chip';
@@ -51,8 +52,9 @@ export function AgentChatUserMessage({
     text: string;
     onOpenFile?: (target: string) => void;
 }) {
+    const { t } = useTranslation();
     const terminalId = useAgentChatTerminal();
-    const caption = agentChatDeliveryCaption(delivery);
+    const caption = agentChatDeliveryCaption(delivery, t);
     const edit = useAgentChatEdit();
     const isEditing = edit?.editingId === id;
     const container = useRef<HTMLDivElement>(null);
@@ -96,7 +98,7 @@ export function AgentChatUserMessage({
                         <CopyIconButton
                             className="-mr-1"
                             copy={() => writeToClipboardWithFeedback(navigator.clipboard, text)}
-                            label="Copy message"
+                            label={t('agentChat.message.copy')}
                         />
                     )}
                 </div>
@@ -118,6 +120,7 @@ function UserMessageBubble({
     text: string;
     onOpenFile?: (target: string) => void;
 }) {
+    const { t } = useTranslation();
     const invocation = agentChatLeadingInvocation(text);
     const [isExpanded, setExpanded] = useState(false);
     const textReference = useRef<HTMLDivElement>(null);
@@ -146,7 +149,7 @@ function UserMessageBubble({
                     type="button"
                     onClick={() => setExpanded((value) => !value)}
                 >
-                    {isExpanded ? 'Show less' : 'Show more'}
+                    {t(isExpanded ? 'agentChat.message.showLess' : 'agentChat.message.showMore')}
                 </button>
             )}
         </div>
@@ -167,6 +170,7 @@ function UserMessageText({
     onOpenFile?: (target: string) => void;
 }) {
     const terminalId = useAgentChatTerminal();
+    const { t } = useTranslation();
     const segments = agentChatUserMessageSegments(text, { withFiles: onOpenFile !== undefined });
     return segments.map((segment, position) => {
         if (segment.kind === 'text') return segment.text;
@@ -178,7 +182,10 @@ function UserMessageText({
              * the anchor focusable and Enter-activated); the click opens the file instead.
              */
             return (
-                <Tooltip content={`Open ${segment.file}`} key={position}>
+                <Tooltip
+                    content={t('agentChat.timeline.openNamed', { name: segment.file })}
+                    key={position}
+                >
                     <a
                         className="cursor-pointer underline decoration-muted decoration-dotted underline-offset-3 transition-colors hover:text-accent hover:decoration-solid focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
                         href={segment.file}

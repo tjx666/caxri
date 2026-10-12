@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 
 import { Skeleton } from '../../components/ui/skeleton';
+import { useTranslation } from '../../i18n';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { documentLoadRecoveryAction, documentReadRecovery } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
 import { readAssetObjectUrl } from './preview-asset-client';
-import { PREVIEW_LOADING_LABEL } from './preview-registry';
+import { PREVIEW_LOADING_LABEL_KEY } from './preview-registry';
 import { usePreviewSourceRevision } from './use-preview-source-revision';
 
 type ImageState =
@@ -95,6 +96,7 @@ export function ImagePreview({
     sessionId: string;
     workbenchProjectId: string | undefined;
 }) {
+    const { t } = useTranslation();
     const { state, retry } = useImageObjectUrl(sessionId, workbenchProjectId, path);
     const [size, setSize] = useState<ImageSize | undefined>(undefined);
 
@@ -102,7 +104,7 @@ export function ImagePreview({
         return (
             <EditorLoadFailure
                 {...describeDocumentReadFailure(state.error)}
-                {...documentLoadRecoveryAction(documentReadRecovery(state.error), path, retry)}
+                {...documentLoadRecoveryAction(documentReadRecovery(state.error), path, retry, t)}
             />
         );
     return (
@@ -113,7 +115,7 @@ export function ImagePreview({
                         className="h-full max-h-80 w-full max-w-120"
                         role="status"
                         aria-hidden={false}
-                        aria-label={PREVIEW_LOADING_LABEL}
+                        aria-label={t(PREVIEW_LOADING_LABEL_KEY)}
                     />
                 ) : (
                     <img

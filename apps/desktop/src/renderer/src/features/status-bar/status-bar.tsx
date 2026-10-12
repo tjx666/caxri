@@ -12,6 +12,8 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
@@ -52,20 +54,20 @@ const statusStateClassName = 'statusbar-state flex-none rounded px-2 text-[10px]
  * naming Server or Runtime.
  */
 const DEGRADED_STATES: Partial<
-    Record<ServerStatus, { label: string; detail: string; className: string }>
+    Record<ServerStatus, { labelKey: TranslationKey; detailKey: TranslationKey; className: string }>
 > = {
     /**
      * No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip.
      */
     failed: {
-        label: 'Caxri stopped',
-        detail: 'Caxri stopped unexpectedly. Recovery is offered in the native Relaunch dialog.',
+        labelKey: 'statusBar.runtime.failed',
+        detailKey: 'statusBar.runtime.failedDetail',
         className:
             'statusbar-state-danger bg-[color-mix(in_srgb,var(--danger)_18%,transparent)] text-danger',
     },
     restarting: {
-        label: 'Reconnecting…',
-        detail: 'Caxri is reconnecting; this chip clears once it reconnects.',
+        labelKey: 'statusBar.runtime.restarting',
+        detailKey: 'statusBar.runtime.restartingDetail',
         className:
             'statusbar-state-warning bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-warning',
     },
@@ -175,6 +177,7 @@ function StatusBarContext({
     sessionId?: string;
     workbenchProject?: ProjectRecord;
 }) {
+    const { t } = useTranslation();
     return (
         <div className="statusbar-context flex min-w-0 items-center gap-0.5 overflow-hidden">
             {/**
@@ -184,7 +187,9 @@ function StatusBarContext({
             {workbenchProject && !sessionId && (
                 <StatusItem
                     icon={<Monitor />}
-                    ariaLabel={`Open project files: ${workbenchProject.displayTitle}`}
+                    ariaLabel={t('statusBar.project.openFiles', {
+                        name: workbenchProject.displayTitle,
+                    })}
                     title={workbenchProject.rootPath}
                     onClick={() => showSecondarySidebar('secondarySidebar.showFiles')}
                 >
@@ -211,6 +216,7 @@ function StatusBarContext({
 }
 
 export function StatusBar() {
+    const { t } = useTranslation();
     const session = useSelectedSession();
     const workbenchProject = useSelectedWorkbenchProject();
     const sessionId = session?.id;
@@ -251,9 +257,9 @@ export function StatusBar() {
              */}
             <div className="statusbar-actions ml-auto flex min-w-0 shrink items-center gap-2 overflow-x-auto">
                 {degraded && (
-                    <Tooltip content={degraded.detail}>
+                    <Tooltip content={t(degraded.detailKey)}>
                         <span className={cn(statusStateClassName, degraded.className)}>
-                            {degraded.label}
+                            {t(degraded.labelKey)}
                         </span>
                     </Tooltip>
                 )}

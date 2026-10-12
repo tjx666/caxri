@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import type { VisiblePlaceholderRow } from './extension-tree-rows';
 import { loadingPlaceholderRowCount } from './extension-tree-rows';
 
@@ -21,12 +22,13 @@ export function ExtensionTreePlaceholderRow({
     onRetry: () => void;
     row: VisiblePlaceholderRow;
 }) {
+    const { t } = useTranslation();
     if (row.kind === 'loading')
         return (
             <LoadingSkeleton
                 variant="list"
                 indent={8 + row.depth * 14}
-                label="Loading view…"
+                label={t('viewContainers.extensionTree.loading')}
                 rows={loadingPlaceholderRowCount(row)}
             />
         );
@@ -39,15 +41,17 @@ export function ExtensionTreePlaceholderRow({
                 style={{ paddingLeft }}
             >
                 <AlertTriangle size={14} />
-                <span className="min-w-0 flex-1 truncate">Unable to load view: {row.message}</span>
+                <span className="min-w-0 flex-1 truncate">
+                    {t('viewContainers.extensionTree.loadFailed', { message: row.message })}
+                </span>
                 <Button size="sm" variant="ghost" onClick={onRetry}>
-                    Retry
+                    {t('common.retry')}
                 </Button>
             </div>
         );
     return (
         <div className="flex h-7 items-center text-muted" role="status" style={{ paddingLeft }}>
-            No items in this view.
+            {t('viewContainers.extensionTree.empty')}
         </div>
     );
 }

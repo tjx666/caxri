@@ -1,5 +1,6 @@
 import { MAX_TRUSTED_FOLDERS, normalizeTrustedFolderRule } from '@caxri/protocol';
 
+import { useTranslation } from '../../i18n';
 import { RuleListForm } from './rule-list-form';
 
 interface TrustedFoldersFormProperties {
@@ -11,22 +12,25 @@ interface TrustedFoldersFormProperties {
  * Structured Settings editor for absolute folder paths trusted for read-only Terminal file link opens.
  */
 export function TrustedFoldersForm({ rules, onChange }: TrustedFoldersFormProperties) {
+    const { t } = useTranslation();
     return (
         <RuleListForm
-            ariaLabel="Trusted Folders editor"
+            ariaLabel={t('settings.trustedFoldersForm.ariaLabel')}
             // The row above already says what trusting a folder does; repeating it here left the same sentence printed
             // twice on one screen. This line carries only what the row cannot: the shape of an entry.
-            description="Paths must be absolute. A trusted folder covers everything under it."
+            description={t('settings.trustedFoldersForm.description')}
             placeholder="/Users/me/.config"
-            inputLabel="Trusted folder rule"
-            listLabel="Trusted folder rules"
-            emptyText="No user-defined trusted folders."
+            inputLabel={t('settings.trustedFoldersForm.inputLabel')}
+            listLabel={t('settings.trustedFoldersForm.listLabel')}
+            emptyText={t('settings.trustedFoldersForm.empty')}
             normalize={normalizeTrustedFolderRule}
-            invalidMessage="Enter an absolute folder path."
-            duplicateMessage="This folder is already trusted."
+            invalidMessage={t('settings.trustedFoldersForm.invalid')}
+            duplicateMessage={t('settings.trustedFoldersForm.duplicate')}
             maximum={MAX_TRUSTED_FOLDERS}
-            maximumMessage={`Trusted Folders supports at most ${MAX_TRUSTED_FOLDERS} rules.`}
-            removeLabel={(rule) => `Remove trusted folder ${rule}`}
+            maximumMessage={t('settings.trustedFoldersForm.maximum', {
+                maximum: MAX_TRUSTED_FOLDERS,
+            })}
+            removeLabel={(rule) => t('settings.trustedFoldersForm.remove', { rule })}
             rules={rules}
             onChange={onChange}
         />

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import type {
     AnnotationKeyboardContext,
     AnnotationKeyboardInput,
@@ -344,13 +345,13 @@ describe('what a screen reader is told', () => {
     });
 
     it('puts the whole gesture and the current tool in the overlay s description', () => {
-        expect(annotationCanvasDescription('box', 0)).toContain('Box tool, 0 marks.');
-        expect(annotationCanvasDescription('arrow', 1)).toContain('Arrow tool, 1 mark.');
-        expect(annotationCanvasDescription('arrow', 2)).toContain(
+        expect(annotationCanvasDescription('box', 0, translate)).toContain('Box tool, 0 marks.');
+        expect(annotationCanvasDescription('arrow', 1, translate)).toContain('Arrow tool, 1 mark.');
+        expect(annotationCanvasDescription('arrow', 2, translate)).toContain(
             'Press Enter to start an arrow at the keyboard cursor',
         );
         for (const phrase of ['arrow keys to size it', 'Escape to discard it', 'Hold Shift'])
-            expect(annotationCanvasDescription('box', 3)).toContain(phrase);
+            expect(annotationCanvasDescription('box', 3, translate)).toContain(phrase);
     });
 });
 

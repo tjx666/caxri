@@ -1,3 +1,4 @@
+import { translate, useTranslation } from '../../i18n';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { getBootstrap, useProjects, useSessions } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
@@ -29,6 +30,7 @@ export function useAgentActionSessionReferences({
     search: string;
     terminalId: string | undefined;
 }) {
+    const { t } = useTranslation();
     const sessions = useSessions();
     const projects = useProjects();
     const query = sessionReferenceQuery(search);
@@ -43,7 +45,7 @@ export function useAgentActionSessionReferences({
             // The Agent may have exited while the file was written; the reference must not reach the Shell behind it.
             const current = getBootstrap()?.terminals.find(({ id }) => id === terminalId);
             if (reference && !isAgentProcessRunning(current?.lastAgentProcessState))
-                pushToast('error', 'The selected Agent is no longer running.');
+                pushToast('error', translate('agentActions.agentNotRunning'));
             else if (reference)
                 await didSendAgentActionInputSteps(terminalId, [{ data: `${reference} ` }]);
         });
@@ -55,10 +57,9 @@ export function useAgentActionSessionReferences({
          */
         candidateFor: (dataset: DOMStringMap | undefined) =>
             candidates.find((candidate) => candidate.sessionId === dataset?.sessionReference),
-        emptyText:
-            query === undefined
-                ? 'No Agent command or skill found.'
-                : 'No other Session with an Agent conversation matches.',
+        emptyText: t(
+            query === undefined ? 'agentActions.empty.actions' : 'agentActions.empty.sessions',
+        ),
         insert,
         isActive: query !== undefined,
     };

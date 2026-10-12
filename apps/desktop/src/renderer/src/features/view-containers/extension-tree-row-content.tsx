@@ -4,6 +4,7 @@ import type { TreeItemDto } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { ExtensionTreeItemIcon, ExtensionTreeTrailingIcon } from './extension-tree-item-icon';
 import { ExtensionTreeMessage } from './extension-tree-message';
 import { ExtensionTreeRowActions } from './extension-tree-row-actions';
@@ -28,6 +29,7 @@ export function ExtensionTreeRowContent({
     row: VisibleItemRow;
     rowElement: RefObject<HTMLDivElement | null>;
 }) {
+    const { t } = useTranslation();
     const isCollapsible = row.item.collapsibleState !== 'none';
     const isExpanded = row.isExpanded;
     const isMessage = row.item.variant === 'message';
@@ -47,7 +49,12 @@ export function ExtensionTreeRowContent({
             {isCollapsible ? (
                 <button
                     aria-expanded={isExpanded}
-                    aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${row.item.accessibilityLabel}`}
+                    aria-label={t(
+                        isExpanded
+                            ? 'viewContainers.extensionTree.collapseItem'
+                            : 'viewContainers.extensionTree.expandItem',
+                        { label: row.item.accessibilityLabel },
+                    )}
                     className="-m-1 flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted hover:text-foreground"
                     data-tree-disclosure="true"
                     tabIndex={-1}

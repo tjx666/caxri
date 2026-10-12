@@ -2,17 +2,22 @@ import { useMemo } from 'react';
 
 import { parseMarkdownBlocks } from '@caxri/markdown';
 import type { CommanderInboxItem } from '@caxri/protocol';
-import { commanderInboxKindLabel, commanderInboxReplyState } from '@caxri/protocol';
-import { relativeTime } from '@caxri/utils';
+import { commanderInboxReplyState } from '@caxri/protocol';
 import { ExternalLink, GitMerge, MessageSquareReply, SquareArrowOutUpRight } from 'lucide-react';
 
 import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
+import { localizedRelativeTime } from '../../lib/relative-time';
 import { cn } from '../../lib/utilities';
 import { openCommanderPullRequest, revealCommanderSession } from './commander-commands';
-import { commanderInboxMergeState } from './commander-inbox';
+import {
+    commanderInboxKindText,
+    commanderInboxMergeState,
+    commanderInboxReplyText,
+} from './commander-inbox';
 import {
     answerCommanderInboxItem,
     dismissCommanderInboxItem,
@@ -39,6 +44,7 @@ export function CommanderInboxCard({
     item: CommanderInboxItem;
     now: number;
 }) {
+    const { locale, t } = useTranslation();
     const blocks = useMemo(() => parseMarkdownBlocks(item.body), [item.body]);
     const replyState = commanderInboxReplyState(item);
     return (
@@ -60,15 +66,15 @@ export function CommanderInboxCard({
                     {item.title}
                 </span>
                 <span className="flex-none text-[11px] text-muted">
-                    {relativeTime(item.updatedAt, now, 'narrow')}
+                    {localizedRelativeTime(item.updatedAt, now, 'narrow', locale)}
                 </span>
             </div>
             <div className="flex min-w-0 items-center gap-1 text-[11px] text-muted">
-                <span>{commanderInboxKindLabel(item.kind)}</span>
+                <span>{commanderInboxKindText(item.kind, t)}</span>
                 {item.pullRequest && (
                     <>
                         <span aria-hidden="true">·</span>
-                        <Tooltip content="Open the pull request in the browser">
+                        <Tooltip content={t('agentCommander.inbox.openPullRequest')}>
                             <button
                                 type="button"
                                 className="flex min-w-0 cursor-pointer items-center gap-0.5 truncate hover:text-foreground"
@@ -83,13 +89,13 @@ export function CommanderInboxCard({
                 {item.sessionId && (
                     <>
                         <span aria-hidden="true">·</span>
-                        <Tooltip content="Show this Session in the Workbench">
+                        <Tooltip content={t('agentCommander.inbox.showSession')}>
                             <button
                                 type="button"
                                 className="flex cursor-pointer items-center gap-0.5 hover:text-foreground"
                                 onClick={() => revealCommanderSession(item.sessionId!)}
                             >
-                                Session
+                                {t('agentCommander.inbox.session')}
                                 <SquareArrowOutUpRight size={10} />
                             </button>
                         </Tooltip>
@@ -119,7 +125,7 @@ export function CommanderInboxCard({
                                 replyState.isRead ? 'text-success' : 'text-muted',
                             )}
                         >
-                            {replyState.label}
+                            {commanderInboxReplyText(replyState, t)}
                         </li>
                     )}
                 </ul>
@@ -134,13 +140,14 @@ export function CommanderInboxCard({
  * answer anything else.
  */
 function CommanderInboxOptions({ item }: { item: CommanderInboxItem }) {
+    const { t } = useTranslation();
     const isAnswering = useCommanderInboxUiStore(
         (state) => state.pendingActions[item.id] === 'answer',
     );
     return (
         <div
             aria-busy={isAnswering}
-            aria-label="Answers"
+            aria-label={t('agentCommander.inbox.answers')}
             className="commander-inbox-options flex flex-wrap gap-1"
             role="group"
         >
@@ -165,7 +172,8 @@ function CommanderInboxOptions({ item }: { item: CommanderInboxItem }) {
 }
 
 function CommanderInboxActions({ item }: { item: CommanderInboxItem }) {
-    const merge = item.kind === 'merge' ? commanderInboxMergeState(item) : undefined;
+    const { t } = useTranslation();
+    const merge = item.kind === 'merge' ? commanderInboxMergeState(item, t) : undefined;
     const isMerging = useCommanderInboxUiStore(
         (state) => state.pendingActions[item.id] === 'merge',
     );
@@ -175,8 +183,8 @@ function CommanderInboxActions({ item }: { item: CommanderInboxItem }) {
                 <Tooltip
                     content={
                         isMerging
-                            ? 'Merging…'
-                            : (merge.reason ?? 'Merge the commit the Commander verified')
+                            ? t('agentCommander.inbox.merging')
+                            : (merge.reason ?? t('agentCommander.inbox.mergeTooltip'))
                     }
                 >
                     <span>
@@ -197,7 +205,11 @@ function CommanderInboxActions({ item }: { item: CommanderInboxItem }) {
                             ) : (
                                 <GitMerge size={13} />
                             )}
-                            {isMerging ? 'Merging…' : 'Merge'}
+                            {t(
+                                isMerging
+                                    ? 'agentCommander.inbox.merging'
+                                    : 'agentCommander.inbox.merge',
+                            )}
                         </Button>
                     </span>
                 </Tooltip>
@@ -209,7 +221,7 @@ function CommanderInboxActions({ item }: { item: CommanderInboxItem }) {
                 onClick={() => chooseCommanderInboxReplyTarget(item.id)}
             >
                 <MessageSquareReply size={13} />
-                Reply
+                {t('agentCommander.inbox.reply')}
             </Button>
             <Button
                 size="sm"
@@ -221,7 +233,7 @@ function CommanderInboxActions({ item }: { item: CommanderInboxItem }) {
                     void dismissCommanderInboxItem(item);
                 }}
             >
-                Dismiss
+                {t('common.dismiss')}
             </Button>
             {merge?.label && (
                 <span

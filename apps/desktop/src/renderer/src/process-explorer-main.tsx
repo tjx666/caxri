@@ -16,9 +16,9 @@ createRoot(document.querySelector('#root')!).render(
     <StrictMode>
         <I18nProvider preference={undefined}>
             <ErrorBoundary
-                title="Process Explorer stopped rendering"
-                description="Reload Process Explorer to resume live diagnostics."
-                reloadLabel="Reload Process Explorer"
+                titleKey="core.errorBoundary.processExplorer.title"
+                descriptionKey="core.errorBoundary.processExplorer.description"
+                reloadLabelKey="core.errorBoundary.processExplorer.reload"
                 logScope="Process Explorer"
             >
                 <ProcessExplorerRoot />

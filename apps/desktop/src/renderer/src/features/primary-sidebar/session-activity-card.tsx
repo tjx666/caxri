@@ -13,6 +13,7 @@ import { Circle } from 'lucide-react';
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
+import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
@@ -51,12 +52,16 @@ function SessionPullRequestLink({
     pullRequest: SessionPullRequest;
     presentation: ReturnType<typeof sessionPullRequestPresentation>;
 }) {
+    const { t } = useTranslation();
     return (
         <a
             className="mt-2 flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1.5 text-[11px] text-foreground no-underline hover:bg-elevated"
             href={pullRequest.url}
             rel="noreferrer"
-            aria-label={`Open pull request #${pullRequest.number}: ${pullRequest.title}`}
+            aria-label={t('primarySidebar.card.openPullRequestAriaLabel', {
+                number: pullRequest.number,
+                title: pullRequest.title,
+            })}
             onClick={(event) => {
                 // Main denies window navigation; this semantic link uses the shared external.open action.
                 event.preventDefault();
@@ -97,6 +102,7 @@ function SessionPullRequestDetails({
     presentation?: ReturnType<typeof sessionPullRequestPresentation>;
     unavailable?: PullRequestUnavailable;
 }) {
+    const { t } = useTranslation();
     if (unavailable)
         return (
             <div className="mt-2 text-[11px] leading-[1.45] text-muted">
@@ -105,7 +111,7 @@ function SessionPullRequestDetails({
                  * contradicted the chip sitting on the same screen, which has named them apart since `7763bd34`.
                  */}
                 <span className="font-medium">
-                    {pullRequestUnavailableLabel(unavailable.reason)}
+                    {pullRequestUnavailableLabel(unavailable.reason, t)}
                 </span>
                 <p className="mt-0.5 mb-0">{unavailable.hint}</p>
             </div>
@@ -151,6 +157,7 @@ export function SessionActivityCard({
     worktreeProject?: ProjectRecord;
 }) {
     const accessibleDescriptionId = useId();
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const agent = terminal?.kind ?? 'shell';
     const activity = currentSessionActivityPresentation(session, {
@@ -161,7 +168,9 @@ export function SessionActivityCard({
     const agentLabel = resolveAgentIcon(agent).label;
     const lastOpened = useRelativeTime(session.lastOpenedAt);
     const unreadAttention = unreadAttentionPresentation(session);
-    const unread = unreadAttention ? `Unread attention: ${unreadAttention.label}` : undefined;
+    const unread = unreadAttention
+        ? t('primarySidebar.card.unreadAttention', { label: unreadAttention.label })
+        : undefined;
     const pullRequestPresentation = pullRequest
         ? sessionPullRequestPresentation(pullRequest)
         : undefined;
@@ -170,16 +179,18 @@ export function SessionActivityCard({
     const accessibleDescription = [
         // The pin has no visible mark on the row itself (it is the group the row sits in) and a pinned Session is
         // listed only there, so this sentence is the only thing that says the row is pinned at all.
-        inPinnedGroup && 'In Pinned group.',
-        `Project ${project.displayTitle}.`,
-        `Agent ${agentLabel}.`,
+        inPinnedGroup && t('primarySidebar.card.inPinnedGroup'),
+        t('primarySidebar.card.projectSentence', { title: project.displayTitle }),
+        t('primarySidebar.card.agentSentence', { agent: agentLabel }),
         activity.ariaLabel,
         !pullRequestUnavailable && pullRequestPresentation?.ariaLabel,
-        pullRequestUnavailable && `Pull request unknown. ${pullRequestUnavailable.hint}`,
-        worktreeProject && `Working in worktree ${worktreeProject.displayTitle}.`,
+        pullRequestUnavailable &&
+            t('primarySidebar.card.pullRequestUnknown', { hint: pullRequestUnavailable.hint }),
+        worktreeProject &&
+            t('primarySidebar.card.worktreeSentence', { title: worktreeProject.displayTitle }),
         changes?.ariaLabel,
-        `Last opened ${lastOpened}.`,
-        unread ? `${unread}.` : undefined,
+        t('primarySidebar.card.lastOpenedSentence', { time: lastOpened }),
+        unread ? t('primarySidebar.card.sentence', { text: unread }) : undefined,
     ]
         .filter(Boolean)
         .join(' ');
@@ -253,7 +264,7 @@ export function SessionActivityCard({
                 />
                 {worktreeProject && (
                     <div className="session-card-worktree mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
-                        <span className="flex-none">Worktree</span>
+                        <span className="flex-none">{t('primarySidebar.card.worktree')}</span>
                         <span className="min-w-0 truncate text-right text-foreground">
                             {worktreeProject.displayTitle}
                         </span>
@@ -261,14 +272,14 @@ export function SessionActivityCard({
                 )}
                 {changes && (
                     <div className="session-card-changes mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
-                        <span className="flex-none">Changes</span>
+                        <span className="flex-none">{t('primarySidebar.card.changes')}</span>
                         <span className="text-right text-foreground tabular-nums">
                             {changes.value}
                         </span>
                     </div>
                 )}
                 <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
-                    <span>Last opened</span>
+                    <span>{t('primarySidebar.card.lastOpened')}</span>
                     <span className="text-right text-foreground">{lastOpened}</span>
                 </div>
                 {unread && unreadAttention && (

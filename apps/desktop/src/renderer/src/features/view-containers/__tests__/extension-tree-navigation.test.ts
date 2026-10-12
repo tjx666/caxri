@@ -1,6 +1,7 @@
 import type { TreeItemDto } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     extensionTreeActionsHint,
     extensionTreeHorizontalIntent,
@@ -217,11 +218,11 @@ describe('extensionTreeActionsHint', () => {
     const actions = [{ command: { title: 'Merge Pull Request' }, tooltip: 'Checks still running' }];
 
     it('promises Right Arrow only where Right reaches the actions', () => {
-        expect(extensionTreeActionsHint(actions, false)).toBe(
+        expect(extensionTreeActionsHint(actions, false, translate)).toBe(
             'Actions: Merge Pull Request (Checks still running). Press Right Arrow to reach them, or Shift+F10 for a menu.',
         );
         // A collapsed branch expands on the first Right, so the hint must say so.
-        expect(extensionTreeActionsHint(actions, true)).toContain(
+        expect(extensionTreeActionsHint(actions, true, translate)).toContain(
             'Press Right Arrow to expand the row, then Right Arrow again to reach them, or Shift+F10 for a menu.',
         );
     });

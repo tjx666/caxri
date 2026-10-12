@@ -8,6 +8,7 @@ import {
     Rocket,
 } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { SessionPullRequestIcon } from './session-pull-request';
 import {
@@ -36,6 +37,9 @@ export function SessionPullRequestIndicator({
     className?: string;
     pullRequest?: SessionPullRequest;
 }) {
+    // `sessionPullRequestPresentation` words its labels through `translate()`; subscribing re-renders them on a language
+    // change.
+    useTranslation();
     if (!pullRequest) return null;
     const presentation = sessionPullRequestPresentation(pullRequest);
     const Icon = ICONS[presentation.icon];

@@ -1,0 +1,18 @@
+export const settingsKeybindings = {
+    'settings.keybindingEditor.customCategory': 'Custom',
+    'settings.keybindingEditor.searchLabel': 'Search keyboard shortcuts',
+    'settings.keybindingEditor.searchPlaceholder': 'Search commands or shortcuts',
+    'settings.keybindingEditor.clearSearch': 'Clear Search',
+    'settings.keybindingEditor.clearSearchLabel': 'Clear keyboard shortcut search',
+    'settings.keybindingEditor.count': '{{visible}} of {{total}} shortcuts',
+    'settings.keybindingEditor.empty': 'No keyboard shortcuts found.',
+    'settings.keybindingEditor.neverFires': 'Never fires: {{shortcut}} starts a chord sequence',
+    'settings.keybindingEditor.conflictsWith': 'Conflicts with {{commands}}',
+    'settings.keybindingEditor.editShortcutFor': 'Edit shortcut for {{command}}',
+    'settings.keybindingEditor.addShortcutFor': 'Add shortcut for {{command}}',
+    'settings.keybindingEditor.recordingHint': 'Enter save · ⌫ clear · Esc cancel',
+    'settings.keybindingEditor.pressShortcut': 'Press shortcut · Esc to cancel',
+    'settings.keybindingEditor.addShortcut': 'Add Shortcut',
+    'settings.keybindingEditor.removeShortcutFor': 'Remove shortcut for {{command}}',
+    'settings.keybindingEditor.resetShortcutFor': 'Reset shortcut for {{command}}',
+} as const;

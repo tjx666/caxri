@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { translate, useLocaleStore } from '../../../i18n';
 import type { SettingRowDescriptor, SettingsCategory } from '../settings-registry';
-import { settingsCategories, settingsRows } from '../settings-registry';
+import { getSettingsRegistry } from '../settings-registry';
 import { buildSettingsList, countRowsByCategory, filterSettingsRows } from '../settings-search';
 
 const row = (
@@ -18,6 +19,8 @@ const row = (
     binding: { type: 'setting', key: 'terminal.fontSize' },
     haystack,
 });
+
+const { categories: settingsCategories, rows: settingsRows } = getSettingsRegistry(translate);
 
 const categories: SettingsCategory[] = [
     { id: 'general', title: 'General', subcategories: [] },
@@ -81,6 +84,41 @@ describe('filterSettingsRows', () => {
                 filterSettingsRows(settingsRows, query).map((r) => r.id),
                 query,
             ).toContain('security.remoteDebugging');
+    });
+});
+
+describe('settings search in Simplified Chinese', () => {
+    afterEach(() => useLocaleStore.setState({ locale: 'en' }));
+
+    /**
+     * The haystack keeps the English corpus beside the active locale's text, so a Chinese reader can search in Chinese
+     * while an English keyword (or a setting key copied from `settings.jsonc`) still finds the row.
+     */
+    it('matches both the translated text and the English source', () => {
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        const { rows } = getSettingsRegistry(translate);
+        const terminalFontSize = rows.find((r) => r.id === 'terminal.fontSize');
+        expect(terminalFontSize?.title).toBe('字号');
+        for (const query of ['字号', '终端 字号', 'font size', 'terminal.fontSize'])
+            expect(
+                filterSettingsRows(rows, query).map((r) => r.id),
+                query,
+            ).toContain('terminal.fontSize');
+        expect(filterSettingsRows(rows, '硬件加速').map((r) => r.id)).toContain(
+            'terminal.hardwareAcceleration',
+        );
+        expect(filterSettingsRows(rows, 'hardware acceleration').map((r) => r.id)).toContain(
+            'terminal.hardwareAcceleration',
+        );
+    });
+
+    it('keeps accessible names unique in the translated registry', () => {
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        const names = getSettingsRegistry(translate)
+            .rows.filter((r) => r.binding.type === 'setting')
+            .map((r) => r.accessibleTitle);
+        expect(names.filter((name, index) => names.indexOf(name) !== index)).toEqual([]);
+        expect(names).toContain('终端 字号');
     });
 });
 

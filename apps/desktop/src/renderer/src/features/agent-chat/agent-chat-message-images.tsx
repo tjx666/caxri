@@ -4,6 +4,7 @@ import { ImageIcon } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { agentChatAttachmentLabel } from './agent-chat-drafts';
 import {
@@ -53,6 +54,7 @@ function MessageImage({
     message: { terminalId: string; itemId: string } | undefined;
     thumbnail: string | undefined;
 }) {
+    const { t } = useTranslation();
     const [isPreviewOpen, setPreviewOpen] = useState(false);
     const record = message && { ...message, index };
     const restored = useAgentChatImageThumbnail(thumbnail ? undefined : record);
@@ -62,9 +64,9 @@ function MessageImage({
     if (!source) {
         if (restored.status === 'unavailable') {
             return (
-                <Tooltip content="Image no longer available">
+                <Tooltip content={t('agentChat.message.imageUnavailable')}>
                     <div
-                        aria-label={`${label}, no longer available`}
+                        aria-label={t('agentChat.message.imageUnavailableLabel', { label })}
                         className={TILE_CLASS_NAME}
                         role="img"
                     >
@@ -90,7 +92,7 @@ function MessageImage({
     return (
         <>
             <button
-                aria-label={`Preview ${label}`}
+                aria-label={t('agentChat.message.previewImage', { label })}
                 className="cursor-zoom-in rounded-md border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-foreground"
                 type="button"
                 onClick={() => setPreviewOpen(true)}

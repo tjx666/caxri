@@ -55,8 +55,7 @@ import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
-import { createMenuKeybindingFailureInjection } from './menu-keybinding-failure';
-import { createMenuRefreshController } from './menu-refresh';
+import { createMenuRefreshController, createMenuStateLoader } from './menu-refresh';
 import { createOnDemandWindows } from './on-demand-windows';
 import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
@@ -166,7 +165,11 @@ if (ownsProfileInstance) {
     const e2eAgentPolicy = readE2EAgentPolicy();
     const menuRefreshController = createMenuRefreshController({
         applyKeybindings: installMenu,
-        loadKeybindings: loadMenuKeybindings,
+        loadKeybindings: createMenuStateLoader(
+            () => supervisor,
+            // Chromium's locale, which honors `--lang` like the Renderer's `navigator.language` does.
+            () => [app.getLocale()],
+        ),
     });
     const eventRelay = createMainEventRelay({
         deliver: (message) => {
@@ -527,11 +530,6 @@ if (ownsProfileInstance) {
             companion: agentCommander?.companion(),
             transport: dispatchCommand,
         });
-    }
-
-    const injectMenuKeybindingFailure = createMenuKeybindingFailureInjection();
-    async function loadMenuKeybindings(): Promise<Keybinding[]> {
-        return injectMenuKeybindingFailure((await supervisor.request('keybindings.get')).value);
     }
 
     function installMenu(keybindings: Keybinding[]): void {

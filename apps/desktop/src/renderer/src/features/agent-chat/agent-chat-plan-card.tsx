@@ -4,6 +4,8 @@ import type { AgentChatPlan } from '@caxri/protocol';
 import { Check, ChevronDown, Circle, CircleDot, ListTodo } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
+import type { Translate } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
 import { agentChatPlanProgress, withOccurrenceKeys } from './agent-chat-presentation';
@@ -15,20 +17,21 @@ const MAX_PROGRESS_SEGMENTS = 10;
 
 type PlanStepStatus = AgentChatPlan['steps'][number]['status'];
 
-function planStepGlyph(status: PlanStepStatus, isTurnRunning: boolean) {
+function planStepGlyph(status: PlanStepStatus, isTurnRunning: boolean, t: Translate) {
+    const label = t(`agentChat.plan.${status}`);
     switch (status) {
         case 'completed': {
-            return <Check aria-label="Completed" className="size-3.5 text-success" role="img" />;
+            return <Check aria-label={label} className="size-3.5 text-success" role="img" />;
         }
         case 'inProgress': {
             return isTurnRunning ? (
-                <Spinner aria-label="In progress" className="size-3.5 text-muted" />
+                <Spinner aria-label={label} className="size-3.5 text-muted" />
             ) : (
-                <CircleDot aria-label="In progress" className="size-3.5 text-muted" role="img" />
+                <CircleDot aria-label={label} className="size-3.5 text-muted" role="img" />
             );
         }
         case 'pending': {
-            return <Circle aria-label="Pending" className="size-3.5 text-muted" role="img" />;
+            return <Circle aria-label={label} className="size-3.5 text-muted" role="img" />;
         }
     }
 }
@@ -47,24 +50,31 @@ export function AgentChatPlanCard({
     plan: AgentChatPlan;
     isTurnRunning: boolean;
 }) {
+    const { t } = useTranslation();
     const [isExpanded, setExpanded] = useState(false);
     const { completed, total, current } = agentChatPlanProgress(plan);
     const isDone = total > 0 && completed === total;
     const steps = withOccurrenceKeys(plan.steps, (step) => step.step);
     return (
         <section
-            aria-label="Plan"
+            aria-label={t('agentChat.plan.label')}
             className="shrink-0 rounded-lg border border-border bg-surface text-[12px] leading-5"
         >
             <button
                 aria-expanded={isExpanded}
-                aria-label={`Plan: ${completed} of ${total} steps done${current ? `. Current step: ${current}` : ''}`}
+                aria-label={
+                    current
+                        ? t('agentChat.plan.progressWithCurrent', { completed, total, current })
+                        : t('agentChat.plan.progress', { completed, total })
+                }
                 className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-3 text-left text-muted hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                 type="button"
                 onClick={() => setExpanded((expanded) => !expanded)}
             >
                 <ListTodo aria-hidden className="size-3.5 shrink-0" />
-                <span className="shrink-0 font-semibold text-foreground">Plan</span>
+                <span className="shrink-0 font-semibold text-foreground">
+                    {t('agentChat.plan.label')}
+                </span>
                 {!isExpanded && current && <span className="min-w-0 truncate">{current}</span>}
                 <span className="ml-auto flex shrink-0 items-center gap-2">
                     {total <= MAX_PROGRESS_SEGMENTS && (
@@ -104,7 +114,7 @@ export function AgentChatPlanCard({
                         {steps.map(({ item: step, key }) => (
                             <li className="flex items-start gap-2" key={key}>
                                 <span className="mt-0.5 shrink-0">
-                                    {planStepGlyph(step.status, isTurnRunning)}
+                                    {planStepGlyph(step.status, isTurnRunning, t)}
                                 </span>
                                 <span
                                     className={cn(

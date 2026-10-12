@@ -4,6 +4,7 @@ import type { UsageSessionRow } from '@caxri/protocol';
 
 import { Tooltip } from '../../components/ui/tooltip';
 import { useIsOverflowing } from '../../hooks/use-is-overflowing';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { openSession } from '../session/session-commands';
 import { canOpenUsageSession } from './usage-metrics';
@@ -14,6 +15,7 @@ import { canOpenUsageSession } from './usage-metrics';
  * title raises the shared Tooltip with the full name; an unclipped one would only repeat what is already on screen.
  */
 export function UsageSessionTitle({ row }: { row: UsageSessionRow }) {
+    const { t } = useTranslation();
     const reference = useRef<HTMLElement>(null);
     const isClipped = useIsOverflowing(reference, row.title);
     const canOpen = canOpenUsageSession(row);
@@ -26,7 +28,7 @@ export function UsageSessionTitle({ row }: { row: UsageSessionRow }) {
                         reference.current = element;
                     }}
                     type="button"
-                    aria-label={`Open Session ${row.title}`}
+                    aria-label={t('usage.sessions.open', { title: row.title })}
                     className={cn(
                         className,
                         'cursor-pointer rounded-sm border-0 bg-transparent p-0 text-left text-[12px] text-foreground hover:underline focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',

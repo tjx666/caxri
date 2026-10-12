@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 
 /**
@@ -14,17 +15,22 @@ export function ProcessFooter({
     isLive: boolean;
     sampledAt?: number;
 }) {
+    const { locale, t } = useTranslation();
     return (
         <footer className="flex items-center gap-1.5 border-t border-border px-3 text-[11px] text-muted">
             <span
                 aria-hidden="true"
                 className={cn('size-1.5 rounded-full', isLive ? 'bg-success' : 'bg-muted')}
             />
-            Live · updates every {intervalSeconds} seconds
+            {t('processExplorer.footer.live', { seconds: intervalSeconds })}
             <span className="ml-auto tabular-nums">
                 {sampledAt === undefined
-                    ? 'No current sample'
-                    : `Updated ${new Date(sampledAt).toLocaleTimeString('en-US')}`}
+                    ? t('processExplorer.footer.noSample')
+                    : t('processExplorer.footer.updated', {
+                          time: new Date(sampledAt).toLocaleTimeString(
+                              locale === 'en' ? 'en-US' : locale,
+                          ),
+                      })}
             </span>
         </footer>
     );

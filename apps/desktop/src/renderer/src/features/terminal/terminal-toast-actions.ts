@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { getBootstrap } from '../../stores/selectors';
 import type { ToastActionHandlers } from '../../stores/toast-actions';
 import {
@@ -24,20 +25,20 @@ export const terminalToastActionHandlers: Pick<
          */
         unavailable: ({ processId, terminalId }) => {
             const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
-            if (!terminal) return 'That Terminal is no longer open.';
+            if (!terminal) return translate('terminal.toastAction.notOpen');
             return terminal.processId === processId
                 ? undefined
-                : 'That Terminal has already been restarted.';
+                : translate('terminal.toastAction.alreadyRestarted');
         },
         run: ({ terminalId }) => restartTerminalWithRecovery(terminalId),
     },
     'terminal.stopRunaway': {
         unavailable: ({ processId, terminalId }) => {
             const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
-            if (!terminal) return 'That Terminal is no longer open.';
+            if (!terminal) return translate('terminal.toastAction.notOpen');
             return terminal.processId === processId
                 ? undefined
-                : 'That Terminal is no longer running the process that was using too many resources.';
+                : translate('terminal.toastAction.processChanged');
         },
         run: ({ terminalId }) => {
             dismissTerminalResourceAlert(terminalId);

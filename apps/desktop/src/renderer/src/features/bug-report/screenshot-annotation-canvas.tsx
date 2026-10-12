@@ -4,7 +4,9 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { clamp } from 'es-toolkit';
 import { X } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import { BUG_REPORT_SCREENSHOT_ALT_KEY } from './bug-report-screenshot-field';
 import { ScreenshotAnnotationCursor } from './screenshot-annotation-cursor';
 import type { AnnotationKeyboardState } from './screenshot-annotation-keyboard';
 import {
@@ -124,6 +126,7 @@ function AnnotationBadge({
     onSelect: () => void;
     width: number;
 }) {
+    const { t } = useTranslation();
     const point = annotationBadgePoint(annotation);
     return (
         <div
@@ -135,7 +138,7 @@ function AnnotationBadge({
         >
             <button
                 type="button"
-                aria-label={`Select annotation ${index + 1}`}
+                aria-label={t('bugReport.annotations.select', { number: index + 1 })}
                 aria-pressed={isSelected}
                 className={cn(
                     'pointer-events-auto grid size-6 cursor-pointer place-items-center rounded-full border-0 p-0 text-[11px] font-semibold',
@@ -148,7 +151,7 @@ function AnnotationBadge({
             </button>
             <button
                 type="button"
-                aria-label={`Delete annotation ${index + 1}`}
+                aria-label={t('bugReport.annotations.delete', { number: index + 1 })}
                 className="pointer-events-auto grid size-5 cursor-pointer place-items-center rounded-full border border-border bg-surface p-0 text-muted hover:text-foreground"
                 onClick={onRemove}
             >
@@ -197,6 +200,7 @@ export function ScreenshotAnnotationCanvas({
     tool,
     width,
 }: ScreenshotAnnotationCanvasProperties) {
+    const { t } = useTranslation();
     const imageReference = useRef<HTMLImageElement>(null);
     const surfaceReference = useRef<SVGSVGElement>(null);
     const [draft, setDraft] = useState<AnnotationSegment>();
@@ -288,7 +292,7 @@ export function ScreenshotAnnotationCanvas({
         <div className="relative inline-block max-w-full">
             <img
                 ref={imageReference}
-                alt="Unredacted screenshot of the current Caxri window, including any open files and terminal output"
+                alt={t(BUG_REPORT_SCREENSHOT_ALT_KEY)}
                 className="block max-h-[70vh] max-w-full rounded border border-border object-contain"
                 height={height}
                 src={source}
@@ -299,7 +303,7 @@ export function ScreenshotAnnotationCanvas({
                 aria-describedby={descriptionId}
                 // The name is the control, not a how-to: it used to read "Drag to mark an area", which told a keyboard
                 // user to do the one thing they cannot. The gesture moved into the description below.
-                aria-label="Screenshot annotation canvas"
+                aria-label={t('bugReport.annotations.canvas')}
                 className={cn(
                     'group absolute inset-0 size-full touch-none outline-none',
                     // A Tab stop has to show where focus is. `outline-none` sets Tailwind v4's `--tw-outline-style`,
@@ -348,7 +352,7 @@ export function ScreenshotAnnotationCanvas({
                 ))}
             </div>
             <span id={descriptionId} className="sr-only">
-                {annotationCanvasDescription(tool, annotations.length)}
+                {annotationCanvasDescription(tool, annotations.length, t)}
             </span>
             {/* Drawing has no visible text of its own, so the geometry a sighted user reads off the overlay reaches a
                 screen reader here instead. */}

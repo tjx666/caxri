@@ -10,6 +10,7 @@ import {
 import { FieldDescription, FieldLabel } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
+import { useTranslation } from '../../i18n';
 import { parseRecoveryDelay, parseRecoveryPatterns } from './provider-recovery-values';
 
 interface ProviderRecoveryEditorProperties {
@@ -48,6 +49,7 @@ function RecoveryDelayInput({
     value,
     onChange,
 }: RecoveryDelayInputProperties) {
+    const { t } = useTranslation();
     const canonical = String(value);
     const [draftState, setDraftState] = useState<FieldDraft>({
         canonical,
@@ -59,7 +61,10 @@ function RecoveryDelayInput({
         if (next === undefined) {
             setDraftState({
                 ...draft,
-                error: `Enter an integer from ${MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS} to ${MAX_AGENT_OUTPUT_RECOVERY_DELAY_MS} ms.`,
+                error: t('settings.providerRecovery.delayRange', {
+                    min: MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS,
+                    max: MAX_AGENT_OUTPUT_RECOVERY_DELAY_MS,
+                }),
             });
             return;
         }
@@ -71,7 +76,10 @@ function RecoveryDelayInput({
             <span>{label}</span>
             <span className="relative">
                 <Input
-                    aria-label={`${providerName} ${label}`}
+                    aria-label={t('settings.providerRecovery.delayAriaLabel', {
+                        provider: providerName,
+                        label,
+                    })}
                     aria-invalid={Boolean(draft.error)}
                     className="bg-background pr-9 text-foreground"
                     max={MAX_AGENT_OUTPUT_RECOVERY_DELAY_MS}
@@ -106,6 +114,7 @@ export function ProviderRecoveryEditor({
     value,
     onChange,
 }: ProviderRecoveryEditorProperties) {
+    const { t } = useTranslation();
     const providerName = agentProviderCatalog[provider].displayName;
     const canonicalPatterns = value.patterns.join('\n');
     const [patternDraftState, setPatternDraftState] = useState<FieldDraft>({
@@ -115,7 +124,7 @@ export function ProviderRecoveryEditor({
     const patternDraft = currentDraft(patternDraftState, canonicalPatterns);
 
     const commitPatterns = (): void => {
-        const result = parseRecoveryPatterns(patternDraft.value);
+        const result = parseRecoveryPatterns(t, patternDraft.value);
         if (!result.ok) {
             setPatternDraftState({ ...patternDraft, error: result.error });
             return;
@@ -130,11 +139,13 @@ export function ProviderRecoveryEditor({
                 <div className="flex flex-col gap-3 rounded-md border border-border bg-elevated p-3">
                     <div className="flex flex-col gap-1">
                         <FieldLabel htmlFor={`${id}-patterns`}>
-                            Additional ending output patterns
+                            {t('settings.providerRecovery.patternsLabel')}
                         </FieldLabel>
                         <Textarea
                             id={`${id}-patterns`}
-                            aria-label={`${providerName} additional ending output patterns`}
+                            aria-label={t('settings.providerRecovery.patternsAriaLabel', {
+                                provider: providerName,
+                            })}
                             aria-invalid={Boolean(patternDraft.error)}
                             className="min-h-24 bg-background font-mono text-foreground"
                             placeholder={RECOVERY_PATTERN_PLACEHOLDERS[provider]}
@@ -148,13 +159,11 @@ export function ProviderRecoveryEditor({
                             }}
                         />
                         <FieldDescription>
-                            One phrase per line, matched at the end of the Agent&apos;s output,
-                            ignoring case. Caxri already recognizes common network errors for this
-                            Agent. Checked once the Terminal stops printing.
+                            {t('settings.providerRecovery.patternsDescription')}
                         </FieldDescription>
                         {value.patterns.length === 0 && !patternDraft.error && (
                             <p className="m-0 text-[11px] text-muted" role="status">
-                                No additional patterns configured.
+                                {t('settings.providerRecovery.noPatterns')}
                             </p>
                         )}
                         {patternDraft.error && (
@@ -165,13 +174,13 @@ export function ProviderRecoveryEditor({
                     </div>
                     <div className="flex gap-3">
                         <RecoveryDelayInput
-                            label="Wait before Esc"
+                            label={t('settings.providerRecovery.waitBeforeEsc')}
                             providerName={providerName}
                             value={value.settleDelayMs}
                             onChange={(settleDelayMs) => onChange({ ...value, settleDelayMs })}
                         />
                         <RecoveryDelayInput
-                            label="Wait before Continue"
+                            label={t('settings.providerRecovery.waitBeforeContinue')}
                             providerName={providerName}
                             value={value.continueDelayMs}
                             onChange={(continueDelayMs) => onChange({ ...value, continueDelayMs })}

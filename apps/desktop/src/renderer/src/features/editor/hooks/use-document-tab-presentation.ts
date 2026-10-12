@@ -7,6 +7,7 @@ import {
 } from '@caxri/protocol';
 import { useShallow } from 'zustand/react/shallow';
 
+import { useTranslation } from '../../../i18n';
 import { useTerminal } from '../../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../../stores/session-view';
 import { useCachedAgentChatTask } from '../../agent-chat/hooks/use-agent-chat-task';
@@ -22,6 +23,7 @@ const noDisplayPaths: readonly string[] = [];
  * follows its stable semantic title, never a PTY window title.
  */
 export function useDocumentTabPresentation(path: string, displayPath: string | undefined) {
+    const { t } = useTranslation();
     const session = usePaneViewSession();
     const documentScope = session
         ? sessionViewScope(session.id, session.workbenchProjectId)
@@ -49,15 +51,19 @@ export function useDocumentTabPresentation(path: string, displayPath: string | u
                 .filter((value): value is string => Boolean(value));
         }),
     );
-    return documentTabPresentation(path, {
-        agentName: statusTerminal?.provider
-            ? agentProviderCatalog[statusTerminal.provider].displayName
-            : undefined,
-        agentTerminalTitle: statusTerminal?.title,
-        displayPath,
-        externalDisplayPaths,
-        previewSourceDisplayPath,
-        transcriptTitle: transcriptTerminal?.title,
-        task,
-    });
+    return documentTabPresentation(
+        path,
+        {
+            agentName: statusTerminal?.provider
+                ? agentProviderCatalog[statusTerminal.provider].displayName
+                : undefined,
+            agentTerminalTitle: statusTerminal?.title,
+            displayPath,
+            externalDisplayPaths,
+            previewSourceDisplayPath,
+            transcriptTitle: transcriptTerminal?.title,
+            task,
+        },
+        t,
+    );
 }

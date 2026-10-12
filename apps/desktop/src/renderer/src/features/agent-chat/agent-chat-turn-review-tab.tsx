@@ -7,6 +7,7 @@ import { DiffStat } from '../../components/diff-stat';
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { projectRelativePath } from '../../lib/file-path';
 import { useCaxriQuery } from '../../queries/client';
 import { usePaneViewSession } from '../workbench/pane-view-session';
@@ -39,15 +40,17 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
         [items, turnId],
     );
     const comments = useAgentChatReviewComments({ files, projectRoot, terminalId });
-    if (chat.isPending) return <LoadingSkeleton variant="document" label="Loading changes…" />;
+    const { t } = useTranslation();
+    if (chat.isPending)
+        return <LoadingSkeleton variant="document" label={t('agentChat.review.loading')} />;
     if (chat.isError)
-        return <div className={STATE_CLASS_NAME}>This Chat is no longer available to review.</div>;
+        return <div className={STATE_CLASS_NAME}>{t('agentChat.review.unavailable')}</div>;
     if (files.length === 0)
         return (
             <div className={STATE_CLASS_NAME}>
-                This turn has no file changes to review.
+                {t('agentChat.review.noChanges')}
                 <Button size="sm" variant="secondary" onClick={() => revealAgentChat(terminalId)}>
-                    Back to Chat
+                    {t('agentChat.review.backToChat')}
                 </Button>
             </div>
         );
@@ -59,10 +62,12 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
             <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2">
                 <div className="min-w-0 flex-1">
                     <h2 className="m-0 text-[13px] leading-5 font-semibold text-foreground">
-                        Turn changes
+                        {t('agentChat.review.title')}
                     </h2>
                     <p className="m-0 flex items-center gap-2 text-[11px] leading-4 text-muted">
-                        {files.length === 1 ? '1 file' : `${files.length} files`}
+                        {files.length === 1
+                            ? t('agentChat.review.fileCountOne')
+                            : t('agentChat.review.fileCountOther', { count: files.length })}
                         <DiffStat additions={stat.additions} deletions={stat.deletions} />
                     </p>
                 </div>
@@ -73,7 +78,7 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
                     onClick={() => revealAgentChat(terminalId)}
                 >
                     <ArrowLeft aria-hidden="true" className="size-3.5" />
-                    Back to Chat
+                    {t('agentChat.review.backToChat')}
                 </Button>
             </header>
             <div className="min-h-0 flex-1 overflow-auto">
@@ -93,7 +98,7 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
                                     decoration={agentChatChangeDecoration(file.kind)}
                                 />
                                 <span className="sr-only">
-                                    {agentChatChangeKindLabel(file.kind)}
+                                    {agentChatChangeKindLabel(file.kind, t)}
                                 </span>
                                 <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
                                     {path}

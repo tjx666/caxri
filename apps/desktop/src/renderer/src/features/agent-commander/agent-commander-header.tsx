@@ -5,6 +5,7 @@ import { MessageSquareWarning, PanelLeft, Power } from 'lucide-react';
 import { CaxriLogo } from '../../components/caxri-logo';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useIsFullScreen, useProjectById, useTerminal } from '../../stores/selectors';
 import { AgentSurfaceToggle } from '../terminal/agent-surface-toggle';
@@ -24,6 +25,7 @@ import { useCommanderInbox } from './hooks/use-commander-inbox';
  * beside Stop, so the Commander opens as either surface with the same control and shortcut.
  */
 export function AgentCommanderHeader() {
+    const { t } = useTranslation();
     const workspacePath = useAgentCommanderStore((state) => state.workspacePath);
     const terminalId = useAgentCommanderStore((state) => state.identity?.terminalId);
     const projectId = useAgentCommanderStore((state) => state.identity?.projectId);
@@ -39,7 +41,9 @@ export function AgentCommanderHeader() {
             )}
         >
             {isFullScreen && <CaxriLogo />}
-            <h1 className="m-0 flex-none text-[13px] font-medium">Agent Commander</h1>
+            <h1 className="m-0 flex-none text-[13px] font-medium">
+                {t('agentCommander.window.title')}
+            </h1>
             {workspacePath && (
                 /*
                  * The workspace is a long generated folder, so the bar names its Project and the full path waits in
@@ -56,14 +60,14 @@ export function AgentCommanderHeader() {
                     className="agent-commander-board-toggle"
                     icon={<PanelLeft size={13} />}
                     isVisible={isBoardVisible}
-                    label="Sessions"
+                    label={t('agentCommander.window.sessionsLabel')}
                     onVisibleChange={setCommanderBoardVisible}
                 />
                 <InboxToggle />
                 {terminal && canSwitchTerminalSurface(terminal) && (
                     <AgentSurfaceToggle terminal={terminal} />
                 )}
-                <Tooltip content="Stop the Commander and close this window. Tasks it delegated keep running, and opening it again resumes the same conversation.">
+                <Tooltip content={t('agentCommander.window.stopTooltip')}>
                     <Button
                         variant="ghost"
                         size="sm"
@@ -71,7 +75,7 @@ export function AgentCommanderHeader() {
                         onClick={stopCommander}
                     >
                         <Power size={13} />
-                        Stop
+                        {t('agentCommander.window.stop')}
                     </Button>
                 </Tooltip>
             </div>
@@ -98,8 +102,14 @@ function CommanderColumnToggle({
     label: string;
     onVisibleChange: (isVisible: boolean) => void;
 }) {
+    const { t } = useTranslation();
     return (
-        <Tooltip content={`${isVisible ? 'Hide' : 'Show'} ${label}`}>
+        <Tooltip
+            content={t(
+                isVisible ? 'agentCommander.window.hideColumn' : 'agentCommander.window.showColumn',
+                { column: label },
+            )}
+        >
             <Button
                 aria-pressed={isVisible}
                 variant="ghost"
@@ -121,6 +131,7 @@ function CommanderColumnToggle({
  * belongs to the status bar's notification center.
  */
 function InboxToggle() {
+    const { t } = useTranslation();
     const isVisible = useCommanderInboxUiStore((state) => state.isVisible);
     const { data } = useCommanderInbox();
     const count = data ? openCommanderInboxCount(data.items) : 0;
@@ -136,7 +147,7 @@ function InboxToggle() {
             className="agent-commander-inbox-toggle"
             icon={<MessageSquareWarning size={13} />}
             isVisible={isVisible}
-            label="Needs you"
+            label={t('agentCommander.window.needsYou')}
             onVisibleChange={setCommanderInboxVisible}
         />
     );

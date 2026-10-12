@@ -1,6 +1,7 @@
 import type { AgentChatSnapshot, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { agentProviderCatalog, isChatTerminal } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getBootstrap } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
@@ -109,8 +110,11 @@ export async function confirmBeforeEndingTurn(
     const providerName = agentProviderCatalog[terminal.provider].displayName;
     const isConfirmed = await tryCommand(copy.failureTitle, () =>
         caxri.window.showConfirm({
-            title: 'Stop the running turn?',
-            message: `${providerName} is still working. ${copy.outcome}`,
+            title: translate('terminal.turnGuard.title'),
+            message: translate('terminal.turnGuard.message', {
+                outcome: copy.outcome,
+                provider: providerName,
+            }),
             confirmLabel: copy.confirmLabel,
         }),
     );

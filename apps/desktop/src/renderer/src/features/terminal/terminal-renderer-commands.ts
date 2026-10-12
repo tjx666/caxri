@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
 import type { TerminalRendererConfirmAction } from './terminal-renderer-status';
@@ -25,19 +26,16 @@ export async function confirmTerminalRendererSwitch(
     if (!isConfirmed) return;
     const preference = action.preference;
     if (!preference) {
-        await tryCommand('Unable to restore GPU rendering', () => {
+        await tryCommand(translate('terminal.renderer.restoreFailed'), () => {
             // The confirmation may outlive its pane. Never apply an old action to a replacement mount.
             if (!terminalId || !retry || getTerminalRendererRetry(terminalId) !== retry)
                 return Promise.resolve();
-            if (!retry())
-                throw new Error(
-                    'GPU rendering is unavailable. This Terminal is still using software rendering; if hardware acceleration is turned off, turn it back on in Settings.',
-                );
+            if (!retry()) throw new Error(translate('terminal.renderer.unavailable'));
             return Promise.resolve();
         });
         return;
     }
-    await tryCommand('Unable to change GPU acceleration', () =>
+    await tryCommand(translate('terminal.renderer.changeFailed'), () =>
         caxri.request('settings.patch', {
             changes: [{ key: 'terminal.gpuAcceleration', value: preference }],
         }),

@@ -1,4 +1,5 @@
 import { FindBar } from '../../components/find-bar';
+import { useTranslation } from '../../i18n';
 import { agentChatFindCountLabel } from './agent-chat-find';
 
 /**
@@ -26,13 +27,14 @@ export function AgentChatFindBar({
     onPrevious: () => void;
     onQueryChange: (query: string) => void;
 }) {
+    const { t } = useTranslation();
     return (
         <FindBar
-            ariaLabel="Find in Chat"
-            countLabel={agentChatFindCountLabel(query, count, activeIndex)}
+            ariaLabel={t('agentChat.find.label')}
+            countLabel={agentChatFindCountLabel(query, count, activeIndex, t)}
             focusRevision={focusRevision}
             hasMatches={count > 0}
-            inputLabel="Find in Chat"
+            inputLabel={t('agentChat.find.label')}
             isDocked
             isNoMatch={query !== '' && count === 0}
             query={query}

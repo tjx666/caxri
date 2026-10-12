@@ -3,13 +3,14 @@ import { Camera } from 'lucide-react';
 import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
 import { FieldTitle } from '../../components/ui/field';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 
 /**
  * Shared by the thumbnail, the annotator, and the preview so a copy edit cannot make one of them stop admitting that
  * the image is the unredacted half of the report.
  */
-export const BUG_REPORT_SCREENSHOT_ALT =
-    'Unredacted screenshot of the current Caxri window, including any open files and terminal output';
+export const BUG_REPORT_SCREENSHOT_ALT_KEY: TranslationKey = 'bugReport.screenshot.alt';
 
 interface BugReportScreenshotFieldProperties {
     annotationCount: number;
@@ -37,29 +38,32 @@ export function BugReportScreenshotField({
     onRemove,
     screenshotError,
 }: BugReportScreenshotFieldProperties) {
+    const { t } = useTranslation();
     return (
         <div className="grid gap-2">
-            <FieldTitle>Screenshot</FieldTitle>
+            <FieldTitle>{t('bugReport.screenshot.title')}</FieldTitle>
             {dataUrl ? (
                 <>
                     <button
                         type="button"
-                        aria-label="Annotate the captured screenshot"
+                        aria-label={t('bugReport.screenshot.annotateCaptured')}
                         className="relative block w-full cursor-pointer overflow-hidden rounded border border-border bg-background p-0"
                         id="bug-report-screenshot-thumbnail"
                         onClick={onAnnotate}
                     >
                         {/* Full width at natural aspect: a window capture is landscape, so the previous short height cap shrank it to a narrow strip between empty bands. The cap only guards against unusually tall captures. */}
                         <img
-                            alt={BUG_REPORT_SCREENSHOT_ALT}
+                            alt={t(BUG_REPORT_SCREENSHOT_ALT_KEY)}
                             className="block max-h-96 w-full object-contain"
                             src={dataUrl}
                         />
                         {annotationCount > 0 && (
                             <span className="absolute top-2 right-2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
                                 {annotationCount === 1
-                                    ? '1 annotation'
-                                    : `${annotationCount} annotations`}
+                                    ? t('bugReport.screenshot.annotationCountOne')
+                                    : t('bugReport.screenshot.annotationCountOther', {
+                                          count: annotationCount,
+                                      })}
                             </span>
                         )}
                     </button>
@@ -70,7 +74,7 @@ export function BugReportScreenshotField({
                             variant="secondary"
                             onClick={onAnnotate}
                         >
-                            Annotate
+                            {t('bugReport.screenshot.annotate')}
                         </Button>
                         <Button
                             disabled={capturing}
@@ -79,7 +83,11 @@ export function BugReportScreenshotField({
                             variant="secondary"
                             onClick={onCapture}
                         >
-                            {capturing ? 'Capturing…' : 'Retake'}
+                            {t(
+                                capturing
+                                    ? 'bugReport.screenshot.capturing'
+                                    : 'bugReport.screenshot.retake',
+                            )}
                         </Button>
                         <Button
                             id="bug-report-remove-screenshot"
@@ -87,7 +95,7 @@ export function BugReportScreenshotField({
                             variant="ghost"
                             onClick={onRemove}
                         >
-                            Remove
+                            {t('common.remove')}
                         </Button>
                     </div>
                     {/**
@@ -95,10 +103,7 @@ export function BugReportScreenshotField({
                      * `bug-report.ts`'s doc comment), but a screenshot is captured pixel-for-pixel and cannot be redacted the same way.
                      * This warning keeps that gap explicit.
                      */}
-                    <Alert variant="warning">
-                        Unlike the text report, this screenshot is not redacted: it shows everything
-                        on screen, including source code and Terminal output.
-                    </Alert>
+                    <Alert variant="warning">{t('bugReport.screenshot.unredactedWarning')}</Alert>
                     <p className="m-0 text-[11px] text-muted">{imageDeliveryNotice}</p>
                 </>
             ) : (
@@ -117,14 +122,16 @@ export function BugReportScreenshotField({
                             onClick={onCapture}
                         >
                             <Camera aria-hidden="true" size={13} />
-                            {capturing
-                                ? 'Capturing…'
-                                : screenshotError
-                                  ? 'Retry capture'
-                                  : 'Capture screenshot'}
+                            {t(
+                                capturing
+                                    ? 'bugReport.screenshot.capturing'
+                                    : screenshotError
+                                      ? 'bugReport.screenshot.retryCapture'
+                                      : 'bugReport.screenshot.capture',
+                            )}
                         </Button>
                         <p className="m-0 text-[11px] text-muted">
-                            The report will be sent as text only.
+                            {t('bugReport.screenshot.textOnly')}
                         </p>
                     </div>
                 </div>

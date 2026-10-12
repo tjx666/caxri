@@ -1,5 +1,7 @@
 import type { AgentActivityState } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
 import {
     sessionActivityPresentation,
@@ -55,10 +57,17 @@ const TONE_TEXT_CLASSNAME: Record<SessionActivityPresentation['tone'], string> =
  * answers the second question, and its answer is `neutral` for a completed turn, the commonest attention reason of
  * all.
  */
-export function agentActivityGlyph(row: AgentActivityRow): AgentActivityGlyph {
+export function agentActivityGlyph(
+    row: AgentActivityRow,
+    t: Translate = translate,
+): AgentActivityGlyph {
     const { groupId, session, status, statusPresentation } = row;
     if (status.kind === 'detached')
-        return { id: 'unplug', label: 'Detached', toneClassName: TONE_TEXT_CLASSNAME.neutral };
+        return {
+            id: 'unplug',
+            label: t('agentActivity.glyph.detached'),
+            toneClassName: TONE_TEXT_CLASSNAME.neutral,
+        };
     /**
      * `running` folds in compaction, so the label comes from the live presentation rather than the stored state.
      *

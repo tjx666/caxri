@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import {
     PANEL_DEFAULT_HEIGHT,
@@ -19,6 +20,7 @@ import { Workbench } from './workbench';
  * source control trees from losing vertical room to a log stream.
  */
 export function WorkbenchColumn() {
+    const { t } = useTranslation();
     const isPanelVisible = useChromeLayoutStore((state) => state.panelVisible);
     const panelHeight = useChromeLayoutStore((state) => state.panelHeight);
     /**
@@ -43,7 +45,7 @@ export function WorkbenchColumn() {
             <Workbench />
             {isPanelVisible && (
                 <PanelDivider
-                    ariaLabel="Resize Panel"
+                    ariaLabel={t('workbench.resizePanel')}
                     size={panelHeight}
                     min={PANEL_MIN_HEIGHT}
                     max={PANEL_MAX_HEIGHT}

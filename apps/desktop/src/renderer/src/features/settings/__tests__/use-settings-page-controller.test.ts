@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { dismissToast, getToasts } from '../../../stores/toasts';
 import {
-    ARGV_RESTART_NOTICE_PREFIX,
     argvRestartNotice,
-    reportSettingsError,
+    argvRestartNoticePrefix,
     settingTitleForArgvKey,
-} from '../use-settings-page-controller';
+} from '../argv-restart-notice';
+import { reportSettingsError } from '../use-settings-page-controller';
 
 const BOOT_BASELINE: ArgvConfig = { hardwareAcceleration: true, remoteDebugging: true };
 
@@ -98,7 +98,7 @@ describe('argvRestartNotice', () => {
             { hardwareAcceleration: false, remoteDebugging: false },
         ])
             expect(argvRestartNotice({ applied, baseline: BOOT_BASELINE })).toMatch(
-                new RegExp(`^${ARGV_RESTART_NOTICE_PREFIX}`),
+                new RegExp(`^${argvRestartNoticePrefix()}`),
             );
     });
 });

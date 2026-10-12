@@ -1,5 +1,6 @@
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { CommandGroup, CommandItem } from '../../components/ui/command';
+import { useTranslation } from '../../i18n';
 import type { SessionReferenceCandidate } from '../session/session-reference';
 
 /**
@@ -13,9 +14,13 @@ export function AgentActionSessionGroup({
     candidates: readonly SessionReferenceCandidate[];
     onSelect: (candidate: SessionReferenceCandidate) => void;
 }) {
+    const { t } = useTranslation();
     if (candidates.length === 0) return null;
     return (
-        <CommandGroup data-agent-action-group="session" heading="Sessions">
+        <CommandGroup
+            data-agent-action-group="session"
+            heading={t('agentActions.sessions.heading')}
+        >
             {candidates.map((candidate) => (
                 <CommandItem
                     key={candidate.sessionId}
@@ -40,14 +45,16 @@ export function AgentActionSessionGroup({
  * Command+Enter hint is dropped.
  */
 export function AgentActionFooterModes({ isSessionMode }: { isSessionMode: boolean }) {
+    const { t } = useTranslation();
     return (
         <div className="flex items-center gap-3 text-[10px] text-muted">
             <span className="flex items-center gap-1" data-agent-action-mode="run">
-                <ShortcutBadge compact shortcut="enter" /> {isSessionMode ? 'Insert' : 'Run'}
+                <ShortcutBadge compact shortcut="enter" />{' '}
+                {t(isSessionMode ? 'agentActions.footer.insert' : 'agentActions.footer.run')}
             </span>
             {!isSessionMode && (
                 <span className="flex items-center gap-1" data-agent-action-mode="insert">
-                    <ShortcutBadge compact shortcut="cmd+enter" /> Insert
+                    <ShortcutBadge compact shortcut="cmd+enter" /> {t('agentActions.footer.insert')}
                 </span>
             )}
         </div>

@@ -1,5 +1,7 @@
 import type { GitOverview } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
+
 /**
  * How long an open Session card trusts its last change count before reopening it reads again. There is no poll behind
  * it: the card reads only while open, so this bounds how often re-hovering the same rows re-asks the Server.
@@ -80,7 +82,12 @@ export function sessionChangesPresentation(
 ): SessionChangesPresentation | undefined {
     if (count === undefined || count === 0) return undefined;
     return {
-        ariaLabel: `Working tree has ${count} uncommitted ${count === 1 ? 'change' : 'changes'}.`,
+        ariaLabel: translate(
+            count === 1
+                ? 'primarySidebar.changes.ariaLabelOne'
+                : 'primarySidebar.changes.ariaLabelOther',
+            { count },
+        ),
         value: String(count),
     };
 }

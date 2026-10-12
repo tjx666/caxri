@@ -118,6 +118,7 @@ import {
     getPaneLayout,
     splitPaneTab,
 } from '../features/workbench/pane-actions';
+import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import { isEditableEventTarget } from '../lib/keybindings';
 import { isAgentProcessRunning } from '../lib/terminal-agent-runtime';
@@ -399,7 +400,7 @@ const commandContext: CommandContext = {
         openUsage: () => {
             // Usage is a Session pane tab; before the first Project exists there is no pane to open it into.
             if (getSelectedSession()) openEditorTab(usageTabPath());
-            else pushToast('info', 'Add a Project to open Usage');
+            else pushToast('info', translate('core.commands.usageNeedsProject'));
         },
         openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),
         // eslint-disable-next-line no-void -- floating-promise discard: seeding never rejects
@@ -413,7 +414,7 @@ const commandContext: CommandContext = {
     windows: {
         openAgentCommander: () => {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void tryCommand('Unable to open Agent Commander', () =>
+            void tryCommand(translate('core.commands.openAgentCommanderFailed'), () =>
                 caxri.request('agentCommander.open'),
             );
         },
@@ -431,10 +432,14 @@ const commandContext: CommandContext = {
         export: () => {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void tryCommand(
-                'Diagnostics export failed',
+                translate('core.commands.diagnosticsExportFailed'),
                 async () => {
                     const result = await caxri.request('diagnostics.export');
-                    if (result) pushToast('success', `Diagnostics exported to ${result.path}`);
+                    if (result)
+                        pushToast(
+                            'success',
+                            translate('core.commands.diagnosticsExported', { path: result.path }),
+                        );
                 },
                 {
                     recovery: (error) => ({

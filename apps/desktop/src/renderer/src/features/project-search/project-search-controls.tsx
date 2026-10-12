@@ -5,6 +5,7 @@ import { EyeOff, ListFilter, Search, X } from 'lucide-react';
 import { Input, InputGroup } from '../../components/ui/input';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { ProjectSearchModel } from './use-project-search';
 
@@ -32,6 +33,7 @@ export function ProjectSearchControls({
     resultsId,
     search,
 }: ProjectSearchControlsProperties) {
+    const { t } = useTranslation();
     const {
         displayState,
         exclude,
@@ -70,9 +72,11 @@ export function ProjectSearchControls({
                         appearance="embedded"
                         className="flex-1 text-foreground"
                         role="combobox"
-                        aria-label={
-                            mode === 'name' ? 'Find Project files' : 'Search Project contents'
-                        }
+                        aria-label={t(
+                            mode === 'name'
+                                ? 'projectSearch.controls.findFilesLabel'
+                                : 'projectSearch.controls.searchContentsLabel',
+                        )}
                         aria-autocomplete="list"
                         aria-controls={resultsId}
                         aria-expanded={displayState === 'results'}
@@ -81,7 +85,11 @@ export function ProjectSearchControls({
                          * thing telling assistive technology which result the Up/Down keys are on.
                          */
                         aria-activedescendant={activeDescendantId}
-                        placeholder={mode === 'name' ? 'Find files' : 'Search text'}
+                        placeholder={t(
+                            mode === 'name'
+                                ? 'projectSearch.controls.findFilesPlaceholder'
+                                : 'projectSearch.controls.searchTextPlaceholder',
+                        )}
                         value={query}
                         onChange={(event) => setQuery(event.currentTarget.value)}
                         onKeyDown={onInputKeyDown}
@@ -91,11 +99,11 @@ export function ProjectSearchControls({
                         <Spinner size={13} className="shrink-0 text-muted" />
                     )}
                     {isActive && (
-                        <Tooltip content="Clear Search">
+                        <Tooltip content={t('projectSearch.controls.clearTooltip')}>
                             <button
                                 type="button"
                                 className={searchOptionClassName}
-                                aria-label="Clear Project search"
+                                aria-label={t('projectSearch.controls.clearLabel')}
                                 onClick={() => setQuery('')}
                             >
                                 <X size={13} />
@@ -104,33 +112,33 @@ export function ProjectSearchControls({
                     )}
                     {mode === 'content' && (
                         <>
-                            <Tooltip content="Match Case">
+                            <Tooltip content={t('projectSearch.controls.matchCase')}>
                                 <button
                                     type="button"
                                     className={searchOptionClassName}
-                                    aria-label="Match Case"
+                                    aria-label={t('projectSearch.controls.matchCase')}
                                     aria-pressed={isCaseSensitive}
                                     onClick={() => setCaseSensitive((value) => !value)}
                                 >
                                     Aa
                                 </button>
                             </Tooltip>
-                            <Tooltip content="Match Whole Word">
+                            <Tooltip content={t('projectSearch.controls.matchWholeWord')}>
                                 <button
                                     type="button"
                                     className={searchOptionClassName}
-                                    aria-label="Match Whole Word"
+                                    aria-label={t('projectSearch.controls.matchWholeWord')}
                                     aria-pressed={isWholeWord}
                                     onClick={() => setWholeWord((value) => !value)}
                                 >
                                     ab
                                 </button>
                             </Tooltip>
-                            <Tooltip content="Use Regular Expression">
+                            <Tooltip content={t('projectSearch.controls.useRegex')}>
                                 <button
                                     type="button"
                                     className={searchOptionClassName}
-                                    aria-label="Use Regular Expression"
+                                    aria-label={t('projectSearch.controls.useRegex')}
                                     aria-pressed={isRegex}
                                     onClick={() => setRegex((value) => !value)}
                                 >
@@ -146,16 +154,16 @@ export function ProjectSearchControls({
                      * produce the same empty list.
                      */}
                     <Tooltip
-                        content={
+                        content={t(
                             isUsingIgnoreFiles
-                                ? 'Using .gitignore — click to search ignored files too'
-                                : 'Searching ignored files — click to apply .gitignore'
-                        }
+                                ? 'projectSearch.controls.ignoreFilesOn'
+                                : 'projectSearch.controls.ignoreFilesOff',
+                        )}
                     >
                         <button
                             type="button"
                             className={searchOptionClassName}
-                            aria-label="Use Ignore Files"
+                            aria-label={t('projectSearch.controls.useIgnoreFiles')}
                             aria-pressed={isUsingIgnoreFiles}
                             onClick={() => setUseIgnoreFiles((value) => !value)}
                         >
@@ -175,7 +183,11 @@ export function ProjectSearchControls({
                             aria-pressed={mode === value}
                             onClick={() => setMode(value)}
                         >
-                            {value === 'name' ? 'Name' : 'Content'}
+                            {t(
+                                value === 'name'
+                                    ? 'projectSearch.controls.modeName'
+                                    : 'projectSearch.controls.modeContent',
+                            )}
                         </button>
                     ))}
                 </div>
@@ -187,22 +199,22 @@ export function ProjectSearchControls({
              */}
             <div className="grid grid-cols-2 gap-1.5">
                 <label className="flex flex-col gap-1 text-[11px] text-muted">
-                    <span>Files to include</span>
+                    <span>{t('projectSearch.controls.include')}</span>
                     <Input
                         appearance="workbench"
                         className="text-foreground"
-                        placeholder="Files to include (e.g. *.ts, src/**)"
+                        placeholder={t('projectSearch.controls.includePlaceholder')}
                         size="dense"
                         value={include}
                         onChange={(event) => setInclude(event.currentTarget.value)}
                     />
                 </label>
                 <label className="flex flex-col gap-1 text-[11px] text-muted">
-                    <span>Files to exclude</span>
+                    <span>{t('projectSearch.controls.exclude')}</span>
                     <Input
                         appearance="workbench"
                         className="text-foreground"
-                        placeholder="Files to exclude (e.g. *.min.js, dist/**)"
+                        placeholder={t('projectSearch.controls.excludePlaceholder')}
                         size="dense"
                         value={exclude}
                         onChange={(event) => setExclude(event.currentTarget.value)}

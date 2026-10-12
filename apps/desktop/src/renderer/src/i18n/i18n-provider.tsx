@@ -2,10 +2,11 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 
 import type { AppLocale } from '@caxri/protocol';
+import { resolveAppLocale } from '@desktop-shared/i18n/locale';
 import ConfigProvider from '@lobehub/ui/es/ConfigProvider/index';
-import { motion } from 'motion/react';
+import * as m from 'motion/react-m';
 
-import { resolveAppLocale, systemLanguages } from './locale';
+import { systemLanguages } from './locale';
 import { useLocaleStore } from './locale-store';
 import { lobeResources } from './resources';
 
@@ -42,7 +43,9 @@ export function I18nProvider({ preference, children }: I18nProviderProperties) {
         <ConfigProvider
             config={LOBE_CONFIG}
             locale={locale}
-            motion={motion}
+            // Required by the library for its animated components. Caxri renders none of them, so the tree-shakable
+            // `m` variant is enough and keeps the full `motion` bundle out.
+            motion={m}
             resources={lobeResources[locale]}
         >
             {children}

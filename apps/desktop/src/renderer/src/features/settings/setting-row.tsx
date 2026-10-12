@@ -21,6 +21,8 @@ import { Button } from '../../components/ui/button';
 import { FieldDescription } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
+import type { Translate } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
@@ -35,6 +37,7 @@ import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import { SettingRowChrome } from './setting-row-chrome';
 import { isFullWidthRow } from './setting-row-layout';
+import { settingTitle } from './setting-spec-text';
 import type { SettingRowDescriptor } from './settings-registry';
 import type { SettingsValueContext } from './settings-values';
 import {
@@ -83,7 +86,10 @@ const DELEGATION_DEPTH_SPEC: IntegerSettingSpec = {
     default: DEFAULT_DELEGATION_DEPTH,
 };
 
-function rowControl(properties: SettingRowProperties): {
+function rowControl(
+    t: Translate,
+    properties: SettingRowProperties,
+): {
     control: ReactNode;
     status?: ReactNode;
     toggle?: ReactNode;
@@ -163,8 +169,10 @@ function rowControl(properties: SettingRowProperties): {
                         control: (
                             <FieldDescription role="status">
                                 {skipped
-                                    ? `Currently skipping ${skipped}.`
-                                    : 'No version currently skipped.'}
+                                    ? t('settings.row.skippedVersion.current', {
+                                          version: skipped,
+                                      })
+                                    : t('settings.row.skippedVersion.none')}
                             </FieldDescription>
                         ),
                     };
@@ -205,14 +213,21 @@ function rowControl(properties: SettingRowProperties): {
                         role="status"
                         tone={hookHealthTone(isEnabled, agentHookHealth?.[binding.provider])}
                     >
-                        {hookHealthCaption(isEnabled, agentHookHealth?.[binding.provider])}
+                        {hookHealthCaption(t, isEnabled, agentHookHealth?.[binding.provider])}
                     </FieldDescription>
                 ) : !supported ? (
-                    <FieldDescription>Unavailable for {providerName}.</FieldDescription>
+                    <FieldDescription>
+                        {t('settings.row.providerMessaging.unavailable', {
+                            provider: providerName,
+                        })}
+                    </FieldDescription>
                 ) : undefined;
-            const label = `${providerName} ${
-                binding.field === 'hooks' ? 'lifecycle hooks' : 'peer messaging'
-            }`;
+            const label = t(
+                binding.field === 'hooks'
+                    ? 'settings.row.providerHooks.label'
+                    : 'settings.row.providerMessaging.label',
+                { provider: providerName },
+            );
             return {
                 labelFor: controlId,
                 status,
@@ -243,7 +258,9 @@ function rowControl(properties: SettingRowProperties): {
                 control: (
                     <Switch
                         id={controlId}
-                        aria-label={`Let ${providerName} act without asking each time`}
+                        aria-label={t('settings.row.providerAutonomy.label', {
+                            provider: providerName,
+                        })}
                         checked={hasProviderAutonomy(launch.args, binding.provider)}
                         className="mt-0.5"
                         onCheckedChange={(checked) =>
@@ -265,7 +282,9 @@ function rowControl(properties: SettingRowProperties): {
                     control: (
                         <Input
                             id={controlId}
-                            aria-label={`${providerName} executable`}
+                            aria-label={t('settings.row.providerExecutable.label', {
+                                provider: providerName,
+                            })}
                             className="bg-background text-foreground"
                             value={launch.executable}
                             onChange={(event) =>
@@ -284,7 +303,7 @@ function rowControl(properties: SettingRowProperties): {
                 control: (
                     <LaunchArgumentsField
                         id={controlId}
-                        label={`${providerName} initial arguments`}
+                        label={t('settings.row.providerArgs.label', { provider: providerName })}
                         args={launch.args}
                         onChange={(arguments_) =>
                             onFieldChange(
@@ -310,7 +329,9 @@ function rowControl(properties: SettingRowProperties): {
                 toggle: (
                     <Switch
                         id={controlId}
-                        aria-label={`${agentProviderCatalog[binding.provider].displayName} network error recovery`}
+                        aria-label={t('settings.row.providerRecovery.label', {
+                            provider: agentProviderCatalog[binding.provider].displayName,
+                        })}
                         checked={recovery.enabled}
                         className="mt-0.5"
                         onCheckedChange={(enabled) => applyRecovery({ ...recovery, enabled })}
@@ -330,8 +351,9 @@ function rowControl(properties: SettingRowProperties): {
             return {
                 control: !agentProviderCatalog[binding.provider].capabilities.actions ? (
                     <FieldDescription>
-                        Actions and skills are unavailable for{' '}
-                        {agentProviderCatalog[binding.provider].displayName}.
+                        {t('settings.row.providerActions.unavailable', {
+                            provider: agentProviderCatalog[binding.provider].displayName,
+                        })}
                     </FieldDescription>
                 ) : (
                     <AgentActionSettingsEditor
@@ -396,11 +418,7 @@ function rowControl(properties: SettingRowProperties): {
             return {
                 control: (
                     <FilesExcludeEditor
-                        label={
-                            binding.key === 'git.diffExclude'
-                                ? 'Excluded Git diff files'
-                                : 'Excluded files'
-                        }
+                        label={settingTitle(t, binding.key)}
                         placeholder={binding.key === 'git.diffExclude' ? '**/*.test.*' : undefined}
                         value={settings[binding.key]}
                         onChange={(value) => onFieldChange(binding.key, value)}
@@ -420,7 +438,7 @@ function rowControl(properties: SettingRowProperties): {
                         }}
                     >
                         <Archive aria-hidden="true" size={14} />
-                        Manage…
+                        {t('settings.row.archivedSessions.manage')}
                     </Button>
                 ),
             };
@@ -473,7 +491,7 @@ function rowControl(properties: SettingRowProperties): {
                 status:
                     argvConfig?.hardwareAcceleration === false ? (
                         <FieldDescription role="status" tone="warning">
-                            Caxri starts with software rendering until this is turned back on.
+                            {t('settings.row.hardwareAcceleration.offStatus')}
                         </FieldDescription>
                     ) : undefined,
                 control: (
@@ -498,7 +516,8 @@ function rowControl(properties: SettingRowProperties): {
  */
 export function SettingRow(properties: SettingRowProperties) {
     const { row, context, handlers } = properties;
-    const { control, status, toggle, labelFor } = rowControl(properties);
+    const { t } = useTranslation();
+    const { control, status, toggle, labelFor } = rowControl(t, properties);
     return (
         <SettingRowChrome
             control={control}
