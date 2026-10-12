@@ -11,7 +11,7 @@ import {
     defaultAgentOutputRecoverySettings,
     defaultAgentProviderSettings,
 } from '@caxri/protocol';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { AgentEndpointLifecycle, classifyAgentPermission } from '../lifecycle';
@@ -48,7 +48,12 @@ describe('AgentEndpointLifecycle', () => {
             probe: () => Promise.resolve({ executable: '/bin/codex', version: 'fixture 1.0.0' }),
         });
 
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
     it('injects a Host-issued credential only for a direct Agent generation', async () => {
+        vi.stubEnv('CAXRI_CLI', '/profile/bin/caxri');
         const begin = vi.fn<
             (parameters: AgentEndpointBeginParameters) => Promise<AgentEndpointBeginResult>
         >(() => {
@@ -91,6 +96,7 @@ describe('AgentEndpointLifecycle', () => {
             CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1',
             CAXRI_AGENT_ENDPOINT_GENERATION: '1',
             CAXRI_AGENT_ENDPOINT_TOKEN: 'ab'.repeat(32),
+            CAXRI_CLI: '/profile/bin/caxri',
             CAXRI_USER_DATA_DIR: '/profile',
         });
         expect(begin).toHaveBeenCalledWith(

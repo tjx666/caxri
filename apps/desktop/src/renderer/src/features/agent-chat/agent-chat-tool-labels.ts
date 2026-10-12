@@ -35,15 +35,18 @@ const TOOL_LABEL_KEYS: Readonly<Record<string, TranslationKey>> = {
     'Viewed image': 'agentChat.tool.label.viewedImage',
     'Thought': 'agentChat.tool.label.thought',
     'Thinking': 'agentChat.tool.label.thinking',
+    'Used the browser': 'agentChat.tool.label.usedBrowser',
+    'Used Computer Use': 'agentChat.tool.label.usedComputerUse',
 };
 
 /**
- * Tool kinds that name an action; `mcp` and `other` name a server or tool instead and keep their label.
+ * Tool kinds that name an action. `mcp` and `other` name a server or tool instead and keep their label, and a Computer
+ * Use step's label is the title the Agent wrote for it.
  */
-type AgentToolActionKind = Exclude<AgentToolKind, 'mcp' | 'other'>;
+type AgentToolActionKind = Exclude<AgentToolKind, 'browser' | 'computer' | 'mcp' | 'other'>;
 
 const isActionKind = (kind: AgentToolKind): kind is AgentToolActionKind =>
-    kind !== 'mcp' && kind !== 'other';
+    kind !== 'browser' && kind !== 'computer' && kind !== 'mcp' && kind !== 'other';
 
 /**
  * A completed tool's verb (`Edited`) in the active language.

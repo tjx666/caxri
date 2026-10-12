@@ -19,6 +19,7 @@ import type { ResolvedSessionPath } from '../project';
 import { ProjectRootResolver } from '../project';
 import type { OpenFile } from './documents';
 import { DocumentService } from './documents';
+import { moveToHostTrash } from './host-trash';
 import {
     importCandidatePaths,
     ImportConfigFiles,
@@ -369,6 +370,25 @@ export class FileService {
         return this.operations.run(() => this.mutations.authorizeTrash(parameters), {
             paths: [path],
         });
+    }
+
+    async trashOnHost(parameters: ServerOperationParameters<'files.trashOnHost'>): Promise<void> {
+        const { path } = await this.projectRoots.resolveSessionPath(
+            parameters.sessionId,
+            parameters.path,
+        );
+        await this.operations.run(
+            async () => {
+                const entry = await this.mutations.authorizeTrash(parameters);
+                if (entry.device !== parameters.device || entry.inode !== parameters.inode)
+                    throw new CaxriError(
+                        'CONFLICT',
+                        'File or folder changed before it reached Trash',
+                    );
+                await moveToHostTrash(entry.path);
+            },
+            { paths: [path] },
+        );
     }
 
     async authorizeOpen(

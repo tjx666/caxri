@@ -102,6 +102,11 @@ function AskpassPrompt({
                     </DialogHeader>
                     {!isConfirm && (
                         <div className="flex flex-col gap-1 px-4 pt-4">
+                            {request.retry !== undefined && (
+                                <p className="m-0 text-[11px] text-danger" role="alert">
+                                    {t('sshHost.askpass.retry', { count: request.retry })}
+                                </p>
+                            )}
                             <Input
                                 data-askpass-initial-focus
                                 aria-label={t('sshHost.askpass.inputLabel')}

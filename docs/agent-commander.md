@@ -729,7 +729,9 @@ Commander wrote the task and is the caller that knows its subject. `commander se
 without a task.
 
 Inside the Commander Terminal, the Commander calls the version-matched CLI through
-`node "$CAXRI_CLI_PATH"` using its Endpoint credentials. A human owner is asked to confirm
+`"$CAXRI_CLI"` using its Endpoint credentials. That launcher (`<userData>/bin/caxri`, rewritten by
+every Server Core start) runs the CLI bundle on the Server's own runtime, so an SSH Host without
+`node` on `PATH` works the same as a local Host. A human owner is asked to confirm
 `commander session create` and `commander session archive`; the Commander's own call needs no
 confirmation. See [CLI](cli.md) and
 [Agent delegation](agent-delegation.md).

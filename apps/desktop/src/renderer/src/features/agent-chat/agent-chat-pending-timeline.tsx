@@ -1,4 +1,5 @@
 import { useTranslation } from '../../i18n';
+import { AgentChatAskingQuestions } from './agent-chat-answered-questions';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
@@ -41,18 +42,24 @@ function AgentChatPendingUserMessage({
 }
 
 /**
- * The end of the timeline ahead of the projection: answers whose record has not arrived, then messages on their way
- * that start or steer a turn. Each gives way to the real row once the snapshot shows it (`useAgentChatPending`).
+ * The end of the timeline ahead of the projection: questions still waiting on their card, answers whose record has not
+ * arrived, then messages on their way that start or steer a turn. Each gives way to the real row once the snapshot
+ * shows it (`useAgentChatPending`); an asking row gives way to its answer as soon as the card is answered.
  */
 export function AgentChatPendingTimeline({
     pending,
     onOpenFile,
 }: {
-    pending: Pick<ReturnType<typeof useAgentChatPending>, 'notices' | 'timeline'>;
+    pending: Pick<ReturnType<typeof useAgentChatPending>, 'asking' | 'notices' | 'timeline'>;
     onOpenFile: (target: string) => void;
 }) {
     return (
         <>
+            {pending.asking.map((request) =>
+                request.kind === 'question' ? (
+                    <AgentChatAskingQuestions count={request.questions.length} key={request.id} />
+                ) : null,
+            )}
             {pending.notices.map((notice) =>
                 notice.type === 'notice' ? (
                     <AgentChatTimelineEntryView

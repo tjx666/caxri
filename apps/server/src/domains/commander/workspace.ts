@@ -56,7 +56,7 @@ mistake in \`memory/lessons.md\` before redispatching.
 
 ## Caxri CLI
 
-Always run the CLI as \`node "$CAXRI_CLI_PATH" <command>\`. Never use a globally installed \`caxri\`. Your Agent Endpoint
+Always run the CLI as \`"$CAXRI_CLI" <command>\`. Never use a globally installed \`caxri\`. Your Agent Endpoint
 credentials are already in the environment, and output is JSON.
 
 - \`commander board\` lists every visible Project and Session with its group (attention, working, waiting, failed,

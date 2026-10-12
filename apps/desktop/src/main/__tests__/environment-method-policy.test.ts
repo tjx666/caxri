@@ -4,9 +4,9 @@ import { guardEnvironmentMethods, isMethodAvailable } from '../environment-metho
 
 describe('environment method policy', () => {
     it('keeps local-only methods out of SSH Host windows', () => {
-        expect(isMethodAvailable('files.trash', 'ssh')).toBe(false);
+        expect(isMethodAvailable('theme.import', 'ssh')).toBe(false);
         expect(isMethodAvailable('dialog.selectDirectory', 'ssh')).toBe(false);
-        expect(isMethodAvailable('files.trash', 'local')).toBe(true);
+        expect(isMethodAvailable('theme.import', 'local')).toBe(true);
     });
 
     it('keeps SSH-only methods out of the local Workbench', () => {
@@ -18,6 +18,7 @@ describe('environment method policy', () => {
         for (const environment of ['local', 'ssh'] as const) {
             expect(isMethodAvailable('environment.get', environment)).toBe(true);
             expect(isMethodAvailable('project.create', environment)).toBe(true);
+            expect(isMethodAvailable('files.trash', environment)).toBe(true);
         }
     });
 
@@ -26,7 +27,7 @@ describe('environment method policy', () => {
         const guarded = guardEnvironmentMethods('ssh', handler);
 
         await expect(
-            guarded({ method: 'files.trash', params: { paths: ['/home/dev/a.txt'] } } as never),
+            guarded({ method: 'theme.import', params: {} } as never),
         ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         expect(handler).not.toHaveBeenCalled();
 
