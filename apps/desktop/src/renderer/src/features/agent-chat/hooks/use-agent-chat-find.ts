@@ -8,6 +8,8 @@ import {
     useSyncExternalStore,
 } from 'react';
 
+import { notifyListeners } from '@caxri/utils';
+
 import { registerTerminalSearchHandler } from '../../terminal/terminal-search';
 import { collectAgentChatFindRanges, stepAgentChatFindIndex } from '../agent-chat-find';
 import {
@@ -56,7 +58,11 @@ function publish(session: FindSession, result: FindResult): void {
     if (result.count === session.result.count && result.activeIndex === session.result.activeIndex)
         return;
     session.result = result;
-    for (const listener of session.listeners) listener();
+    // One throwing subscriber must not keep the find bar's other subscribers on a stale count; Desktop mirrors
+    // `console.error` into `logs/desktop.jsonl`.
+    notifyListeners(session.listeners, undefined, (error) =>
+        console.error('agentChat.find listener failed', error),
+    );
 }
 
 function requestReveal(session: FindSession, reveal: 'start' | 'active'): void {
