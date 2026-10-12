@@ -48,8 +48,9 @@ function AgentChatSendButton({
 }
 
 /**
- * The composer card's bottom row: attach, the context meter, and the model menu on the right, then one primary action
- * slot that holds Stop while a turn runs and nothing is typed, and Send otherwise.
+ * The composer card's bottom row, laid out like the Codex app's: attach and the permission menu lead on the left; the
+ * context meter, the model menu, and one primary action slot trail on the right. That slot holds Stop while a turn runs
+ * and nothing is typed, and Send otherwise.
  */
 export function AgentChatComposerActions({
     canAttachImages,
@@ -109,20 +110,22 @@ export function AgentChatComposerActions({
     const contextUsage = agentChatContextUsage(snapshot);
     return (
         <div className="flex items-center gap-1 px-2 pb-2">
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
+            <div className="flex min-w-0 flex-1 items-center gap-0.5">
                 <AgentChatAttachButton
                     canAttachImages={canAttachImages}
                     isBusy={isAttaching}
                     onPick={onPick}
                 />
-                {contextUsage && (
-                    <AgentChatContextMeter onCompact={onCompact} usage={contextUsage} />
-                )}
                 <AgentChatPermissionMenu
                     canSaveProjectDefault={canSaveProjectDefault}
                     snapshot={snapshot}
                     terminalId={terminalId}
                 />
+            </div>
+            <div className="flex min-w-0 items-center gap-0.5">
+                {contextUsage && (
+                    <AgentChatContextMeter onCompact={onCompact} usage={contextUsage} />
+                )}
                 <AgentChatModelMenu snapshot={snapshot} terminalId={terminalId} />
             </div>
             {showsStop ? (
