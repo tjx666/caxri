@@ -111,7 +111,7 @@ describe('Configuration default reconciliation', () => {
         temporaryDirectories.push(directory);
         const configDirectory = join(directory, 'config');
         await mkdir(configDirectory);
-        const customized = [{ key: 'cmd+alt+p', command: 'pathBrowser.open' }];
+        const customized = [{ key: 'cmd+alt+o', command: 'pathBrowser.open' }];
         const source = `${JSON.stringify(customized, null, 2)}\n`;
         await writeFile(join(configDirectory, 'keybindings.jsonc'), source, 'utf8');
         const service = new ConfigService(directory, () => {});
@@ -122,7 +122,7 @@ describe('Configuration default reconciliation', () => {
             ...customized,
             ...migratedDefaultKeybindingAdditions,
         ]);
-        expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "cmd+alt+p"');
+        expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "cmd+alt+o"');
         await service.close();
     });
 

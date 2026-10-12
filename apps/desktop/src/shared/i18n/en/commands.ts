@@ -8,6 +8,7 @@ import { commandDescriptions } from './commands-descriptions';
  */
 export const commands = {
     'commands.category.agent': 'Agent',
+    'commands.category.chat': 'Chat',
     'commands.category.developer': 'Developer',
     'commands.category.editor': 'Editor',
     'commands.category.git': 'Git',
@@ -59,6 +60,9 @@ export const commands = {
     'commands.terminal.startNewAgentSession': 'Start New Conversation',
     'commands.terminal.switchAgentSurface': 'Open as Terminal or Chat',
     'commands.terminal.showAgentStatus': 'Show Agent Status',
+    'commands.agentChat.changeModel': 'Change Model…',
+    'commands.agentChat.changePermissionMode': 'Change Permission Mode…',
+    'commands.agentChat.togglePlanMode': 'Toggle Plan Mode',
     'commands.terminal.close': 'Close Terminal',
     'commands.workbench.closeActiveTab': 'Close Active Tab',
     'commands.workbench.nextTab': 'Show Next Tab',

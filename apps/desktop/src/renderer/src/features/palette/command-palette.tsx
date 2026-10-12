@@ -1,7 +1,7 @@
 import type { ViewCatalogSnapshot } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
 
-import { executeCommand } from '../../commands/execute';
+import { executeCommand, isCommandAvailable } from '../../commands/execute';
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import {
     Command,
@@ -156,6 +156,13 @@ function CommandPaletteBody() {
         sessionHasPullRequest:
             selectedSession !== undefined &&
             pullRequests?.pullRequests[selectedSession.id] !== undefined,
+        /**
+         * Read once as the palette opens: the active tab cannot change while the palette holds focus, and the composer
+         * registers its controls before the user can reach the palette.
+         */
+        agentChatModels: isCommandAvailable('agentChat.changeModel'),
+        agentChatPermissionModes: isCommandAvailable('agentChat.changePermissionMode'),
+        agentChatPlanMode: isCommandAvailable('agentChat.togglePlanMode'),
     };
     return (
         <>

@@ -1091,6 +1091,16 @@ to point at. Picking a level closes the menu. Plan mode is switched from the com
 a Plan chip beside `+` shows it is on and turns it off; both share the permission picker's optimistic
 selection. `planMode` is present only for a provider that has plan mode.
 
+The keyboard reaches the same controls from the focused composer: `agentChat.changeModel`
+(`cmd+/`) opens the model picker, `agentChat.changePermissionMode` (`cmd+.`) the permission menu,
+and `agentChat.togglePlanMode` (`cmd+alt+p`) flips plan mode, with the Plan chip as its only
+feedback. The first two follow Cursor's Agent input; Claude Code and Codex cycle modes with
+`shift+tab`, which moves focus here. Each composer registers only the controls its provider offers
+(`agent-chat-composer-commands.ts`), so a command is unavailable, hidden from the palette, and lets
+its chord through (an editor's `cmd+/` comment toggle, for example) on a Terminal surface, another
+tab, or a provider without that control. A menu opened this way returns focus to the composer when
+it closes. The Agent Commander window runs the same three commands for its Chat.
+
 A switch is saved on the Chat's Terminal (`terminals.chat_permission_mode`,
 `terminals.chat_plan_mode`), so a restart, resume, or app relaunch starts with it. A level the Chat
 only inherited from the launch settings is not saved until the user picks one, so toggling plan mode

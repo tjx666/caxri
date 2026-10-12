@@ -9,6 +9,10 @@ import {
 } from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
+import {
+    canRunAgentChatComposerCommand,
+    runAgentChatComposerCommand,
+} from '../features/agent-chat/agent-chat-composer-commands';
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
@@ -211,6 +215,10 @@ function closeTerminalTabOrArchiveSession(terminalId: string): void {
 // registry's `run(context, arguments_)` contract (see `./registry`) is synchronous, so none of
 // these can be awaited by their caller anyway.
 const commandContext: CommandContext = {
+    agentChat: {
+        canRun: (command) => canRunAgentChatComposerCommand(activeTerminalId(), command),
+        run: (command) => runAgentChatComposerCommand(activeTerminalId(), command),
+    },
     agentActions: {
         canOpen: () => Boolean(activeAgentTerminal()),
         open: () => {

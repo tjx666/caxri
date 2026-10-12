@@ -15,6 +15,7 @@ import {
     AgentChatStopButton,
 } from './agent-chat-stop-button';
 import { openAgentChatContext } from './agent-chat-task-opener';
+import { useAgentChatComposerCommand } from './hooks/use-agent-chat-composer-command';
 import { useAgentChatPermissionSelection } from './hooks/use-agent-chat-permission-selection';
 
 /**
@@ -57,8 +58,8 @@ function AgentChatSendButton({
  * The composer card's bottom row, laid out like the Codex app's: `+`, the Plan chip while plan mode is on, and the
  * permission menu lead on the left; the context meter, the model menu, and one primary action slot trail on the right.
  * That slot holds Stop while a turn runs and nothing is typed, and Send otherwise. The permission selection lives here
- * because both the permission menu (the level) and `+` (plan mode) switch it, and they must share one optimistic
- * state.
+ * because both the permission menu (the level) and `+` (plan mode) switch it, and they must share one optimistic state;
+ * `agentChat.togglePlanMode` flips plan mode through it too, and the Plan chip shows the result.
  */
 export function AgentChatComposerActions({
     canAttachImages,
@@ -150,6 +151,9 @@ export function AgentChatComposerActions({
     const provider = terminal && terminal.kind !== 'shell' ? terminal.kind : undefined;
     const permission = useAgentChatPermissionSelection(snapshot, provider, terminalId);
     const planMode = permission.snapshot?.planMode;
+    useAgentChatComposerCommand(terminalId, 'togglePlanMode', planMode !== undefined, () =>
+        permission.configure({ planMode: !planMode }),
+    );
     return (
         <div className="flex items-center gap-1 px-2 pb-2">
             <div className="flex min-w-0 flex-1 items-center gap-0.5">

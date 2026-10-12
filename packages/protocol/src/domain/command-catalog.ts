@@ -14,13 +14,18 @@ import { terminalCommandDefinitions } from './terminal-command-definitions.js';
  * - `localMachine`: the window's Server runs on this Mac. An SSH Host window hides commands that act on this machine's
  *   disk or OS, because Main refuses them there (see docs/adr/0014-ssh-remote-server.md).
  * - `sshHost`: the window belongs to an SSH Host.
+ * - `agentChatModels`, `agentChatPermissionModes`, `agentChatPlanMode`: the active tab is a Chat whose provider offers a
+ *   model list, permission levels, or plan mode, so its composer can open that menu or flip that toggle.
  */
 export type CommandWhen =
     | 'sessionHasLiveAgent'
     | 'sessionHasDetachedAgent'
     | 'sessionHasPullRequest'
     | 'localMachine'
-    | 'sshHost';
+    | 'sshHost'
+    | 'agentChatModels'
+    | 'agentChatPermissionModes'
+    | 'agentChatPlanMode';
 
 export interface CommandDefinition {
     id: CommandId;
@@ -112,6 +117,30 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Agent',
         description: 'Search Agent commands and skills for the active Agent Terminal',
         keywords: ['action', 'actions', 'command', 'commands', 'skill', 'skills', 'slash'],
+    },
+    {
+        id: 'agentChat.changeModel',
+        title: 'Change Model…',
+        category: 'Chat',
+        description: "Open the active Chat's model and reasoning effort picker",
+        keywords: ['model', 'switch model', 'reasoning effort', 'effort', 'thinking'],
+        when: 'agentChatModels',
+    },
+    {
+        id: 'agentChat.changePermissionMode',
+        title: 'Change Permission Mode…',
+        category: 'Chat',
+        description: "Open the active Chat's permission level menu",
+        keywords: ['permissions', 'approval', 'sandbox', 'full access', 'read only', 'mode'],
+        when: 'agentChatPermissionModes',
+    },
+    {
+        id: 'agentChat.togglePlanMode',
+        title: 'Toggle Plan Mode',
+        category: 'Chat',
+        description: 'Turn plan mode on or off for the active Chat',
+        keywords: ['plan', 'planning', 'plan mode'],
+        when: 'agentChatPlanMode',
     },
     ...terminalCommandDefinitions,
     {

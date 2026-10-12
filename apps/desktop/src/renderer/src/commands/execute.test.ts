@@ -95,6 +95,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 canOpen: () => true,
                 open: record('agentActions.open'),
             },
+            agentChat: {
+                canRun: () => true,
+                run: record('agentChat.run'),
+            },
             project: {
                 create: record('project.create'),
                 customizeIcon: record('project.customizeIcon'),
@@ -265,6 +269,17 @@ describe('executeCommand', () => {
         context.agentActions.canOpen = () => true;
         executeCommand('agentActions.open', undefined, context);
         expect(calls).toEqual(['agentActions.open']);
+    });
+
+    it('runs a Chat composer command only while the active Chat offers its control', () => {
+        const { calls, context } = recordingContext();
+        context.agentChat.canRun = (command) => command === 'togglePlanMode';
+
+        executeCommand('agentChat.changeModel', undefined, context);
+        executeCommand('agentChat.changePermissionMode', undefined, context);
+        executeCommand('agentChat.togglePlanMode', undefined, context);
+
+        expect(calls).toEqual(['agentChat.run(togglePlanMode)']);
     });
 
     it('offers local-only commands only in a local window and SSH Host commands only in an SSH Host window', () => {

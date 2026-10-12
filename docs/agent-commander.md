@@ -165,7 +165,9 @@ user's keybindings narrowed to the actions its Terminal context menu offers, Cle
 Terminal, and Open Detected Link, plus the Restart an exited pane shows with its shortcut. As in the
 Workbench, Restart does not reach through a focused Terminal or input, so a stray `Cmd+Shift+R`
 never replaces a running Commander; a stopped Terminal gives up focus, and the shortcut then works.
-Every other chord reaches the focused surface untouched.
+It also runs the Chat composer's model menu, permission menu, and plan mode toggle
+(`agentChat.changeModel`, `agentChat.changePermissionMode`, `agentChat.togglePlanMode`) while the
+Commander shows a Chat that offers them. Every other chord reaches the focused surface untouched.
 
 A notification raised in this window can run only the follow-ups it has a surface for
 (`commander-toast-actions.ts`): the pane's Retry and Refresh, and the Open Settings of the notice

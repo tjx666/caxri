@@ -44,6 +44,24 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
         // Picking a level closes the menu.
         await expect(menu).toBeHidden();
         await expect(picker).toHaveAccessibleName('Permissions: Read only');
+        // The keyboard reaches both from the composer: `Cmd+.` opens the menu and Escape returns to the input, and
+        // `Cmd+Option+P` flips plan mode with the Plan chip as its only feedback.
+        const message = chat.getByRole('textbox', { name: 'Message' }).filter({ visible: true });
+        await message.focus();
+        await page.keyboard.press('Meta+.');
+        await expect(menu.getByRole('menuitemradio', { name: /Read only/ })).toBeChecked();
+        await page.keyboard.press('Escape');
+        await expect(menu).toBeHidden();
+        await expect(message).toBeFocused();
+        const shortcutPlanChip = chat
+            .getByRole('button', { name: 'Turn off plan mode' })
+            .filter({ visible: true });
+        await page.keyboard.press('Meta+Alt+p');
+        await expect(shortcutPlanChip).toBeVisible();
+        await expect(message).toBeFocused();
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-plan-shortcut.png') });
+        await page.keyboard.press('Meta+Alt+p');
+        await expect(shortcutPlanChip).toBeHidden();
         // Plan mode lives in `+`, and a Plan chip beside it says it is on.
         await chat
             .getByRole('button', { name: 'Add files and more' })
@@ -69,7 +87,6 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
         await expect(menu).toBeHidden();
 
         // Sending works with plan mode on; the fake Codex app-server answers as usual.
-        const message = chat.getByRole('textbox', { name: 'Message' }).filter({ visible: true });
         await message.fill('hello');
         await message.press('Enter');
         await expect(chat.getByText(/hello/u).filter({ visible: true }).first()).toBeVisible();
