@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
     clampColumnWidth,
+    columnLeftEdge,
     columnPixels,
     effectiveColumnWidths,
     fitColumnWidth,
+    gutterPixels,
     MAX_RESIZED_COLUMN_WIDTH,
     MIN_RESIZED_COLUMN_WIDTH,
     tableGridTemplate,
@@ -52,5 +54,19 @@ describe('tableGridTemplate', () => {
         expect(tableGridTemplate(table, 0, { 1: 300 }).gridTemplateColumns).toBe(
             'calc(2ch + 19px) calc(10ch + 32px) 300px',
         );
+    });
+});
+
+describe('gutterPixels', () => {
+    it('sizes the row-number gutter for the largest row number, at least two digits', () => {
+        expect(gutterPixels(5, 7)).toBe(2 * 7 + 19);
+        expect(gutterPixels(50_000, 7)).toBe(5 * 7 + 19);
+    });
+});
+
+describe('columnLeftEdge', () => {
+    it('adds the gutter and every column before the given one', () => {
+        expect(columnLeftEdge(33, [100, 60, 80], 0)).toBe(33);
+        expect(columnLeftEdge(33, [100, 60, 80], 2)).toBe(193);
     });
 });

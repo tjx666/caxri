@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TriangleAlert } from 'lucide-react';
@@ -13,9 +13,11 @@ import { tryCommand } from '../../stores/toasts';
 import type { ColumnWidthOverrides } from './csv-column-width';
 import {
     clampColumnWidth,
+    columnLeftEdge,
     columnPixels,
     effectiveColumnWidths,
     fitColumnWidth,
+    gutterPixels,
     tableGridTemplate,
 } from './csv-column-width';
 import type { TableSort } from './csv-row-view';
@@ -24,6 +26,7 @@ import {
     describeTableIssues,
     describeTableLimits,
     describeTableSize,
+    isCellClipped,
     parseDelimitedTable,
 } from './csv-table';
 import { CsvTableFilter } from './csv-table-filter';
@@ -31,9 +34,12 @@ import { CsvTableHeader } from './csv-table-header';
 import { CsvTableRow } from './csv-table-row';
 import type { TableCellPosition, TableSelection } from './csv-table-selection';
 import {
+    clampTableSelection,
     isCellInBounds,
+    nextTableKeyboardSelection,
     nextTableRowSelection,
     nextTableSelection,
+    revealScrollOffset,
     serializeTsv,
     tableSelectionBounds,
     tableSelectionText,
@@ -42,6 +48,11 @@ import { openPreviewSource } from './preview-commands';
 import { readPreviewViewState, rememberPreviewViewState } from './preview-view-state';
 
 const ROW_HEIGHT = 24;
+/**
+ * The sticky header row: a body row's height plus its 1px bottom border. Body rows start below it, so scroll math that
+ * assumed a 24px header left the last row 1px under the scroller's bottom edge.
+ */
+const HEADER_HEIGHT = ROW_HEIGHT + 1;
 
 /**
  * Width of one `ch` before the table's font is measured, close to the UI font at 12px.
@@ -53,7 +64,7 @@ const DEFAULT_CH_WIDTH = 7;
  */
 function tableCellAt(target: EventTarget): (TableCellPosition & { isGutter: boolean }) | undefined {
     if (!(target instanceof Element)) return undefined;
-    const cell = target.closest<HTMLElement>('[role="cell"], [role="rowheader"]');
+    const cell = target.closest<HTMLElement>('[role="gridcell"], [role="rowheader"]');
     const row = cell?.closest<HTMLElement>('[data-position]');
     if (!cell || !row) return undefined;
     const isGutter = cell.getAttribute('role') === 'rowheader';
@@ -99,6 +110,47 @@ function TableWarnings({
             >
                 {t('preview.openSource')}
             </Button>
+        </div>
+    );
+}
+
+/**
+ * The full text of the clipped active cell, below it, while the keyboard moves through the table: the keyboard's
+ * counterpart of the hover tooltip a clipped cell shows the pointer, styled the same. The grid keeps focus (the cell is
+ * only its active descendant), so the tooltip itself, which opens on its trigger's own focus, cannot serve here. Screen
+ * readers already read the cell in full, since the truncation is visual only.
+ */
+function ActiveCellText({
+    cell,
+    isAbove,
+    isClipped,
+    left,
+    top,
+}: {
+    cell: string | undefined;
+    /**
+     * Opens above the cell instead of below, for the last rows, where below would run past the end of the table.
+     */
+    isAbove: boolean;
+    isClipped: boolean;
+    left: number;
+    /**
+     * The cell's top edge in the table's scroll content.
+     */
+    top: number;
+}) {
+    if (!isClipped || cell === undefined) return null;
+    return (
+        <div
+            aria-hidden="true"
+            className="pointer-events-none absolute z-20 max-w-80 rounded-md bg-elevated px-2.5 py-1.5 text-[12px] wrap-anywhere whitespace-pre-line text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]"
+            style={
+                isAbove
+                    ? { left, top: top - 4, transform: 'translateY(-100%)' }
+                    : { left, top: top + ROW_HEIGHT + 4 }
+            }
+        >
+            {cell}
         </div>
     );
 }
@@ -172,16 +224,59 @@ export function CsvPreview({
         if (isFinal) rememberPreviewViewState(viewStateKey, { columnWidths: next });
     };
     /**
-     * The selection is held with the row order it was made in: positions index into that order, so once a sort, filter,
-     * or source edit produces a new order the old selection no longer names the same cells and is dropped.
+     * The selection is held with the sort and filter it was made under: positions index into the view's row order, so
+     * once a new sort or filter reorders the rows the old selection no longer names the same cells and is dropped. A
+     * source edit keeps it, moved inside the table if rows were removed. It is remembered for this pane, so the active
+     * cell is where the reader left it after a tab switch.
      */
-    const [selectionState, setSelectionState] = useState<{
-        rowOrder: readonly number[];
-        selection: TableSelection;
-    }>();
-    const selection = selectionState?.rowOrder === rowOrder ? selectionState.selection : undefined;
+    const viewKey = `${deferredSort ? `${deferredSort.column}:${deferredSort.direction}` : ''}\0${deferredFilter}`;
+    const tableBounds = { rows: rowOrder.length, columns: table.header.length };
+    const [selectionState, setSelectionState] = useState(
+        () => readPreviewViewState(viewStateKey)?.tableSelection,
+    );
+    const selection =
+        selectionState?.viewKey === viewKey
+            ? clampTableSelection(selectionState.selection, tableBounds)
+            : undefined;
     const selectionBounds = selection ? tableSelectionBounds(selection) : undefined;
-    const select = (next: TableSelection) => setSelectionState({ rowOrder, selection: next });
+    const select = (next: TableSelection | undefined) => {
+        const state = next && { viewKey, selection: next };
+        setSelectionState(state);
+        rememberPreviewViewState(viewStateKey, { tableSelection: state ?? null });
+    };
+    /**
+     * The cell the keyboard acts on: the selection's focus, or the first cell before anything is selected.
+     */
+    const activeCell = selection?.focus ?? { row: 0, column: 0 };
+    const activeCellId = `${useId()}-active-cell`;
+    const [isTableFocused, setIsTableFocused] = useState(false);
+    /**
+     * Set by a navigation key and cleared by a pointer press, so the clipped-cell popup below follows the keyboard and
+     * never lingers after a click, where the hover tooltip already serves the pointer.
+     */
+    const [isKeyboardActive, setIsKeyboardActive] = useState(false);
+    const gutterWidth = gutterPixels(table.rows.length, chWidth);
+    /**
+     * Scrolls the table so a cell is fully visible, clear of the sticky header and row-number column.
+     */
+    const revealCell = (cell: TableCellPosition) => {
+        const scroller = scrollReference.current;
+        if (!scroller) return;
+        scroller.scrollTop = revealScrollOffset({
+            scroll: scroller.scrollTop,
+            viewport: scroller.clientHeight,
+            start: HEADER_HEIGHT + cell.row * ROW_HEIGHT,
+            size: ROW_HEIGHT,
+            inset: HEADER_HEIGHT,
+        });
+        scroller.scrollLeft = revealScrollOffset({
+            scroll: scroller.scrollLeft,
+            viewport: scroller.clientWidth,
+            start: columnLeftEdge(gutterWidth, columnPixelWidths, cell.column),
+            size: columnPixelWidths[cell.column] ?? 0,
+            inset: gutterWidth,
+        });
+    };
     const selectAt = (position: ReturnType<typeof tableCellAt>, isExtending: boolean) => {
         if (!position) return;
         select(
@@ -225,7 +320,7 @@ export function CsvPreview({
         initialOffset: () => readPreviewViewState(viewStateKey)?.scrollTop ?? 0,
         overscan: 12,
         // The sticky header sits above the first row inside the same scroller.
-        scrollMargin: ROW_HEIGHT,
+        scrollMargin: HEADER_HEIGHT,
     });
     /**
      * A new order or filter starts reading from the top, where its first rows are, and is remembered for this pane.
@@ -291,15 +386,43 @@ export function CsvPreview({
                         ref={scrollReference}
                         aria-colcount={table.header.length + 1}
                         aria-label={t('preview.table.label')}
+                        aria-activedescendant={
+                            isTableFocused && rowOrder.length > 0 ? activeCellId : undefined
+                        }
+                        aria-multiselectable
                         aria-rowcount={rowOrder.length + 1}
                         className="group/table relative min-h-0 flex-1 overflow-auto outline-none"
-                        role="table"
-                        // Focusable so Cmd+C reaches the selection; the selection's own color shows the focus.
+                        role="grid"
+                        // One tab stop: the grid keeps focus and names the active cell through `aria-activedescendant`,
+                        // because the virtualizer unmounts rows (and any focused cell in them) as they scroll away.
                         tabIndex={0}
+                        onBlur={(event) => {
+                            if (event.target === event.currentTarget) setIsTableFocused(false);
+                        }}
+                        onFocus={(event) => {
+                            if (event.target === event.currentTarget) setIsTableFocused(true);
+                        }}
                         onKeyDown={(event) => {
-                            if (!selection || event.target !== event.currentTarget) return;
+                            if (event.target !== event.currentTarget) return;
+                            const pageSize = Math.floor(
+                                (event.currentTarget.clientHeight - HEADER_HEIGHT) / ROW_HEIGHT,
+                            );
+                            const moved = nextTableKeyboardSelection(
+                                selection,
+                                event,
+                                tableBounds,
+                                pageSize,
+                            );
+                            if (moved) {
+                                event.preventDefault();
+                                select(moved);
+                                setIsKeyboardActive(true);
+                                revealCell(moved.focus);
+                                return;
+                            }
+                            if (!selection) return;
                             if (event.key === 'Escape') {
-                                setSelectionState(undefined);
+                                select(undefined);
                                 return;
                             }
                             if (!event.metaKey || event.key.toLowerCase() !== 'c') return;
@@ -369,6 +492,7 @@ export function CsvPreview({
                                     openCellMenu(event);
                                 }}
                                 onPointerDown={(event: ReactPointerEvent) => {
+                                    setIsKeyboardActive(false);
                                     if (event.button !== 0) return;
                                     selectAt(tableCellAt(event.target), event.shiftKey);
                                 }}
@@ -376,6 +500,12 @@ export function CsvPreview({
                                 {virtualizer.getVirtualItems().map((item) => (
                                     <CsvTableRow
                                         key={item.key}
+                                        activeCellId={activeCellId}
+                                        activeColumn={
+                                            item.index === activeCell.row
+                                                ? activeCell.column
+                                                : undefined
+                                        }
                                         cells={table.rows[rowOrder[item.index]]}
                                         columnWidths={clipWidths}
                                         numericColumns={table.numericColumns}
@@ -391,11 +521,30 @@ export function CsvPreview({
                                         style={{
                                             ...template,
                                             height: ROW_HEIGHT,
-                                            transform: `translateY(${item.start - ROW_HEIGHT}px)`,
+                                            transform: `translateY(${item.start - HEADER_HEIGHT}px)`,
                                         }}
                                     />
                                 ))}
                             </div>
+                            {isTableFocused && isKeyboardActive && (
+                                <ActiveCellText
+                                    cell={table.rows[rowOrder[activeCell.row]]?.[activeCell.column]}
+                                    isClipped={isCellClipped(
+                                        table.rows[rowOrder[activeCell.row]]?.[activeCell.column] ??
+                                            '',
+                                        clipWidths[activeCell.column],
+                                    )}
+                                    left={columnLeftEdge(
+                                        gutterWidth,
+                                        columnPixelWidths,
+                                        activeCell.column,
+                                    )}
+                                    isAbove={
+                                        activeCell.row >= 4 && activeCell.row >= rowOrder.length - 4
+                                    }
+                                    top={HEADER_HEIGHT + activeCell.row * ROW_HEIGHT}
+                                />
+                            )}
                         </div>
                         {rowOrder.length === 0 && table.rows.length > 0 && (
                             <div className="empty-work absolute inset-x-0 top-12 text-center text-muted">

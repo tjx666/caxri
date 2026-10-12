@@ -224,6 +224,11 @@ export function describeTableLimits(
 }
 
 /**
+ * The gutter's pixels beyond its digits: padding, border, and figure slack.
+ */
+export const ROW_NUMBER_GUTTER_EXTRA = 19;
+
+/**
  * Width of the row-number gutter, from the digit count of the largest row number it shows.
  *
  * The 16px is the cell's horizontal padding, 1px is its right border (the cell is border-box, so the border is taken
@@ -231,8 +236,14 @@ export function describeTableLimits(
  * defines `ch`. Without the border and slack, three-digit row numbers clip to "1…".
  */
 export function rowNumberGutterWidth(rowCount: number): string {
-    const digits = Math.max(2, String(Math.max(1, rowCount)).length);
-    return `calc(${digits}ch + 19px)`;
+    return `calc(${rowNumberDigits(rowCount)}ch + ${ROW_NUMBER_GUTTER_EXTRA}px)`;
+}
+
+/**
+ * Digits the row-number gutter is sized for: the largest row number's, and at least two.
+ */
+export function rowNumberDigits(rowCount: number): number {
+    return Math.max(2, String(Math.max(1, rowCount)).length);
 }
 
 /**
