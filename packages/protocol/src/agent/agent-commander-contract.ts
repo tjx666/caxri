@@ -242,6 +242,12 @@ export type CommanderTaskUpdate = z.infer<typeof commanderTaskUpdateSchema>;
 const noParameters = z.object({}).default({});
 
 /**
+ * What `agentCommander.open` brings into view in the Commander window beyond raising it.
+ */
+export const agentCommanderOpenTargetSchema = z.enum(['inbox']);
+export type AgentCommanderOpenTarget = z.infer<typeof agentCommanderOpenTargetSchema>;
+
+/**
  * Agent Commander methods. The Desktop owns the Commander's lifecycle; the Commander's own Agent Endpoint receives the
  * `commander` capability and may only read the board and create empty Sessions to delegate into. See
  * `docs/agent-commander.md`.
@@ -327,11 +333,12 @@ export const commanderMethods = {
     },
     /**
      * Desktop-owned window controls: open (or raise) the Commander window, and select a Session in the Workbench and
-     * focus it.
+     * focus it. An optional `target` names what the raised window must show: `inbox` opens its Inbox ("Needs you"), as
+     * a drawer in a narrow window, and focuses the first open item, for the status bar's `N need you` chip.
      */
     'agentCommander.open': {
         ...commandPolicy('desktop', 'control'),
-        params: noParameters,
+        params: z.strictObject({ target: agentCommanderOpenTargetSchema.optional() }).default({}),
         result: z.null(),
     },
     /**

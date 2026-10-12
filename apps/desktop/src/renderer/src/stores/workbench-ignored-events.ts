@@ -11,6 +11,8 @@ import type { ServerEvent } from '@caxri/protocol';
  * - `commanderInbox.changed` goes to `subscribeRuntimeQueryInvalidation`, which refreshes the `commander.inbox.list` read
  *   behind the status bar's "Needs you" chip; the Agent Commander window re-reads its own Inbox in
  *   `useAgentCommander`.
+ * - `agentCommander.inboxRequested` is sent only to the Agent Commander window, whose `useAgentCommander` opens its
+ *   Inbox.
  * - `subscribeUnsavedEditorRequests` answers `editor.unsavedRequest`, and `subscribeExternalDocumentSync` handles
  *   `externalDocument.changed`.
  */
@@ -22,6 +24,7 @@ const WORKBENCH_IGNORED_EVENTS = [
     'agent.permissionAutoAllowChanged',
     'agentChat.patch',
     'agentChat.taskPatch',
+    'agentCommander.inboxRequested',
     'agentHooks.changed',
     'agentTranscript.changed',
     'commanderInbox.changed',

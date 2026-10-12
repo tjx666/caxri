@@ -5,7 +5,10 @@ import {
     COMMANDER_INBOX_MAX_WIDTH,
     COMMANDER_INBOX_MIN_WIDTH,
     commanderInboxWidth,
+    revealCommanderInbox,
     runCommanderInboxAction,
+    setCommanderInboxVisible,
+    settleCommanderInboxFocusRequest,
     useCommanderInboxUiStore,
 } from '../commander-inbox-store';
 
@@ -50,5 +53,20 @@ describe('runCommanderInboxAction', () => {
             runCommanderInboxAction('item-2', 'merge', () => Promise.reject(new Error('boom'))),
         ).rejects.toThrow('boom');
         expect(useCommanderInboxUiStore.getState().pendingActions).toEqual({});
+    });
+});
+
+describe('revealCommanderInbox', () => {
+    it('opens a hidden Inbox and requests focus until the list settles it', () => {
+        setCommanderInboxVisible(false);
+
+        revealCommanderInbox();
+
+        expect(useCommanderInboxUiStore.getState()).toMatchObject({
+            isVisible: true,
+            isFocusRequested: true,
+        });
+        settleCommanderInboxFocusRequest();
+        expect(useCommanderInboxUiStore.getState().isFocusRequested).toBe(false);
     });
 });

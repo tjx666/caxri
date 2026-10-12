@@ -103,7 +103,7 @@ export function AgentChatPane({
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
-    const { canFork, canSaveProjectDefault } = agentChatHostCapabilities(host);
+    const { canFork, canOpenBesideChat, canSaveProjectDefault } = agentChatHostCapabilities(host);
     const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
         terminalId,
         snapshot,
@@ -177,7 +177,7 @@ export function AgentChatPane({
         [jumpTo, stopFollowing],
     );
     const pending = useAgentChatPending(terminalId, snapshot);
-    const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId);
+    const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId, canOpenBesideChat);
     /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
      * `detached`, while the projection only reads `stopped`.
@@ -317,6 +317,7 @@ export function AgentChatPane({
                 snapshot={snapshot}
                 terminalId={terminalId}
                 onAnswered={focusComposer}
+                onOpenTask={taskLinks?.openTask}
                 onOpenAsTerminal={openAsTerminal}
                 onRecover={recover}
             />
