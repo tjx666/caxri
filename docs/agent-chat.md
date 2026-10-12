@@ -619,7 +619,9 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   painted in the language inferred from what produced it: the extension of a file a `cat`/`sed`/
   `head` printed or a Read tool returned (with Claude Code's line-number gutter removed), `diff` for
   `git diff`/`git show`, or JSON; anything else stays plain text. Timeline folding lives in
-  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`; the work row and
+  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`, which takes the
+  fold range from `foldAgentChatTurn` in `packages/protocol/src/agent/agent-chat-turn-fold.ts`,
+  shared with the phone; the work row and
   summary wording, turn labels, and output-language inference every client shares live in
   `packages/protocol/src/agent/agent-chat-work.ts` and `agent-chat-work-output.ts`. Every surface
   hides a sub-second duration through `formatNoticeableDuration`.
@@ -784,9 +786,11 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   Project relative and leaves a path outside it absolute (`projectDisplayPath`). A finished turn ends under its final reply with its artifacts
   (`collectAgentChatTurnArtifacts`): the edited-files card, which expands to every file's diff but
   offers no Undo or Review, since the phone neither writes the files back nor opens a side tab, and
-  a card per pull request, issue, or acceptance report that opens the page in the browser. A
-  `Worked for X`, `Failed after X`, or `Stopped after X` footer follows (`agentChatTurnLabel`);
-  the phone does not fold the turn behind it. The window keeps `plan`, so the phone docks Desktop's
+  a card per pull request, issue, or acceptance report that opens the page in the browser. The phone folds a finished turn as Desktop does
+  (`foldAgentChatTurn`): its work and commentary sit behind a `Worked for X`, `Failed after X`, or
+  `Stopped after X` row (`agentChatTurnLabel`) that a tap expands, and a turn with nothing to fold
+  keeps the row, without a chevron, before its reply. The Chat view holds the expanded turn ids,
+  not the rows, so FlashList recycling never moves one turn's state onto another. The window keeps `plan`, so the phone docks Desktop's
   one-row plan card above its composer by the same rule (`agentChatDockedPlan`: the latest plan
   stays until the next turn starts, its step spinning only during a turn), and the line above the composer reads `agentChatActivity`:
   the turn's verb, the elapsed time after a second, `Compacting context…`, or what the turn waits
