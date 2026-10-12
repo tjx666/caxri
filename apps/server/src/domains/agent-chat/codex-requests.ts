@@ -1,7 +1,7 @@
 import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { agentChatAnsweredNotice, CaxriError } from '@caxri/protocol';
 
-import { answeredNotice, clip, questionAnswers, stringField } from './chat-items';
+import { clip, questionAnswers, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import type { CodexRequestKind } from './codex-items';
 import { codexRequestKey, codexRequestKind, mapCodexRequest } from './codex-items';
@@ -139,7 +139,7 @@ export class CodexRequestBroker {
                     Object.entries(answers).map(([id, values]) => [id, { answers: values }]),
                 ),
             });
-            const answered = answeredNotice(
+            const answered = agentChatAnsweredNotice(
                 this.host.read().requests.find((request) => request.id === requestId),
                 pending.turnId,
                 answers,

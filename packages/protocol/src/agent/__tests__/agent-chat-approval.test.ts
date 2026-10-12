@@ -4,6 +4,7 @@ import {
     AGENT_APPROVAL_ALLOW_LABEL,
     AGENT_APPROVAL_DENY_LABEL,
     agentApprovalAlwaysAllowLabel,
+    agentChatAnsweredNotice,
     agentChatApprovalChoices,
     agentChatRequestTitle,
     agentChatWaitingText,
@@ -132,5 +133,48 @@ describe('shared approval labels', () => {
         expect(agentApprovalAlwaysAllowLabel('Session')).toBe('Always Allow in This Session');
         expect(AGENT_APPROVAL_ALLOW_LABEL).toBe('Allow');
         expect(AGENT_APPROVAL_DENY_LABEL).toBe('Deny');
+    });
+});
+
+describe('agentChatAnsweredNotice', () => {
+    it('records the answers to a question, labelled by header, and skips unanswered questions', () => {
+        const question = (id: string, header: string) => ({
+            id,
+            header,
+            question: `${id}?`,
+            options: [],
+            allowsOther: true,
+        });
+        expect(
+            agentChatAnsweredNotice(
+                {
+                    id: 'q',
+                    kind: 'question',
+                    questions: [
+                        question('color', 'Color'),
+                        question('size', ''),
+                        question('skip', ''),
+                    ],
+                },
+                'turn-1',
+                { color: ['Blue'], size: ['S', 'M'] },
+            ),
+        ).toEqual({
+            id: 'answer:q',
+            turnId: 'turn-1',
+            type: 'notice',
+            kind: 'answered',
+            message: 'Color: Blue\nsize?: S, M',
+        });
+        expect(
+            agentChatAnsweredNotice({ id: 'a', kind: 'fileChange' }, undefined, {}),
+        ).toBeUndefined();
+        expect(
+            agentChatAnsweredNotice(
+                { id: 'q', kind: 'question', questions: [question('x', 'X')] },
+                undefined,
+                {},
+            ),
+        ).toBeUndefined();
     });
 });

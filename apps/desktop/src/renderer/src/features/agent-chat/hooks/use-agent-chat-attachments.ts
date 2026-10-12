@@ -5,6 +5,7 @@ import { pushToast } from '../../../stores/toasts';
 import type { AgentChatAttachment } from '../agent-chat-drafts';
 import {
     attachmentsAfterSend,
+    attachmentsWithReturned,
     readAgentChatAttachments,
     writeAgentChatAttachments,
 } from '../agent-chat-drafts';
@@ -120,6 +121,22 @@ export function useAgentChatAttachments(terminalId: string) {
         release(sent);
         update((current) => attachmentsAfterSend(current, sent));
     };
+    /**
+     * Puts back images whose message failed to send, ahead of any attached since, and reserves them again.
+     */
+    const restoreUnsent = (sent: readonly AgentChatAttachment[]): void => {
+        // The stored list mirrors this composer's state (`update` writes both), and the reservation must change once,
+        // outside an updater React may run twice.
+        const attached = new Set(readAgentChatAttachments(terminalId).map(({ id }) => id));
+        const returned = sent.filter((attachment) => !attached.has(attachment.id));
+        if (returned.length === 0) return;
+        const taken = reservationOf(returned);
+        reserved.current = {
+            count: reserved.current.count + taken.count,
+            bytes: reserved.current.bytes + taken.bytes,
+        };
+        update((current) => attachmentsWithReturned(current, returned));
+    };
     return {
         attachments,
         readingCount,
@@ -131,5 +148,6 @@ export function useAgentChatAttachments(terminalId: string) {
         add,
         remove,
         clearSent,
+        restoreUnsent,
     };
 }

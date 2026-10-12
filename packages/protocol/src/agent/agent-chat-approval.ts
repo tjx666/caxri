@@ -1,3 +1,4 @@
+import type { AgentChatItem } from './agent-chat-contract.js';
 import type { AgentChatRequest } from './agent-chat-requests.js';
 import { agentToolActiveLabel, describeAgentTool } from './agent-tool-presentation.js';
 
@@ -136,4 +137,31 @@ export function agentChatWaitingText(requests: readonly AgentChatRequest[]): str
     return first && isAgentChatApprovalRequest(first)
         ? 'Waiting for your approval'
         : 'Waiting for your answer';
+}
+
+/**
+ * Timeline record of the answers given to a question request. The request card disappears once answered, and without
+ * this record the conversation would show the Agent acting on a choice the transcript never mentions. Server Core
+ * records it; the Desktop composer shows the same record while the answer is still on its way.
+ */
+export function agentChatAnsweredNotice(
+    request: AgentChatRequest | undefined,
+    turnId: string | undefined,
+    answers: Readonly<Record<string, readonly string[]>>,
+): AgentChatItem | undefined {
+    if (request?.kind !== 'question') return undefined;
+    const lines = request.questions.flatMap((question) => {
+        if (!Object.hasOwn(answers, question.id)) return [];
+        const chosen = answers[question.id];
+        if (chosen.length === 0) return [];
+        return [`${question.header || question.question}: ${chosen.join(', ')}`];
+    });
+    if (lines.length === 0) return undefined;
+    return {
+        id: `answer:${request.id}`.slice(0, 200),
+        ...(turnId && { turnId }),
+        type: 'notice',
+        kind: 'answered',
+        message: lines.join('\n').slice(0, 2_000),
+    };
 }

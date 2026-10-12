@@ -1,7 +1,7 @@
 import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { agentChatAnsweredNotice, CaxriError } from '@caxri/protocol';
 
-import { answeredNotice, questionAnswers } from './chat-items';
+import { questionAnswers } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import type { GrokToolCall } from './grok-items';
 import {
@@ -155,7 +155,7 @@ export class GrokRequestBroker {
                 grokQuestionAnswers(pending.questions, answers),
             );
             const { host } = this.owner;
-            const answered = answeredNotice(
+            const answered = agentChatAnsweredNotice(
                 host.read().requests.find((request) => request.id === requestId),
                 pending.turnId,
                 answers,

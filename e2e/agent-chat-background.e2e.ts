@@ -7,7 +7,7 @@ import {
     fakeCodexChatAgentMode,
     openAgentChat,
 } from './support/agent-chat-fixture.ts';
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
     createProjectSession,
@@ -79,7 +79,7 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex Chat queues follow-ups during a turn and steers on request', async ({}, testInfo) => {
+test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and steers on request', async ({}, testInfo) => {
     const { directory, agentMode, userData, root } = await fixture(
         'caxri-agent-chat-queue-',
         'codex',
@@ -98,13 +98,24 @@ test('a Codex Chat queues follow-ups during a turn and steers on request', async
         await message.fill('hello after this');
         await expect(chat.getByRole('button', { name: 'Queue message' })).toBeVisible();
         await message.press('Enter');
+        // The message leaves the composer at once, before Server Core answers.
+        await expect(message).toHaveValue('');
         const queue = chat.getByRole('region', { name: 'Queued messages' });
         await expect(queue.getByText('hello after this')).toBeVisible();
         await message.fill('hello second');
         await message.press('Enter');
         await expect(queue.getByText('hello second')).toBeVisible();
+        await message.fill('hello third');
+        await message.press('Enter');
+        await expect(queue.getByText('hello third')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue.png') });
 
+        // A steer the provider refuses gives the message back to the composer instead of losing it, and says why.
+        allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
+        await message.fill('hello refuse');
+        await message.press('ControlOrMeta+Enter');
+        await expect(message).toHaveValue('hello refuse');
+        await expect(chat.locator('[data-agent-chat-pending]')).toHaveCount(0);
         await message.fill('hello steer');
         await message.press('ControlOrMeta+Enter');
         await expect(chat.getByText('Steered')).toBeVisible();
@@ -114,12 +125,16 @@ test('a Codex Chat queues follow-ups during a turn and steers on request', async
         await expect(chat.getByText('Queue paused')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-queue-paused.png') });
         await queue.getByRole('button', { name: 'Delete queued message' }).last().click();
-        await expect(queue.getByText('hello second')).toHaveCount(0);
+        await expect(queue.getByText('hello third')).toHaveCount(0);
         await chat.getByRole('button', { name: 'Resume' }).click();
+        // The two messages left in the queue go out together, as one message and one turn.
         await expect(
             chat.getByText('Hello from fake Codex. You said: hello after this'),
         ).toBeVisible();
         await expect(queue).toHaveCount(0);
+        await expect(
+            chat.locator('[data-agent-chat-user-message]').filter({ hasText: 'hello after this' }),
+        ).toContainText('hello second');
         // A queued message reads as an ordinary one once delivered; only a steered message keeps a caption.
         await expect(chat.getByText('Queued', { exact: true })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-queue-drained.png') });

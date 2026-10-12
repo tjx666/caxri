@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatQueueEntries, draftAfterQueueEdit } from '../agent-chat-queue';
+import { agentChatQueueEntries } from '../agent-chat-queue';
 
 describe('agentChatQueueEntries', () => {
     it('adds Edit to the shared row, except for a message carrying images', () => {
@@ -30,12 +30,25 @@ describe('agentChatQueueEntries', () => {
         });
         expect(agentChatQueueEntries(undefined, false)).toEqual([]);
     });
-});
 
-describe('draftAfterQueueEdit', () => {
-    it('restores the message, ahead of anything already typed', () => {
-        expect(draftAfterQueueEdit('', 'queued')).toBe('queued');
-        expect(draftAfterQueueEdit('  ', 'queued')).toBe('queued');
-        expect(draftAfterQueueEdit('typed', 'queued')).toBe('queued\ntyped');
+    it('lists messages still on their way after the queue, with every action held', () => {
+        const entries = agentChatQueueEntries([{ id: 'm1', text: 'Queued' }], true, [
+            {
+                id: 'p1',
+                text: 'On its way',
+                images: [{ thumbnail: '' }],
+                placement: 'queue',
+                knownIds: new Set(),
+            },
+        ]);
+        expect(entries.map((entry) => entry.id)).toEqual(['m1', 'p1']);
+        expect(entries[0]?.isPending).toBeUndefined();
+        expect(entries[1]).toMatchObject({
+            preview: 'On its way',
+            imageLabel: '1 image',
+            isPending: true,
+            canEdit: false,
+            canSendNow: false,
+        });
     });
 });

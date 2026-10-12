@@ -4,12 +4,14 @@ import { CornerDownLeft, CornerDownRight, Pause, Pencil, Play, Trash2 } from 'lu
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import {
     didRemoveAgentChatQueued,
     editAgentChatQueued,
     resumeAgentChatQueue,
     sendAgentChatQueuedNow,
 } from './agent-chat-commands';
+import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { AgentChatQueueEntryView } from './agent-chat-queue';
 import { agentChatQueueEntries } from './agent-chat-queue';
 
@@ -28,8 +30,15 @@ function QueueCard({
 }) {
     const { t } = useTranslation();
     const isSteer = entry.sendNowLabel === 'Steer';
+    const isPending = entry.isPending === true;
     return (
-        <li className="flex min-w-0 items-center gap-1 rounded py-0.5 pr-0.5 pl-2 text-[12px] leading-5 hover:bg-[var(--selection)]">
+        <li
+            aria-busy={isPending}
+            className={cn(
+                'flex min-w-0 items-center gap-1 rounded py-0.5 pr-0.5 pl-2 text-[12px] leading-5 hover:bg-[var(--selection)]',
+                isPending && 'opacity-60',
+            )}
+        >
             <span className="flex min-w-0 flex-1 items-center gap-2">
                 <CornerDownRight aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
                 {entry.commandLabel && (
@@ -43,7 +52,11 @@ function QueueCard({
                 )}
             </span>
             <Tooltip
-                content={t(entry.canEdit ? 'common.edit' : 'agentChat.edit.imagesUnsupported')}
+                content={
+                    isPending
+                        ? t('agentChat.message.sending')
+                        : t(entry.canEdit ? 'common.edit' : 'agentChat.edit.imagesUnsupported')
+                }
             >
                 <Button
                     aria-label={t('agentChat.queue.editMessage')}
@@ -60,10 +73,11 @@ function QueueCard({
                     <Pencil className="size-3.5" />
                 </Button>
             </Tooltip>
-            <Tooltip content={t('common.delete')}>
+            <Tooltip content={t(isPending ? 'agentChat.message.sending' : 'common.delete')}>
                 <Button
                     aria-label={t('agentChat.queue.deleteMessage')}
                     className={ACTION_CLASS_NAME}
+                    disabled={isPending}
                     size="icon"
                     variant="ghost"
                     onClick={() => {
@@ -77,9 +91,11 @@ function QueueCard({
             </Tooltip>
             <Tooltip
                 content={
-                    entry.canSendNow
-                        ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')
-                        : t('agentChat.queue.commandWaits')
+                    isPending
+                        ? t('agentChat.message.sending')
+                        : entry.canSendNow
+                          ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')
+                          : t('agentChat.queue.commandWaits')
                 }
             >
                 <Button
@@ -111,6 +127,7 @@ export function AgentChatQueueList({
     isPaused,
     onAction,
     onEdit,
+    pending,
     queue,
     terminalId,
 }: {
@@ -125,11 +142,15 @@ export function AgentChatQueueList({
      * Puts a queued message's text back into the composer once it left the queue.
      */
     onEdit: (text: string) => void;
+    /**
+     * Messages sent to wait here that Server Core does not list yet; they follow its entries with their actions held.
+     */
+    pending: readonly AgentChatPendingMessage[];
     queue: readonly AgentChatQueuedMessage[] | undefined;
     terminalId: string;
 }) {
     const { t } = useTranslation();
-    const entries = agentChatQueueEntries(queue, isTurnRunning);
+    const entries = agentChatQueueEntries(queue, isTurnRunning, pending);
     if (entries.length === 0) return null;
     return (
         <section

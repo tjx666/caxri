@@ -2,11 +2,12 @@ import type {
     AgentChatDefault,
     AgentChatMessageInput,
     AgentChatModelRequest,
+    AgentChatRequest,
     AgentChatResponse,
     AgentProvider,
     TerminalRecord,
 } from '@caxri/protocol';
-import { formatLongPasteReference } from '@caxri/protocol';
+import { agentChatAnsweredNotice, formatLongPasteReference } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
@@ -14,10 +15,17 @@ import { getBootstrap } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { didSelectSession } from '../session/session-commands';
-import { createTerminalForSession } from '../terminal/terminal-commands';
+import {
+    createTerminalForSession,
+    RESTART_AGENT_FAILED,
+    restartTerminal,
+    restartTerminalWithRecovery,
+} from '../terminal/terminal-commands';
 import { writeAgentChatDraft } from './agent-chat-drafts';
 import { agentChatHandoffPrompt } from './agent-chat-handoff';
 import { agentChatConfigureFailureMessage } from './agent-chat-model-selection';
+import { addAgentChatPendingAnswer, dropAgentChatPendingAnswer } from './agent-chat-pending';
+import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
 import {
     agentChatForkSuccessMessage,
     agentChatReplaceTurnsConfirm,
@@ -167,20 +175,27 @@ export function interruptAgentChat(terminalId: string): void {
 }
 
 /**
- * Answers a pending approval or question. Resolves `true` once Server Core accepted the answer; the request card then
- * waits for the projection to remove it, and re-enables its controls only when the answer failed.
+ * Answers a pending approval or question without waiting for the round trip: the card leaves at once (the dock skips
+ * requests with a pending answer), and a question's answers show in the timeline as Server Core will record them. A
+ * failed answer reports itself through `tryCommand` and brings the card back.
  */
-export async function didAnswerAgentChatRequest(
+export async function answerAgentChatRequest(
     terminalId: string,
-    requestId: string,
+    request: AgentChatRequest,
     response: AgentChatResponse,
-): Promise<boolean> {
-    let isAnswered = false;
-    await tryCommand(translate('agentChat.commands.answerFailed'), async () => {
-        await caxri.request('agentChat.respond', { terminalId, requestId, response });
-        isAnswered = true;
+): Promise<void> {
+    addAgentChatPendingAnswer(terminalId, {
+        requestId: request.id,
+        notice:
+            response.kind === 'answers'
+                ? agentChatAnsweredNotice(request, undefined, response.answers)
+                : undefined,
     });
-    return isAnswered;
+    const isAnswered = await tryCommand(translate('agentChat.commands.answerFailed'), async () => {
+        await caxri.request('agentChat.respond', { terminalId, requestId: request.id, response });
+        return true;
+    });
+    if (!isAnswered) dropAgentChatPendingAnswer(terminalId, request.id);
 }
 
 /**
@@ -306,4 +321,23 @@ export async function didContinueAgentChatInNewChat(
             pendingRequest,
         }),
     });
+}
+
+/**
+ * The recovery banner's action: restart a Chat that cannot continue, or read the projection again when only the read
+ * failed. Only a hand-over can still have a turn running elsewhere; a failed Chat, or one whose conversation is open in
+ * another client, has no turn left to stop, so its Retry restarts without the running-turn confirmation.
+ */
+export function recoverAgentChat(
+    terminalId: string,
+    notice: AgentChatRecoveryNotice | undefined,
+    refetch: () => Promise<unknown>,
+): void {
+    if (notice?.recovery === 'restart') {
+        if (notice.kind === 'detached') restartTerminal(terminalId);
+        else restartTerminalWithRecovery(terminalId, RESTART_AGENT_FAILED);
+        return;
+    }
+    // eslint-disable-next-line no-void -- the query owns the refetch result and error state
+    void refetch();
 }

@@ -235,6 +235,76 @@ export function attachmentsAfterSend(
 }
 
 /**
+ * The composer draft after a message comes back to it (Edit on a queued message, or a send that failed): the message
+ * alone when the composer is empty, otherwise the message ahead of what the user had typed, so neither is lost.
+ */
+export function draftWithReturnedMessage(current: string, returned: string): string {
+    if (!current.trim()) return returned;
+    return `${returned}\n${current}`;
+}
+
+/**
+ * Images whose message failed to send, back ahead of any attached since; one still attached is not added twice.
+ */
+export function attachmentsWithReturned(
+    current: readonly AgentChatAttachment[],
+    returned: readonly AgentChatAttachment[],
+): AgentChatAttachment[] {
+    const currentIds = new Set(current.map((attachment) => attachment.id));
+    return [...returned.filter((attachment) => !currentIds.has(attachment.id)), ...current];
+}
+
+/**
+ * The mounted composer of each Chat, which takes a message whose send failed back into its live draft and attachments.
+ * The send cleared the composer at once, so by the time it fails the composer that sent it may have unmounted, or been
+ * replaced by one that read the stored draft when it mounted; only the one on screen can merge the message with what
+ * the user typed since.
+ */
+const returnListeners = new Map<
+    string,
+    (text: string, attachments: readonly AgentChatAttachment[]) => void
+>();
+
+/**
+ * Registers the mounted composer of `terminalId` to receive {@link returnUnsentAgentChatMessage}. Returns the
+ * unsubscribe.
+ */
+export function subscribeAgentChatUnsentReturns(
+    terminalId: string,
+    listener: (text: string, attachments: readonly AgentChatAttachment[]) => void,
+): () => void {
+    returnListeners.set(terminalId, listener);
+    return () => {
+        if (returnListeners.get(terminalId) === listener) returnListeners.delete(terminalId);
+    };
+}
+
+/**
+ * Puts a message whose send failed back into its Chat's composer, ahead of anything typed or attached since: into the
+ * composer on screen when it is mounted, otherwise into the stored draft and attachments it opens with.
+ */
+export function returnUnsentAgentChatMessage(
+    terminalId: string,
+    text: string,
+    sent: readonly AgentChatAttachment[],
+): void {
+    const listener = returnListeners.get(terminalId);
+    if (listener) {
+        listener(text, sent);
+        return;
+    }
+    if (text)
+        writeAgentChatDraft(
+            terminalId,
+            draftWithReturnedMessage(readAgentChatDraft(terminalId), text),
+        );
+    writeAgentChatAttachments(
+        terminalId,
+        attachmentsWithReturned(readAgentChatAttachments(terminalId), sent),
+    );
+}
+
+/**
  * Inserts `text` over the selection `[start, end)`, padded with a space wherever it would otherwise run into a
  * neighboring word, and always followed by one so the user can keep typing. A multi-line `text` (a long paste's
  * reference) is a block of its own, so it is padded with line breaks instead. Returns the new draft and where the caret
