@@ -30,6 +30,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.muteFailed': '无法静音通知',
 
     'toasts.action.copyDetails': '复制详细信息',
+    'toasts.action.copyCommand': '复制命令',
     'toasts.action.restoreDiscardedChanges': '恢复我的更改',
     'toasts.action.openOnGitHub': '在 GitHub 上打开',
     'toasts.action.viewDetails': '查看详细信息',
@@ -45,6 +46,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.actionUnavailable.missingSession': '该会话已不存在。',
     'toasts.actionUnavailable.sessionMovedOn': '此会话在那次切换之后已发生变化。',
     'toasts.copyDetailsFailed': '复制详细信息失败',
+    'toasts.copyCommandFailed': '复制命令失败',
 
     'toasts.type.worktreeFallback': 'Worktree 回退',
     'toasts.type.agentRecovery': 'Agent 自动恢复',

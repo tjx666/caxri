@@ -6,7 +6,7 @@ import { mapWithConcurrency } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
 import type { ResolvedSessionPath } from '../project';
-import type { WatchHandle, WatchHub } from '../watch-hub';
+import type { WatchHandle, WatchHub } from '../watch';
 import type { ResolveSessionPath } from './documents';
 import type { WatchScope } from './watcher';
 

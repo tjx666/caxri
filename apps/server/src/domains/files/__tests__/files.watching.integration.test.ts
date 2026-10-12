@@ -399,7 +399,7 @@ describe('FileService watcher and polling behavior', () => {
         await service.watchSession(session.id);
         expect(callback).toBeDefined();
         // FSEventsBackend.cc's MustScanSubDirs advisory: the native stream stays alive, so the callback fires again
-        // with no events and this exact message (see `watch-hub.ts`'s `isMustRescanAdvisory`).
+        // with no events and this exact message (see `watch/failures.ts`'s `isMustRescanAdvisory`).
         callback!(
             new Error(
                 'Events were dropped by the FSEvents client. File system must be re-scanned.',

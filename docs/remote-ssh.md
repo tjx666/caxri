@@ -66,6 +66,10 @@ identifies each directory through the remote Server's `files.authorizeOpen` inst
 outside it is refused. Free browsing outside the Project, `~`, and the Backspace gesture that
 detaches from the Project are not offered, because they would list this Mac's disk.
 
+A file path a Terminal prints opens the same way when it resolves inside a Project. A path outside
+every Project is refused with a message asking the user to add its folder as a Project, because the
+local window's external-file snapshot would read this Mac's disk.
+
 ## Requirements on the SSH Host
 
 - Linux x64 or arm64 with glibc 2.28 or newer (Debian 10, Ubuntu 18.10, RHEL 8 and later). An
@@ -86,6 +90,20 @@ detaches from the Project are not offered, because they would list this Mac's di
   predict it. A name another account binds (it can see names in `/proc/net/unix` once they were
   used) is skipped for the next one in a series of 64, logged as `server_core.profile_lock_squatted`.
   If every name is taken, the window fails with that reason instead of a generic start failure.
+- File watching uses inotify, which charges one watch per watched directory against
+  `fs.inotify.max_user_watches`, shared by every program the account runs. A large Project, or
+  another watcher such as an editor's language server, can exhaust it (Debian and Ubuntu default to
+  8192 on older kernels). The affected watch then falls back to polling, so the file tree and Git
+  status lag by a few seconds, and the window shows a persistent warning with a Copy command button
+  for the fix: `echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p`
+  The Server retries native watching with backoff (up to every 5 minutes), switches back without a
+  reconnect once the limit allows it, and removes the warning. `watch_hub.fallback` records the
+  cause as a closed `reason` (`watch-limit`, `instance-limit`, or `other`).
+- The account's inotify instances (`fs.inotify.max_user_instances`, often 128) are a second limit:
+  every watching program holds one. `@parcel/watcher` 2.6.0 hangs instead of failing when it cannot
+  create one, so before the Server's first native watch it checks from a short-lived child process
+  that an instance can still be created. If not, watching starts in polling mode with the same kind
+  of warning, offering `fs.inotify.max_user_instances=512`, and the check repeats on each retry.
 - On hosts whose `systemd-logind` sets `KillUserProcesses=yes`, the Server dies with the last SSH
   session unless lingering is enabled for the user: `sudo loginctl enable-linger "$USER"`.
 
@@ -115,6 +133,10 @@ event relay, IPC transport, and Main method handler, and Main routes Renderer IP
 `WebContents`, so no request or event crosses environments. The code lives in
 `apps/desktop/src/main/ssh/`, `apps/desktop/src/main/remote-environments.ts`, and
 `apps/desktop/src/main/remote-environment-window.ts`.
+
+Periodic `/tmp` cleanup does not break a live connection: macOS's cleaner removes only regular files, and
+`systemd-tmpfiles` skips sockets in use, so the ControlMaster socket survives as long as its
+master runs.
 
 The askpass helper is Desktop's own executable run as Node (`ELECTRON_RUN_AS_NODE`). It forwards the
 prompt over a token-authenticated Unix socket to Main, which shows it in the window.
@@ -169,3 +191,6 @@ coming from the jump container's address, which proves the traffic did not bypas
 
 - Reveal, open with the default app, and external editors have no remote equivalent yet.
 - Remote stack traces carry no source maps (they are dropped from the remote layer to keep it small).
+- A directory created after a watch started, while the inotify limit is already exhausted, is
+  silently left unwatched: `@parcel/watcher` drops it without reporting an error, so no warning
+  appears and changes inside it show up only after Refresh in the Files view.

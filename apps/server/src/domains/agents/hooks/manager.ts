@@ -20,7 +20,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
 import { atomicWrite, atomicWriteUserConfig } from '../../atomic-file';
-import { WatchHub } from '../../watch-hub';
+import { WatchHub } from '../../watch';
 import type { AgentEnvironment } from '../contract';
 import { agentProviders } from '../providers';
 import { stageAgentHookBridge } from './bridge';

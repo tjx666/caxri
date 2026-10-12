@@ -22,7 +22,7 @@ import { execFileAsync, StructuredLogger } from '@caxri/system';
 import parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { WatchHub } from '../../../watch-hub';
+import { WatchHub } from '../../../watch';
 import type * as ConfigDocumentsModule from '../config-documents';
 import { AgentHookManager } from '../manager';
 import { hookBridgeEnvironment } from './server.fixture';

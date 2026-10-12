@@ -37,7 +37,7 @@ _Researched 2026-09-05 at `1dbbce1da524efa885a751381426f1591a9f41c1`._
   "File system must be re-scanned" advisory as a log line only. VS Code neither reconciles nor
   restarts the watcher for it, so it never needed to throttle the advisory. Caxri does reconcile:
   its Files and Git consumers would otherwise stay stale after a kernel overflow, which is why the
-  coalescing window in `apps/server/src/domains/watch-hub.ts` has no VS Code counterpart to copy.
+  coalescing window in `apps/server/src/domains/watch/hub.ts` has no VS Code counterpart to copy.
 - The live restart path is `AbstractWatcherClient.restart()` in
   `src/vs/platform/files/common/watcher.ts:226-271`: it re-inits immediately with no delay, is capped
   by `MAX_RESTARTS`, and `canRestart` refuses both for a single failed request and for the

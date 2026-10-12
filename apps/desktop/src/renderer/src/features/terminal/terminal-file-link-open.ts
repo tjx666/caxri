@@ -21,6 +21,7 @@ import { openCommanderFileLink, openTerminalFileLink } from './terminal-link-com
  * Terminal does nothing, and nothing anywhere says why. A user-initiated cancel carries no reason and stays silent.
  */
 const TERMINAL_FILE_LINK_REFUSALS: Record<TerminalFileLinkRefusalReason, TranslationKey> = {
+    outside_projects: 'terminal.links.refusal.outsideProjects',
     project_gone: 'terminal.links.refusal.projectGone',
     worktree_project_unbound: 'terminal.links.refusal.worktreeProjectUnbound',
 };
