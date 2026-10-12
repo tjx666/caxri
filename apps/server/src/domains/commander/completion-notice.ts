@@ -1,10 +1,9 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
-import { isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentChatService } from '../agent-chat';
-import type { AgentCoordinator, AgentLifecycleSignal } from '../agents';
+import type { AgentLifecycleSignal } from '../agents';
+import { isMidTurnSignal, isStandaloneEscape } from '../agents';
 import type {
     AgentCommanderRowReader,
     CaxriDatabase,
@@ -12,7 +11,6 @@ import type {
     DeliveredNotice,
 } from '../db';
 import { agentCommanderTerminal } from '../db';
-import type { TerminalManager } from '../terminal';
 import type {
     CommanderCompletionNoticeStatus,
     CommanderInboxNoticeEntry,
@@ -196,6 +194,11 @@ export class CommanderCompletionNotifier {
      */
     private blockedTurns = 0;
     private launchClaim: LaunchPromptClaim | undefined;
+    /**
+     * The launch whose turn marker a standalone Escape just cleared, until a main-thread turn boundary or mid-turn
+     * signal settles whether the Escape really interrupted that turn (see `settleEscapedTurn`).
+     */
+    private escapedTurnLaunchId: string | undefined;
 
     constructor(private readonly options: CommanderCompletionNotifierOptions) {
         for (const notice of options.database.commanderPendingNotices.list())
@@ -331,14 +334,35 @@ export class CommanderCompletionNotifier {
     }
 
     /**
+     * A main-thread turn boundary supersedes an Escape's provisional interrupt; a mid-turn signal of the same launch
+     * proves the TUI consumed the Escape for something else (closing a picker), so the turn is marked running again.
+     */
+    private settleEscapedTurn(signal: AgentLifecycleSignal): void {
+        if (this.escapedTurnLaunchId === undefined || signal.agentId) return;
+        const isReopened = signal.launchId === this.escapedTurnLaunchId && isMidTurnSignal(signal);
+        if (!isReopened && !['turnFailed', 'turnFinished', 'turnStarted'].includes(signal.phase))
+            return;
+        this.escapedTurnLaunchId = undefined;
+        if (isReopened) this.options.database.commanderPendingNotices.markTurnStarted(this.now());
+    }
+
+    /**
      * Feeds every human input written to a Terminal, after its input epoch counted it. Only whether the input submitted
      * a line is kept; the text itself is never retained. A lone Enter outside a paste counts as a submission, so an
      * Enter that only accepted a completion popup and was the draft's last keystroke reads as submitted too: the TUI's
      * popup state is not visible here, and leaving the Commander silent after every steered message was the larger
      * harm.
+     *
+     * A standalone Escape is the user interrupting the turn, which Codex ends without a `Stop` hook, so its marker is
+     * cleared and a restart does not resume the abandoned work (GitHub issue #1740). The keystroke is taken at face
+     * value like the coordinator's own interrupt handling; `settleEscapedTurn` marks the turn again if it still runs.
      */
     observeInput(terminalId: string, data: string): void {
         if (this.commander()?.terminalId !== terminalId) return;
+        if (isStandaloneEscape(data)) {
+            this.options.database.commanderPendingNotices.clearTurn();
+            this.escapedTurnLaunchId = this.turnStartBaseline?.launchId;
+        }
         if (data.includes('\u{1B}[200~')) this.isPasting = true;
         this.submittedEpoch =
             data === '\r' && !this.isPasting ? this.options.inputEpoch(terminalId) : undefined;
@@ -348,11 +372,12 @@ export class CommanderCompletionNotifier {
     /**
      * Feeds every lifecycle signal Server Core applies. Signals for a Terminal other than the current Commander
      * Terminal are ignored; a stopped or replaced Commander naturally stops matching once `agentCommanderTerminal` no
-     * longer names that Terminal. A started turn is persisted until it finishes or fails, which is how the next launch
-     * knows a restart cut one off.
+     * longer names that Terminal. A started turn is persisted until it finishes, fails, or is interrupted, which is how
+     * the next launch knows a restart cut one off.
      */
     onLifecycleApplied(signal: AgentLifecycleSignal): void {
         if (this.commander()?.terminalId !== signal.terminalId) return;
+        this.settleEscapedTurn(signal);
         /**
          * A subagent's turn is part of the Commander's own; only the main thread's turns mark or clear the marker.
          */
@@ -512,68 +537,4 @@ export class CommanderCompletionNotifier {
         const terminalId = this.commander()?.terminalId;
         if (terminalId) this.tryFlush(terminalId);
     }
-}
-
-async function sendChatNotice(
-    agentChat: Pick<AgentChatService, 'send'>,
-    terminalId: string,
-    text: string,
-    onDelivered?: (wasAccepted: boolean) => void,
-): Promise<void> {
-    try {
-        await agentChat.send(terminalId, { text });
-    } catch {
-        onDelivered?.(false);
-        return;
-    }
-    onDelivered?.(true);
-}
-
-/**
- * Binds the notifier to the Server's coordinator, Terminal manager, and Chat service. A PTY write fixes `origin:
- * 'delegation'` so the injected notice line itself never bumps the input epoch a later notice's own draft fence reads.
- *
- * A Chat Commander takes the notice as a Chat message instead. The same idle fence still runs first: a Chat composer
- * draft lives in the Client and is never touched by a sent message, so the input epoch simply never moves for a Chat,
- * but the finished-turn proof keeps one notice per idle turn instead of a queued message behind every completion.
- */
-export function createCommanderCompletionNotifier({
-    agentChat,
-    coordinator,
-    database,
-    logger,
-    terminals,
-}: {
-    agentChat: Pick<AgentChatService, 'send'>;
-    coordinator: Pick<AgentCoordinator, 'hasIdleProof'>;
-    /**
-     * `getTerminal` comes first so the full record (its `surface`) is the overload `write` below resolves, not the
-     * narrow one `AgentCommanderRowReader` declares.
-     */
-    database: Pick<CaxriDatabase, 'getTerminal'> & CommanderCompletionNotifierOptions['database'];
-    logger?: StructuredLogger;
-    terminals: Pick<TerminalManager, 'inputEpoch' | 'writeAgentExact'>;
-}): CommanderCompletionNotifier {
-    return new CommanderCompletionNotifier({
-        database,
-        hasIdleProof: (terminalId, launchId, turnId) =>
-            coordinator.hasIdleProof(terminalId, launchId, turnId),
-        inputEpoch: (terminalId) => terminals.inputEpoch(terminalId),
-        logger,
-        write: (terminalId, text, launchId, onDelivered) => {
-            const terminal = database.getTerminal(terminalId);
-            if (terminal && isChatTerminal(terminal)) {
-                // eslint-disable-next-line no-void -- the outcome is reported through onDelivered
-                void sendChatNotice(agentChat, terminalId, text, onDelivered);
-                return true;
-            }
-            return terminals.writeAgentExact(
-                terminalId,
-                `${text}\r`,
-                launchId,
-                'delegation',
-                onDelivered,
-            );
-        },
-    });
 }

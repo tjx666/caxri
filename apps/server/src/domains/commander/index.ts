@@ -1,5 +1,5 @@
 export { commanderChatEndpoint } from './chat-endpoint';
-export { createCommanderCompletionNotifier } from './completion-notice';
+export { createCommanderCompletionNotifier } from './completion-notice-delivery';
 export { commanderDiagnostics } from './diagnostics';
 export { commanderHostOptions } from './host-options';
 export { CommanderInboxService } from './inbox';
