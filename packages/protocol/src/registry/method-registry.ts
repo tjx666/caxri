@@ -45,7 +45,10 @@ import { linkFaviconDesktopMethods } from '../desktop/link-favicon-contract.js';
 import { linkPreviewDesktopMethods } from '../desktop/link-preview-contract.js';
 import { pathBrowserContractMethods } from '../desktop/path-browser-contract.js';
 import { shellCommandDesktopMethods } from '../desktop/shell-command-contract.js';
-import { windowStateInternalMethods } from '../desktop/window-state-contract.js';
+import {
+    windowChromeDesktopMethods,
+    windowStateInternalMethods,
+} from '../desktop/window-state-contract.js';
 import { bootstrapStateSchema } from '../domain/bootstrap.js';
 import { bugReportInternalMethods, bugReportMethods } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
@@ -272,6 +275,7 @@ export const methods = {
     ...linkFaviconDesktopMethods,
     ...agentProviderStatusDesktopMethods,
     ...linkPreviewDesktopMethods,
+    ...windowChromeDesktopMethods,
     'external.open': {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),

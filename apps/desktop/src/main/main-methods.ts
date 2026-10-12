@@ -217,6 +217,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     remoteDebugging: options.getRemoteDebugging(),
                     value: await readArgvConfig(options.getUserDataPath()),
                 };
+            case 'window.fullScreen.get':
+                return { isFullScreen: requestWindowOr(mainWindow).isFullScreen() };
             case 'argv.update':
                 return {
                     value: await (options.updateArgvConfig
