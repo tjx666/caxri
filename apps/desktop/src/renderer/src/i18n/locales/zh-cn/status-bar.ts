@@ -53,7 +53,7 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.usage.limitsAsOf': '限额更新于',
     'statusBar.usage.methodNote':
         'Token 数和费用读取自此对话自身的记录，并按 API 标价计费，规则与用量页面相同。套餐限额按账户计算，取任意对话中的最新读数。',
-    'statusBar.usage.clickToOpen': '点击打开用量',
+    'statusBar.usage.clickToOpen': '点击查看此会话的用量',
     'statusBar.terminal.childProcessOne': '{{count}} 个子进程',
     'statusBar.terminal.childProcessOther': '{{count}} 个子进程',
     'statusBar.terminal.memoryAriaLabel': '打开进程资源管理器：终端内存 {{memory}}',

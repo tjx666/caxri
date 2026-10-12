@@ -191,13 +191,19 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
     const outcomesByUrl = new Map(input.pullRequests.map((outcome) => [outcome.url, outcome]));
     const isSelected = (provider: AgentProvider) =>
         params.provider === undefined || provider === params.provider;
-    const entries = input.entries.filter(({ row }) => isSelected(row.provider));
+    const isInSessionFilter = (sessionId: string) =>
+        params.sessionId === undefined || sessionId === params.sessionId;
+    const entries = input.entries.filter(
+        ({ row }) => isSelected(row.provider) && isInSessionFilter(row.sessionId),
+    );
     const hostedAgentSessions = new Set(
         input.entries.map(({ row }) => `${row.provider}:${row.agentSessionId}`),
     );
     // A conversation later resumed in a Caxri Session is counted once, from the ledger.
+    // A Session filter names a Caxri Session, which no conversation run outside Caxri belongs to.
     const outsideEntries = (input.outside?.entries ?? []).filter(
         ({ row }) =>
+            params.sessionId === undefined &&
             isSelected(row.provider) &&
             !hostedAgentSessions.has(`${row.provider}:${row.agentSessionId}`),
     );
@@ -478,7 +484,8 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
 
     const providerSessionIds = new Set(entries.map(({ row }) => row.sessionId));
     const isCountedSession = (session: SessionRecord) =>
-        params.provider === undefined || providerSessionIds.has(session.id);
+        isInSessionFilter(session.id) &&
+        (params.provider === undefined || providerSessionIds.has(session.id));
     let sessionsCreated = 0;
     let sessionsArchived = 0;
     for (const session of input.sessions) {
@@ -493,6 +500,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         timeZone: params.timeZone,
         range: params.range,
         ...(params.provider && { provider: params.provider }),
+        ...(params.sessionId && { sessionId: params.sessionId }),
         scope: input.outside ? 'all' : 'caxri',
         today,
         ...(rangeStart && { rangeStart }),

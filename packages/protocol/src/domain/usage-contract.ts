@@ -51,6 +51,11 @@ export const usageReportParametersSchema = z.object({
      * Defaults to `caxri`.
      */
     scope: z.enum(usageScopeIds).optional(),
+    /**
+     * Narrows the report to one Caxri Session: only Agent Sessions the ledger attributes to it (the Session that first
+     * hosted each conversation) count, and conversations run outside Caxri are left out whatever the scope.
+     */
+    sessionId: identifierSchema.optional(),
 });
 export type UsageReportParameters = z.infer<typeof usageReportParametersSchema>;
 
@@ -175,6 +180,10 @@ export const usageReportSchema = z.object({
     range: z.enum(usageRangeIds),
     provider: agentProvider.optional(),
     scope: z.enum(usageScopeIds),
+    /**
+     * Echoes the Session filter the report was narrowed to.
+     */
+    sessionId: identifierSchema.optional(),
     today: localDate,
     /**
      * First local day of the selected range; absent for `all`.
