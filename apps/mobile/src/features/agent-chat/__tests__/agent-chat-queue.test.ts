@@ -6,6 +6,7 @@ import {
     agentChatQueueEntries,
     agentChatQueueFailure,
     agentChatQueueHeader,
+    agentChatQueueRowHints,
     currentQueueError,
     didRunOptimisticQueueAction,
     prunePendingQueueIds,
@@ -182,5 +183,26 @@ describe('prunePendingQueueIds', () => {
         const kept = new Set(['a']);
         expect(prunePendingQueueIds(kept, queue)).toBe(kept);
         expect(prunePendingQueueIds(kept, undefined).size).toBe(0);
+    });
+});
+
+describe('agentChatQueueRowHints', () => {
+    it('explains why a queued row cannot be sent or edited, and what Steer does', () => {
+        const [text, images, , command] = agentChatQueueEntries(queue, true);
+        expect(agentChatQueueRowHints(text, 'no images')).toEqual({
+            sendNow: 'Adds this message to the running turn now.',
+            edit: undefined,
+        });
+        expect(agentChatQueueRowHints(images, 'no images').edit).toBe('no images');
+        expect(agentChatQueueRowHints(command, 'no images').sendNow).toBe(
+            'A command waits for the running turn to end.',
+        );
+        const [, pending] = agentChatQueueEntries(queue.slice(0, 1), true, new Set(), [
+            { id: 'p1', text: 'Then lint', imageUris: [] },
+        ]);
+        expect(agentChatQueueRowHints(pending, 'no images')).toEqual({
+            sendNow: 'Available once the message is queued.',
+            edit: 'Available once the message is queued.',
+        });
     });
 });

@@ -114,8 +114,10 @@ export function isAgentChatPendingMessageSettled(
     ];
     return shown.some((entry) => {
         if (pending.knownIds.has(entry.id)) return false;
+        // react-doctor-disable-next-line react-doctor/js-set-map-lookups -- A substring search on strings, not an array lookup.
         if (matchableText(entry.text).includes(wanted)) return true;
         const kept = clippedPart(entry.text);
+        // react-doctor-disable-next-line react-doctor/js-set-map-lookups -- A substring search on strings, not an array lookup.
         return kept !== undefined && sent.includes(kept);
     });
 }

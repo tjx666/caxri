@@ -32,7 +32,7 @@ export const AgentChatPendingMessage = ({
                 {imageUris.map((uri, index) => (
                     <Image
                         accessibilityLabel={`Attachment ${index + 1}`}
-                        key={`${uri}-${index}`}
+                        key={uri}
                         resizeMode="cover"
                         source={{ uri }}
                         style={[styles.thumbnail, { borderColor: theme.border }]}

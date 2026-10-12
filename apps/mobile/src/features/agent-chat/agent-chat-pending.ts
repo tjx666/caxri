@@ -21,7 +21,7 @@ import { notifyListeners } from '../../lib/notify-listeners';
  * (`agent-chat-pending.ts` there). The phone previews its images from the prepared JPEGs it still has on disk; the
  * projection's copy only names them.
  */
-export interface MobileAgentChatPendingMessage extends AgentChatPendingMessageBase {
+interface MobileAgentChatPendingMessage extends AgentChatPendingMessageBase {
     imageUris: readonly string[];
 }
 

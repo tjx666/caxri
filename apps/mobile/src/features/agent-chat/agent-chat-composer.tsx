@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-} from 'react-native';
+import type { TextInput } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentProvider } from '@caxri/protocol';
 import {
@@ -29,6 +22,7 @@ import { sessionDetailStyles as styles } from '../sessions/components/session-de
 import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
 import { imageAttachmentBudgetNote } from '../sessions/image-attachment-store';
 import { AgentChatCommandList } from './agent-chat-command-list';
+import { AgentChatComposerInput } from './agent-chat-composer-input';
 import {
     agentChatComposerAvailability,
     agentChatComposerButton,
@@ -459,6 +453,15 @@ export const AgentChatComposer = ({
         if (canSteer) await run('steer');
     };
     const canAttach = deviceRole === 'reply' || deviceRole === 'control';
+    const statusReason =
+        availability.reason ??
+        images.waitReason ??
+        imageAttachmentBudgetNote(
+            images.attachments,
+            MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
+            MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
+        ) ??
+        undefined;
     return (
         <View
             style={[styles.composerBlock, { borderColor: theme.border }]}
@@ -496,33 +499,16 @@ export const AgentChatComposer = ({
                         theme={theme}
                     />
                 ) : null}
-                <TextInput
-                    accessibilityHint={`Return inserts a new line. Use ${isRunning ? 'Queue' : 'Send'} message to submit.`}
-                    accessibilityLabel={`Message ${provider}`}
-                    editable={isEditable}
-                    multiline
-                    numberOfLines={6}
-                    onChangeText={onDraftChange}
-                    onFocus={() => {
-                        if (focusComposer) onComposerFocused?.();
-                    }}
-                    ref={inputReference}
-                    // Desktop's wording without its ⌘Enter hint, kept to one line so the input does not grow mid-turn.
-                    placeholder={isRunning ? 'Queue a follow-up' : `Message ${provider}`}
-                    placeholderTextColor={theme.muted}
-                    scrollEnabled
-                    submitBehavior="newline"
-                    style={[
-                        styles.composer,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.border,
-                            color: theme.text,
-                        },
-                    ]}
-                    testID="agent-chat-composer-input"
-                    textAlignVertical="top"
-                    value={draft}
+                <AgentChatComposerInput
+                    draft={draft}
+                    focusComposer={focusComposer}
+                    inputReference={inputReference}
+                    isEditable={isEditable}
+                    isRunning={isRunning}
+                    onComposerFocused={onComposerFocused}
+                    onDraftChange={onDraftChange}
+                    provider={provider}
+                    theme={theme}
                 />
                 {canSteer ? (
                     <AgentChatSteerButton onSteer={steer} provider={provider} theme={theme} />
@@ -544,16 +530,7 @@ export const AgentChatComposer = ({
                 error={error}
                 isStopping={isStopping}
                 provider={provider}
-                reason={
-                    availability.reason ??
-                    images.waitReason ??
-                    imageAttachmentBudgetNote(
-                        images.attachments,
-                        MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
-                        MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
-                    ) ??
-                    undefined
-                }
+                reason={statusReason}
                 theme={theme}
             />
             {isChoosingImage ? (
