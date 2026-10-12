@@ -9,6 +9,12 @@ import {
 import { readBoundedTextFile } from './text-file';
 import type { RemoteCommandDefinition } from './types';
 
+function sessionArchiveParameters(tokens: readonly string[]) {
+    if (tokens.length !== 1 || tokens[0].startsWith('--'))
+        throw new CaxriError('VALIDATION', 'commander session archive requires one <session-id>');
+    return { sessionId: tokens[0] };
+}
+
 function sessionCreateParameters(tokens: readonly string[]) {
     if (tokens.length !== 2 || tokens[0] !== '--project' || tokens[1].startsWith('--'))
         throw new CaxriError('VALIDATION', 'commander session create requires one --project <id>');
@@ -196,6 +202,17 @@ export const COMMANDER_COMMANDS: RemoteCommandDefinition[] = [
         usage: '--project <id>',
         ownerConfirmation: 'Create an empty Session for the Agent Commander?',
         parseParams: sessionCreateParameters,
+        quietIdKey: 'sessionId',
+    },
+    {
+        kind: 'remote',
+        path: ['commander', 'session', 'archive'],
+        method: 'commander.session.archive',
+        summary:
+            'Archive a Session the Agent Commander created; the user can restore it from Archived Sessions.',
+        usage: '<session-id>',
+        ownerConfirmation: 'Archive this Agent Commander Session?',
+        parseParams: sessionArchiveParameters,
         quietIdKey: 'sessionId',
     },
     {

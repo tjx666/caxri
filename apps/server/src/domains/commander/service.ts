@@ -367,6 +367,16 @@ export function createCommanderSession(
 }
 
 /**
+ * Refuses a Session the Commander did not create, before `commander.session.archive` parks it. The Commander's own
+ * hidden Session is not in that record either, so it can never archive itself. `NOT_FOUND` rather than `FORBIDDEN`,
+ * matching how the Commander's other Session-scoped requests treat a Session outside its reach.
+ */
+export function requireCommanderSession(database: CaxriDatabase, sessionId: string): void {
+    if (!database.agentCommanderRows()?.sessionIds.includes(sessionId))
+        throw new CaxriError('NOT_FOUND', 'Session was not created by the Agent Commander');
+}
+
+/**
  * Removes a Commander Session that never received a Terminal, such as one created for a delegation that was refused
  * before it launched. Metadata only: a Session never owns user files. A Session that meanwhile gained a Terminal is
  * kept; `onDiscarded` announces an actual removal.

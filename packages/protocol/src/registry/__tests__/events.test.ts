@@ -58,7 +58,7 @@ describe('serverEventSchema', () => {
         expect(
             serverEventSchema.safeParse({
                 event: 'window.fullScreen',
-                payload: { isFullScreen: true },
+                payload: { window: 'workbench', isFullScreen: true },
             }).success,
         ).toBe(true);
         expect(

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-import type { AuxiliaryWindowState } from '@caxri/protocol';
+import type { AuxiliaryWindowState, ServerEvent } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -15,7 +15,11 @@ import {
 } from './auxiliary-window';
 import { AuxiliaryWindowBoundsMemory } from './auxiliary-window-bounds';
 import { resolveRendererEntryUrl } from './renderer-entry';
-import { trafficLightPositionForZoom, zoomFactorForLevel } from './window-chrome';
+import {
+    publishFullScreenState,
+    trafficLightPositionForZoom,
+    zoomFactorForLevel,
+} from './window-chrome';
 import type { E2EWindowMode } from './window-mode';
 import type { CompanionRendererPolicy } from './workbench-ipc';
 
@@ -34,6 +38,11 @@ interface AgentCommanderWindowOptions {
      * Persists bounds/open state; called once, from quit.
      */
     saveWindowState: (state: AuxiliaryWindowState['agentCommander']) => Promise<unknown>;
+    /**
+     * Publishes a Main-originated event through the same relay the Server's events take, so a reloading window recovers
+     * it from the journal like any other durable event.
+     */
+    sendEvent: (event: ServerEvent) => void;
     stopCommander: () => Promise<unknown>;
     windowMode: E2EWindowMode;
     /**
@@ -251,6 +260,7 @@ export class AgentCommanderWindowController {
             this.releaseTerminal();
         });
         trackAuxiliaryWindowBounds(window, (bounds) => this.boundsMemory.remember(bounds));
+        publishFullScreenState(window, 'agentCommander', this.options.sendEvent);
         window.on('closed', () => {
             if (this.window !== window) return;
             this.window = undefined;
