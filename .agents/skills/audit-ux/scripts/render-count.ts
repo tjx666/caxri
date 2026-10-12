@@ -40,7 +40,10 @@ export interface RenderSample {
      * `commits` is the sum of mounts and updates instead, so the two can differ; this one only drives settling.
      */
     commits: number;
-    isWorkbenchReady: boolean;
+    /**
+     * Whether the sampled window's product root (the Workbench, or the Agent Commander) rendered.
+     */
+    isWindowReady: boolean;
     rows: RenderInstanceRow[];
     settled: boolean;
     windowMs: number;
@@ -367,7 +370,8 @@ function reportSource(within: string | undefined): string {
     collectorError: state.collectorError,
     commits: state.commits,
     windowMs: state.startedAt ? Date.now() - state.startedAt : 0,
-    isWorkbenchReady: Boolean(document.querySelector('.workbench')),
+    // A --url sample can target the Agent Commander window, whose root replaces the Workbench.
+    isWindowReady: Boolean(document.querySelector('.workbench, .agent-commander')),
     rows,
   });
 })();
@@ -515,9 +519,9 @@ async function main(): Promise<void> {
         }),
     );
     if (sample.collectorError) console.error(`collector error: ${sample.collectorError}`);
-    if (!sample.isWorkbenchReady) {
+    if (!sample.isWindowReady) {
         throw new Error(
-            'The Workbench never rendered during this sample; the counts describe the loading shell, not the product',
+            'The window never rendered its product root during this sample; the counts describe the loading shell, not the product',
         );
     }
     // A scoped surface that stayed still is a result, not a missed click, so only the whole window proves the click.
