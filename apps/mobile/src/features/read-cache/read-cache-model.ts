@@ -87,6 +87,16 @@ export const decodeReadCacheEntry = <Value>(
     return value.success ? { savedAt: envelope.data.savedAt, value: value.data } : null;
 };
 
+/**
+ * The scope a live read may be saved under: the pairing it was read under, and only while that pairing is still
+ * current. A Chat or Conversation read under the previous pairing can stay in state for a render after the scope
+ * changes; saving it under the new scope would show one computer's content as another's saved copy.
+ */
+export const liveReadSaveScope = (
+    readScope: string | undefined,
+    currentScope: string | null,
+): string | null => (readScope !== undefined && readScope === currentScope ? readScope : null);
+
 export const cachedDashboardSchema: z.ZodType<MobileDashboardResult> = mobileDashboardResultSchema;
 
 /**

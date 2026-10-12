@@ -526,7 +526,10 @@ export class AgentChatService {
         const terminal = requireChatTerminal(this.options.database, terminalId);
         if (terminal.lastProcessState === 'detached') this.states.clearDetached(terminalId);
         const state = this.states.open(terminalId);
-        if (previous) state.followUps.adopt(previous.followUps);
+        if (previous) {
+            state.followUps.adopt(previous.followUps);
+            state.projection.adoptReplaced(previous.projection);
+        }
         /**
          * A rewound Claude Code conversation resumes at `resumeAt` until its next turn writes past it; a restart before
          * then (Retry after the edited message failed to send) must not resume the rewound branch again.
