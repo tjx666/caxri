@@ -72,7 +72,7 @@ const ActionButton = ({
 };
 
 /**
- * Approval text clamped to `maxLines`, with a Show all / Show less toggle when the clamp hides content, so a long
+ * Approval text clamped to `maxLines`, with a Show more / Show less toggle when the clamp hides content, so a long
  * command or plan can still be read before it is accepted.
  */
 const ClampedText = ({
@@ -119,7 +119,7 @@ const ClampedText = ({
                     testID={testID ? `${testID}-toggle` : undefined}
                 >
                     <Text style={[styles.toggleLabel, { color: theme.primary }]}>
-                        {isExpanded ? 'Show less' : 'Show all'}
+                        {isExpanded ? 'Show less' : 'Show more'}
                     </Text>
                 </Pressable>
             ) : null}
