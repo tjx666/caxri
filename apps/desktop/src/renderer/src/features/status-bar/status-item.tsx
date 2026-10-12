@@ -20,10 +20,31 @@ export const statusItemClassName =
 /**
  * The box `useChipVisibility` measures around a chip it may drop (see `chip-priority.ts`). It collapses while the chip
  * renders nothing (`empty:hidden`), so an absent chip takes no flex gap and measures as absent.
+ *
+ * A hidden chip keeps rendering, invisible and inert, in a `fixed` box off the left edge of the window: out of the
+ * bar's flow and its scrollable width, but still laid out at its natural width. That keeps its current width
+ * measurable, so a hidden chip whose data goes away stops holding room the visible chips could use.
  */
-export function PriorityChipSlot({ chip, children }: { chip: DroppableChip; children: ReactNode }) {
+export function PriorityChipSlot({
+    chip,
+    children,
+    isHidden,
+}: {
+    chip: DroppableChip;
+    children: ReactNode;
+    isHidden: boolean;
+}) {
     return (
-        <span className="flex flex-none items-center empty:hidden" data-status-chip={chip}>
+        <span
+            aria-hidden={isHidden || undefined}
+            className={cn(
+                'flex flex-none items-center empty:hidden',
+                isHidden && 'pointer-events-none invisible fixed top-0 right-full',
+            )}
+            data-status-chip={chip}
+            data-status-chip-hidden={isHidden || undefined}
+            inert={isHidden}
+        >
             {children}
         </span>
     );

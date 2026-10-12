@@ -30,7 +30,8 @@ function columnGap(element: Element): number {
 
 /**
  * Reads one {@link ChipFit} from the rendered footer. Every footer region holds `flex-none` items and never grows, so a
- * region's `scrollWidth` is its content's natural width even while the region itself is squeezed.
+ * region's `scrollWidth` is its content's natural width even while the region itself is squeezed. A hidden chip's slot
+ * sits off screen to the left, out of the flow, so it adds nothing to that width but still measures its own.
  */
 function measureChipFit(footer: HTMLElement): ChipFit {
     const style = getComputedStyle(footer);
@@ -38,40 +39,31 @@ function measureChipFit(footer: HTMLElement): ChipFit {
     const regions = [...footer.children];
     let required = columnGap(footer) * Math.max(0, regions.length - 1);
     for (const region of regions) required += region.scrollWidth;
-    const rendered: ChipFit['rendered'] = {};
+    const chips: ChipFit['chips'] = {};
     for (const slot of footer.querySelectorAll<HTMLElement>(
         `[${CSS.escape(PRIORITY_CHIP_ATTRIBUTE)}]`,
     )) {
         const chip = slot.getAttribute(PRIORITY_CHIP_ATTRIBUTE);
         const width = slot.getBoundingClientRect().width;
         if (!chip || !DROPPABLE.has(chip) || width <= 0) continue;
-        rendered[chip as DroppableChip] =
+        chips[chip as DroppableChip] =
             width + (slot.parentElement ? columnGap(slot.parentElement) : 0);
     }
-    return { available, required, rendered };
+    return { available, required, chips };
 }
 
 /**
- * Which droppable chips the status bar renders, re-resolved whenever the footer resizes or anything inside it changes
- * (a chip appearing, a reading changing width). Starts fully visible so the first frame renders the bar's normal
- * contents before anything has been measured.
+ * Which droppable chips the status bar shows, re-resolved whenever the footer resizes or anything inside it changes (a
+ * chip appearing, a reading changing width, a hidden chip's data going away). Starts fully visible so the first frame
+ * renders the bar's normal contents before anything has been measured.
  *
- * A hidden chip is unmounted, so the bar cannot tell whether it would still have anything to show. `resetKey` (the
- * selected Session) starts every hidden chip over when it changes: without it, the previous Session's pull request chip
- * keeps its remembered width and goes on hiding memory and usage chips that would fit.
+ * A hidden chip stays mounted off screen (`PriorityChipSlot`), so the bar always knows its current width: one that
+ * loses its data while hidden, or belonged to the previous Session, measures as absent and stops crowding out chips
+ * that fit.
  */
-export function useChipVisibility(
-    footerReference: RefObject<HTMLElement | null>,
-    resetKey: string | undefined,
-): ChipVisibility {
+export function useChipVisibility(footerReference: RefObject<HTMLElement | null>): ChipVisibility {
     const [hidden, setHidden] = useState<HiddenChips>(NO_HIDDEN_CHIPS);
     const hiddenReference = useRef(hidden);
-
-    useLayoutEffect(() => {
-        if (hiddenReference.current.size === 0) return;
-        hiddenReference.current = NO_HIDDEN_CHIPS;
-        setHidden(NO_HIDDEN_CHIPS);
-    }, [resetKey]);
 
     useLayoutEffect(() => {
         const footer = footerReference.current;
