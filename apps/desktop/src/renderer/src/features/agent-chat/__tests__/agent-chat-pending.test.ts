@@ -1,18 +1,17 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import {
+    AGENT_CHAT_PENDING_ACCEPTED_TTL_MS,
+    MAX_AGENT_CHAT_TEXT_LENGTH,
+    pairAgentChatPendingMessages,
+} from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentChatPendingMessage } from '../agent-chat-pending';
 import {
     addAgentChatPendingAnswer,
-    AGENT_CHAT_PENDING_ACCEPTED_TTL_MS,
-    agentChatPendingPlacement,
     expireAgentChatPendingMessage,
-    isAgentChatPendingAnswerSettled,
     pruneAgentChatPending,
     selectAgentChatPendingAnswers,
     selectAgentChatPendingMessages,
-    settledAgentChatPendingMessages,
     showAgentChatPendingMessage,
     useAgentChatPendingStore,
 } from '../agent-chat-pending';
@@ -30,17 +29,6 @@ function snapshot(overrides: Partial<AgentChatSnapshot> = {}): AgentChatSnapshot
     } as AgentChatSnapshot;
 }
 
-function pending(overrides: Partial<AgentChatPendingMessage> = {}): AgentChatPendingMessage {
-    return {
-        id: 'pending-1',
-        text: 'Run the tests',
-        images: [],
-        placement: 'timeline',
-        knownIds: new Set(['old']),
-        ...overrides,
-    };
-}
-
 const question = {
     id: 'request-1',
     kind: 'question' as const,
@@ -54,87 +42,10 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
-describe('agentChatPendingPlacement', () => {
-    it('lands in the timeline when the message starts or steers a turn', () => {
-        expect(agentChatPendingPlacement(snapshot(), undefined, false)).toBe('timeline');
-        expect(agentChatPendingPlacement(snapshot({ activeTurnId: 't' }), 'steer', false)).toBe(
-            'timeline',
-        );
-        // A paused queue does not hold a new message back.
-        expect(
-            agentChatPendingPlacement(
-                snapshot({ queue: [{ id: 'q', text: 'x' }], queuePaused: true }),
-                undefined,
-                false,
-            ),
-        ).toBe('timeline');
-    });
-
-    it('lands in the queue when a turn, a compaction, the queue, or an earlier send holds it', () => {
-        expect(agentChatPendingPlacement(snapshot({ activeTurnId: 't' }), undefined, false)).toBe(
-            'queue',
-        );
-        expect(
-            agentChatPendingPlacement(snapshot({ operation: 'compacting' }), 'steer', false),
-        ).toBe('queue');
-        expect(
-            agentChatPendingPlacement(
-                snapshot({ queue: [{ id: 'q', text: 'x' }] }),
-                undefined,
-                false,
-            ),
-        ).toBe('queue');
-        expect(agentChatPendingPlacement(snapshot(), undefined, true)).toBe('queue');
-    });
-});
-
-function isSettled(message: AgentChatPendingMessage, current: AgentChatSnapshot | undefined) {
-    return settledAgentChatPendingMessages([message], current).has(message.id);
-}
-
-describe('settledAgentChatPendingMessages', () => {
-    it('settles on a new user message or queue entry that carries its text', () => {
-        expect(
-            isSettled(
-                pending(),
-                snapshot({ items: [{ id: 'new', type: 'userMessage', text: 'Run the  tests\n' }] }),
-            ),
-        ).toBe(true);
-        expect(
-            isSettled(pending(), snapshot({ queue: [{ id: 'new', text: 'Run the tests' }] })),
-        ).toBe(true);
-        // The queue joined it with the message before it.
-        expect(
-            isSettled(
-                pending(),
-                snapshot({
-                    items: [{ id: 'new', type: 'userMessage', text: 'First\n\nRun the tests' }],
-                }),
-            ),
-        ).toBe(true);
-    });
-
-    it('stays pending while only an earlier message or another text shows', () => {
-        expect(
-            isSettled(
-                pending(),
-                snapshot({ items: [{ id: 'old', type: 'userMessage', text: 'Run the tests' }] }),
-            ),
-        ).toBe(false);
-        expect(
-            isSettled(
-                pending(),
-                snapshot({ items: [{ id: 'new', type: 'userMessage', text: 'Something else' }] }),
-            ),
-        ).toBe(false);
-        expect(isSettled(pending(), undefined)).toBe(false);
-    });
-});
-
 describe('pending messages pair one to one with what the projection shows', () => {
     const select = selectAgentChatPendingMessages('terminal-1');
     const shownTexts = (current: AgentChatSnapshot) =>
-        settledAgentChatPendingMessages(select(useAgentChatPendingStore.getState()), current);
+        pairAgentChatPendingMessages(select(useAgentChatPendingStore.getState()), current).settled;
     function send(
         text: string,
         images: ReadonlyArray<{ thumbnail: string }> = [],
@@ -275,25 +186,6 @@ describe('pending messages pair one to one with what the projection shows', () =
         });
         // The message still on its way did not follow the cut one into the clipped entry.
         expect([...shownTexts(shown)]).toEqual([first, second]);
-    });
-});
-
-describe('isAgentChatPendingAnswerSettled', () => {
-    it('settles once the request leaves or its answer record arrives', () => {
-        const answer = {
-            requestId: 'request-1',
-            notice: { id: 'answer:request-1', type: 'notice', kind: 'answered' } as const,
-        };
-        expect(isAgentChatPendingAnswerSettled(answer, snapshot({ requests: [question] }))).toBe(
-            false,
-        );
-        expect(isAgentChatPendingAnswerSettled(answer, snapshot())).toBe(true);
-        expect(
-            isAgentChatPendingAnswerSettled(
-                answer,
-                snapshot({ requests: [question], items: [answer.notice] }),
-            ),
-        ).toBe(true);
     });
 });
 

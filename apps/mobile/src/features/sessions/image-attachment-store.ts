@@ -21,6 +21,11 @@ export interface ImageAttachment {
      * A Chat image's preview, uploaded after the image under its own ID.
      */
     thumbnail?: { id: string; base64?: string };
+    /**
+     * The prepared image's base64 length, kept after its bytes are dropped so a Chat message's images can be held to
+     * the protocol's combined limit (`MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH`).
+     */
+    base64Length?: number;
     error?: string;
     /**
      * When a `ready` image finished uploading, so the strip can stop offering one the Server has already deleted.
@@ -118,6 +123,7 @@ export const completeImageAttachment = (
                         progress: 1,
                         state: 'ready' as const,
                         uploadedAt: now,
+                        ...(item.base64Length !== undefined && { base64Length: item.base64Length }),
                         ...(item.thumbnail && { thumbnail: { id: item.thumbnail.id } }),
                     }
                   : item,
@@ -162,6 +168,19 @@ export const removeImageAttachment = (
         : attachments;
 
 /**
+ * The strip after a failed send returns its images: ahead of any attached since, and one still attached is not added
+ * twice. Returns the same strip when nothing comes back.
+ */
+export const imageAttachmentsWithReturned = (
+    current: readonly ImageAttachment[],
+    returned: readonly ImageAttachment[],
+): readonly ImageAttachment[] => {
+    const currentIds = new Set(current.map((item) => item.id));
+    const missing = returned.filter((item) => !currentIds.has(item.id));
+    return missing.length === 0 ? current : [...missing, ...current];
+};
+
+/**
  * Why Send waits on the strip, or `null` when every image is ready. A failed image blocks too, because sending without
  * it would silently drop a picture the user chose.
  */
@@ -193,4 +212,44 @@ export const imageAttachmentAccessibilityLabel = (
         case 'ready':
             return position;
     }
+};
+
+/**
+ * The combined base64 length of the strip's prepared images, leaving out `exceptId` (the image being judged).
+ */
+export const imageAttachmentsBase64Length = (
+    attachments: ReadonlyArray<Pick<ImageAttachment, 'base64Length' | 'id'>>,
+    exceptId?: string,
+): number =>
+    attachments.reduce(
+        (total, item) => (item.id === exceptId ? total : total + (item.base64Length ?? 0)),
+        0,
+    );
+
+/**
+ * Past this share of the combined limit the composer says how much of it the images use, so the limit does not come as
+ * a surprise on the next image.
+ */
+const IMAGE_BUDGET_NOTE_RATIO = 0.75;
+
+const BASE64_BYTES_PER_CHARACTER = 3 / 4;
+
+const formatMegabytes = (bytes: number): string => {
+    const megabytes = bytes / 1_024 / 1_024;
+    return Number.isSafeInteger(megabytes) ? String(megabytes) : megabytes.toFixed(1);
+};
+
+/**
+ * The composer's note on a Chat message's images once they use most of the combined limit (`Images use 16.2 of 20
+ * MB.`), or `null` below it.
+ */
+export const imageAttachmentBudgetNote = (
+    attachments: ReadonlyArray<Pick<ImageAttachment, 'base64Length' | 'id'>>,
+    maxBase64Length: number,
+    maxBytes: number,
+): string | null => {
+    const used = imageAttachmentsBase64Length(attachments);
+    if (used < maxBase64Length * IMAGE_BUDGET_NOTE_RATIO) return null;
+    const usedBytes = Math.min(used * BASE64_BYTES_PER_CHARACTER, maxBytes);
+    return `Images use ${formatMegabytes(usedBytes)} of ${formatMegabytes(maxBytes)} MB.`;
 };

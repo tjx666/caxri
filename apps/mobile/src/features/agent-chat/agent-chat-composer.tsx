@@ -1,16 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
+import type { TextInput } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sentenceStartProvider } from '@caxri/protocol';
+import type { AgentProvider } from '@caxri/protocol';
+import {
+    agentChatDraftWithReturnedMessage,
+    MAX_AGENT_CHAT_IMAGES,
+    MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
+    MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
+    parseAgentChatCommand,
+    sentenceStartProvider,
+} from '@caxri/protocol';
+import * as Crypto from 'expo-crypto';
 import { ArrowUp, CornerDownLeft, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
-import { classifyMobileWriteFailure } from '../connection/mobile-write-failure';
 import { ImageSourceSheet } from '../sessions/components/image-source-sheet';
 import { SessionComposerAttachments } from '../sessions/components/session-composer-extras';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
+import { imageAttachmentBudgetNote } from '../sessions/image-attachment-store';
+import { AgentChatCommandList } from './agent-chat-command-list';
+import { AgentChatComposerInput } from './agent-chat-composer-input';
 import {
     agentChatComposerAvailability,
     agentChatComposerButton,
@@ -18,22 +30,36 @@ import {
     agentChatComposerSubmission,
     agentChatDisabledReason,
     agentChatImagesUnsupportedReason,
-    agentChatSendFailureMessage,
     isAgentChatStopping,
 } from './agent-chat-model';
 import { AgentChatModelButton } from './agent-chat-model-sheet';
+import { sendAgentChatMessageOptimistically } from './agent-chat-pending';
+import { AgentChatPermissionButton } from './agent-chat-permission-sheet';
+import { sheetStyles } from './agent-chat-sheet-styles';
 import type { AgentChatController } from './use-agent-chat';
+import { useAgentChatCommandRun } from './use-agent-chat-command-run';
 
 /**
- * The phone keeps its own cap below the protocol's `MAX_AGENT_CHAT_IMAGES`: the attachment strip is a single
- * non-scrolling row sized for four thumbnails, so more would overflow off screen.
+ * A Chat message's images, as many and as large in total as the protocol takes. The strip scrolls sideways, and an
+ * image that would pass the combined limit is refused once prepared, in Desktop's words, before any of it uploads.
  */
-const MOBILE_CHAT_MAX_IMAGES = 4;
+const CHAT_IMAGE_LIMITS = {
+    maxAttachments: MAX_AGENT_CHAT_IMAGES,
+    maxTotal: {
+        base64Length: MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
+        message: `Images in one message must add up to ${MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES / 1_024 / 1_024} MB or less.`,
+    },
+    surface: 'chat',
+    withThumbnail: true,
+} as const;
 
 /**
- * Runs the composer's one action (send, or Stop on an empty draft during a turn) and keeps its busy and error state.
- * Stop stays pending, keyed by the turn it stopped, until that turn ends, like the Desktop composer and the Terminal
- * composer's "Stopping Agent…" state; the interrupt request returning only means the provider was asked.
+ * Runs the composer's one action (send, or Stop on an empty draft during a turn) and keeps its error state. A message
+ * leaves the composer at once and shows as `Sending…` where it lands, as on Desktop (`agent-chat-pending.ts`); a failed
+ * send puts its text and images back ahead of anything typed since. Stop stays pending, keyed by the turn it stopped,
+ * until that turn ends, like the Desktop composer and the Terminal composer's "Stopping Agent…" state; the interrupt
+ * request returning only means the provider was asked. A draft naming a listed slash command runs it instead of sending
+ * (`useAgentChatCommandRun`).
  */
 const useComposerAction = ({
     activeTurnId,
@@ -52,10 +78,17 @@ const useComposerAction = ({
     onDraftChange: (draft: string) => void;
     provider: string;
 }) => {
-    const [isSending, setSending] = useState(false);
     const [stoppingTurnId, setStoppingTurnId] = useState<string>();
     const [error, setError] = useState<string | null>(null);
     const isStopping = isAgentChatStopping(stoppingTurnId, activeTurnId);
+    /**
+     * What the user has typed by the time a send fails, so the returned message goes ahead of it.
+     */
+    const latestDraft = useRef(draft);
+    useEffect(() => {
+        latestDraft.current = draft;
+    }, [draft]);
+    const commands = useAgentChatCommandRun({ chat, onDraftChange, reportError: setError });
     const run = async (delivery?: 'steer'): Promise<void> => {
         setError(null);
         if (isStopAction) {
@@ -69,18 +102,44 @@ const useComposerAction = ({
             }
             return;
         }
-        setSending(true);
-        try {
-            await chat.send(draft.trim(), images.readyChatImages, delivery);
-            onDraftChange('');
-            images.clear();
-        } catch (sendError) {
-            setError(agentChatSendFailureMessage(classifyMobileWriteFailure(sendError)));
-        } finally {
-            setSending(false);
+        const command = parseAgentChatCommand(draft, chat.snapshot?.commands);
+        if (command) {
+            await commands.run(command);
+            return;
         }
+        if (chat.pendingKey === null) return;
+        const text = draft.trim();
+        const sentImages = images.attachments;
+        const references = images.readyChatImages;
+        await sendAgentChatMessageOptimistically({
+            clearComposer: () => {
+                onDraftChange('');
+                images.clear();
+            },
+            key: chat.pendingKey,
+            message: {
+                id: Crypto.randomUUID(),
+                text,
+                imageUris: sentImages.map((image) => image.uri),
+                delivery,
+            },
+            reportError: setError,
+            returnUnsent: () => {
+                if (text)
+                    onDraftChange(agentChatDraftWithReturnedMessage(latestDraft.current, text));
+                images.restore(sentImages);
+            },
+            send: () => chat.send(text, references, delivery),
+            snapshot: chat.snapshot,
+        });
     };
-    return { error, isSending, isStopping, run };
+    return {
+        chooseCommand: commands.choose,
+        error,
+        isRunningCommand: commands.isRunning,
+        isStopping,
+        run,
+    };
 };
 
 /**
@@ -134,7 +193,7 @@ const AttachButton = ({
                         ? unsupportedReason
                         : canAdd
                           ? undefined
-                          : `Up to ${MOBILE_CHAT_MAX_IMAGES} images per message.`
+                          : `Up to ${MAX_AGENT_CHAT_IMAGES} images per message.`
                 }
                 accessibilityLabel="Attach image"
                 color={theme.muted}
@@ -154,11 +213,55 @@ const AttachButton = ({
     );
 };
 
+const steerStyles = StyleSheet.create({
+    button: {
+        alignItems: 'center',
+        borderRadius: 26,
+        borderWidth: 1.5,
+        height: 52,
+        justifyContent: 'center',
+        paddingHorizontal: 14,
+    },
+    label: { fontSize: 15, fontWeight: '700' },
+});
+
+/**
+ * Steers the running turn with the draft, the phone's visible stand-in for Desktop's ⌘Enter, shown beside Queue only
+ * while a turn runs and there is a draft to steer with. It reads `Steer` like the queue card's action and Desktop's,
+ * and is outlined so the filled Queue button stays the default.
+ */
+const AgentChatSteerButton = ({
+    onSteer,
+    provider,
+    theme,
+}: {
+    onSteer: () => Promise<void>;
+    provider: string;
+    theme: MobileTheme;
+}) => (
+    <Pressable
+        accessibilityHint={`Adds this message to ${provider}'s running turn now instead of queuing it.`}
+        accessibilityLabel="Steer now"
+        accessibilityRole="button"
+        onPress={() => {
+            // eslint-disable-next-line no-void -- The composer reports a failed send itself.
+            void onSteer();
+        }}
+        style={({ pressed }) => [
+            steerStyles.button,
+            { borderColor: theme.primary, opacity: pressed ? 0.7 : 1 },
+        ]}
+        testID="agent-chat-steer"
+    >
+        <Text style={[steerStyles.label, { color: theme.primary }]}>Steer</Text>
+    </Pressable>
+);
+
 /**
  * The composer's one button: Send, Queue during a turn, or Stop on an empty draft during a turn. Queue wears Desktop's
  * queue glyph (`CornerDownLeft`) instead of the send arrow, so a tap visibly does something different mid-turn. Holding
- * it, or the screen reader's long-press action, steers the running turn when there is a draft to steer with; a queued
- * message's Steer button in the queue card is the visible route to the same result.
+ * it, or the screen reader's long-press action, still steers the running turn as a shortcut; the Steer button beside it
+ * is the visible route to the same result.
  */
 const AgentChatComposerButton = ({
     canSteer,
@@ -283,8 +386,9 @@ const AgentChatComposerStatus = ({
 
 /**
  * Sends a message to a Chat. While a turn runs, a control device gets Stop in place of Send when the draft is empty,
- * matching the Desktop composer. A message sent during a turn joins the follow-up queue, as Desktop's Enter does;
- * holding Send steers the running turn instead, the phone's stand-in for Desktop's ⌘Enter.
+ * matching the Desktop composer. A message sent during a turn joins the follow-up queue, as Desktop's Enter does; the
+ * Steer button beside it (or holding Queue) steers the running turn instead, the phone's stand-in for Desktop's
+ * ⌘Enter.
  */
 export const AgentChatComposer = ({
     chat,
@@ -297,6 +401,7 @@ export const AgentChatComposer = ({
     onComposerFocused,
     onDraftChange,
     provider,
+    providerId,
     sessionId,
     supportsImages,
     theme,
@@ -314,6 +419,7 @@ export const AgentChatComposer = ({
     onComposerFocused?: () => void;
     onDraftChange: (draft: string) => void;
     provider: string;
+    providerId: AgentProvider | undefined;
     /**
      * Uploaded images are scoped to the Chat's Session on the Server.
      */
@@ -321,11 +427,7 @@ export const AgentChatComposer = ({
     supportsImages: boolean;
     theme: MobileTheme;
 }) => {
-    const images = useImageAttachments(sessionId, {
-        maxAttachments: MOBILE_CHAT_MAX_IMAGES,
-        surface: 'chat',
-        withThumbnail: true,
-    });
+    const images = useImageAttachments(sessionId, CHAT_IMAGE_LIMITS);
     const [isChoosingImage, setChoosingImage] = useState(false);
     const access = { deviceRole, isConnected, isHandedOff, snapshot: chat.snapshot };
     const availability = agentChatComposerAvailability(access);
@@ -334,7 +436,7 @@ export const AgentChatComposer = ({
     const hasDraft = draft.trim().length > 0 || images.attachments.length > 0;
     const canStop = isRunning && deviceRole === 'control';
     const isStopAction = canStop && !hasDraft;
-    const { error, isSending, isStopping, run } = useComposerAction({
+    const { chooseCommand, error, isRunningCommand, isStopping, run } = useComposerAction({
         activeTurnId,
         chat,
         draft,
@@ -343,7 +445,7 @@ export const AgentChatComposer = ({
         onDraftChange,
         provider,
     });
-    const isEditable = !isSending && availability.isEnabled;
+    const isEditable = availability.isEnabled && !isRunningCommand;
     const inputReference = useFocusRequest({
         focusComposer,
         isEditable,
@@ -365,17 +467,41 @@ export const AgentChatComposer = ({
         if (canSteer) await run('steer');
     };
     const canAttach = deviceRole === 'reply' || deviceRole === 'control';
+    const statusReason =
+        availability.reason ??
+        images.waitReason ??
+        imageAttachmentBudgetNote(
+            images.attachments,
+            MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
+            MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
+        ) ??
+        undefined;
     return (
         <View
             style={[styles.composerBlock, { borderColor: theme.border }]}
             testID="agent-chat-composer"
         >
-            <AgentChatModelButton
-                chat={chat}
-                disabledReason={agentChatDisabledReason({ ...access, action: 'configure' })}
+            <View style={sheetStyles.choices}>
+                <AgentChatPermissionButton
+                    chat={chat}
+                    disabledReason={agentChatDisabledReason({ ...access, action: 'permission' })}
+                    provider={providerId}
+                    theme={theme}
+                />
+                <AgentChatModelButton
+                    chat={chat}
+                    disabledReason={agentChatDisabledReason({ ...access, action: 'configure' })}
+                    theme={theme}
+                />
+            </View>
+            <SessionComposerAttachments images={images} theme={theme} />
+            <AgentChatCommandList
+                commands={availability.isEnabled ? chat.snapshot?.commands : undefined}
+                draft={draft}
+                isEnabled={isEditable}
+                onChoose={chooseCommand}
                 theme={theme}
             />
-            <SessionComposerAttachments images={images} theme={theme} />
             <View style={styles.composerRow}>
                 {canAttach ? (
                     <AttachButton
@@ -387,38 +513,24 @@ export const AgentChatComposer = ({
                         theme={theme}
                     />
                 ) : null}
-                <TextInput
-                    accessibilityHint={`Return inserts a new line. Use ${isRunning ? 'Queue' : 'Send'} message to submit.`}
-                    accessibilityLabel={`Message ${provider}`}
-                    editable={isEditable}
-                    multiline
-                    numberOfLines={6}
-                    onChangeText={onDraftChange}
-                    onFocus={() => {
-                        if (focusComposer) onComposerFocused?.();
-                    }}
-                    ref={inputReference}
-                    // Desktop's wording without its ⌘Enter hint, kept to one line so the input does not grow mid-turn.
-                    placeholder={isRunning ? 'Queue a follow-up' : `Message ${provider}`}
-                    placeholderTextColor={theme.muted}
-                    scrollEnabled
-                    submitBehavior="newline"
-                    style={[
-                        styles.composer,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.border,
-                            color: theme.text,
-                        },
-                    ]}
-                    testID="agent-chat-composer-input"
-                    textAlignVertical="top"
-                    value={draft}
+                <AgentChatComposerInput
+                    draft={draft}
+                    focusComposer={focusComposer}
+                    inputReference={inputReference}
+                    isEditable={isEditable}
+                    isRunning={isRunning}
+                    onComposerFocused={onComposerFocused}
+                    onDraftChange={onDraftChange}
+                    provider={provider}
+                    theme={theme}
                 />
+                {canSteer ? (
+                    <AgentChatSteerButton onSteer={steer} provider={provider} theme={theme} />
+                ) : null}
                 <AgentChatComposerButton
                     canSteer={canSteer}
                     canSubmit={canSubmit}
-                    isBusy={isSending || isStopping}
+                    isBusy={isStopping || isRunningCommand}
                     isRunning={isRunning}
                     isStopAction={isStopAction}
                     isStopping={isStopping}
@@ -433,7 +545,7 @@ export const AgentChatComposer = ({
                 hint={agentChatComposerHint({ canSteer, hasError: error !== null, isStopping })}
                 isStopping={isStopping}
                 provider={provider}
-                reason={availability.reason ?? images.waitReason ?? undefined}
+                reason={statusReason}
                 theme={theme}
             />
             {isChoosingImage ? (

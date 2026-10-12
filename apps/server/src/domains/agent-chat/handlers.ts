@@ -32,6 +32,7 @@ export function createAgentChatHandlers(
     | 'agentChat.send'
     | 'agentChat.sendQueuedNow'
     | 'agentChat.stopTask'
+    | 'agentChat.takeQueued'
 > {
     return {
         'agentChat.read': ({ terminalId }) => agentChat.read(terminalId),
@@ -122,6 +123,7 @@ export function createAgentChatHandlers(
             agentChat.removeQueued(terminalId, id);
             return null;
         },
+        'agentChat.takeQueued': ({ terminalId, id }) => agentChat.takeQueued(terminalId, id),
         'agentChat.sendQueuedNow': async ({ terminalId, id }) => {
             await agentChat.sendQueuedNow(terminalId, id);
             return null;

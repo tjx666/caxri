@@ -108,6 +108,10 @@ async function mobileNativeControlBounds(
     try {
         await adbShell(serial, ['uiautomator', 'dump', dumpPath]);
         source = await adbShell(serial, ['cat', dumpPath]);
+    } catch {
+        // A system window such as the Photo Picker can refuse one dump while it settles; the caller's bounded wait
+        // treats that as "not visible yet" and dumps again instead of failing the whole case.
+        return null;
     } finally {
         await adbShell(serial, ['rm', '-f', dumpPath]);
     }

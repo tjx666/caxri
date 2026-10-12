@@ -28,6 +28,7 @@ const failureExplanationKeys = {
     installFailed: 'sshHost.failure.installFailed',
     launchFailed: 'sshHost.failure.launchFailed',
     profileInUse: 'sshHost.failure.profileInUse',
+    takenOver: 'sshHost.failure.takenOver',
     cancelled: 'sshHost.failure.cancelled',
     connectionLost: 'sshHost.failure.connectionLost',
     unknown: 'sshHost.failure.unknown',
@@ -69,6 +70,14 @@ export function isConnectionOverlayVisible(state: SshEnvironmentState | undefine
  */
 export function canReconnect(state: SshEnvironmentState): boolean {
     return state.phase === 'failed' || state.phase === 'disconnected';
+}
+
+/**
+ * The Reconnect button's label: after another Desktop took the Server over, reconnecting takes it back from that
+ * window.
+ */
+export function reconnectLabelKey(state: SshEnvironmentState): TranslationKey {
+    return state.failure?.reason === 'takenOver' ? 'sshHost.useHere' : 'sshHost.reconnect';
 }
 
 /**

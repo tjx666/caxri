@@ -12,11 +12,16 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Additional methods beyond the preceding role                                                                                                                                                                            |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, and `mobile.agentChat.readImage`         |
-| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, and `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`      |
-| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, and `mobile.commanderInbox.{list,reply}` |
+| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, and `mobile.agentChat.readImage`                                                                  |
+| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.takeQueued`, and `mobile.agentChat.runCommand` |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, and `mobile.commanderInbox.{list,reply}`                                                          |
+
+`mobile.agentChat.configure` carries one field-level rule: a `reply` device may switch the model,
+effort, and ultracode, but a `permissionMode` or `planMode` change needs `control`, because a
+permission level is the standing form of answering approvals (`mobile.agentChat.respond`). The
+gateway refuses it from a `reply` device with `FORBIDDEN`.
 
 The method set is explicit. A role grant alone never authorizes a resource: dashboard, Session, and
 Terminal reads use principal-scoped queries; an Agent submission also checks the current Primary

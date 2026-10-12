@@ -6,6 +6,7 @@ import {
     cachedTimelineSchema,
     decodeReadCacheEntry,
     encodeReadCacheEntry,
+    liveReadSaveScope,
     READ_CACHE_MAX_CONVERSATIONS,
     READ_CACHE_MAX_ITEMS,
     readCacheFileName,
@@ -107,6 +108,21 @@ describe('read cache model', () => {
         expect(cachedChatSchema.safeParse(trimmed).success).toBe(true);
     });
 
+    it('keeps ultracode, the permission level, and plan mode for the offline composer', () => {
+        const trimmed = trimChatSnapshot({
+            ...chat([]),
+            ultracode: true,
+            permissionMode: 'fullAccess',
+            planMode: false,
+        });
+        expect(trimmed).toMatchObject({
+            ultracode: true,
+            permissionMode: 'fullAccess',
+            planMode: false,
+        });
+        expect(trimChatSnapshot(chat([]))).not.toHaveProperty('permissionMode');
+    });
+
     it('keeps the newest messages of a long Chat and says the rest were cut', () => {
         const items = Array.from({ length: READ_CACHE_MAX_ITEMS + 5 }, (_, index) => ({
             id: `a${index}`,
@@ -165,6 +181,20 @@ describe('read cache model', () => {
     });
 });
 
+describe('live read save scope', () => {
+    const next = JSON.stringify(['host-2', 'device-2', 1]);
+
+    it('saves a live read under the pairing it was read under while that pairing is current', () => {
+        expect(liveReadSaveScope(scope, scope)).toBe(scope);
+    });
+
+    it('never saves a read from the previous pairing under the new scope, or without a pairing', () => {
+        expect(liveReadSaveScope(scope, next)).toBeNull();
+        expect(liveReadSaveScope(scope, null)).toBeNull();
+        expect(liveReadSaveScope(undefined, next)).toBeNull();
+    });
+});
+
 describe('read cache store', () => {
     beforeEach(() => {
         vi.useFakeTimers();
@@ -177,6 +207,7 @@ describe('read cache store', () => {
         const { backend, files } = memoryFiles();
         const write = vi.spyOn(backend, 'write');
         const cache = createReadCache(backend, () => 42);
+        cache.setScope(scope);
         const key = { kind: 'timeline', sessionId: 'session/1' } as const;
         cache.save(scope, key, { items: [], truncated: false });
         cache.save(scope, key, { items: [], truncated: true });
@@ -193,6 +224,7 @@ describe('read cache store', () => {
     it('writes pending entries at once when the app leaves the foreground', () => {
         const { backend, files } = memoryFiles();
         const cache = createReadCache(backend);
+        cache.setScope(scope);
         cache.save(scope, { kind: 'dashboard' }, {});
         cache.flush();
         expect(files.has('dashboard.json')).toBe(true);
@@ -201,6 +233,7 @@ describe('read cache store', () => {
     it('never writes back a forgotten pairing after clear', async () => {
         const { backend, files } = memoryFiles();
         const cache = createReadCache(backend);
+        cache.setScope(scope);
         cache.save(scope, { kind: 'dashboard' }, {});
         cache.flush();
         cache.save(scope, { kind: 'chat', terminalId: 'terminal-1' }, {});
@@ -216,6 +249,7 @@ describe('read cache store', () => {
     it('keeps only the most recently saved Conversations and Chats', () => {
         const { backend, files } = memoryFiles();
         const cache = createReadCache(backend);
+        cache.setScope(scope);
         cache.save(scope, { kind: 'dashboard' }, {});
         for (let index = 0; index <= READ_CACHE_MAX_CONVERSATIONS; index += 1) {
             cache.save(scope, { kind: 'timeline', sessionId: `s${index}` }, {});
@@ -234,6 +268,7 @@ describe('read cache store', () => {
             read: () => Promise.reject(new Error('io')),
             write: () => {
                 throw new Error('full');
+                cache.setScope(scope);
             },
         });
         cache.save(scope, { kind: 'dashboard' }, {});
@@ -241,5 +276,25 @@ describe('read cache store', () => {
         await expect(cache.load(scope, { kind: 'dashboard' }, cachedTimelineSchema)).resolves.toBe(
             null,
         );
+    });
+
+    it('drops a write whose pairing stopped being current before it flushed', () => {
+        const { backend, files } = memoryFiles();
+        const cache = createReadCache(backend);
+        cache.setScope(scope);
+        cache.save(scope, { kind: 'chat', terminalId: 'terminal-1' }, {});
+        cache.setScope(JSON.stringify(['host-2', 'device-2', 1]));
+        vi.advanceTimersByTime(READ_CACHE_WRITE_DELAY_MS);
+        cache.save(scope, { kind: 'dashboard' }, {});
+        cache.flush();
+        expect(files.size).toBe(0);
+    });
+
+    it('writes nothing while unpaired', () => {
+        const { backend, files } = memoryFiles();
+        const cache = createReadCache(backend);
+        cache.save(scope, { kind: 'dashboard' }, {});
+        cache.flush();
+        expect(files.size).toBe(0);
     });
 });

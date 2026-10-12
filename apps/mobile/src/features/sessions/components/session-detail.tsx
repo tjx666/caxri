@@ -37,6 +37,7 @@ export const SessionDetail = ({
     onBack,
     onComposerFocused,
     onDraftChange,
+    onEditQueued,
     onMarkRead,
     onRefresh,
     onSegmentChange,
@@ -59,6 +60,10 @@ export const SessionDetail = ({
     onBack?: () => void;
     onComposerFocused?: () => void;
     onDraftChange: (draft: string) => void;
+    /**
+     * Puts a queued Chat message taken back for editing into the draft and focuses the composer.
+     */
+    onEditQueued: (text: string) => void;
     onMarkRead: () => Promise<void>;
     onRefresh: () => Promise<void>;
     onSegmentChange: (segment: SessionSegment) => void;
@@ -151,6 +156,7 @@ export const SessionDetail = ({
                 deviceRole={deviceRole}
                 isConnected={isConnected}
                 isVisible={isVisible}
+                onEditQueued={onEditQueued}
                 onSegmentChange={onSegmentChange}
                 segment={segment}
                 segments={segments}
@@ -176,6 +182,7 @@ export const SessionDetail = ({
                     onComposerFocused={onComposerFocused}
                     onDraftChange={onDraftChange}
                     provider={chat.provider}
+                    providerId={chat.providerId}
                     sessionId={session.id}
                     supportsImages={chat.supportsImages}
                     theme={theme}

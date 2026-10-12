@@ -6,6 +6,8 @@ import type {
     ServerRequest,
 } from '@caxri/protocol';
 import {
+    agentChatMethods,
+    canMobileAgentChatSend,
     CaxriError,
     MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH,
     windowAgentChatSnapshotForMobile,
@@ -14,22 +16,18 @@ import {
 import type { ServerDomainService } from '../domain-service';
 import { terminalForPrincipal } from './action-requests';
 
+/**
+ * Every phone Chat method. The access controller routes the whole namespace here, so a new `mobile.agentChat.*` method
+ * only needs its case in `invokeMobileAgentChatRequest`.
+ */
 export type MobileAgentChatRequest = Extract<
     ServerRequest,
-    {
-        method:
-            | 'mobile.agentChat.read'
-            | 'mobile.agentChat.readImage'
-            | 'mobile.agentChat.send'
-            | 'mobile.agentChat.interrupt'
-            | 'mobile.agentChat.respond'
-            | 'mobile.agentChat.retry'
-            | 'mobile.agentChat.configure'
-            | 'mobile.agentChat.removeQueued'
-            | 'mobile.agentChat.sendQueuedNow'
-            | 'mobile.agentChat.resumeQueue';
-    }
+    { method: `mobile.agentChat.${string}` }
 >;
+
+export const isMobileAgentChatRequest = (
+    request: ServerRequest,
+): request is MobileAgentChatRequest => request.method.startsWith('mobile.agentChat.');
 
 /**
  * A read needs no mutation authority; the access controller invokes it without serializing behind a revoke.
@@ -134,7 +132,12 @@ export async function invokeMobileAgentChatRequest(
     domainService: ServerDomainService,
     forwardOperation: MobileOperationForwarder | undefined,
     reauthorize: () => unknown,
-): Promise<AgentChatSnapshot | (ImageData & { chunkIndex: number; chunkCount: number }) | null> {
+): Promise<
+    | AgentChatSnapshot
+    | (ImageData & { chunkIndex: number; chunkCount: number })
+    | { text: string }
+    | null
+> {
     if (!forwardOperation)
         throw new CaxriError('UNAVAILABLE', 'Agent Chat is unavailable to paired devices');
     const forward = forwardOperation;
@@ -228,9 +231,25 @@ export async function invokeMobileAgentChatRequest(
             return null;
         }
         case 'mobile.agentChat.configure': {
+            const { permissionMode, planMode } = request.params;
+            /**
+             * A permission level decides which actions the Agent may take without asking, so changing it is the
+             * standing form of answering approvals, which only a `control` device may do (`mobile.agentChat.respond`).
+             * Plan mode travels with it, as one Permissions sheet. A `reply` device keeps the model and effort.
+             */
+            if (
+                (permissionMode !== undefined || planMode !== undefined) &&
+                principal.role !== 'control'
+            )
+                throw new CaxriError(
+                    'FORBIDDEN',
+                    'Control access is required to change permissions',
+                );
             /**
              * Core validates the switch against the Chat's listed models (`resolveAgentChatModelChange`), so a phone
-             * holding a stale list cannot choose a model or effort the provider never offered.
+             * holding a stale list cannot choose a model or effort the provider never offered, nor turn on ultracode
+             * for a model without it; a permission level or plan mode the provider lacks fails the same way
+             * (`resolveAgentChatPermissionChange`).
              */
             await forward({
                 method: 'agentChat.configure',
@@ -238,6 +257,11 @@ export async function invokeMobileAgentChatRequest(
                     terminalId,
                     ...(request.params.model !== undefined && { model: request.params.model }),
                     ...(request.params.effort !== undefined && { effort: request.params.effort }),
+                    ...(request.params.ultracode !== undefined && {
+                        ultracode: request.params.ultracode,
+                    }),
+                    ...(permissionMode !== undefined && { permissionMode }),
+                    ...(planMode !== undefined && { planMode }),
                 },
             });
             return null;
@@ -262,6 +286,37 @@ export async function invokeMobileAgentChatRequest(
         }
         case 'mobile.agentChat.resumeQueue': {
             await forward({ method: 'agentChat.resumeQueue', params: { terminalId } });
+            return null;
+        }
+        case 'mobile.agentChat.takeQueued': {
+            /**
+             * The full text is checked before Core takes the message, so one the phone could not send again stays
+             * queued for Desktop. Queued text never changes, so this read cannot disagree with the take; a message that
+             * leaves the queue in between still fails the take with `CONFLICT`.
+             */
+            const { id } = request.params;
+            const { queue } = await domainService.request('agentChat.read', { terminalId });
+            const entry = queue?.find((candidate) => candidate.id === id);
+            if (!entry) throw new CaxriError('CONFLICT', 'This message is no longer queued');
+            if (!canMobileAgentChatSend(entry.text))
+                throw new CaxriError('VALIDATION', 'This message is too long to edit on a phone');
+            reauthorize();
+            const taken = agentChatMethods['agentChat.takeQueued'].result.parse(
+                await forward({ method: 'agentChat.takeQueued', params: { terminalId, id } }),
+            );
+            return { text: taken.text };
+        }
+        case 'mobile.agentChat.runCommand': {
+            // Core checks the name against the Chat's listed commands, so a phone's stale list cannot run another.
+            const { name, arguments: arguments_ } = request.params;
+            await forward({
+                method: 'agentChat.runCommand',
+                params: {
+                    terminalId,
+                    name,
+                    ...(arguments_ !== undefined && { arguments: arguments_ }),
+                },
+            });
             return null;
         }
         case 'mobile.agentChat.retry': {

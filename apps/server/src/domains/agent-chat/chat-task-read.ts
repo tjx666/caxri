@@ -36,3 +36,16 @@ export async function readChatTask(
         throw new CaxriError('NOT_FOUND', 'This task is no longer available');
     return agentChatTaskSnapshotSchema.parse(state.projection.tasks.install(history));
 }
+
+/**
+ * Stops a running task the provider can stop. `state` is the Chat's live state, if any; a task that already settled, or
+ * a Chat whose provider is not running, is a `CONFLICT`.
+ */
+export async function stopChatTask(state: ChatState | undefined, taskId: string): Promise<void> {
+    const task = state?.projection.snapshot.tasks?.find(
+        (candidate) => candidate.id === taskId || candidate.itemId === taskId,
+    );
+    if (!state?.session?.isOpen || task?.status !== 'running' || !task.canStop)
+        throw new CaxriError('CONFLICT', 'This task is no longer running');
+    await state.session.stopTask(task.id);
+}

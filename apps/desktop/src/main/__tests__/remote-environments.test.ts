@@ -124,6 +124,19 @@ describe('SSH Host environments', () => {
         ]);
     });
 
+    it('focuses the window opened for the same spelling without resolving the destination again', async () => {
+        const keyOf = vi.fn((destination: string) => Promise.resolve(destination));
+        const { environments, harnesses } = setup(undefined, keyOf);
+        await environments.connect('work');
+        keyOf.mockImplementation(() => new Promise<string>(() => {}));
+
+        await environments.connect('work');
+
+        expect(keyOf).toHaveBeenCalledTimes(1);
+        expect(harnesses).toHaveLength(1);
+        expect(harnesses[0].window.focus).toHaveBeenCalledTimes(1);
+    });
+
     it('routes a window to its own environment and answers local for any other sender', async () => {
         const { environments, harnesses } = setup();
         await environments.connect('dev@build-box');
@@ -195,6 +208,29 @@ describe('SSH Host environments', () => {
         expect(harness.connection.resume).toHaveBeenCalledOnce();
         expect(lastState(harness).phase).toBe('connected');
         expect(attempts).toBe(1);
+    });
+
+    it('reports a lease another Desktop took over and takes it back only on Use Here', async () => {
+        const { environments, harnesses } = setup();
+        await environments.connect('dev@build-box');
+        const harness = harnesses[0];
+        await vi.waitFor(() => expect(lastState(harness).phase).toBe('connected'));
+        const onEvent = (harness.connection as unknown as { onEvent: ReturnType<typeof vi.fn> })
+            .onEvent;
+        const emit = onEvent.mock.calls[0]?.[0] as (event: ServerEvent) => void;
+
+        emit({ event: 'host.connectionChanged', payload: { status: 'replaced' } });
+        expect(lastState(harness)).toMatchObject({
+            phase: 'disconnected',
+            needsUserAction: false,
+            failure: { reason: 'takenOver' },
+        });
+        expect(harness.connection.resume).not.toHaveBeenCalled();
+
+        await environments.methodsFor(harness.window.webContents as never).reconnect();
+        expect(harness.connection.resume).toHaveBeenCalledOnce();
+        expect(lastState(harness)).toMatchObject({ phase: 'connected', needsUserAction: false });
+        expect(lastState(harness).failure).toBeUndefined();
     });
 
     it('does not ask for an answer when a failure has nothing to answer', async () => {

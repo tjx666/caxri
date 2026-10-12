@@ -153,6 +153,10 @@ describe('path browser keyboard intent', () => {
         expect(keyIntent({ isComposing: true, key: 'Backspace' })).toBeUndefined();
     });
 
+    it('does not detach in an SSH Host window, which has no free mode', () => {
+        expect(keyIntent({ canBrowseFree: false, key: 'Backspace' })).toBeUndefined();
+    });
+
     it('keeps Left and Right as caret movement inside text', () => {
         expect(
             keyIntent({
@@ -205,6 +209,13 @@ describe('path browser anchor transitions', () => {
             expect(pathBrowserInputTransition(project, input)).toEqual({ input, mode: 'free' });
         },
     );
+
+    it('keeps an absolute path a Project path in an SSH Host window', () => {
+        expect(pathBrowserInputTransition(project, '/home/dev/app/src/', false)).toEqual({
+            input: '/home/dev/app/src/',
+            mode: 'project',
+        });
+    });
 
     it('leaves an ordinary Project filter alone, including a bare ~ inside a name', () => {
         expect(pathBrowserInputTransition(project, 'src/')).toEqual({

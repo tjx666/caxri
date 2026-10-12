@@ -25,6 +25,11 @@ export type ServerConnectionTransition =
     | { type: 'connection-lost'; atMs: number; reason: 'replaced' | 'transport' }
     | { type: 'backoff-elapsed' }
     | { type: 'recovery-completed' }
+    /**
+     * The user explicitly chose to take back a lease another Desktop replaced. Nothing automatic sends it, so two
+     * Desktops never fight over one Server.
+     */
+    | { type: 'reclaim'; atMs: number }
     | { type: 'dispose' };
 
 export const initialServerConnectionState: ServerConnectionState = { status: 'idle' };
@@ -55,6 +60,15 @@ export function transitionServerConnection(
     transition: ServerConnectionTransition,
 ): ServerConnectionState {
     if (transition.type === 'dispose') return { status: 'disposed' };
+    if (transition.type === 'reclaim')
+        return state.status === 'replaced'
+            ? {
+                  status: 'backoff',
+                  attempt: 1,
+                  outageStartedAtMs: transition.atMs,
+                  readiness: 'announced',
+              }
+            : state;
     if (state.status === 'disposed' || state.status === 'replaced') return state;
 
     switch (transition.type) {

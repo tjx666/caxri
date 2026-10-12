@@ -322,28 +322,29 @@ export function stopAgentChatTask(terminalId: string, taskId: string): void {
 }
 
 /**
- * Removes a queued message. Resolves `true` once it left the queue, so Edit moves its text into the composer only when
- * Server Core will not also send it.
+ * Removes a queued message.
  */
-export async function didRemoveAgentChatQueued(terminalId: string, id: string): Promise<boolean> {
-    let isRemoved = false;
-    await tryCommand(translate('agentChat.commands.removeQueuedFailed'), async () => {
-        await caxri.request('agentChat.removeQueued', { terminalId, id });
-        isRemoved = true;
-    });
-    return isRemoved;
+export function removeAgentChatQueued(terminalId: string, id: string): void {
+    // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
+    void tryCommand(translate('agentChat.commands.removeQueuedFailed'), () =>
+        caxri.request('agentChat.removeQueued', { terminalId, id }),
+    );
 }
 
 /**
- * Takes a queued message back for editing: removes it from the queue, then hands its text to `restore` (the composer
- * draft). Nothing is restored when the message already left the queue, so it is never both sent and back in the draft.
+ * Takes a queued message back for editing and hands its text to `restore` (the composer draft). Server Core removes it
+ * and returns the text in one step (`agentChat.takeQueued`), so a message the queue sent meanwhile fails instead of
+ * being both sent and back in the draft.
  */
 export async function editAgentChatQueued(
     terminalId: string,
-    entry: { id: string; editText: string },
+    id: string,
     restore: (text: string) => void,
 ): Promise<void> {
-    if (await didRemoveAgentChatQueued(terminalId, entry.id)) restore(entry.editText);
+    const taken = await tryCommand(translate('agentChat.commands.editQueuedFailed'), () =>
+        caxri.request('agentChat.takeQueued', { terminalId, id }),
+    );
+    if (taken) restore(taken.text);
 }
 
 /**

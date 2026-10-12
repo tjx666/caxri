@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+    AgentChatItem,
     AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentChatTask,
@@ -67,6 +68,47 @@ export function stampNewItems(
 }
 
 /**
+ * Keeps each `answered` notice through a history replay. Server Core records the notice itself when the user answers a
+ * question (`agentChatAnsweredNotice`); no provider's history carries it, so the `reset` batch that rebuilds a resumed
+ * Chat (Retry after a crash, or any restart of the provider process) would otherwise drop it and leave the Agent acting
+ * on a choice the transcript no longer mentions. A notice stays only while the replay still holds its turn, so a rewind
+ * past that turn drops it. It goes back after the item it followed, or after its turn's first item (the user's message)
+ * when that item's replayed id differs. It survives only within this Server Core process: the notice is not persisted.
+ */
+export function carryAnsweredNotices(
+    previous: readonly AgentChatItem[],
+    operations: readonly AgentChatPatchOperation[],
+): readonly AgentChatPatchOperation[] {
+    const resetIndex = operations.findIndex((operation) => operation.op === 'reset');
+    if (resetIndex === -1) return operations;
+    const notices = previous.flatMap((item, index) =>
+        item.type === 'notice' && item.kind === 'answered' && item.turnId !== undefined
+            ? [{ notice: item, after: index > 0 ? previous[index - 1].id : undefined }]
+            : [],
+    );
+    if (notices.length === 0) return operations;
+    const carried = [...operations];
+    let isChanged = false;
+    const upsertIndex = (isMatch: (item: AgentChatItem) => boolean): number =>
+        carried.findIndex(
+            (operation, index) =>
+                index > resetIndex && operation.op === 'upsertItem' && isMatch(operation.item),
+        );
+    for (const { notice, after } of notices) {
+        if (upsertIndex((item) => item.id === notice.id) !== -1) continue;
+        let index =
+            after === undefined
+                ? -1
+                : upsertIndex((item) => item.id === after && item.turnId === notice.turnId);
+        if (index === -1) index = upsertIndex((item) => item.turnId === notice.turnId);
+        if (index === -1) continue;
+        carried.splice(index + 1, 0, { op: 'upsertItem', item: notice });
+        isChanged = true;
+    }
+    return isChanged ? carried : operations;
+}
+
+/**
  * One Chat's in-memory projection: the snapshot every Client mirrors, its task projections, and the operations not yet
  * flushed as `agentChat.patch` / `agentChat.taskPatch` events.
  */
@@ -76,6 +118,11 @@ export class ChatProjection {
      */
     private readonly queued: AgentChatPatchOperation[] = [];
     private flushTimer?: NodeJS.Timeout;
+    /**
+     * The replaced projection's items, held by a restart until this projection's first history replay carries their
+     * `answered` notices over (see {@link carryAnsweredNotices}).
+     */
+    private replacedItems: readonly AgentChatItem[] = [];
     snapshot: AgentChatSnapshot;
     /**
      * Subagent conversations and background shell output, each with its own revisions.
@@ -195,7 +242,15 @@ export class ChatProjection {
     apply(operations: readonly AgentChatPatchOperation[]): void {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
-        const stamped = stampNewItems(this.snapshot, operations, Date.now());
+        const isHistoryReplay = operations.some((operation) => operation.op === 'reset');
+        const stamped = stampNewItems(
+            this.snapshot,
+            isHistoryReplay
+                ? carryAnsweredNotices([...this.replacedItems, ...this.snapshot.items], operations)
+                : operations,
+            Date.now(),
+        );
+        if (isHistoryReplay) this.replacedItems = [];
         const isReplacement = stamped.some((operation) => operation.op === 'reset');
         const applied: AgentChatPatchOperation[] = [];
         /**
@@ -257,6 +312,14 @@ export class ChatProjection {
             });
         }
         this.tasks.flush();
+    }
+
+    /**
+     * Takes over what a restart replaced: the provider rebuilds history into this new projection, and Server Core's own
+     * `answered` notices exist only in the replaced one.
+     */
+    adoptReplaced(previous: ChatProjection): void {
+        this.replacedItems = previous.snapshot.items;
     }
 
     /**

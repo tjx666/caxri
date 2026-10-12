@@ -29,6 +29,14 @@ export const agentSystemEventKindSchema = z.enum([
     'caveat',
 ]);
 
+/**
+ * How a terminal Agent's turn ended, as its record states it: `completed` for a finished turn, `interrupted` for one
+ * the user stopped or the Agent abandoned, `failed` for one that ended in an error. A boundary without an outcome is a
+ * turn the record only marks as ended, which reads as completed. The values match Agent Chat's settled turn statuses so
+ * the phone labels both timelines with the same words.
+ */
+export const agentTimelineTurnOutcomeSchema = z.enum(['completed', 'interrupted', 'failed']);
+
 export const agentTimelineItemSchema = z.discriminatedUnion('type', [
     z.strictObject({
         ...timelineItemBase,
@@ -53,6 +61,7 @@ export const agentTimelineItemSchema = z.discriminatedUnion('type', [
         ...timelineItemBase,
         type: z.literal('turnBoundary'),
         durationMs: z.number().int().nonnegative().optional(),
+        outcome: agentTimelineTurnOutcomeSchema.optional(),
     }),
     z.strictObject({
         ...timelineItemBase,
@@ -82,6 +91,7 @@ export const mobileTimelineReadResultSchema = z.strictObject({
 });
 
 export type AgentTimelineItem = z.infer<typeof agentTimelineItemSchema>;
+export type AgentTimelineTurnOutcome = z.infer<typeof agentTimelineTurnOutcomeSchema>;
 export type AgentSystemEventKind = z.infer<typeof agentSystemEventKindSchema>;
 export type AgentSystemEventStatus = z.infer<typeof agentSystemEventStatusSchema>;
 export type MobileTimelineReadResult = z.infer<typeof mobileTimelineReadResultSchema>;

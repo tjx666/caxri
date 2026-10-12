@@ -22,6 +22,7 @@ export const agentChatPane: TranslatedNamespace<typeof source> = {
     'agentChat.commands.clearProjectDefaultFailed': '无法清除项目默认设置',
     'agentChat.commands.stopTaskFailed': '无法停止任务',
     'agentChat.commands.removeQueuedFailed': '无法移除排队的消息',
+    'agentChat.commands.editQueuedFailed': '无法编辑排队的消息',
     'agentChat.commands.sendQueuedFailed': '无法发送排队的消息',
     'agentChat.commands.resumeQueueFailed': '无法恢复队列',
     'agentChat.commands.findTranscriptFailed': '找不到对话记录',

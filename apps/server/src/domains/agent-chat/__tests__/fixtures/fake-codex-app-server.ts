@@ -10,9 +10,13 @@
  * - `ask`: a question; the reply quotes the chosen answer.
  * - `slow`: a titled thought, a running command, and a long streamed reply that `turn/interrupt` can stop.
  * - `fail`: a failed turn with a provider error.
- * - `crash`: the process exits mid-turn.
+ * - `crash`: the process exits mid-turn, after saving the turn's user message as an interrupted turn.
  * - `table`: a reply exercising the transcript's Markdown: headings, nested and task lists, cited files, a quote, a
  *   table, and a fenced code block, streamed in small chunks.
+ * - `codeblocks`: a reply with fenced code in `ts`, `bash`, `json`, and `diff`, a fence without a language, and an
+ *   indented code block, so a Client's syntax highlighting can be compared across languages.
+ * - `testrun`: a finished multi-step turn: a thought, a test command that exits with code 1, a passing command, and a
+ *   short reply, so a Client folds the work behind its `Worked for` row and shows the failed command's exit code.
  * - `subagent`: a `spawnAgent` collab call whose child thread runs its own turn (notifications with the child's
  *   `threadId`, some before the spawn completes, as real Codex sends them), then a `wait` call reporting its result.
  *   With `hold`, the child keeps streaming until `turn/interrupt` stops it and the parent turn ends right away.
@@ -60,6 +64,7 @@ import {
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { completeMcpCalls } from './fake-codex-mcp-calls.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
+import { runCodeBlocks, runMarkdownTable, runTestCommands } from './fake-codex-replies.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import {
     didHandleTaskRequest,
@@ -215,7 +220,13 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     const user = { type: 'userMessage', id: crypto.randomUUID(), clientId, content: input };
     startItem(turn, user);
     completeItem(turn, user);
-    if (text.includes('crash')) exitProcess(1);
+    if (text.includes('crash')) {
+        // Codex records a turn's user message as the turn starts, so a thread resumed after the crash still holds it,
+        // in a turn that never completed.
+        turn.status = 'interrupted';
+        save();
+        exitProcess(1);
+    }
     if (imageCount > 0) {
         await streamMessage(turn, `Received ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 0);
     } else if (text.includes('subagent')) {
@@ -301,42 +312,12 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await streamMessage(turn, 'word '.repeat(200), 50);
         // An interrupted turn leaves the command dangling, which closing the turn settles.
         if (!turn.interrupted) completeItem(turn, { ...command, status: 'completed', exitCode: 0 });
+    } else if (text.includes('codeblocks')) {
+        await runCodeBlocks(io, turn);
+    } else if (text.includes('testrun')) {
+        await runTestCommands(io, turn);
     } else if (text.includes('table')) {
-        await streamMessage(
-            turn,
-            [
-                '## Summary',
-                '',
-                'Updated [app.ts](src/app.ts:2) and `src/app.ts#L1-L2`; see **the plan** below.',
-                '',
-                '### Plan',
-                '',
-                '1. Read the *current* state',
-                '   - check `package.json`',
-                '   - compare with ~~old~~ new',
-                '2. Apply the fix',
-                '',
-                '- [x] Write tests',
-                '- [ ] Ship it',
-                '',
-                '> Note: nothing outside the Project was touched.',
-                '',
-                'Background: [the Markdown guide](https://example.com/guide), https://example.com/faq, and [the tracking issue](https://github.com/octo-org/octo-repo/issues/1).',
-                '',
-                '| Option | Cost |',
-                '| :--- | ---: |',
-                '| Fast | 2 |',
-                '| Safe | 5 |',
-                '',
-                '```ts',
-                'const choice = "Safe";',
-                'export function pick(cost: number): string {',
-                '    return cost > 3 ? choice : "Fast";',
-                '}',
-                '```',
-            ].join('\n'),
-            5,
-        );
+        await runMarkdownTable(io, turn);
     } else if (text.includes('fail')) {
         turn.status = 'failed';
         turn.error = { message: 'Fake provider failure' };

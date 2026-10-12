@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 
+import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
 import { useRouter } from 'expo-router';
 
 import type { useMobileTheme } from '../../../theme/use-mobile-theme';
@@ -33,6 +34,7 @@ export const SelectedSessionDetail = ({
         consumeComposerFocus,
         focusComposerSessionId,
         hostId,
+        requestComposerFocus,
         sessions,
         setDraft,
         setSegment,
@@ -67,6 +69,13 @@ export const SelectedSessionDetail = ({
             onBack={layout === 'phone' ? goHome : undefined}
             onDraftChange={(draft) => setDraft(selected.id, draft)}
             onComposerFocused={() => consumeComposerFocus(selected.id)}
+            onEditQueued={(text) => {
+                // An updater, not the rendered draft: the text arrives after a round trip the user may have typed through.
+                setDraft(selected.id, (current) =>
+                    agentChatDraftWithReturnedMessage(current, text),
+                );
+                requestComposerFocus(selected.id);
+            }}
             onMarkRead={markRead}
             onRefresh={refresh}
             onSegmentChange={(next) => setSegment(selected.id, next, conversation.segment)}

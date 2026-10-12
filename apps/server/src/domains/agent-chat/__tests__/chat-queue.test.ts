@@ -271,3 +271,40 @@ describe('ChatFollowUpQueue dispatch', () => {
         expect(state.snapshot.queuePaused).toBe(true);
     });
 });
+
+describe('ChatFollowUpQueue takeForEdit', () => {
+    it('removes an entry and returns its whole text, a command as typed', () => {
+        const { hold, queue, queuedTexts } = queueFixture();
+        hold();
+        const long = message('x'.repeat(5_000));
+        const compact = { ...command('compact'), arguments: 'keep the plan' };
+        queue.add(long);
+        queue.add(compact);
+        expect(queue.takeForEdit(long.id)).toEqual({ text: 'x'.repeat(5_000) });
+        expect(queue.takeForEdit(compact.id)).toEqual({ text: '/compact keep the plan' });
+        expect(queuedTexts()).toEqual([]);
+    });
+
+    it('refuses an entry that already left the queue, so it is never both sent and edited', async () => {
+        const { endTurn, hold, queue, sent } = queueFixture();
+        hold();
+        const entry = message('send me');
+        queue.add(entry);
+        await endTurn();
+        expect(sent).toEqual([{ kind: 'message', text: 'send me', imageCount: 0 }]);
+        expect(() => queue.takeForEdit(entry.id)).toThrow(
+            expect.objectContaining({ code: 'CONFLICT' }),
+        );
+    });
+
+    it('keeps a message with images queued instead of dropping its images', () => {
+        const { hold, queue, queuedTexts } = queueFixture();
+        hold();
+        const entry = message('look', [image]);
+        queue.add(entry);
+        expect(() => queue.takeForEdit(entry.id)).toThrow(
+            expect.objectContaining({ code: 'VALIDATION' }),
+        );
+        expect(queuedTexts()).toEqual(['look']);
+    });
+});

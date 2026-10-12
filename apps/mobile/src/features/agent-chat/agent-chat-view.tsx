@@ -33,7 +33,11 @@ import { AgentChatPlanCard } from './agent-chat-plan-card';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
-import { buildAgentChatTimeline } from './agent-chat-timeline';
+import {
+    buildAgentChatTimeline,
+    toggleAgentChatTurn,
+    withAgentChatPendingEntries,
+} from './agent-chat-timeline';
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
 import type { AgentChatController } from './use-agent-chat';
 
@@ -59,9 +63,21 @@ const AgentChatBody = ({
     provider: string;
     theme: MobileTheme;
 }) => {
-    const { snapshot } = chat;
+    const { pending, snapshot } = chat;
     const { retryConnection } = useMobileClient();
-    const entries = useMemo(() => (snapshot ? buildAgentChatTimeline(snapshot) : []), [snapshot]);
+    /**
+     * The finished turns the user unfolded, by turn id. The list owns it so FlashList can recycle a row for any turn.
+     */
+    const [expandedTurnIds, setExpandedTurnIds] = useState<ReadonlySet<string>>(() => new Set());
+    const toggleTurn = useCallback(
+        (turnId: string) => setExpandedTurnIds((current) => toggleAgentChatTurn(current, turnId)),
+        [],
+    );
+    const built = useMemo(
+        () => (snapshot ? buildAgentChatTimeline(snapshot, expandedTurnIds) : []),
+        [expandedTurnIds, snapshot],
+    );
+    const entries = useMemo(() => withAgentChatPendingEntries(built, pending), [built, pending]);
     /**
      * The Chat reads one bounded window, so the list's history header only says whether older messages were cut.
      */
@@ -79,8 +95,10 @@ const AgentChatBody = ({
         [truncated],
     );
     const renderEntry = useCallback(
-        (entry: TimelineEntry) => <AgentChatTimelineEntry entry={entry} theme={theme} />,
-        [theme],
+        (entry: TimelineEntry) => (
+            <AgentChatTimelineEntry entry={entry} onToggleTurn={toggleTurn} theme={theme} />
+        ),
+        [theme, toggleTurn],
     );
     /**
      * Keyed on the messages that carry images, not the snapshot, so a streamed reply does not redraw every entry.
@@ -109,6 +127,7 @@ const AgentChatBody = ({
                 <ConversationList
                     entries={entries}
                     enterFrom={enterFrom}
+                    followKey={pending.sendCount}
                     isConnected={isConnected}
                     onRetry={chat.refresh}
                     renderEntry={renderEntry}
@@ -182,31 +201,38 @@ const AgentChatRequests = ({
     provider: string;
     theme: MobileTheme;
 }) => {
-    const { respond, snapshot } = chat;
+    const { pending, respond, snapshot } = chat;
     const items = snapshot?.items;
+    const { answeredRequestIds } = pending;
     const renderRequest = useCallback(
         ({ item }: ListRenderItemInfo<AgentChatRequest>) => (
-            <AgentChatRequestCard
-                blockedReason={blockedReason}
-                items={items ?? []}
-                onRespond={respond}
-                provider={provider}
-                request={item}
-                theme={theme}
-            />
+            // An answered card stays mounted but hidden while its answer is on its way, so a refused answer brings it
+            // back with its choices and the card's own error instead of a blank card.
+            <View style={answeredRequestIds.has(item.id) ? styles.hidden : null}>
+                <AgentChatRequestCard
+                    blockedReason={blockedReason}
+                    items={items ?? []}
+                    onRespond={respond}
+                    provider={provider}
+                    request={item}
+                    theme={theme}
+                />
+            </View>
         ),
-        [blockedReason, items, provider, respond, theme],
+        [answeredRequestIds, blockedReason, items, provider, respond, theme],
     );
     const requests = snapshot?.requests ?? [];
     if (requests.length === 0) return null;
+    const isAllAnswered = requests.every((request) => answeredRequestIds.has(request.id));
     return (
         <FlatList
             contentContainerStyle={styles.requests}
             data={requests}
+            extraData={answeredRequestIds}
             keyboardShouldPersistTaps="handled"
             keyExtractor={(request) => request.id}
             renderItem={renderRequest}
-            style={[styles.dock, { borderColor: theme.border }]}
+            style={[styles.dock, { borderColor: theme.border }, isAllAnswered && styles.hidden]}
             testID="agent-chat-requests"
         />
     );
@@ -231,8 +257,8 @@ const AgentChatActivity = ({
 
 /**
  * The phone's Chat: Desktop's Chat timeline in the Conversation's list (Markdown replies, work rows and summaries, each
- * finished turn's artifacts and `Worked for` footer), with the Chat's own states, pending requests, plan, and activity
- * docked above the composer.
+ * finished turn folded behind its `Worked for` row with its artifacts under the reply), with the Chat's own states,
+ * pending requests, plan, and activity docked above the composer.
  */
 export const AgentChatView = ({
     chat,
@@ -240,6 +266,7 @@ export const AgentChatView = ({
     enterFrom,
     isConnected,
     isHandedOff,
+    onEditQueued,
     provider,
     theme,
 }: {
@@ -259,6 +286,10 @@ export const AgentChatView = ({
      * cannot resume a Session, and Retry restarts only a failed Chat.
      */
     isHandedOff: boolean;
+    /**
+     * Puts a queued message's full text, taken back by its Edit, into the composer draft.
+     */
+    onEditQueued: (text: string) => void;
     provider: string;
     theme: MobileTheme;
 }) => {
@@ -373,7 +404,12 @@ export const AgentChatView = ({
                 theme={theme}
             />
             <AgentChatActivity chat={chat} provider={provider} theme={theme} />
-            <AgentChatQueueList canAct={canActOnQueue} chat={chat} theme={theme} />
+            <AgentChatQueueList
+                canAct={canActOnQueue}
+                chat={chat}
+                onEdit={onEditQueued}
+                theme={theme}
+            />
         </View>
     );
 };
@@ -394,5 +430,6 @@ const styles = StyleSheet.create({
     statusText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
     dock: { borderTopWidth: 1, flexGrow: 0, maxHeight: '55%' },
     requests: { gap: 8, padding: 12 },
+    hidden: { display: 'none' },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

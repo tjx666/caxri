@@ -1,10 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
-import type { AgentChatRequest, AgentChatResponse, AgentChatSnapshot } from '@caxri/protocol';
+import type {
+    AgentChatModelRequest,
+    AgentChatPermissionRequest,
+    AgentChatRequest,
+    AgentChatResponse,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
+import { agentChatPendingView } from '@caxri/protocol';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useReadCache } from '../read-cache/read-cache-context';
-import { cachedChatSchema, trimChatSnapshot } from '../read-cache/read-cache-model';
+import {
+    cachedChatSchema,
+    liveReadSaveScope,
+    trimChatSnapshot,
+} from '../read-cache/read-cache-model';
+import {
+    agentChatPendingKey,
+    agentChatPendingStore,
+    answerAgentChatRequestOptimistically,
+} from './agent-chat-pending';
 import { startAgentChatReader } from './agent-chat-sync';
 
 /**
@@ -18,6 +34,10 @@ export interface AgentChatAttachment {
 export interface AgentChatState {
     error: string | null;
     /**
+     * The pairing the live snapshot was read under; only that pairing may save it.
+     */
+    readScope?: string;
+    /**
      * Set while the snapshot is the copy saved on this phone; the first live snapshot replaces it.
      */
     savedAt?: number;
@@ -27,6 +47,33 @@ export interface AgentChatState {
      */
     status: 'loading' | 'ready' | 'error' | 'stale';
 }
+
+const NO_PENDING = agentChatPendingStore.get('');
+
+/**
+ * The Chat's sends and answers still ahead of its projection (`agent-chat-pending.ts`), pruned as the projection shows
+ * them, so a pending row and the real one never appear together.
+ */
+const useAgentChatPending = (key: string | null, snapshot: AgentChatSnapshot | undefined) => {
+    const subscribe = useCallback(
+        (listener: () => void) =>
+            key === null ? () => {} : agentChatPendingStore.subscribe(key, listener),
+        [key],
+    );
+    const read = useCallback(
+        () => (key === null ? NO_PENDING : agentChatPendingStore.get(key)),
+        [key],
+    );
+    const state = useSyncExternalStore(subscribe, read, read);
+    useEffect(() => {
+        if (key !== null) agentChatPendingStore.prune(key, snapshot);
+    }, [key, snapshot]);
+    const view = useMemo(
+        () => agentChatPendingView(state.messages, state.answers, snapshot),
+        [snapshot, state.answers, state.messages],
+    );
+    return { ...view, sendCount: state.sendCount };
+};
 
 const initialState = (): AgentChatState => ({
     error: null,
@@ -64,10 +111,17 @@ export const useAgentChat = ({
     const stored = record.terminalId === terminalId ? record.state : initialState();
     const state: AgentChatState =
         !observable && stored.snapshot ? { ...stored, status: 'stale' } : stored;
+    /**
+     * Where this Chat's optimistic sends and answers live; see `agent-chat-pending.ts`.
+     */
+    const pendingKey =
+        terminalId === null ? null : agentChatPendingKey(connectionScopeKey, terminalId);
+    const pending = useAgentChatPending(pendingKey, stored.snapshot);
 
     useEffect(() => {
-        if (terminalId === null || !observable) return;
+        if (terminalId === null || !observable || connectionScopeKey === null) return;
         let isActive = true;
+        const readScope = connectionScopeKey;
         const update = (value: (current: AgentChatState) => AgentChatState): void => {
             if (!isActive) return;
             setRecord((current) => ({
@@ -81,7 +135,8 @@ export const useAgentChat = ({
                 ? (listener) => subscribe({ kind: 'agentChat', terminalId }, listener)
                 : undefined,
             onRetry: () => setRetry((value) => value + 1),
-            onSnapshot: (snapshot) => update(() => ({ error: null, snapshot, status: 'ready' })),
+            onSnapshot: (snapshot) =>
+                update(() => ({ error: null, readScope, snapshot, status: 'ready' })),
             onError: () =>
                 update((current) => ({
                     ...current,
@@ -93,7 +148,16 @@ export const useAgentChat = ({
             isActive = false;
             stop();
         };
-    }, [connectionEpoch, observable, request, retry, subscribe, subscriptionAvailable, terminalId]);
+    }, [
+        connectionEpoch,
+        connectionScopeKey,
+        observable,
+        request,
+        retry,
+        subscribe,
+        subscriptionAvailable,
+        terminalId,
+    ]);
 
     useEffect(() => {
         if (terminalId === null || connectionScopeKey === null) return;
@@ -119,14 +183,15 @@ export const useAgentChat = ({
     }, [connectionScopeKey, readCache, terminalId]);
 
     const liveSnapshot = stored.savedAt === undefined ? stored.snapshot : undefined;
+    const saveScope = liveReadSaveScope(stored.readScope, connectionScopeKey);
     useEffect(() => {
-        if (!liveSnapshot || connectionScopeKey === null) return;
+        if (!liveSnapshot || saveScope === null) return;
         readCache.save(
-            connectionScopeKey,
+            saveScope,
             { kind: 'chat', terminalId: liveSnapshot.terminalId },
             trimChatSnapshot(liveSnapshot),
         );
-    }, [connectionScopeKey, liveSnapshot, readCache]);
+    }, [liveSnapshot, readCache, saveScope]);
 
     const refresh = useCallback((): void => {
         setRetry((value) => value + 1);
@@ -151,23 +216,53 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * Runs one of the provider's listed slash commands; during a turn Core queues it, since a command cannot join a
+     * turn.
+     */
+    const runCommand = useCallback(
+        async (command: { name: string; arguments?: string }): Promise<void> => {
+            if (terminalId === null) return;
+            if (pendingKey !== null) agentChatPendingStore.countCommand(pendingKey);
+            await request('mobile.agentChat.runCommand', {
+                terminalId,
+                name: command.name,
+                ...(command.arguments !== undefined && { arguments: command.arguments }),
+            });
+        },
+        [pendingKey, request, terminalId],
+    );
     const interrupt = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
         await request('mobile.agentChat.interrupt', { terminalId });
     }, [request, terminalId]);
+    /**
+     * Answers optimistically: the card leaves at once and comes back, rejecting, when the Server refuses.
+     */
     const respond = useCallback(
         async (target: AgentChatRequest, response: AgentChatResponse): Promise<void> => {
-            if (terminalId === null) return;
-            await request('mobile.agentChat.respond', {
-                terminalId,
-                requestId: target.id,
+            if (terminalId === null || pendingKey === null) return;
+            await answerAgentChatRequestOptimistically({
+                key: pendingKey,
+                request: target,
                 response,
+                respond: async () => {
+                    await request('mobile.agentChat.respond', {
+                        terminalId,
+                        requestId: target.id,
+                        response,
+                    });
+                },
             });
         },
-        [request, terminalId],
+        [pendingKey, request, terminalId],
     );
+    /**
+     * Switches the model, effort, ultracode, permission level, or plan mode the next turn uses; Core validates the
+     * change against what the provider offers, and the gateway refuses a permission change from a `reply` device.
+     */
     const configure = useCallback(
-        async (change: { model?: string; effort?: string }): Promise<void> => {
+        async (change: AgentChatModelRequest & AgentChatPermissionRequest): Promise<void> => {
             if (terminalId === null) return;
             await request('mobile.agentChat.configure', { terminalId, ...change });
         },
@@ -197,6 +292,17 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * Takes a queued message back for editing and resolves its full text; the snapshot holds only a preview.
+     */
+    const takeQueued = useCallback(
+        async (id: string): Promise<string> => {
+            if (terminalId === null) throw new Error('No Chat is open');
+            const { text } = await request('mobile.agentChat.takeQueued', { terminalId, id });
+            return text;
+        },
+        [request, terminalId],
+    );
     const resumeQueue = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
         await request('mobile.agentChat.resumeQueue', { terminalId });
@@ -206,13 +312,17 @@ export const useAgentChat = ({
         ...state,
         configure,
         interrupt,
+        pending,
+        pendingKey,
         refresh,
         removeQueued,
         respond,
         restart,
         resumeQueue,
+        runCommand,
         send,
         sendQueuedNow,
+        takeQueued,
     };
 };
 

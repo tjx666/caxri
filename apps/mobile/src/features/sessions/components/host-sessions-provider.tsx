@@ -30,7 +30,10 @@ interface HostSessionsContextValue {
     setNewSessionSurface: (surface: TerminalSurface) => void;
     setNewSessionCreateState: Dispatch<SetStateAction<NewSessionCreateState>>;
     setNewSessionProjectId: (projectId: string) => void;
-    setDraft: (sessionId: string, draft: string) => void;
+    /**
+     * Takes the draft itself, or an updater that derives it from the current draft when the change arrives late.
+     */
+    setDraft: (sessionId: string, draft: string | ((current: string) => string)) => void;
     setProjectId: (projectId: string | null) => void;
     setSegment: (sessionId: string, segment: SessionSegment, previous?: SessionSegment) => void;
 }
@@ -68,9 +71,20 @@ export const HostSessionsProvider = ({
     const consumeComposerFocus = useCallback((sessionId: string): void => {
         setFocusComposerSessionId((current) => (current === sessionId ? null : current));
     }, []);
-    const setDraft = useCallback((sessionId: string, draft: string): void => {
-        setUi((current) => rememberSessionDraft(current, sessionId, draft));
-    }, []);
+    const setDraft = useCallback(
+        (sessionId: string, draft: string | ((current: string) => string)): void => {
+            setUi((current) =>
+                rememberSessionDraft(
+                    current,
+                    sessionId,
+                    typeof draft === 'string'
+                        ? draft
+                        : draft(current.draftBySession[sessionId] ?? ''),
+                ),
+            );
+        },
+        [],
+    );
     const setProjectId = useCallback((projectId: string | null): void => {
         listScrollOffsetReference.current = 0;
         setUi((current) => selectSessionProject(current, projectId));
