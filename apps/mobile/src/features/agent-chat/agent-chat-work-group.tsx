@@ -5,13 +5,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { AgentChatWorkItem } from '@caxri/protocol';
 import {
     agentChatFileChangesStat,
-    agentChatItemStatusLabel,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
     agentChatWorkKind,
-    agentChatWorkVerb,
-    describeAgentChatWork,
-    isAgentChatWorkRunning,
     summarizeAgentChatWork,
 } from '@caxri/protocol';
 
@@ -22,12 +18,22 @@ import { ConversationToolGroupView } from '../conversation/conversation-tool-gro
 import { ConversationStatusGlyph } from '../conversation/conversation-tool-icon';
 import { ConversationToolRowView } from '../conversation/conversation-tool-row';
 import { AgentChatWorkDetail } from './agent-chat-work-detail';
+import type { AgentChatWorkRowPresentation } from './agent-chat-work-row';
+import { agentChatWorkRowPresentation } from './agent-chat-work-row';
 
 /**
  * What a row says after its title, as Desktop's row does: a change's `+N -M`, a command's `Background` tag and non-zero
  * `Exit N`, how a step that did not complete ended, and a noticeable duration.
  */
-const WorkFacts = ({ item, theme }: { item: AgentChatWorkItem; theme: MobileTheme }) => {
+const WorkFacts = ({
+    item,
+    row,
+    theme,
+}: {
+    item: AgentChatWorkItem;
+    row: AgentChatWorkRowPresentation;
+    theme: MobileTheme;
+}) => {
     const stat = useMemo(
         () => (item.type === 'fileChange' ? agentChatFileChangesStat(item.changes) : undefined),
         [item],
@@ -44,14 +50,16 @@ const WorkFacts = ({ item, theme }: { item: AgentChatWorkItem; theme: MobileThem
                     />
                 </Text>
             ) : null}
-            {item.type === 'command' && item.background ? (
+            {row.background ? (
                 <Text style={[styles.tag, { backgroundColor: theme.surface, color: theme.muted }]}>
                     Background
                 </Text>
             ) : null}
-            {item.type === 'command' && item.exitCode !== undefined && item.exitCode !== 0 ? (
-                <Text style={[styles.exit, { color: theme.danger }]}>Exit {item.exitCode}</Text>
-            ) : null}
+            {row.failedExitCode === undefined ? null : (
+                <Text style={[styles.exit, { color: theme.danger }]}>
+                    Exit {row.failedExitCode}
+                </Text>
+            )}
             {item.type === 'reasoning' ? null : (
                 <ConversationStatusGlyph status={item.status} theme={theme} />
             )}
@@ -79,25 +87,19 @@ const AgentChatWorkRow = memo(
         onPress: (item: AgentChatWorkItem) => void;
         theme: MobileTheme;
     }) => {
-        const presentation = describeAgentChatWork(item);
-        const verb = agentChatWorkVerb(item, presentation);
-        const isRunning = isAgentChatWorkRunning(item);
-        const outcome =
-            item.type === 'reasoning' || item.status === 'running' || item.status === 'completed'
-                ? ''
-                : ` ${agentChatItemStatusLabel(item.status)}.`;
+        const row = agentChatWorkRowPresentation(item);
         return (
             <ConversationToolRowView
-                accessibilityLabel={`${verb}${presentation.subject ? ` ${presentation.subject}` : ''}.${outcome} Open detail.`}
-                isCodeSubject={presentation.isCodeSubject}
-                isRunning={isRunning}
-                kind={presentation.kind}
+                accessibilityLabel={row.accessibilityLabel}
+                isCodeSubject={row.isCodeSubject}
+                isRunning={row.isRunning}
+                kind={row.kind}
                 onPress={() => onPress(item)}
-                subject={presentation.subject}
+                subject={row.subject}
                 testID={`agent-chat-work-${item.id}`}
                 theme={theme}
-                trailing={isRunning ? null : <WorkFacts item={item} theme={theme} />}
-                verb={verb}
+                trailing={row.isRunning ? null : <WorkFacts item={item} row={row} theme={theme} />}
+                verb={row.verb}
             />
         );
     },

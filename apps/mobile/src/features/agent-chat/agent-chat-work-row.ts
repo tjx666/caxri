@@ -1,0 +1,66 @@
+import type { AgentChatWorkItem, AgentToolKind } from '@caxri/protocol';
+import {
+    agentChatItemStatusLabel,
+    agentChatWorkVerb,
+    describeAgentChatWork,
+    isAgentChatWorkRunning,
+} from '@caxri/protocol';
+
+/**
+ * What one Chat work row shows and announces. The rules mirror Desktop's work row: the verb is present tense while the
+ * item runs, including a command still waiting for approval (`Running echo approved`), and the settled verb after (`Ran
+ * echo approved`, `Failed to run`); a command titles itself with the Agent's description when it wrote one, and a
+ * settled command adds its `Background` tag and non-zero `Exit N`.
+ */
+export interface AgentChatWorkRowPresentation {
+    /**
+     * The screen reader label: the visible title, the trailing facts, how a step that did not complete ended, and the
+     * action.
+     */
+    accessibilityLabel: string;
+    /**
+     * Whether the command was moved to the background, shown as a `Background` tag.
+     */
+    background: boolean;
+    /**
+     * A settled command's non-zero exit code, shown as `Exit N` in the danger color; absent for success or no code.
+     */
+    failedExitCode?: number;
+    isCodeSubject: boolean;
+    isRunning: boolean;
+    kind: AgentToolKind;
+    subject?: string;
+    verb: string;
+}
+
+export function agentChatWorkRowPresentation(
+    item: AgentChatWorkItem,
+): AgentChatWorkRowPresentation {
+    const presentation = describeAgentChatWork(item);
+    const verb = agentChatWorkVerb(item, presentation);
+    const isRunning = isAgentChatWorkRunning(item);
+    const isSettledCommand = item.type === 'command' && !isRunning;
+    const isBackground = isSettledCommand && item.background === true;
+    const failedExitCode =
+        isSettledCommand && item.exitCode !== undefined && item.exitCode !== 0
+            ? item.exitCode
+            : undefined;
+    const facts = [
+        ...(isBackground ? ['Background'] : []),
+        ...(failedExitCode === undefined ? [] : [`Exit ${failedExitCode}`]),
+        ...(item.type === 'reasoning' || item.status === 'running' || item.status === 'completed'
+            ? []
+            : [agentChatItemStatusLabel(item.status)]),
+    ];
+    const title = presentation.subject ? `${verb} ${presentation.subject}` : verb;
+    return {
+        accessibilityLabel: [title, ...facts, 'Open detail'].map((part) => `${part}.`).join(' '),
+        background: isBackground,
+        ...(failedExitCode !== undefined && { failedExitCode }),
+        isCodeSubject: presentation.isCodeSubject,
+        isRunning,
+        kind: presentation.kind,
+        ...(presentation.subject !== undefined && { subject: presentation.subject }),
+        verb,
+    };
+}
