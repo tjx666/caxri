@@ -99,7 +99,7 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
         await page.screenshot({ path: testInfo.outputPath('codex-chat-clear-default-menu.png') });
         await clearDefault.click();
         await expect(menu).toBeHidden();
-        await expect(defaultedPicker).toHaveAccessibleName('Permissions: Read only, plan mode on');
+        await expect(defaultedPicker).toHaveAccessibleName('Permissions: Read only');
         await defaultedPicker.click();
         await expect(
             menu.getByRole('menuitemcheckbox', { name: 'Use as Project default' }),
