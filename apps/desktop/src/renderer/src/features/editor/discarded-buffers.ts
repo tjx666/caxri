@@ -21,6 +21,12 @@ const DISCARDED_BUFFER_LIMIT = 20;
  */
 const discardedBuffers = new Map<string, string>();
 
+/**
+ * Stash keys a restore already used, so a later click on the same notice says so instead of blaming a closed file. Only
+ * keys, never text, and bounded like the stash: a new discard of the same document clears its entry.
+ */
+const restoredBuffers = new Set<string>();
+
 function bufferKey(sessionId: string, workbenchProjectId: string, path: string): string {
     return `${sessionId}\0${workbenchProjectId}\0${path}`;
 }
@@ -37,6 +43,7 @@ export function stashDiscardedBuffers(
         const key = bufferKey(sessionId, workbenchProjectId, document.path);
         // Re-inserting moves the entry to the end, so eviction below drops the oldest discard.
         discardedBuffers.delete(key);
+        restoredBuffers.delete(key);
         discardedBuffers.set(key, document.content);
     }
     while (discardedBuffers.size > DISCARDED_BUFFER_LIMIT) {
@@ -66,9 +73,20 @@ function restorableBuffers(target: RestoreTarget): Array<{ path: string; content
     });
 }
 
+function dropOldestRestored(): void {
+    while (restoredBuffers.size > DISCARDED_BUFFER_LIMIT) {
+        const oldest = restoredBuffers.values().next();
+        if (oldest.done) break;
+        restoredBuffers.delete(oldest.value);
+    }
+}
+
 export function discardedChangesUnavailableReason(target: RestoreTarget): string | undefined {
-    return restorableBuffers(target).length > 0
-        ? undefined
+    if (restorableBuffers(target).length > 0) return undefined;
+    return target.paths.every((path) =>
+        restoredBuffers.has(bufferKey(target.sessionId, target.workbenchProjectId, path)),
+    )
+        ? 'Your earlier changes were already restored.'
         : 'Your earlier changes can no longer be restored because the file was closed, edited again, or its Project changed.';
 }
 
@@ -78,7 +96,10 @@ export function discardedChangesUnavailableReason(target: RestoreTarget): string
  */
 export function restoreDiscardedChanges(target: RestoreTarget): void {
     for (const { path, content } of restorableBuffers(target)) {
-        discardedBuffers.delete(bufferKey(target.sessionId, target.workbenchProjectId, path));
+        const key = bufferKey(target.sessionId, target.workbenchProjectId, path);
+        discardedBuffers.delete(key);
+        restoredBuffers.add(key);
+        dropOldestRestored();
         useSessionViewStore
             .getState()
             .updateDocumentContent(target.sessionId, path, content, target.workbenchProjectId);
@@ -90,4 +111,5 @@ export function restoreDiscardedChanges(target: RestoreTarget): void {
  */
 export function clearDiscardedBuffers(): void {
     discardedBuffers.clear();
+    restoredBuffers.clear();
 }

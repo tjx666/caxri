@@ -57,8 +57,10 @@ describe('restoreDiscardedChanges', () => {
             dirty: true,
             mtimeMs: 2,
         });
-        // A second click must not overwrite edits made after the first restore.
-        expect(discardedChangesUnavailableReason(target)).toMatch(/can no longer be restored/u);
+        // A second click must not overwrite edits made after the first restore, and says why.
+        expect(discardedChangesUnavailableReason(target)).toBe(
+            'Your earlier changes were already restored.',
+        );
     });
 
     it('refuses when the user typed into the reloaded file, closed it, or left its Workbench Root', () => {

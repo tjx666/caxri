@@ -123,8 +123,15 @@ export function AgentChatTurnChanges({
     const stat = agentChatEditedFilesStat(files);
     const title = agentChatEditedFilesTitle(files, pathBasename);
     const isAllExpanded = files.every((file) => expanded.has(file.path));
-    const toggleAll = (): void =>
+    /**
+     * The hover preview only stands in for the diffs while they are hidden. A click on the counts discloses them in
+     * place, so it also closes the preview, which would otherwise cover the cards below until the pointer leaves.
+     */
+    const [isPreviewOpen, setPreviewOpen] = useState(false);
+    const toggleAll = (): void => {
+        setPreviewOpen(false);
         setExpanded(isAllExpanded ? new Set() : new Set(files.map((file) => file.path)));
+    };
     const toggle = (path: string): void =>
         setExpanded((current) => {
             const next = new Set(current);
@@ -145,7 +152,7 @@ export function AgentChatTurnChanges({
                 </span>
                 <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] leading-5 text-foreground">{title}</div>
-                    <HoverCard>
+                    <HoverCard open={isPreviewOpen && !isAllExpanded} onOpenChange={setPreviewOpen}>
                         <HoverCardTrigger
                             closeDelay={120}
                             delay={350}
