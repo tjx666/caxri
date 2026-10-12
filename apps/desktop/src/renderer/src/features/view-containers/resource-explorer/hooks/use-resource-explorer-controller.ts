@@ -8,14 +8,13 @@ import { executeCommand } from '../../../../commands/execute';
 import { dragPath, hasDraggedPath } from '../../../../lib/file-drag';
 import { CONTROLLED_VIEW_QUERY_METHOD, queryClient } from '../../../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../stores/selectors';
-import { useActivePaneTab } from '../../../workbench/pane-actions';
+import { getActivePaneTab } from '../../../workbench/pane-actions';
 import {
     useControlledView,
     useControlledViewActionCommand,
     useResourceExplorerClient,
 } from '../../controlled-view-context';
 import { subscribeCoreViewCommands } from '../../core-view-commands';
-import { useIsViewContainerActive } from '../../view-container-activity';
 import { cancelFileOperation, moveFile, pasteFile } from '../file-actions';
 import type { FileClipboardEntry } from '../file-clipboard';
 import { useFileClipboardStore } from '../file-clipboard';
@@ -36,7 +35,11 @@ import {
     setScopeSelectedPath,
     subscribeResourceExplorerScopePruning,
 } from '../resource-explorer-scope-store';
-import { fileOperationsForProject, fileTreeRootCaption } from '../resource-explorer-state';
+import {
+    fileOperationsForProject,
+    fileTreeRootCaption,
+    paneTabFilePath,
+} from '../resource-explorer-state';
 
 /**
  * Every caller fires an already-tracked file action whose own `tryCommand` path reports failures via a toast.
@@ -191,9 +194,6 @@ export interface ResourceExplorerController {
 export function useResourceExplorerController(): ResourceExplorerController | undefined {
     const client = useResourceExplorerClient();
     const { viewId } = useControlledView();
-    const isContainerActive = useIsViewContainerActive();
-    const activeResource = useActivePaneTab()?.resource;
-    const activeFilePath = activeResource?.kind === 'file' ? activeResource.path : undefined;
     const createFileCommand = useControlledViewActionCommand('resource.createFile');
     const createFolderCommand = useControlledViewActionCommand('resource.createFolder');
     const collapseCommand = useControlledViewActionCommand('resource.collapse');
@@ -245,14 +245,6 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         );
     }, [scopeId, selectedProjectId, session]);
     useEffect(() => () => setResourceExplorerActiveScope(undefined), []);
-    useEffect(() => {
-        if (!isContainerActive || !scopeId || !sessionRootPath || !activeFilePath) {
-            if (scopeId) clearScopeRevealPath(scopeId);
-            return;
-        }
-        if (!didRevealPathInScope(scopeId, sessionRootPath, activeFilePath))
-            clearScopeRevealPath(scopeId);
-    }, [activeFilePath, isContainerActive, scopeId, sessionRootPath]);
     useEffect(
         () => () => {
             if (scopeId) clearScopeRevealPath(scopeId);
@@ -388,7 +380,9 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         projectOperations,
         refreshFiles: () =>
             refreshResourceExplorer(
-                { activeFilePath, scopeId, sessionRootPath },
+                // Read when pressed rather than subscribed: following the active tab here re-rendered the whole Files
+                // view on every work-tab switch, hidden or not (issue #1716).
+                { activeFilePath: paneTabFilePath(getActivePaneTab()), scopeId, sessionRootPath },
                 {
                     revealPath: didRevealPathInScope,
                     runRefresh: () => {

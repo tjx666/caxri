@@ -38,6 +38,12 @@ of DOM.
   which the row honours once it mounts. Editor reveal scrolls through the same path. Both place the
   row below its would-be sticky ancestors (`fileTreeRevealOffset`) instead of calling
   `scrollIntoView`.
+- **Following the editor costs nothing while hidden.** The pane layout moves on every work-tab
+  switch, so exactly one Files component subscribes to it: a render-less follower
+  (`resource-explorer-view.tsx`) that reveals the active tab's file and mounts only while the Files
+  container is visible. A hidden Files view therefore renders nothing on a tab switch, a visible one
+  re-renders only that follower, and revealing the container follows whichever tab is active by
+  then. Refresh reads the active tab when pressed instead of subscribing to it.
 - **The Tab stop stays mounted.** The selected row, or the first row when nothing is selected,
   always renders. So does the focused row. Tab can always re-enter the tree, and scrolling the
   focused row away does not drop focus to `<body>`.

@@ -9,6 +9,7 @@ import {
     fileTreeRowTooltip,
     isFileTreeDirectory,
     knownDirectoryChildrenFromQueries,
+    paneTabFilePath,
     scopedValue,
     setScopedPathExpanded,
     setScopedSubtreeExpanded,
@@ -252,6 +253,16 @@ describe('Resource Explorer state', () => {
         expect(
             fileTreeRowDescription({ kind: 'symlink', linkKind: 'directory' }, 'nested', undefined),
         ).toBe('Symlink. Nested Git repository.');
+    });
+
+    it('follows only work tabs that show a file', () => {
+        expect(paneTabFilePath({ id: 'tab-1', resource: { kind: 'file', path: '/p/a.ts' } })).toBe(
+            '/p/a.ts',
+        );
+        expect(
+            paneTabFilePath({ id: 'tab-2', resource: { kind: 'terminal', terminalId: 't-1' } }),
+        ).toBeUndefined();
+        expect(paneTabFilePath(undefined)).toBeUndefined();
     });
 
     it('keeps filesystem-root captions blank on POSIX and Windows paths', () => {
