@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
     isCaxriError,
+    logEventCatalog,
     REMOTE_PROFILE_IN_USE_MARKER,
     resolveLogLevel,
     SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
@@ -19,6 +20,7 @@ import {
     StructuredLogger,
 } from '@caxri/system';
 
+import { writeCliLauncher } from './cli-launcher';
 import { createDesktopLauncher } from './desktop-launcher';
 import { extensionRootsForServer } from './extensions/discovery';
 import { resolveIdleExitThresholdMs } from './idle-exit';
@@ -64,6 +66,20 @@ const desktopLaunch = desktopLaunchSource
         }
       : undefined;
 const cliPath = process.env.CAXRI_CLI_PATH;
+if (cliPath) {
+    try {
+        // Read by the Agent Endpoint environment alongside `CAXRI_CLI_PATH`.
+        process.env.CAXRI_CLI = await writeCliLauncher({
+            cliPath,
+            executable: process.execPath,
+            userDataPath,
+        });
+    } catch (error) {
+        logger.write('error', logEventCatalog.serverCore.cliLauncherFailed, {
+            fields: { message: error instanceof Error ? error.message : String(error) },
+        });
+    }
+}
 
 const serverCoreOptions: ServerCoreOptions = {
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,

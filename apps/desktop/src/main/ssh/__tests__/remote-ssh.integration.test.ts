@@ -285,6 +285,21 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () =>
         10 * 60_000,
     );
 
+    it('runs the Agent CLI launcher against the Server without a host node', async () => {
+        // The lab images ship no `node`, so a pass proves managed Agents need none on an SSH Host.
+        const { stdout } = await control!.exec(
+            `profile="$HOME/.caxri-server/profile"
+CAXRI_USER_DATA_DIR="$profile" "$profile/bin/caxri" settings get --json`,
+            { timeoutMs: 30_000 },
+        );
+        const settings = JSON.parse(stdout) as {
+            errors: unknown[];
+            value: Record<string, unknown>;
+        };
+        expect(settings.errors).toEqual([]);
+        expect(typeof settings.value['terminal.scrollback']).toBe('number');
+    });
+
     it('adopts the running Server from a second window without uploading', async () => {
         const second = createHarness();
         const startedAt = Date.now();
