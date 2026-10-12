@@ -1,14 +1,22 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import { useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { X } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
-import type { AgentChatImageTarget } from './agent-chat-images';
-import { agentChatViewerContent, clampZoomPan } from './agent-chat-images';
+import type { AgentChatImageTarget, AgentChatViewerSwipe } from './agent-chat-images';
+import {
+    agentChatViewerContent,
+    agentChatViewerPage,
+    agentChatViewerPosition,
+    agentChatViewerSwipe,
+    clampZoomPan,
+} from './agent-chat-images';
 import { useAgentChatImage } from './use-agent-chat-image';
 
 const MIN_SCALE = 1;
@@ -18,13 +26,22 @@ const DOUBLE_TAP_SCALE = 2.5;
 /**
  * Pinch, pan, and double-tap zoom over one image, after Paseo's zoomable viewport (Apache-2.0). Zoom never goes below
  * the fitted size, returning to it recenters the picture, and a pan stops at the zoomed picture's edges so it can never
- * be dragged off screen.
+ * be dragged off screen. At the fitted size the same one-finger drag closes the viewer (down) or turns to the message's
+ * next or previous image (sideways, `agentChatViewerSwipe`); the picture follows the finger and springs back when the
+ * drag falls short or there is no image that way. A zoomed picture only pans, so the gestures never conflict.
  */
 const ZoomableImage = ({
     accessibilityLabel,
+    canTurnTo,
+    onSwipe,
     uri,
 }: {
     accessibilityLabel: string;
+    /**
+     * Whether the message has an image before and after this one.
+     */
+    canTurnTo: { next: boolean; previous: boolean };
+    onSwipe: (swipe: AgentChatViewerSwipe) => void;
     uri: string;
 }) => {
     const scale = useSharedValue(1);
@@ -63,7 +80,13 @@ const ZoomableImage = ({
     const pan = Gesture.Pan()
         .maxPointers(1)
         .onUpdate((event) => {
-            if (savedScale.value <= MIN_SCALE) return;
+            if (savedScale.value <= MIN_SCALE) {
+                // The fitted picture follows a drag along its main axis only, and only down for closing.
+                const isVertical = Math.abs(event.translationY) > Math.abs(event.translationX);
+                translateX.value = isVertical ? 0 : event.translationX;
+                translateY.value = isVertical ? Math.max(0, event.translationY) : 0;
+                return;
+            }
             translateX.value = clampZoomPan(
                 savedX.value + event.translationX,
                 scale.value,
@@ -75,7 +98,20 @@ const ZoomableImage = ({
                 height.value,
             );
         })
-        .onEnd(() => {
+        .onEnd((event) => {
+            if (savedScale.value <= MIN_SCALE) {
+                const swipe = agentChatViewerSwipe(event, {
+                    width: width.value,
+                    height: height.value,
+                });
+                if (swipe === 'dismiss' || (swipe !== null && canTurnTo[swipe])) {
+                    scheduleOnRN(onSwipe, swipe);
+                    return;
+                }
+                translateX.value = withTiming(0);
+                translateY.value = withTiming(0);
+                return;
+            }
             savedX.value = translateX.value;
             savedY.value = translateY.value;
         });
@@ -109,7 +145,11 @@ const ZoomableImage = ({
                 style={[styles.fill, style]}
             >
                 <Image
-                    accessibilityHint="Pinch or double-tap to zoom."
+                    accessibilityHint={
+                        canTurnTo.next || canTurnTo.previous
+                            ? 'Pinch or double-tap to zoom. Swipe sideways for the other images, or down to close.'
+                            : 'Pinch or double-tap to zoom. Swipe down to close.'
+                    }
                     accessibilityIgnoresInvertColors
                     accessibilityLabel={accessibilityLabel}
                     resizeMode="contain"
@@ -123,17 +163,57 @@ const ZoomableImage = ({
 };
 
 /**
+ * Pages and closes the viewer while there is no picture to zoom yet (the original still loading, or missing), with the
+ * same swipes as a fitted picture.
+ */
+const SwipeArea = ({
+    canTurnTo,
+    onSwipe,
+}: {
+    canTurnTo: { next: boolean; previous: boolean };
+    onSwipe: (swipe: AgentChatViewerSwipe) => void;
+}) => {
+    const width = useSharedValue(0);
+    const height = useSharedValue(0);
+    const pan = Gesture.Pan()
+        .maxPointers(1)
+        .onEnd((event) => {
+            const swipe = agentChatViewerSwipe(event, { width: width.value, height: height.value });
+            if (swipe === 'dismiss' || (swipe !== null && canTurnTo[swipe]))
+                scheduleOnRN(onSwipe, swipe);
+        });
+    return (
+        <GestureDetector gesture={pan}>
+            <View
+                collapsable={false}
+                onLayout={(event) => {
+                    width.value = event.nativeEvent.layout.width;
+                    height.value = event.nativeEvent.layout.height;
+                }}
+                style={StyleSheet.absoluteFill}
+            />
+        </GestureDetector>
+    );
+};
+
+/**
  * A message image at full size over a black backdrop. The original is read from the provider's record on open, so the
- * viewer shows its progress, and says so when the record no longer has the image.
+ * viewer shows its progress, and says so when the record no longer has the image. A message with several images pages
+ * through them with a sideways swipe under a `2 / 3` counter; a downward swipe closes the viewer.
  */
 export const AgentChatImageViewer = ({
+    count,
     onClose,
     target,
     theme,
 }: {
+    /**
+     * How many images the message carries.
+     */
+    count: number;
     onClose: () => void;
     /**
-     * The image to show; `null` keeps the viewer closed.
+     * The image opened first; `null` keeps the viewer closed.
      */
     target: Omit<AgentChatImageTarget, 'variant'> | null;
     theme: MobileTheme;
@@ -145,16 +225,64 @@ export const AgentChatImageViewer = ({
         transparent
         visible={target !== null}
     >
-        {target ? <ViewerContent onClose={onClose} target={target} theme={theme} /> : null}
+        {target ? (
+            <ViewerPager count={count} onClose={onClose} start={target} theme={theme} />
+        ) : null}
     </Modal>
 );
 
-const ViewerContent = ({
+/**
+ * Keeps which image of the message is shown. Each page is its own `ViewerContent`, so turning the page starts the next
+ * image at its fitted size.
+ */
+const ViewerPager = ({
+    count,
     onClose,
+    start,
+    theme,
+}: {
+    count: number;
+    onClose: () => void;
+    start: Omit<AgentChatImageTarget, 'variant'>;
+    theme: MobileTheme;
+}) => {
+    const [index, setIndex] = useState(start.index);
+    const onSwipe = (swipe: AgentChatViewerSwipe): void => {
+        if (swipe === 'dismiss') {
+            onClose();
+            return;
+        }
+        const next = agentChatViewerPage(index, count, swipe);
+        if (next !== null) setIndex(next);
+    };
+    return (
+        <ViewerContent
+            canTurnTo={{ next: index < count - 1, previous: index > 0 }}
+            key={index}
+            onClose={onClose}
+            onSwipe={onSwipe}
+            position={agentChatViewerPosition(index, count)}
+            target={{ ...start, index }}
+            theme={theme}
+        />
+    );
+};
+
+const ViewerContent = ({
+    canTurnTo,
+    onClose,
+    onSwipe,
+    position: counter,
     target,
     theme,
 }: {
+    canTurnTo: { next: boolean; previous: boolean };
     onClose: () => void;
+    onSwipe: (swipe: AgentChatViewerSwipe) => void;
+    /**
+     * The `2 / 3` counter, or `null` for a message with one image.
+     */
+    position: string | null;
     target: Omit<AgentChatImageTarget, 'variant'>;
     theme: MobileTheme;
 }) => {
@@ -182,9 +310,13 @@ const ViewerContent = ({
                     accessibilityLabel={
                         content.isPreview ? `Preview of ${position}` : `Full size ${position}`
                     }
+                    canTurnTo={canTurnTo}
+                    onSwipe={onSwipe}
                     uri={content.imageUri}
                 />
-            ) : null}
+            ) : (
+                <SwipeArea canTurnTo={canTurnTo} onSwipe={onSwipe} />
+            )}
             {content.isPreview ? (
                 <Text
                     style={[styles.note, { bottom: insets.bottom + 24 }]}
@@ -194,13 +326,17 @@ const ViewerContent = ({
                 </Text>
             ) : null}
             {original.isLoading ? (
-                <View style={styles.center}>
+                <View pointerEvents="none" style={styles.center}>
                     <ActivityIndicator color="#fff" size="large" />
                     <Text style={styles.status}>{Math.round(original.progress * 100)}%</Text>
                 </View>
             ) : null}
             {content.message ? (
-                <View style={styles.center} testID="agent-chat-image-viewer-error">
+                <View
+                    pointerEvents="box-none"
+                    style={styles.center}
+                    testID="agent-chat-image-viewer-error"
+                >
                     <Text style={styles.status}>{content.message}</Text>
                     {original.isError ? (
                         <Pressable
@@ -215,6 +351,15 @@ const ViewerContent = ({
                         </Pressable>
                     ) : null}
                 </View>
+            ) : null}
+            {counter ? (
+                <Text
+                    accessibilityLiveRegion="polite"
+                    style={[styles.counter, { top: insets.top + 22 }]}
+                    testID="agent-chat-image-viewer-position"
+                >
+                    {counter}
+                </Text>
             ) : null}
             <Pressable
                 accessibilityLabel="Close image"
@@ -249,6 +394,16 @@ const styles = StyleSheet.create({
         left: 24,
         position: 'absolute',
         right: 24,
+        textAlign: 'center',
+    },
+    counter: {
+        color: '#fff',
+        fontSize: 15,
+        fontVariant: ['tabular-nums'],
+        fontWeight: '600',
+        left: 72,
+        position: 'absolute',
+        right: 72,
         textAlign: 'center',
     },
     status: { color: '#fff', fontSize: 15, fontVariant: ['tabular-nums'], textAlign: 'center' },

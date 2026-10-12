@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatImageDataUri,
     agentChatViewerContent,
+    agentChatViewerPage,
+    agentChatViewerPosition,
+    agentChatViewerSwipe,
     clampZoomPan,
     readAgentChatImage,
 } from '../agent-chat-images';
@@ -88,5 +91,40 @@ describe('Agent Chat image viewer', () => {
             placeholderUri: 'data:thumb',
             message: 'The image could not be loaded.',
         });
+    });
+});
+
+describe('Agent Chat image viewer gestures', () => {
+    const viewport = { width: 400, height: 800 };
+    const drag = (translationX: number, translationY: number, velocityX = 0, velocityY = 0) => ({
+        translationX,
+        translationY,
+        velocityX,
+        velocityY,
+    });
+
+    it('closes on a long or quick downward drag', () => {
+        expect(agentChatViewerSwipe(drag(10, 200), viewport)).toBe('dismiss');
+        expect(agentChatViewerSwipe(drag(0, 60, 0, 1_200), viewport)).toBe('dismiss');
+        expect(agentChatViewerSwipe(drag(0, 60), viewport)).toBeNull();
+        // An upward drag does nothing.
+        expect(agentChatViewerSwipe(drag(0, -300, 0, -1_200), viewport)).toBeNull();
+    });
+
+    it('turns the page on a long or quick sideways drag', () => {
+        expect(agentChatViewerSwipe(drag(-120, 10), viewport)).toBe('next');
+        expect(agentChatViewerSwipe(drag(120, 10), viewport)).toBe('previous');
+        expect(agentChatViewerSwipe(drag(-40, 0, -1_000), viewport)).toBe('next');
+        expect(agentChatViewerSwipe(drag(-40, 0), viewport)).toBeNull();
+        // A fling back toward the start cancels a drag.
+        expect(agentChatViewerSwipe(drag(-40, 0, 1_000), viewport)).toBeNull();
+    });
+
+    it('stays within the message and counts its images', () => {
+        expect(agentChatViewerPage(0, 3, 'next')).toBe(1);
+        expect(agentChatViewerPage(0, 3, 'previous')).toBeNull();
+        expect(agentChatViewerPage(2, 3, 'next')).toBeNull();
+        expect(agentChatViewerPosition(1, 3)).toBe('2 / 3');
+        expect(agentChatViewerPosition(0, 1)).toBeNull();
     });
 });
