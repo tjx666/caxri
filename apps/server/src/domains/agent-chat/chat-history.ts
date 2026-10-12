@@ -68,7 +68,10 @@ async function parseTranscript(
     if (cached) clearTimeout(cached.expiry);
     parsed.set(terminalId, pending);
     try {
-        return await pending;
+        const result = await pending;
+        // Nothing to page through is not cached: there is no expiry to release it, and a transcript may appear later.
+        if (!result && parsed.get(terminalId) === pending) parsed.delete(terminalId);
+        return result;
     } catch (error) {
         // A failed read is not cached; the next page tries again.
         if (parsed.get(terminalId) === pending) parsed.delete(terminalId);

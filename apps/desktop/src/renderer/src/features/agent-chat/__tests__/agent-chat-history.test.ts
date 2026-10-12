@@ -74,6 +74,17 @@ describe('Agent Chat older history', () => {
         expect(retainEvictedAgentChatItems(unread, previous, next)).toBe(unread);
     });
 
+    it('keeps what the projection evicts while the first page is on its way', () => {
+        const loading = { ...emptyAgentChatOlderHistory('h1'), status: 'loading' as const };
+        const previous = { items: [item('m1', 't1'), item('m2', 't2')], turns: [] };
+        const next = { items: [item('m2', 't2'), item('m3', 't3')] };
+        const retained = retainEvictedAgentChatItems(loading, previous, next);
+        expect(retained.items.map((entry) => entry.id)).toEqual(['m1']);
+        // The page read before the old first item lands in front of what was kept meanwhile.
+        const read = prependAgentChatHistoryPage(retained, page(['m0']), next.items);
+        expect(read.items.map((entry) => entry.id)).toEqual(['m0', 'm1']);
+    });
+
     it('renders the start of the turn the projection begins inside with the live part', () => {
         const older = [item('a', 't1'), item('b', 't2'), item('c', 't2')];
         expect(splitAgentChatHistory(older, 't2')).toEqual({
