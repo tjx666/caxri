@@ -3,6 +3,10 @@ import { useRef, useState } from 'react';
 
 import { mentionAtCaret } from '../../../lib/suggestion-options';
 import {
+    markAgentChatComposerCaretKey,
+    markAgentChatComposerSelectionPlaced,
+} from '../agent-chat-composer-caret';
+import {
     agentChatSelectionCaret,
     isAgentChatCaretKey,
     isAgentChatCaretKeyRelease,
@@ -30,14 +34,19 @@ export function useAgentChatPlacedCaret(draft: string, isShown: boolean) {
         setCaret,
         /**
          * Call from the input's change and click events: the user edited the draft or placed the caret, so the list
-         * follows it.
+         * follows it, and automatic focus keeps that selection from then on.
          */
-        trackCaret: (element: HTMLTextAreaElement) => setCaret(element.selectionStart),
+        trackCaret: (element: HTMLTextAreaElement) => {
+            markAgentChatComposerSelectionPlaced(element);
+            setCaret(element.selectionStart);
+        },
         /**
          * Call first from the input's key-down event, before any handler that may consume the key: it remembers an
-         * unmodified caret key, so only that key's own release moves the list (see `trackCaretKey`).
+         * unmodified caret key, so only that key's own release moves the list (see `trackCaretKey`). Any caret key,
+         * modified or not (Cmd+Up), also marks the selection as the user's, so automatic focus keeps it.
          */
         notePressedKey: (event: KeyboardEvent<HTMLTextAreaElement>) => {
+            markAgentChatComposerCaretKey(event.currentTarget, event);
             pressedCaretKey.current = isAgentChatCaretKey(event) ? event.key : undefined;
         },
         /**

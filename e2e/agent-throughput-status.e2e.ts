@@ -67,6 +67,12 @@ const response = (seconds: number, id: string, outputTokens: number) =>
     });
 
 /**
+ * Long enough to overflow the status-bar card, so the card must truncate it while keeping the incident's phase whole.
+ */
+const INCIDENT_NAME =
+    'Slow Claude Code responses and elevated error rates for some users on long-running sessions';
+
+/**
  * A synthetic Claude status page in Statuspage's summary shape: Claude Code is degraded by an open incident, and a
  * component the Agent does not use is down to prove it is left out.
  */
@@ -80,7 +86,7 @@ const claudeStatusPage = {
     incidents: [
         {
             id: 'fixture-incident',
-            name: 'Slow Claude Code responses',
+            name: INCIDENT_NAME,
             status: 'identified',
             impact: 'minor',
             updated_at: new Date(BASE).toISOString(),
@@ -178,7 +184,24 @@ test('the status bar shows the active Agent Terminal output speed and usage from
         await expect(tooltip).toContainText('Includes waiting for the first token');
         await expect(tooltip).toContainText('API status');
         await expect(tooltip).toContainText('Degraded performance: Claude Code');
-        await expect(tooltip).toContainText('Slow Claude Code responses (Identified)');
+        await expect(tooltip).toContainText(`${INCIDENT_NAME} (Identified)`);
+        // The long incident name truncates, and its phase stays whole beside the ellipsis.
+        const incidentName = tooltip.getByText(INCIDENT_NAME, { exact: true });
+        await expect
+            .poll(() => incidentName.evaluate((name) => name.scrollWidth > name.clientWidth))
+            .toBe(true);
+        const phase = tooltip.getByText('(Identified)', { exact: true });
+        await expect(phase).toBeVisible();
+        await expect
+            .poll(() => phase.evaluate((element) => element.scrollWidth <= element.clientWidth))
+            .toBe(true);
+        const [phaseBox, tooltipBox] = await Promise.all([
+            phase.boundingBox(),
+            tooltip.boundingBox(),
+        ]);
+        expect(phaseBox!.x + phaseBox!.width).toBeLessThanOrEqual(
+            tooltipBox!.x + tooltipBox!.width,
+        );
         await expect(tooltip).not.toContainText('claude.ai');
         await testInfo.attach('agent-throughput-tooltip', {
             body: await running.page.screenshot(),

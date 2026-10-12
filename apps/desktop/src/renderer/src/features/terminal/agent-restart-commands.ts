@@ -11,6 +11,17 @@ type RestartAgentTerminal = Pick<
 >;
 
 /**
+ * Whether restarting this Terminal resumes an Agent conversation, which is when every surface names the action "Restart
+ * Agent" rather than "Restart Terminal": the recovery row and the command palette's `terminal.restart` title. An Agent
+ * with no conversation yet starts over like a Shell, so it keeps the Terminal wording.
+ */
+export function canRestartResumeAgent(
+    terminal: Pick<TerminalRecord, 'agentSessionId' | 'provider'> | undefined,
+): boolean {
+    return Boolean(terminal?.provider && terminal.agentSessionId);
+}
+
+/**
  * Why Restart Agent is unavailable for this Terminal, or `undefined` when it can run. Restarting continues the Agent
  * Session, so an Agent that has not written a conversation yet has nothing to resume, and a detached Agent was handed
  * to another client on purpose: only Resume Agent takes it back. `missingConversationReason` lets a menu that already

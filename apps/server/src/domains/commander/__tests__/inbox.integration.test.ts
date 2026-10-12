@@ -249,6 +249,44 @@ describe('CommanderInboxService', () => {
         expect(run).not.toHaveBeenCalled();
     });
 
+    it('merges the report the owner read after a reply, an acknowledgement, or a cleared stale mark', async () => {
+        const { run, service, setView } = await fixture();
+        const read = addMerge(service);
+        // While the confirmation is open: the owner replies, the Commander acknowledges it, and the head moves away
+        // and back to the verified one. None of these changes the report or the head the merge is pinned to.
+        service.reply(read.id, 'looks good', 'desktop');
+        service.acknowledge(read.id, 1);
+        setView(() => Promise.resolve(pullRequestJson({ headRefOid: MOVED_SHA })));
+        await service.refresh();
+        setView(() => Promise.resolve(pullRequestJson()));
+        await service.refresh();
+        expect(service.show(read.id).staleReason).toBeUndefined();
+
+        const result = await service.merge(read.id, read.revision);
+        expect(result.item).toMatchObject({ status: 'closed', closeReason: 'merged' });
+        expect(run).toHaveBeenLastCalledWith(
+            'gh',
+            expect.arrayContaining(['--match-head-commit', VERIFIED_SHA]),
+            expect.any(String),
+        );
+    });
+
+    it('refuses to merge after the Commander changed the report while the owner confirmed', async () => {
+        const { run, service } = await fixture();
+        const read = addMerge(service);
+        service.add({
+            kind: 'merge',
+            title: 'Ready to merge',
+            body: 'Bug, Cause, Fix, Evidence, Risk, and a new caveat',
+            options: [],
+            pullRequest: { url: PR_URL, headSha: VERIFIED_SHA },
+        });
+        expect((await rejection(service.merge(read.id, read.revision))).message).toBe(
+            'The Commander updated this item since you opened it; review it again',
+        );
+        expect(run).not.toHaveBeenCalled();
+    });
+
     it('marks a moved head stale, refuses to merge it, and clears the mark once the Commander re-verifies', async () => {
         const { service, setView } = await fixture();
         const item = addMerge(service);

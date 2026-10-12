@@ -180,6 +180,32 @@ describe('Agent Commander Renderer policy', () => {
         ).toThrow(expect.objectContaining({ code: 'FORBIDDEN' }));
     });
 
+    it('keeps admitting the reloading document while routing waits for the new one', () => {
+        const policy = new AgentCommanderRendererPolicy(() => {});
+        ensured(policy);
+        policy.releaseView();
+
+        // The old document's last resize and layout write can still arrive after the navigation starts.
+        expect(() =>
+            policy.admit(
+                request('terminal.resize', { terminalId: 'commander', cols: 80, rows: 24 }),
+            ),
+        ).not.toThrow();
+        expect(() =>
+            policy.admit(request('session.updateState', { sessionId: 'session-1', revision: 0 })),
+        ).not.toThrow();
+        expect(policy.viewedTerminalId()).toBeUndefined();
+        expect(
+            policy.route({ event: 'terminal.output', payload: { terminalId: 'commander' } }),
+        ).toEqual({
+            commander: false,
+            workbench: true,
+        });
+
+        ensured(policy, 'commander.snapshot');
+        expect(policy.viewedTerminalId()).toBe('commander');
+    });
+
     it('ignores a null snapshot and replies to other methods', () => {
         const policy = new AgentCommanderRendererPolicy(() => {});
         policy.observeReply(request('commander.snapshot'), {

@@ -201,6 +201,15 @@ export class ChatStates {
         return terminal;
     }
 
+    /**
+     * Opens the Terminal's current state and passes it through {@link admit}.
+     */
+    admitOpen(terminalId: string): ChatState {
+        const state = this.open(terminalId);
+        this.admit(terminalId, state);
+        return state;
+    }
+
     isAdmitted(terminalId: string, state: ChatState): boolean {
         try {
             this.admit(terminalId, state);

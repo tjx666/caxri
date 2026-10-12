@@ -227,7 +227,7 @@ export function StatusBar() {
     const serverStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
     const degraded = serverStatus ? DEGRADED_STATES[serverStatus] : undefined;
     const containerReference = useRef<HTMLElement>(null);
-    const chipVisibility = useChipVisibility(containerReference, sessionId);
+    const chipVisibility = useChipVisibility(containerReference);
     /**
      * The Agent Commander runs beside this Mac's own Server, so an SSH Host window has no Commander to report.
      */

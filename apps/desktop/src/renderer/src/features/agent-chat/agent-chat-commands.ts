@@ -263,16 +263,21 @@ export async function didConfigureAgentChat(
 }
 
 /**
- * Saves the level and plan mode new `provider` Chats in the Project start with.
+ * Saves the level and plan mode new `provider` Chats in the Project start with, or clears them with `null` so new Chats
+ * follow the launch settings again.
  */
-export function saveAgentChatProjectDefault(
+export function setAgentChatProjectDefault(
     projectId: string,
     provider: AgentProvider,
-    chatDefault: AgentChatDefault,
+    chatDefault: AgentChatDefault | null,
 ): void {
     // eslint-disable-next-line no-void -- tryCommand reports a failed save through the toast
     void tryCommand(
-        translate('agentChat.commands.saveProjectDefaultFailed'),
+        translate(
+            chatDefault
+                ? 'agentChat.commands.saveProjectDefaultFailed'
+                : 'agentChat.commands.clearProjectDefaultFailed',
+        ),
         () => caxri.request('project.setChatDefault', { projectId, provider, chatDefault }),
         { refresh: refreshWorkbench },
     );

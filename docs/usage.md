@@ -12,6 +12,11 @@ broken down by Agent (Claude Code, Codex, Grok Build). The scope toggle picks wh
 - **Caxri** (default): only Agent Sessions started in a Caxri Session, archived and deleted Sessions included.
 - **This Mac**: every Agent transcript on the machine, adding conversations run in a plain terminal or another app.
 
+Clicking the status bar's Agent usage chip opens the page narrowed to the active Terminal's Session, over all time, so
+the first screen is that Session's usage; the Session filter in the header clears it. The report attributes each
+conversation to the Session that first hosted it, so this filter shows exactly the Session's row in Most expensive
+Sessions. A Terminal outside any Session, and **Open Usage** itself, show every Session.
+
 ## What it shows
 
 - Range totals (7 days to all time): estimated cost, tokens, active Agent time, Sessions created and archived, pull

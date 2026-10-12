@@ -1,12 +1,16 @@
 import type { ViewCatalogSnapshot } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
+import { commands as enCommands } from '@desktop-shared/i18n/en/commands';
 import { describe, expect, it } from 'vitest';
 
+import type { Translate } from '../../../i18n';
+import { terminal as enTerminal } from '../../../i18n/locales/en/terminal';
 import {
     commanderPaletteWhenContext,
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
     isCommandVisibleInPalette,
+    paletteCommandTitle,
 } from '../command-palette-commands';
 
 const catalog: ViewCatalogSnapshot = {
@@ -276,5 +280,31 @@ describe('getStaticCommandPaletteValue', () => {
         for (const term of ['command', 'commands', 'skill', 'skills', 'slash', 'action']) {
             expect(value).toContain(term);
         }
+    });
+});
+
+describe('paletteCommandTitle', () => {
+    const english: Readonly<Record<string, string>> = { ...enCommands, ...enTerminal };
+    const t: Translate = (key) => english[key] ?? key;
+    const restart = commandDefinitions.find(({ id }) => id === 'terminal.restart');
+    const newFile = commandDefinitions.find(({ id }) => id === 'session.create');
+    if (!restart || !newFile) throw new Error('commands are missing from the catalog');
+
+    it('names terminal.restart "Restart Agent" when the active Terminal resumes an Agent conversation', () => {
+        expect(paletteCommandTitle(restart, { activeTerminalRestartsAgent: true }, t)).toBe(
+            'Restart Agent',
+        );
+    });
+
+    it('keeps "Restart Terminal" for a Shell or no active Terminal', () => {
+        expect(paletteCommandTitle(restart, { activeTerminalRestartsAgent: false }, t)).toBe(
+            'Restart Terminal',
+        );
+    });
+
+    it('leaves commands without a resolver on their catalog title in every context', () => {
+        expect(paletteCommandTitle(newFile, { activeTerminalRestartsAgent: true }, t)).toBe(
+            t('commands.session.create'),
+        );
     });
 });

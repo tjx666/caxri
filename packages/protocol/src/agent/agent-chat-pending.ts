@@ -1,4 +1,5 @@
 import type { AgentChatItem, AgentChatSnapshot } from './agent-chat-contract.js';
+import { MAX_AGENT_CHAT_TEXT_LENGTH } from './agent-chat-contract.js';
 import type { AgentChatRequest } from './agent-chat-requests.js';
 
 /**
@@ -29,6 +30,23 @@ export interface AgentChatPendingMessageBase {
      * before the end, where a message joining the queue never appears.
      */
     knownQueueLength?: number;
+    /**
+     * How many images the message carries; an image-only message pairs on this count instead of its empty text.
+     */
+    imageCount?: number;
+    /**
+     * How much of each projected entry earlier pending messages already took when they settled and left, so this one
+     * cannot claim it again (see {@link pairAgentChatPendingMessages}).
+     */
+    claims?: ReadonlyMap<string, AgentChatPendingClaim>;
+}
+
+/**
+ * How far into one projected entry's (normalized) text pending messages have been paired, and how many of its images.
+ */
+export interface AgentChatPendingClaim {
+    offset: number;
+    images: number;
 }
 
 /**
@@ -130,38 +148,189 @@ export function agentChatPendingPlacement(
     return isMustWait || hasPendingAhead ? 'queue' : 'timeline';
 }
 
+interface ProjectedEntry {
+    id: string;
+    text: string;
+    images: number;
+    /**
+     * The timeline clipped its text at {@link MAX_AGENT_CHAT_TEXT_LENGTH}, so a message joined past the cut is missing.
+     */
+    isClipped: boolean;
+    /**
+     * The part a bounded copy kept when it cut the text (see `clippedPart`).
+     */
+    kept: string | undefined;
+}
+
+function projectedEntries(snapshot: AgentChatSnapshot): ProjectedEntry[] {
+    const entry = (id: string, text: string, images: number, isClipped: boolean) => ({
+        id,
+        text: matchableText(text),
+        images,
+        isClipped,
+        kept: clippedPart(text),
+    });
+    return [
+        ...snapshot.items.flatMap((item) =>
+            item.type === 'userMessage'
+                ? [
+                      entry(
+                          item.id,
+                          item.text,
+                          item.images?.length ?? 0,
+                          item.text.length >= MAX_AGENT_CHAT_TEXT_LENGTH,
+                      ),
+                  ]
+                : [],
+        ),
+        ...(snapshot.queue ?? []).map((queued) =>
+            entry(queued.id, queued.text, queued.imageCount ?? 0, false),
+        ),
+    ];
+}
+
 /**
- * Whether the projection now shows the message: a user message or queue entry it did not hold at send time whose text
- * carries the message's. Containment rather than equality, because the queue joins consecutive messages into one. A
- * bounded copy that clipped the entry (the phone keeps a long message's tail and a queued message's head) settles it
- * when the part it kept is part of the message, and a queue preview that stops before the end settles a queued message
- * once the full queue grew.
+ * Where a message landed in an entry, and whether it ran past the timeline's text bound there.
+ */
+interface AgentChatPendingPairing {
+    entryId: string;
+    claim: AgentChatPendingClaim;
+    /**
+     * The message's text runs past the clipped entry's end, so a message joined right after it is wholly cut off.
+     */
+    isPastCut: boolean;
+}
+
+/**
+ * Where `message` lands in `entry` past what earlier messages took, or `undefined` when the entry does not carry it.
+ * Text is matched on its leading characters (a provider clips a long message) at or after the claimed offset, so each
+ * entry pairs with the messages it carries in order, at most once each: the queue joins consecutive messages into one,
+ * but an earlier message that merely contains this one's text cannot also stand for it. An image-only message pairs on
+ * its image count instead of matching an empty string. A message cut by the timeline's text bound pairs on the part
+ * that survived, and a bounded copy that clipped the entry (the phone keeps a long message's tail and a queued
+ * message's head) pairs when the part it kept is part of the message.
+ *
+ * A message joined wholly past the timeline's cut leaves no text to match, so it pairs with the clipped entry only when
+ * `isCutTail` says the message sent right before it ran past that entry's cut and both were queued; an empty surviving
+ * fragment alone is no evidence, or every later message would settle against the clipped entry (issue #1894).
+ */
+function claimInEntry(
+    message: AgentChatPendingMessageBase,
+    entry: ProjectedEntry,
+    claim: AgentChatPendingClaim,
+    isCutTail: boolean,
+): Omit<AgentChatPendingPairing, 'entryId'> | undefined {
+    const imageCount = message.imageCount ?? 0;
+    const imagesLeft = entry.images - claim.images;
+    const images = claim.images + Math.min(imageCount, Math.max(imagesLeft, 0));
+    const full = matchableText(message.text);
+    if (!full) {
+        if (imageCount === 0 || imagesLeft < imageCount) return undefined;
+        return { claim: { offset: claim.offset, images }, isPastCut: false };
+    }
+    const wanted = full.slice(0, MATCHED_PREFIX_LENGTH);
+    const index = entry.text.indexOf(wanted, claim.offset);
+    if (index !== -1) {
+        const end = index + full.length;
+        return {
+            claim: { offset: Math.min(end, entry.text.length), images },
+            isPastCut: entry.isClipped && end > entry.text.length,
+        };
+    }
+    // react-doctor-disable-next-line react-doctor/js-set-map-lookups -- A substring search on strings, not an array lookup.
+    if (claim.offset === 0 && entry.kept !== undefined && full.includes(entry.kept))
+        return { claim: { offset: entry.text.length, images }, isPastCut: false };
+    if (!entry.isClipped) return undefined;
+    const rest = entry.text.slice(claim.offset).trim();
+    const isCarried = rest ? wanted.startsWith(rest) : isCutTail && message.placement === 'queue';
+    return isCarried
+        ? { claim: { offset: entry.text.length, images }, isPastCut: true }
+        : undefined;
+}
+
+/**
+ * The claims the messages still pending carry from earlier ones that settled, merged to the furthest per entry.
+ */
+function carriedClaims(
+    messages: readonly AgentChatPendingMessageBase[],
+): Map<string, AgentChatPendingClaim> {
+    const claims = new Map<string, AgentChatPendingClaim>();
+    const carried = messages.flatMap((message) => [...(message.claims ?? [])]);
+    for (const [id, claim] of carried) {
+        const current = claims.get(id) ?? { offset: 0, images: 0 };
+        claims.set(id, {
+            offset: Math.max(claim.offset, current.offset),
+            images: Math.max(claim.images, current.images),
+        });
+    }
+    return claims;
+}
+
+/**
+ * Pairs `message` with the first entry that carries it and records the claim. An entry its text shows in wins over the
+ * cut tail of a clipped entry (`cutTailId`, see {@link claimInEntry}), since a message shown on its own was not joined.
+ */
+function pairMessage(
+    message: AgentChatPendingMessageBase,
+    entries: readonly ProjectedEntry[],
+    claims: Map<string, AgentChatPendingClaim>,
+    cutTailId: string | undefined,
+): AgentChatPendingPairing | undefined {
+    const candidates = entries.filter((entry) => !message.knownIds.has(entry.id));
+    const pairIn = (entry: ProjectedEntry, isCutTail: boolean) => {
+        const found = claimInEntry(
+            message,
+            entry,
+            claims.get(entry.id) ?? { offset: 0, images: 0 },
+            isCutTail,
+        );
+        return found && { entryId: entry.id, ...found };
+    };
+    const pairing =
+        candidates.map((entry) => pairIn(entry, false)).find((found) => found !== undefined) ??
+        candidates
+            .filter((entry) => entry.id === cutTailId)
+            .map((entry) => pairIn(entry, true))
+            .find((found) => found !== undefined);
+    if (pairing) claims.set(pairing.entryId, pairing.claim);
+    return pairing;
+}
+
+/**
+ * Ids of the pending messages the projection now shows, pairing each, in send order, with a user message or queue entry
+ * it did not hold at send time (see {@link claimInEntry}); a queue preview that stops before the end settles a queued
+ * message once the full queue grew. Also returns how much of each entry the pairing took, which the messages that stay
+ * pending carry once the settled ones leave.
+ */
+export function pairAgentChatPendingMessages(
+    messages: readonly AgentChatPendingMessageBase[],
+    snapshot: AgentChatSnapshot | undefined,
+): { settled: Set<string>; claims: Map<string, AgentChatPendingClaim> } {
+    const claims = carriedClaims(messages);
+    if (!snapshot) return { settled: new Set(), claims };
+    const entries = projectedEntries(snapshot);
+    const settled = new Set<string>();
+    /**
+     * The clipped entry the previous queued message ran past the cut of, which a joined follower can only be in.
+     */
+    let cutTailId: string | undefined;
+    for (const message of messages) {
+        const pairing = pairMessage(message, entries, claims, cutTailId);
+        if (pairing || isQueuedPastPreview(message, snapshot)) settled.add(message.id);
+        cutTailId =
+            pairing?.isPastCut && message.placement === 'queue' ? pairing.entryId : undefined;
+    }
+    return { settled, claims };
+}
+
+/**
+ * Whether the projection now shows this one message, on its own; see {@link pairAgentChatPendingMessages}.
  */
 export function isAgentChatPendingMessageSettled(
-    pending: Pick<
-        AgentChatPendingMessageBase,
-        'knownIds' | 'knownQueueLength' | 'placement' | 'text'
-    >,
+    pending: AgentChatPendingMessageBase,
     snapshot: AgentChatSnapshot | undefined,
 ): boolean {
-    if (!snapshot) return false;
-    if (isQueuedPastPreview(pending, snapshot)) return true;
-    const sent = matchableText(pending.text);
-    const wanted = sent.slice(0, MATCHED_PREFIX_LENGTH);
-    const shown = [
-        ...snapshot.items.flatMap((item) =>
-            item.type === 'userMessage' ? [{ id: item.id, text: item.text }] : [],
-        ),
-        ...(snapshot.queue ?? []),
-    ];
-    return shown.some((entry) => {
-        if (pending.knownIds.has(entry.id)) return false;
-        // react-doctor-disable-next-line react-doctor/js-set-map-lookups -- A substring search on strings, not an array lookup.
-        if (matchableText(entry.text).includes(wanted)) return true;
-        const kept = clippedPart(entry.text);
-        // react-doctor-disable-next-line react-doctor/js-set-map-lookups -- A substring search on strings, not an array lookup.
-        return kept !== undefined && sent.includes(kept);
-    });
+    return pairAgentChatPendingMessages([pending], snapshot).settled.has(pending.id);
 }
 
 /**
@@ -180,16 +349,18 @@ export function isAgentChatPendingAnswerSettled(
 }
 
 /**
- * The pending messages the projection does not show yet. Returns the same array when none settled, so a store update
- * can bail out.
+ * The pending messages the projection does not show yet, each carrying what the settled ones took (see
+ * {@link pairAgentChatPendingMessages}). Returns the same array when none settled, so a store update can bail out.
  */
 export function unsettledAgentChatPendingMessages<Message extends AgentChatPendingMessageBase>(
     messages: readonly Message[],
     snapshot: AgentChatSnapshot | undefined,
 ): readonly Message[] {
-    return messages.some((message) => isAgentChatPendingMessageSettled(message, snapshot))
-        ? messages.filter((message) => !isAgentChatPendingMessageSettled(message, snapshot))
-        : messages;
+    const { settled, claims } = pairAgentChatPendingMessages(messages, snapshot);
+    if (settled.size === 0) return messages;
+    return messages
+        .filter((message) => !settled.has(message.id))
+        .map((message) => ({ ...message, claims }));
 }
 
 /**

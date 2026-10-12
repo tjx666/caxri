@@ -234,6 +234,12 @@ function stopTerminal(io: FakeCodexIo, processId: string) {
 }
 
 /**
+ * How long after answering `thread/compact/start` the compaction turn starts, as Codex reports it in later
+ * notifications.
+ */
+const COMPACTION_START_DELAY_MS = 50;
+
+/**
  * Answers the background-work requests: compaction, `thread/read`, the background-terminal methods, and
  * `turn/interrupt` of a subagent thread. Returns false for a request the app-server handles itself.
  */
@@ -245,16 +251,19 @@ export function didHandleTaskRequest(
 ): boolean {
     switch (method) {
         case 'thread/compact/start': {
-            const turn = io.beginTurn();
-            turn.isCompaction = true;
+            // Codex answers the request before it reports the compaction turn, so the Chat briefly reads idle.
             io.send({ id, result: {} });
-            const compaction = { type: 'contextCompaction', id: crypto.randomUUID() };
-            io.startItem(turn, compaction);
-            // Compaction takes a moment, so the Chat can show it in progress.
             setTimeout(() => {
-                io.completeItem(turn, compaction);
-                io.finishTurn(turn);
-            }, 150);
+                const turn = io.beginTurn();
+                turn.isCompaction = true;
+                const compaction = { type: 'contextCompaction', id: crypto.randomUUID() };
+                io.startItem(turn, compaction);
+                // Compaction takes a moment, so the Chat can show it in progress.
+                setTimeout(() => {
+                    io.completeItem(turn, compaction);
+                    io.finishTurn(turn);
+                }, 150);
+            }, COMPACTION_START_DELAY_MS);
             return true;
         }
         case 'thread/read': {

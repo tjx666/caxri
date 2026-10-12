@@ -28,6 +28,7 @@ import { openSettings } from '../../stores/dialogs';
 import { useSessionById, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { resumeSession } from '../session/session-agent-commands';
+import { canRestartResumeAgent } from './agent-restart-commands';
 import { useTerminalLinkPicker } from './hooks/use-terminal-link-picker';
 import { useTerminalPaneRuntime } from './hooks/use-terminal-pane-runtime';
 import { activateTerminal, restartTerminal, startNewAgentSession } from './terminal-commands';
@@ -380,7 +381,7 @@ export function TerminalPane({
         requestAnimationFrame(focusTerminal);
     }, [endSearch, focusTerminal]);
 
-    const isResumesAgentSession = Boolean(terminal?.provider && terminal.agentSessionId);
+    const isResumesAgentSession = canRestartResumeAgent(terminal);
     const isRunning = processState === 'running';
     /**
      * Built when the menu opens rather than on render: xterm selection changes do not trigger a `TerminalPane`

@@ -16,7 +16,6 @@ import {
 } from './agent-chat-commands';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
-import { openAgentChatTaskTab } from './agent-chat-task-opener';
 import {
     agentChatTaskGlyphStatus,
     agentChatTasksLatestEnd,
@@ -25,7 +24,18 @@ import {
     isAgentChatTaskTitleCommand,
 } from './agent-chat-tasks';
 
-function TaskEntry({ task, terminalId }: { task: AgentChatTask; terminalId: string }) {
+const TASK_ENTRY_CLASS_NAME =
+    'flex min-w-0 flex-1 items-center gap-2 rounded border-0 bg-transparent px-2 py-0.5 text-left text-muted';
+
+function TaskEntry({
+    task,
+    terminalId,
+    onOpenTask,
+}: {
+    task: AgentChatTask;
+    terminalId: string;
+    onOpenTask: ((taskId: string) => void) | undefined;
+}) {
     const { t } = useTranslation();
     const isStopping = useAgentChatTaskStopStore(({ stopping }) =>
         stopping.has(agentChatTaskKey(terminalId, task.id)),
@@ -33,33 +43,51 @@ function TaskEntry({ task, terminalId }: { task: AgentChatTask; terminalId: stri
     const title =
         task.title ||
         t(task.kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent');
-    return (
-        <li className="group/task flex min-w-0 items-center gap-1 rounded text-[12px] leading-5 hover:bg-[var(--selection)]">
-            <button
-                aria-label={t('agentChat.tasks.openTask', { title })}
-                className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-0.5 text-left text-muted hover:text-foreground focus-visible:outline focus-visible:outline-accent"
-                type="button"
-                onClick={() => openAgentChatTaskTab(terminalId, task.id)}
+    const summary = (
+        <>
+            <AgentChatTaskGlyph kind={task.kind} />
+            <span
+                className={
+                    isAgentChatTaskTitleCommand(task)
+                        ? 'min-w-0 truncate font-mono text-[11px] text-foreground'
+                        : 'min-w-0 truncate text-foreground'
+                }
             >
-                <AgentChatTaskGlyph kind={task.kind} />
-                <span
-                    className={
-                        isAgentChatTaskTitleCommand(task)
-                            ? 'min-w-0 truncate font-mono text-[11px] text-foreground'
-                            : 'min-w-0 truncate text-foreground'
-                    }
-                >
-                    {title}
-                </span>
-                <span className="ml-auto flex shrink-0 items-center gap-2">
-                    <AgentChatTaskElapsed task={task} />
-                    {task.status === 'running' ? (
-                        <Spinner className="size-3.5" role="presentation" />
-                    ) : (
-                        <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
+                {title}
+            </span>
+            <span className="ml-auto flex shrink-0 items-center gap-2">
+                <AgentChatTaskElapsed task={task} />
+                {task.status === 'running' ? (
+                    <Spinner className="size-3.5" role="presentation" />
+                ) : (
+                    <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
+                )}
+            </span>
+        </>
+    );
+    return (
+        <li
+            className={cn(
+                'group/task flex min-w-0 items-center gap-1 rounded text-[12px] leading-5',
+                onOpenTask && 'hover:bg-[var(--selection)]',
+            )}
+        >
+            {onOpenTask ? (
+                <button
+                    aria-label={t('agentChat.tasks.openTask', { title })}
+                    className={cn(
+                        TASK_ENTRY_CLASS_NAME,
+                        'cursor-pointer hover:text-foreground focus-visible:outline focus-visible:outline-accent',
                     )}
-                </span>
-            </button>
+                    type="button"
+                    onClick={() => onOpenTask(task.id)}
+                >
+                    {summary}
+                </button>
+            ) : (
+                // A host that cannot open the task's tab (the Agent Commander window) lists the task as plain text.
+                <div className={TASK_ENTRY_CLASS_NAME}>{summary}</div>
+            )}
             {canStopAgentChatTask(task) && (
                 <Tooltip
                     content={t(isStopping ? 'agentChat.tasks.stopping' : 'agentChat.tasks.stop')}
@@ -89,15 +117,17 @@ function TaskEntry({ task, terminalId }: { task: AgentChatTask; terminalId: stri
 
 /**
  * Background work, just above the composer: each running subagent and background shell with its elapsed time, opened in
- * its side tab on click and stoppable on its own. Stopping the turn with Esc never stops these. Ended work is counted,
- * and the count reveals it (most recent first, with how each ended) so a task that just finished is one click from its
- * tab without hunting for its timeline row. When the last task ends, the strip collapses to that count until the next
- * turn starts or the user dismisses it (see `agentChatTaskStripView`), instead of disappearing at once.
+ * its side tab on click (where the host can open one) and stoppable on its own. Stopping the turn with Esc never stops
+ * these. Ended work is counted, and the count reveals it (most recent first, with how each ended) so a task that just
+ * finished is one click from its tab without hunting for its timeline row. When the last task ends, the strip collapses
+ * to that count until the next turn starts or the user dismisses it (see `agentChatTaskStripView`), instead of
+ * disappearing at once.
  */
 export function AgentChatTaskStrip({
     latestTurnStartedAt,
     tasks,
     terminalId,
+    onOpenTask,
 }: {
     /**
      * When the Chat's latest turn started; work that ended before it no longer keeps an idle strip open.
@@ -105,6 +135,10 @@ export function AgentChatTaskStrip({
     latestTurnStartedAt: number | undefined;
     tasks: readonly AgentChatTask[] | undefined;
     terminalId: string;
+    /**
+     * Opens a task's tab beside the Chat; absent where the host cannot, which leaves each task a plain row.
+     */
+    onOpenTask: ((taskId: string) => void) | undefined;
 }) {
     const { t } = useTranslation();
     const [dismissedAt, setDismissedAt] = useState<number | undefined>();
@@ -158,7 +192,12 @@ export function AgentChatTaskStrip({
             {running.length > 0 && (
                 <ul className="m-0 flex max-h-32 list-none flex-col overflow-y-auto p-0">
                     {running.map((task) => (
-                        <TaskEntry key={task.id} task={task} terminalId={terminalId} />
+                        <TaskEntry
+                            key={task.id}
+                            task={task}
+                            terminalId={terminalId}
+                            onOpenTask={onOpenTask}
+                        />
                     ))}
                 </ul>
             )}
@@ -176,7 +215,12 @@ export function AgentChatTaskStrip({
                     )}
                 >
                     {ended.map((task) => (
-                        <TaskEntry key={task.id} task={task} terminalId={terminalId} />
+                        <TaskEntry
+                            key={task.id}
+                            task={task}
+                            terminalId={terminalId}
+                            onOpenTask={onOpenTask}
+                        />
                     ))}
                 </ul>
             </DisclosureMotion>

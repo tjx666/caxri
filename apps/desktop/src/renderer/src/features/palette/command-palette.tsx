@@ -28,13 +28,17 @@ import {
     SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
 } from '../session/session-commands';
 import { sessionTitleForDisplay } from '../session/session-title';
+import { canRestartResumeAgent } from '../terminal/agent-restart-commands';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
+import { useActivePaneTab } from '../workbench/pane-actions';
+import type { CommandTitleContext } from './command-palette-commands';
 import {
     commanderPaletteWhenContext,
     getDynamicCommandPaletteValue,
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
     isCommandVisibleInPalette,
+    paletteCommandTitle,
 } from './command-palette-commands';
 
 const NO_RECORDS: never[] = [];
@@ -46,19 +50,25 @@ const commandItemMetaClassName = 'inline-flex flex-none items-center gap-2 text-
  * it overlays clicks/keystrokes without hiding anything), but nothing in the palette ever rendered it. Showing it as a
  * secondary line benefits every command, not just the ones whose title alone is ambiguous.
  */
-function CommandRow({ command }: { command: (typeof commandDefinitions)[number] }) {
+function CommandRow({
+    command,
+    titleContext,
+}: {
+    command: (typeof commandDefinitions)[number];
+    titleContext: CommandTitleContext;
+}) {
     const { t } = useTranslation();
     const shortcut = useCommandShortcut(command.id);
     return (
         <CommandItem
-            value={getStaticCommandPaletteValue(command, t)}
+            value={getStaticCommandPaletteValue(command, t, titleContext)}
             onSelect={() => {
                 setPaletteOpen(false);
                 executeCommand(command.id);
             }}
         >
             <span className="flex min-w-0 flex-col gap-0.5">
-                <span>{commandTitle(command, t)}</span>
+                <span>{paletteCommandTitle(command, titleContext, t)}</span>
                 <span className="truncate text-[11px] text-muted">
                     {commandDescription(command, t)}
                 </span>
@@ -144,6 +154,14 @@ function CommandPaletteBody() {
     const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
     const selectedSession = useSelectedSession();
     const terminals = useTerminals();
+    const activeResource = useActivePaneTab()?.resource;
+    const activeTerminal =
+        activeResource?.kind === 'terminal'
+            ? terminals.find((terminal) => terminal.id === activeResource.terminalId)
+            : undefined;
+    const titleContext: CommandTitleContext = {
+        activeTerminalRestartsAgent: canRestartResumeAgent(activeTerminal),
+    };
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     const isRemote = useIsRemote();
     /**
@@ -232,7 +250,11 @@ function CommandPaletteBody() {
                         {commandDefinitions.map((command) =>
                             command.requiresArguments ||
                             !isCommandVisibleInPalette(command, whenContext) ? null : (
-                                <CommandRow key={command.id} command={command} />
+                                <CommandRow
+                                    key={command.id}
+                                    command={command}
+                                    titleContext={titleContext}
+                                />
                             ),
                         )}
                         {getPaletteExtensionCommands(catalog).map((command) => (

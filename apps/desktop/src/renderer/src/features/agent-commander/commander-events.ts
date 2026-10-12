@@ -37,6 +37,10 @@ interface CommanderEventEffect {
      */
     pullRequestSessionIds: readonly string[];
     /**
+     * Open the Inbox column and focus its first open item: the status bar's `N need you` chip asked for it.
+     */
+    revealInbox: boolean;
+    /**
      * Re-read `commander.snapshot` and replace the Workbench store's snapshot.
      */
     snapshot: boolean;
@@ -48,6 +52,7 @@ const NO_EFFECT: CommanderEventEffect = {
     inbox: false,
     pullRequestSessionIds: [],
     reattach: false,
+    revealInbox: false,
     snapshot: false,
 };
 
@@ -104,6 +109,8 @@ export function commanderEventEffect(
             return event.payload.error ? NO_EFFECT : { ...NO_EFFECT, snapshot: true };
         case 'commanderInbox.changed':
             return { ...NO_EFFECT, inbox: true };
+        case 'agentCommander.inboxRequested':
+            return { ...NO_EFFECT, revealInbox: true };
         case 'sessionPullRequests.changed':
             return { ...NO_EFFECT, pullRequestSessionIds: event.payload.sessionIds };
         case 'window.fullScreen':

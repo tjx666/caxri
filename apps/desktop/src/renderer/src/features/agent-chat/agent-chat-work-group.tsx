@@ -366,12 +366,13 @@ function FileChangeStat({ item }: { item: Extract<AgentChatWorkItem, { type: 'fi
  * Opens a work row's subagent or background shell in the side split.
  */
 function AgentChatTaskOpenButton({
-    link,
+    onOpen,
+    task,
 }: {
-    link: NonNullable<ReturnType<typeof useAgentChatTaskLink>>;
+    onOpen: () => void;
+    task: AgentChatTask | undefined;
 }) {
     const { t } = useTranslation();
-    const { task } = link;
     return (
         <Tooltip
             content={
@@ -391,7 +392,7 @@ function AgentChatTaskOpenButton({
                 className="min-h-6 shrink-0 gap-1 px-1.5 text-muted"
                 size="sm"
                 variant="ghost"
-                onClick={link.open}
+                onClick={onOpen}
             >
                 <PanelRight aria-hidden="true" className="size-3.5" />
                 {t('common.open')}
@@ -445,7 +446,7 @@ const AgentChatWorkRow = memo(
         const { path, subject } = presentation;
         return (
             <DisclosureRow
-                action={link && <AgentChatTaskOpenButton link={link} />}
+                action={link?.open && <AgentChatTaskOpenButton task={task} onOpen={link.open} />}
                 disclosureKind="agent-chat-item"
                 expansionKey={agentChatItemExpansionKey(item.id)}
                 glyph={<WorkGlyph kind={presentation.kind} />}

@@ -1,5 +1,6 @@
 import type {
     CommandDefinition,
+    CommandId,
     CommandWhen,
     ContributedCommandDescriptor,
     ViewCatalogSnapshot,
@@ -12,6 +13,39 @@ import { commandCategory, commandDescription, commandTitle } from '../../lib/com
 const STATIC_COMMAND_IDS: ReadonlySet<string> = new Set(commandDefinitions.map(({ id }) => id));
 
 export type CommandPaletteWhenContext = Readonly<Record<CommandWhen, boolean>>;
+
+/**
+ * What a contextual title may depend on. Kept to plain facts the palette derives from its own store reads, so a
+ * resolver stays a pure function the palette can call on every render.
+ */
+export interface CommandTitleContext {
+    /**
+     * Restarting the active Terminal resumes an Agent conversation (the recovery row's "Restart Agent").
+     */
+    readonly activeTerminalRestartsAgent: boolean;
+}
+
+/**
+ * Commands whose palette title follows the current context. The catalog title stays static because Main builds the
+ * native menu from it once; a resolver returns `undefined` to keep that catalog title.
+ */
+const contextualTitleResolvers: Partial<
+    Record<CommandId, (context: CommandTitleContext, t: Translate) => string | undefined>
+> = {
+    'terminal.restart': (context, t) =>
+        context.activeTerminalRestartsAgent ? t('terminal.recovery.restartAgent') : undefined,
+};
+
+/**
+ * The title a palette row shows: the contextual title when one applies, otherwise the translated catalog title.
+ */
+export function paletteCommandTitle(
+    command: CommandDefinition,
+    context: CommandTitleContext,
+    t: Translate,
+): string {
+    return contextualTitleResolvers[command.id]?.(context, t) ?? commandTitle(command, t);
+}
 
 /**
  * Hides commands whose `when` predicate is false for the current selection so the palette stays in sync with the
@@ -50,11 +84,17 @@ export function commanderPaletteWhenContext({
  * The search value always carries the English catalog copy, so an English query finds a command in any language; with
  * `t`, the translated title, category, and description are appended when they differ from English.
  */
-export function getStaticCommandPaletteValue(command: CommandDefinition, t?: Translate): string {
+export function getStaticCommandPaletteValue(
+    command: CommandDefinition,
+    t?: Translate,
+    titleContext?: CommandTitleContext,
+): string {
     const translated = t
         ? [
               commandCategory(command.category, t),
-              commandTitle(command, t),
+              titleContext
+                  ? paletteCommandTitle(command, titleContext, t)
+                  : commandTitle(command, t),
               commandDescription(command, t),
           ].filter(
               (text) =>

@@ -419,6 +419,12 @@ export const serverEventPayloads = {
      * command.
      */
     'settings.openRequested': z.object({ target: settingsTargetSchema }),
+    /**
+     * Main-originated, Commander-window-only request to open its Inbox and focus the first open item, sent after
+     * `agentCommander.open` with `target: 'inbox'` raised the window. Main holds it until a newly opened window's
+     * Renderer subscribes to events, so a window the request itself opened still receives it.
+     */
+    'agentCommander.inboxRequested': z.object({}),
 } as const;
 
 type ServerEventName = keyof typeof serverEventPayloads;

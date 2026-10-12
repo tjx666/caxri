@@ -61,6 +61,11 @@ interface CommanderInboxUiState {
      * Items with a request in flight, so their card shows progress and refuses a second press until it settles.
      */
     pendingActions: Readonly<Record<string, CommanderInboxPendingAction>>;
+    /**
+     * Set when the status bar's `N need you` chip asked for the Inbox; the list moves focus to its first open item once
+     * it has rendered, then clears it.
+     */
+    isFocusRequested: boolean;
 }
 
 export const useCommanderInboxUiStore = createStore<CommanderInboxUiState>(
@@ -70,6 +75,7 @@ export const useCommanderInboxUiStore = createStore<CommanderInboxUiState>(
         width: storedWidth(),
         focusEpoch: 0,
         pendingActions: {},
+        isFocusRequested: false,
     }),
 );
 
@@ -105,6 +111,22 @@ export function setCommanderInboxVisible(isVisible: boolean): void {
     } catch {
         // Storage-disabled windows keep the choice for this Renderer lifetime.
     }
+}
+
+/**
+ * Opens the Inbox (a drawer in a narrow window, see `CommanderInboxColumn`) and asks its list to focus the first open
+ * item, remembering the column as open like the title bar toggle does.
+ */
+export function revealCommanderInbox(): void {
+    setCommanderInboxVisible(true);
+    useCommanderInboxUiStore.setState({ isFocusRequested: true });
+}
+
+/**
+ * Settles a focus request once the list has rendered: there is nothing to focus in an empty Inbox either.
+ */
+export function settleCommanderInboxFocusRequest(): void {
+    useCommanderInboxUiStore.setState({ isFocusRequested: false });
 }
 
 export function setCommanderInboxWidth(width: number): void {

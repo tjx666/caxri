@@ -45,6 +45,18 @@ export function recordThreadOpen(method: string, parameters: Record<string, unkn
 }
 
 /**
+ * The `config/read` answer: `config.sandbox_workspace_write` from a `config-sandbox-workspace-write.json` file in the
+ * state directory, standing in for the `[sandbox_workspace_write]` table of the user's `config.toml`.
+ */
+export function readFakeConfig(): { config: Record<string, unknown>; origins: object } {
+    const file = stateFile('config-sandbox-workspace-write.json');
+    const workspaceWrite = fs.existsSync(file)
+        ? (JSON.parse(fs.readFileSync(file, 'utf8')) as unknown)
+        : null;
+    return { config: { sandbox_workspace_write: workspaceWrite }, origins: {} };
+}
+
+/**
  * Appends the permission, collaboration-mode, and service-tier fields of one `turn/start` to `turn-starts.jsonl`.
  */
 export function recordTurnStart(parameters: Record<string, unknown>) {

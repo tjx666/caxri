@@ -170,6 +170,63 @@ test('Agent Commander title bar swaps the traffic-light clearance for the logo i
 });
 
 /**
+ * A window reloaded while fullscreen (dev full-page reload, Renderer crash recovery) keeps its fullscreen chrome. Once
+ * more durable events have been published than the event journal retains, a fresh Renderer recovers from a snapshot
+ * that carries no window state, so the title bar cannot depend on replaying the last `window.fullScreen` push.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Workbench and Agent Commander keep the fullscreen title bar after a reload', async ({}) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-fullscreen-reload-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        const commanderHeader = commander.locator('.agent-commander-header');
+        const workbenchTitle = running.page.locator('.primary-sidebar-title');
+        await expect(commanderHeader).toBeVisible();
+
+        // Both windows enter fullscreen, then enough further durable events follow to push that transition (and
+        // everything before it) out of the event journal.
+        await running.app.evaluate(({ BrowserWindow }) => {
+            for (const window of BrowserWindow.getAllWindows()) {
+                window.isFullScreen = () => true;
+                window.emit('enter-full-screen');
+            }
+            const commanderWindow = BrowserWindow.getAllWindows().find((candidate) =>
+                candidate.webContents.getURL().includes('agent-commander.html'),
+            );
+            if (!commanderWindow) throw new Error('Commander window is missing');
+            for (let index = 0; index < 300; index += 1) commanderWindow.emit('enter-full-screen');
+        });
+        await expect(commanderHeader.locator('img[data-caxri-logo]')).toBeVisible();
+        await expect(workbenchTitle.locator('img[data-caxri-logo]')).toBeVisible();
+
+        await Promise.all([running.page.reload(), commander.reload()]);
+        await expect(commanderHeader).toBeVisible();
+        await expect(commanderHeader.locator('img[data-caxri-logo]')).toBeVisible();
+        await expect(commanderHeader).toHaveCSS('padding-left', '12px');
+        await expect(workbenchTitle.locator('img[data-caxri-logo]')).toBeVisible();
+        await expect(workbenchTitle).toHaveCSS('padding-left', '12px');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
  * The Commander keeps running after its window closes, and the user reopens the window many times a day. It comes back
  * where the user left it rather than at the default size in the middle of the screen.
  */

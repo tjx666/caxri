@@ -80,6 +80,9 @@ content such as a row's hover card stays with its row. The header keeps the whol
 parentheses. Scope every sample whose question is about one surface; a window total mixes in the
 pane subtree a switch legitimately mounts and hides a sidebar change inside it.
 
+The script measures the main window even while an Agent Commander or Process Explorer window is
+open. `--url SUBSTRING` measures another window instead, such as `--url agent-commander`.
+
 The `boot` command additionally refuses to settle until `.workbench` exists, because startup has
 quiet gaps while it waits on the Server and settling inside one would describe the loading shell.
 

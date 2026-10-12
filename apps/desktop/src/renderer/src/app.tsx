@@ -70,6 +70,7 @@ import {
 import { useDialogStore } from './stores/dialogs';
 import { subscribeEnvironment } from './stores/environment';
 import { useIsFullScreen } from './stores/selectors';
+import { syncWindowFullScreen } from './stores/window-full-screen';
 import {
     initializeWorkbench,
     subscribeWorkbenchEvents,
@@ -94,7 +95,7 @@ function useRuntimeAttachment(): void {
         // Fire-and-forget: initializeWorkbench() catches its own Server request failures.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void initializeWorkbench();
-        return subscribeWorkbenchEvents({
+        const unsubscribe = subscribeWorkbenchEvents({
             onCommand: (command, wasViaAccelerator) =>
                 runCommand(command, undefined, { viaAccelerator: wasViaAccelerator }),
             onSettingsTarget: (target: SettingsTarget) => {
@@ -129,6 +130,10 @@ function useRuntimeAttachment(): void {
                 });
             },
         });
+        // Fire-and-forget: syncWindowFullScreen() swallows its own request failure.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void syncWindowFullScreen();
+        return unsubscribe;
     }, []);
 }
 

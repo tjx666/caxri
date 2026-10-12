@@ -133,6 +133,7 @@ export function showAgentChatPendingMessage(
         id,
         text: message.text,
         images: message.images,
+        imageCount: message.images.length,
         placement: agentChatPendingPlacement(snapshot, message.delivery, ahead.length > 0),
         knownIds: agentChatPendingKnownIds(snapshot),
     });

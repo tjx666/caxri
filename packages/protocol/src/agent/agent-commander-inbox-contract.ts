@@ -145,8 +145,9 @@ export const commanderInboxItemSchema = z.strictObject({
      */
     acknowledgedSequence: z.number().int().nonnegative(),
     /**
-     * Increments on every change. The owner's merge names the revision they read, so a report the Commander replaced in
-     * the meantime is never merged on the strength of the old one.
+     * Increments when the Commander files a new report for the item (or it closes), not on replies, acknowledgements,
+     * or stale marks. The owner's merge names the revision they read, so a report the Commander replaced in the
+     * meantime is never merged on the strength of the old one.
      */
     revision: z.number().int().positive(),
     createdAt: z.number(),

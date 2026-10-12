@@ -68,6 +68,7 @@ describe('Agent Chat permission picker', () => {
             projectDefault: { permissionMode: 'fullAccess', planMode: true },
             isSavedDefault: true,
             projectDefaultItem: { label: 'Project default', isChecked: true },
+            hasProjectDefault: true,
             pendingCaption: undefined,
         });
         expect(agentChatPermissionView({ planMode: false }, 'codex', undefined)).toEqual({
@@ -82,12 +83,28 @@ describe('Agent Chat permission picker', () => {
                 isChecked: false,
                 disabledReason: 'Choose a level to save it as the default',
             },
+            hasProjectDefault: false,
             pendingCaption: undefined,
         });
         expect(
             agentChatPermissionView({ permissionMode: 'auto' }, 'codex', undefined)
                 .projectDefaultItem,
         ).toEqual({ label: 'Use as Project default', isChecked: false });
+    });
+
+    it('offers clearing a saved Project default even when the Chat differs from it', () => {
+        const view = agentChatPermissionView({ permissionMode: 'auto' }, 'codex', {
+            codex: { permissionMode: 'readOnly' },
+            claude: { permissionMode: 'auto' },
+        });
+        expect(view.isSavedDefault).toBe(false);
+        expect(view.hasProjectDefault).toBe(true);
+        // Another provider's default does not count.
+        expect(
+            agentChatPermissionView({ permissionMode: 'auto' }, 'grok', {
+                claude: { permissionMode: 'auto' },
+            }).hasProjectDefault,
+        ).toBe(false);
     });
 
     it('says when the shown choice waits for the next turn', () => {

@@ -1,4 +1,4 @@
-import type { RendererErrorKind, ThemeTokens } from '@caxri/protocol';
+import type { AppLocale, RendererErrorKind, ThemeTokens } from '@caxri/protocol';
 import { terminalProcessEntrySchema } from '@caxri/protocol';
 import { z } from 'zod';
 
@@ -55,4 +55,14 @@ export interface ProcessExplorerBridge {
      */
     stopTerminal(terminalId: string): Promise<{ suspended: boolean }>;
     theme(): Promise<ThemeTokens>;
+    /**
+     * The `workbench.language` setting; `null` follows the system language. The window loads no Workbench snapshot, so
+     * this is its only way to speak the language the other windows speak.
+     */
+    language(): Promise<AppLocale | null>;
+    /**
+     * Calls `listener` with the setting each time it may have changed while the window is open; returns the
+     * unsubscribe.
+     */
+    onLanguageChanged(listener: (preference: AppLocale | null) => void): () => void;
 }

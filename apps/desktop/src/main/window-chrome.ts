@@ -128,8 +128,9 @@ export function createWindowZoomController(options: {
 /**
  * Publishes one window's macOS fullscreen state as `window.fullScreen`; fullscreen hides the traffic lights, so the
  * Renderer drops their clearance and shows the logo instead. Durable delivery reaches every Renderer, hence `kind`.
- * `did-finish-load` covers a Renderer that loads (or reloads after a crash) while already fullscreen, which would
- * otherwise miss the one-shot `enter-full-screen` of a restored placement.
+ * These pushes only report transitions: a Renderer that loads (or reloads) while its window is already fullscreen reads
+ * the current state through `window.fullScreen.get`, because a fresh Renderer whose recovery falls back to a snapshot
+ * never replays an earlier push.
  */
 export function publishFullScreenState(
     window: BrowserWindow,
@@ -143,5 +144,4 @@ export function publishFullScreenState(
         });
     window.on('enter-full-screen', send);
     window.on('leave-full-screen', send);
-    window.webContents.on('did-finish-load', send);
 }

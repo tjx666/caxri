@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 import type { CommanderInboxItem } from '@caxri/protocol';
 import { X } from 'lucide-react';
 
@@ -10,7 +12,11 @@ import { CommanderHandoverEmptyAction } from './commander-handover-empty-action'
 import { commanderInboxSections, inboxReplyTarget } from './commander-inbox';
 import { CommanderInboxCard } from './commander-inbox-card';
 import { CommanderInboxComposer } from './commander-inbox-composer';
-import { setCommanderInboxVisible, useCommanderInboxUiStore } from './commander-inbox-store';
+import {
+    setCommanderInboxVisible,
+    settleCommanderInboxFocusRequest,
+    useCommanderInboxUiStore,
+} from './commander-inbox-store';
 import { useCommanderInbox } from './hooks/use-commander-inbox';
 
 /**
@@ -79,6 +85,16 @@ function CommanderInboxList({
     const targetId = useCommanderInboxUiStore((state) => state.targetId);
     const target = inboxReplyTarget(items, targetId);
     const sections = commanderInboxSections(items, t);
+    const listReference = useRef<HTMLDivElement>(null);
+    const isFocusRequested = useCommanderInboxUiStore((state) => state.isFocusRequested);
+    useEffect(() => {
+        if (!isFocusRequested) return;
+        const first = listReference.current?.querySelector<HTMLElement>('.commander-inbox-item');
+        // The pointer was in the Workbench, so ask for the focus ring Chromium would otherwise withhold after a click.
+        first?.focus({ focusVisible: true });
+        first?.scrollIntoView({ block: 'nearest' });
+        settleCommanderInboxFocusRequest();
+    }, [isFocusRequested]);
     return (
         <>
             {sections.length === 0 ? (
@@ -87,7 +103,11 @@ function CommanderInboxList({
                     <CommanderHandoverEmptyAction />
                 </div>
             ) : (
-                <div className="commander-inbox min-h-0 flex-1 overflow-auto px-2 pb-2">
+                <div
+                    className="commander-inbox min-h-0 flex-1 overflow-auto px-2 pb-2"
+                    data-keeps-keyboard-focus="true"
+                    ref={listReference}
+                >
                     {sections.map((section) => (
                         <section
                             key={section.id}

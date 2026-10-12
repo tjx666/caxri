@@ -2,8 +2,8 @@ import { MessageSquareWarning } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
-import { executeCommand } from '../../commands/execute';
 import { useTranslation } from '../../i18n';
+import { openCommanderInbox } from '../agent-commander/commander-commands';
 import { openCommanderInboxCount } from '../agent-commander/commander-inbox';
 import { useCommanderManagedSessions } from '../agent-commander/hooks/use-commander-managed-sessions';
 import { commanderInboxChipCopy } from './commander-status-label';
@@ -17,10 +17,11 @@ const COMMANDER_INBOX_FALLBACK_REFETCH_INTERVAL_MS = 5 * 60_000;
 
 /**
  * Open Agent Commander Inbox items ("Needs you") counted in the main window, which otherwise never shows that the
- * Commander is waiting on the user while its own window is closed. Muted like the other standing-mode chips: a question
- * waiting on the user is not a degradation (DESIGN.md status bar redline). Never priority-hidden, because the main
- * window has no other trace of it. Its glyph is the Commander window's own Inbox toggle glyph, so the chip and the
- * column it opens read as one thing.
+ * Commander is waiting on the user while its own window is closed. A click raises the Commander with its Inbox open and
+ * the first open item focused, even when the Inbox was hidden or the window is narrow enough to make it a drawer. Muted
+ * like the other standing-mode chips: a question waiting on the user is not a degradation (DESIGN.md status bar
+ * redline). Never priority-hidden, because the main window has no other trace of it. Its glyph is the Commander
+ * window's own Inbox toggle glyph, so the chip and the column it opens read as one thing.
  *
  * Also holds the Commander ownership feed: the status bar is the main window's always-mounted Commander surface, so the
  * notice that typing took a Session back from the Commander still arrives while the sidebar and its Session rows are
@@ -45,7 +46,7 @@ export function CommanderInboxChip() {
             ariaLabel={copy.description}
             title={copy.description}
             className="commander-inbox-chip text-muted"
-            onClick={() => executeCommand('agentCommander.open')}
+            onClick={openCommanderInbox}
         >
             {copy.text}
         </StatusItem>
