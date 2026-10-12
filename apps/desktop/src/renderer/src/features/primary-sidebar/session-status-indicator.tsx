@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useId } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
-import { CircleAlert, Unplug } from 'lucide-react';
+import { CircleQuestionMark, Unplug } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';
 import type { SessionStatusTerminal } from './session-status';
@@ -92,7 +92,7 @@ export function SessionStatusIndicator({
                             data-session-status-ripple=""
                         />
                         {status.variant === 'waiting' ? (
-                            <CircleAlert aria-hidden="true" size={14} strokeWidth={2.25} />
+                            <CircleQuestionMark aria-hidden="true" size={14} strokeWidth={2.25} />
                         ) : (
                             <>
                                 <span
