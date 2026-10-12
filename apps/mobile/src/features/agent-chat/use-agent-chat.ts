@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { AgentChatRequest, AgentChatResponse, AgentChatSnapshot } from '@caxri/protocol';
+import type {
+    AgentChatModelRequest,
+    AgentChatRequest,
+    AgentChatResponse,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useReadCache } from '../read-cache/read-cache-context';
@@ -166,8 +171,11 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * Switches the model, effort, or ultracode the next turn uses; Core validates the change against the snapshot.
+     */
     const configure = useCallback(
-        async (change: { model?: string; effort?: string }): Promise<void> => {
+        async (change: AgentChatModelRequest): Promise<void> => {
             if (terminalId === null) return;
             await request('mobile.agentChat.configure', { terminalId, ...change });
         },

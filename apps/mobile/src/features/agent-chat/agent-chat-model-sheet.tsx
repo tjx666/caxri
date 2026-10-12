@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import type { AgentChatModelRequest } from '@caxri/protocol';
 import { Check, ChevronDown } from 'lucide-react-native';
 
 import { BottomSheet, SheetCancel } from '../../components/bottom-sheet';
@@ -13,11 +14,9 @@ import {
     agentChatModelTrigger,
 } from './agent-chat-model-choice';
 import type { AgentChatController } from './use-agent-chat';
+import { useAgentChatModelSelection } from './use-agent-chat-model-selection';
 
-interface Pending {
-    kind: 'model' | 'effort';
-    value: string;
-}
+type ModelSelection = ReturnType<typeof useAgentChatModelSelection>;
 
 const OptionRow = ({
     description,
@@ -85,45 +84,31 @@ const SectionLabel = ({ label, theme }: { label: string; theme: MobileTheme }) =
  * Desktop menu it stays open after a model is chosen, so that model's efforts show right away.
  */
 const AgentChatModelSheet = ({
-    chat,
     disabledReason,
     onClose,
+    selection,
     theme,
 }: {
-    chat: AgentChatController;
     /**
      * Why the device cannot configure the Chat right now, such as a dropped connection. The open sheet keeps its lists
      * but disables them and says why, instead of vanishing under the reader's finger.
      */
     disabledReason: string | undefined;
     onClose: () => void;
+    /**
+     * Owned by the trigger, so a pending choice outlives the sheet and the trigger shows it too.
+     */
+    selection: ModelSelection;
     theme: MobileTheme;
 }) => {
-    const [pending, setPending] = useState<Pending | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const { efforts, models } = agentChatModelOptions(chat.snapshot);
-    const note = agentChatModelSheetNote(chat.snapshot);
-    const effortHint = agentChatEffortHint(chat.snapshot);
-    const choose = async (next: Pending): Promise<void> => {
-        setPending(next);
-        setError(null);
-        try {
-            await chat.configure(
-                next.kind === 'model' ? { model: next.value } : { effort: next.value },
-            );
-        } catch {
-            setError(
-                next.kind === 'model'
-                    ? 'Unable to switch the model. Try again.'
-                    : 'Unable to switch the reasoning effort. Try again.',
-            );
-        } finally {
-            setPending(null);
-        }
-    };
-    const select = (next: Pending, isSelected: boolean): void => {
-        // eslint-disable-next-line no-void -- `choose` reports its own failure in the sheet.
-        if (!isSelected) void choose(next);
+    const { busy, error, snapshot } = selection;
+    const { efforts, models } = agentChatModelOptions(snapshot);
+    const note = agentChatModelSheetNote(snapshot);
+    const effortHint = agentChatEffortHint(snapshot);
+    const isDisabled = busy !== null || disabledReason !== undefined;
+    const select = (change: AgentChatModelRequest, isSelected: boolean): void => {
+        // eslint-disable-next-line no-void -- `configure` reports its own failure in the sheet.
+        if (!isSelected) void selection.configure(change);
     };
     return (
         <BottomSheet
@@ -141,14 +126,12 @@ const AgentChatModelSheet = ({
                         {models.map((model) => (
                             <OptionRow
                                 description={model.description}
-                                isBusy={pending?.kind === 'model' && pending.value === model.id}
-                                isDisabled={pending !== null || disabledReason !== undefined}
+                                isBusy={busy?.model === model.id}
+                                isDisabled={isDisabled}
                                 isSelected={model.isSelected}
                                 key={model.id}
                                 label={model.displayName}
-                                onPress={() =>
-                                    select({ kind: 'model', value: model.id }, model.isSelected)
-                                }
+                                onPress={() => select({ model: model.id }, model.isSelected)}
                                 testID={`agent-chat-model-${model.id}`}
                                 theme={theme}
                             />
@@ -161,19 +144,12 @@ const AgentChatModelSheet = ({
                         ) : null}
                         {efforts.map((effort) => (
                             <OptionRow
-                                isBusy={
-                                    pending?.kind === 'effort' && pending.value === effort.value
-                                }
-                                isDisabled={pending !== null || disabledReason !== undefined}
+                                isBusy={busy?.effort === effort.value}
+                                isDisabled={isDisabled}
                                 isSelected={effort.isSelected}
                                 key={effort.value}
                                 label={effort.label}
-                                onPress={() =>
-                                    select(
-                                        { kind: 'effort', value: effort.value },
-                                        effort.isSelected,
-                                    )
-                                }
+                                onPress={() => select({ effort: effort.value }, effort.isSelected)}
                                 testID={`agent-chat-effort-${effort.value}`}
                                 theme={theme}
                                 trailing={effort.isDefault ? 'Default' : undefined}
@@ -240,7 +216,8 @@ export const AgentChatModelButton = ({
     theme: MobileTheme;
 }) => {
     const [isOpen, setOpen] = useState(false);
-    const trigger = agentChatModelTrigger(chat.snapshot, disabledReason === undefined);
+    const selection = useAgentChatModelSelection(chat, disabledReason);
+    const trigger = agentChatModelTrigger(selection.snapshot, disabledReason === undefined);
     if (!trigger) return null;
     const content = (
         <>
@@ -257,9 +234,9 @@ export const AgentChatModelButton = ({
     );
     const sheet = isOpen ? (
         <AgentChatModelSheet
-            chat={chat}
             disabledReason={disabledReason}
             onClose={() => setOpen(false)}
+            selection={selection}
             theme={theme}
         />
     ) : null;

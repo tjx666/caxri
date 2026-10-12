@@ -1,4 +1,4 @@
-import type { AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatEffortLabel, agentChatModelLabel, findAgentChatModel } from '@caxri/protocol';
 
 type ModelSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'effort' | 'model' | 'models'>;
@@ -43,8 +43,9 @@ export interface AgentChatEffortOption {
 }
 
 /**
- * The sheet's two lists, in the provider's order. Efforts belong to the model in use, so switching the model shows the
- * new model's efforts as soon as the snapshot reports it, as the Desktop menu does.
+ * The sheet's two lists, in the provider's order. Efforts belong to the model in use. Pass the snapshot with any
+ * pending switch applied (`agentChatSelectionView`), so choosing a model shows that model's efforts at once instead of
+ * the old model's until the Server's next snapshot, as the Desktop menu does.
  */
 export const agentChatModelOptions = (
     snapshot: ModelSnapshot | undefined,
@@ -82,3 +83,55 @@ export const agentChatEffortHint = (snapshot: ModelSnapshot | undefined): string
     (snapshot?.models?.length ?? 0) > 0 && !findAgentChatModel(snapshot?.models, snapshot?.model)
         ? 'Choose a model to see its reasoning efforts.'
         : undefined;
+
+/**
+ * The sheet's message for a failed switch, naming what the reader tried to change.
+ */
+export const agentChatConfigureFailureMessage = (change: AgentChatModelRequest): string => {
+    if (change.model !== undefined) return 'Unable to switch the model. Try again.';
+    if (change.effort !== undefined) return 'Unable to switch the reasoning effort. Try again.';
+    return 'Unable to switch the model. Try again.';
+};
+
+/**
+ * A failed `configure` as a sheet shows it, with the {@link agentChatConfigureScope} it failed under.
+ */
+export interface AgentChatConfigureError {
+    message: string;
+    scope: string;
+}
+
+/**
+ * What a configure failure is about: the Chat's model, effort, ultracode, permission level, and plan mode, plus whether
+ * the phone can reach the Chat. When any of them changes (the Server reported a new choice, or the connection dropped
+ * or came back) the failure is stale and the sheet drops it instead of keeping an error that no longer describes the
+ * Chat. The snapshot's `revision` alone is not used: it advances with every streamed token of a running turn, which
+ * would clear the error before anyone could read it.
+ */
+export const agentChatConfigureScope = (
+    snapshot:
+        | Pick<
+              AgentChatSnapshot,
+              'effort' | 'model' | 'permissionMode' | 'planMode' | 'status' | 'ultracode'
+          >
+        | undefined,
+    connection: { disabledReason: string | undefined; isLive: boolean },
+): string =>
+    JSON.stringify([
+        snapshot?.model,
+        snapshot?.effort,
+        snapshot?.ultracode,
+        snapshot?.permissionMode,
+        snapshot?.planMode,
+        snapshot?.status,
+        connection.disabledReason,
+        connection.isLive,
+    ]);
+
+/**
+ * The stored failure while it still describes the Chat, otherwise `null`.
+ */
+export const currentAgentChatConfigureError = (
+    error: AgentChatConfigureError | null,
+    scope: string,
+): AgentChatConfigureError | null => (error?.scope === scope ? error : null);

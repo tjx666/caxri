@@ -798,8 +798,12 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   model menu (`agentChatModelLabel` in `packages/protocol`). Tapping it opens a sheet with the
   `Model` and `Reasoning effort` lists; a choice applies on tap through
   `mobile.agentChat.configure`, which forwards `agentChat.configure` and therefore the same
-  validation against `models`. A new Chat can be configured before its first message. During a
-  turn the sheet says the change applies from the next turn. A Claude Code Chat that has not named
+  validation against `models`. Like the Desktop menu, the sheet shows a choice at once
+  (`agentChatSelectionView` in `packages/protocol`), so a new model's efforts list before the next
+  snapshot arrives, and a failed switch reverts with an error in the sheet that clears once the
+  Chat's choice or the connection changes (`agentChatConfigureScope`). A new Chat can be
+  configured before its first message. During a turn the sheet says the change applies from the
+  next turn. A Claude Code Chat that has not named
   its model yet asks for a model before it lists efforts. A provider without a model list, a
   `view` device, or a stale connection shows the model as plain text; an open sheet stays open with
   its lists disabled and the composer's reason.
