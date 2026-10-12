@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 
 import { useLatestReference } from '@/hooks/use-latest-reference';
 
+import { isImeComposing } from '../../../lib/ime';
 import {
     agentChatApprovalKeyDecision,
     isAgentChatComposerEmpty,
@@ -39,9 +40,18 @@ export function useAgentChatApprovalKeys(
             if (pane.querySelector(`[${CSS.escape(AGENT_CHAT_APPROVAL_ATTRIBUTE)}]`) !== card)
                 return;
             const target = event.target instanceof HTMLElement ? event.target : null;
-            const decision = agentChatApprovalKeyDecision(event, {
-                isComposerEmpty: isAgentChatComposerEmpty(target),
-            });
+            const decision = agentChatApprovalKeyDecision(
+                {
+                    key: event.key,
+                    altKey: event.altKey,
+                    ctrlKey: event.ctrlKey,
+                    isComposing: isImeComposing(event),
+                    metaKey: event.metaKey,
+                    repeat: event.repeat,
+                    shiftKey: event.shiftKey,
+                },
+                { isComposerEmpty: isAgentChatComposerEmpty(target) },
+            );
             if (!decision) return;
             event.preventDefault();
             event.stopPropagation();

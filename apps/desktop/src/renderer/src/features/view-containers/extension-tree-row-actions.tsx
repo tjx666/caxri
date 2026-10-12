@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 import { cn } from '../../lib/utilities';
 import { ExtensionTreeActionIcon } from './extension-tree-item-icon';
 import { extensionTreeActionsHint } from './extension-tree-navigation';
@@ -82,14 +83,16 @@ function TreeItemActionButton({
                 // disabled, and the confirmation modal hands focus back to this button when it closes. A natively
                 // disabled button would drop a keyboard user to the document body on Cancel.
                 aria-disabled={isRunning || undefined}
+                // 24px, the compact control height, inside the 28px row: a smaller target sits so close to the
+                // clickable row that a near miss opens the pull request instead of merging it.
                 className={cn(
                     'focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] focus-visible:outline-none',
                     isLabeled
                         ? cn(
-                              'h-5 min-h-5 gap-1 px-1.5 text-[11px] font-medium enabled:not-aria-disabled:hover:brightness-125',
+                              'h-6 min-h-6 gap-1 px-1.5 text-[11px] font-medium enabled:not-aria-disabled:hover:brightness-125',
                               labeledActionToneClassNames[action.tone ?? 'neutral'],
                           )
-                        : cn('size-5', action.tone && iconActionToneClassNames[action.tone]),
+                        : cn('size-6', action.tone && iconActionToneClassNames[action.tone]),
                     isRevealedOnHover &&
                         'hidden group-focus-within/tree-row:inline-flex group-hover/tree-row:inline-flex aria-busy:inline-flex',
                 )}
@@ -129,7 +132,7 @@ function handleActionGroupKeyDown(
     event: KeyboardEvent<HTMLSpanElement>,
     rowElement: RefObject<HTMLDivElement | null>,
 ): void {
-    if (event.nativeEvent.isComposing) return;
+    if (isImeComposing(event)) return;
     const buttons = actionButtons(event.currentTarget);
     const index = buttons.indexOf(event.target as HTMLButtonElement);
     if (index === -1) return;

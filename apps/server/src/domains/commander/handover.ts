@@ -10,6 +10,8 @@ import type {
     CommanderHandoverRejection,
     CommanderHandoverRequest,
     CommanderHandoverResult,
+    CommanderInputTakeBack,
+    CommanderManagedSessions,
     ProjectRecord,
     SessionRecord,
     TerminalRecord,
@@ -20,6 +22,7 @@ import {
     isTopLevelProject,
     logEventCatalog,
     MAX_COMMANDER_CONVERSATIONS,
+    MAX_COMMANDER_INPUT_TAKE_BACKS,
     MAX_COMMANDER_TASKS,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -144,6 +147,12 @@ export class CommanderHandoverService {
      * finishes. In memory only; `requeue` rebuilds the notices for a relaunched Commander.
      */
     private readonly awaitingReady = new Map<string, CommanderHandover>();
+    /**
+     * Recent take-backs caused by typing, oldest first, for the Workbench's notice; see
+     * `commanderManagedSessionsSchema` for why they are read rather than pushed. Memory only, bounded by
+     * `MAX_COMMANDER_INPUT_TAKE_BACKS`.
+     */
+    private inputTakeBacks: CommanderInputTakeBack[] = [];
 
     constructor(private readonly options: CommanderHandoverServiceOptions) {
         this.now = options.now ?? Date.now;
@@ -312,8 +321,12 @@ export class CommanderHandoverService {
         };
     }
 
-    managedSessions(): { sessionIds: string[] } {
-        return { sessionIds: [...(this.options.database.agentCommanderRows()?.sessionIds ?? [])] };
+    managedSessions(): CommanderManagedSessions {
+        return {
+            sessionIds: [...(this.options.database.agentCommanderRows()?.sessionIds ?? [])],
+            inputTakeBackSessionIds: [...new Set(this.targets.values())],
+            inputTakeBacks: [...this.inputTakeBacks],
+        };
     }
 
     /**
@@ -469,6 +482,12 @@ export class CommanderHandoverService {
         if (task?.status === 'pending')
             database.commanderTasks.update(task.id, { status: 'dropped' }, this.now());
         this.refreshTargets();
+        if (reason === 'human_input') {
+            this.inputTakeBacks = [
+                ...this.inputTakeBacks,
+                { id: randomUUID(), sessionId, at: this.now() },
+            ].slice(-MAX_COMMANDER_INPUT_TAKE_BACKS);
+        }
         this.options.logger?.write('info', logEventCatalog.agentCommander.sessionTakenBack, {
             fields: {
                 sessionId,

@@ -6,6 +6,7 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 
 export interface RuleListFormProperties {
     /**
@@ -114,7 +115,7 @@ export function RuleListForm({
                         setError(undefined);
                     }}
                     onKeyDown={(event) => {
-                        if (event.key !== 'Enter') return;
+                        if (isImeComposing(event) || event.key !== 'Enter') return;
                         event.preventDefault();
                         add();
                     }}

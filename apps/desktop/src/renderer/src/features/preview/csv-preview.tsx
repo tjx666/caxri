@@ -106,7 +106,10 @@ function TableWarnings({
             role="status"
         >
             <TriangleAlert aria-hidden="true" className="flex-none" size={13} />
-            <span className="min-w-0 flex-1 truncate">{messages.join(' ')}</span>
+            {/* The bar truncates to one line; the tooltip carries the whole reason (`role="status"` already reads it in full). */}
+            <Tooltip content={messages.join(' ')}>
+                <span className="min-w-0 flex-1 truncate">{messages.join(' ')}</span>
+            </Tooltip>
             <Button
                 className="flex-none"
                 size="sm"

@@ -124,6 +124,12 @@ export const desktop = {
     'desktop.unsaved.detail': "Your changes will be lost if you don't save them.",
     'desktop.unsaved.save': 'Save',
     'desktop.unsaved.dontSave': "Don't Save",
+    'desktop.unsaved.saveAll': 'Save All',
+    'desktop.unsaved.quitOne': "Save changes to '{{name}}' before quitting?",
+    'desktop.unsaved.quitOther': 'Save changes to {{count}} files before quitting?',
+    'desktop.unsaved.closeOne': "Save changes to '{{name}}' before closing the window?",
+    'desktop.unsaved.closeOther': 'Save changes to {{count}} files before closing the window?',
+    'desktop.unsaved.more': 'and {{count}} more',
 
     'desktop.revertFiles.title': 'Revert File Changes',
     'desktop.revertFiles.messageOne': 'Revert the files {{provider}} changed in this turn?',
@@ -183,6 +189,11 @@ export const desktop = {
     'desktop.externalFile.detail':
         '{{path}}\n\nThis file is outside every added Project. Caxri opens it in the editor without adding a Project, and saving writes back to this file. Trusting the folder skips this prompt for files under {{folder}}.',
     'desktop.externalFile.trustFolder': 'Trust Folder and Open',
+    'desktop.themeImport.title': 'Import Theme',
+    'desktop.themeImport.themeFiles': 'Theme Files',
+    'desktop.fileFilter.allFiles': 'All Files',
+    'desktop.diagnosticsExport.title': 'Export Diagnostics',
+    'desktop.diagnosticsExport.zipArchive': 'ZIP Archive',
     'desktop.chooseProjectFolder': 'Choose a Project folder',
 
     'desktop.fallback.thisProject': 'this Project',

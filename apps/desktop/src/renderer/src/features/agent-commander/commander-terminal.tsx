@@ -40,9 +40,7 @@ export function CommanderTerminal({
                 role="alert"
                 className="commander-terminal-status flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-muted"
             >
-                <span className="text-foreground">
-                    {t('agentCommander.terminal.couldNotStart')}
-                </span>
+                <span className="text-danger">{t('agentCommander.terminal.couldNotStart')}</span>
                 <span className="max-w-[460px] text-xs">{status.message}</span>
                 <Button size="sm" variant="secondary" onClick={onRetry}>
                     {t('common.retry')}

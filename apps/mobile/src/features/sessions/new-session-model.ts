@@ -2,6 +2,7 @@ import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
 import { canUseAgentChat } from '@caxri/protocol';
 
 import type { MobileConnectionStatus } from '../connection/connection-state';
+import type { MobileWriteFailure } from '../connection/mobile-write-failure';
 
 export interface NewSessionProject {
     displayTitle: string;
@@ -192,9 +193,46 @@ export const newSessionAgentReason = ({
     isError: boolean;
     isLoading: boolean;
 }): string | undefined => {
-    if (isError) return 'Availability unavailable.';
+    if (isError) return 'Availability unknown.';
     if (!agent && !isConnected) return 'Reconnect to check availability.';
     if (isLoading) return 'Checking availability…';
     if (agent?.available) return undefined;
     return agent?.reason ?? 'Not available on this computer.';
+};
+
+/**
+ * Plain wording for a Session create the Server explicitly refused, by error code. The Server's own message is
+ * diagnostic text written for logs, so it never reaches this screen.
+ */
+const NEW_SESSION_REJECTION_MESSAGES: Readonly<Record<string, string>> = {
+    CAPACITY: 'Caxri is busy right now. Try again in a moment.',
+    CONFLICT: 'Something changed on your computer while this Session was being created. Try again.',
+    FORBIDDEN: 'This device no longer has permission to create Sessions in this Project.',
+    NOT_FOUND: 'This Project is no longer available on your computer. Pick another Project.',
+    VALIDATION: "Caxri couldn't start this Agent in this Project. Pick another Agent or Project.",
+};
+
+/**
+ * The create state after `mobile.session.create` failed, from {@link MobileWriteFailure}: an explicit refusal or no
+ * connection can be retried at once, while any other failure may already have created the Session.
+ */
+export const newSessionCreateFailure = (failure: MobileWriteFailure): NewSessionCreateState => {
+    switch (failure.kind) {
+        case 'rejected':
+            return {
+                kind: 'failed',
+                message:
+                    NEW_SESSION_REJECTION_MESSAGES[failure.code] ??
+                    "Caxri couldn't create the Session. Try again.",
+            };
+        case 'offline':
+            return { kind: 'failed', message: 'Reconnect to Caxri before creating a Session.' };
+        case 'unknown':
+            return {
+                kind: 'uncertain',
+                checkedSessions: false,
+                message:
+                    'Caxri did not confirm whether the Session was created. Check Sessions before trying again.',
+            };
+    }
 };

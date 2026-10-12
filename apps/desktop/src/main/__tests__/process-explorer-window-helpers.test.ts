@@ -24,6 +24,14 @@ describe('Process Explorer window helpers', () => {
         ).toBe('http://localhost:5173/process-explorer.html?caxri-test-render-error=1');
         expect(
             resolveProcessExplorerRendererUrl({
+                currentDirectory: '/project/out/main',
+                isPackaged: false,
+                locale: 'zh-CN',
+                rendererUrl: 'http://localhost:5173',
+            }),
+        ).toBe('http://localhost:5173/process-explorer.html?caxri-locale=zh-CN');
+        expect(
+            resolveProcessExplorerRendererUrl({
                 currentDirectory: '/Applications/Caxri.app/Contents/Resources/app.asar/out/main',
                 isPackaged: true,
                 rendererUrl: 'http://localhost:5173',

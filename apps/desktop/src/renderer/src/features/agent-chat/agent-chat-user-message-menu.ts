@@ -24,6 +24,10 @@ export interface AgentChatUserMessageMenuInput {
      * True while a fork this message started is still opening, so the menu cannot start a second one.
      */
     isForking: boolean;
+    /**
+     * True while a Restore Code to Here this message started is still running, so the menu cannot start a second one.
+     */
+    isRestoring: boolean;
     onCopy: (text: string) => void;
     onEdit: () => void;
     onFork: () => void;
@@ -72,6 +76,7 @@ export function agentChatUserMessageMenu(input: AgentChatUserMessageMenuInput): 
             translate('agentChat.userMenu.restoreCodeToHere'),
             input.restore,
             input.onRestore,
+            input.isRestoring ? translate('agentChat.undo.restoringCode') : undefined,
         ),
     ];
 }

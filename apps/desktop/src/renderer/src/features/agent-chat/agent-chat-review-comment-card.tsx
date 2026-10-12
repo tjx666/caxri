@@ -2,8 +2,10 @@ import type { ReviewCommentText } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
+import { Tooltip } from '../../components/ui/tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 
 /**
  * `Old L4` or `New L2–5`, the Git diff review card's heading for the lines a comment cites. The side word is translated
@@ -22,7 +24,10 @@ const CARD_CLASS_NAME =
 
 /**
  * Writing a comment on a turn's diff, with the Git diff review card's keys: Cmd+Enter adds it to the Chat's message and
- * Escape cancels. Nothing is sent; the comment waits in the composer with the rest of the message.
+ * Escape cancels. Escape in a card that holds text clears the text first, so one stray key cannot throw away a written
+ * comment; a second Escape cancels. Nothing is sent; the comment waits in the composer with the rest of the message.
+ * Add to Chat stays focusable while there is nothing to add (`aria-disabled`), so its tooltip still names the
+ * shortcut.
  */
 export function AgentChatReviewCommentCard({
     lineCount,
@@ -60,13 +65,15 @@ export function AgentChatReviewCommentCard({
                 value={text}
                 onChange={(event) => onChange(event.target.value)}
                 onKeyDown={(event) => {
+                    if (isImeComposing(event)) return;
                     if (event.key === 'Enter' && event.metaKey) {
                         event.preventDefault();
                         add();
                     }
                     if (event.key === 'Escape') {
                         event.preventDefault();
-                        onCancel();
+                        if (text === '') onCancel();
+                        else onChange('');
                     }
                 }}
             />
@@ -74,9 +81,11 @@ export function AgentChatReviewCommentCard({
                 <Button size="sm" variant="ghost" onClick={onCancel}>
                     {t('common.cancel')}
                 </Button>
-                <Button disabled={!text.trim()} size="sm" onClick={add}>
-                    {t('agentChat.review.addToChat')}
-                </Button>
+                <Tooltip content={t('agentChat.review.addToChat')} shortcut="cmd+enter">
+                    <Button aria-disabled={!text.trim() || undefined} size="sm" onClick={add}>
+                        {t('agentChat.review.addToChat')}
+                    </Button>
+                </Tooltip>
             </div>
         </div>
     );

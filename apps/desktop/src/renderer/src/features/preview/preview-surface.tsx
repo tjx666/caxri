@@ -2,7 +2,11 @@ import type { ReactNode } from 'react';
 import { lazy, Suspense, useCallback } from 'react';
 
 import type { FilePreviewTab } from '@caxri/protocol';
-import { isExternalEditorTabPath, parseExternalEditorTab } from '@caxri/protocol';
+import {
+    isExternalEditorTabPath,
+    isVirtualEditorTabPath,
+    parseExternalEditorTab,
+} from '@caxri/protocol';
 import type { EditorDocument } from '@desktop-shared/editor-state';
 
 import { executeCommand } from '../../commands/execute';
@@ -19,6 +23,7 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { ImagePreview } from './image-preview';
 import { MarkdownPreview } from './markdown-preview';
 import { MermaidPreview } from './mermaid-preview';
+import { PreviewEmptyState } from './preview-empty-state';
 import { PREVIEW_LOADING_LABEL_KEY, previewerForPath } from './preview-registry';
 import { previewViewStateKey } from './preview-view-state';
 
@@ -35,9 +40,6 @@ const PdfPreview = lazy(async () => {
     const module = await import('./pdf-preview');
     return { default: module.PdfPreview };
 });
-
-const emptyWorkClassName =
-    'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
 
 /**
  * Reads the source of a text-backed preview through the Session document cache, then hands the document to `children`.
@@ -105,7 +107,14 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
     const theme = useTheme();
     if (!session || !project || !theme) return null;
     const previewer = previewerForPath(tab.path);
-    if (!previewer) return <div className={emptyWorkClassName}>{t('preview.unavailable')}</div>;
+    /**
+     * A Project file reaches its source and Finder; an external or virtual document has no file either action can open.
+     */
+    const projectFilePath = isVirtualEditorTabPath(tab.path) ? undefined : tab.path;
+    if (!previewer)
+        return (
+            <PreviewEmptyState title={t('preview.unavailable')} path={projectFilePath} showReveal />
+        );
     const viewStateKey = previewViewStateKey(session.id, paneId, tab.path);
     const textSurface = (render: (document: EditorDocument) => ReactNode) => (
         <TextPreviewSurface
@@ -161,7 +170,11 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
         }
         case 'mermaid': {
             return textSurface((document) => (
-                <MermaidPreview source={document.content} theme={theme} />
+                <MermaidPreview
+                    source={document.content}
+                    sourcePath={projectFilePath}
+                    theme={theme}
+                />
             ));
         }
         case 'table': {

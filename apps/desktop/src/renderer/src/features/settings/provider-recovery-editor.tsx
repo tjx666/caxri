@@ -11,6 +11,7 @@ import { FieldDescription, FieldLabel } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 import { parseRecoveryDelay, parseRecoveryPatterns } from './provider-recovery-values';
 
 interface ProviderRecoveryEditorProperties {
@@ -92,7 +93,8 @@ function RecoveryDelayInput({
                         setDraftState({ canonical, value: event.target.value });
                     }}
                     onKeyDown={(event) => {
-                        if (event.key === 'Enter') event.currentTarget.blur();
+                        if (event.key === 'Enter' && !isImeComposing(event))
+                            event.currentTarget.blur();
                     }}
                 />
                 <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-muted">

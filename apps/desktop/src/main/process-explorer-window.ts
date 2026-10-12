@@ -16,6 +16,7 @@ import {
     trackAuxiliaryWindowBounds,
 } from './auxiliary-window';
 import { AuxiliaryWindowBoundsMemory } from './auxiliary-window-bounds';
+import { mainLocale } from './locale';
 import type { ProcessExplorerSampler } from './process-explorer';
 import {
     assertTrustedProcessExplorerSender,
@@ -197,7 +198,10 @@ export class ProcessExplorerWindowController {
             },
             events: logEventCatalog.processExplorer,
             logger: this.options.logger,
-            rendererUrl: resolveProcessExplorerRendererUrl(this.options),
+            rendererUrl: resolveProcessExplorerRendererUrl({
+                ...this.options,
+                locale: mainLocale(),
+            }),
             showOnReady: this.options.windowMode === 'visible',
         });
         this.window = window;

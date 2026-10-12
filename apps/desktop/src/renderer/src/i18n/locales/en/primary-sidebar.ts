@@ -151,7 +151,7 @@ export const primarySidebar = {
         'Detached. The Agent was stopped so another client can resume it.',
     'primarySidebar.activity.suspended.label': 'Suspended',
     'primarySidebar.activity.suspended.description':
-        'Paused in the background to save memory, and resumes when you open this Session. Automatic suspension is set in Settings > Agents.',
+        'Suspended in the background to save memory, and resumes when you open this Session. Automatic suspension is set in {{settingsPath}}.',
     'primarySidebar.activity.noAgent.label': 'No Agent',
     'primarySidebar.activity.noAgent.description': 'This Session has no Agent.',
 

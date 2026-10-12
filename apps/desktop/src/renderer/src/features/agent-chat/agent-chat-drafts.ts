@@ -236,11 +236,12 @@ export function attachmentsAfterSend(
 
 /**
  * The composer draft after a message comes back to it (Edit on a queued message, or a send that failed): the message
- * alone when the composer is empty, otherwise the message ahead of what the user had typed, so neither is lost.
+ * alone when the composer is empty, otherwise the message ahead of what the user had typed, a blank line apart so the
+ * two still read as separate paragraphs and neither is lost.
  */
 export function draftWithReturnedMessage(current: string, returned: string): string {
     if (!current.trim()) return returned;
-    return `${returned}\n${current}`;
+    return `${returned}\n\n${current}`;
 }
 
 /**
