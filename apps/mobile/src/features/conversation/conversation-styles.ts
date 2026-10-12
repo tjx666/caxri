@@ -29,6 +29,11 @@ export const conversationStyles = StyleSheet.create({
         width: 26,
     },
     toolLabel: { flexShrink: 0, fontSize: 13, fontWeight: '500', maxWidth: '45%' },
+    /**
+     * A running row's whole title (verb and subject) as one line under the activity highlight.
+     */
+    toolTitle: { flex: 1, minWidth: 0 },
+    toolLiveLabel: { fontSize: 13, fontWeight: '500' },
     toolSubject: { flex: 1, fontSize: 13, minWidth: 0 },
     toolChipSlot: { alignItems: 'flex-start', flex: 1, minWidth: 0 },
     toolChip: {

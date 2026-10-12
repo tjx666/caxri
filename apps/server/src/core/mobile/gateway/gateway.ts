@@ -48,7 +48,7 @@ import {
 } from './admission';
 import { hasMobileAttentionRecipient } from './attention-recipient';
 import type { AuthenticateConnectionDependencies } from './authenticate-connection';
-import { authenticateConnection } from './authenticate-connection';
+import { authenticateConnection, connectionOptions } from './authenticate-connection';
 import { bindMobileGatewayServer } from './bind';
 import type { MobileGatewayFailureReason } from './diagnostics';
 import { MobileGatewayDiagnostics } from './diagnostics';
@@ -139,15 +139,7 @@ export class MobileGateway {
             dispatch: this.#dispatch,
             diagnostics: this.#diagnostics,
             now: this.#now,
-            options: {
-                authorizeMethod: options.authorizePairedDeviceMethod,
-                authorizeSubscription: options.authorizeSubscription,
-                beginConversationSubscription: options.beginConversationSubscription,
-                logger: options.logger,
-                matchesSubscriptionEvent: options.matchesSubscriptionEvent,
-                registry: options.registry,
-                terminalExecution: options.terminalExecution,
-            },
+            options: connectionOptions(options),
             random: this.#random,
             sendSealed: (socket, session, payload, onSent) =>
                 this.#sendSealed(socket, session, payload, onSent),

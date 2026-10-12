@@ -1,7 +1,5 @@
 import type { PaneLayout, TerminalRecord } from '@caxri/protocol';
-import { visiblePaneTerminalIds } from '@caxri/protocol';
-
-import { projectRelativePath } from '../../lib/file-path';
+import { projectRelativePath, visiblePaneTerminalIds } from '@caxri/protocol';
 
 export interface FileReferenceInput {
     /**

@@ -1,7 +1,8 @@
 import type { FileEntry } from '@caxri/protocol';
+import { projectRelativePath } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import { parentDirectoryPath, projectRelativePath } from '../../lib/file-path';
+import { parentDirectoryPath } from '../../lib/file-path';
 
 export interface EditorBreadcrumbSegment {
     kind: 'directory' | 'file';

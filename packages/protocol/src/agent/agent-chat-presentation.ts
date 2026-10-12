@@ -1,4 +1,11 @@
-import type { AgentChatFailureReason } from './agent-chat-contract.js';
+import { agentChatWaitingText } from './agent-chat-approval.js';
+import type {
+    AgentChatFailureReason,
+    AgentChatItem,
+    AgentChatItemStatus,
+    AgentChatPlan,
+    AgentChatSnapshot,
+} from './agent-chat-contract.js';
 import type { AgentChatRequest } from './agent-chat-requests.js';
 
 /**
@@ -138,4 +145,196 @@ export function agentChatQuestionAnswers(
         answers,
         isComplete: request.questions.every((question) => Object.hasOwn(answers, question.id)),
     };
+}
+
+/**
+ * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
+ * in it, as Claude Code's spinner does; the words stay calm and never claim a specific step.
+ */
+const WORKING_VERBS = [
+    'Pondering',
+    'Tinkering',
+    'Mulling it over',
+    'Connecting the dots',
+    'Untangling',
+    'Sketching',
+    'Percolating',
+    'Rummaging',
+    'Piecing it together',
+    'Noodling',
+    'Brewing',
+    'Weighing options',
+    'Tracing',
+    'Sleuthing',
+    'Distilling',
+    'Simmering',
+    'Calibrating',
+    'Whittling',
+    'Wrangling',
+    'Conjuring',
+    'Exploring',
+    'Cross-checking',
+    'Lining things up',
+    'Spelunking',
+] as const;
+
+/**
+ * One verb per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
+ */
+export function agentChatWorkingVerb(turnId: string): string {
+    let hash = 0;
+    for (const character of turnId) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) >>> 0;
+    return WORKING_VERBS[hash % WORKING_VERBS.length] ?? 'Working';
+}
+
+export type AgentChatActivity =
+    | { kind: 'starting'; text: string }
+    | { kind: 'working'; text: string; startedAt: number | undefined }
+    | { kind: 'compacting'; text: string; isStoppable: boolean }
+    | { kind: 'waiting'; text: string };
+
+/**
+ * What the Chat is doing right now, for the status line on the composer. A pending request means the turn is blocked on
+ * the user, not working, so it says so instead of animating, and says whether it waits on an approval or an answer.
+ * Compacting the context names itself instead of a playful verb, so a `/compact` the user asked for visibly runs; it
+ * can happen inside a turn (automatic compaction), which Esc still stops. Before the projection is first read, a Chat
+ * that already has a conversation is loading it, not starting its Agent, so it says so (`hasConversation` is whether
+ * the Terminal is bound to an Agent Session).
+ */
+export function agentChatActivity(
+    snapshot:
+        | Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'operation' | 'requests' | 'turns'>
+        | undefined,
+    providerName: string,
+    { hasConversation = false }: { hasConversation?: boolean } = {},
+): AgentChatActivity | undefined {
+    if (!snapshot && hasConversation) return { kind: 'starting', text: 'Loading conversation…' };
+    if (!snapshot || snapshot.status === 'starting')
+        return { kind: 'starting', text: `Starting ${providerName}…` };
+    const turnId = snapshot.activeTurnId;
+    if (turnId && snapshot.requests.length > 0)
+        return { kind: 'waiting', text: agentChatWaitingText(snapshot.requests) };
+    if (snapshot.operation === 'compacting')
+        return { kind: 'compacting', text: 'Compacting context…', isStoppable: Boolean(turnId) };
+    if (!turnId) return undefined;
+    return {
+        kind: 'working',
+        text: `${agentChatWorkingVerb(turnId)}…`,
+        startedAt: snapshot.turns.find((turn) => turn.id === turnId)?.startedAt,
+    };
+}
+
+export interface AgentChatPlanProgress {
+    completed: number;
+    total: number;
+    /**
+     * The step the Agent is on: the one in progress, else the first still pending; absent once every step is done.
+     */
+    current: string | undefined;
+}
+
+/**
+ * How far the Agent is through its plan, for the collapsed plan row above the composer.
+ */
+export function agentChatPlanProgress(plan: Pick<AgentChatPlan, 'steps'>): AgentChatPlanProgress {
+    const current =
+        plan.steps.find((step) => step.status === 'inProgress') ??
+        plan.steps.find((step) => step.status === 'pending');
+    return {
+        completed: plan.steps.filter((step) => step.status === 'completed').length,
+        total: plan.steps.length,
+        current: current?.step,
+    };
+}
+
+/**
+ * The plan docked above the composer, on Desktop and the phone alike: the latest plan stays docked after its turn ends
+ * (the Server clears it when the next turn starts), and its in-progress step spins only while a turn is running.
+ */
+export function agentChatDockedPlan(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'plan'> | undefined,
+): { plan: AgentChatPlan; isTurnRunning: boolean } | undefined {
+    if (!snapshot?.plan) return undefined;
+    return { plan: snapshot.plan, isTurnRunning: Boolean(snapshot.activeTurnId) };
+}
+
+export type AgentChatStatusTone = 'danger' | 'muted' | 'running' | 'success' | 'warning';
+
+export function agentChatItemStatusTone(status: AgentChatItemStatus): AgentChatStatusTone {
+    switch (status) {
+        case 'running': {
+            return 'running';
+        }
+        case 'completed': {
+            return 'success';
+        }
+        case 'failed': {
+            return 'danger';
+        }
+        case 'declined':
+        case 'interrupted': {
+            return 'warning';
+        }
+    }
+}
+
+export function agentChatItemStatusLabel(status: AgentChatItemStatus): string {
+    switch (status) {
+        case 'running': {
+            return 'Running';
+        }
+        case 'completed': {
+            return 'Completed';
+        }
+        case 'failed': {
+            return 'Failed';
+        }
+        case 'declined': {
+            return 'Declined';
+        }
+        case 'interrupted': {
+            return 'Interrupted';
+        }
+    }
+}
+
+export function agentChatNoticeMessage(item: Extract<AgentChatItem, { type: 'notice' }>): string {
+    switch (item.kind) {
+        case 'compacted': {
+            return 'Context compacted';
+        }
+        case 'retrying': {
+            return item.message ? `Retrying: ${item.message}` : 'Retrying';
+        }
+        case 'error': {
+            return item.message ?? 'The Agent reported an error';
+        }
+        case 'answered': {
+            return item.message ? `Answered: ${item.message}` : 'Answered';
+        }
+    }
+}
+
+/**
+ * Whether a timeline item has anything to show, on Desktop and on the phone. An empty or whitespace-only thought
+ * (redacted, or not streamed yet) draws nothing, and so does a reply that ended without words, such as one a stop cut
+ * off after a lone newline: it would render an empty bubble, and on Desktop a Copy action with nothing to copy. A reply
+ * still streaming stays, because its first words are on the way. An image-only user message keeps its place, since its
+ * images draw above the bubble.
+ */
+export function isAgentChatItemVisible(item: AgentChatItem): boolean {
+    switch (item.type) {
+        case 'reasoning': {
+            return item.text.trim() !== '';
+        }
+        case 'agentMessage': {
+            return item.streaming || item.text.trim() !== '';
+        }
+        case 'userMessage': {
+            return item.text !== '' || (item.images?.length ?? 0) > 0;
+        }
+        default: {
+            return true;
+        }
+    }
 }

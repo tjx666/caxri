@@ -233,11 +233,33 @@ parses provider files.
 - Agent replies: full-width Markdown, rendered natively. Code blocks scroll horizontally and never
   wrap; inline code uses the monospace face.
 - Tool calls: one row each: icon, verb, and a one-line summary (`Ran npm test`, `Edited
-src/auth.ts`), plus duration when known. Consecutive tool calls collapse into one group row (`Ran 4
-commands · 12s`). Tapping expands the group; tapping a row opens its bounded detail.
+src/auth.ts`), plus duration once it reaches a second; a sub-second duration is never shown, on a
+  row, a group, or a turn. Consecutive settled tool calls collapse into one group row (`Ran 4
+commands · 12s`); a failed member puts a failure glyph on the group. Tapping expands the group;
+  tapping a row opens its bounded detail. A tool still running stays out of the group as its own
+  row: it keeps its glyph (no spinner) and reads as one line, the present-tense verb and subject
+  (`Running pnpm test`), under a highlight that sweeps across it every 2.2 s, Desktop's
+  `.activity-shimmer`. Reduced motion leaves the line static.
 - Tool detail opens in a bottom sheet capped at 65% of the screen height. Its title and `Close` stay
   in place while long output scrolls inside the sheet (`MOB-MOTION-03`).
-- Thinking is hidden. A turn divider shows the turn's duration.
+- A terminal Agent's thinking is hidden. A turn divider shows the turn's duration (`Worked for 2m
+1s`, or `Worked` under a second).
+- A Chat draws Desktop's Chat timeline in the same list. Reasoning is a `Thinking` row while it
+  streams and a `Thought` row after, titled by its latest bold heading; its detail is the text.
+  Work rows follow Desktop's: a change shows `+N -M`, a command shows a `Background` tag and a
+  non-zero `Exit N`, and a step that failed, was declined, or was interrupted shows its own glyph.
+  A command's detail is titled by the Agent's description when there is one and shows the command
+  highlighted as shell, then its output highlighted by what printed it (a diff, JSON, or a file's
+  language) in a box capped at 320dp that scrolls, `Exit code N`, and the background note. A
+  change's detail lists each file with its colored status letter, `+N -M`, and a diff that scrolls
+  sideways. A finished turn ends under its final reply with what it left behind: an `Edited
+<file>` or `Edited N files` card that expands to every file's diff, and a card for each pull
+  request, issue, or acceptance report the Agent filed that opens it in the browser. Then a footer
+  says `Worked for X`, `Failed after X` (danger), or `Stopped after X` (warning). The Agent's plan
+  is a one-row card above the composer (`Plan`, the current step, a segment per step, `2/5`) that
+  expands to its steps. The line above the composer says what the Chat is doing with Desktop's
+  words under the same sweep (`Pondering…`, `Compacting context…`) and, after a second, how long
+  the turn has run; waiting on the user shows a still question glyph in the warning color instead.
 - Content the Agent's harness injects as a user turn (background task notifications, slash-command
   echoes, local command output) renders as a compact event row: status icon and a short title,
   expandable detail, never as the user's own bubble. Reminder-only turns are hidden.
@@ -341,6 +363,9 @@ message.` The user sends it; nothing is sent automatically.
 - Agent comes first so it is visible without scrolling however many Projects exist.
 - Only granted Projects are listed, most recently used first. Unavailable Agents are shown disabled
   with a short reason.
+- The Project starts on the Session list's selected Project chip, or the most recently used Project
+  under `All`; a Project picked here wins until another chip is chosen. When the new Session lands in
+  a Project other than the selected chip, the chip moves to that Project so the list shows it.
 - `Open as` picks the new Agent's surface. It defaults to the computer's `Open Agents in Chat`
   setting, a pick here applies only to this screen and never writes that setting, and it is hidden
   for Shell, which always opens in a Terminal. A Chat streams its reply as it is written; a Terminal

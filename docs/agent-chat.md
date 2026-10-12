@@ -534,7 +534,9 @@ Claude Code asks through the SDK's `canUseTool` callback, keyed by the tool use 
 `question` (answers are returned keyed by question text), and any other tool the generic `tool`
 request (`Allow WebFetch?` with its URL or arguments). "Accept for this Chat" is offered only when
 Claude Code suggests a session rule and applies those suggestions; decline denies the tool and
-marks its row declined.
+marks its row declined. The transcript records a decline only as the error result `The user
+declined this action.`, so a replayed history (`claude-history.ts`) reads that exact result as
+declined too, and the row looks the same after Server Core restarts.
 
 Grok Build asks through `session/request_permission`, keyed by the tool call id; its permission
 options (`allow_once`, `allow_always`, `reject_once`, `reject_always`) set the offered decisions,
@@ -596,7 +598,12 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
 - Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),
   each with the tool kind's glyph from the provider tool table shared with mobile
   (`packages/protocol/src/agent/agent-tool-presentation.ts`). Codex's login-shell wrapper
-  (`/bin/zsh -lc "..."`) is unwrapped so a row shows the script that ran. A command the Agent
+  (`/bin/zsh -lc "..."`) is unwrapped so a row shows the script that ran. A tool no table maps is
+  titled by a readable input field (`SendMessage to researcher: Check the tests`), or `key: value`
+  of its first scalar field, never its raw JSON input; the item's `input` keeps that JSON preview
+  for the expanded row (`agentChatToolCallArguments`), and an approval card always shows the JSON
+  arguments, since that is what the user decides on. MCP calls keep JSON arguments in `summary` for
+  tracker detection. A command the Agent
   described (Claude Code's `Bash` description) is titled by that description, and its command line
   moves into the expanded view. A row shows its duration once it reaches a second, a non-zero `Exit N`, and a
   `Background` tag for a hand-off; the expanded view ends with its exit code. Codex reports no
@@ -608,8 +615,11 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   summary part with (`Thinking Planning the fix`). Expanded command and tool output is
   painted in the language inferred from what produced it: the extension of a file a `cat`/`sed`/
   `head` printed or a Read tool returned (with Claude Code's line-number gutter removed), `diff` for
-  `git diff`/`git show`, or JSON; anything else stays plain text. Grouping and inference live in
-  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`.
+  `git diff`/`git show`, or JSON; anything else stays plain text. Timeline folding lives in
+  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`; the work row and
+  summary wording, turn labels, and output-language inference every client shares live in
+  `packages/protocol/src/agent/agent-chat-work.ts` and `agent-chat-work-output.ts`. Every surface
+  hides a sub-second duration through `formatNoticeableDuration`.
 - Replies render Markdown through the shared `@caxri/markdown` block tree
   ([`components/markdown/`](../apps/desktop/src/renderer/src/components/markdown/markdown-blocks.tsx)):
   leveled headings, nested and task lists, quotes, tables with Copy table (Markdown plus HTML), and
@@ -696,7 +706,7 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   an approval card, so a wide change does not push the decision buttons away. A path opens the file
   in the Editor when it exists at that point: an applied change keeps added files, a pending or
   declined one keeps deleted files.
-  Parsing and counting live in `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-diff.ts`.
+  Parsing and counting live in `packages/protocol/src/agent/agent-chat-diff.ts`, shared with mobile.
 - A finished turn ends with what it left behind, between its final reply and Copy (or alone when
   the turn stopped before replying), so the result survives the `Worked for X` fold. The files its
   completed changes touched merge into one card: `Edited <file>`, `Created <file>`, or
@@ -714,9 +724,10 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   the Project cannot be undone. Pull requests and issues the turn created or edited follow as
   cards opening the page, each with a trailing external arrow: a completed `gh pr|issue create|edit` whose output printed the URL, a
   `gh api` POST to `repos/o/r/pulls|issues` or PATCH to `repos/o/r/pulls|issues/N` (how an Agent
-  rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. Collection lives in `agent-chat-turn-artifacts.ts`
-  and `agent-chat-trackers.ts`, Undo in `agent-chat-undo.ts`. Desktop only; the phone shows the
-  plain timeline.
+  rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. Collection lives in
+  `packages/protocol/src/agent/agent-chat-turn-artifacts.ts` and `agent-chat-trackers.ts`, Undo in the
+  Desktop `agent-chat-undo.ts`. The phone shows the same cards without Undo and Review; see
+  [Mobile](#mobile).
 - Review on that card opens the turn as one diff in a `Turn changes` tab beside the Chat, in the
   side pane task tabs use (`caxri-agent-turn-review://<terminal>/<turn>`). It lists the same files
   the card does, each with its Git status letter, Project-relative path, `+A -D`, and every edit
@@ -754,6 +765,32 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   content-free `agentChat.changed`, and the phone re-reads. The phone folds patches with the
   shared `applyAgentChatPatch`, holds those that arrive during a read, and re-reads on any break in
   the revision chain.
+- The phone renders the timeline with the shared presentation rules in `packages/protocol`, so
+  its words match Desktop's: `splitAgentChatWork` keeps running work out of summaries as live
+  rows (the present-tense verb and subject under a 2.2 s highlight sweep, the glyph kept, no
+  spinner), `summarizeAgentChatWork` names a settled group, `agentChatWorkDuration` drops a
+  duration under a second, and `agentChatReasoningTitle` titles a thought. Failed, declined, and
+  interrupted steps each keep their own glyph (`agentChatItemStatusLabel`). A command's detail
+  shows its description as the title, the command highlighted as shell, its output highlighted by
+  `agentChatOutputLanguage` (with Claude Code's line-number gutter dropped from a read), a non-zero
+  `Exit code N`, and the background note; a file change shows each file's line counts with zero
+  halves hidden (`visibleDiffStatParts`) and its diff (`agentChatDiffLines`). A paired device is
+  never told a Project's root, so the Server names changed files the way Desktop does before they
+  leave it: the read and every subscription patch pass the Session's root
+  (`mobile.session.projectRootInternal`) to the mobile projection, which makes paths inside the
+  Project relative and leaves a path outside it absolute (`projectDisplayPath`). A finished turn ends under its final reply with its artifacts
+  (`collectAgentChatTurnArtifacts`): the edited-files card, which expands to every file's diff but
+  offers no Undo or Review, since the phone neither writes the files back nor opens a side tab, and
+  a card per pull request, issue, or acceptance report that opens the page in the browser. A
+  `Worked for X`, `Failed after X`, or `Stopped after X` footer follows (`agentChatTurnLabel`);
+  the phone does not fold the turn behind it. The window keeps `plan`, so the phone docks Desktop's
+  one-row plan card above its composer by the same rule (`agentChatDockedPlan`: the latest plan
+  stays until the next turn starts, its step spinning only during a turn), and the line above the composer reads `agentChatActivity`:
+  the turn's verb, the elapsed time after a second, `Compacting context…`, or what the turn waits
+  on. The elapsed time compares the computer's `startedAt` with the phone's clock. Code lives in
+  `apps/mobile/src/features/agent-chat/agent-chat-timeline.ts` and its renderers; the generic row,
+  group, sheet, and list primitives stay in `features/conversation`, shared with a terminal
+  Agent's Conversation.
 - The composer shows the model and effort the next turn uses, with the same names as the Desktop
   model menu (`agentChatModelLabel` in `packages/protocol`). Tapping it opens a sheet with the
   `Model` and `Reasoning effort` lists; a choice applies on tap through
@@ -763,7 +800,7 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   its model yet asks for a model before it lists efforts. A provider without a model list, a
   `view` device, or a stale connection shows the model as plain text; an open sheet stays open with
   its lists disabled and the composer's reason.
-- Roles: `view` reads; `reply` also sends, switches the model and effort, and retries a failed Chat; `control` also answers
+- Roles: `view` reads; `reply` also sends, deletes, steers with, or resumes queued messages, switches the model and effort, and retries a failed Chat; `control` also answers
   approvals and questions and stops a turn. Mutations resolve the Terminal through the device's
   granted Projects, refuse a non-Chat Terminal with `CONFLICT`, and go through Core's mutation
   admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
@@ -790,9 +827,17 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   a turn joins the queue by default, like Desktop's Enter; holding Send on the phone sends
   `delivery: 'steer'`, the stand-in for Cmd+Enter. The snapshot and `state` patches carry the queue
   as a bounded preview (`clipAgentChatQueueForMobile`: the first 10 entries, each text and command
-  argument cut to 200 characters behind `…`) plus `queuePaused`. The phone lists it read-only above
-  its composer under `Queued`; editing, deleting, sending early, and resuming a paused queue stay on
-  Desktop.
+  argument cut to 200 characters behind `…`) plus `queuePaused` and `queueLength`, the real count
+  the header shows when the queue outgrows the preview; each entry keeps its real id. The phone shows it as a card docked above its composer with Desktop's header words (`Queued · sends
+after this turn`, or `Queue paused · sends nothing until you resume` with Resume). Each row offers
+  Steer (`Send now` on an idle Chat; disabled for a command during a turn) and Delete, and a swipe
+  left deletes too; these call `mobile.agentChat.sendQueuedNow`, `mobile.agentChat.removeQueued`,
+  and `mobile.agentChat.resumeQueue`, which forward the matching `agentChat.*` method after the
+  same Terminal and grant checks as `send`. The row hides at once and returns with an inline error
+  when Core refuses; that error clears once its row or the whole queue is gone. Rows are named by
+  `agentChatQueueEntry`, which Desktop shares. Editing a queued message stays on Desktop, since the phone holds only a
+  preview. While a turn runs the Send button wears the queue glyph and the placeholder reads
+  `Queue a follow-up`.
 
 ## Images and slash commands
 
@@ -1088,5 +1133,5 @@ Claude Code's agent picker (its `initialize` response already lists the agents).
 plan mode, reasoning effort picker, and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
 Chat shows no plan or context usage yet, cannot run slash commands, does not show background tasks,
-shows the follow-up queue read-only, cannot edit or fork from an earlier message, older history beyond the window stays on
+cannot edit a queued message, cannot edit or fork from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

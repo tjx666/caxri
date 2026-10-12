@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useSyncExternalStore } from 'react';
 
+import type { AgentChatWorkItem } from '@caxri/protocol';
+
 import { AgentChatExpansionState, isAgentChatExpanded } from '../agent-chat-expansion';
-import type { AgentChatWorkItem } from '../agent-chat-timeline';
 
 /**
  * A Chat timeline's disclosure state and what a user toggle does to scrolling, provided by the Chat pane (and by a task

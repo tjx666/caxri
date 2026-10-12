@@ -1,48 +1,137 @@
-import type { AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatQueueEntry, AgentChatSnapshot } from '@caxri/protocol';
+import { agentChatQueueEntry } from '@caxri/protocol';
 
-import { imageCountLabel } from '../conversation/conversation-model';
+type AgentChatQueue = NonNullable<AgentChatSnapshot['queue']>;
 
-export interface AgentChatQueueRow {
-    id: string;
+/**
+ * The follow-up queue as the card above the phone's composer, in send order, each row named the way Desktop names it
+ * (`agentChatQueueEntry`). Editing is Desktop-only: the phone holds a bounded preview, not the message. The Server
+ * already cut each message to a preview (`clipAgentChatQueueForMobile`) without changing its id, so every row's actions
+ * reach the real entry. Entries in `pendingIds` are hidden while the phone waits for their delete or steer to land.
+ */
+export const agentChatQueueEntries = (
+    queue: AgentChatQueue | undefined,
+    isTurnRunning: boolean,
+    pendingIds: ReadonlySet<string> = new Set(),
+): AgentChatQueueEntry[] =>
+    (queue ?? [])
+        .filter((message) => !pendingIds.has(message.id))
+        .map((message) => agentChatQueueEntry(message, isTurnRunning));
+
+export interface AgentChatQueueHeader {
+    title: 'Queued' | 'Queue paused';
+    count: number;
     /**
-     * One line naming what will be sent: the message text, the slash command it runs, or its image count.
+     * Desktop's sub-caption: when the queue will send, or `undefined` while nothing holds it back.
      */
-    text: string;
-    /**
-     * The image count chip beside a message that also has text, or `undefined`.
-     */
-    images?: string;
+    detail: 'sends after this turn' | 'sends nothing until you resume' | undefined;
+    isPaused: boolean;
 }
 
 /**
- * The follow-up queue as the read-only list above the phone's composer, in send order. The Server already cut each
- * message to a preview (`clipAgentChatQueueForMobile`); this only picks the words a row shows.
+ * The card's header, worded as Desktop's queue header. A queue paused by Stop sends nothing until it is resumed, so the
+ * header says so beside its Resume action. The count is every waiting message: the `visibleCount` rows plus those past
+ * the phone's preview (`queueLength`). `undefined` when nothing is left to show.
  */
-export const agentChatQueueRows = (
-    snapshot: Pick<AgentChatSnapshot, 'queue'> | undefined,
-): AgentChatQueueRow[] =>
-    (snapshot?.queue ?? []).map((message) => {
-        const images = message.imageCount ? imageCountLabel(message.imageCount) : undefined;
-        if (message.command)
-            return {
-                id: message.id,
-                text: [`/${message.command.name}`, message.command.arguments]
-                    .filter(Boolean)
-                    .join(' '),
-            };
-        const text = message.text.replaceAll(/\s+/gu, ' ').trim();
-        if (text.length === 0) return { id: message.id, text: images ?? '' };
-        return { id: message.id, text, ...(images && { images }) };
-    });
+export const agentChatQueueHeader = (
+    snapshot: Pick<AgentChatSnapshot, 'queue' | 'queueLength' | 'queuePaused'> | undefined,
+    isTurnRunning: boolean,
+    visibleCount: number,
+): AgentChatQueueHeader | undefined => {
+    const previewLength = snapshot?.queue?.length ?? 0;
+    const count =
+        visibleCount + Math.max(0, (snapshot?.queueLength ?? previewLength) - previewLength);
+    if (count === 0) return undefined;
+    if (snapshot?.queuePaused)
+        return {
+            title: 'Queue paused',
+            count,
+            detail: 'sends nothing until you resume',
+            isPaused: true,
+        };
+    return {
+        title: 'Queued',
+        count,
+        detail: isTurnRunning ? 'sends after this turn' : undefined,
+        isPaused: false,
+    };
+};
 
 /**
- * The queue's caption. A queue paused by Stop sends nothing until it is resumed, which the phone cannot do yet, so the
- * caption says where to resume it.
+ * What a failed queue action says, in Desktop's words.
  */
-export const agentChatQueueCaption = (
-    snapshot: Pick<AgentChatSnapshot, 'queue' | 'queuePaused'> | undefined,
-): string | undefined => {
-    const count = snapshot?.queue?.length ?? 0;
-    if (count === 0) return undefined;
-    return snapshot?.queuePaused ? 'Queued, paused. Resume on your computer.' : 'Queued';
+export const AGENT_CHAT_QUEUE_ERRORS = {
+    remove: 'Unable to remove the queued message. Try again.',
+    sendNow: 'Unable to send the queued message. Try again.',
+    resume: 'Unable to resume the queue. Try again.',
+} as const;
+
+/**
+ * Runs one row action optimistically: the row disappears at once, because Delete and Steer both take it out of the
+ * queue, and comes back with an error when the Server refuses. On success it stays hidden until the next snapshot drops
+ * it, so a late patch cannot flash it back.
+ */
+export const didRunOptimisticQueueAction = async ({
+    action,
+    hide,
+    id,
+    perform,
+    reportError,
+    reveal,
+}: {
+    action: 'remove' | 'sendNow';
+    hide: (id: string) => void;
+    id: string;
+    perform: (id: string) => Promise<void>;
+    reportError: (message: string | null) => void;
+    reveal: (id: string) => void;
+}): Promise<boolean> => {
+    reportError(null);
+    hide(id);
+    try {
+        await perform(id);
+        return true;
+    } catch {
+        reveal(id);
+        reportError(AGENT_CHAT_QUEUE_ERRORS[action]);
+        return false;
+    }
+};
+
+/**
+ * The pending ids still worth hiding: an id the snapshot no longer lists has left the queue, so it is forgotten.
+ * Returns the same set when nothing changed, so a state update can bail out.
+ */
+export const prunePendingQueueIds = (
+    pendingIds: ReadonlySet<string>,
+    queue: AgentChatQueue | undefined,
+): ReadonlySet<string> => {
+    const kept = new Set<string>();
+    const entries = queue ?? [];
+    for (const entry of entries) if (pendingIds.has(entry.id)) kept.add(entry.id);
+    return kept.size === pendingIds.size ? pendingIds : kept;
+};
+
+/**
+ * A failed queue action's inline error, with the row it was about. Resume concerns the whole queue, so it names none.
+ */
+export interface AgentChatQueueError {
+    message: string;
+    id?: string;
+}
+
+/**
+ * The error still worth showing against the current queue. Once the queue empties, or the row a Delete or Steer failed
+ * on has left it, the error explains nothing on screen and would otherwise come back with the next queued message.
+ * Returns the same error when it still applies, so a state update can bail out.
+ */
+export const currentQueueError = (
+    error: AgentChatQueueError | null,
+    queue: AgentChatQueue | undefined,
+): AgentChatQueueError | null => {
+    if (!error) return null;
+    const entries = queue ?? [];
+    if (entries.length === 0) return null;
+    if (error.id !== undefined && entries.every((entry) => entry.id !== error.id)) return null;
+    return error;
 };

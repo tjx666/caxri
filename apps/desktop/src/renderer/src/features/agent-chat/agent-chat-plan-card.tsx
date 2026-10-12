@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { AgentChatPlan } from '@caxri/protocol';
+import { agentChatPlanProgress } from '@caxri/protocol';
 import { Check, ChevronDown, Circle, CircleDot, ListTodo } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
@@ -8,7 +9,7 @@ import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
-import { agentChatPlanProgress, withOccurrenceKeys } from './agent-chat-presentation';
+import { withOccurrenceKeys } from './agent-chat-presentation';
 
 /**
  * Past this many steps the progress segments would shrink to slivers, so the row keeps only the count.

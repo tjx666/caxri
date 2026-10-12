@@ -1,10 +1,14 @@
-import type { AgentChatItem, ReviewCommentText } from '@caxri/protocol';
-import { formatReviewComment } from '@caxri/protocol';
-
-import type { AgentChatDiffLine } from './agent-chat-diff';
-import { agentChatDiffLines } from './agent-chat-diff';
-import type { AgentChatEditedFile } from './agent-chat-turn-artifacts';
-import { collectAgentChatEditedFiles } from './agent-chat-turn-artifacts';
+import type {
+    AgentChatDiffLine,
+    AgentChatEditedFile,
+    AgentChatItem,
+    ReviewCommentText,
+} from '@caxri/protocol';
+import {
+    agentChatDiffLines,
+    collectAgentChatEditedFiles,
+    formatReviewComment,
+} from '@caxri/protocol';
 
 /**
  * Where a review comment says it came from, so the Agent can tell it apart from a Git diff review.

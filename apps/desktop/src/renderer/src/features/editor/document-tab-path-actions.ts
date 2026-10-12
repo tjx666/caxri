@@ -4,12 +4,12 @@ import {
     isVirtualEditorTabPath,
     parseExternalEditorTab,
     parseGitDiffTab,
+    projectRelativePath,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import { relativePathRoot } from '../../lib/copy-file-path';
-import { projectRelativePath } from '../../lib/file-path';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 
 type RepoRoot = Pick<GitRepositoryOverview, 'id' | 'rootPath'>;

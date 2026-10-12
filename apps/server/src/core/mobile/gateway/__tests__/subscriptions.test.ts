@@ -111,6 +111,54 @@ describe('MobileGatewaySubscriptions', () => {
         subscriptions.close();
     });
 
+    it('names changed files in Chat patches relative to the Session Project', async () => {
+        const sent: MobileServerPayload[] = [];
+        const agentChatProjectRoot = vi.fn(async () => '/work/demo');
+        const subscriptions = new MobileGatewaySubscriptions({
+            authorize: async () => {},
+            currentPrincipal: () => principal,
+            matches: async () => true,
+            randomId: () => 'chat-subscription',
+            send: async (payload) => {
+                sent.push(payload);
+            },
+            terminate: vi.fn(),
+            connectionId: 'connection-1',
+            agentChatProjectRoot,
+        });
+        const id = await subscriptions.subscribe({ kind: 'agentChat', terminalId: 'terminal-1' });
+        expect(agentChatProjectRoot).toHaveBeenCalledWith(principal, 'terminal-1');
+        subscriptions.activate(id);
+        subscriptions.publish({
+            event: 'agentChat.patch',
+            payload: {
+                terminalId: 'terminal-1',
+                baseRevision: 0,
+                revision: 1,
+                operations: [
+                    {
+                        op: 'upsertItem',
+                        item: {
+                            id: 'change-1',
+                            type: 'fileChange',
+                            status: 'completed',
+                            changes: [
+                                { path: '/work/demo/src/greeting.ts', kind: 'update', diff: '' },
+                            ],
+                        },
+                    },
+                ],
+            },
+        });
+        await vi.waitFor(() => expect(sent).toHaveLength(1));
+        const [event] = sent as Array<Extract<MobileServerPayload, { kind: 'agentChat.patch' }>>;
+        const forwarded = event.patch as { operations: unknown[] };
+        expect(forwarded.operations[0]).toMatchObject({
+            item: { changes: [{ path: 'src/greeting.ts' }] },
+        });
+        subscriptions.close();
+    });
+
     it('asks the phone to re-read when a Chat patch cannot fit one frame', async () => {
         const sent: MobileServerPayload[] = [];
         const subscriptions = new MobileGatewaySubscriptions({

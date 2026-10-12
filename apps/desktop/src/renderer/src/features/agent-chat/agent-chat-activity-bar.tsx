@@ -1,17 +1,15 @@
-import { formatShortDuration } from '@caxri/protocol';
+import type { AgentChatActivity } from '@caxri/protocol';
+import { formatNoticeableDuration } from '@caxri/protocol';
 import { MessageCircleQuestionMark } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import type { AgentChatActivity } from './agent-chat-presentation';
 import { useClockTick } from './hooks/use-clock-tick';
 
 function ElapsedTime({ startedAt }: { startedAt: number }) {
-    const elapsed = useClockTick('second') - startedAt;
-    // Below a second the count would read `<1s` and jump straight to `1s`, which looks like a glitch.
-    if (elapsed < 1000) return null;
-    return <span className="shrink-0 tabular-nums">{formatShortDuration(elapsed)}</span>;
+    const label = formatNoticeableDuration(useClockTick('second') - startedAt);
+    return label ? <span className="shrink-0 tabular-nums">{label}</span> : null;
 }
 
 /**

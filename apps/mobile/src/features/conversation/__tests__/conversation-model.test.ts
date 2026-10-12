@@ -5,7 +5,6 @@ import {
     applyLatestConversationPage,
     applyOlderConversationPage,
     groupConversationItems,
-    imageCountLabel,
     isConversationObservableThroughBlur,
     mergeLatestConversationItems,
     prependConversationPage,
@@ -99,6 +98,24 @@ describe('Conversation projection', () => {
             'tool-3',
         ]);
         expect(entries[1]).toMatchObject({ summary: 'Ran 2 commands', durationMs: 2_000 });
+    });
+
+    it('keeps a running tool out of the group as its own row after it', () => {
+        const running: AgentTimelineItem = {
+            id: 'tool-2',
+            type: 'toolCall',
+            name: 'Bash',
+            summary: 'Ran pnpm test',
+            status: 'running',
+        };
+        const entries = groupConversationItems([
+            tool('tool-1', 'Ran npm test'),
+            running,
+            tool('tool-3', 'Ran git status'),
+        ]);
+        expect(entries.map((entry) => entry.id)).toEqual(['tools:tool-1', 'tool-2']);
+        expect(entries[0]).toMatchObject({ summary: 'Ran 2 commands' });
+        expect(groupConversationItems([running]).map((entry) => entry.id)).toEqual(['tool-2']);
     });
 
     it('replaces a streaming suffix while preserving older reading history', () => {
@@ -195,10 +212,5 @@ describe('Conversation projection', () => {
                 isConversationObservableThroughBlur(false, true),
             ),
         ).toBe('stale');
-    });
-
-    it('names an image count in the singular or plural', () => {
-        expect(imageCountLabel(1)).toBe('1 image');
-        expect(imageCountLabel(3)).toBe('3 images');
     });
 });

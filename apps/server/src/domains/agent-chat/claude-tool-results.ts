@@ -40,6 +40,20 @@ export interface ClaudeToolResult {
 }
 
 /**
+ * The message Caxri denies a declined tool call with. Claude Code returns it as the call's error result and records it
+ * in the transcript, which is the only trace of the decline once the live session that saw the user's answer is gone.
+ */
+export const CLAUDE_DECLINED_MESSAGE = 'The user declined this action.';
+
+/**
+ * Whether a tool call ended declined: the live session saw the user decline it, or, rebuilding the Chat from its
+ * transcript, the result is Caxri's decline message. Without the second check a Chat reopened after Server Core
+ * restarted would show the same declined call as failed.
+ */
+const isDeclinedResult = (block: Json, output: string, wasDeclined: boolean | undefined) =>
+    wasDeclined === true || (block.is_error === true && output.trim() === CLAUDE_DECLINED_MESSAGE);
+
+/**
  * Claude Code reports a failed `Bash` as an error result whose text starts with `Exit code N`; a successful one has no
  * code, because only a zero exit is not an error.
  */
@@ -101,8 +115,12 @@ export function settleClaudeToolItem(
     result: ClaudeToolResult = {},
 ): AgentChatItem | undefined {
     const isError = block.is_error === true;
-    const status = result.wasDeclined ? 'declined' : isError ? 'failed' : 'completed';
     const output = tail(toolResultText(block.content), MAX_AGENT_CHAT_OUTPUT_LENGTH);
+    const status = isDeclinedResult(block, output, result.wasDeclined)
+        ? 'declined'
+        : isError
+          ? 'failed'
+          : 'completed';
     const { durationMs } = result;
     switch (item.type) {
         case 'command': {

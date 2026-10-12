@@ -1,7 +1,5 @@
-import type { AgentChatItem } from '@caxri/protocol';
-import { parseAgentMcpToolName, unwrapShellCommand } from '@caxri/protocol';
-
-import type { Translate } from '../../i18n';
+import type { AgentChatItem } from './agent-chat-contract.js';
+import { parseAgentMcpToolName, unwrapShellCommand } from './agent-tool-presentation.js';
 
 /**
  * A pull request, issue, or LobeHub acceptance report the Agent created or updated during a turn, shown as a card under
@@ -33,27 +31,20 @@ export interface AgentChatTrackerArtifact {
 }
 
 /**
- * The card's reference line. An acceptance round is localized here at render time rather than when the timeline is
- * collected, because the collected timeline is memoized and would keep the language it was first built in.
+ * The card's reference line in English, for the phone: an acceptance report's round when the ingest output reported
+ * one, else the reference. Desktop localizes the round at render time instead, because its collected timeline is
+ * memoized and would keep the language it was first built in.
  */
-export function trackerReferenceText(artifact: AgentChatTrackerArtifact, t: Translate): string {
-    return artifact.round === undefined
-        ? artifact.reference
-        : t('agentChat.tracker.round', { round: artifact.round });
+export function trackerReferenceText(artifact: AgentChatTrackerArtifact): string {
+    return artifact.round === undefined ? artifact.reference : `Round ${artifact.round}`;
 }
 
 /**
- * The card's excerpt line; an acceptance report's check count, localized at render time like `trackerReferenceText()`.
+ * The card's excerpt line in English, for the phone: an acceptance report's check count, else the body's first line.
  */
-export function trackerExcerptText(
-    artifact: AgentChatTrackerArtifact,
-    t: Translate,
-): string | undefined {
+export function trackerExcerptText(artifact: AgentChatTrackerArtifact): string | undefined {
     if (artifact.checks === undefined) return artifact.excerpt;
-    return t(
-        artifact.checks === 1 ? 'agentChat.tracker.checksOne' : 'agentChat.tracker.checksOther',
-        { count: artifact.checks },
-    );
+    return `${artifact.checks} ${artifact.checks === 1 ? 'check' : 'checks'}`;
 }
 
 type CommandItem = Extract<AgentChatItem, { type: 'command' }>;
@@ -110,7 +101,7 @@ const COMMAND_END: ReadonlySet<string> = new Set(['\n', ';', '|', '&']);
 function githubUrlArtifact(
     url: string,
 ): Pick<AgentChatTrackerArtifact, 'kind' | 'reference' | 'url'> | undefined {
-    const match = url.matchAll(GITHUB_URL).toArray().at(0);
+    const match = Array.from(url.matchAll(GITHUB_URL)).at(0);
     if (!match) return undefined;
     const [whole, owner, repo, section, number] = match;
     return {
@@ -124,7 +115,7 @@ function githubUrlArtifact(
  * The first line of a body worth reading on one line: headings, rules, and list or quote markers are dropped, so a PR
  * body that opens `## Summary` previews its first sentence instead.
  */
-export function trackerExcerpt(body: string | undefined): string | undefined {
+export function agentChatTrackerExcerpt(body: string | undefined): string | undefined {
     if (!body) return undefined;
     for (const raw of body.split('\n')) {
         const line = raw
@@ -146,7 +137,7 @@ export function trackerExcerpt(body: string | undefined): string | undefined {
  * `--body "$(cat <<'EOF' ... EOF)"` arrives whole. Words stop at an unquoted `&&`, `||`, `;`, `|`, or newline, which
  * end the `gh` invocation.
  */
-export function shellWords(command: string): string[] {
+export function agentChatTrackerShellWords(command: string): string[] {
     const words: string[] = [];
     let word: string | undefined;
     let quote: '"' | "'" | undefined;
@@ -234,6 +225,17 @@ function isQuotedAt(command: string, index: number): boolean {
 }
 
 /**
+ * The first match of a command pattern that is not inside a quoted argument, such as `gh pr create` quoted in another
+ * command's message. A loop rather than an Iterator helper, because the phone's JavaScript engine is not guaranteed to
+ * have them.
+ */
+function firstUnquotedMatch(command: string, pattern: RegExp): RegExpExecArray | undefined {
+    for (const candidate of command.matchAll(pattern))
+        if (!isQuotedAt(command, candidate.index)) return candidate;
+    return undefined;
+}
+
+/**
  * `gh pr create`, `gh pr edit`, `gh issue create`, or `gh issue edit` that printed the URL of what it touched. The
  * title and body come from the command's own flags; an edit that changed neither still names the pull request or
  * issue.
@@ -241,16 +243,14 @@ function isQuotedAt(command: string, index: number): boolean {
 function commandTrackerArtifact(item: CommandItem): AgentChatTrackerArtifact | undefined {
     if (item.status !== 'completed') return undefined;
     const command = unwrapShellCommand(item.command);
-    const match = command
-        .matchAll(GH_TRACKER_COMMAND)
-        .find((candidate) => !isQuotedAt(command, candidate.index));
-    const url = item.output.matchAll(GITHUB_URL).toArray().at(-1)?.[0];
+    const match = firstUnquotedMatch(command, GH_TRACKER_COMMAND);
+    const url = Array.from(item.output.matchAll(GITHUB_URL)).at(-1)?.[0];
     const target = url && githubUrlArtifact(url);
     if (!match || !target) return undefined;
-    const words = shellWords(command.slice(match.index));
+    const words = agentChatTrackerShellWords(command.slice(match.index));
     const title = flagValue(words, '--title', '-t');
     const body = flagValue(words, '--body', '-b');
-    const excerpt = trackerExcerpt(body === undefined ? undefined : expandHeredoc(body));
+    const excerpt = agentChatTrackerExcerpt(body === undefined ? undefined : expandHeredoc(body));
     return {
         provider: 'github',
         ...target,
@@ -279,13 +279,11 @@ function ingestNumber(output: string, key: 'cases' | 'roundIndex'): number | und
 function commandAcceptanceArtifact(item: CommandItem): AgentChatTrackerArtifact | undefined {
     if (item.status !== 'completed') return undefined;
     const command = unwrapShellCommand(item.command);
-    const match = command
-        .matchAll(LH_INGEST_COMMAND)
-        .find((candidate) => !isQuotedAt(command, candidate.index));
-    const printed = item.output.matchAll(ACCEPTANCE_URL).toArray().at(-1);
+    const match = firstUnquotedMatch(command, LH_INGEST_COMMAND);
+    const printed = Array.from(item.output.matchAll(ACCEPTANCE_URL)).at(-1);
     if (!match || !printed?.[2]) return undefined;
     const [, origin = ACCEPTANCE_ORIGIN, id] = printed;
-    const words = shellWords(command.slice(match.index));
+    const words = agentChatTrackerShellWords(command.slice(match.index));
     const round = ingestNumber(item.output, 'roundIndex');
     const cases = ingestNumber(item.output, 'cases');
     const isAppended = flagValue(words, '--acceptance') !== undefined;
@@ -365,6 +363,20 @@ const literalField = (fields: ReadonlyMap<string, string>, key: string): string 
 };
 
 /**
+ * The first GitHub URL in `text` that belongs to `owner/repo`. A loop rather than an Iterator helper, because the
+ * phone's JavaScript engine is not guaranteed to have them.
+ */
+function repoUrlIn(
+    text: string,
+    owner: string | undefined,
+    repo: string | undefined,
+): string | undefined {
+    for (const candidate of text.matchAll(GITHUB_URL))
+        if (candidate[1] === owner && candidate[2] === repo) return candidate[0];
+    return undefined;
+}
+
+/**
  * A `gh api` call that created a pull request or issue (POST to its collection) or edited one (PATCH to it), which is
  * how an Agent updates a PR body from a file without `gh pr edit`. An edit names its target in the endpoint, so it
  * shows even when the command printed nothing; a create needs the URL from the response. Title and body come from the
@@ -373,11 +385,9 @@ const literalField = (fields: ReadonlyMap<string, string>, key: string): string 
 function ghApiTrackerArtifact(item: CommandItem): AgentChatTrackerArtifact | undefined {
     if (item.status !== 'completed') return undefined;
     const command = unwrapShellCommand(item.command);
-    const match = command
-        .matchAll(GH_API_COMMAND)
-        .find((candidate) => !isQuotedAt(command, candidate.index));
+    const match = firstUnquotedMatch(command, GH_API_COMMAND);
     if (!match) return undefined;
-    const call = ghApiCall(shellWords(command.slice(match.index)));
+    const call = ghApiCall(agentChatTrackerShellWords(command.slice(match.index)));
     const endpoint = call.endpoint && GH_API_TRACKER_ENDPOINT.exec(call.endpoint);
     if (!endpoint) return undefined;
     const [, owner, repo, collection] = endpoint;
@@ -391,15 +401,14 @@ function ghApiTrackerArtifact(item: CommandItem): AgentChatTrackerArtifact | und
     const record = parseJsonRecord(item.output);
     const url =
         number === undefined
-            ? (stringOf(record?.html_url) ??
-              item.output
-                  .matchAll(GITHUB_URL)
-                  .find((candidate) => candidate[1] === owner && candidate[2] === repo)?.[0])
+            ? (stringOf(record?.html_url) ?? repoUrlIn(item.output, owner, repo))
             : `https://github.com/${owner}/${repo}/${section}/${number}`;
     const target = url && githubUrlArtifact(url);
     if (!target) return undefined;
     const title = stringOf(record?.title) ?? literalField(call.fields, 'title');
-    const excerpt = trackerExcerpt(stringOf(record?.body) ?? literalField(call.fields, 'body'));
+    const excerpt = agentChatTrackerExcerpt(
+        stringOf(record?.body) ?? literalField(call.fields, 'body'),
+    );
     return {
         provider: 'github',
         ...target,
@@ -478,7 +487,7 @@ function toolCallTrackerArtifact(item: ToolCallItem): AgentChatTrackerArtifact |
     const arguments_ = parseJsonRecord(item.summary);
     const record = trackerRecord(parseJsonRecord(item.output));
     const title = stringOf(record?.title) ?? stringOf(arguments_?.title);
-    const excerpt = trackerExcerpt(
+    const excerpt = agentChatTrackerExcerpt(
         stringOf(record?.body) ??
             stringOf(record?.description) ??
             stringOf(arguments_?.body) ??
@@ -489,15 +498,15 @@ function toolCallTrackerArtifact(item: ToolCallItem): AgentChatTrackerArtifact |
     if (operation.provider === 'github') {
         const url =
             stringOf(record?.html_url) ??
-            (item.output ?? '').matchAll(GITHUB_URL).toArray().at(-1)?.[0];
+            Array.from((item.output ?? '').matchAll(GITHUB_URL)).at(-1)?.[0];
         const target = url && githubUrlArtifact(url);
         if (!target) return undefined;
         return { provider: 'github', ...target, ...details };
     }
-    const linearUrl = (item.output ?? '').matchAll(LINEAR_URL).toArray().at(-1);
+    const linearUrl = Array.from((item.output ?? '').matchAll(LINEAR_URL)).at(-1);
     const url = stringOf(record?.url) ?? linearUrl?.[0];
     const identifier =
-        stringOf(record?.identifier) ?? (url && url.matchAll(LINEAR_URL).toArray().at(0)?.[1]);
+        stringOf(record?.identifier) ?? (url && Array.from(url.matchAll(LINEAR_URL)).at(0)?.[1]);
     if (!url || !identifier) return undefined;
     return { provider: 'linear', kind: 'issue', url, reference: identifier, ...details };
 }
@@ -532,5 +541,5 @@ export function collectAgentChatTrackers(
                 : artifact,
         );
     }
-    return byUrl.values().toArray();
+    return Array.from(byUrl.values());
 }

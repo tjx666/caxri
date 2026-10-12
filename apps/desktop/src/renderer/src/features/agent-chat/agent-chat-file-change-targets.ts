@@ -1,6 +1,5 @@
+import type { AgentChatDiffLine } from '@caxri/protocol';
 import { gitFileDiffTabPath } from '@caxri/protocol';
-
-import type { AgentChatDiffLine } from './agent-chat-diff';
 
 /**
  * The part of a `git.summary` result that locates a changed file: each repository's root and the files Git reports as

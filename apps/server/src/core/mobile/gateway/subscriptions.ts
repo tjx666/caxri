@@ -20,6 +20,10 @@ const MAXIMUM_CONNECTION_PENDING_BYTES = MOBILE_GATEWAY_MAX_WIRE_BYTES * 16;
 interface Subscription {
     active: boolean;
     activated: boolean;
+    /**
+     * The Session's Project root an Agent Chat subscription names changed files against.
+     */
+    agentChatProjectRoot?: string;
     closeConversation?: () => void;
     id: string;
     pendingBytes: number;
@@ -61,6 +65,7 @@ export interface MobileSubscriptionOptions {
     terminate: () => void;
     connectionId: string;
     beginConversation?: (principal: Principal, sessionId: string) => Promise<() => void>;
+    agentChatProjectRoot?: (principal: Principal, terminalId: string) => Promise<string>;
     terminalExecution?: TerminalExecutionPort;
 }
 
@@ -114,6 +119,17 @@ export class MobileGatewaySubscriptions {
             tail: Promise.resolve(),
         };
         this.#subscriptions.set(id, subscription);
+        if (resource.kind === 'agentChat' && this.#options.agentChatProjectRoot) {
+            try {
+                subscription.agentChatProjectRoot = await this.#options.agentChatProjectRoot(
+                    this.#options.currentPrincipal(),
+                    resource.terminalId,
+                );
+            } catch (error) {
+                this.unsubscribe(id);
+                throw error;
+            }
+        }
         if (resource.kind === 'conversation' && this.#options.beginConversation) {
             try {
                 subscription.closeConversation = await this.#options.beginConversation(
@@ -265,7 +281,10 @@ export class MobileGatewaySubscriptions {
                     event.event === 'agentChat.patch' &&
                     event.payload.terminalId === resource.terminalId
                 ) {
-                    const patch = clipAgentChatPatchForMobile(event.payload);
+                    const patch = clipAgentChatPatchForMobile(
+                        event.payload,
+                        subscription.agentChatProjectRoot,
+                    );
                     this.#queue(
                         subscription,
                         event,

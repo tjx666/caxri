@@ -47,6 +47,13 @@ const mobileGatewayMethodsByRole = {
          * sending it, as the Desktop composer keeps the picker beside the input.
          */
         'mobile.agentChat.configure',
+        /**
+         * Deleting, steering with, or resuming a queued follow-up acts on messages this device could have sent, so it
+         * carries the same grant as sending them, as the Desktop queue sits above the composer.
+         */
+        'mobile.agentChat.removeQueued',
+        'mobile.agentChat.sendQueuedNow',
+        'mobile.agentChat.resumeQueue',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.changes.list',
@@ -67,6 +74,9 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.send',
         'mobile.agentChat.retry',
         'mobile.agentChat.configure',
+        'mobile.agentChat.removeQueued',
+        'mobile.agentChat.sendQueuedNow',
+        'mobile.agentChat.resumeQueue',
         /**
          * Approvals, answers, and Stop match `mobile.attention.answer` and `agent.control.interrupt`: control only.
          */

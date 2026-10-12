@@ -1,8 +1,6 @@
-import type { AgentChatItem } from '@caxri/protocol';
-import { pathBasename } from '@caxri/utils';
 import { describe, expect, it } from 'vitest';
 
-import { translate } from '../../../i18n';
+import type { AgentChatItem } from '../agent-chat-contract';
 import {
     agentChatEditedFilesStat,
     agentChatEditedFilesTitle,
@@ -49,25 +47,17 @@ describe('collectAgentChatEditedFiles', () => {
 
 describe('agentChatEditedFilesTitle', () => {
     it('names a single file by what happened to it and counts several', () => {
+        expect(agentChatEditedFilesTitle([{ path: '/p/a.svg', kind: 'add' }])).toBe(
+            'Created a.svg',
+        );
+        expect(agentChatEditedFilesTitle([{ path: String.raw`C:\p\a.svg`, kind: 'update' }])).toBe(
+            'Edited a.svg',
+        );
         expect(
-            agentChatEditedFilesTitle([{ path: '/p/a.svg', kind: 'add' }], pathBasename, translate),
-        ).toBe('Created a.svg');
-        expect(
-            agentChatEditedFilesTitle(
-                [{ path: '/p/a.svg', kind: 'update' }],
-                pathBasename,
-                translate,
-            ),
-        ).toBe('Edited a.svg');
-        expect(
-            agentChatEditedFilesTitle(
-                [
-                    { path: '/p/a', kind: 'update' },
-                    { path: '/p/b', kind: 'delete' },
-                ],
-                pathBasename,
-                translate,
-            ),
+            agentChatEditedFilesTitle([
+                { path: '/p/a', kind: 'update' },
+                { path: '/p/b', kind: 'delete' },
+            ]),
         ).toBe('Edited 2 files');
     });
 });

@@ -1,12 +1,12 @@
 import {
     closeTabs,
+    isPathAtOrBelow,
     isVirtualEditorTabPath,
     listPaneTabs,
     parseFilePreviewTab,
 } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
-import { isPathAtOrBelow } from '../../lib/file-path';
 import { getBootstrap } from '../../stores/selectors';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import { patchSessionState } from '../../stores/workbench';

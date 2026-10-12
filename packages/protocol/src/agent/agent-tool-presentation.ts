@@ -336,3 +336,18 @@ export function formatShortDuration(durationMs: number | undefined): string | nu
     const minutes = Math.floor(seconds / 60);
     return seconds % 60 === 0 ? `${minutes}m` : `${minutes}m ${seconds % 60}s`;
 }
+
+/**
+ * Below this an elapsed time is not worth showing: it would read `<1s` and then jump straight to `1s`.
+ */
+const NOTICEABLE_DURATION_MS = 1000;
+
+/**
+ * `formatShortDuration` once the time is noticeable, else `null`. Every Agent Chat surface that shows how long a turn,
+ * a work row, a running turn, or a background task took drops sub-second times through this, so a row of `<1s` labels
+ * never says something a reader cannot act on.
+ */
+export function formatNoticeableDuration(durationMs: number | undefined): string | null {
+    if (durationMs === undefined || durationMs < NOTICEABLE_DURATION_MS) return null;
+    return formatShortDuration(durationMs);
+}

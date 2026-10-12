@@ -1,6 +1,7 @@
+import { projectRelativePath } from '@caxri/protocol';
+
 import { translate } from '../i18n';
 import { pushToast, tryCommand } from '../stores/toasts';
-import { projectRelativePath } from './file-path';
 
 /**
  * Base directory `Copy Relative Path` measures from when a resource has more than one candidate root, which today is

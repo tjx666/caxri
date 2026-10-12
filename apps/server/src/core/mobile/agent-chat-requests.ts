@@ -24,7 +24,10 @@ export type MobileAgentChatRequest = Extract<
             | 'mobile.agentChat.interrupt'
             | 'mobile.agentChat.respond'
             | 'mobile.agentChat.retry'
-            | 'mobile.agentChat.configure';
+            | 'mobile.agentChat.configure'
+            | 'mobile.agentChat.removeQueued'
+            | 'mobile.agentChat.sendQueuedNow'
+            | 'mobile.agentChat.resumeQueue';
     }
 >;
 
@@ -52,6 +55,34 @@ export async function agentChatTerminalForPrincipal(
     if (terminal.surface !== 'chat')
         throw new CaxriError('CONFLICT', 'This Terminal is not an Agent Chat');
     return terminal;
+}
+
+/**
+ * The root of the Chat Session's Project, which the phone's window and patches name changed files against so they read
+ * as Desktop names them (`src/app.ts`) without the phone learning the root itself.
+ */
+async function agentChatProjectRoot(
+    domainService: ServerDomainService,
+    principal: Principal,
+    sessionId: string,
+): Promise<string> {
+    const { rootPath } = await domainService.request('mobile.session.projectRootInternal', {
+        sessionId,
+        principal,
+    });
+    return rootPath;
+}
+
+/**
+ * The Project root for an Agent Chat subscription, resolved through the device's grant like `mobile.agentChat.read`.
+ */
+export async function agentChatTerminalProjectRoot(
+    domainService: ServerDomainService,
+    principal: Principal,
+    terminalId: string,
+): Promise<string> {
+    const terminal = await agentChatTerminalForPrincipal(domainService, principal, terminalId);
+    return agentChatProjectRoot(domainService, principal, terminal.sessionId);
 }
 
 interface ImageData {
@@ -112,9 +143,12 @@ export async function invokeMobileAgentChatRequest(
     reauthorize();
     switch (request.method) {
         case 'mobile.agentChat.read': {
-            const snapshot = await domainService.request('agentChat.read', { terminalId });
+            const [snapshot, projectRoot] = await Promise.all([
+                domainService.request('agentChat.read', { terminalId }),
+                agentChatProjectRoot(domainService, principal, terminal.sessionId),
+            ]);
             reauthorize();
-            return windowAgentChatSnapshotForMobile(snapshot);
+            return windowAgentChatSnapshotForMobile(snapshot, projectRoot);
         }
         case 'mobile.agentChat.readImage': {
             const { itemId, index, variant, chunkIndex } = request.params;
@@ -206,6 +240,28 @@ export async function invokeMobileAgentChatRequest(
                     ...(request.params.effort !== undefined && { effort: request.params.effort }),
                 },
             });
+            return null;
+        }
+        /**
+         * The Desktop queue card's actions. Core owns the queue and its rules (a command cannot steer a running turn, a
+         * message that already left the queue is a `CONFLICT`), so the phone forwards the id and nothing else.
+         */
+        case 'mobile.agentChat.removeQueued': {
+            await forward({
+                method: 'agentChat.removeQueued',
+                params: { terminalId, id: request.params.id },
+            });
+            return null;
+        }
+        case 'mobile.agentChat.sendQueuedNow': {
+            await forward({
+                method: 'agentChat.sendQueuedNow',
+                params: { terminalId, id: request.params.id },
+            });
+            return null;
+        }
+        case 'mobile.agentChat.resumeQueue': {
+            await forward({ method: 'agentChat.resumeQueue', params: { terminalId } });
             return null;
         }
         case 'mobile.agentChat.retry': {

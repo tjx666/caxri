@@ -486,6 +486,15 @@ export const mobileInternalMethods = {
         params: mobileImageReadInternalParametersSchema,
         result: z.array(z.string().min(1)),
     },
+    /**
+     * The root of a granted Session's Project, for the Server's own use: the mobile Agent Chat projection names changed
+     * files relative to it. Never forwarded to a phone, which only ever sees `scopedProjectSchema`.
+     */
+    'mobile.session.projectRootInternal': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({ sessionId: identifierSchema, principal: principalSchema }),
+        result: z.strictObject({ rootPath: sessionRecordSchema.shape.rootPath }),
+    },
     'mobile.session.createForPrincipal': {
         ...commandPolicy('server', 'write'),
         params: z.strictObject({

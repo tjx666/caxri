@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatFailureReason } from '../agent-chat-contract.js';
+import type { AgentChatFailureReason, AgentChatSnapshot } from '../agent-chat-contract.js';
 import {
+    agentChatActivity,
+    agentChatDockedPlan,
     agentChatFailureMessage,
+    agentChatItemStatusLabel,
+    agentChatItemStatusTone,
+    agentChatNoticeMessage,
+    agentChatPlanProgress,
     agentChatQuestionAnswers,
     agentChatQuestionOption,
+    agentChatWorkingVerb,
+    isAgentChatItemVisible,
     sentenceStartProvider,
 } from '../agent-chat-presentation.js';
+import { emptyAgentChatSnapshot } from '../agent-chat-reducer.js';
 import type { AgentChatRequest } from '../agent-chat-requests.js';
 
 describe('agentChatFailureMessage', () => {
@@ -139,5 +148,183 @@ describe('agentChatQuestionAnswers', () => {
         expect(
             agentChatQuestionAnswers(request, { a: 'One', stale: 'Old' }, { b: 'Why not' }),
         ).toEqual({ answers: { a: ['One'], b: ['Why not'] }, isComplete: true });
+    });
+});
+
+function snapshot(status: AgentChatSnapshot['status']): AgentChatSnapshot {
+    return { ...emptyAgentChatSnapshot('terminal-1'), status };
+}
+
+describe('agentChatActivity while compacting', () => {
+    it('names compaction instead of a working verb, stoppable only inside a turn', () => {
+        expect(
+            agentChatActivity({ ...snapshot('ready'), operation: 'compacting' }, 'Claude'),
+        ).toEqual({
+            kind: 'compacting',
+            text: 'Compacting context…',
+            isStoppable: false,
+        });
+        expect(
+            agentChatActivity(
+                { ...snapshot('ready'), operation: 'compacting', activeTurnId: 'turn-1' },
+                'Claude',
+            ),
+        ).toMatchObject({ kind: 'compacting', isStoppable: true });
+    });
+});
+
+describe('agentChatActivity', () => {
+    it('tells starting, working, and waiting on the user apart', () => {
+        expect(agentChatActivity(undefined, 'Claude')).toEqual({
+            kind: 'starting',
+            text: 'Starting Claude…',
+        });
+        expect(agentChatActivity(snapshot('ready'), 'Codex')).toBeUndefined();
+        const running = {
+            ...snapshot('ready'),
+            activeTurnId: 'turn-1',
+            turns: [{ id: 'turn-1', status: 'running' as const, startedAt: 1000 }],
+        };
+        expect(agentChatActivity(running, 'Codex')).toEqual({
+            kind: 'working',
+            text: `${agentChatWorkingVerb('turn-1')}…`,
+            startedAt: 1000,
+        });
+        expect(
+            agentChatActivity(
+                {
+                    ...running,
+                    requests: [{ id: 'r', kind: 'fileChange' }],
+                },
+                'Codex',
+            ),
+        ).toEqual({ kind: 'waiting', text: 'Waiting for your approval' });
+    });
+
+    it('loads an existing conversation instead of claiming to start the Agent', () => {
+        expect(agentChatActivity(undefined, 'Claude', { hasConversation: true })).toEqual({
+            kind: 'starting',
+            text: 'Loading conversation…',
+        });
+    });
+
+    it('keeps one verb for a turn and varies it across turns', () => {
+        expect(agentChatWorkingVerb('turn-1')).toBe(agentChatWorkingVerb('turn-1'));
+        const verbs = new Set(
+            Array.from({ length: 40 }, (_, index) => agentChatWorkingVerb(`turn-${index}`)),
+        );
+        expect(verbs.size).toBeGreaterThan(5);
+    });
+});
+
+describe('agentChatPlanProgress', () => {
+    it('counts completed steps and names the one in progress', () => {
+        expect(
+            agentChatPlanProgress({
+                steps: [
+                    { step: 'Read', status: 'completed' },
+                    { step: 'Edit', status: 'pending' },
+                    { step: 'Test', status: 'inProgress' },
+                ],
+            }),
+        ).toEqual({ completed: 1, total: 3, current: 'Test' });
+    });
+
+    it('falls back to the first pending step, then to none once done', () => {
+        expect(
+            agentChatPlanProgress({
+                steps: [
+                    { step: 'Read', status: 'completed' },
+                    { step: 'Edit', status: 'pending' },
+                ],
+            }).current,
+        ).toBe('Edit');
+        expect(agentChatPlanProgress({ steps: [{ step: 'Read', status: 'completed' }] })).toEqual({
+            completed: 1,
+            total: 1,
+            current: undefined,
+        });
+    });
+});
+
+describe('agentChatDockedPlan', () => {
+    const plan = {
+        turnId: 'turn-1',
+        steps: [
+            { step: 'Read', status: 'completed' as const },
+            { step: 'Reply', status: 'inProgress' as const },
+        ],
+    };
+
+    it('keeps the latest plan docked after its turn ends, with the step no longer spinning', () => {
+        expect(agentChatDockedPlan({ plan, activeTurnId: 'turn-1' })).toEqual({
+            plan,
+            isTurnRunning: true,
+        });
+        expect(agentChatDockedPlan({ plan })).toEqual({ plan, isTurnRunning: false });
+        expect(agentChatDockedPlan({ activeTurnId: 'turn-2' })).toBeUndefined();
+        expect(agentChatDockedPlan(undefined)).toBeUndefined();
+    });
+});
+
+describe('agentChatItemStatusLabel', () => {
+    it('names and tones every outcome a work row can settle in', () => {
+        expect(agentChatItemStatusLabel('failed')).toBe('Failed');
+        expect(agentChatItemStatusTone('failed')).toBe('danger');
+        expect(agentChatItemStatusLabel('declined')).toBe('Declined');
+        expect(agentChatItemStatusTone('declined')).toBe('warning');
+        expect(agentChatItemStatusLabel('interrupted')).toBe('Interrupted');
+        expect(agentChatItemStatusTone('interrupted')).toBe('warning');
+    });
+});
+
+describe('agentChatNoticeMessage', () => {
+    it('owns the copy for known notices and keeps provider text after it', () => {
+        expect(agentChatNoticeMessage({ id: 'n', type: 'notice', kind: 'compacted' })).toBe(
+            'Context compacted',
+        );
+        expect(
+            agentChatNoticeMessage({
+                id: 'n',
+                type: 'notice',
+                kind: 'retrying',
+                message: 'rate limit',
+            }),
+        ).toBe('Retrying: rate limit');
+        expect(agentChatNoticeMessage({ id: 'n', type: 'notice', kind: 'error' })).toBe(
+            'The Agent reported an error',
+        );
+    });
+});
+
+describe('isAgentChatItemVisible', () => {
+    it('hides a thought or a finished reply with no words, but keeps a reply still streaming', () => {
+        expect(
+            isAgentChatItemVisible({ id: 'r', type: 'reasoning', text: ' \n', streaming: true }),
+        ).toBe(false);
+        expect(
+            isAgentChatItemVisible({ id: 'r', type: 'reasoning', text: 'Plan', streaming: false }),
+        ).toBe(true);
+        expect(
+            isAgentChatItemVisible({ id: 'a', type: 'agentMessage', text: '\n', streaming: false }),
+        ).toBe(false);
+        expect(
+            isAgentChatItemVisible({ id: 'a', type: 'agentMessage', text: '', streaming: true }),
+        ).toBe(true);
+        expect(
+            isAgentChatItemVisible({
+                id: 'a',
+                type: 'agentMessage',
+                text: 'Done',
+                streaming: false,
+            }),
+        ).toBe(true);
+    });
+
+    it('keeps an image-only user message and drops an empty one', () => {
+        expect(
+            isAgentChatItemVisible({ id: 'u', type: 'userMessage', text: '', images: [{}] }),
+        ).toBe(true);
+        expect(isAgentChatItemVisible({ id: 'u', type: 'userMessage', text: '' })).toBe(false);
     });
 });

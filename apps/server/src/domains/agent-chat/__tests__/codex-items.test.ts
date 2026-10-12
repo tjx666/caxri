@@ -79,6 +79,46 @@ describe('Codex item mapping', () => {
         });
     });
 
+    it('summarizes a dynamic tool by a readable field instead of its raw JSON arguments', () => {
+        const summary = (arguments_: unknown) => {
+            const item = mapCodexItem(
+                {
+                    type: 'dynamicToolCall',
+                    id: 'd',
+                    tool: 'notify',
+                    status: 'completed',
+                    arguments: arguments_,
+                },
+                't',
+                false,
+            );
+            return item?.type === 'toolCall' ? item.summary : undefined;
+        };
+        expect(summary({ channel: 'ops', title: 'Deploy finished' })).toBe('Deploy finished');
+        expect(summary({ count: 3, nested: { a: 1 } })).toBe('count: 3');
+        expect(summary({ nested: { a: 1 } })).toBeUndefined();
+        expect(summary('plain text')).toBe('plain text');
+    });
+
+    it("keeps a dynamic tool call's JSON arguments beside its readable summary", () => {
+        expect(
+            mapCodexItem(
+                {
+                    type: 'dynamicToolCall',
+                    id: 'd',
+                    tool: 'notify',
+                    status: 'completed',
+                    arguments: { channel: 'ops', title: 'Deploy finished' },
+                },
+                't',
+                false,
+            ),
+        ).toMatchObject({
+            summary: 'Deploy finished',
+            input: '{"channel":"ops","title":"Deploy finished"}',
+        });
+    });
+
     it('shows a plan-mode plan as an Agent message', () => {
         expect(mapCodexItem({ type: 'plan', id: 'p', text: '1. Read' }, 't', false)).toMatchObject({
             id: 'p',
