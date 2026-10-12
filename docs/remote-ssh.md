@@ -66,6 +66,10 @@ identifies each directory through the remote Server's `files.authorizeOpen` inst
 outside it is refused. Free browsing outside the Project, `~`, and the Backspace gesture that
 detaches from the Project are not offered, because they would list this Mac's disk.
 
+A file path a Terminal prints opens the same way when it resolves inside a Project. A path outside
+every Project is refused with a message asking the user to add its folder as a Project, because the
+local window's external-file snapshot would read this Mac's disk.
+
 ## Requirements on the SSH Host
 
 - Linux x64 or arm64 with glibc 2.28 or newer (Debian 10, Ubuntu 18.10, RHEL 8 and later). An
@@ -92,10 +96,14 @@ detaches from the Project are not offered, because they would list this Mac's di
   8192 on older kernels). The affected watch then falls back to polling, so the file tree and Git
   status lag by a few seconds, and the window shows a persistent warning with a Copy command button
   for the fix: `echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p`
-  (`fs.inotify.max_user_instances=512` for the rarer instance limit). The Server retries native
-  watching with backoff (up to every 5 minutes), switches back without a reconnect once the limit
-  allows it, and removes the warning. `watch_hub.fallback` records the cause as a closed `reason`
-  (`watch-limit`, `instance-limit`, or `other`).
+  The Server retries native watching with backoff (up to every 5 minutes), switches back without a
+  reconnect once the limit allows it, and removes the warning. `watch_hub.fallback` records the
+  cause as a closed `reason` (`watch-limit`, `instance-limit`, or `other`).
+- The account's inotify instances (`fs.inotify.max_user_instances`, often 128) are a second limit:
+  every watching program holds one. `@parcel/watcher` 2.6.0 hangs instead of failing when it cannot
+  create one, so before the Server's first native watch it checks from a short-lived child process
+  that an instance can still be created. If not, watching starts in polling mode with the same kind
+  of warning, offering `fs.inotify.max_user_instances=512`, and the check repeats on each retry.
 - On hosts whose `systemd-logind` sets `KillUserProcesses=yes`, the Server dies with the last SSH
   session unless lingering is enabled for the user: `sudo loginctl enable-linger "$USER"`.
 

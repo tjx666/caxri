@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { watchFailureReason } from '../watch-failures';
+import { watchFailureReason } from '../failures';
 
 describe('watchFailureReason', () => {
     it('names the inotify limit a native watch hit', () => {

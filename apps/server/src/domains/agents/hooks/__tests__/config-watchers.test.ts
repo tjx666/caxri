@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import type { WatchHandle, WatchHub, WatchRegistrationOptions } from '../../../watch-hub';
+import type { WatchHandle, WatchHub, WatchRegistrationOptions } from '../../../watch';
 import { AgentHookConfigWatchers } from '../config-watchers';
 
 /**

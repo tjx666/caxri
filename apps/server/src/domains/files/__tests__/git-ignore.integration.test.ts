@@ -8,7 +8,7 @@ import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
-import { WatchHub } from '../../watch-hub';
+import { WatchHub } from '../../watch';
 import type { GitIgnoreDecorator } from '../listing';
 import { FileService } from '../service';
 import { WatcherService } from '../watcher';

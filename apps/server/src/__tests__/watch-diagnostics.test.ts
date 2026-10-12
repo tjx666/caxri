@@ -1,7 +1,7 @@
 import type parcelWatcher from '@parcel/watcher';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { WatchHubSnapshot } from '../domains/watch-hub';
+import type { WatchHubSnapshot } from '../domains/watch';
 import { createWatchDiagnosticHub, createWatchFailureProbe } from './support/watch-diagnostics';
 
 function snapshot(native: number, polling: number, eventBatches: number): WatchHubSnapshot {

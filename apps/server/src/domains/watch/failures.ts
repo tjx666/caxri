@@ -1,6 +1,8 @@
 import type { FileWatchFailureReason, FileWatchLimit, FileWatchLimitAlert } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 
+import { INOTIFY_START_FAILURE } from './inotify-probe';
+
 /**
  * Matches the macOS FSEvents "must rescan" advisory. `@parcel/watcher@2.6.0`'s `FSEventsBackend.cc` attaches one of
  * three messages to a batch when `kFSEventStreamEventFlagMustScanSubDirs` is set ("Events were dropped by the FSEvents
@@ -16,15 +18,16 @@ export function isMustRescanAdvisory(error: unknown): boolean {
 }
 
 /**
- * Classifies a native watch failure. `@parcel/watcher@2.6.0`'s `InotifyBackend.cc` reports both Linux limits only as
- * message text: `inotify_add_watch on '<dir>' failed: No space left on device` once `max_user_watches` is exhausted
- * (ENOSPC), and `Unable to initialize inotify: Too many open files` once `max_user_instances` is (EMFILE).
+ * Classifies a native watch failure. `@parcel/watcher@2.6.0`'s `InotifyBackend.cc` reports an exhausted
+ * `max_user_watches` only as message text, `inotify_add_watch on '<dir>' failed: No space left on device` (ENOSPC). An
+ * exhausted `max_user_instances` would hang the backend instead of failing, so that reason comes from
+ * {@link INOTIFY_START_FAILURE}, which the start probe raises in its place.
  */
 export function watchFailureReason(error: unknown): FileWatchFailureReason {
     const message = errorMessage(error, '');
     if (message.startsWith('inotify_add_watch') && message.endsWith('No space left on device'))
         return 'watch-limit';
-    if (message.startsWith('Unable to initialize inotify')) return 'instance-limit';
+    if (message === INOTIFY_START_FAILURE) return 'instance-limit';
     return 'other';
 }
 

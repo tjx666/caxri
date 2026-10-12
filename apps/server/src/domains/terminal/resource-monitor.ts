@@ -11,7 +11,7 @@ import { errorMessage, isTerminalResourceUsageHigh } from '@caxri/protocol';
 import type { ProcessTable, ProcessTreeUsage, StructuredLogger } from '@caxri/system';
 import { logEventCatalog, sampleProcessTable } from '@caxri/system';
 
-import type { WatchHandle, WatchHub } from '../watch-hub';
+import type { WatchHandle, WatchHub } from '../watch';
 import type {
     E2ETerminalResourceOverride,
     TerminalResourceReadingOverride,

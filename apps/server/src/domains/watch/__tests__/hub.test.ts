@@ -2,7 +2,7 @@ import { CaxriError } from '@caxri/protocol';
 import type parcelWatcher from '@parcel/watcher';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WatchHub } from '../watch-hub';
+import { WatchHub } from '../hub';
 
 function metricLogger() {
     const recordMetric = vi.fn();
