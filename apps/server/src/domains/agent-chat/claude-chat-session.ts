@@ -39,11 +39,8 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
-import {
-    ClaudeContextRefresh,
-    claudeResponseUsage,
-    refreshClaudeContextDetails,
-} from './claude-context';
+import { claudeResponseUsage } from './claude-context';
+import { ClaudeContextTracker } from './claude-context-report';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
 import {
     ClaudeCommandList,
@@ -137,10 +134,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     private readonly commands = new ClaudeCommandList();
 
-    private readonly contextDetails = new ClaudeContextRefresh(async () => {
-        if (this.query && this.isOpen)
-            await refreshClaudeContextDetails(this.query, this.options, () => this.isEnded);
-    });
+    private readonly context = new ClaudeContextTracker(() =>
+        this.query && this.isOpen
+            ? { query: this.query, host: this.options, isEnded: () => this.isEnded }
+            : undefined,
+    );
 
     constructor(private readonly options: AgentChatSessionHost) {
         const launched = claudeChatSettings(options.launch);
@@ -226,7 +224,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         const usage = claudeResponseUsage(message, this.options.read(), this.turns.contextWindow);
         if (usage) {
             this.options.apply([{ op: 'state', state: { usage } }]);
-            this.contextDetails.request();
+            this.context.request();
         }
         this.stream.settle(mapped.items);
         this.toolClock.start(mapped.items);
@@ -337,7 +335,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             case 'result': {
                 this.turns.finish(message);
                 this.options.apply(claudeFastMode(message));
-                if (!this.options.read().activeTurnId) this.contextDetails.request();
+                if (!this.options.read().activeTurnId) this.context.request();
                 return;
             }
             case 'system': {
@@ -575,6 +573,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
             taskId: clip(transcript.toolUseId, 200),
             operations: claudeTaskHistoryOperations(transcript.content, transcript.truncated),
         };
+    }
+
+    readContext() {
+        return this.context.read(this.requireOpen());
     }
 
     respond(requestId: string, response: AgentChatResponse): void {

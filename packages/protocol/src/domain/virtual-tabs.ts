@@ -1,3 +1,4 @@
+import { isAgentContextTabPath } from './agent-context-tab.js';
 import { isAgentStatusTabPath } from './agent-status-tab.js';
 import { isAgentTaskTabPath } from './agent-task-tab.js';
 import { isAgentTranscriptTabPath } from './agent-transcript.js';
@@ -21,6 +22,7 @@ export function isVirtualEditorTabPath(path: string): boolean {
         isAgentTaskTabPath(path) ||
         isAgentTurnReviewTabPath(path) ||
         isAgentStatusTabPath(path) ||
+        isAgentContextTabPath(path) ||
         isExternalEditorTabPath(path) ||
         isFilePreviewTabPath(path) ||
         isSettingsTabPath(path) ||

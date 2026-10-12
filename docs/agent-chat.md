@@ -947,6 +947,49 @@ never loaded whole. An unsent draft travels with the prompt as the request to ha
 catching up, and leaves the old composer only once the new Chat accepted the prompt. A Chat with
 no transcript on disk refuses with an error instead of opening an empty Chat.
 
+### Context tab
+
+The meter's card in a Workbench Chat offers **Details**, which opens a read-only Context tab
+(`caxri-agent-context://<terminalId>`, `apps/desktop/src/renderer/src/features/agent-chat/context/`)
+beside the Chat, the way task tabs open. It is Claude Code only: Codex and Grok Build describe
+neither the window item by item nor each request's cache usage, so their meter has no Details
+button and the tab shows an unsupported notice. The Commander window refuses
+`agentChat.readContext` (`apps/desktop/src/main/agent-commander-policy.ts`) and hides the button.
+
+`agentChat.readContext` (`packages/protocol/src/agent/agent-chat-context.ts`,
+`apps/server/src/domains/agent-chat/chat-context.ts`) returns one report with three parts:
+
+- `composition`: the live `getContextUsage({ detail: 'summary' })` answer kept whole, including
+  free space, deferred tool schemas, memory files, MCP tools by server (loaded or deferred),
+  skills, slash commands, custom agents, and the conversation by message kind and tool. It needs
+  the running process; a closed Chat, or one that does not answer within five seconds, reports
+  history only. Reading a report never spawns a provider.
+- `requests`: every main-thread model request replayed from the transcript on disk, newest
+  1,000 (`claude-context-requests.ts`). Records sharing a `message.id` collapse into one, and
+  sidechain (subagent) and `<synthetic>` records are skipped. A `compact_boundary` record marks the
+  next request as following a compaction. `isHistoryTruncated` says the transcript read was cut.
+- `changes`: what the Server saw change between consecutive composition reads of this process
+  (MCP tools, skills, memory files, or agents added or removed; system prompt or tools resized),
+  newest 100 (`ClaudeContextTracker` in `claude-context-report.ts`). Claude Code does not say why
+  a cache missed, so these are the evidence the tab cites; they reset when the process restarts.
+
+The Renderer derives everything else (`context/cache-analysis.ts`). A request breaks the cache when
+the previous request's prompt minus this request's cache read is at least 2,000 tokens and more
+than 5% of that prompt. Each break takes the first matching cause: a compaction, a model switch, an
+idle gap longer than the cache lifetime, otherwise a prefix change, which names the changes recorded
+between the two requests (30 seconds of slack for the composition read that follows a response).
+The cached prefix that survived is drawn against the window's rows in request order, so the row
+where the rewrite starts reads directly (for example "from MCP tools"). The rewrite cost uses the
+same bundled cache-write price as `cacheRewriteUsd`.
+
+The tab shows, top to bottom: headline tiles (window use and compaction point, the cache clock,
+hit rate, misses and their cost); suggestions only when something stands out (`context/suggestions.ts`:
+prefix breaks, a dominant tool result, a heavy MCP server, a large memory file); the window bar with
+the latest request's cached prefix on the same scale; a per-request cache timeline with break and
+compaction markers and a break table; and heaviest-first lists of the conversation, MCP servers,
+skills, memory files, and custom agents. Window rows share their shade with the composer meter;
+the autocompact reserve stays neutral because it is not content.
+
 ## Model and effort
 
 The snapshot's `models` lists the models the provider lets this Chat switch to, each with the

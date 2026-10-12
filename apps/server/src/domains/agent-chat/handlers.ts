@@ -19,6 +19,7 @@ export function createAgentChatHandlers(
     | 'agentChat.fork'
     | 'agentChat.interrupt'
     | 'agentChat.read'
+    | 'agentChat.readContext'
     | 'agentChat.readHistory'
     | 'agentChat.readImage'
     | 'agentChat.readTask'
@@ -112,6 +113,7 @@ export function createAgentChatHandlers(
         'agentChat.readHistory': ({ terminalId, beforeItemId }) =>
             agentChat.readHistory(terminalId, beforeItemId),
         'agentChat.readTask': ({ terminalId, taskId }) => agentChat.readTask(terminalId, taskId),
+        'agentChat.readContext': ({ terminalId }) => agentChat.readContext(terminalId),
         'agentChat.stopTask': async ({ terminalId, taskId }) => {
             await agentChat.stopTask(terminalId, taskId);
             return null;
