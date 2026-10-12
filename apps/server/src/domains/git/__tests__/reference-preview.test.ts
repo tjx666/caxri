@@ -132,8 +132,8 @@ describe('loadTerminalReferencePreview', () => {
                     created_at: '2026-09-01T00:00:00Z',
                     html_url: 'https://github.com/tjx666/caxri/pull/445',
                     number: 445,
-                    pull_request: {},
-                    state: 'open',
+                    pull_request: { merged_at: '2026-09-02T00:00:00Z' },
+                    state: 'closed',
                     title: 'Hover preview for Terminal references',
                     user: { login: 'tjx666' },
                 }),
@@ -150,9 +150,10 @@ describe('loadTerminalReferencePreview', () => {
             kind: 'github',
             author: 'tjx666',
             isDraft: false,
+            isMerged: true,
             isPullRequest: true,
             number: 445,
-            state: 'open',
+            state: 'closed',
             title: 'Hover preview for Terminal references',
         });
         expect(runner).toHaveBeenCalledWith(

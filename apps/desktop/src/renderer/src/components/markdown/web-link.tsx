@@ -26,6 +26,7 @@ export function WebLink({
     children,
     className,
     href,
+    referenceTerminalId,
     summary,
     onOpen,
 }: {
@@ -35,6 +36,10 @@ export function WebLink({
      */
     className?: string;
     href: string;
+    /**
+     * The Terminal whose Session scopes a pull request link's state lookup.
+     */
+    referenceTerminalId?: string;
     summary: LinkSummary;
     onOpen: (url: string) => void;
 }) {
@@ -57,9 +62,9 @@ export function WebLink({
             >
                 <LinkFavicon
                     className="-mt-0.5 mr-1 align-middle"
-                    host={summary.host}
-                    isSecure={summary.isSecure}
                     origin={origin}
+                    referenceTerminalId={referenceTerminalId}
+                    summary={summary}
                 />
                 {children}
             </HoverCardTrigger>
@@ -71,9 +76,9 @@ export function WebLink({
                 <div className="flex items-center gap-2 px-3 py-2">
                     <LinkFavicon
                         className="text-muted"
-                        host={summary.host}
-                        isSecure={summary.isSecure}
                         origin={origin}
+                        referenceTerminalId={referenceTerminalId}
+                        summary={summary}
                     />
                     <span className="min-w-0 flex-1 truncate text-[12px] text-muted">
                         {summary.host}

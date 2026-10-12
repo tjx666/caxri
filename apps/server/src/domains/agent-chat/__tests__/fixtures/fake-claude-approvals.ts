@@ -141,6 +141,46 @@ export async function didRunApprovalScenario(
         io.result(startedAt, 'done');
         return true;
     }
+    if (text.includes('ask recommended')) {
+        let chosen = 'nothing';
+        await wasToolAllowed(
+            io,
+            'AskUserQuestion',
+            {
+                questions: [
+                    {
+                        header: 'Scope',
+                        question: 'How much should the fix cover?',
+                        multiSelect: false,
+                        options: [
+                            {
+                                label: 'Only the reported case (Recommended)',
+                                description: 'Smallest change; ships today',
+                            },
+                            { label: 'Every similar surface', description: 'Broader audit first' },
+                        ],
+                    },
+                    {
+                        header: 'Tests',
+                        question: 'Add a regression test?',
+                        multiSelect: false,
+                        options: [
+                            { label: 'Yes', description: 'Unit test beside the fix' },
+                            { label: 'No', description: 'Rely on existing coverage' },
+                        ],
+                    },
+                ],
+            },
+            (input) => {
+                const answers = (input.answers as Record<string, string> | undefined) ?? {};
+                chosen = Object.values(answers).join(' + ') || 'nothing';
+                return { content: `User has answered your questions: ${chosen}.` };
+            },
+        );
+        if (!io.isInterrupted()) await io.didStreamFully(`You chose ${chosen}.`, 0);
+        io.result(startedAt, 'done');
+        return true;
+    }
     if (text.includes('ask')) {
         let answer = 'nothing';
         await wasToolAllowed(

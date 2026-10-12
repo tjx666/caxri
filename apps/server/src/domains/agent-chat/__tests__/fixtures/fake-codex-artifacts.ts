@@ -1,7 +1,7 @@
 /**
- * `artifacts`: a turn that edits and creates files on disk, opens a pull request through `gh`, files a Linear issue
- * through MCP, and publishes an acceptance report through `lh`, so the Chat's turn-end cards (edited files with Undo,
- * tracker cards) have something real to show.
+ * `artifacts`: a turn that edits and creates files on disk, opens a pull request through `gh`, rewrites another pull
+ * request's body through `gh api`, files a Linear issue through MCP, and publishes an acceptance report through `lh`,
+ * so the Chat's turn-end cards (edited files with Undo, tracker cards) have something real to show.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -50,6 +50,16 @@ export async function runTurnArtifacts(io: FakeCodexIo, turn: FakeTurn) {
         cwd: process.cwd(),
         status: 'completed',
         aggregatedOutput: 'https://github.com/acme/widgets/pull/42\n',
+        exitCode: 0,
+        durationMs: 5,
+    });
+    io.completeItem(turn, {
+        type: 'commandExecution',
+        id: crypto.randomUUID(),
+        command: `/bin/zsh -lc "gh api -X PATCH repos/acme/widgets/pulls/40 -F body=@/tmp/pr-40.md --jq .html_url"`,
+        cwd: process.cwd(),
+        status: 'completed',
+        aggregatedOutput: 'https://github.com/acme/widgets/pull/40\n',
         exitCode: 0,
         durationMs: 5,
     });

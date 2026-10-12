@@ -11,12 +11,20 @@ import {
 const mocks = vi.hoisted(() => ({
     dispatch: vi.fn(() => Promise.resolve('executed' as const)),
     openExternalUrl: vi.fn(() => Promise.resolve()),
+    sendPromptToSessionAgent: vi.fn<(prompt: string) => Promise<string>>(),
     showConfirm: vi.fn<() => Promise<boolean>>(),
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { window: { showConfirm: mocks.showConfirm } } }));
 vi.mock('../../../lib/external-link', () => ({ openExternalUrl: mocks.openExternalUrl }));
-vi.mock('../view-container-commands', () => ({ dispatchExtensionViewAction: mocks.dispatch }));
+vi.mock('../view-container-commands', () => ({
+    actionFailureMessage: (error: Error, label: string) => `${label}: ${error.message}`,
+    dispatchExtensionViewAction: mocks.dispatch,
+}));
+vi.mock('../../terminal/agent-prompt-commands', async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    sendPromptToSessionAgent: mocks.sendPromptToSessionAgent,
+}));
 
 const action: TreeItemAction = {
     command: {
@@ -54,6 +62,52 @@ describe('runTreeItemCommand', () => {
         expect(getToasts().at(-1)).toMatchObject({
             type: 'error',
             title: 'Unable to run Open Pull Request. The link is missing.',
+        });
+    });
+});
+
+describe('runTreeItemCommand caxri.sendToAgent', () => {
+    const sendCommand = (prompt: unknown) => ({
+        id: 'caxri.sendToAgent',
+        title: 'Send Comments to Agent',
+        arguments: [prompt],
+    });
+
+    beforeEach(() => {
+        mocks.dispatch.mockClear();
+        mocks.sendPromptToSessionAgent.mockReset();
+    });
+
+    it("sends the cleaned prompt to the Session's Agent without dispatching to the extension", async () => {
+        mocks.sendPromptToSessionAgent.mockResolvedValueOnce('Claude Code');
+
+        await runTreeItemCommand(sendCommand('Fix\r\nthis\u{1B}'));
+
+        expect(mocks.dispatch).not.toHaveBeenCalled();
+        expect(mocks.sendPromptToSessionAgent).toHaveBeenCalledWith('Fix\nthis');
+        expect(getToasts().at(-1)).toMatchObject({ type: 'success', title: 'Sent to Claude Code' });
+    });
+
+    it("prefixes a failed send with the action's failure copy", async () => {
+        mocks.sendPromptToSessionAgent.mockRejectedValueOnce(
+            new Error('Start an Agent in this Session first'),
+        );
+
+        await runTreeItemCommand(sendCommand('Fix'), { failure: "Couldn't send the comments" });
+
+        expect(getToasts().at(-1)).toMatchObject({
+            type: 'error',
+            title: "Couldn't send the comments: Start an Agent in this Session first",
+        });
+    });
+
+    it('reports a missing prompt without sending anything', async () => {
+        await runTreeItemCommand(sendCommand(42));
+
+        expect(mocks.sendPromptToSessionAgent).not.toHaveBeenCalled();
+        expect(getToasts().at(-1)).toMatchObject({
+            type: 'error',
+            title: 'Unable to run Send Comments to Agent. The prompt is missing.',
         });
     });
 });

@@ -166,6 +166,7 @@ function UserMessageText({
     text: string;
     onOpenFile?: (target: string) => void;
 }) {
+    const terminalId = useAgentChatTerminal();
     const segments = agentChatUserMessageSegments(text, { withFiles: onOpenFile !== undefined });
     return segments.map((segment, position) => {
         if (segment.kind === 'text') return segment.text;
@@ -197,6 +198,7 @@ function UserMessageText({
                 className="decoration-muted hover:text-accent"
                 href={segment.url}
                 key={position}
+                referenceTerminalId={terminalId}
                 summary={summary}
                 onOpen={openAgentChatLink}
             >

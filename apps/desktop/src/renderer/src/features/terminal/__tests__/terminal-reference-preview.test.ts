@@ -90,6 +90,7 @@ describe('terminalReferencePreviewCard', () => {
                     author: 'tjx666',
                     createdAt: NOW - 3_600_000,
                     isDraft: false,
+                    isMerged: false,
                     isPullRequest: false,
                     number: 445,
                     state: 'open',
@@ -99,6 +100,32 @@ describe('terminalReferencePreviewCard', () => {
                 NOW,
             ).facts[0],
         ).toBe('Open issue #445');
+    });
+
+    it('names a merged pull request instead of the closed state GitHub reports', () => {
+        expect(
+            terminalReferencePreviewCard(
+                {
+                    detail: 'tjx666/caxri on GitHub',
+                    kind: 'url',
+                    target: 'https://github.com/tjx666/caxri/pull/445',
+                    text: 'tjx666/caxri#445',
+                },
+                {
+                    kind: 'github',
+                    author: 'tjx666',
+                    createdAt: NOW - 3_600_000,
+                    isDraft: false,
+                    isMerged: true,
+                    isPullRequest: true,
+                    number: 445,
+                    state: 'closed',
+                    title: 'Hover preview for Terminal references',
+                    url: 'https://github.com/tjx666/caxri/pull/445',
+                },
+                NOW,
+            ).facts[0],
+        ).toBe('Merged pull request #445');
     });
 
     it('marks a draft pull request by its state rather than repeating the raw one', () => {
@@ -116,6 +143,7 @@ describe('terminalReferencePreviewCard', () => {
                     author: 'tjx666',
                     createdAt: NOW - 3_600_000,
                     isDraft: true,
+                    isMerged: false,
                     isPullRequest: true,
                     number: 445,
                     state: 'open',
