@@ -128,6 +128,32 @@ describe('describeAgentTool', () => {
         });
     });
 
+    it('titles a Computer Use step by the title the Agent wrote for it', () => {
+        expect(describeAgentTool({ name: 'browserUse', summary: 'Open the router page' })).toEqual({
+            kind: 'browser',
+            label: 'Open the router page',
+            isCodeSubject: false,
+        });
+        expect(describeAgentTool({ name: 'computerUse' })).toEqual({
+            kind: 'computer',
+            label: 'Used Computer Use',
+            isCodeSubject: false,
+        });
+        expect(
+            agentToolOutcomeLabel(
+                describeAgentTool({ name: 'browserUse', summary: 'Click Save' }),
+                'failed',
+            ),
+        ).toBe('Failed: Click Save');
+        expect(
+            summarizeAgentToolGroup([
+                { name: 'browserUse', summary: 'a' },
+                { name: 'browserUse', summary: 'b' },
+                { name: 'computerUse', summary: 'c' },
+            ]),
+        ).toBe('Ran 2 browser steps, ran 1 Computer Use step');
+    });
+
     it('falls back to the raw tool name for unknown tools', () => {
         expect(describeAgentTool({ name: 'CustomThing', summary: 'arg' })).toEqual({
             kind: 'other',

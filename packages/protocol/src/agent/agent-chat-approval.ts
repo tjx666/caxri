@@ -150,18 +150,25 @@ export function agentChatAnsweredNotice(
     answers: Readonly<Record<string, readonly string[]>>,
 ): AgentChatItem | undefined {
     if (request?.kind !== 'question') return undefined;
-    const lines = request.questions.flatMap((question) => {
-        if (!Object.hasOwn(answers, question.id)) return [];
-        const chosen = answers[question.id];
-        if (chosen.length === 0) return [];
-        return [`${question.header || question.question}: ${chosen.join(', ')}`];
-    });
-    if (lines.length === 0) return undefined;
+    const asked = request.questions.map((question) => ({
+        question,
+        answer: (Object.hasOwn(answers, question.id) ? answers[question.id] : []).join(', '),
+    }));
+    const answered = asked.filter(({ answer }) => answer !== '');
+    if (answered.length === 0) return undefined;
     return {
         id: `answer:${request.id}`.slice(0, 200),
         ...(turnId && { turnId }),
         type: 'notice',
         kind: 'answered',
-        message: lines.join('\n').slice(0, 2_000),
+        message: answered
+            .map(({ answer, question }) => `${question.header || question.question}: ${answer}`)
+            .join('\n')
+            .slice(0, 2_000),
+        // Every question asked, so `Asked 3 questions` counts what the Agent asked; a skipped one has no answer.
+        answers: asked.map(({ answer, question }) => ({
+            question: (question.question || question.header).slice(0, 2_000),
+            answer: answer.slice(0, 2_000),
+        })),
     };
 }
