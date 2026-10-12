@@ -103,7 +103,6 @@ export async function executeMobileChatComposerScenario(
         await waitForCheck(serial, 'agent-chat-permission-button');
 
         // Permissions (#1773): the sheet, the fixture's Full access in the warning tone, and Plan mode on the trigger.
-        // Picking a row keeps the sheet open; only Done closes it.
         await tapMobileCheckByBounds(serial, 'agent-chat-permission-button');
         await waitForCheck(serial, 'agent-chat-permission-sheet');
         await waitForCheck(serial, 'agent-chat-permission-full-access');
@@ -141,7 +140,7 @@ export async function executeMobileChatComposerScenario(
             () => chat.read(),
             (snapshot) => snapshot.permissionMode === 'acceptEdits',
         );
-        await tapMobileCheckByBounds(serial, 'agent-chat-permission-done');
+        // Choosing a different level applies it and closes the sheet.
         await waitForNoCheck(serial, 'agent-chat-permission-sheet');
 
         // Fenced code (#1884): ts, bash, json, diff, a fence without a language, and an indented block.
