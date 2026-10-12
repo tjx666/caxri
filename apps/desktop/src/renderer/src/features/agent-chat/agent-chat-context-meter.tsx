@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/pop
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { AgentChatContextUsage } from './agent-chat-context';
+import { inRequestOrder, segmentShade } from './context/composition';
 
 const RADIUS = 5.5;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
@@ -18,37 +19,22 @@ const TONE_CLASS_NAMES: Record<AgentChatContextUsage['tone'], string> = {
 };
 
 /**
- * Shades for the breakdown, one per row in order: opacity steps of the one `--chart` role, as DESIGN.md asks of every
- * quantity series, so each row's swatch matches its segment and a theme retunes them all at once.
- */
-const SEGMENT_SHADES = [
-    'bg-chart',
-    'bg-chart/75',
-    'bg-chart/55',
-    'bg-chart/40',
-    'bg-chart/25',
-    'bg-chart/15',
-];
-
-function shade(index: number): string {
-    return SEGMENT_SHADES[Math.min(index, SEGMENT_SHADES.length - 1)];
-}
-
-/**
  * The meter's card, laid out like Claude Code's `/context`: the headline count, a bar of the window with what fills it,
  * and a legend. Without a breakdown the bar is one segment in the meter's tone.
  */
 function ContextCard({
     onCompact,
+    onShowDetails,
     percent,
     usage,
 }: {
     onCompact: (() => void) | undefined;
+    onShowDetails: (() => void) | undefined;
     percent: number;
     usage: AgentChatContextUsage;
 }) {
     const { t } = useTranslation();
-    const rows = usage.breakdown;
+    const rows = inRequestOrder(usage.breakdown);
     return (
         <span className="flex flex-col gap-2 text-[12px]">
             <span className="flex items-baseline justify-between gap-3">
@@ -63,7 +49,7 @@ function ContextCard({
                 {rows.length > 0 ? (
                     rows.map((row, index) => (
                         <span
-                            className={cn('h-full', shade(index))}
+                            className={cn('h-full', segmentShade(row, index))}
                             key={row.label}
                             style={{ width: `${(row.tokens / usage.window) * 100}%` }}
                         />
@@ -79,7 +65,10 @@ function ContextCard({
                 <span className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1">
                     {rows.map((row, index) => (
                         <Fragment key={row.label}>
-                            <span aria-hidden className={cn('size-2 rounded-sm', shade(index))} />
+                            <span
+                                aria-hidden
+                                className={cn('size-2 rounded-sm', segmentShade(row, index))}
+                            />
                             <span className="truncate text-muted">{row.label}</span>
                             <span className="text-right tabular-nums">
                                 {formatTokens(row.tokens)}
@@ -96,16 +85,31 @@ function ContextCard({
                     })}
                 </span>
             )}
-            {onCompact && (
-                <Button
-                    className="min-h-6 self-end px-2 text-[12px]"
-                    size="sm"
-                    type="button"
-                    variant="secondary"
-                    onClick={onCompact}
-                >
-                    {t('agentChat.context.compact')}
-                </Button>
+            {(onShowDetails !== undefined || onCompact !== undefined) && (
+                <span className="flex justify-end gap-1.5">
+                    {onShowDetails && (
+                        <Button
+                            className="min-h-6 px-2 text-[12px]"
+                            size="sm"
+                            type="button"
+                            variant="ghost"
+                            onClick={onShowDetails}
+                        >
+                            {t('agentChat.context.details')}
+                        </Button>
+                    )}
+                    {onCompact && (
+                        <Button
+                            className="min-h-6 px-2 text-[12px]"
+                            size="sm"
+                            type="button"
+                            variant="secondary"
+                            onClick={onCompact}
+                        >
+                            {t('agentChat.context.compact')}
+                        </Button>
+                    )}
+                </span>
             )}
         </span>
     );
@@ -115,20 +119,26 @@ function ContextCard({
  * How much of the context window the conversation uses, as a filling ring with the percentage beside it, the way the
  * Codex app shows it. Both measure against the window the provider compacts at, so the ring turns `--danger` exactly
  * when the composer suggests compacting. Its card gives the token counts, what fills the window when the provider
- * reports it, and a Compact button when the provider has a compact command. Hovering opens the card as a preview; it is
- * a popover rather than a preview card because it holds that button: a preview card opened by focus closes as soon as
- * focus leaves the ring, so Tab could never reach Compact. Enter, Space, or a click on the ring (a Tab stop) opens the
- * same card with focus inside it, and Escape hands focus back. The ring is a `meter`, so a screen reader hears the
- * share as a value with the counts as its text.
+ * reports it, a Details button opening the Chat's Context tab when the provider can describe its context, and a Compact
+ * button when the provider has a compact command. Hovering opens the card as a preview; it is a popover rather than a
+ * preview card because it holds that button: a preview card opened by focus closes as soon as focus leaves the ring, so
+ * Tab could never reach Compact. Enter, Space, or a click on the ring (a Tab stop) opens the same card with focus
+ * inside it, and Escape hands focus back. The ring is a `meter`, so a screen reader hears the share as a value with the
+ * counts as its text.
  */
 export function AgentChatContextMeter({
     onCompact,
+    onShowDetails,
     usage,
 }: {
     /**
      * Runs the provider's compact command; omitted when the provider reports none.
      */
     onCompact?: () => void;
+    /**
+     * Opens the Chat's Context tab; omitted for a provider that cannot report its context composition.
+     */
+    onShowDetails?: () => void;
     usage: AgentChatContextUsage;
 }) {
     const { t } = useTranslation();
@@ -188,7 +198,12 @@ export function AgentChatContextMeter({
                 {percent}%
             </PopoverTrigger>
             <PopoverContent align="end" className="w-60 overflow-visible p-2.5" side="top">
-                <ContextCard onCompact={onCompact} percent={percent} usage={usage} />
+                <ContextCard
+                    onCompact={onCompact}
+                    onShowDetails={onShowDetails}
+                    percent={percent}
+                    usage={usage}
+                />
             </PopoverContent>
         </Popover>
     );

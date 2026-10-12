@@ -3,6 +3,7 @@ import {
     gitDiffTabLabel,
     isSettingsTabPath,
     isUsageTabPath,
+    parseAgentContextTab,
     parseAgentStatusTab,
     parseAgentTaskTab,
     parseAgentTranscriptTab,
@@ -91,8 +92,8 @@ export function documentTabPresentation(
          */
         agentName?: string;
         /**
-         * Title of the Terminal an `agentStatusTabPath` tab describes. Two status tabs for the same Agent share a
-         * label, so the tooltip names the Terminal to tell them apart.
+         * Title of the Terminal an `agentStatusTabPath` or `agentContextTabPath` tab describes. Two such tabs for the
+         * same Agent share a label, so the tooltip names the Terminal to tell them apart.
          */
         agentTerminalTitle?: string;
         displayPath?: string;
@@ -118,6 +119,7 @@ export function documentTabPresentation(
     const transcript = parseAgentTranscriptTab(path);
     const agentTask = parseAgentTaskTab(path);
     const agentStatus = parseAgentStatusTab(path);
+    const agentContext = parseAgentContextTab(path);
     const turnReview = parseAgentTurnReviewTab(path);
     const external = parseExternalEditorTab(path);
     const preview = parseFilePreviewTab(path);
@@ -132,15 +134,17 @@ export function documentTabPresentation(
             ? taskTabLabel(options.task, t)
             : agentStatus
               ? t('editor.tab.agentStatus', { agent: options.agentName ?? 'Agent' })
-              : turnReview
-                ? t('editor.tab.turnChanges')
-                : preview
-                  ? previewTabLabel(preview.path, t)
-                  : isSettings
-                    ? t('editor.tab.settings')
-                    : isUsage
-                      ? t('editor.tab.usage')
-                      : (external?.name ?? pathBasename(path));
+              : agentContext
+                ? t('editor.tab.agentContext')
+                : turnReview
+                  ? t('editor.tab.turnChanges')
+                  : preview
+                    ? previewTabLabel(preview.path, t)
+                    : isSettings
+                      ? t('editor.tab.settings')
+                      : isUsage
+                        ? t('editor.tab.usage')
+                        : (external?.name ?? pathBasename(path));
     const isOutsideProject = Boolean(external) || Boolean(previewExternal);
     const detail =
         external && options.displayPath
@@ -165,7 +169,7 @@ export function documentTabPresentation(
                     ? 'transcript.jsonl'
                     : preview
                       ? pathBasename(preview.path)
-                      : isSettings || isUsage || agentTask || agentStatus
+                      : isSettings || isUsage || agentTask || agentStatus || agentContext
                         ? undefined
                         : (external?.name ?? pathBasename(path)),
         // Settings draws its own glyph, as VS Code's Settings editor tab does, instead of the JSON file it is stored in.
@@ -179,19 +183,22 @@ export function documentTabPresentation(
                     : ('agent-task' as const)
                 : agentStatus
                   ? ('agent-status' as const)
-                  : ('file' as const),
+                  : agentContext
+                    ? ('agent-context' as const)
+                    : ('file' as const),
         label,
         // A preview tab shows its source path: the label already says "Preview", so the tooltip's job is locating it.
         labelTooltip: preview
             ? previewExternal
                 ? (options.previewSourceDisplayPath ?? previewExternal.name)
                 : preview.path
-            : agentStatus && options.agentTerminalTitle
+            : (agentStatus || agentContext) && options.agentTerminalTitle
               ? `${label} · ${options.agentTerminalTitle}`
               : diff ||
                   transcript ||
                   agentTask ||
                   agentStatus ||
+                  agentContext ||
                   turnReview ||
                   isSettings ||
                   isUsage

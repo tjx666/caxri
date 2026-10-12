@@ -8,7 +8,7 @@ import type {
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Bot, ChartColumn, Gauge, Settings, SquareTerminal, X } from 'lucide-react';
+import { Bot, ChartColumn, Gauge, Layers, Settings, SquareTerminal, X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
@@ -108,6 +108,7 @@ interface WorkTabProperties {
         | 'agent-task'
         | 'shell-task'
         | 'agent-status'
+        | 'agent-context'
         | AgentIconIdentity;
     label: string;
     /**
@@ -216,6 +217,7 @@ const WORK_TAB_GLYPHS = {
     'agent-task': Bot,
     'shell-task': SquareTerminal,
     'agent-status': Gauge,
+    'agent-context': Layers,
 } as const;
 
 function isWorkTabGlyph(icon: WorkTabProperties['icon']): icon is keyof typeof WORK_TAB_GLYPHS {

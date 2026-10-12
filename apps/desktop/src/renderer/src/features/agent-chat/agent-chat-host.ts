@@ -17,9 +17,17 @@ export interface AgentChatHostCapabilities {
      * "Use as Project default" in the permission menu: saving writes the Project, which the Commander policy refuses.
      */
     canSaveProjectDefault: boolean;
+    /**
+     * The context meter's Details button: it opens the Context tab, a Workbench editor tab.
+     */
+    canOpenContext: boolean;
 }
 
 export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCapabilities {
     const isWorkbench = host === 'workbench';
-    return { canFork: isWorkbench, canSaveProjectDefault: isWorkbench };
+    return {
+        canFork: isWorkbench,
+        canSaveProjectDefault: isWorkbench,
+        canOpenContext: isWorkbench,
+    };
 }

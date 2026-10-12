@@ -55,6 +55,10 @@ interface AgentChatComposerProperties {
      */
     activity: AgentChatActivity | undefined;
     /**
+     * Whether the context meter offers Details (`AgentChatHostCapabilities`).
+     */
+    canOpenContext: boolean;
+    /**
      * Whether the permission menu offers "Use as Project default" (`AgentChatHostCapabilities`).
      */
     canSaveProjectDefault: boolean;
@@ -146,6 +150,7 @@ interface AgentChatComposerProperties {
 export function AgentChatComposer({
     activeTurnId,
     activity,
+    canOpenContext,
     canSaveProjectDefault,
     commands,
     dropHandlersReference,
@@ -386,6 +391,7 @@ export function AgentChatComposer({
                     />
                     <AgentChatComposerActions
                         canAttachImages={supportsImages}
+                        canOpenContext={canOpenContext}
                         canSaveProjectDefault={canSaveProjectDefault}
                         isAttaching={isAttaching || sessionMenu.isPreparing}
                         isQueueing={!edit.isEditing && (isTurnRunning || isBusy)}
