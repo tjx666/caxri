@@ -1067,7 +1067,10 @@ a read-only tab split to the right of the Chat, reusing that side pane for later
 message steered into a running turn carries an 11px `--muted` `Steered` caption; a queued one is an
 ordinary message once delivered and carries none, since `Queued` would read as pending. Escape
 interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a 32px
-status row opens the card above a hairline, so the card keeps one rounded outline: a spinner (or a `--warning`
+status row sits in a strip on top of the card rather than inside it, so the Chat's state never reads
+as part of the draft (reference: LobeHub's chat input). The strip is a `--surface` tab inset 12px
+from the card's sides, its top corners radius-8 and its hairline resting on the card's top border;
+the `Editing an earlier message` bar and the idle context notices below use the same strip. The row holds a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
 stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
 so a long turn reads as progress rather than a stall; a waiting one reads `Waiting for your

@@ -47,6 +47,7 @@ function EditBar({
     return (
         <div
             className="flex h-8 min-w-0 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
+            data-agent-chat-composer-strip-row=""
             data-agent-chat-edit-bar=""
         >
             <Pencil aria-hidden className="size-3.5 shrink-0 text-accent" />
