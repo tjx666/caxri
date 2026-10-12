@@ -22,7 +22,11 @@ const referenceSchema = z.object({
     draft: z.boolean().optional(),
     html_url: z.string().optional(),
     number: z.number().int().positive(),
-    pull_request: z.unknown().optional(),
+    /**
+     * Present only on a pull request; `merged_at` is the one field separating a merged pull request from a closed one,
+     * which the issues endpoint reports alike as `state: closed`.
+     */
+    pull_request: z.looseObject({ merged_at: z.string().nullish() }).nullish(),
     state: z.string().optional(),
     title: z.string().optional(),
     user: z.object({ login: z.string().optional() }).optional(),
@@ -32,6 +36,7 @@ export interface GitHubReference {
     author: string;
     createdAt: number;
     isDraft: boolean;
+    isMerged: boolean;
     isPullRequest: boolean;
     number: number;
     state: string;
@@ -87,6 +92,7 @@ function toReference(output: string): GitHubReference | undefined {
         author: data.user?.login ?? '',
         createdAt: Number.isFinite(createdAt) ? Math.trunc(createdAt) : 0,
         isDraft: data.draft ?? false,
+        isMerged: Boolean(data.pull_request?.merged_at),
         isPullRequest: data.pull_request != null,
         number: data.number,
         state: data.state ?? 'unknown',

@@ -36,6 +36,35 @@ const LH_INGEST_COMMAND = /(?<=^|[\s;&|(])lh\s+acceptance\s+run\s+ingest\b/gu;
  */
 const ACCEPTANCE_URL = /(?:(https?:\/\/[\w.-]+(?::\d+)?)|(?<![\w./-]))\/acceptance\/([\w-]{8,})/gu;
 const ACCEPTANCE_ORIGIN = 'https://app.lobehub.com';
+const GH_API_COMMAND = /(?<=^|[\s;&|(])gh\s+api\b/gu;
+/**
+ * A REST endpoint that is a pull request or issue itself (`repos/o/r/pulls/12`) or its collection (`repos/o/r/issues`),
+ * not a sub-resource such as comments, reviews, or labels.
+ */
+const GH_API_TRACKER_ENDPOINT =
+    /^\/?repos\/([\w.-]+)\/([\w.-]+)\/(pulls|issues)(?:\/(\d+))?\/?(?:\?.*)?$/u;
+/**
+ * `gh api` flags that take a value, so the value is not mistaken for the endpoint.
+ */
+const GH_API_VALUE_FLAGS: ReadonlySet<string> = new Set([
+    '-F',
+    '-H',
+    '-X',
+    '-f',
+    '-p',
+    '-q',
+    '-t',
+    '--cache',
+    '--field',
+    '--header',
+    '--hostname',
+    '--input',
+    '--jq',
+    '--method',
+    '--preview',
+    '--raw-field',
+    '--template',
+]);
 
 const MAX_EXCERPT_LENGTH = 200;
 
@@ -258,6 +287,93 @@ function parseJsonRecord(text: string | undefined): Json | undefined {
 const stringOf = (value: unknown): string | undefined =>
     typeof value === 'string' && value.trim() ? value : undefined;
 
+interface GhApiCall {
+    endpoint: string | undefined;
+    fields: Map<string, string>;
+    method: string;
+}
+
+/**
+ * The endpoint, HTTP method, and `-f`/`-F` fields of a `gh api` call. Like `gh` itself, the method defaults to POST
+ * once a field or `--input` is passed and to GET otherwise.
+ */
+function ghApiCall(words: readonly string[]): GhApiCall {
+    const fields = new Map<string, string>();
+    let endpoint: string | undefined;
+    let method: string | undefined;
+    let hasInput = false;
+    for (let index = 2; index < words.length; index += 1) {
+        const word = words.at(index) ?? '';
+        const equals = word.startsWith('--') ? word.indexOf('=') : -1;
+        const flag = equals === -1 ? word : word.slice(0, equals);
+        if (!GH_API_VALUE_FLAGS.has(flag)) {
+            if (!word.startsWith('-')) endpoint ??= word;
+            continue;
+        }
+        const value = equals === -1 ? (words.at((index += 1)) ?? '') : word.slice(equals + 1);
+        if (flag === '-X' || flag === '--method') method = value.toUpperCase();
+        else if (flag === '--input') hasInput = true;
+        else if (['-F', '-f', '--field', '--raw-field'].includes(flag)) {
+            const separator = value.indexOf('=');
+            if (separator > 0) fields.set(value.slice(0, separator), value.slice(separator + 1));
+        }
+    }
+    return { endpoint, fields, method: method ?? (hasInput || fields.size > 0 ? 'POST' : 'GET') };
+}
+
+/**
+ * A field value as written, or `undefined` for `-F body=@file`, whose text lives in a file the transcript never shows.
+ */
+const literalField = (fields: ReadonlyMap<string, string>, key: string): string | undefined => {
+    const value = fields.get(key);
+    return value === undefined || value.startsWith('@') ? undefined : stringOf(value);
+};
+
+/**
+ * A `gh api` call that created a pull request or issue (POST to its collection) or edited one (PATCH to it), which is
+ * how an Agent updates a PR body from a file without `gh pr edit`. An edit names its target in the endpoint, so it
+ * shows even when the command printed nothing; a create needs the URL from the response. Title and body come from the
+ * response JSON when the command printed it, otherwise from literal fields.
+ */
+function ghApiTrackerArtifact(item: CommandItem): AgentChatTrackerArtifact | undefined {
+    if (item.status !== 'completed') return undefined;
+    const command = unwrapShellCommand(item.command);
+    const match = command
+        .matchAll(GH_API_COMMAND)
+        .find((candidate) => !isQuotedAt(command, candidate.index));
+    if (!match) return undefined;
+    const call = ghApiCall(shellWords(command.slice(match.index)));
+    const endpoint = call.endpoint && GH_API_TRACKER_ENDPOINT.exec(call.endpoint);
+    if (!endpoint) return undefined;
+    const [, owner, repo, collection] = endpoint;
+    const number = endpoint.at(4);
+    const action =
+        number === undefined
+            ? call.method === 'POST' && 'created'
+            : call.method === 'PATCH' && 'updated';
+    if (!action) return undefined;
+    const section = collection === 'pulls' ? 'pull' : 'issues';
+    const record = parseJsonRecord(item.output);
+    const url =
+        number === undefined
+            ? (stringOf(record?.html_url) ??
+              item.output
+                  .matchAll(GITHUB_URL)
+                  .find((candidate) => candidate[1] === owner && candidate[2] === repo)?.[0])
+            : `https://github.com/${owner}/${repo}/${section}/${number}`;
+    const target = url && githubUrlArtifact(url);
+    if (!target) return undefined;
+    const title = stringOf(record?.title) ?? literalField(call.fields, 'title');
+    const excerpt = trackerExcerpt(stringOf(record?.body) ?? literalField(call.fields, 'body'));
+    return {
+        provider: 'github',
+        ...target,
+        action,
+        ...(title && { title }),
+        ...(excerpt && { excerpt }),
+    };
+}
+
 /**
  * The record that describes the issue or pull request: the result itself, or one level down when the server wraps it
  * (`{ "issue": { ... } }`).
@@ -362,7 +478,9 @@ export function collectAgentChatTrackers(
     for (const item of items) {
         const artifact =
             item.type === 'command'
-                ? (commandTrackerArtifact(item) ?? commandAcceptanceArtifact(item))
+                ? (commandTrackerArtifact(item) ??
+                  ghApiTrackerArtifact(item) ??
+                  commandAcceptanceArtifact(item))
                 : item.type === 'toolCall'
                   ? toolCallTrackerArtifact(item)
                   : undefined;

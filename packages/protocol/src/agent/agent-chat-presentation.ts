@@ -103,6 +103,20 @@ function mobileFailureMessage(
 }
 
 /**
+ * Claude Code marks the option it recommends by ending its label with `(Recommended)`, the convention its
+ * `AskUserQuestion` tool asks the model to follow; there is no structured flag. The card shows the label without the
+ * suffix and a badge instead, while the answer still sends the provider its original label.
+ */
+const RECOMMENDED_SUFFIX = /\s*\(recommended\)\s*$/i;
+
+export function agentChatQuestionOption(label: string): { isRecommended: boolean; text: string } {
+    const text = label.replace(RECOMMENDED_SUFFIX, '');
+    return text === label || !text
+        ? { isRecommended: false, text: label }
+        : { isRecommended: true, text };
+}
+
+/**
  * Builds the `answers` response for a question request. A typed "Other" answer replaces the chosen option for its
  * question; an unanswered question is omitted (the provider decides how to treat it), and `isComplete` tells the card
  * whether every question has an answer yet. Only the request's own questions are read, so a stale selection for a

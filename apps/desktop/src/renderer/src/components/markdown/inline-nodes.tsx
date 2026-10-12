@@ -49,14 +49,20 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
 }
 
 function InlineLink({ node }: { node: Extract<MarkdownInline, { type: 'link' }> }) {
-    const { onOpenFile, onOpenUrl, variant } = useMarkdownContext();
+    const { onOpenFile, onOpenUrl, referenceTerminalId, variant } = useMarkdownContext();
     const { file, href } = node;
     const open = href ? () => onOpenUrl(href) : file && onOpenFile && (() => onOpenFile(file));
     if (!open) return <InlineNodes nodes={node.children} />;
     const summary = href && variant === 'transcript' ? linkSummary(href) : undefined;
     if (href && summary)
         return (
-            <WebLink className="text-accent" href={href} summary={summary} onOpen={onOpenUrl}>
+            <WebLink
+                className="text-accent"
+                href={href}
+                referenceTerminalId={referenceTerminalId}
+                summary={summary}
+                onOpen={onOpenUrl}
+            >
                 <InlineNodes nodes={node.children} />
             </WebLink>
         );

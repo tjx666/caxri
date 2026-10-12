@@ -4,6 +4,7 @@ import type { AgentChatFailureReason } from '../agent-chat-contract.js';
 import {
     agentChatFailureMessage,
     agentChatQuestionAnswers,
+    agentChatQuestionOption,
     sentenceStartProvider,
 } from '../agent-chat-presentation.js';
 import type { AgentChatRequest } from '../agent-chat-requests.js';
@@ -79,6 +80,27 @@ describe('agentChatFailureMessage', () => {
                 surface: 'mobile',
             }),
         ).toBe('The Agent could not be started on your computer.');
+    });
+});
+
+describe('agentChatQuestionOption', () => {
+    it('turns the Recommended suffix into a flag and keeps every other label as is', () => {
+        expect(agentChatQuestionOption('Rebase onto main (Recommended)')).toEqual({
+            isRecommended: true,
+            text: 'Rebase onto main',
+        });
+        expect(agentChatQuestionOption('Merge (recommended) ')).toEqual({
+            isRecommended: true,
+            text: 'Merge',
+        });
+        expect(agentChatQuestionOption('Recommended settings')).toEqual({
+            isRecommended: false,
+            text: 'Recommended settings',
+        });
+        expect(agentChatQuestionOption('(Recommended)')).toEqual({
+            isRecommended: false,
+            text: '(Recommended)',
+        });
     });
 });
 

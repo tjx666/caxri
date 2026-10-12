@@ -85,8 +85,11 @@ export type TreeItemActionTone = 'neutral' | 'success' | 'warning' | 'danger';
 /**
  * A command shown as an icon button at the end of its row while the row is hovered or focused, like VS Code's inline
  * `view/item/context` actions. `command.title` is the button's accessible name and, unless `tooltip` is set, its
- * tooltip. Besides an extension command, `command.command` may be the Workbench's `caxri.openExternal` with a URL
- * argument, which opens the page in the browser without a round trip to the extension.
+ * tooltip. Besides an extension command, `command.command` may be one of two Workbench commands the Renderer resolves
+ * without a round trip to the extension: `caxri.openExternal` with a URL argument opens the page in the browser, and
+ * `caxri.sendToAgent` with a prompt string argument sends it to the selected Session's Agent (a Chat message, or one
+ * submitted paste for a Terminal Agent) and reveals that Agent. Control characters other than newlines and tabs are
+ * stripped from the prompt.
  */
 export interface TreeItemAction {
     command: Command;

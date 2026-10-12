@@ -15,6 +15,10 @@ export interface MarkdownRenderContext {
      * Opens a cited local file. Without it, file links and path-like code render as plain text.
      */
     onOpenFile?: (target: string) => void;
+    /**
+     * The Terminal whose Session scopes GitHub lookups for links, so a pull request link can show its state.
+     */
+    referenceTerminalId?: string;
 }
 
 export const MarkdownContext = createContext<MarkdownRenderContext>({

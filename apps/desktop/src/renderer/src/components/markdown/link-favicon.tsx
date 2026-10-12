@@ -1,26 +1,94 @@
-import { Globe } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import {
+    GitMerge,
+    GitPullRequest,
+    GitPullRequestArrow,
+    GitPullRequestClosed,
+    Globe,
+} from 'lucide-react';
 
 import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
-import { isGitHubHost } from '../../lib/link-summary';
+import type { LinkSummary } from '../../lib/link-summary';
+import { isGitHubHost, pullRequestLinkState } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 
+type PullRequestLinkState = NonNullable<ReturnType<typeof pullRequestLinkState>>;
+
 /**
- * A link's site icon: the GitHub mark, the site's own `/favicon.ico` (fetched by Main, see `links.favicon`), or a globe
- * when the site has none or is served over plain HTTP.
+ * The same glyphs and tones the Session row's pull request indicator uses, so a linked pull request reads the same in a
+ * transcript as in the PrimarySidebar.
+ */
+const PULL_REQUEST_ICONS: Record<PullRequestLinkState, { icon: LucideIcon; tone: string }> = {
+    closed: { icon: GitPullRequestClosed, tone: 'text-danger' },
+    draft: { icon: GitPullRequest, tone: 'text-muted' },
+    merged: { icon: GitMerge, tone: 'text-merged' },
+    open: { icon: GitPullRequestArrow, tone: 'text-success' },
+};
+
+/**
+ * A pull request link's icon, tinted by its state. The state comes from the Terminal reference preview, which reads
+ * GitHub's REST API (not the GraphQL budget the sidebar shares), caches per number, and only answers for repositories
+ * the Session already has, so a transcript cannot steer requests at an arbitrary repository. Without a Terminal to
+ * scope the read, or until it answers, the plain pull request glyph stands in the text's own color.
+ */
+function PullRequestLinkIcon({
+    className,
+    reference,
+    terminalId,
+}: {
+    className: string;
+    reference: NonNullable<LinkSummary['reference']>;
+    terminalId: string | undefined;
+}) {
+    const preview = useCaxriQuery(
+        'terminal.reference.preview',
+        { terminalId: terminalId ?? '', reference: { kind: 'github', ...reference } },
+        { enabled: terminalId !== undefined, retry: false, staleTime: 5 * 60_000 },
+    );
+    const state = pullRequestLinkState(preview.data);
+    if (!state)
+        return <GitPullRequest aria-hidden className={className} data-link-icon="pull-request" />;
+    const { icon: Icon, tone } = PULL_REQUEST_ICONS[state];
+    return (
+        <Icon
+            aria-hidden
+            className={cn(className, tone)}
+            data-link-icon="pull-request"
+            data-pull-request-state={state}
+        />
+    );
+}
+
+/**
+ * A link's site icon: a pull request glyph tinted by its state for a GitHub pull request, the GitHub mark for the rest
+ * of GitHub, the site's own `/favicon.ico` (fetched by Main, see `links.favicon`), or a globe when the site has none or
+ * is served over plain HTTP.
  */
 export function LinkFavicon({
     className,
-    host,
-    isSecure,
     origin,
+    referenceTerminalId,
+    summary,
 }: {
     className?: string;
-    host: string;
-    isSecure: boolean;
     origin: string;
+    /**
+     * The Terminal whose Session scopes a pull request's state lookup; without one the glyph stays untinted.
+     */
+    referenceTerminalId?: string;
+    summary: LinkSummary;
 }) {
+    const { host, isSecure } = summary;
     const iconClassName = cn('inline-block size-3.5 shrink-0', className);
+    if (summary.kind === 'pull' && summary.reference)
+        return (
+            <PullRequestLinkIcon
+                className={iconClassName}
+                reference={summary.reference}
+                terminalId={referenceTerminalId}
+            />
+        );
     if (isGitHubHost(host))
         return <GithubMarkIcon className={iconClassName} data-link-icon="github" />;
     if (!isSecure) return <Globe aria-hidden className={iconClassName} data-link-icon="globe" />;

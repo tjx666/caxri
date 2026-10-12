@@ -42,6 +42,11 @@ describe('Status extension review threads', () => {
             command: { arguments: [pullRequestUrl] },
         });
         expect(group?.item.iconPath?.id).toBe('comment-unresolved');
+        // The group's Fix button carries every thread to the Session's Agent.
+        const [fix] = group?.item.actions ?? [];
+        expect(fix).toMatchObject({ label: 'Fix', command: { command: 'caxri.sendToAgent' } });
+        expect(fix.command.arguments?.[0]).toContain('## 1. src/app.ts:12 (@reviewer)');
+        expect(fix.command.arguments?.[0]).toContain('Overall looks good?');
         // The group sits before the pull request row, like fe-helper's sidebar.
         expect(children.indexOf(group!)).toBeLessThan(
             children.findIndex((node) => node.item.label === '#7 Feature'),

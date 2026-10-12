@@ -14,6 +14,7 @@ import { AgentChatMessageTime } from './agent-chat-message-time';
 import { agentChatNoticeMessage } from './agent-chat-presentation';
 import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
 import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
+import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
 
@@ -36,6 +37,7 @@ export function AgentChatMessage({
     onOpenFile?: (target: string) => void;
 }) {
     const deferredText = useDeferredValue(text);
+    const terminalId = useAgentChatTerminal();
     const [repair] = useState(createStreamingMarkdownRepair);
     const [parser] = useState(() => createStreamingMarkdownParser(CHAT_PARSE_OPTIONS));
     const source = useMemo(
@@ -51,6 +53,7 @@ export function AgentChatMessage({
                 variant="transcript"
                 onOpenFile={onOpenFile}
                 onOpenUrl={openAgentChatLink}
+                referenceTerminalId={terminalId}
             />
         </div>
     );

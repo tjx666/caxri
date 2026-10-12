@@ -64,20 +64,42 @@ describe('agentChatContextAlerts', () => {
     };
 
     it('says nothing while the cache is warm and the context is small', () => {
-        expect(agentChatContextAlerts(usage, 59 * MINUTE)).toEqual({});
+        expect(agentChatContextAlerts(usage, 49 * MINUTE)).toEqual({});
         expect(agentChatContextAlerts(undefined, 0)).toEqual({});
         expect(agentChatContextAlerts({ ...usage, totalTokens: 0 }, 120 * MINUTE)).toEqual({});
     });
 
     it('reports an expired cache with the idle time and the estimated re-read', () => {
         expect(agentChatContextAlerts(usage, 75 * MINUTE).cache).toEqual({
+            state: 'expired',
             text: 'Idle 1h 15m · next reply re-reads the whole conversation (est. ~$0.69)',
             detail: 'The prompt cache lasts 60m, so the next reply reads all 113k tokens again without it. The cost is an estimate at standard API prices.',
         });
         const unpriced = { totalTokens: 113_000, cacheTtlMinutes: 60, lastResponseAt: 0 };
         expect(agentChatContextAlerts(unpriced, 60 * MINUTE).cache).toEqual({
+            state: 'expired',
             text: 'Idle 1h · next reply re-reads the whole conversation',
             detail: 'The prompt cache lasts 60m, so the next reply reads all 113k tokens again without it.',
+        });
+    });
+
+    it('counts down the last 10 minutes before the cache expires', () => {
+        expect(agentChatContextAlerts(usage, 50 * MINUTE).cache).toEqual({
+            state: 'expiring',
+            text: 'Cache expires in 10m · reply now to skip a full re-read (est. ~$0.69)',
+            detail: 'The prompt cache lasts 60m from the last reply. A message sent within 10m reuses it; after that the next reply reads all 113k tokens again. The cost is an estimate at standard API prices.',
+        });
+        expect(agentChatContextAlerts(usage, 59.5 * MINUTE).cache?.text).toBe(
+            'Cache expires in 1m · reply now to skip a full re-read (est. ~$0.69)',
+        );
+    });
+
+    it('warns only for the second half of a cache shorter than twice the lead', () => {
+        const short = { ...usage, cacheTtlMinutes: 5 };
+        expect(agentChatContextAlerts(short, 2 * MINUTE).cache).toBeUndefined();
+        expect(agentChatContextAlerts(short, 2.5 * MINUTE).cache).toMatchObject({
+            state: 'expiring',
+            text: 'Cache expires in 3m · reply now to skip a full re-read (est. ~$0.69)',
         });
     });
 

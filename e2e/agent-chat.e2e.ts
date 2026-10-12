@@ -122,7 +122,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.fill('ask me');
         await message.press('Enter');
         const question = chat.getByRole('region', { name: 'Codex has a question' });
-        await question.getByRole('button', { name: /^Blue/u }).click();
+        await question.getByRole('radio', { name: /^Blue/u }).click();
         await question.getByRole('button', { name: 'Submit' }).click();
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
         await expect(chat.getByText('Answered: Color: Blue')).toBeVisible();
@@ -514,7 +514,7 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await message.fill('ask me');
         await message.press('Enter');
         const question = chat.getByRole('region', { name: 'Claude has a question' });
-        await question.getByRole('button', { name: /^Blue/u }).click();
+        await question.getByRole('radio', { name: /^Blue/u }).click();
         await question.getByRole('button', { name: 'Submit' }).click();
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-question.png') });

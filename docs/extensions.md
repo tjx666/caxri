@@ -380,8 +380,23 @@ accessible description; without it the tooltip is the command title and opens on
 
 A row command or an inline action whose command is the Workbench's `caxri.openExternal`, with the URL
 as its first argument, opens the page through the external-link policy in the Renderer, without a
-round trip to the extension. Project Status uses it for a draft or conflicting pull request: the
-merge action explains why the pull request cannot merge and confirms with Open on GitHub.
+round trip to the extension. Project Status uses it for a draft pull request: the merge action
+explains why a draft cannot merge and confirms with Open on GitHub.
+
+An action whose command is the Workbench's `caxri.sendToAgent`, with a prompt string as its first
+argument, sends that prompt to the selected Session's Agent from the Renderer, since an extension
+has no authority over Agents (`features/terminal/agent-prompt-commands.ts`). The target is a Chat
+Terminal or a Terminal whose Agent is running, a visible one first and then the most recently
+opened. A Chat receives it as a message, queued behind a running turn; a Terminal Agent receives one
+bracketed paste followed by Enter once its pane has attached. Control characters other than
+newlines and tabs are stripped first. The Agent is revealed and the success toast names it; the
+action's `feedback.failure` prefixes the reason when there is no Agent or the write fails. Project
+Status uses it for the green `Fix` button on the `Unresolved Comments` group, which sends every
+unresolved thread (repository, pull request, location, author, link, and text, with long bodies
+clipped) to the Agent. Nothing is resolved on GitHub, so it does not confirm first. A pull request
+that conflicts with its base gets a red `Resolve` button in place of the merge button GitHub would
+refuse: it asks the Agent to rebase onto the latest base, resolve the conflicts, run the covering
+checks, and push with `--force-with-lease`, leaving the merge itself to the user.
 
 Keyboard users reach them the way an ARIA treegrid reaches a row's cells: Right on a focused leaf or
 expanded row moves into the first action (a collapsed row still expands first, and Down still enters
@@ -399,8 +414,8 @@ Menu-only actions, VS Code's `contextValue` with `view/item/context`, are not pa
 API yet.
 
 The Status extension uses this for its pull request row: a merge action appears on an open pull
-request whose head is known and that GitHub does not report as conflicting (a draft or conflicting
-one gets the Open on GitHub explanation above instead). The palette command `Merge Pull Request for
+request whose head is known and that GitHub does not report as conflicting (a draft gets the Open
+on GitHub explanation above, and a conflicting one the Agent's `Resolve` button instead). The palette command `Merge Pull Request for
 Current Branch` merges the primary repository's pull request only when nothing would make the row
 confirm, and otherwise refuses with the reason. It calls
 `workspace.git.mergePullRequest`, which needs `git.write`. Server Core reads the repository's allowed
