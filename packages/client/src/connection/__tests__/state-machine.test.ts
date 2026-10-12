@@ -119,6 +119,19 @@ describe('Desktop Server connection state machine', () => {
         });
     });
 
+    it('takes a replaced lease back only on an explicit reclaim', () => {
+        expect(transition({ status: 'replaced' }, { type: 'reclaim', atMs: 2_000 })).toEqual({
+            status: 'backoff',
+            attempt: 1,
+            outageStartedAtMs: 2_000,
+            readiness: 'announced',
+        });
+        const ready: ServerConnectionState = { status: 'ready' };
+        expect(transition(ready, { type: 'reclaim', atMs: 2_000 })).toBe(ready);
+        const disposed: ServerConnectionState = { status: 'disposed' };
+        expect(transition(disposed, { type: 'reclaim', atMs: 2_000 })).toBe(disposed);
+    });
+
     it.each(['replaced', 'disposed'] as const)('keeps %s as a terminal state', (status) => {
         const terminal: ServerConnectionState = { status };
 

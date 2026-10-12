@@ -111,7 +111,15 @@ export function createRemoteEnvironmentParts(options: RemoteEnvironmentWindowOpt
             logger: options.logger(),
         });
         bootstrap.connection = connection;
-        connection.onEvent(sendEvent);
+        /**
+         * The connection overlay explains a lease another Desktop replaced (`takenOver`) and offers to take it back, so
+         * the local window's "continue in the other window" notice, which the relay would also replay, is not sent.
+         */
+        connection.onEvent((event) => {
+            if (event.event === 'host.connectionChanged' && event.payload.status === 'replaced')
+                return;
+            sendEvent(event);
+        });
         const unsavedEditors = createWorkbenchUnsavedEditors({
             dialog,
             getWindow: liveWindow,
