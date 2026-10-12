@@ -7,7 +7,6 @@ import { translate } from '../../../../i18n';
 import { dragPath } from '../../../../lib/file-drag';
 import { resolveEntryKind } from '../../../../lib/file-entry';
 import { parentDirectoryPath } from '../../../../lib/file-path';
-import { isLocalOnlyAvailable } from '../../../../stores/environment';
 import { tryCommand } from '../../../../stores/toasts';
 import { openFileForSession } from '../../../editor/document-commands';
 import { useResourceExplorerClient } from '../../controlled-view-context';
@@ -284,8 +283,6 @@ export function useFileTreeItemInteractions({
         event.stopPropagation();
         switch (key) {
             case 'backspace': {
-                // Trash is this Mac's; an SSH Host window has no Trash to move the file into.
-                if (!isLocalOnlyAvailable()) break;
                 // confirmTrash funnels its own failures into a toast via didTrashFile, nothing to
                 // await here.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

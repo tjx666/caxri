@@ -85,9 +85,9 @@ describe('fileTreeItemMenu', () => {
         const fileLabels = labels(fileTreeItemMenu(options(file)));
         expect(fileLabels).not.toContain('Open with Default App');
         expect(fileLabels).not.toContain('Reveal in Finder');
-        expect(fileLabels).not.toContain('Move to Trash');
         expect(fileLabels).toContain('Open in Terminal');
-        expect(fileLabels.at(-1)).toBe('Rename');
+        // Main moves the entry into the SSH Host's own Trash.
+        expect(fileLabels.at(-1)).toBe('Move to Trash');
     });
 
     it('opens Project search scoped to the directory while keeping the previous query', () => {

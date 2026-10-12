@@ -47,9 +47,17 @@ Renderer hides the matching commands through the `localMachine` command conditio
 | Refused or hidden                                         | Remote replacement                    |
 | --------------------------------------------------------- | ------------------------------------- |
 | Native folder picker when adding a Project                | Folder browser served by the SSH Host |
-| Move to Trash, Reveal in Finder, open with default app    | None yet                              |
+| Move to Trash                                             | The SSH Host's freedesktop.org Trash  |
+| Reveal in Finder, open with default app                   | None yet                              |
 | Open in external editor                                   | None yet                              |
 | Theme import, diagnostics export, bug report, OS settings | Use the local window                  |
+
+Move to Trash, including Agent Chat undo of a file the Agent created, keeps the same native
+confirmation. After it, the remote Server moves the entry into the SSH Host's home Trash
+(`$XDG_DATA_HOME/Trash`, by default `~/.local/share/Trash`) with a `.trashinfo` record, so `gio trash
+--restore` or a desktop file manager on that machine can recover it. The Server rechecks the
+device and inode the user approved, so a path replaced after the dialog is refused. A Project on
+another filesystem than the home directory is copied into the Trash and then removed.
 
 ## Requirements on the SSH Host
 
@@ -147,6 +155,5 @@ coming from the jump container's address, which proves the traffic did not bypas
 
 ## Known gaps
 
-- Trash, Reveal, open with the default app, and external editors have no remote equivalent yet;
-  Agent Chat undo of a created file relies on Trash.
+- Reveal, open with the default app, and external editors have no remote equivalent yet.
 - Remote stack traces carry no source maps (they are dropped from the remote layer to keep it small).

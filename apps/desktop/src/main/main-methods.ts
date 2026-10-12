@@ -267,9 +267,14 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.workbenchRootAuthority.openCommanderFileLink(request.params);
             case 'files.trash': {
                 const item = await supervisor.request('files.authorizeTrash', request.params);
+                const state = environment.get();
                 const result = await dialog.showMessageBox(
                     mainWindow!,
-                    trashPrompt({ ...item, hasUnsavedChanges: request.params.hasUnsavedChanges }),
+                    trashPrompt({
+                        ...item,
+                        hasUnsavedChanges: request.params.hasUnsavedChanges,
+                        host: state.kind === 'ssh' ? state.destination : undefined,
+                    }),
                 );
                 if (result.response !== 0) return { canceled: true };
                 /**
@@ -289,9 +294,18 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                         'File or folder changed before it reached Trash',
                     );
                 /**
-                 * Electron's Trash API is path-based, so authorization is repeated immediately before it.
+                 * Electron's Trash API is path-based, so authorization is repeated immediately before it. An SSH Host's
+                 * entry lives on the remote machine, whose Server moves it into that host's Trash and checks the
+                 * approved identity once more.
                  */
-                await shell.trashItem(current.path);
+                if (state.kind === 'ssh')
+                    await supervisor.request('files.trashOnHost', {
+                        sessionId: request.params.sessionId,
+                        path: current.path,
+                        device: current.device,
+                        inode: current.inode,
+                    });
+                else await shell.trashItem(current.path);
                 return item;
             }
             case 'project.delete': {
