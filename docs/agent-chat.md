@@ -547,7 +547,10 @@ declined too, and the row looks the same after Server Core restarts.
 
 Grok Build asks through `session/request_permission`, keyed by the tool call id; its permission
 options (`allow_once`, `allow_always`, `reject_once`, `reject_always`) set the offered decisions,
-and Skip or a decision with no matching option answers `cancelled`. Caxri turns on
+and Skip or a decision with no matching option answers `cancelled`. Grok Build reports a rejected
+call as `failed`, live and in its `session/load` replay, with the text ``User rejected the execution
+for tool `<tool>` `` (verified on 1.0.50), so `grok-items.ts` reads that text as declined and the row
+looks the same after Server Core restarts; any other failure stays failed. Caxri turns on
 `_x.ai/ask_user_question` (`_meta.askUserQuestion`) when it opens the session, and each question
 request becomes a `question` keyed by its `toolCallId`. Grok Build's questions carry no id or
 header, so question ids are positional (`q0`, `q1`, ...) and the answer goes back keyed by question
