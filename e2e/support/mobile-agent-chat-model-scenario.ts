@@ -165,9 +165,8 @@ export async function executeMobileChatModelScenario(
         await capture(environment, 'running-turn-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
-        // The switch must not cut the running turn short: it still finishes once answered.
+        // The switch must not cut the running turn short: it still finishes once answered with one tap.
         await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
-        await tapMobileCheckByBounds(serial, 'agent-chat-question-submit');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You chose Blue.') && !snapshot.activeTurnId,

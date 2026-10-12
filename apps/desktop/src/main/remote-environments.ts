@@ -188,6 +188,7 @@ class SshEnvironmentController implements RemoteEnvironment {
                     fields: {
                         kind: request.kind,
                         outcome: response === null ? 'cancelled' : 'answered',
+                        retry: request.retry ?? 0,
                     },
                 });
                 resolve(response);

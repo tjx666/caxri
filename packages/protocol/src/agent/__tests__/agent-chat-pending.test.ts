@@ -237,6 +237,13 @@ describe('agentChatPendingView', () => {
         expect(view.queue.map((message) => message.id)).toEqual(['c']);
         expect(view.notices).toEqual([notice]);
         expect(view.answeredRequestIds).toEqual(new Set(['request-1']));
+        expect(view.asking).toEqual([]);
+    });
+
+    it('lists the questions still waiting on their card', () => {
+        expect(agentChatPendingView([], [], snapshot({ requests: [question] })).asking).toEqual([
+            question,
+        ]);
     });
 
     it('keeps the same array when nothing settled', () => {

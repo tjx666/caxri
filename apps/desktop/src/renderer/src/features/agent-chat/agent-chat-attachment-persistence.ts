@@ -211,15 +211,25 @@ export function createAgentChatAttachmentPersistence({
 const DATABASE_NAME = 'caxri-agent-chat';
 
 /**
- * The IndexedDB database for one environment's Chats. Every Workbench window (local or SSH Host) loads the same
- * `file://` origin and so shares IndexedDB, while each window retains only its own environment's Chat Terminals; one
- * shared database would let a window delete every other environment's unsent images as unretained. An SSH Host window
- * is keyed by its destination, which names one window since aliases of one account reuse it. A window whose environment
- * is not known yet (the Agent Commander window never reads it, and only ever shows local Chats) uses the local
- * database: Main answers the environment before the Server attaches, so a Workbench window knows it before any Chat
- * composer exists.
+ * The Renderer window a store belongs to. The Agent Commander window shows only its own Chat, which the Workbench
+ * snapshot excludes, so it needs a database of its own: otherwise the Workbench would prune the Commander's images as
+ * unretained on every launch, and the Commander would hydrate and evict every Workbench Chat's images.
  */
-export function agentChatAttachmentDatabaseName(environment: EnvironmentState | undefined): string {
+export type AgentChatAttachmentWindow = 'commander' | 'workbench';
+
+/**
+ * The IndexedDB database for one window kind and environment. Every window (local or SSH Host Workbench, and the
+ * Commander) loads the same `file://` origin and so shares IndexedDB, while each Workbench retains only its own
+ * environment's Chat Terminals; one shared database would let a window delete every other environment's unsent images
+ * as unretained. An SSH Host window is keyed by its destination, which names one window since aliases of one account
+ * reuse it. A Workbench whose environment is not known yet uses the local database: Main answers the environment before
+ * the Server attaches, so a Workbench window knows it before any Chat composer exists.
+ */
+export function agentChatAttachmentDatabaseName(
+    window: AgentChatAttachmentWindow,
+    environment: EnvironmentState | undefined,
+): string {
+    if (window === 'commander') return `${DATABASE_NAME}:commander`;
     return environment?.kind === 'ssh'
         ? `${DATABASE_NAME}:ssh:${environment.destination}`
         : DATABASE_NAME;

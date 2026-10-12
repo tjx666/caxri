@@ -7,9 +7,11 @@ import {
     agentChatFailureMessage,
     agentChatItemStatusLabel,
     agentChatItemStatusTone,
+    agentChatNextUnansweredQuestion,
     agentChatNoticeMessage,
     agentChatPlanProgress,
     agentChatQuestionAnswers,
+    agentChatQuestionDefaults,
     agentChatQuestionOption,
     agentChatWorkingVerb,
     isAgentChatItemVisible,
@@ -148,6 +150,42 @@ describe('agentChatQuestionAnswers', () => {
         expect(
             agentChatQuestionAnswers(request, { a: 'One', stale: 'Old' }, { b: 'Why not' }),
         ).toEqual({ answers: { a: ['One'], b: ['Why not'] }, isComplete: true });
+    });
+});
+
+describe('multi-question navigation', () => {
+    const question = (id: string, labels: string[]) => ({
+        id,
+        header: id,
+        question: `${id}?`,
+        options: labels.map((label) => ({ label, description: '' })),
+        allowsOther: false,
+    });
+    const request: Extract<AgentChatRequest, { kind: 'question' }> = {
+        id: 'q',
+        kind: 'question',
+        questions: [
+            question('a', ['One', 'Two (Recommended)']),
+            question('b', ['Yes', 'No']),
+            question('c', ['Left', 'Right']),
+        ],
+    };
+
+    it('preselects only recommended options', () => {
+        expect(agentChatQuestionDefaults(request)).toEqual({ a: 'Two (Recommended)' });
+    });
+
+    it('moves to the next unanswered question, wrapping, until none remain', () => {
+        expect(agentChatNextUnansweredQuestion(request, { a: ['One'] }, 0)).toBe(1);
+        expect(agentChatNextUnansweredQuestion(request, { c: ['Left'] }, 2)).toBe(0);
+        expect(agentChatNextUnansweredQuestion(request, { a: ['One'], c: ['Left'] }, 2)).toBe(1);
+        expect(
+            agentChatNextUnansweredQuestion(request, { a: ['One'], b: ['Yes'], c: ['Left'] }, 1),
+        ).toBeUndefined();
+        // The question just answered is never its own next step.
+        expect(agentChatNextUnansweredQuestion(request, { b: ['Yes'], c: ['Left'] }, 0)).toBe(
+            undefined,
+        );
     });
 });
 

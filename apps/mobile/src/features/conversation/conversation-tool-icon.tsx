@@ -11,6 +11,7 @@ import {
     CircleSlash,
     CircleStop,
     CircleX,
+    Command,
     FilePenLine,
     FilePlus,
     FileText,
@@ -32,7 +33,9 @@ import { conversationStyles as styles } from './conversation-styles';
 
 const TOOL_ICONS: Record<AgentToolKind, ComponentType<LucideProps>> = {
     agent: Bot,
+    browser: Globe,
     command: SquareTerminal,
+    computer: Command,
     edit: FilePenLine,
     image: Image,
     list: FolderOpen,

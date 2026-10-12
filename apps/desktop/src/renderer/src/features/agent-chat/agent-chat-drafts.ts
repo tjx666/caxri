@@ -5,6 +5,7 @@ import { debounce } from 'es-toolkit';
 import { translate } from '../../i18n';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
 import { useEnvironmentStore } from '../../stores/environment';
+import type { AgentChatAttachmentWindow } from './agent-chat-attachment-persistence';
 import {
     agentChatAttachmentDatabaseName,
     createAgentChatAttachmentPersistence,
@@ -125,16 +126,28 @@ export interface AgentChatAttachment {
  * read back once per Renderer, on first use; absent under Vitest's Node environment.
  */
 const attachments = new Map<string, AgentChatAttachment[]>();
+const attachmentWindow: { kind: AgentChatAttachmentWindow } = { kind: 'workbench' };
 const attachmentPersistence =
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- absent under Vitest's Node environment
     typeof indexedDB === 'undefined'
         ? undefined
         : createAgentChatAttachmentPersistence({
               backend: indexedDatabaseAgentChatAttachmentBackend(() =>
-                  agentChatAttachmentDatabaseName(useEnvironmentStore.getState().state),
+                  agentChatAttachmentDatabaseName(
+                      attachmentWindow.kind,
+                      useEnvironmentStore.getState().state,
+                  ),
               ),
           });
 const attachmentHydration: { started: boolean } = { started: false };
+
+/**
+ * Keeps the Agent Commander window's unsent images in its own store (see `AgentChatAttachmentWindow`). Called from its
+ * entry before the first render, before any composer can open the store.
+ */
+export function configureAgentChatAttachmentsForCommander(): void {
+    attachmentWindow.kind = 'commander';
+}
 
 export function readAgentChatDraft(terminalId: string): string {
     return loadedDrafts().get(terminalId) ?? '';

@@ -49,19 +49,24 @@ function clock() {
 }
 
 describe('agentChatAttachmentDatabaseName', () => {
-    it('gives each SSH Host its own database so windows never prune each other', () => {
+    it('gives each SSH Host and the Commander its own database so windows never prune each other', () => {
         const ssh = (destination: string) => ({
             destination,
             kind: 'ssh' as const,
             needsUserAction: false,
             phase: 'connected' as const,
         });
-        const local = agentChatAttachmentDatabaseName({ kind: 'local' });
-        expect(agentChatAttachmentDatabaseName(undefined)).toBe(local);
-        expect(agentChatAttachmentDatabaseName(ssh('devbox'))).not.toBe(local);
-        expect(agentChatAttachmentDatabaseName(ssh('devbox'))).not.toBe(
-            agentChatAttachmentDatabaseName(ssh('buildbox')),
-        );
+        const workbench = (environment?: Parameters<typeof ssh>[0]) =>
+            agentChatAttachmentDatabaseName(
+                'workbench',
+                environment === undefined ? undefined : ssh(environment),
+            );
+        const local = agentChatAttachmentDatabaseName('workbench', { kind: 'local' });
+        const commander = agentChatAttachmentDatabaseName('commander', undefined);
+        expect(workbench()).toBe(local);
+        expect(workbench('devbox')).not.toBe(local);
+        expect(workbench('devbox')).not.toBe(workbench('buildbox'));
+        expect(new Set([local, commander, workbench('devbox')]).size).toBe(3);
     });
 });
 

@@ -126,7 +126,7 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
 - No lifecycle-hook environment: the Chat synthesizes its own lifecycle signals, so hooks would
   double-report.
 - No Agent Endpoint environment (`CAXRI_MANAGED_AGENT`, `CAXRI_AGENT_ENDPOINT_*`,
-  `CAXRI_USER_DATA_DIR`, `CAXRI_CLI_PATH`): a Chat provider holds no Agent Endpoint credential, so
+  `CAXRI_USER_DATA_DIR`, `CAXRI_CLI`, `CAXRI_CLI_PATH`): a Chat provider holds no Agent Endpoint credential, so
   `caxri` commands it runs do not act as a managed Agent identity, and provider hooks cannot use
   `CAXRI_MANAGED_AGENT` to recognize it as Caxri-owned.
 

@@ -84,6 +84,11 @@ export const remoteAskpassRequestSchema = z.object({
      * OpenSSH's prompt text, such as `user@host's password:` or the host-key fingerprint question.
      */
     prompt: z.string().max(4000),
+    /**
+     * How many answers this same secret prompt already received during the current connection attempt. OpenSSH only
+     * asks again after rejecting the answer, so a value means the previous passphrase or password was wrong.
+     */
+    retry: z.number().int().positive().optional(),
 });
 
 export type RemoteAskpassRequest = z.infer<typeof remoteAskpassRequestSchema>;
