@@ -23,6 +23,7 @@ import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
 import {
     conversationWorkbenchRoots,
+    conversationWorkbenchRootSuggestion,
     visibleWorkbenchRoots,
     workbenchRootLabel,
 } from './workbench-root-options';
@@ -118,6 +119,96 @@ function WorktreeOptions({
 }
 
 /**
+ * The menu's rows: the conversation's worktrees first, then the compact or full list of the rest.
+ */
+function WorktreeList({
+    roots,
+    currentProjectId,
+    picker,
+}: {
+    roots: WorkbenchRootOption[];
+    currentProjectId: string;
+    picker: ReturnType<typeof useWorkbenchRootPicker>;
+}) {
+    const { t } = useTranslation();
+    // Typing searches every root: the compact list exists to keep the closed menu short, not to
+    // hide worktrees from a query the user already typed.
+    const isSearching = picker.search.trim().length > 0;
+    // The recommendations are a shortcut for the closed menu. Once the user types, the flat list of matches is the
+    // better answer, so the group folds back into the ordinary list rather than splitting the results in two.
+    const recommended = isSearching ? [] : conversationWorkbenchRoots(roots);
+    const visible = visibleWorkbenchRoots(
+        roots,
+        currentProjectId,
+        picker.all || isSearching,
+        new Set(recommended.map((root) => root.worktreeId)),
+    );
+    return (
+        <>
+            {recommended.length > 0 && (
+                <>
+                    <CommandGroup heading={t('statusBar.source.conversation')}>
+                        <WorktreeOptions
+                            options={recommended}
+                            roots={roots}
+                            currentProjectId={currentProjectId}
+                            picker={picker}
+                        />
+                    </CommandGroup>
+                    <Separator className="my-1" />
+                </>
+            )}
+            <WorktreeOptions
+                options={visible}
+                roots={roots}
+                currentProjectId={currentProjectId}
+                picker={picker}
+            />
+            {!picker.all && !isSearching && visible.length + recommended.length < roots.length && (
+                <>
+                    <Separator className="my-1" />
+                    <CommandItem
+                        value="show-all-worktrees"
+                        className="text-[13px]"
+                        onSelect={() => picker.setAll(true)}
+                    >
+                        {t('statusBar.workbenchRoot.showAll')}
+                        <span className="text-muted">{roots.length}</span>
+                    </CommandItem>
+                </>
+            )}
+        </>
+    );
+}
+
+/**
+ * `FolderGit2` with an accent dot in its top-right corner while the conversation points at another worktree. The dot is
+ * drawn into the glyph, as the throughput chip's provider dot is, so the chip keeps its width as it comes and goes.
+ * Lucide drops its default `aria-hidden` once an icon has children, so it is restored here: the accessible name says
+ * the same thing in words.
+ */
+function RootGlyph({ hasSuggestion }: { hasSuggestion: boolean }) {
+    if (!hasSuggestion) return <FolderGit2 size={13} className="flex-none" />;
+    return (
+        <FolderGit2
+            size={13}
+            className="flex-none"
+            aria-hidden="true"
+            data-conversation-worktree="true"
+        >
+            <circle
+                key="conversation-worktree"
+                className="fill-accent stroke-surface [.statusbar-item:hover_&]:stroke-[color-mix(in_srgb,var(--foreground)_10%,var(--surface))]"
+                cx={19}
+                cy={5}
+                r={4.5}
+                strokeWidth={2}
+            />
+        </FolderGit2>
+    );
+}
+
+/**
  * The status bar chip that opens the menu.
  *
  * `isWorktree` decides the glyph: VS Code's `worktree` codicon for a Session working in a linked worktree. `FolderGit2`
@@ -131,6 +222,7 @@ function WorkbenchRootTrigger({
     isWorktree,
     title,
     rootPath,
+    suggestedBranch,
 }: {
     branch: string;
     isExpanded: boolean;
@@ -139,8 +231,15 @@ function WorkbenchRootTrigger({
     isWorktree: boolean;
     title: string;
     rootPath: string;
+    /**
+     * The branch of the worktree this Session's conversation worked in, while the Session is still on its own root.
+     */
+    suggestedBranch?: string;
 }) {
     const { t } = useTranslation();
+    const suggestion = suggestedBranch
+        ? t('statusBar.workbenchRoot.conversationWorktree', { branch: suggestedBranch })
+        : undefined;
     const switchingText = t('statusBar.workbenchRoot.switching', { name: switchingLabel });
     return (
         <Tooltip
@@ -163,6 +262,7 @@ function WorkbenchRootTrigger({
                                 isCode: true,
                             },
                         ]}
+                        notes={suggestion ? [suggestion] : undefined}
                         hint={t('statusBar.workbenchRoot.hint')}
                     />
                 )
@@ -180,7 +280,9 @@ function WorkbenchRootTrigger({
                 aria-label={
                     isSwitching
                         ? switchingText
-                        : t('statusBar.workbenchRoot.switchFrom', { title, branch })
+                        : [t('statusBar.workbenchRoot.switchFrom', { title, branch }), suggestion]
+                              .filter(Boolean)
+                              .join(t('statusBar.listSeparator'))
                 }
                 className={cn(
                     statusItemClassName,
@@ -193,7 +295,7 @@ function WorkbenchRootTrigger({
                 ) : isWorktree ? (
                     <WorktreeIcon size={13} className="flex-none" />
                 ) : (
-                    <FolderGit2 size={13} className="flex-none" />
+                    <RootGlyph hasSuggestion={Boolean(suggestedBranch)} />
                 )}
                 <span className="min-w-0 truncate" role={isSwitching ? 'status' : undefined}>
                     {isSwitching ? switchingText : title}
@@ -212,22 +314,17 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
     const { t } = useTranslation();
     const session = useSelectedSession();
     const workbenchProject = useSelectedWorkbenchProject();
-    const picker = useWorkbenchRootPicker(sessionId);
+    const isWorktree = Boolean(
+        session && workbenchProject && workbenchProject.id !== session.projectId,
+    );
+    const picker = useWorkbenchRootPicker(
+        sessionId,
+        Boolean(session) && !isWorktree,
+        session?.workbenchProjectId,
+    );
     if (!session || !workbenchProject) return null;
     const roots = picker.rootsQuery.data ?? [];
     const current = roots.find((root) => root.projectId === session.workbenchProjectId);
-    // Typing searches every root: the compact list exists to keep the closed menu short, not to
-    // hide worktrees from a query the user already typed.
-    const isSearching = picker.search.trim().length > 0;
-    // The recommendations are a shortcut for the closed menu. Once the user types, the flat list of matches is the
-    // better answer, so the group folds back into the ordinary list rather than splitting the results in two.
-    const recommended = isSearching ? [] : conversationWorkbenchRoots(roots);
-    const visible = visibleWorkbenchRoots(
-        roots,
-        session.workbenchProjectId,
-        picker.all || isSearching,
-        new Set(recommended.map((root) => root.worktreeId)),
-    );
     return (
         <Popover open={picker.open} onOpenChange={picker.changeOpen}>
             <WorkbenchRootTrigger
@@ -235,9 +332,10 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                 isExpanded={picker.open}
                 isSwitching={picker.switching}
                 switchingLabel={picker.switchingLabel}
-                isWorktree={workbenchProject.id !== session.projectId}
+                isWorktree={isWorktree}
                 title={workbenchProject.displayTitle}
                 rootPath={workbenchProject.rootPath}
+                suggestedBranch={conversationWorkbenchRootSuggestion(roots, isWorktree, t)}
             />
             <PopoverContent
                 side="top"
@@ -262,40 +360,11 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                     />
                     <CommandList className="max-h-[min(360px,var(--available-height))]">
                         <PickerQueryStatus noun="worktrees" query={picker.rootsQuery} />
-                        {recommended.length > 0 && (
-                            <>
-                                <CommandGroup heading={t('statusBar.source.conversation')}>
-                                    <WorktreeOptions
-                                        options={recommended}
-                                        roots={roots}
-                                        currentProjectId={session.workbenchProjectId}
-                                        picker={picker}
-                                    />
-                                </CommandGroup>
-                                <Separator className="my-1" />
-                            </>
-                        )}
-                        <WorktreeOptions
-                            options={visible}
+                        <WorktreeList
                             roots={roots}
                             currentProjectId={session.workbenchProjectId}
                             picker={picker}
                         />
-                        {!picker.all &&
-                            !isSearching &&
-                            visible.length + recommended.length < roots.length && (
-                                <>
-                                    <Separator className="my-1" />
-                                    <CommandItem
-                                        value="show-all-worktrees"
-                                        className="text-[13px]"
-                                        onSelect={() => picker.setAll(true)}
-                                    >
-                                        {t('statusBar.workbenchRoot.showAll')}
-                                        <span className="text-muted">{roots.length}</span>
-                                    </CommandItem>
-                                </>
-                            )}
                     </CommandList>
                 </Command>
             </PopoverContent>

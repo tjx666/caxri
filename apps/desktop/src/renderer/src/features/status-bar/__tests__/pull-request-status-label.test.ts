@@ -1,7 +1,7 @@
 import { pullRequestUnavailableSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { pullRequestUnavailableLabel } from '../pull-request-status-label';
+import { pullRequestTooltip, pullRequestUnavailableLabel } from '../pull-request-status-label';
 
 const reasons = pullRequestUnavailableSchema.shape.reason.options;
 
@@ -37,5 +37,39 @@ describe('pull request status bar label', () => {
         expect(new Set(reasons.map((reason) => pullRequestUnavailableLabel(reason))).size).toBe(
             reasons.length,
         );
+    });
+});
+
+describe('pull request status bar tooltip', () => {
+    const pullRequest = {
+        number: 12,
+        title: 'Add worktree hint',
+        url: 'https://github.com/example/app/pull/12',
+    };
+
+    /**
+     * The Agent delivered the pull request from a worktree the Workbench never checked out, so `main #12` would
+     * otherwise read as main's own pull request.
+     */
+    it('names the pull request branch and its source when it is not the checked-out branch', () => {
+        expect(
+            pullRequestTooltip(
+                { ...pullRequest, headBranch: 'feat/hint', source: 'conversation' },
+                'main',
+            ),
+        ).toMatchObject({
+            eyebrow: 'Pull request #12',
+            rows: [{ label: 'Branch', value: 'feat/hint' }],
+            notes: ['From this conversation', 'Not the checked-out branch (main)'],
+        });
+    });
+
+    it('keeps a branch lookup on the checked-out branch free of provenance notes', () => {
+        expect(
+            pullRequestTooltip(
+                { ...pullRequest, headBranch: 'feat/hint', source: 'branch' },
+                'feat/hint',
+            ).notes,
+        ).toEqual([]);
     });
 });
