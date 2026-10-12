@@ -68,6 +68,8 @@ export function createOnDemandWindows(options: {
             process.env.CAXRI_TEST_PROCESS_EXPLORER_RENDER_ERROR === '1',
         logger: options.logger,
         isPackaged: app.isPackaged,
+        language: async () =>
+            (await supervisor.request('settings.get')).value['workbench.language'],
         loadWindowState: async () => (await auxiliaryWindowState()).processExplorer,
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         saveWindowState: (state) =>
@@ -114,5 +116,13 @@ export function createOnDemandWindows(options: {
         zoomLevel: options.zoomLevel,
     });
     processExplorerState = () => processExplorer.currentWindowState();
+    /**
+     * Process Explorer loads no Workbench snapshot, so it hears about `workbench.language` from here. The event names
+     * no key, so every settings change re-sends the current value.
+     */
+    supervisor.onEvent((event) => {
+        // eslint-disable-next-line no-void -- refreshLanguage() keeps the current language on failure
+        if (event.event === 'settings.changed') void processExplorer.refreshLanguage();
+    });
     return { agentCommander, processExplorer };
 }

@@ -1,6 +1,11 @@
 import { join } from 'node:path';
 
-import type { AuxiliaryWindowState, RendererErrorKind, ThemeTokens } from '@caxri/protocol';
+import type {
+    AppLocale,
+    AuxiliaryWindowState,
+    RendererErrorKind,
+    ThemeTokens,
+} from '@caxri/protocol';
 import { identifierSchema, isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -32,6 +37,10 @@ interface ProcessExplorerWindowOptions {
     forceRenderError?: boolean;
     logger: StructuredLogger;
     isPackaged: boolean;
+    /**
+     * Reads the `workbench.language` setting; `null` follows the system language.
+     */
+    language: () => Promise<AppLocale | null>;
     /**
      * Reads bounds persisted at the previous quit; see `AgentCommanderWindowOptions.loadWindowState`.
      */
@@ -111,6 +120,28 @@ export class ProcessExplorerWindowController {
             assertTrustedProcessExplorerSender(this.window?.webContents, event.sender);
             return this.options.theme();
         });
+        ipcMain.handle(PROCESS_EXPLORER_CHANNELS.language, (event) => {
+            assertTrustedProcessExplorerSender(this.window?.webContents, event.sender);
+            return this.options.language();
+        });
+    }
+
+    /**
+     * Sends the open window the current `workbench.language` setting. Called on every `settings.changed`, which names
+     * no key, so the window may receive an unchanged value; applying it again is a no-op there.
+     */
+    async refreshLanguage(): Promise<void> {
+        const window = this.openWindow();
+        if (!window) return;
+        let preference: AppLocale | null;
+        try {
+            preference = await this.options.language();
+        } catch {
+            // The window keeps its current language; the next settings change tries again.
+            return;
+        }
+        if (!window.isDestroyed())
+            window.webContents.send(PROCESS_EXPLORER_CHANNELS.languageChanged, preference);
     }
 
     /**

@@ -359,3 +359,42 @@ test('Process Explorer follows the app zoom and remembers its bounds across a re
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('Process Explorer follows the language setting, including while it is open', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-language-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const setLanguage = async (language: AppSettings['workbench.language']) => {
+        const settings = await pageRequest<{ value: AppSettings }>(running.page, 'settings.get');
+        settings.value['workbench.language'] = language;
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify(settings.value),
+        });
+    };
+    try {
+        await createShellSession(running.page);
+        // The launcher pins the system language to English, so Chinese can only come from the setting.
+        await setLanguage('zh-CN');
+        await pageRequest(running.page, 'processExplorer.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const processPage = running.app.windows().find((page) => page !== running.page)!;
+        await processPage.waitForLoadState('domcontentloaded');
+
+        await expect(processPage.getByRole('treegrid', { name: 'Caxri 进程' })).toBeVisible();
+        await expect(processPage.getByRole('region', { name: '资源概览' })).toBeVisible();
+
+        await setLanguage('en');
+        await expect(processPage.getByRole('treegrid', { name: 'Caxri processes' })).toBeVisible();
+        await expect(processPage.getByRole('region', { name: 'Resource summary' })).toBeVisible();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
