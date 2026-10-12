@@ -74,6 +74,10 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['window-focus'],
         why: 'Both hand-offs reach focusMainWindow(), which shows the Workbench and calls app.focus({ steal: true }) even when hidden.',
     },
+    'e2e/agent-commander-inbox-chip.e2e.ts': {
+        reasons: ['window-focus'],
+        why: 'Asserts the first Inbox item is focused after the chip brings Commander forward; toBeFocused() needs the Commander document to hold OS focus.',
+    },
     'e2e/agent-chat.e2e.ts': {
         reasons: ['wall-clock'],
         why: 'Asserts an approved command row shows no duration, i.e. the approval round trip stays under one real second.',
