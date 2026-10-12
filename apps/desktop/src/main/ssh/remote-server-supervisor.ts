@@ -31,7 +31,14 @@ import {
     stopWaitScript,
 } from './remote-scripts';
 import type { RemoteTransport } from './remote-setup';
-import { bestEffort, lastLine, RemoteSetupError, runRemoteScript, toFailure } from './remote-setup';
+import {
+    bestEffort,
+    lastLine,
+    launchFailureDetail,
+    RemoteSetupError,
+    runRemoteScript,
+    toFailure,
+} from './remote-setup';
 import type { SshConnectionCloseInfo, SshConnectionOptions } from './ssh-connection';
 import { SshConnection } from './ssh-connection';
 
@@ -442,7 +449,8 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         if (outcome !== 'adopted' && outcome !== 'started')
             throw new RemoteSetupError(
                 'launchFailed',
-                lastLine(stderr) || `The remote Server did not start (${outcome ?? 'no result'})`,
+                launchFailureDetail(stderr) ||
+                    `The remote Server did not start (${outcome ?? 'no result'})`,
             );
         let manifest: ServerManifest;
         let credential: ServerDesktopCredential;

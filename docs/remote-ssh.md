@@ -81,6 +81,11 @@ detaches from the Project are not offered, because they would list this Mac's di
   to start and the window fails with `profileInUse`, naming the host that holds it. The owner renews
   a lease in `profile/host/host-lease.json` every 15 s; once it stops renewing for 60 s (it exited
   or crashed), another host takes over. The hosts' clocks must agree to within that margin.
+- On a machine shared by several accounts, the Server's single-instance lock is an abstract Unix
+  socket whose name derives from `profile/host/lock-secret` (mode 0600), so other accounts cannot
+  predict it. A name another account binds (it can see names in `/proc/net/unix` once they were
+  used) is skipped for the next one in a series of 64, logged as `server_core.profile_lock_squatted`.
+  If every name is taken, the window fails with that reason instead of a generic start failure.
 - On hosts whose `systemd-logind` sets `KillUserProcesses=yes`, the Server dies with the last SSH
   session unless lingering is enabled for the user: `sudo loginctl enable-linger "$USER"`.
 
