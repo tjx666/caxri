@@ -5,6 +5,22 @@ import { useDialogStore } from '../../../stores/dialogs';
 import { canClaimTerminalFocus } from '../../terminal/terminal-process-focus';
 
 /**
+ * Focuses the composer for an automatic focus claim (the Chat being shown) with the caret after the draft, so typing
+ * continues a restored draft instead of prepending to it. React writes a restored draft as the textarea's initial
+ * value, which leaves Chromium's selection at 0 until something moves it.
+ *
+ * Only that untouched 0..0 selection moves; any other selection is one the user placed and focus keeps it. This sets
+ * the DOM selection only, never the caret `useAgentChatPlacedCaret` follows, so a restored draft ending in `@word`
+ * still waits for the user before opening the Sessions list.
+ */
+export function focusComposerAtDraftEnd(input: HTMLTextAreaElement): void {
+    input.focus();
+    const { length } = input.value;
+    if (length > 0 && input.selectionStart === 0 && input.selectionEnd === 0)
+        input.setSelectionRange(length, length);
+}
+
+/**
  * Showing a Chat (activating its tab, switching it from the Terminal surface, or opening a new one) hands keyboard
  * focus to the composer, the way activating a Terminal tab hands it to xterm, so the user can type straight away. It
  * obeys the same restraint as the Terminal (`canClaimTerminalFocus`).
@@ -28,13 +44,17 @@ export function useAgentChatActivationFocus(
         let frame = requestAnimationFrame(() => {
             frame = requestAnimationFrame(() => {
                 if (
-                    canClaimTerminalFocus({
+                    !canClaimTerminalFocus({
                         focusedElement: document.activeElement as HTMLElement | null,
                         isModalOpen: useDialogStore.getState().isModalOpen(),
                         terminalId,
                     })
-                )
-                    inputReference.current?.focus();
+                ) {
+                    return;
+                }
+
+                const input = inputReference.current;
+                if (input) focusComposerAtDraftEnd(input);
             });
         });
         return () => cancelAnimationFrame(frame);
