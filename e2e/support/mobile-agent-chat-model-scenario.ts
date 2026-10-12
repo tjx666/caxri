@@ -229,3 +229,123 @@ export async function executeMobileChatModelScenario(
         await fixture.stop();
     }
 }
+
+/**
+ * `MOB-CHAT-11`: a Claude Code Chat's model sheet on the phone. The Ultracode switch shows off, turns on, and marks the
+ * trigger (#1746); picking another model lists that model's efforts at once (#1724), and a model without effort control
+ * drops both the efforts and the switch. A `Bash` command titled by its description (#1601) is read in the unfolded
+ * turn.
+ */
+export async function executeMobileClaudeModelScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({
+        chatProvider: 'claude',
+        mode: 'agent-chat',
+        serial,
+    });
+    try {
+        await fixture.pair();
+        const chat = fixture.agentChat;
+        if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await waitForCheck(serial, 'agent-chat-status-empty');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => (snapshot.models?.length ?? 0) > 0 && snapshot.ultracode !== undefined,
+        );
+        await waitForCheck(serial, 'agent-chat-model-button');
+
+        // Ultracode off, then on, then the trigger's marker.
+        await openModelSheet(serial);
+        await waitForCheck(serial, 'agent-chat-ultracode');
+        await capture(environment, 'ultracode-off', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-ultracode');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.ultracode === true,
+        );
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(({ checkId, checked }) => checkId === 'agent-chat-ultracode' && checked),
+        );
+        await capture(environment, 'ultracode-on', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
+        await waitForNoCheck(serial, 'agent-chat-model-sheet');
+        await waitForCheck(serial, 'agent-chat-model-ultracode');
+        await capture(environment, 'ultracode-trigger', artifacts);
+
+        // The efforts follow the picked model: `opus` offers low, high, and max; the default model offered medium.
+        await openModelSheet(serial);
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-opus');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, 'agent-chat-effort-max') &&
+                !hasCheck(nodes, 'agent-chat-effort-medium'),
+        );
+        await capture(environment, 'opus-efforts', artifacts);
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.model === 'opus' || snapshot.model === 'fake-claude-opus',
+        );
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-fake-claude-haiku');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.every(({ checkId }) => !checkId.startsWith('agent-chat-effort-')) &&
+                !hasCheck(nodes, 'agent-chat-ultracode'),
+        );
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.model === 'fake-claude-haiku',
+        );
+        await capture(environment, 'no-effort-model', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
+        await waitForNoCheck(serial, 'agent-chat-model-sheet');
+
+        // A described command: the approval names it, and the settled row is titled by the description.
+        await sendFromPhone(serial, 'approve');
+        await waitForCheck(serial, 'agent-chat-approval-accept');
+        await capture(environment, 'command-approval', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-approval-accept');
+        const ran = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                agentText(snapshot).includes('The command ran.') && !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-request');
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        const command = ran.items.find((item) => item.type === 'command');
+        if (!command?.turnId) throw new Error('The approved command is missing');
+        await tapMobileCheckByBounds(serial, `agent-chat-turn-${command.turnId}`);
+        const unfolded = await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, `agent-chat-work-${command.id}`) ||
+                nodes.some(({ checkId }) => checkId.startsWith('agent-chat-work-group-')),
+        );
+        if (!hasCheck(unfolded, `agent-chat-work-${command.id}`)) {
+            const group = unfolded.find(({ checkId }) =>
+                checkId.startsWith('agent-chat-work-group-'),
+            );
+            if (!group) throw new Error('The unfolded turn shows no work');
+            await tapMobileCheckByBounds(serial, group.checkId);
+            await waitForCheck(serial, `agent-chat-work-${command.id}`);
+        }
+        await capture(environment, 'command-description', artifacts);
+
+        await finish(environment, artifacts, {
+            commandTitle: 'description',
+            effortsFollowModel: true,
+            noEffortModel: 'efforts-and-ultracode-hidden',
+            status: 'passed',
+            ultracode: 'off-on-marked',
+        });
+    } finally {
+        await fixture.stop();
+    }
+}

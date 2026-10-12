@@ -656,6 +656,6 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 throw new Error(
                     `Unsupported Playwright mobile Acceptance case: ${environment.caseId}`,
                 );
-            await executeMobileAgentChatCase(environment, artifacts);
+            await executeMobileAgentChatCase({ ...environment, remoteVideoPath }, artifacts);
     }
 });
