@@ -119,8 +119,8 @@ export function sshDestinationKey(destination: SshDestination, configFile?: stri
 
 /**
  * Identifies one SSH Host across spellings (`dev@box` and `dev@box:22`), so a second connect focuses the existing
- * window instead of opening another one that would replace its Desktop lease on the shared remote Server. Aliases that
- * resolve to the same host through `~/.ssh/config` remain distinct keys.
+ * window instead of opening another one that would replace its Desktop lease on the shared remote Server. This is the
+ * fallback when `ssh -G` cannot resolve aliases; see `resolveSshHostWindowKey`.
  */
 export function sshHostWindowKey(destination: SshDestination): string {
     return `${destination.user ?? ''}@${destination.host}:${destination.port ?? 22}`;

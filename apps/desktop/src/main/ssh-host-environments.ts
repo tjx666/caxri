@@ -13,12 +13,12 @@ import type { RemoteEnvironments } from './remote-environments';
 import { createRemoteEnvironments } from './remote-environments';
 import { loadRendererEntry } from './renderer-entry';
 import { ProjectRootGrants } from './root-grants';
-import { parseSshDestination, sshHostWindowKey } from './ssh/destination';
 import {
     createRemoteHostSupervisor,
     SSH_CONFIG_ENVIRONMENT_KEY,
 } from './ssh/remote-host-supervisor';
 import type { RemoteSeedConfig } from './ssh/remote-server-supervisor';
+import { resolveSshHostWindowKey } from './ssh/resolve-destination';
 import { listSshConfigHosts, RecentSshDestinations } from './ssh/ssh-config';
 import { mainWindowChromeOptions, zoomFactorForLevel } from './window-chrome';
 import { createWorkbenchRootAuthority } from './workbench-root-authority';
@@ -151,7 +151,10 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions): 
                     : Promise.reject(new CaxriError('CANCELLED', 'The SSH Host window was closed'));
             },
         }),
-        keyOf: (destination) => sshHostWindowKey(parseSshDestination(destination)),
+        keyOf: (destination) => {
+            const configFile = process.env[SSH_CONFIG_ENVIRONMENT_KEY];
+            return resolveSshHostWindowKey(destination, configFile ? { configFile } : {});
+        },
         listHosts: () => {
             // The same file every `ssh` call passes as `-F`, so the dialog lists the hosts it can actually reach.
             const configPath = process.env[SSH_CONFIG_ENVIRONMENT_KEY];

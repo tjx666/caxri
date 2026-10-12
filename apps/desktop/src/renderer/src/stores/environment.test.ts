@@ -3,8 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     listeners: [] as Array<(event: ServerEvent) => void>,
+    pushToast: vi.fn(),
     request: vi.fn<() => Promise<unknown>>(),
 }));
+
+vi.mock('./toasts', () => ({ pushToast: mocks.pushToast }));
 
 vi.mock('../lib/caxri', () => ({
     caxri: {
@@ -46,6 +49,7 @@ afterEach(() => {
     useEnvironmentStore.setState({ state: undefined });
     mocks.listeners = [];
     mocks.request.mockReset();
+    mocks.pushToast.mockReset();
 });
 
 describe('environment predicates', () => {
@@ -94,6 +98,22 @@ describe('subscribeEnvironment', () => {
         unsubscribe();
         emit(connecting);
         expect(getSshEnvironment()?.phase).toBe('connected');
+    });
+
+    it('explains a connect that Main answered by focusing this window', () => {
+        mocks.request.mockResolvedValue(connected);
+        const unsubscribe = subscribeEnvironment();
+        for (const listener of mocks.listeners)
+            listener({
+                event: 'environment.connectionReused',
+                payload: { destination: 'build-box-direct' },
+            });
+
+        expect(mocks.pushToast).toHaveBeenCalledWith(
+            'info',
+            'Already connected to the same SSH Host (build-box-direct) in this window',
+        );
+        unsubscribe();
     });
 
     it('ignores a read that resolves after unsubscribing', async () => {

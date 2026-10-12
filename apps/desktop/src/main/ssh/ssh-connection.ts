@@ -17,7 +17,7 @@ import type { SshDestination } from './destination';
 import { sshDestinationArguments, sshDestinationKey } from './destination';
 import { shellQuote } from './shell-quote';
 
-const DEFAULT_SSH_EXECUTABLE = '/usr/bin/ssh';
+export const DEFAULT_SSH_EXECUTABLE = '/usr/bin/ssh';
 /**
  * Keeps the last OpenSSH diagnostics without letting a chatty `-v` config or banner grow Main's memory.
  */
