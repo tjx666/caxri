@@ -50,6 +50,7 @@ const TERMINAL_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
     'unsupportedGlibc',
     'missingTool',
     'installFailed',
+    'profileInUse',
     'cancelled',
 ]);
 const USER_ACTION_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
@@ -435,6 +436,11 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
             { timeoutMs: LAUNCH_TIMEOUT_MS },
         );
         const outcome = result?.get('outcome');
+        if (outcome === 'profile-in-use')
+            throw new RemoteSetupError(
+                'profileInUse',
+                `In use by ${result?.get('holder') ?? 'another host'}`,
+            );
         if (outcome !== 'adopted' && outcome !== 'started')
             throw new RemoteSetupError(
                 'launchFailed',
