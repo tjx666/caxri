@@ -434,6 +434,13 @@ export const commandDefinitions: CommandDefinition[] = [
         when: 'localMachine',
     },
     {
+        id: 'agentCommander.handOver',
+        title: 'Hand Over to Agent Commander…',
+        category: 'View',
+        description:
+            'Pick Sessions, or Agent conversations started outside Caxri, for the Agent Commander to take over',
+    },
+    {
         id: 'processExplorer.open',
         title: 'Open Process Explorer',
         category: 'Help',

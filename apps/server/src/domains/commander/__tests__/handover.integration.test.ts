@@ -187,10 +187,21 @@ describe('Commander hand-over', () => {
         if (accepted.outcome !== 'accepted') throw new Error('hand-over was refused');
 
         f.service.observeInput(other.terminal.id);
-        expect(f.service.managedSessions().sessionIds).toEqual([session.id]);
+        expect(f.service.managedSessions()).toEqual({
+            sessionIds: [session.id],
+            inputTakeBackSessionIds: [session.id],
+            inputTakeBacks: [],
+        });
 
         f.service.observeInput(terminal.id);
-        expect(f.service.managedSessions().sessionIds).toEqual([]);
+        expect(f.service.managedSessions()).toEqual({
+            sessionIds: [],
+            inputTakeBackSessionIds: [],
+            // The Workbench reads this to tell the user a keystroke took the Session back.
+            inputTakeBacks: [
+                { id: expect.any(String) as unknown, sessionId: session.id, at: 50_000 },
+            ],
+        });
         expect(commanderHandovers(f.database)).toEqual([]);
         // The never-continued hand-over's task closes instead of holding a ledger slot.
         expect(f.database.commanderTasks.get(accepted.taskId!)).toMatchObject({
@@ -210,6 +221,16 @@ describe('Commander hand-over', () => {
             sessionId: session.id,
             outcome: 'not_managed',
         });
+    });
+
+    it('reports only take-backs caused by typing, never an explicit one', async () => {
+        const f = await fixture();
+        const { session } = f.agentSession();
+        await f.service.handOver({ sessionIds: [session.id] });
+
+        expect(f.service.takeBack(session.id).outcome).toBe('taken_back');
+
+        expect(f.service.managedSessions().inputTakeBacks).toEqual([]);
     });
 
     it('lets the Commander continue a hand-over exactly once and links its task', async () => {

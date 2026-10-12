@@ -191,6 +191,7 @@ export function applyAgentChatOperation(
                 ...(snapshot.queue && { queue: snapshot.queue }),
                 ...(snapshot.queueLength !== undefined && { queueLength: snapshot.queueLength }),
                 ...(snapshot.queuePaused !== undefined && { queuePaused: snapshot.queuePaused }),
+                ...(snapshot.queuePauseReason && { queuePauseReason: snapshot.queuePauseReason }),
             };
         }
         case 'upsertItem': {
@@ -235,6 +236,8 @@ export function applyAgentChatOperation(
             if (state.queue !== undefined) next.queue = state.queue;
             if (state.queueLength !== undefined) next.queueLength = state.queueLength;
             if (state.queuePaused !== undefined) next.queuePaused = state.queuePaused;
+            if (state.queuePauseReason !== undefined)
+                next.queuePauseReason = state.queuePauseReason ?? undefined;
             for (const key of [
                 'failure',
                 'activeTurnId',
@@ -247,6 +250,7 @@ export function applyAgentChatOperation(
                 'planMode',
                 'usage',
                 'operation',
+                'queuePauseReason',
             ] as const)
                 if (next[key] === undefined) delete next[key];
             return next;
