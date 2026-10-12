@@ -1,31 +1,30 @@
 import { useMemo, useState } from 'react';
 
 import type { UsageDay } from '@caxri/protocol';
-import { shiftLocalDate } from '@caxri/protocol';
 
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
-import type { Translate, TranslationKey } from '../../i18n';
+import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import type { ChartCursorLayout } from './usage-chart-cursor';
+import type { ActivityHoverTarget, ActivityView } from './usage-activity';
+import {
+    ACTIVITY_VIEWS,
+    activityCursorLayout,
+    activityCursorText,
+    activityYearSummary,
+    cumulativeTarget,
+} from './usage-activity';
 import { CHART_CURSOR_CLASS } from './usage-chart-cursor';
 import type { CumulativePoint, HeatmapWeek, UsageMetric } from './usage-metrics';
 import {
     activityCardLabel,
-    activityHighlights,
     buildCumulative,
     buildHeatmap,
-    formatDate,
-    formatMetric,
     usageDayTooltip,
     usageWeekTooltip,
 } from './usage-metrics';
 import { useChartKeyboardCursor } from './use-chart-keyboard-cursor';
-
-type ActivityView = 'daily' | 'weekly' | 'cumulative';
-
-const ACTIVITY_VIEWS: readonly ActivityView[] = ['daily', 'weekly', 'cumulative'];
 
 /**
  * Intensity steps over the `--chart` role, GitHub style. Level 0 is an empty day on the card's own elevated fill.
@@ -41,11 +40,6 @@ const WEEKDAY_LABELS: ReadonlyArray<TranslationKey | undefined> = [
     undefined,
 ];
 
-interface HoverTarget {
-    label: string;
-    detail: string;
-}
-
 /**
  * Scrolls the keyboard cursor's item into the chart's horizontal scroller: on a narrow pane the year grid overflows,
  * and the cursor would otherwise ring a day the user cannot see.
@@ -53,13 +47,6 @@ interface HoverTarget {
 const revealCursor = (element: HTMLElement | null): void => {
     element?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 };
-
-function cumulativeTarget(t: Translate, point: CumulativePoint, metric: UsageMetric): HoverTarget {
-    return {
-        label: t('usage.activity.through', { date: formatDate(t, point.date) }),
-        detail: formatMetric(t, point.total, metric),
-    };
-}
 
 function MonthLabels({ weeks }: { weeks: readonly HeatmapWeek[] }) {
     return (
@@ -171,7 +158,7 @@ function CumulativeChart({
     points: readonly CumulativePoint[];
     metric: UsageMetric;
     cursorIndex: number | undefined;
-    onHover: (target: HoverTarget | undefined) => void;
+    onHover: (target: ActivityHoverTarget | undefined) => void;
 }) {
     const { t } = useTranslation();
     const total = points.at(-1)?.total ?? 0;
@@ -243,51 +230,20 @@ export function UsageActivityCard({
     const { t } = useTranslation();
     const [view, setView] = useState<ActivityView>('daily');
     const [metric, setMetric] = useState<UsageMetric>('tokens');
-    const [hover, setHover] = useState<HoverTarget>();
+    const [hover, setHover] = useState<ActivityHoverTarget>();
     const weeks = useMemo(
         () => buildHeatmap(t, activity, today, metric),
         [t, activity, today, metric],
     );
     const days = useMemo(() => new Map(activity.map((day) => [day.date, day])), [activity]);
     const points = useMemo(() => buildCumulative(weeks), [weeks]);
-    /**
-     * Daily cells and cumulative points both index the heatmap's non-future days, column-major, so one index names the
-     * same day in either view.
-     */
-    const layout: ChartCursorLayout =
-        view === 'daily'
-            ? { kind: 'grid', count: points.length, rows: 7 }
-            : { kind: 'linear', count: view === 'weekly' ? weeks.length : points.length };
-    const keyboard = useChartKeyboardCursor(layout, view);
+    const keyboard = useChartKeyboardCursor(
+        activityCursorLayout(view, weeks.length, points.length),
+        view,
+    );
     const cursor = keyboard.cursor;
-    let cursorText: string | undefined;
-    if (cursor !== undefined) {
-        if (view === 'weekly') cursorText = usageWeekTooltip(t, weeks[cursor], metric);
-        else if (view === 'daily')
-            cursorText = usageDayTooltip(t, points[cursor].date, days.get(points[cursor].date));
-        else {
-            const target = cumulativeTarget(t, points[cursor], metric);
-            cursorText = `${target.label} · ${target.detail}`;
-        }
-    }
-    const yearStart = shiftLocalDate(today, -364);
-    const yearDays = activity.filter((day) => day.date >= yearStart);
-    const yearTotal = yearDays.reduce(
-        (sum, day) => sum + (metric === 'tokens' ? day.tokens : day.costUsd),
-        0,
-    );
-    const activeDays = yearDays.filter((day) => day.tokens > 0).length;
-    const summary = t(
-        activeDays === 1 ? 'usage.activity.summaryOne' : 'usage.activity.summaryOther',
-        { count: activeDays, value: formatMetric(t, yearTotal, metric) },
-    );
-    const busiestDay = activityHighlights(yearDays).busiestDay;
-    const chartLabel = busiestDay
-        ? t('usage.activity.chartLabel', {
-              busiestDay: usageDayTooltip(t, busiestDay.date, busiestDay),
-              summary,
-          })
-        : summary;
+    const cursorText = activityCursorText(t, { cursor, days, metric, points, view, weeks });
+    const { summary, chartLabel } = activityYearSummary(t, activity, today, metric);
 
     return (
         <section

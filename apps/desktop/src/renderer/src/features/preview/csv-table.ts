@@ -224,6 +224,17 @@ export function describeTableLimits(
 }
 
 /**
+ * The table view's fixed row height in pixels; the virtualizer and the keyboard's scroll math both step by it.
+ */
+export const TABLE_ROW_HEIGHT = 24;
+
+/**
+ * The sticky header row: a body row's height plus its 1px bottom border. Body rows start below it, so scroll math that
+ * assumed a 24px header left the last row 1px under the scroller's bottom edge.
+ */
+export const TABLE_HEADER_HEIGHT = TABLE_ROW_HEIGHT + 1;
+
+/**
  * The gutter's pixels beyond its digits: padding, border, and figure slack.
  */
 export const ROW_NUMBER_GUTTER_EXTRA = 19;
