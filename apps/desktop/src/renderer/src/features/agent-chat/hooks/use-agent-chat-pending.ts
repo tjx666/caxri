@@ -5,10 +5,10 @@ import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
 import type { AgentChatPendingMessage } from '../agent-chat-pending';
 import {
     isAgentChatPendingAnswerSettled,
-    isAgentChatPendingMessageSettled,
     pruneAgentChatPending,
     selectAgentChatPendingAnswers,
     selectAgentChatPendingMessages,
+    settledAgentChatPendingMessages,
     useAgentChatPendingStore,
 } from '../agent-chat-pending';
 
@@ -26,9 +26,8 @@ export function useAgentChatPending(terminalId: string, snapshot: AgentChatSnaps
         pruneAgentChatPending(terminalId, snapshot);
     }, [snapshot, terminalId]);
     return useMemo(() => {
-        const shown = messages.filter(
-            (message) => !isAgentChatPendingMessageSettled(message, snapshot),
-        );
+        const settled = settledAgentChatPendingMessages(messages, snapshot);
+        const shown = messages.filter((message) => !settled.has(message.id));
         const unsettled = answers.filter(
             (answer) => !isAgentChatPendingAnswerSettled(answer, snapshot),
         );

@@ -466,9 +466,7 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     setPermission(permission: AgentChatPermission): Promise<void> {
-        this.requireConnection();
-        this.permissions.set(permission);
-        return Promise.resolve();
+        return this.permissions.set(permission, this.requireConnection(), this.options.cwd);
     }
 
     rewind(target: ChatRewindTarget): Promise<undefined> {

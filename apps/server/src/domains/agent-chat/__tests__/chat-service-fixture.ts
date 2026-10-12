@@ -154,6 +154,16 @@ export async function fixture(
         await writeFile(join(stateDirectory, `${threadId}.writer-held`), '');
     };
     /**
+     * Sets the `[sandbox_workspace_write]` table the fake Codex reports through `config/read`.
+     */
+    const setCodexWorkspaceWriteConfig = async (table: Record<string, unknown>) => {
+        await mkdir(stateDirectory, { recursive: true });
+        await writeFile(
+            join(stateDirectory, 'config-sandbox-workspace-write.json'),
+            JSON.stringify(table),
+        );
+    };
+    /**
      * Makes the fake Codex answer `thread/unsubscribe` with an error.
      */
     const failCodexUnsubscribe = async () => {
@@ -204,6 +214,7 @@ export async function fixture(
         threadOpens,
         holdCodexThreadWriter,
         failCodexUnsubscribe,
+        setCodexWorkspaceWriteConfig,
         sessionOpens,
     };
 }

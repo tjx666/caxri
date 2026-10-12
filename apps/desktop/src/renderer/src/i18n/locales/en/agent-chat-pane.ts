@@ -18,6 +18,7 @@ export const agentChatPane = {
     'agentChat.commands.stopAgentFailed': 'Unable to stop the Agent',
     'agentChat.commands.answerFailed': 'Unable to answer the Agent',
     'agentChat.commands.saveProjectDefaultFailed': 'Unable to save the Project default',
+    'agentChat.commands.clearProjectDefaultFailed': 'Unable to clear the Project default',
     'agentChat.commands.stopTaskFailed': 'Unable to stop the task',
     'agentChat.commands.removeQueuedFailed': 'Unable to remove the queued message',
     'agentChat.commands.sendQueuedFailed': 'Unable to send the queued message',
