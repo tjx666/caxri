@@ -106,7 +106,7 @@ Session sends `session.conversationReference` with only its id, and the Server
    nothing is written.
 3. The Markdown keeps whole messages from the newest backwards within 256 KiB and says how many
    earlier messages it omitted, so the citing Agent never mistakes it for the full record.
-4. The file is written to `$TMPDIR/caxri-session-references/session-<timestamp>-<uuid>.md`. The
+4. The file is written to `$TMPDIR/caxri-session-references-<uid>/session-<timestamp>-<uuid>.md`. The
    profile directory is not used because its macOS path contains a space, and an `@` mention ends at
    the first space in every Agent composer. Because the temporary root can be shared, the Server
    refuses a directory that is a symlink or owned by another account, keeps it at `0700`, and
