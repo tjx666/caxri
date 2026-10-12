@@ -109,6 +109,45 @@ describe('createCodexThroughputScanner', () => {
         expect(sink.snapshot('codex')?.turnTimeToFirstTokenMs).toBe(2_500);
     });
 
+    it('tags responses with the turn model and the tier only once Codex records it', () => {
+        const { responses } = scan([
+            line(0, 'turn_context', { model: 'gpt-a' }),
+            taskStarted(0),
+            reasoning(2),
+            usage(3, 'resp-1', 100),
+            line(4, 'event_msg', {
+                type: 'thread_settings_applied',
+                thread_settings: { model: 'gpt-a', service_tier: 'priority' },
+            }),
+            line(5, 'turn_context', { model: 'gpt-a' }),
+            taskStarted(5),
+            reasoning(7),
+            usage(8, 'resp-2', 100),
+            line(9, 'event_msg', {
+                type: 'thread_settings_applied',
+                thread_settings: { model: 'gpt-b', service_tier: 'default' },
+            }),
+            line(10, 'turn_context', { model: 'gpt-b' }),
+            taskStarted(10),
+            reasoning(12),
+            usage(13, 'resp-3', 100),
+            line(14, 'event_msg', {
+                type: 'thread_settings_applied',
+                thread_settings: { model: 'gpt-b', service_tier: 'flex' },
+            }),
+            line(15, 'turn_context', { model: 'gpt-b' }),
+            taskStarted(15),
+            reasoning(17),
+            usage(18, 'resp-4', 100),
+        ]);
+        expect(responses.map(({ model, speed }) => ({ model, speed }))).toEqual([
+            { model: 'gpt-a', speed: undefined },
+            { model: 'gpt-a', speed: 'fast' },
+            { model: 'gpt-b', speed: 'standard' },
+            { model: 'gpt-b', speed: 'flex' },
+        ]);
+    });
+
     it('ignores malformed lines', () => {
         const { responses } = scan(['', 'not json', '{"type":', taskStarted(0), '[]']);
         expect(responses).toEqual([]);

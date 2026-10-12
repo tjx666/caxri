@@ -3,6 +3,12 @@ import { formatLineCount, formatTokens, formatUsd } from '@caxri/protocol';
 import { Archive, GitMerge } from 'lucide-react';
 
 import { ReportCard } from '../../components/report-card';
+import {
+    cellClass,
+    numericCellClass,
+    numericHeadClass,
+    tableHeadClass,
+} from '../../components/report-table-classes';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
@@ -22,12 +28,6 @@ import {
 import { UsageModelName } from './usage-model-name';
 import { usageRowStatusLabel, usageShare, usageShareBasis } from './usage-presentation';
 import { UsageSessionTitle } from './usage-session-title';
-import {
-    cellClass,
-    numericCellClass,
-    numericHeadClass,
-    tableHeadClass,
-} from './usage-table-classes';
 
 function openPullRequest(url: string): void {
     // eslint-disable-next-line no-void -- openExternalUrl reports failures through the shared toast path.

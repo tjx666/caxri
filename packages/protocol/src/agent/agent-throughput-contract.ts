@@ -13,6 +13,25 @@ export const AGENT_THROUGHPUT_SAMPLE_LIMIT = 20;
 export const AGENT_THROUGHPUT_RECENT_RESPONSES = 10;
 
 /**
+ * The provider's speed tier for a response: Claude Code's `usage.speed` (`fast` with `/fast` on), or the Codex thread's
+ * `service_tier` (`priority` or `fast` is Codex's Fast mode, `flex` OpenAI's slower flex processing).
+ */
+export const agentThroughputSpeeds = ['standard', 'fast', 'flex'] as const;
+export const agentThroughputSpeedSchema = z.enum(agentThroughputSpeeds);
+
+const responseVariantFields = {
+    /**
+     * Model id as the transcript records it, such as `gpt-5.6-sol` or `claude-opus-5-5`.
+     */
+    model: z.string().max(200).optional(),
+    /**
+     * Absent when the transcript does not record the tier: Codex writes it only once the thread's settings change, so
+     * responses before the first change carry no tier.
+     */
+    speed: agentThroughputSpeedSchema.optional(),
+};
+
+/**
  * One measured model response. `durationMs` runs from the moment the request's last input was recorded (the prompt or
  * the final tool result) to the provider's last generated item, so it includes queueing and time to first token but
  * never tool execution.
@@ -24,6 +43,7 @@ export const agentThroughputSampleSchema = z.object({
      * Epoch milliseconds of the response's last generated item.
      */
     completedAt: z.number(),
+    ...responseVariantFields,
 });
 
 /**
@@ -39,6 +59,12 @@ export const agentThroughputAggregateSchema = z.object({
  * Output throughput of an Agent Terminal's bound conversation, derived from timestamps and token usage the provider
  * already writes to its own transcript. Contains numbers only, never conversation content.
  */
+/**
+ * Every measured response of one model at one speed tier, so models and Fast mode can be compared side by side.
+ */
+export const agentThroughputVariantSchema =
+    agentThroughputAggregateSchema.extend(responseVariantFields);
+
 export const agentThroughputSchema = z.object({
     provider: agentProviderSchema,
     /**
@@ -58,6 +84,10 @@ export const agentThroughputSchema = z.object({
      */
     session: agentThroughputAggregateSchema,
     /**
+     * `session` split by model and speed tier, most responses first.
+     */
+    byModel: z.array(agentThroughputVariantSchema).max(32),
+    /**
      * Oldest first, at most {@link AGENT_THROUGHPUT_SAMPLE_LIMIT}.
      */
     samples: z.array(agentThroughputSampleSchema).max(AGENT_THROUGHPUT_SAMPLE_LIMIT),
@@ -66,3 +96,5 @@ export const agentThroughputSchema = z.object({
 export type AgentThroughputSample = z.infer<typeof agentThroughputSampleSchema>;
 export type AgentThroughputAggregate = z.infer<typeof agentThroughputAggregateSchema>;
 export type AgentThroughput = z.infer<typeof agentThroughputSchema>;
+export type AgentThroughputSpeed = z.infer<typeof agentThroughputSpeedSchema>;
+export type AgentThroughputVariant = z.infer<typeof agentThroughputVariantSchema>;
