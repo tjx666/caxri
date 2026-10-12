@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     Platform,
     Pressable,
@@ -12,12 +13,19 @@ import {
 } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
-import type { AgentChatQueueEntry } from '@caxri/protocol';
-import { CornerDownLeft, Image as ImageIcon, Pause, Play, Trash2 } from 'lucide-react-native';
+import {
+    CornerDownLeft,
+    Image as ImageIcon,
+    Pause,
+    Pencil,
+    Play,
+    Trash2,
+} from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
-import type { AgentChatQueueHeader } from './agent-chat-queue';
+import type { AgentChatQueueHeader, AgentChatQueueRow } from './agent-chat-queue';
+import { agentChatQueueRowHints } from './agent-chat-queue';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatQueueActions } from './use-agent-chat-queue-actions';
 
@@ -81,19 +89,110 @@ const QueueHeader = ({
 );
 
 /**
- * One queued follow-up: up to two lines of preview, its command and image count, then Steer (or Send now) and Delete.
- * Swiping the row left deletes it too, like dismissing a message in a chat list; the Delete button stays for readers
- * who do not swipe and for the screen reader.
+ * Desktop's reason a message with images has no Edit, shown when the disabled button is tapped.
+ */
+const IMAGES_UNSUPPORTED = 'Messages with images cannot be edited';
+
+/**
+ * A queued row's Send now (or Steer), Edit, and Delete buttons, for a device that may act on the queue.
+ */
+const QueueRowActions = ({
+    canSendNow,
+    entry,
+    isPending,
+    onEdit,
+    onRemove,
+    onSendNow,
+    theme,
+}: {
+    canSendNow: boolean;
+    entry: AgentChatQueueRow;
+    isPending: boolean;
+    onEdit: (id: string) => Promise<boolean>;
+    onRemove: () => void;
+    onSendNow: (id: string) => Promise<boolean>;
+    theme: MobileTheme;
+}) => {
+    const isSteer = entry.sendNowLabel === 'Steer';
+    const hints = agentChatQueueRowHints(entry, IMAGES_UNSUPPORTED);
+    return (
+        <>
+            <Pressable
+                accessibilityHint={hints.sendNow}
+                accessibilityLabel={isSteer ? 'Steer now' : 'Send now'}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canSendNow }}
+                disabled={!canSendNow}
+                // 32dp pill plus 8dp above and below is the 48dp target; the 52dp row holds the slop, which Android
+                // clips to the parent's bounds.
+                hitSlop={STEER_HIT_SLOP}
+                onPress={() => {
+                    // eslint-disable-next-line no-void -- The queue card reports a failed send itself.
+                    void onSendNow(entry.id);
+                }}
+                style={({ pressed }) => [
+                    styles.steer,
+                    {
+                        backgroundColor: theme.primary,
+                        opacity: canSendNow ? (pressed ? 0.7 : 1) : 0.38,
+                    },
+                ]}
+                testID="agent-chat-queue-send-now"
+            >
+                <CornerDownLeft color={theme.primaryForeground} size={14} strokeWidth={2.5} />
+                <Text style={[styles.steerText, { color: theme.primaryForeground }]}>
+                    {entry.sendNowLabel}
+                </Text>
+            </Pressable>
+            <IconButton
+                accessibilityHint={hints.edit}
+                accessibilityLabel="Edit queued message"
+                color={theme.muted}
+                disabled={isPending || !entry.canEdit}
+                icon={Pencil}
+                onDisabledPress={
+                    isPending
+                        ? undefined
+                        : () => Alert.alert("This message can't be edited", IMAGES_UNSUPPORTED)
+                }
+                onPress={() => {
+                    // eslint-disable-next-line no-void -- The queue card reports a failed edit itself.
+                    void onEdit(entry.id);
+                }}
+                size={18}
+                testID="agent-chat-queue-edit"
+                theme={theme}
+            />
+            <IconButton
+                accessibilityLabel="Delete queued message"
+                color={theme.muted}
+                disabled={isPending}
+                icon={Trash2}
+                onPress={onRemove}
+                size={18}
+                testID="agent-chat-queue-delete"
+                theme={theme}
+            />
+        </>
+    );
+};
+
+/**
+ * One queued follow-up: up to two lines of preview, its command and image count, then Steer (or Send now), Edit, and
+ * Delete. Swiping the row left deletes it too, like dismissing a message in a chat list; the Delete button stays for
+ * readers who do not swipe and for the screen reader.
  */
 const QueueRow = ({
-    canAct,
+    canAct: canActOnQueue,
     entry,
+    onEdit,
     onRemove,
     onSendNow,
     theme,
 }: {
     canAct: boolean;
-    entry: AgentChatQueueEntry;
+    entry: AgentChatQueueRow;
+    onEdit: (id: string) => Promise<boolean>;
     onRemove: (id: string) => Promise<boolean>;
     onSendNow: (id: string) => Promise<boolean>;
     theme: MobileTheme;
@@ -110,7 +209,9 @@ const QueueRow = ({
         ),
         [theme],
     );
-    const isSteer = entry.sendNowLabel === 'Steer';
+    const isPending = entry.isPending === true;
+    // A message still on its way holds every action until Server Core lists it, as on Desktop.
+    const canAct = canActOnQueue && !isPending;
     const canSendNow = canAct && entry.canSendNow;
     return (
         <ReanimatedSwipeable
@@ -122,7 +223,11 @@ const QueueRow = ({
             renderRightActions={renderRightActions}
             rightThreshold={64}
         >
-            <View style={styles.row} testID="agent-chat-queue-item">
+            <View
+                accessibilityState={{ busy: isPending }}
+                style={[styles.row, isPending && styles.pending]}
+                testID={isPending ? 'agent-chat-queue-item-pending' : 'agent-chat-queue-item'}
+            >
                 <View style={styles.rowText}>
                     <Text numberOfLines={2} style={[styles.preview, { color: theme.text }]}>
                         {entry.commandLabel ? (
@@ -146,56 +251,20 @@ const QueueRow = ({
                             </Text>
                         </View>
                     ) : null}
+                    {isPending ? (
+                        <Text style={[styles.imagesText, { color: theme.muted }]}>Sending…</Text>
+                    ) : null}
                 </View>
-                {canAct ? (
-                    <>
-                        <Pressable
-                            accessibilityHint={
-                                entry.canSendNow
-                                    ? isSteer
-                                        ? 'Adds this message to the running turn now.'
-                                        : undefined
-                                    : 'A command waits for the running turn to end.'
-                            }
-                            accessibilityLabel={isSteer ? 'Steer now' : 'Send now'}
-                            accessibilityRole="button"
-                            accessibilityState={{ disabled: !canSendNow }}
-                            disabled={!canSendNow}
-                            // 32dp pill plus 8dp above and below is the 48dp target; the 52dp row holds the slop, which
-                            // Android clips to the parent's bounds.
-                            hitSlop={STEER_HIT_SLOP}
-                            onPress={() => {
-                                // eslint-disable-next-line no-void -- The queue card reports a failed send itself.
-                                void onSendNow(entry.id);
-                            }}
-                            style={({ pressed }) => [
-                                styles.steer,
-                                {
-                                    backgroundColor: theme.primary,
-                                    opacity: canSendNow ? (pressed ? 0.7 : 1) : 0.38,
-                                },
-                            ]}
-                            testID="agent-chat-queue-send-now"
-                        >
-                            <CornerDownLeft
-                                color={theme.primaryForeground}
-                                size={14}
-                                strokeWidth={2.5}
-                            />
-                            <Text style={[styles.steerText, { color: theme.primaryForeground }]}>
-                                {entry.sendNowLabel}
-                            </Text>
-                        </Pressable>
-                        <IconButton
-                            accessibilityLabel="Delete queued message"
-                            color={theme.muted}
-                            icon={Trash2}
-                            onPress={remove}
-                            size={18}
-                            testID="agent-chat-queue-delete"
-                            theme={theme}
-                        />
-                    </>
+                {canActOnQueue ? (
+                    <QueueRowActions
+                        canSendNow={canSendNow}
+                        entry={entry}
+                        isPending={isPending}
+                        onEdit={onEdit}
+                        onRemove={remove}
+                        onSendNow={onSendNow}
+                        theme={theme}
+                    />
                 ) : null}
             </View>
         </ReanimatedSwipeable>
@@ -204,13 +273,14 @@ const QueueRow = ({
 
 /**
  * The follow-up messages waiting for the running turn, as one card docked above the composer, like Desktop's queue.
- * Each can be deleted or sent now (steering the running turn); after Stop the queue pauses, and the header offers
- * Resume. Editing stays on the computer, since the phone holds only a preview. A device that cannot send sees the card
- * without actions.
+ * Each can be sent now (steering the running turn), edited, or deleted; after Stop the queue pauses, and the header
+ * offers Resume. Edit takes the message out of the queue and hands its full text to `onEdit`, the composer draft. A
+ * device that cannot send sees the card without actions.
  */
 export const AgentChatQueueList = ({
     canAct,
     chat,
+    onEdit,
     theme,
 }: {
     /**
@@ -218,21 +288,23 @@ export const AgentChatQueueList = ({
      */
     canAct: boolean;
     chat: AgentChatController;
+    onEdit: (text: string) => void;
     theme: MobileTheme;
 }) => {
-    const { entries, error, header, isResuming, remove, resume, sendNow } =
-        useAgentChatQueueActions(chat);
+    const { edit, entries, error, header, isResuming, remove, resume, sendNow } =
+        useAgentChatQueueActions(chat, onEdit);
     const renderRow = useCallback(
-        ({ item }: ListRenderItemInfo<AgentChatQueueEntry>) => (
+        ({ item }: ListRenderItemInfo<AgentChatQueueRow>) => (
             <QueueRow
                 canAct={canAct}
                 entry={item}
+                onEdit={edit}
                 onRemove={remove}
                 onSendNow={sendNow}
                 theme={theme}
             />
         ),
-        [canAct, remove, sendNow, theme],
+        [canAct, edit, remove, sendNow, theme],
     );
     // An entry that failed to delete because it already left the queue leaves nothing to explain the error against.
     if (!header) return null;
@@ -316,6 +388,7 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
     },
     rowText: { flex: 1, gap: 2, minWidth: 0 },
+    pending: { opacity: 0.6 },
     preview: { fontSize: 14, lineHeight: 19 },
     command: { fontFamily: MONOSPACE, fontSize: 13 },
     images: { alignItems: 'center', flexDirection: 'row', gap: 4 },

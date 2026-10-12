@@ -3,7 +3,7 @@ import '../../../components/prism-grammars';
 import { Prism } from 'prism-react-renderer';
 import { describe, expect, it } from 'vitest';
 
-import { codeLanguage, fileLanguage } from '../file-language';
+import { codeLanguage, fenceLanguage, fileLanguage } from '../file-language';
 
 describe('fileLanguage', () => {
     it('maps common source files to a bundled Prism grammar', () => {
@@ -55,5 +55,41 @@ describe('fileLanguage', () => {
         expect(codeLanguage('TS')).toBe('typescript');
         expect(codeLanguage('unknownext')).toBeNull();
         expect(codeLanguage(undefined)).toBeNull();
+    });
+});
+
+describe('fenceLanguage', () => {
+    it('reads a fence by extension, Prism name, or alias, ignoring the rest of the info string', () => {
+        expect(fenceLanguage('ts')).toBe('typescript');
+        expect(fenceLanguage('TypeScript')).toBe('typescript');
+        expect(fenceLanguage('bash')).toBe('bash');
+        expect(fenceLanguage('sh')).toBe('bash');
+        expect(fenceLanguage('json')).toBe('json');
+        expect(fenceLanguage('diff')).toBe('diff');
+        expect(fenceLanguage('python')).toBe('python');
+        expect(fenceLanguage('golang')).toBe('go');
+        expect(fenceLanguage(' tsx title="App.tsx"')).toBe('tsx');
+    });
+
+    it('keeps a fence without a known language plain', () => {
+        expect(fenceLanguage('')).toBeNull();
+        expect(fenceLanguage(undefined)).toBeNull();
+        expect(fenceLanguage('text')).toBeNull();
+        expect(fenceLanguage('brainfuck')).toBeNull();
+    });
+
+    it('only names grammars the renderer actually bundles', () => {
+        for (const info of [
+            'ts',
+            'typescript',
+            'bash',
+            'json',
+            'diff',
+            'golang',
+            'html',
+            'objc',
+            'console',
+        ])
+            expect(Prism.languages[fenceLanguage(info) ?? '']).toBeDefined();
     });
 });

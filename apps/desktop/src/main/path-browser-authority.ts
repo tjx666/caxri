@@ -1,22 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import type { Dirent } from 'node:fs';
-import { lstat, opendir, realpath } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { dirname, relative, resolve, sep } from 'node:path';
 
 import type { MainRequest, MethodResult } from '@caxri/protocol';
-import { CaxriError, MAX_FILE_BROWSE_ENTRIES, MAX_PATH_BROWSER_ENTRIES } from '@caxri/protocol';
+import { CaxriError, MAX_PATH_BROWSER_ENTRIES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
-import { readExternalFile } from './external-file-snapshot';
+import type { PathBrowserDirectories } from './path-browser-directories';
+import { localPathBrowserDirectories } from './path-browser-directories';
+import { listFreeDirectory, readFreeDocument, resolveBrowseInput } from './path-browser-free';
 import type { FileIdentity, RootIdentity } from './path-browser-identity';
-import {
-    authorizeCandidate,
-    directoryIdentity,
-    isSameOrInside,
-    pathFailure,
-    validateDirectory,
-} from './path-browser-identity';
+import { authorizeCandidate, directoryIdentity, isSameOrInside } from './path-browser-identity';
 import type { PathBrowserLogger } from './path-browser-log';
 import { logSearchFailed, logSearchFallback } from './path-browser-log';
 import type { ProjectSearchMatch } from './path-browser-search';
@@ -87,11 +82,6 @@ interface BrowserContext {
     sourceSessionId: string;
 }
 
-interface ResolvedBrowseInput {
-    directory: string;
-    filter: string;
-}
-
 export interface PathBrowserOpenTarget {
     expectedIdentity: FileIdentity;
     path: string;
@@ -99,13 +89,16 @@ export interface PathBrowserOpenTarget {
 }
 
 interface PathBrowserAuthorityOptions {
+    /**
+     * Defaults to this Mac's disk.
+     */
+    directories?: PathBrowserDirectories;
     getServer(): DesktopServerConnection;
     logger(): PathBrowserLogger | undefined;
     openFile(target: PathBrowserOpenTarget): Promise<{ canceled: true } | { opened: true }>;
     userHome?: string;
 }
 
-const MAX_SCANNED_ENTRIES = 4_096;
 const MAX_CONCURRENT_BROWSES = 4;
 const MAX_FILTER_LENGTH = 255;
 
@@ -132,50 +125,6 @@ function isBareFilter(input: string, filter: string): boolean {
 }
 
 /**
- * Splits a complete POSIX input into the directory to enumerate and its final refinement without performing shell
- * expansion. Relative input always resolves from the last explicitly navigated directory, never from a prior live
- * refinement, so changing `..` to `../name` cannot accidentally climb twice.
- */
-function resolveBrowseInput(value: string, origin: string, userHome: string): ResolvedBrowseInput {
-    if (value.includes('\0')) throw new CaxriError('VALIDATION', 'Path contains a null byte');
-    if (/^\$(?:HOME|\{HOME\})(?:\/|$)/u.test(value))
-        throw new CaxriError('VALIDATION', 'Shell path expansion is not supported');
-    if (value !== '~' && value.startsWith('~') && !value.startsWith('~/'))
-        throw new CaxriError('VALIDATION', 'Only current-user ~ paths are supported');
-    if (!value) return { directory: origin, filter: '' };
-    if (value === '~' || value === '~/') return { directory: userHome, filter: '' };
-
-    const inputPath = value.startsWith('~/')
-        ? resolve(userHome, value.slice(2))
-        : isAbsolute(value)
-          ? resolve(value)
-          : resolve(origin, value);
-    const lastSegment = value.split('/').at(-1);
-    const namesDirectory =
-        value.endsWith('/') || lastSegment === '.' || lastSegment === '..' || value === '/';
-    return namesDirectory
-        ? { directory: inputPath, filter: '' }
-        : { directory: dirname(inputPath), filter: basename(inputPath) };
-}
-
-async function readExternalDocument(
-    candidate: Candidate,
-): Promise<Extract<Opened, { kind: 'external' }>> {
-    if (!candidate.parent || !candidate.snapshot)
-        throw new CaxriError('PATH_DENIED', 'External browse entry is no longer available');
-    return {
-        opened: true,
-        kind: 'external',
-        document: await readExternalFile(
-            candidate.parent,
-            candidate.path,
-            candidate.name,
-            candidate.snapshot,
-        ),
-    };
-}
-
-/**
  * Owns raw filesystem locations and entry identities behind one browser ID. Project reads keep the existing Server
  * authorization path; free reads are bounded, read-only Main operations and never create Projects or Sessions.
  */
@@ -183,7 +132,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
     const contexts = new Map<string, BrowserContext>();
     const operations = new Map<string, Promise<void>>();
     const browseConcurrency = new AsyncSemaphore(MAX_CONCURRENT_BROWSES);
-    const userHome = options.userHome ?? homedir();
+    const directories = options.directories ?? localPathBrowserDirectories;
+    const userHome = directories.canBrowseFree ? (options.userHome ?? homedir()) : undefined;
 
     function contextFor(id: string): BrowserContext {
         const context = contexts.get(id);
@@ -268,7 +218,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         input: string,
         displayDirectory?: string,
     ): Promise<Snapshot> {
-        await validateDirectory(context.root);
+        await directories.validate(context.root);
         if (!isSameOrInside(context.root.path, directory.path))
             throw new CaxriError('PATH_DENIED', 'Path escapes the Project root');
         if (filter.length > MAX_FILTER_LENGTH)
@@ -428,7 +378,10 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         const key = suffix.join('/');
         const displayDirectory = await locateProjectPrefix(context, key);
         if (!displayDirectory) return undefined;
-        const directory = await directoryIdentity(resolve(displayDirectory, ...suffix));
+        const directory = await directories.directory(
+            context.browseSessionId,
+            resolve(displayDirectory, ...suffix),
+        );
         if (
             !isSameOrInside(context.root.path, directory.path) ||
             !isSameOrInside(context.root.path, displayDirectory)
@@ -448,7 +401,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         if (memo === null) return undefined;
         if (memo !== undefined) {
             try {
-                await directoryIdentity(resolve(memo, key));
+                await directories.directory(context.browseSessionId, resolve(memo, key));
                 return memo;
             } catch {
                 // The memoized prefix no longer holds this deeper path; fall through to a fresh lookup.
@@ -485,85 +438,22 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         filter: string,
         input: string,
     ): Promise<Snapshot> {
-        return browseConcurrency.run(async () => {
-            await validateDirectory(directory);
-            const normalizedFilter = filter.toLocaleLowerCase();
-            const candidates: Candidate[] = [];
-            let scanned = 0;
-            let isReachedEnd = false;
-            let handle: Awaited<ReturnType<typeof opendir>>;
-            try {
-                handle = await opendir(directory.path);
-            } catch (error) {
-                return pathFailure(error, 'Unable to read browse directory');
-            }
-            try {
-                while (
-                    scanned < MAX_SCANNED_ENTRIES &&
-                    candidates.length <= MAX_FILE_BROWSE_ENTRIES
-                ) {
-                    let entry: Dirent<string> | null;
-                    try {
-                        // eslint-disable-next-line no-await-in-loop -- a directory handle exposes one sequential cursor
-                        entry = await handle.read();
-                    } catch (error) {
-                        return pathFailure(error, 'Unable to read browse directory');
-                    }
-                    if (!entry) {
-                        isReachedEnd = true;
-                        break;
-                    }
-                    scanned += 1;
-                    if (!entry.name.toLocaleLowerCase().includes(normalizedFilter)) continue;
-                    const path = resolve(directory.path, entry.name);
-                    let stats: Awaited<ReturnType<typeof lstat>>;
-                    try {
-                        // eslint-disable-next-line no-await-in-loop -- only the bounded displayed page receives identities
-                        stats = await lstat(path, { bigint: true });
-                    } catch (error) {
-                        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
-                        return pathFailure(error, 'Unable to inspect browse entry');
-                    }
-                    // Free mode browses outside every Project authority, so it stops at the entry's own `lstat`
-                    // and never follows a link target for display metadata.
-                    candidates.push({
-                        id: randomUUID(),
-                        kind: stats.isSymbolicLink()
-                            ? 'symlink'
-                            : stats.isDirectory()
-                              ? 'directory'
-                              : 'file',
-                        name: entry.name,
-                        path,
-                        parent: directory,
-                        source: 'directory',
-                        snapshot: { device: stats.dev.toString(), inode: stats.ino.toString() },
-                    });
-                }
-            } finally {
-                try {
-                    await handle.close();
-                } catch {
-                    // The bounded directory handle is discarded regardless; a close failure cannot expand access.
-                }
-            }
-            await validateDirectory(directory);
-            const isTruncated = !isReachedEnd || candidates.length > MAX_FILE_BROWSE_ENTRIES;
-            const bounded = candidates
-                .toSorted((left, right) => {
-                    if (left.kind === 'directory' && right.kind !== 'directory') return -1;
-                    if (left.kind !== 'directory' && right.kind === 'directory') return 1;
-                    return left.name.localeCompare(right.name);
-                })
-                .slice(0, MAX_FILE_BROWSE_ENTRIES);
-            return snapshot(
-                context,
-                directory,
-                input,
-                replaceCandidates(context, bounded),
-                isTruncated,
-            );
-        });
+        if (!directories.canBrowseFree)
+            throw new CaxriError('UNAVAILABLE', 'Paths outside the Project are not available here');
+        const listed = await browseConcurrency.run(() => listFreeDirectory(directory, filter));
+        const candidates = listed.entries.map((entry) => ({
+            ...entry,
+            id: randomUUID(),
+            parent: directory,
+            source: 'directory' as const,
+        }));
+        return snapshot(
+            context,
+            directory,
+            input,
+            replaceCandidates(context, candidates),
+            listed.isTruncated,
+        );
     }
 
     async function browseInput(
@@ -571,6 +461,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         mode: BrowserMode,
         input: string,
     ): Promise<Snapshot> {
+        if (mode === 'free' && !directories.canBrowseFree)
+            throw new CaxriError('UNAVAILABLE', 'Paths outside the Project are not available here');
         if (mode !== context.mode) {
             context.mode = mode;
             if (mode === 'free') context.freeOriginDirectory = context.listedDirectory.path;
@@ -587,7 +479,10 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         let directory: RootIdentity;
         let displayDirectory: string | undefined;
         try {
-            directory = await directoryIdentity(parsed.directory, mode === 'project');
+            directory =
+                mode === 'project'
+                    ? await directories.directory(context.browseSessionId, parsed.directory, true)
+                    : await directoryIdentity(parsed.directory);
         } catch (error) {
             if (mode !== 'project' || !(error instanceof CaxriError) || error.code !== 'NOT_FOUND')
                 throw error;
@@ -599,7 +494,11 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                  * free-path browsing or swallowing permission and identity failures.
                  */
                 parsed = { directory: context.currentDirectory, filter: folderName };
-                directory = await directoryIdentity(context.currentDirectory, true);
+                directory = await directories.directory(
+                    context.browseSessionId,
+                    context.currentDirectory,
+                    true,
+                );
             } else {
                 const located = await locateProjectDirectory(context, input);
                 if (!located) throw error;
@@ -619,7 +518,12 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         if (!isCurrentProjectPath && context.mode === 'free') {
             if (candidate.kind !== 'file')
                 throw new CaxriError('VALIDATION', 'Path is not a regular file');
-            const result = await readExternalDocument(candidate);
+            const result = await readFreeDocument(
+                candidate.parent,
+                candidate.path,
+                candidate.name,
+                candidate.snapshot,
+            );
             contexts.delete(context.id);
             return result;
         }
@@ -664,7 +568,14 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         }
         if (authorized.kind !== 'directory')
             throw new CaxriError('CONFLICT', 'Directory changed after it was listed');
-        const directory = await directoryIdentity(authorized.path, isCurrentProjectPath);
+        const directory =
+            isCurrentProjectPath || context.mode === 'project'
+                ? await directories.directory(
+                      context.browseSessionId,
+                      authorized.path,
+                      isCurrentProjectPath,
+                  )
+                : await directoryIdentity(authorized.path);
         context.currentDirectory = directory.path;
         context.listedDirectory = directory;
         if (isCurrentProjectPath) {
@@ -688,7 +599,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 (candidate) => candidate.id === session.workbenchProjectId,
             );
             if (!project) throw new CaxriError('NOT_FOUND', 'Workbench Project not found');
-            const root = await directoryIdentity(project.rootPath);
+            const root = await directories.root(sessionId, project.rootPath);
             const context: BrowserContext = {
                 browseSessionId: sessionId,
                 candidates: new Map(),
@@ -720,6 +631,11 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             return serialize(browserId, async () => {
                 const context = contextFor(browserId);
                 if (target.kind === 'detachProject') {
+                    if (!directories.canBrowseFree)
+                        throw new CaxriError(
+                            'UNAVAILABLE',
+                            'Paths outside the Project are not available here',
+                        );
                     const directory = await directoryIdentity(
                         await realpath(context.listedDirectory.path),
                     );
@@ -734,10 +650,14 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                         context.mode === 'project' && !isSameOrInside(context.root.path, parentPath)
                             ? context.root.path
                             : parentPath;
-                    const directory = await directoryIdentity(
-                        boundedParent,
-                        context.mode === 'project',
-                    );
+                    const directory =
+                        context.mode === 'project'
+                            ? await directories.directory(
+                                  context.browseSessionId,
+                                  boundedParent,
+                                  true,
+                              )
+                            : await directoryIdentity(boundedParent);
                     context.currentDirectory = directory.path;
                     context.listedDirectory = directory;
                     if (context.mode === 'free') {

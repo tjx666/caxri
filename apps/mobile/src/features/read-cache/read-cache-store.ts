@@ -35,6 +35,12 @@ export const createReadCache = (files: ReadCacheFiles, now: () => number = Date.
      * Bumped by `clear`, so a write scheduled before it cannot bring a forgotten pairing's content back.
      */
     let epoch = 0;
+    /**
+     * The pairing the app currently reads under. A write flushes only while its own scope is still this one, so a
+     * response or snapshot that arrives after a re-pair, revoke, or forget never lands on disk, not even under the old
+     * pairing's label where nothing would read it back.
+     */
+    let activeScope: string | null = null;
 
     const evict = (): void => {
         const conversations = files
@@ -59,6 +65,9 @@ export const createReadCache = (files: ReadCacheFiles, now: () => number = Date.
         }
     };
 
+    /**
+     * `scope` is the pairing `value` was read under, not whichever pairing is current when the caller gets to save it.
+     */
     const save = (scope: string, key: ReadCacheKey, value: unknown): void => {
         const name = readCacheFileName(key);
         const previous = pending.get(name);
@@ -66,7 +75,7 @@ export const createReadCache = (files: ReadCacheFiles, now: () => number = Date.
         const scheduledEpoch = epoch;
         const flush = (): void => {
             pending.delete(name);
-            if (scheduledEpoch !== epoch) return;
+            if (scheduledEpoch !== epoch || scope !== activeScope) return;
             try {
                 files.write(name, encodeReadCacheEntry(scope, now(), value));
                 evict();
@@ -98,7 +107,14 @@ export const createReadCache = (files: ReadCacheFiles, now: () => number = Date.
         }
     };
 
-    return { clear, flush, load, save };
+    /**
+     * Follows the paired computer. `null` while unpaired, so nothing is written without a pairing to bind it to.
+     */
+    const setScope = (scope: string | null): void => {
+        activeScope = scope;
+    };
+
+    return { clear, flush, load, save, setScope };
 };
 
 export type ReadCache = ReturnType<typeof createReadCache>;

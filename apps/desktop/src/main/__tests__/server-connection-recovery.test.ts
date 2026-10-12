@@ -217,6 +217,17 @@ describe('Desktop Server connection recovery', () => {
         await expect(connection.request('app.health')).rejects.toMatchObject({
             code: 'CANCELLED',
         });
+
+        // Only the user's explicit Reconnect takes the lease back.
+        mockServerRound();
+        const resumed = connection.resume();
+        await vi.advanceTimersByTimeAsync(500);
+        await resumed;
+        await expect(connection.request('app.health')).resolves.toBeDefined();
+        expect(received.at(-1)).toMatchObject({
+            event: 'host.connectionChanged',
+            payload: { status: 'reconnected', attempt: 1 },
+        });
     });
 
     it('announces a Renderer resync event once the reconnect succeeds', async () => {

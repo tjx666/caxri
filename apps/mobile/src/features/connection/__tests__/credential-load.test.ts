@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { loadMobileCredential } from '../credential-load';
+import { loadMobileCredential, loadMobileCredentialAtStart } from '../credential-load';
 import type { MobileCredential } from '../credential-store';
 
 describe('mobile credential load', () => {
@@ -24,5 +24,26 @@ describe('mobile credential load', () => {
             kind: 'loaded',
             credential,
         });
+    });
+});
+
+describe('mobile credential load at start', () => {
+    it('clears the read cache when no pairing survived, such as a revoke the app was killed during', async () => {
+        const readCache = { clear: vi.fn() };
+        await expect(
+            loadMobileCredentialAtStart({ load: () => Promise.resolve(null) }, readCache),
+        ).resolves.toEqual({ kind: 'loaded', credential: null });
+        expect(readCache.clear).toHaveBeenCalledOnce();
+    });
+
+    it('keeps the read cache for a stored pairing or an unreadable store', async () => {
+        const readCache = { clear: vi.fn() };
+        const credential = { deviceId: 'device-1' } as MobileCredential;
+        await loadMobileCredentialAtStart({ load: () => Promise.resolve(credential) }, readCache);
+        await loadMobileCredentialAtStart(
+            { load: () => Promise.reject(new Error('locked')) },
+            readCache,
+        );
+        expect(readCache.clear).not.toHaveBeenCalled();
     });
 });

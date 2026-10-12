@@ -61,3 +61,31 @@ export const fileLanguage = (name: string): string | null => {
  */
 export const codeLanguage = (id: string | undefined): string | null =>
     id === undefined ? null : (LANGUAGE_BY_EXTENSION[id.toLowerCase()] ?? null);
+
+/**
+ * Every Prism language the map above can name, so a fence may use the language's own name (`typescript`, `python`).
+ */
+const PRISM_LANGUAGES = new Set(Object.values(LANGUAGE_BY_EXTENSION));
+
+/**
+ * Common fence names that are neither a file extension nor a Prism language id.
+ */
+const FENCE_ALIASES: Record<string, string> = {
+    golang: 'go',
+    html: 'markup',
+    objc: 'objectivec',
+    console: 'bash',
+};
+
+/**
+ * The Prism language for a Markdown fence's info string (````ts title="a.ts"`): its first word, read as a file
+ * extension (`ts`, `sh`), a Prism language name (`typescript`), or a common alias (`golang`). `null` keeps the block
+ * plain, including a fence with no language or one the phone bundles no grammar for.
+ */
+export const fenceLanguage = (info: string | undefined): string | null => {
+    const id = info?.trim().split(/\s+/u, 1)[0]?.toLowerCase();
+    if (!id) return null;
+    return (
+        LANGUAGE_BY_EXTENSION[id] ?? (PRISM_LANGUAGES.has(id) ? id : (FENCE_ALIASES[id] ?? null))
+    );
+};

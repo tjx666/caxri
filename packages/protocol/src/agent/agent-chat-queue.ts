@@ -1,8 +1,7 @@
 import type { AgentChatQueuedMessage } from './agent-chat-contract.js';
 
 /**
- * One queued follow-up as the queue card's row names it, on Desktop and on the phone. Editing is a Desktop-only
- * addition on top of this, since the phone holds a bounded preview rather than the message.
+ * One queued follow-up as the queue card's row names it, on Desktop and on the phone.
  */
 export interface AgentChatQueueEntry {
     id: string;
@@ -25,6 +24,12 @@ export interface AgentChatQueueEntry {
      * A command cannot join a running turn, so it waits for its own.
      */
     canSendNow: boolean;
+    /**
+     * Images stay on Server Core and never come back to a composer, so a message carrying them is deleted or sent, not
+     * edited, rather than silently losing its images. Edit takes the full text from `agentChat.takeQueued`, since the
+     * phone's queue holds only a preview.
+     */
+    canEdit: boolean;
 }
 
 export function agentChatQueueEntry(
@@ -42,5 +47,6 @@ export function agentChatQueueEntry(
             imageCount === 0 ? undefined : imageCount === 1 ? '1 image' : `${imageCount} images`,
         sendNowLabel: isTurnRunning ? 'Steer' : 'Send now',
         canSendNow: !(isTurnRunning && message.command),
+        canEdit: imageCount === 0,
     };
 }

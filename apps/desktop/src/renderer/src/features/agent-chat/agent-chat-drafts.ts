@@ -1,4 +1,5 @@
 import type { AgentChatImageInput } from '@caxri/protocol';
+import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
 import { debounce } from 'es-toolkit';
 
 import { translate } from '../../i18n';
@@ -297,16 +298,6 @@ export function attachmentsAfterSend(
 }
 
 /**
- * The composer draft after a message comes back to it (Edit on a queued message, or a send that failed): the message
- * alone when the composer is empty, otherwise the message ahead of what the user had typed, a blank line apart so the
- * two still read as separate paragraphs and neither is lost.
- */
-export function draftWithReturnedMessage(current: string, returned: string): string {
-    if (!current.trim()) return returned;
-    return `${returned}\n\n${current}`;
-}
-
-/**
  * Images whose message failed to send, back ahead of any attached since; one still attached is not added twice.
  */
 export function attachmentsWithReturned(
@@ -359,7 +350,7 @@ export function returnUnsentAgentChatMessage(
     if (text)
         writeAgentChatDraft(
             terminalId,
-            draftWithReturnedMessage(readAgentChatDraft(terminalId), text),
+            agentChatDraftWithReturnedMessage(readAgentChatDraft(terminalId), text),
         );
     writeAgentChatAttachments(
         terminalId,

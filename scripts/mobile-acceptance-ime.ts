@@ -121,3 +121,22 @@ export async function prepareMobileFixtureIme(
         throw error;
     }
 }
+
+/**
+ * Retries a failed batch cleanup once before reporting both failures.
+ */
+export async function cleanupFixtureImeWithRetry(cleanup: () => Promise<void>): Promise<void> {
+    try {
+        await cleanup();
+    } catch (firstError) {
+        try {
+            await cleanup();
+        } catch (secondError) {
+            throw new AggregateError(
+                [firstError, secondError],
+                'Fixture IME cleanup failed after one retry',
+                { cause: secondError },
+            );
+        }
+    }
+}

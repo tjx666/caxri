@@ -1,17 +1,21 @@
 import { useState } from 'react';
 
-import type { AgentChatPermissionRequest, AgentChatSnapshot, AgentProvider } from '@caxri/protocol';
-import { isAgentChatPermissionNextTurnOnly } from '@caxri/protocol';
-
-import { didConfigureAgentChatPermission } from '../agent-chat-permission-commands';
 import type {
     AgentChatPendingPermission,
-    AgentChatPermissionTurnBaseline,
-} from '../agent-chat-permissions';
+    AgentChatPermissionRequest,
+    AgentChatSnapshot,
+    AgentProvider,
+} from '@caxri/protocol';
 import {
     agentChatPermissionSelectionView,
-    isAgentChatPermissionDeferred,
+    isAgentChatPermissionNextTurnOnly,
     isAgentChatPermissionSettled,
+} from '@caxri/protocol';
+
+import { didConfigureAgentChatPermission } from '../agent-chat-permission-commands';
+import type { AgentChatPermissionTurnBaseline } from '../agent-chat-permissions';
+import {
+    isAgentChatPermissionDeferred,
     nextAgentChatPermissionTurnBaseline,
 } from '../agent-chat-permissions';
 

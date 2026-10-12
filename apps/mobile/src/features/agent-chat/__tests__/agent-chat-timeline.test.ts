@@ -1,4 +1,4 @@
-import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatItem } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -6,9 +6,11 @@ import {
     agentChatChangeRows,
     agentChatTurnTone,
     buildAgentChatTimeline,
+    toggleAgentChatTurn,
+    withAgentChatPendingEntries,
 } from '../agent-chat-timeline';
 
-type Timeline = Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>;
+type Timeline = Parameters<typeof buildAgentChatTimeline>[0];
 
 const command = (
     id: string,
@@ -61,7 +63,7 @@ describe('buildAgentChatTimeline', () => {
         expect(work.rows.map((item) => item.id)).toEqual(['c1']);
     });
 
-    it("ends a finished turn with its artifacts under the final reply, then a footer in Desktop's words", () => {
+    it('folds a finished turn behind its Worked for row, with artifacts under the final reply', () => {
         const timeline: Timeline = {
             items: [
                 { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Fix it' },
@@ -74,19 +76,77 @@ describe('buildAgentChatTimeline', () => {
                         { path: '/repo/src/a.ts', kind: 'update', diff: '@@ -1 +1 @@\n-a\n+b' },
                     ],
                 },
+                {
+                    id: 'm1',
+                    turnId: 't1',
+                    type: 'agentMessage',
+                    text: 'Checking.',
+                    streaming: false,
+                },
+                command('c1', 'completed'),
                 { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Done.', streaming: false },
                 { id: 'n1', turnId: 't1', type: 'notice', kind: 'compacted' },
             ],
             turns: [{ id: 't1', status: 'completed', durationMs: 65_000 }],
         };
-        expect(ids(timeline)).toEqual(['u1', 'work:f1', 'a1', 'artifacts:t1', 'n1', 'turn:t1']);
+        expect(ids(timeline)).toEqual(['u1', 'turn:t1', 'a1', 'artifacts:t1', 'n1']);
         const entries = buildAgentChatTimeline(timeline);
-        expect(entries.at(-1)).toMatchObject({ label: 'Worked for 1m 5s', status: 'completed' });
+        expect(entries[1]).toMatchObject({
+            label: 'Worked for 1m 5s',
+            status: 'completed',
+            turnId: 't1',
+            fold: 'collapsed',
+        });
         const artifacts = entries[3];
         if (artifacts.kind !== 'artifacts') throw new Error('expected artifacts');
         expect(artifacts.artifacts.files).toMatchObject([
             { path: '/repo/src/a.ts', additions: 1, deletions: 1 },
         ]);
+        // Expanded, the folded work and commentary follow the row in their original order.
+        const expanded = buildAgentChatTimeline(timeline, new Set(['t1']));
+        expect(expanded.map((entry) => entry.id)).toEqual([
+            'u1',
+            'turn:t1',
+            'work:f1',
+            'm1',
+            'work:c1',
+            'a1',
+            'artifacts:t1',
+            'n1',
+        ]);
+        expect(expanded[1]).toMatchObject({ fold: 'expanded' });
+    });
+
+    it('expands only the turns the user opened', () => {
+        const turn = (id: string): AgentChatItem[] => [
+            { id: `u-${id}`, turnId: id, type: 'userMessage', text: 'Go' },
+            command(`c-${id}`, 'completed', id),
+            { id: `a-${id}`, turnId: id, type: 'agentMessage', text: 'Done', streaming: false },
+        ];
+        expect(
+            buildAgentChatTimeline(
+                {
+                    items: [...turn('t1'), ...turn('t2')],
+                    turns: [
+                        { id: 't1', status: 'completed' },
+                        { id: 't2', status: 'completed' },
+                    ],
+                },
+                new Set(['t2']),
+            ).map((entry) => entry.id),
+        ).toEqual(['u-t1', 'turn:t1', 'a-t1', 'u-t2', 'turn:t2', 'work:c-t2', 'a-t2']);
+    });
+
+    it('keeps a static row before the reply when a finished turn had nothing to fold', () => {
+        const entries = buildAgentChatTimeline({
+            items: [
+                { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Hi' },
+                { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Hello', streaming: false },
+            ],
+            turns: [{ id: 't1', status: 'completed', durationMs: 2000 }],
+        });
+        expect(entries.map((entry) => entry.id)).toEqual(['u1', 'turn:t1', 'a1']);
+        expect(entries[1]).not.toHaveProperty('fold');
     });
 
     it('places artifacts at the end of a turn that ended without a reply', () => {
@@ -103,7 +163,28 @@ describe('buildAgentChatTimeline', () => {
                 ],
                 turns: [{ id: 't1', status: 'interrupted', durationMs: 4000 }],
             }),
-        ).toEqual(['work:f1', 'artifacts:t1', 'turn:t1']);
+        ).toEqual(['turn:t1', 'artifacts:t1']);
+    });
+
+    it('shows no artifacts for the oldest turn when the window cut its start', () => {
+        const fileChange = (id: string, turnId: string): AgentChatItem => ({
+            id,
+            turnId,
+            type: 'fileChange',
+            status: 'completed',
+            changes: [{ path: 'a.ts', kind: 'update', diff: '@@ -1 +1 @@\n-a\n+b' }],
+        });
+        const timeline: Timeline = {
+            items: [fileChange('f1', 't1'), fileChange('f2', 't2')],
+            turns: [
+                { id: 't1', status: 'completed' },
+                { id: 't2', status: 'completed' },
+            ],
+        };
+        expect(ids(timeline)).toEqual(['turn:t1', 'artifacts:t1', 'turn:t2', 'artifacts:t2']);
+        expect(
+            buildAgentChatTimeline({ ...timeline, truncated: true }).map((entry) => entry.id),
+        ).toEqual(['turn:t1', 'turn:t2', 'artifacts:t2']);
     });
 
     it('gives a running or active turn neither artifacts nor a footer', () => {
@@ -129,7 +210,7 @@ describe('buildAgentChatTimeline', () => {
             buildAgentChatTimeline({
                 items: [{ id: 'u1', turnId: 't1', type: 'userMessage', text: 'Go' }],
                 turns: [{ id: 't1', status, ...(durationMs !== undefined && { durationMs }) }],
-            }).at(-1);
+            }).find((entry) => entry.kind === 'turn');
         expect(footer('completed', 400)).toMatchObject({ label: 'Worked' });
         expect(footer('failed', 3000)).toMatchObject({ label: 'Failed after 3s' });
         expect(footer('interrupted', 12_000)).toMatchObject({ label: 'Stopped after 12s' });
@@ -159,6 +240,14 @@ describe('buildAgentChatTimeline', () => {
             },
             { id: 'n2', type: 'systemEvent', kind: 'caveat', summary: 'Retrying' },
         ]);
+    });
+});
+
+describe('toggleAgentChatTurn', () => {
+    it('opens a folded turn and folds an open one without touching the others', () => {
+        const opened = toggleAgentChatTurn(new Set(['t1']), 't2');
+        expect([...opened]).toEqual(['t1', 't2']);
+        expect([...toggleAgentChatTurn(opened, 't1')]).toEqual(['t2']);
     });
 });
 
@@ -198,5 +287,26 @@ describe('agentChatChangeRows', () => {
         expect(agentChatChangeColor('add')).toBe('gitAdded');
         expect(agentChatChangeColor('delete')).toBe('gitDeleted');
         expect(agentChatChangeColor('update')).toBe('gitModified');
+    });
+});
+
+describe('withAgentChatPendingEntries', () => {
+    it('ends the timeline with recorded answers, then the messages still on their way', () => {
+        const built = buildAgentChatTimeline({ items: [], turns: [] });
+        expect(withAgentChatPendingEntries(built, { notices: [], timeline: [] })).toBe(built);
+        const entries = withAgentChatPendingEntries(built, {
+            notices: [
+                { id: 'answer:r1', type: 'notice', kind: 'answered', message: 'Color: Blue' },
+            ],
+            timeline: [{ id: 'p1', text: 'Run the tests', imageUris: ['file:///a.jpg'] }],
+        });
+        expect(entries.map((entry) => [entry.kind, entry.id])).toEqual([
+            ['message', 'pending:answer:r1'],
+            ['pending', 'pending:p1'],
+        ]);
+        expect(entries.at(-1)).toMatchObject({
+            text: 'Run the tests',
+            imageUris: ['file:///a.jpg'],
+        });
     });
 });

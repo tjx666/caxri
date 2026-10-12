@@ -6,6 +6,7 @@ import { useMobileClient } from '../connection/mobile-client-provider';
 import { useReadCache } from '../read-cache/read-cache-context';
 import {
     cachedTimelineSchema,
+    liveReadSaveScope,
     READ_CACHE_MAX_ITEMS,
     trimTimelineItems,
 } from '../read-cache/read-cache-model';
@@ -24,6 +25,10 @@ export interface ConversationTimelineState {
     isLoadingOlder: boolean;
     items: AgentTimelineItem[];
     olderCursor?: string;
+    /**
+     * The pairing the live items were read under; only that pairing may save them.
+     */
+    readScope?: string;
     /**
      * Set while the items are the copy saved on this phone; the first live read replaces them.
      */
@@ -91,8 +96,9 @@ export const useConversationTimeline = ({
     };
 
     useEffect(() => {
-        if (sessionId === null || !observable) return;
+        if (sessionId === null || !observable || connectionScopeKey === null) return;
         let isActive = true;
+        const readScope = connectionScopeKey;
         const update = (
             value: (current: ConversationTimelineState) => ConversationTimelineState,
         ) => {
@@ -116,6 +122,7 @@ export const useConversationTimeline = ({
                         result,
                     ),
                     error: null,
+                    readScope,
                     status: result.status,
                 })),
             onError: () =>
@@ -131,7 +138,16 @@ export const useConversationTimeline = ({
             olderInFlight.current = false;
             stop();
         };
-    }, [connectionEpoch, observable, request, retry, sessionId, subscribe, subscriptionAvailable]);
+    }, [
+        connectionEpoch,
+        connectionScopeKey,
+        observable,
+        request,
+        retry,
+        sessionId,
+        subscribe,
+        subscriptionAvailable,
+    ]);
 
     useEffect(() => {
         if (sessionId === null || connectionScopeKey === null) return;
@@ -166,17 +182,18 @@ export const useConversationTimeline = ({
         storedState.status === 'available' && storedState.savedAt === undefined
             ? storedState.items
             : null;
+    const saveScope = liveReadSaveScope(storedState.readScope, connectionScopeKey);
     useEffect(() => {
-        if (liveItems === null || sessionId === null || connectionScopeKey === null) return;
+        if (liveItems === null || sessionId === null || saveScope === null) return;
         readCache.save(
-            connectionScopeKey,
+            saveScope,
             { kind: 'timeline', sessionId },
             {
                 items: trimTimelineItems(liveItems),
                 truncated: storedState.truncated || liveItems.length > READ_CACHE_MAX_ITEMS,
             },
         );
-    }, [connectionScopeKey, liveItems, readCache, sessionId, storedState.truncated]);
+    }, [liveItems, readCache, saveScope, sessionId, storedState.truncated]);
 
     const loadOlder = useCallback(async (): Promise<void> => {
         if (!observable || !state.olderCursor || olderInFlight.current) return;

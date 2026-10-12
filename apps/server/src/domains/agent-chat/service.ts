@@ -40,12 +40,13 @@ import {
 import { ChatPermissionSwitches, chatReportedStateHost } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
+import * as queueActions from './chat-queue-actions';
 import type { ChatRewindRequest } from './chat-rewind';
 import { restoreChatFiles, rewindChat } from './chat-rewind';
 import { chatSessionLogCallbacks } from './chat-session-logs';
 import type { ChatState, ChatStateDelivery, ChatTerminal } from './chat-states';
 import { ChatStates } from './chat-states';
-import { readChatTask } from './chat-task-read';
+import { readChatTask, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**
@@ -263,6 +264,11 @@ export class AgentChatService {
         };
     }
 
+    private queueHost(): queueActions.ChatQueueActionsHost {
+        const { options, states } = this;
+        return { options, states, enqueue: (id, deliver) => this.enqueue(id, deliver) };
+    }
+
     /**
      * Appends input to the Chat's current send chain, after a pending permission switch (see `ChatPermissionSwitches`).
      */
@@ -433,38 +439,26 @@ export class AgentChatService {
 
     async stopTask(terminalId: string, taskId: string): Promise<void> {
         requireChatTerminal(this.options.database, terminalId);
-        const state = this.states.get(terminalId);
-        const task = state?.projection.snapshot.tasks?.find(
-            (candidate) => candidate.id === taskId || candidate.itemId === taskId,
-        );
-        if (!state?.session?.isOpen || task?.status !== 'running' || !task.canStop)
-            throw new CaxriError('CONFLICT', 'This task is no longer running');
-        await state.session.stopTask(task.id);
-    }
-
-    removeQueued(terminalId: string, id: string): void {
-        requireChatTerminal(this.options.database, terminalId);
-        const state = this.states.get(terminalId);
-        if (!state) throw new CaxriError('CONFLICT', 'This message is no longer queued');
-        state.followUps.remove(id, 'removed');
+        await stopChatTask(this.states.get(terminalId), taskId);
     }
 
     /**
-     * Sends one queued message ahead of the rest: it steers the running turn, or starts a turn when the Chat is idle.
+     * The queue card's actions; see `chat-queue-actions.ts`.
      */
-    async sendQueuedNow(terminalId: string, id: string): Promise<void> {
-        await this.enqueue(terminalId, async (session, state) => {
-            const entry = state.followUps.entry(id);
-            const isSteering = Boolean(state.projection.snapshot.activeTurnId);
-            if (isSteering && entry.kind === 'command')
-                throw new CaxriError('CONFLICT', 'A command cannot join a running turn');
-            await state.followUps.sendNow(session, id, isSteering ? 'steered' : 'queued');
-        });
+    removeQueued(terminalId: string, id: string): void {
+        queueActions.removeQueued(this.queueHost(), terminalId, id);
+    }
+
+    takeQueued(terminalId: string, id: string): { text: string } {
+        return queueActions.takeQueued(this.queueHost(), terminalId, id);
+    }
+
+    sendQueuedNow(terminalId: string, id: string): Promise<void> {
+        return queueActions.sendQueuedNow(this.queueHost(), terminalId, id);
     }
 
     resumeQueue(terminalId: string): void {
-        requireChatTerminal(this.options.database, terminalId);
-        this.states.get(terminalId)?.followUps.resume();
+        queueActions.resumeQueue(this.queueHost(), terminalId);
     }
 
     respond(terminalId: string, requestId: string, response: AgentChatResponse): void {
@@ -528,7 +522,10 @@ export class AgentChatService {
         const terminal = requireChatTerminal(this.options.database, terminalId);
         if (terminal.lastProcessState === 'detached') this.states.clearDetached(terminalId);
         const state = this.states.open(terminalId);
-        if (previous) state.followUps.adopt(previous.followUps);
+        if (previous) {
+            state.followUps.adopt(previous.followUps);
+            state.projection.adoptReplaced(previous.projection);
+        }
         /**
          * A rewound Claude Code conversation resumes at `resumeAt` until its next turn writes past it; a restart before
          * then (Retry after the edited message failed to send) must not resume the rewound branch again.

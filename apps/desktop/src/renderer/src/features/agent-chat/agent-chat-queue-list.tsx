@@ -17,8 +17,8 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import {
-    didRemoveAgentChatQueued,
     editAgentChatQueued,
+    removeAgentChatQueued,
     resumeAgentChatQueue,
     sendAgentChatQueuedNow,
 } from './agent-chat-commands';
@@ -123,7 +123,7 @@ function QueueCard({
                 onAction={onAction}
                 onRun={() => {
                     // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
-                    void editAgentChatQueued(terminalId, entry, onEdit);
+                    void editAgentChatQueued(terminalId, entry.id, onEdit);
                 }}
             >
                 <Pencil className="size-3.5" />
@@ -135,10 +135,7 @@ function QueueCard({
                 size="icon"
                 tooltip={labels.deleteTooltip}
                 onAction={onAction}
-                onRun={() => {
-                    // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
-                    void didRemoveAgentChatQueued(terminalId, entry.id);
-                }}
+                onRun={() => removeAgentChatQueued(terminalId, entry.id)}
             >
                 <Trash2 className="size-3.5" />
             </QueueCardAction>

@@ -6,6 +6,7 @@ import {
     installProgressPercent,
     isConnectionBusy,
     isConnectionOverlayVisible,
+    reconnectLabelKey,
 } from '../connection-status';
 
 function state(overrides: Partial<SshEnvironmentState> = {}): SshEnvironmentState {
@@ -32,6 +33,17 @@ describe('connection status', () => {
         expect(canReconnect(state({ phase: 'reconnecting' }))).toBe(false);
         expect(isConnectionBusy('reconnecting')).toBe(true);
         expect(isConnectionBusy('failed')).toBe(false);
+    });
+
+    it('offers to take the Server back after another Desktop took it over', () => {
+        const takenOver = state({
+            phase: 'disconnected',
+            needsUserAction: false,
+            failure: { reason: 'takenOver', message: '' },
+        });
+        expect(canReconnect(takenOver)).toBe(true);
+        expect(reconnectLabelKey(takenOver)).toBe('sshHost.useHere');
+        expect(reconnectLabelKey(state({ phase: 'failed' }))).toBe('sshHost.reconnect');
     });
 
     it('reports clamped whole-percent progress only while installing', () => {

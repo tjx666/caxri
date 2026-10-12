@@ -74,6 +74,7 @@ const TERMINAL_METHODS = new Set<string>([
     'agentChat.send',
     'agentChat.sendQueuedNow',
     'agentChat.stopTask',
+    'agentChat.takeQueued',
     'agentCommander.openFileLink',
     'terminal.attach',
     'terminal.detach',

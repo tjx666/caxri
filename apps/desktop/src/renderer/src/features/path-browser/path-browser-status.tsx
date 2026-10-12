@@ -1,5 +1,6 @@
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useTranslation } from '../../i18n';
+import { useIsRemote } from '../../stores/environment';
 import type { usePathBrowser } from './use-path-browser';
 
 export function PathBrowserHelp({
@@ -12,6 +13,7 @@ export function PathBrowserHelp({
     isProject: boolean;
 }) {
     const { t } = useTranslation();
+    const isRemote = useIsRemote();
     return (
         <div className="flex h-8 items-center gap-3 border-t border-border px-3 text-[10px] text-muted">
             <span>{t('pathBrowser.help.select')}</span>
@@ -20,10 +22,13 @@ export function PathBrowserHelp({
             {isCompletable && <span>{t('pathBrowser.help.complete')}</span>}
             <span>{t(isCreateSelected ? 'pathBrowser.help.create' : 'pathBrowser.help.open')}</span>
             <span>{t('pathBrowser.help.parent')}</span>
-            {/* Names the shortcut that leaves the anchor where it is, and the one that brings it back. */}
-            <span>
-                {t(isProject ? 'pathBrowser.help.anyPath' : 'pathBrowser.help.returnToProject')}
-            </span>
+            {/* Names the shortcut that leaves the anchor where it is, and the one that brings it back. An SSH Host window
+                has no free mode to leave for. */}
+            {!isRemote && (
+                <span>
+                    {t(isProject ? 'pathBrowser.help.anyPath' : 'pathBrowser.help.returnToProject')}
+                </span>
+            )}
             <span>{t('pathBrowser.help.close')}</span>
         </div>
     );

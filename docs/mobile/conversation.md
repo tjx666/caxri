@@ -70,7 +70,11 @@ The projection currently supports every Agent provider whose descriptor register
 `timelineProjector` (Claude Code and Codex today); a provider without one, such as Grok Build, reports
 `unsupported` instead of a partial or guessed timeline. It emits chronological `userMessage`,
 `agentMessage`, `toolCall`, `turnBoundary`, and `systemEvent` items with stable IDs. Tool items have
-a bounded name, summary, status, optional duration, and optional detail. Thinking and unrelated
+a bounded name, summary, status, optional duration, and optional detail. A `turnBoundary` carries an
+optional duration and an optional closed `outcome` (`completed`, `interrupted`, or `failed`) when the
+record states how the turn ended; Codex's `turn_aborted` maps to `interrupted`. The phone labels the
+divider with Agent Chat's turn wording (`Worked for 4s`, `Stopped after 4s`, `Failed`), and a
+boundary without an outcome reads as completed. Thinking and unrelated
 provider records are excluded. A successful read returns one of these statuses:
 
 | Status        | Meaning                                                                 | Mobile behavior                         |

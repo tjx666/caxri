@@ -144,8 +144,12 @@ additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-
   the history comes from the bounded tail of its JSONL transcript, read through the same
   Server-derived path as `terminal.transcript`. Sidechain (subagent) and harness records are
   skipped, a visible user prompt opens a turn, and every resumed turn is finished. A missing
-  transcript or a `--resume` that fails its handshake is `resume_failed`. The `answered` notices
-  Caxri synthesized are not in the transcript, so they do not survive a resume.
+  transcript or a `--resume` that fails its handshake is `resume_failed`.
+- **Answered notices across a resume.** No provider's history holds the `answered` notices Caxri
+  synthesizes. A restart in the same Server Core process (Retry after a crash, a surface switch)
+  hands the replaced projection's notices to the new one, and the first history replay puts each
+  back after the item it followed, or after its turn's first item, while the replay still holds
+  that turn. The notices are not persisted, so a Server Core restart loses them.
 - **Grok Build resume.** `session/load` replays the conversation as `session/update` frames before
   it answers, with `turn_completed` marking where each turn ended; the Chat folds them into one
   reset. An unknown session id fails `session/load`, which is `resume_failed`.
@@ -408,8 +412,13 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
   `queuePauseReason: 'sendFailed'` (or `'deliveryUnknown'` when delivery could not be confirmed), so
   the composer names the failure and offers Retry instead of reading like a user Stop. `agentChat.removeQueued` drops an
   entry and `agentChat.sendQueuedNow` sends one ahead of the rest (steering a running turn; a
-  command cannot steer). A failed dispatch puts every joined entry back in order and pauses the
-  queue.
+  command cannot steer). `agentChat.takeQueued` backs Edit on every Client: it removes an entry
+  and returns its full text (a command as `/name arguments`) in one step, so an entry the queue
+  sends meanwhile fails with `CONFLICT` instead of being both sent and back in the composer. An
+  entry carrying images stays queued and fails with `VALIDATION`, since images never return to a
+  composer; the queue card disables its Edit. The returned text goes ahead of any draft
+  (`agentChatDraftWithReturnedMessage`). A failed dispatch puts every joined entry back in order and pauses
+  the queue.
 - A Codex `turn/start` or `turn/steer` that times out may still have started the turn, so Codex
   Chat checks before failing: the user message's `clientId` echo, or `thread/turns/list` over the
   newest turns. A recorded message counts as delivered. One it cannot confirm fails as delivery
@@ -632,7 +641,9 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   painted in the language inferred from what produced it: the extension of a file a `cat`/`sed`/
   `head` printed or a Read tool returned (with Claude Code's line-number gutter removed), `diff` for
   `git diff`/`git show`, or JSON; anything else stays plain text. Timeline folding lives in
-  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`; the work row and
+  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`, which takes the
+  fold range from `foldAgentChatTurn` in `packages/protocol/src/agent/agent-chat-turn-fold.ts`,
+  shared with the phone; the work row and
   summary wording, turn labels, and output-language inference every client shares live in
   `packages/protocol/src/agent/agent-chat-work.ts` and `agent-chat-work-output.ts`. Every surface
   hides a sub-second duration through `formatNoticeableDuration`.
@@ -800,9 +811,13 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   Project relative and leaves a path outside it absolute (`projectDisplayPath`). A finished turn ends under its final reply with its artifacts
   (`collectAgentChatTurnArtifacts`): the edited-files card, which expands to every file's diff but
   offers no Undo or Review, since the phone neither writes the files back nor opens a side tab, and
-  a card per pull request, issue, or acceptance report that opens the page in the browser. A
-  `Worked for X`, `Failed after X`, or `Stopped after X` footer follows (`agentChatTurnLabel`);
-  the phone does not fold the turn behind it. The window keeps `plan`, so the phone docks Desktop's
+  a card per pull request, issue, or acceptance report that opens the page in the browser. When the
+  window cut older items (`truncated`), the oldest turn in it may be missing its start, so it shows
+  no artifacts rather than an incomplete summary. The phone folds a finished turn as Desktop does
+  (`foldAgentChatTurn`): its work and commentary sit behind a `Worked for X`, `Failed after X`, or
+  `Stopped after X` row (`agentChatTurnLabel`) that a tap expands, and a turn with nothing to fold
+  keeps the row, without a chevron, before its reply. The Chat view holds the expanded turn ids,
+  not the rows, so FlashList recycling never moves one turn's state onto another. The window keeps `plan`, so the phone docks Desktop's
   one-row plan card above its composer by the same rule (`agentChatDockedPlan`: the latest plan
   stays until the next turn starts, its step spinning only during a turn), and the line above the composer reads `agentChatActivity`:
   the turn's verb, the elapsed time after a second, `Compacting context…`, or what the turn waits
@@ -814,17 +829,31 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   model menu (`agentChatModelLabel` in `packages/protocol`). Tapping it opens a sheet with the
   `Model` and `Reasoning effort` lists; a choice applies on tap through
   `mobile.agentChat.configure`, which forwards `agentChat.configure` and therefore the same
-  validation against `models`. A new Chat can be configured before its first message. During a
-  turn the sheet says the change applies from the next turn. A Claude Code Chat that has not named
+  validation against `models`. Like the Desktop menu, the sheet shows a choice at once
+  (`agentChatSelectionView` in `packages/protocol`), so a new model's efforts list before the next
+  snapshot arrives, and a failed switch reverts with an error in the sheet that clears once the
+  Chat's choice or the connection changes (`agentChatConfigureScope`). While the snapshot reports
+  `ultracode`, the sheet adds the Desktop menu's `Ultracode` switch below the efforts, and the
+  trigger reads `Ultracode` after the effort while it is on. A new Chat can be
+  configured before its first message. During a turn the sheet says the change applies from the
+  next turn. A Claude Code Chat that has not named
   its model yet asks for a model before it lists efforts. A provider without a model list, a
   `view` device, or a stale connection shows the model as plain text; an open sheet stays open with
   its lists disabled and the composer's reason.
-- Roles: `view` reads; `reply` also sends, deletes, steers with, or resumes queued messages, switches the model and effort, and retries a failed Chat; `control` also answers
-  approvals and questions and stops a turn. Mutations resolve the Terminal through the device's
+- Beside the model, the composer shows the permission level with the Desktop picker's names
+  (`agentChatPermissionModeLabel`, so Codex reads `Default`; `Custom` while launch settings match no
+  level), `Plan` while plan mode is on, and Full access in the warning tone with its shield. Tapping
+  it opens a `Permissions` sheet listing the provider's levels with their descriptions and, except
+  for Grok Build, a `Plan mode` switch; both go through `mobile.agentChat.configure { permissionMode,
+planMode }`. A Codex switch during a turn says it applies to the next turn. "Use as Project
+  default" stays on Desktop. Without `control` access, or offline, the level is a plain label; the
+  saved copy keeps it so it still shows offline.
+- Roles: `view` reads; `reply` also sends, deletes, steers with, or resumes queued messages, switches the model, effort, and ultracode, and retries a failed Chat; `control` also answers
+  approvals and questions, switches the permission level and plan mode, and stops a turn. Mutations resolve the Terminal through the device's
   granted Projects, refuse a non-Chat Terminal with `CONFLICT`, and go through Core's mutation
   admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
   `mode: 'resume'`).
-- Images. A `reply` or `control` phone attaches up to 4 images from the library, camera, or
+- Images. A `reply` or `control` phone attaches up to 20 images (20 MB together) from the library, camera, or
   clipboard when the provider has `capabilities.chatImages`; Grok Build's composer has no attach
   button. The phone compresses each to a JPEG (at most 3 MB) and also makes the thumbnail Desktop
   would (fitted to 384 px, at most 48 KB), and uploads both through the Terminal composer's chunked
@@ -844,19 +873,39 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   writes an opened original only to its cache directory for display.
 - Follow-up queue: `mobile.agentChat.send` forwards the phone's `delivery`, so a message sent during
   a turn joins the queue by default, like Desktop's Enter; holding Send on the phone sends
-  `delivery: 'steer'`, the stand-in for Cmd+Enter. The snapshot and `state` patches carry the queue
+  `delivery: 'steer'`, the stand-in for Cmd+Enter, and so does the `Steer` button shown beside Send during a turn. The snapshot and `state` patches carry the queue
   as a bounded preview (`clipAgentChatQueueForMobile`: the first 10 entries, each text and command
   argument cut to 200 characters behind `…`) plus `queuePaused` and `queueLength`, the real count
   the header shows when the queue outgrows the preview; each entry keeps its real id. The phone shows it as a card docked above its composer with Desktop's header words (`Queued · sends
 after this turn`, or `Queue paused · sends nothing until you resume` with Resume). Each row offers
-  Steer (`Send now` on an idle Chat; disabled for a command during a turn) and Delete, and a swipe
-  left deletes too; these call `mobile.agentChat.sendQueuedNow`, `mobile.agentChat.removeQueued`,
-  and `mobile.agentChat.resumeQueue`, which forward the matching `agentChat.*` method after the
+  Steer (`Send now` on an idle Chat; disabled for a command during a turn), Edit, and Delete, and a
+  swipe left deletes too; these call `mobile.agentChat.sendQueuedNow`, `mobile.agentChat.takeQueued`,
+  `mobile.agentChat.removeQueued`, and `mobile.agentChat.resumeQueue`, which forward the matching
+  `agentChat.*` method after the
   same Terminal and grant checks as `send`. The row hides at once and returns with an inline error
   when Core refuses; that error clears once its row or the whole queue is gone. Rows are named by
-  `agentChatQueueEntry`, which Desktop shares. Editing a queued message stays on Desktop, since the phone holds only a
-  preview. While a turn runs the Send button wears the queue glyph and the placeholder reads
+  `agentChatQueueEntry`, which Desktop shares. Edit gets the full text the preview cut from
+  `agentChat.takeQueued`, puts it ahead of the draft, and focuses the composer. The gateway first
+  checks the text against the 16 KiB a phone may send, so a longer message stays queued for the
+  computer; that refusal, and an entry that left the queue first, show as an alert, because the
+  row is already gone from the card. While a turn runs the Send button wears the queue glyph and the placeholder reads
   `Queue a follow-up`.
+- Optimistic sends. Desktop and the phone share the placement and settlement rules in
+  `packages/protocol/src/agent/agent-chat-pending.ts`: a sent message shows at once where it lands
+  (the timeline when it starts or steers a turn, the queue otherwise) until the projection shows a
+  new user message or queue entry containing its text, bounded by a 30 second TTL after the send is
+  accepted. The phone also settles on the bounded copies it receives, matching the part a clipped
+  text kept. A pending queue row on the phone offers no actions until Core has queued it. Slash
+  commands, edits, and rewinds on Desktop still wait for Core, since Core can refuse them.
+- Slash commands: typing `/` at the start of the phone's Chat draft lists the snapshot's `commands`
+  whose name contains what follows (at most six rows; no list when the provider reported none).
+  A command without `argumentHint` runs when tapped; one with arguments fills the draft with
+  `/name` for the user to finish. Submitting a draft that names a listed command calls
+  `mobile.agentChat.runCommand`, which forwards `agentChat.runCommand` after the same checks as
+  `send`, with its arguments held to the 16 KiB a phone may send; during a turn Core queues the
+  command; like Desktop's, the command waits for Core instead of showing optimistically. Draft parsing (`agentChatSlashQuery`, `parseAgentChatCommand`) lives in
+  `packages/protocol/src/agent/agent-chat-commands.ts`, shared with Desktop. `$` skills stay a
+  Desktop menu.
 
 ## Images and slash commands
 
@@ -1243,6 +1292,6 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
 plan mode, reasoning effort picker, and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
-Chat shows no plan or context usage yet, cannot run slash commands, does not show background tasks,
-cannot edit a queued message, cannot edit or fork from an earlier message, older history beyond the window stays on
+Chat shows no plan or context usage yet, does not list `$` skills, does not show background tasks,
+cannot edit or fork from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

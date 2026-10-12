@@ -50,6 +50,7 @@ const SessionConversationPane = ({
     deviceRole,
     enterFrom,
     isConnected,
+    onEditQueued,
     theme,
     timeline,
 }: {
@@ -58,6 +59,7 @@ const SessionConversationPane = ({
     deviceRole: 'view' | 'reply' | 'control' | null;
     enterFrom: -1 | 0 | 1 | null;
     isConnected: boolean;
+    onEditQueued: (text: string) => void;
     theme: MobileTheme;
     timeline: ReturnType<typeof useConversationTimeline>;
 }) =>
@@ -68,6 +70,7 @@ const SessionConversationPane = ({
             enterFrom={enterFrom}
             isConnected={isConnected}
             isHandedOff={chat.isHandedOff}
+            onEditQueued={onEditQueued}
             provider={chat.provider}
             theme={theme}
         />
@@ -93,6 +96,7 @@ export const SessionDetailBody = ({
     deviceRole,
     isConnected,
     isVisible,
+    onEditQueued,
     onSegmentChange,
     segment,
     segments,
@@ -114,6 +118,10 @@ export const SessionDetailBody = ({
     deviceRole: 'view' | 'reply' | 'control' | null;
     isConnected: boolean;
     isVisible: boolean;
+    /**
+     * Puts a queued Chat message taken back for editing into the composer draft and focuses it.
+     */
+    onEditQueued: (text: string) => void;
     onSegmentChange: (segment: SessionSegment) => void;
     segment: SessionSegment;
     segments: readonly SessionSegment[];
@@ -180,6 +188,7 @@ export const SessionDetailBody = ({
             deviceRole={deviceRole}
             enterFrom={conversationEnterFrom}
             isConnected={isConnected}
+            onEditQueued={onEditQueued}
             theme={theme}
             timeline={conversationTimeline}
         />

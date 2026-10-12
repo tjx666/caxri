@@ -37,13 +37,14 @@ const environmentMethodScopes = {
     'session.authorizeWorkbenchRoot': 'remote-override',
     'session.continueInWorktree': 'remote-override',
     /**
-     * The path browser identifies directories with local `lstat` and lists free paths from this disk.
+     * An SSH Host window's path browser identifies directories through its own Server and has no free mode, so it never
+     * lists this Mac's disk.
      */
-    'pathBrowser.start': 'local-only',
-    'pathBrowser.browse': 'local-only',
-    'pathBrowser.navigate': 'local-only',
-    'pathBrowser.open': 'local-only',
-    'pathBrowser.close': 'local-only',
+    'pathBrowser.start': 'remote-override',
+    'pathBrowser.browse': 'remote-override',
+    'pathBrowser.navigate': 'remote-override',
+    'pathBrowser.open': 'remote-override',
+    'pathBrowser.close': 'remote-override',
     'argv.get': 'any',
     'argv.update': 'any',
     'gpu.restartInSafeMode': 'any',

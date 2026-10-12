@@ -87,6 +87,16 @@ export const decodeReadCacheEntry = <Value>(
     return value.success ? { savedAt: envelope.data.savedAt, value: value.data } : null;
 };
 
+/**
+ * The scope a live read may be saved under: the pairing it was read under, and only while that pairing is still
+ * current. A Chat or Conversation read under the previous pairing can stay in state for a render after the scope
+ * changes; saving it under the new scope would show one computer's content as another's saved copy.
+ */
+export const liveReadSaveScope = (
+    readScope: string | undefined,
+    currentScope: string | null,
+): string | null => (readScope !== undefined && readScope === currentScope ? readScope : null);
+
 export const cachedDashboardSchema: z.ZodType<MobileDashboardResult> = mobileDashboardResultSchema;
 
 /**
@@ -133,7 +143,8 @@ const trimChatItem = (item: AgentChatItem): AgentChatItem => {
 
 /**
  * A Chat as the phone last saw it, without pending approvals: those can only be answered live. Of the provider's model
- * list it keeps only the model in use, so the composer still names it as Desktop does (`Fake Codex`, not its id).
+ * list it keeps only the model in use, so the composer still names it as Desktop does (`Fake Codex`, not its id), and
+ * it keeps ultracode, the permission level, and plan mode, so an offline composer still shows them read-only.
  */
 export const trimChatSnapshot = (snapshot: AgentChatSnapshot): AgentChatSnapshot => {
     const items = snapshot.items.slice(-READ_CACHE_MAX_ITEMS).map(trimChatItem);
@@ -151,6 +162,9 @@ export const trimChatSnapshot = (snapshot: AgentChatSnapshot): AgentChatSnapshot
         ...(snapshot.model !== undefined && { model: snapshot.model }),
         ...(model && { models: [model] }),
         ...(snapshot.effort !== undefined && { effort: snapshot.effort }),
+        ...(snapshot.ultracode !== undefined && { ultracode: snapshot.ultracode }),
+        ...(snapshot.permissionMode !== undefined && { permissionMode: snapshot.permissionMode }),
+        ...(snapshot.planMode !== undefined && { planMode: snapshot.planMode }),
     };
 };
 

@@ -2,21 +2,29 @@ import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getSshEnvironment } from '../../stores/environment';
 import { tryCommand } from '../../stores/toasts';
-import { setConnectSshHostOpen } from './ssh-host-dialogs-store';
+import { setConnectSshHostOpen, useSshHostDialogsStore } from './ssh-host-dialogs-store';
 
 export function openConnectSshHostDialog(): void {
     setConnectSshHostOpen(true);
 }
 
 /**
- * Opens (or focuses) the SSH Host's own window. Main returns as soon as the window exists; the connection itself
- * reports its progress inside that window, so this window has nothing further to wait for.
+ * Opens (or focuses) the SSH Host's own window. The picker stays open with this destination pending until Main answers,
+ * because resolving a destination it has not seen yet runs `ssh -G`, which a slow `Match exec` can hold for seconds.
+ * The connection itself then reports its progress inside that window. A second choice while one is pending is ignored.
  */
 export async function connectToSshHost(destination: string): Promise<void> {
-    setConnectSshHostOpen(false);
-    await tryCommand(translate('sshHost.connect.failed'), () =>
-        caxri.request('remote.connect', { destination }),
-    );
+    if (useSshHostDialogsStore.getState().connectingDestination !== undefined) return;
+    useSshHostDialogsStore.setState({ connectingDestination: destination });
+    try {
+        await tryCommand(translate('sshHost.connect.failed'), () =>
+            caxri.request('remote.connect', { destination }),
+        );
+    } finally {
+        // The user may have closed the picker meanwhile; only the picker still waiting on this connect closes.
+        if (useSshHostDialogsStore.getState().connectingDestination === destination)
+            setConnectSshHostOpen(false);
+    }
 }
 
 export async function reconnectSshHost(): Promise<void> {
