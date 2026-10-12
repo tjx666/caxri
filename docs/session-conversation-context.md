@@ -101,7 +101,9 @@ Session sends `session.conversationReference` with only its id, and the Server
    at most its first 16K characters, and the oldest turns are dropped once the retained text
    passes the budget. A transcript longer than 48 MiB is read only from a window at its end, since
    reading from the start would spend the scanner's 64 MiB budget before the newest turns; the file
-   then says that only the most recent part was read.
+   then says that only the most recent part was read. When the request is cancelled, its signal
+   stops `scanTranscriptToEnd` at the next 4 MiB pass boundary instead of finishing the read, and
+   nothing is written.
 3. The Markdown keeps whole messages from the newest backwards within 256 KiB and says how many
    earlier messages it omitted, so the citing Agent never mistakes it for the full record.
 4. The file is written to `$TMPDIR/caxri-session-references/session-<timestamp>-<uuid>.md`. The
@@ -111,7 +113,9 @@ Session sends `session.conversationReference` with only its id, and the Server
    writes each file with `0600` and an exclusive create.
 
 The Renderer receives only the path and inserts `@<path> contains the conversation from Session
-"<title>".` without sending it. Each write first prunes reference files older than 7 days and the
+"<title>".` without sending it. The composer's list follows the `@word` at the caret only after the
+user edits the draft, clicks in it, or moves the caret with a key: a restored draft that ends in
+`@word` does not open the list when the Chat is shown or its composer takes focus. Each write first prunes reference files older than 7 days and the
 oldest ones past a 64 MiB total, the retention long pastes use; files the Server did not name are
 left alone.
 

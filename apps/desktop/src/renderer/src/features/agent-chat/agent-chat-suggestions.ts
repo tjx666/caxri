@@ -71,3 +71,54 @@ export function agentChatSessionEmptyText(query: string): string {
 export function agentChatSessionPreparingText(title: string): string {
     return `Preparing “${title}”…`;
 }
+
+/**
+ * The caret the `@` Sessions list follows after the input reports a selection. A `select` event alone does not place
+ * it: focus moving into a restored draft (showing the Chat, switching Sessions) reports one too, and a draft saved
+ * ending in `@word` must not open the list before the user touches it. Once the user has edited the draft or moved the
+ * caret (`current` is set), every selection moves it.
+ */
+export function agentChatSelectionCaret(
+    current: number | undefined,
+    selectionStart: number,
+): number | undefined {
+    return current === undefined ? undefined : selectionStart;
+}
+
+const CARET_KEYS = new Set([
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+    'ArrowUp',
+    'End',
+    'Home',
+    'PageDown',
+    'PageUp',
+]);
+
+/**
+ * Whether a key released in the composer moved its caret on the user's behalf, so the `@` Sessions list may open at it.
+ * A chord with Command, Control, or Option does not count: one that switches Sessions (`ctrl+alt+arrowleft`) is often
+ * released over the composer it just focused.
+ */
+export function isAgentChatCaretKey(event: {
+    altKey: boolean;
+    ctrlKey: boolean;
+    key: string;
+    metaKey: boolean;
+}): boolean {
+    return CARET_KEYS.has(event.key) && !event.altKey && !event.ctrlKey && !event.metaKey;
+}
+
+/**
+ * Whether a key-up in the composer ends a caret move that started there: the released key is the unmodified caret key
+ * the composer last saw pressed (`pressedKey`, see {@link isAgentChatCaretKey}). A chord releases its modifiers in any
+ * order, so a Session switch whose Option comes up before its arrow would otherwise look like a plain arrow press on
+ * the composer it just focused, which never saw the arrow go down.
+ */
+export function isAgentChatCaretKeyRelease(
+    pressedKey: string | undefined,
+    event: { altKey: boolean; ctrlKey: boolean; key: string; metaKey: boolean },
+): boolean {
+    return pressedKey === event.key && isAgentChatCaretKey(event);
+}
