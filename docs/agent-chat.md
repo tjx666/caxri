@@ -952,6 +952,23 @@ or, for a model that names none, to the strongest effort it accepts that does no
 current one.
 A running turn keeps the model it started with.
 
+Fast mode is a separate toggle below the efforts, as in the Codex app and Claude Code's `/fast`. A
+model offers it when its `models` entry carries `fast` (with the provider's description, if any),
+and the snapshot's `fast` reports whether it is on; it is present only when the provider reports
+the state. `agentChat.configure { fast }` switches it, Server Core rejects turning it on for a model
+without it, and switching to such a model turns it off. The trigger then reads "Fast" beside the
+model.
+
+- **Codex**: a model offers Fast when `model/list` lists a `priority` (or `fast`) service tier,
+  falling back to the deprecated `additionalSpeedTiers`. The toggle rides on the next `turn/start`
+  as `serviceTier: "priority"`, or `"default"` to turn it off (a null tier would keep the thread's
+  saved one), and `thread/start` and `thread/resume` report it back after a restart.
+- **Claude Code**: a model offers Fast when its `supportsFastMode` is true. The SDK reports
+  `fast_mode_state` on the `initialize` response, the init message, and every `result`; `cooldown`
+  counts as on. When it reports a plan, policy, or provider block (any `fast_mode_disabled_reason`
+  other than `sdk_opt_in_required` or `pending`) the toggle is withdrawn. A switch applies in place
+  through `applyFlagSettings { fastMode }`.
+
 - **Codex** lists models with `model/list` after the thread opens; a Codex that cannot list them
   still chats, and the composer then shows the model as plain text. `thread/start` and
   `thread/resume` report the thread's `reasoningEffort`, and a thread that never chose one runs at
