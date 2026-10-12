@@ -79,7 +79,7 @@ export function AgentChatAddMenu({
                 <Tooltip content={t('agentChat.add.tooltip')}>
                     <MenuTrigger
                         aria-label={t('agentChat.add.tooltip')}
-                        className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-muted transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated data-popup-open:text-foreground"
+                        className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-muted transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated data-popup-open:text-foreground"
                     >
                         {isBusy ? <Spinner className="size-3.5" /> : <Plus className="size-4" />}
                     </MenuTrigger>

@@ -6,7 +6,8 @@ const indicatorVariants = {
     /**
      * Work advancing toward done (the update download): an `--accent` fill that eases between readings.
      */
-    progress: 'bg-accent transition-[width] duration-150 ease-out',
+    progress:
+        'bg-accent transition-[width] duration-(--motion-expand) ease-(--motion-ease-emphasized) motion-reduce:transition-none',
     /**
      * A measured quantity (a plan-limit window): a `--chart` fill that jumps straight to each new reading, because a
      * data refresh sliding the bar reads as usage growing in real time.

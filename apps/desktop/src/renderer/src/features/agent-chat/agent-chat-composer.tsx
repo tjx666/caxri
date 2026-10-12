@@ -321,7 +321,7 @@ export function AgentChatComposer({
                 </div>
                 <form
                     className={cn(
-                        'flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) focus-within:border-muted',
+                        'flex flex-col rounded-lg border border-border bg-surface transition-[border-color] focus-within:border-muted',
                         fileInput.isDragOver && 'border-accent focus-within:border-accent',
                     )}
                     onSubmit={(event) => {

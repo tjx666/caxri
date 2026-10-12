@@ -734,9 +734,15 @@ content. An external file gets no last-change annotation: blame needs a Project-
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
 layer:
 
-1. **shadcn overlay layer** (`tw-animate-css` + animation classes in `components/ui/*`): every
-   overlay: dialogs, selects, dropdown menus, tooltips, preview cards, and future shadcn
-   components. Fade plus ~95% zoom on enter/exit, gated by Base UI popup state attributes. We
+1. **shadcn overlay layer** (`tw-animate-css` classes from `components/ui/overlay-motion.ts`, the
+   one source every `components/ui/*` popup composes): dialogs, selects, dropdown menus, popovers,
+   tooltips, preview cards, and future shadcn components. Anchored popups fade, zoom from ~95%
+   at `--transform-origin`, and travel 4px away from their trigger along Base UI's `data-side`;
+   tooltips fade and travel 2px without zooming, since a zoom blurs one line of small text;
+   dialogs fade and zoom from the center. Exits only fade and shrink. Base UI's instant phase
+   (`data-instant`: sweeping between adjacent tooltips, a keyboard-opened trigger, an Escape dismissal) shows and
+   hides without animation so a toolbar sweep never flickers. All of it is gated by Base UI popup
+   state attributes. We
    deliberately do not import `shadcn/tailwind.css`: its custom `data-open`/`data-closed` variants
    exist to bridge Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute
    variants are equivalent (see upstream debate in shadcn-ui/ui#10267).
@@ -752,22 +758,32 @@ layer:
    renderer entries enable StrictMode. Until it lands, simple lists stay instant.
 4. **Motion** (`motion/react` via `LazyMotion strict` + `motion/react-m`, `domAnimation` features
    only): fine presence/timing control and future layout math: the work tab strip's enter/exit
-   (opacity plus width), future drag reorder and shared-element transitions.
+   (opacity plus width), future drag reorder and shared-element transitions. Its easing comes
+   from the same tokens through `motionEasing` in `lib/motion.ts`, never a library preset.
 
 Timing lives in the `--motion-*` tokens in `styles.css` (`:root`): the single source for CSS
 transitions, tw-animate durations, Motion transitions, JS presence-cleanup fallbacks, and tests:
 disclosures expand `--motion-expand` (180ms, `--motion-ease-emphasized`
-`cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, ease-in); work tabs
-enter `--motion-tab-enter` (140ms, ease-out) and exit `--motion-tab-exit` (110ms, ease-in); the
+`cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, exit curve); work tabs
+enter `--motion-tab-enter` (140ms, enter curve) and exit `--motion-tab-exit` (110ms, exit curve); the
 shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 `--motion-ease-emphasized`); overlays enter `--motion-overlay-enter` (150ms) and exit
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
 ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
-literal.
+literal. The enter curve `--motion-ease-enter` is easeOutQuint `cubic-bezier(0.23, 1, 0.32, 1)`,
+which answers the pointer in the first frames instead of the keyword `ease-out`'s slow start;
+exits use the accelerating `--motion-ease-exit` `cubic-bezier(0.4, 0, 1, 1)`. State feedback
+(hover color, hover-revealed row actions, focus rings, switch and checkbox) runs on
+`--motion-feedback` (120ms, enter curve) through Tailwind's `--default-transition-*` variables,
+so a bare `transition-*` utility is already on-token: never add a literal `duration-<n>` or
+`ease-in`/`ease-out` utility. The Terminal and Agent Chat find bars fade in (the floating
+Terminal bar also drops 4px) and close instantly; the pane split drop preview fades in once and
+then glides between zones on `--motion-chrome-switch` so the target split stays legible.
 
 Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
-state transitions, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
+state transitions, sidebar and Panel visibility (animating their width would reflow every
+xterm on each frame), Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
 disclosures in Files, Source Control, and extension-contributed trees. Do not stagger rows or neighboring tabs.
 The Process Explorer window is out of scope (separate style layer, diagnostics; see `docs/process-explorer.md`).
 
