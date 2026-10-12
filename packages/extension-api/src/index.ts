@@ -371,6 +371,11 @@ export interface ProjectStatusRepository {
          */
         headSha?: string;
         /**
+         * The branch the pull request was opened from. It differs from `branch` when the Session's own Agent delivered
+         * the pull request from another worktree.
+         */
+        headBranch?: string;
+        /**
          * Whether GitHub would merge right now; absent when the provider omitted it.
          */
         mergeState?: PullRequestMergeState;

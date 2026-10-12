@@ -30,7 +30,9 @@ const PULL_REQUEST_ICONS: Record<PullRequestLinkState, { icon: LucideIcon; tone:
  * A pull request link's icon, tinted by its state. The state comes from the Terminal reference preview, which reads
  * GitHub's REST API (not the GraphQL budget the sidebar shares), caches per number, and only answers for repositories
  * the Session already has, so a transcript cannot steer requests at an arbitrary repository. Without a Terminal to
- * scope the read, or until it answers, the plain pull request glyph stands in the text's own color.
+ * scope the read, for another repository's pull request, or until it answers, the plain pull request glyph stands in
+ * GitHub's pull request green: the neutral glyph keeps it distinct from a confirmed open state, while the tint still
+ * reads as a pull request rather than borrowing the link text's color.
  */
 function PullRequestLinkIcon({
     className,
@@ -48,7 +50,13 @@ function PullRequestLinkIcon({
     );
     const state = pullRequestLinkState(preview.data);
     if (!state)
-        return <GitPullRequest aria-hidden className={className} data-link-icon="pull-request" />;
+        return (
+            <GitPullRequest
+                aria-hidden
+                className={cn(className, 'text-success')}
+                data-link-icon="pull-request"
+            />
+        );
     const { icon: Icon, tone } = PULL_REQUEST_ICONS[state];
     return (
         <Icon

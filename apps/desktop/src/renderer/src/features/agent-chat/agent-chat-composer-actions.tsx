@@ -3,7 +3,9 @@ import { ArrowUp, CornerDownLeft } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
-import { AgentChatAttachButton } from './agent-chat-attach-button';
+import { useTerminal } from '../../stores/selectors';
+import type { SessionReferenceCandidate } from '../session/session-reference';
+import { AgentChatAddMenu, AgentChatPlanChip } from './agent-chat-add-menu';
 import { agentChatContextUsage } from './agent-chat-context';
 import { AgentChatContextMeter } from './agent-chat-context-meter';
 import { AgentChatModelMenu } from './agent-chat-model-menu';
@@ -12,6 +14,7 @@ import {
     AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,
     AgentChatStopButton,
 } from './agent-chat-stop-button';
+import { useAgentChatPermissionSelection } from './hooks/use-agent-chat-permission-selection';
 
 /**
  * Sends the form. `aria-disabled` rather than `disabled`: a natively disabled button gets no pointer events in
@@ -50,9 +53,11 @@ function AgentChatSendButton({
 }
 
 /**
- * The composer card's bottom row, laid out like the Codex app's: attach and the permission menu lead on the left; the
- * context meter, the model menu, and one primary action slot trail on the right. That slot holds Stop while a turn runs
- * and nothing is typed, and Send otherwise.
+ * The composer card's bottom row, laid out like the Codex app's: `+`, the Plan chip while plan mode is on, and the
+ * permission menu lead on the left; the context meter, the model menu, and one primary action slot trail on the right.
+ * That slot holds Stop while a turn runs and nothing is typed, and Send otherwise. The permission selection lives here
+ * because both the permission menu (the level) and `+` (plan mode) switch it, and they must share one optimistic
+ * state.
  */
 export function AgentChatComposerActions({
     canAttachImages,
@@ -62,8 +67,11 @@ export function AgentChatComposerActions({
     isSendable,
     isStopping,
     onCompact,
+    onGoal,
     onPick,
+    onReferenceSession,
     onStop,
+    recentSessions,
     sendAction,
     sendTooltip,
     showsStop,
@@ -71,7 +79,7 @@ export function AgentChatComposerActions({
     terminalId,
 }: {
     /**
-     * Whether the provider accepts images, which decides what Attach files says it does.
+     * Whether the provider accepts images, which decides what Files in `+` says it does.
      */
     canAttachImages: boolean;
     /**
@@ -79,7 +87,8 @@ export function AgentChatComposerActions({
      */
     canSaveProjectDefault: boolean;
     /**
-     * Whether picked images are still being read or a long paste saved, which turns Attach files into a spinner.
+     * Whether picked images are still being read, a long paste saved, or a Session reference written, which turns `+`
+     * into a spinner.
      */
     isAttaching: boolean;
     /**
@@ -94,10 +103,19 @@ export function AgentChatComposerActions({
      */
     onCompact: (() => void) | undefined;
     /**
+     * Turns the draft into the provider's goal command, or `undefined` when the provider reports none.
+     */
+    onGoal: (() => void) | undefined;
+    /**
      * Routes picked files: images attach, anything else is cited by path.
      */
     onPick: (files: readonly File[]) => void;
+    onReferenceSession: (candidate: SessionReferenceCandidate) => void;
     onStop: () => void;
+    /**
+     * The recently opened Sessions `+` offers to cite.
+     */
+    recentSessions: readonly SessionReferenceCandidate[];
     sendAction: { label: string; tooltip: string };
     sendTooltip: string;
     showsStop: boolean;
@@ -116,17 +134,38 @@ export function AgentChatComposerActions({
     terminalId: string;
 }) {
     const contextUsage = agentChatContextUsage(snapshot);
+    const terminal = useTerminal(terminalId);
+    const provider = terminal && terminal.kind !== 'shell' ? terminal.kind : undefined;
+    const permission = useAgentChatPermissionSelection(snapshot, provider, terminalId);
+    const planMode = permission.snapshot?.planMode;
     return (
         <div className="flex items-center gap-1 px-2 pb-2">
             <div className="flex min-w-0 flex-1 items-center gap-0.5">
-                <AgentChatAttachButton
+                <AgentChatAddMenu
                     canAttachImages={canAttachImages}
                     isBusy={isAttaching}
+                    onGoal={onGoal}
                     onPick={onPick}
+                    onReferenceSession={onReferenceSession}
+                    sessions={recentSessions}
+                    planMode={
+                        planMode === undefined
+                            ? undefined
+                            : {
+                                  isOn: planMode,
+                                  onChange: (isOn) => permission.configure({ planMode: isOn }),
+                              }
+                    }
                 />
+                {planMode && (
+                    <AgentChatPlanChip
+                        onTurnOff={() => permission.configure({ planMode: false })}
+                    />
+                )}
                 <AgentChatPermissionMenu
                     canSaveProjectDefault={canSaveProjectDefault}
-                    snapshot={snapshot}
+                    provider={provider}
+                    selection={permission}
                     terminalId={terminalId}
                 />
             </div>

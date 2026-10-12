@@ -212,7 +212,9 @@ may use unitless `1.45` or `1.5` line height; compact uppercase headings may use
   Settings fields/buttons, and 44px palette/path input.
 - Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. `rounded-full` is
   reserved for intrinsically circular shapes: activity dots, the drag insertion line's leading
-  cap, and the Switch track/thumb (the one sanctioned fully-round control). No other radii.
+  cap, and the Switch track/thumb. The Agent Chat composer is the one other sanctioned exception,
+  copying the Codex app's composer: its `+`, its Plan chip, its model picker pill, its 28px primary
+  action circle, and the effort slider's track and thumb. No other radii.
 
 `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric
 arbitrary-class allowlist above and rejects feature-local raw text inputs and raw checkboxes.
@@ -371,6 +373,11 @@ a `Main worktree` marker. `Show all worktrees…` expands the same popover into 
 Unknown creation times sort last, deterministically. An `Authorize` label distinguishes discovered
 but unapproved roots; selecting one opens the shared in-app confirmation with its full destination
 and `Authorize and switch`. Cancel grants nothing. Approved roots switch directly without Finder.
+While the Session is still on its own root and its conversation worked in a linked worktree, the
+picker's glyph carries an `--accent` dot in its top-right corner (drawn into the glyph, so the chip
+keeps its width) and its tooltip names that worktree. It is a passive hint: clicking opens the same
+picker, whose leading `From this conversation` group already offers the worktree. It never opens a
+prompt or takes focus.
 
 The Workbench Root and branch pickers both open on a focused search field, because a checkout with
 dozens of worktrees or hundreds of branches cannot be scrolled faster than it can be typed. Typing
@@ -1032,22 +1039,41 @@ from a preview that covers the 96px sent-message tile at 2x, each with its remov
 the top-right corner; clicking one previews the full image in a dialog, and an image that takes
 noticeably long to read holds a placeholder tile with a spinner, so a disabled Send has a visible
 cause), a borderless auto-growing textarea, and one action row in `--muted`, split like the Codex
-app's composer. Leading on the left: Attach files (a paperclip ghost icon that turns into a spinner
-while picked images are read, a long paste is saved, or an `@` Session reference is written; its
-tooltip says what a pick does for this provider, `Attach images or insert file paths` or `Insert
-file paths`) and the permission picker. Trailing on the right: the context meter (a
+app's composer. Leading on the left: `+` (a round ghost icon, tooltip `Add files and more`, that
+turns into a spinner while picked images are read, a long paste is saved, or a Session reference is
+written), a Plan chip (a bulb and `Plan` in `--foreground`, pressed to turn plan mode off) while plan
+mode is on, and the permission picker. `+` opens a menu laid out like the Codex app's: under `Add`,
+Files (the system file picker; its muted description says what a pick does for this provider,
+`Attach images or insert file paths` or `Insert file paths`), Goal (only while the provider reports
+a `goal` command; it turns the draft into `/goal <draft>`), and Plan mode (with its description and a
+trailing check while on); under `Sessions`, the five most recently opened Sessions with an Agent
+conversation, each cited at the caret the way the `@` list cites it. Folders cannot be picked yet:
+Chromium's file input selects files only. Trailing on the right: the context meter (a
 14px ring that fills with the share of the window in use, its percentage beside it, `--warning`
 from 60% and `--danger` from 85%; a `meter` and a Tab stop whose popover gives the token breakdown
 and, when the provider has a compact command, a Compact button; hovering opens it as a preview, and
 Enter, Space, or a click opens it with focus inside so Tab reaches Compact; a preview card opened by
-focus would close as soon as focus left the ring), the model picker (the model's name and
-the next turn's effort, with `Ultracode` in `--foreground` like `Plan` while that mode is on,
-opening a menu of models with their descriptions and the current model's
-efforts; choosing a model keeps the menu open so its efforts show, choosing an effort closes it, and
-a spinner replaces the chevron until the switch is confirmed), and a single primary action slot. The
-permission picker shows a shield, the level's name, a `--warning` shield for full access, `Plan` in
-`--foreground` while plan mode is on, and, for a provider that applies a switch only from the next
-turn (Codex), a `from next turn` caption while a turn runs. The primary action slot is a 28px `--foreground`
+focus would close as soon as focus left the ring), the model picker (a pill holding a filled `--accent` bolt while Fast mode is on and a workflow glyph
+while ultracode is on, then the model's name and the next turn's effort, reading `Choose effort`
+while its effort panel is open; a spinner replaces the chevron until a switch is confirmed), and a
+single primary action slot. The model picker opens a 288px popover copied from the Codex app's: a
+header with the mode toggles on the left (Fast's bolt, ultracode's glyph; `--muted` while off,
+`--accent` while on, each explained in a tooltip above it), the effort in 15px semibold `--accent`
+over the model name and a chevron in the center, and `Reset to default` (a rotate glyph, disabled
+while the effort is the model's default) on the right; below it, a slider with one stop per effort
+(a 24px `--foreground`/15 track filled in `--accent` up to a 28px `--foreground` thumb, a 4px dot on
+every other stop, and twinkling dots across the fill while Fast mode is on). Dragging previews the
+effort in the title; releasing applies it and keeps the popover open. The model name opens the model
+list in place: a `Choose model` caption, one row per model with a trailing check on the current one,
+and each model's description in a tooltip to its right (Claude Code's `default` alias keeps its
+description inline). Choosing a model returns to the effort panel when the model has efforts or
+modes, and closes the popover otherwise; a model with neither opens straight on the list. The
+permission picker shows a shield, the level's name, a `--warning` shield for full access, and, for a
+provider that applies a switch only from the next turn (Codex), a `from next turn` caption while a
+turn runs. Its menu leads every level with a glyph (an eye for read only, a hand for ask, a pen for
+accept edits, a bot for auto, the `--warning` shield for full access) and trails the current level
+with a check; a chosen Full access row reads in `--warning`, as the Codex app tints it. Every
+checkable menu row in the app trails its check, as macOS menus do. The primary action slot is a 28px `--foreground`
 circle holding a `--background` up arrow for Send (a return arrow while the message would queue), or
 a small filled square for Stop. That slot
 shows Stop while a turn runs and the input is empty, and Send as soon as there is content; the two
@@ -1086,7 +1112,7 @@ as part of the draft (reference: LobeHub's chat input). The strip is a `--surfac
 from the card's sides, its top corners radius-8 and its hairline resting on the card's top border;
 the `Editing an earlier message` bar and the idle context notices below use the same strip. The row holds a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
-stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
+stop` right-aligned. A working turn's label is one playful phrase chosen per turn from LobeHub's list (`Herding tokens…`),
 so a long turn reads as progress rather than a stall; a waiting one reads `Waiting for your
 approval` or `Waiting for your answer` by its first pending request. On an idle Chat the same row
 carries context notices instead: an expired prompt cache in `--muted` (a cost fact, not a fault),
@@ -1122,7 +1148,10 @@ plan). Cmd+Enter approves and Cmd+Backspace denies, answering only the first car
 composer is empty, where neither chord has another meaning. A question names the provider (`Codex has a
 question`), and each option's description sits under its label in `meta` `--muted`, not in a
 tooltip. While the reader follows the end, the transcript stays pinned when a dock grows and
-shrinks the view.
+shrinks the view. As in ChatGPT and the Codex app, the latest user message rests 16px below the
+top of the view at the end: the transcript keeps empty space below the latest turn, so a sent
+message rises to the top and its reply fills in below it; once the turn outgrows the view the space
+is gone and following the end takes over.
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
@@ -1160,7 +1189,12 @@ returns focus to the composer (to the scroll view in a read-only task tab). Expa
 in the shared code view at the `meta` size diffs, the command preview, and task output use, painted in the language inferred from what produced it (a printed file's
 extension, a Git diff, JSON), any other command output as shell, and capped in height. A new
 tool kind gets its glyph in one table, not a new component. References: the Codex app and T3 Code's
-work log.
+work log. Releasing a text selection in a transcript (a Chat or a subagent tab) floats a popover-styled
+`--elevated` toolbar 8px above the selection's first line, below its last line when there is no
+room, holding `Copy` and `Add to message`. Copy confirms in place with a check, never a toast; Add
+to message appends the selection as a `>` Markdown quote paragraph to the Chat's draft and puts
+the caret on a new line after it; from a subagent tab it brings the parent Chat forward. The toolbar follows the selection as the transcript scrolls and leaves on
+Escape, an outside press, or a collapsed selection. References: Synara, LibreChat, assistant-ui.
 
 **Settings**: a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
 this one tab instead of raising a dialog, so it composes with every other document (the Archived
