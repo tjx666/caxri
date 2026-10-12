@@ -62,6 +62,7 @@ describe('getPaletteExtensionCommands', () => {
 });
 
 describe('isCommandVisibleInPalette', () => {
+    const localWindow = { localMachine: true, sshHost: false };
     const detach = commandDefinitions.find((command) => command.id === 'session.detach');
     const resume = commandDefinitions.find((command) => command.id === 'session.resume');
     const openPullRequest = commandDefinitions.find(
@@ -72,11 +73,34 @@ describe('isCommandVisibleInPalette', () => {
         throw new Error('gated commands are missing from the catalog');
     }
 
+    it('shows local-only commands only in a local window and SSH Host commands only in an SSH Host window', () => {
+        const processExplorer = commandDefinitions.find(({ id }) => id === 'processExplorer.open');
+        const stopServer = commandDefinitions.find(({ id }) => id === 'remote.stopServer');
+        const connect = commandDefinitions.find(({ id }) => id === 'remote.connect');
+        if (!processExplorer || !stopServer || !connect)
+            throw new Error('environment-gated commands are missing from the catalog');
+        const session = {
+            sessionHasLiveAgent: false,
+            sessionHasDetachedAgent: false,
+            sessionHasPullRequest: false,
+        };
+        const sshHostWindow = { ...session, localMachine: false, sshHost: true };
+        const local = { ...session, ...localWindow };
+
+        expect(isCommandVisibleInPalette(processExplorer, local)).toBe(true);
+        expect(isCommandVisibleInPalette(processExplorer, sshHostWindow)).toBe(false);
+        expect(isCommandVisibleInPalette(stopServer, local)).toBe(false);
+        expect(isCommandVisibleInPalette(stopServer, sshHostWindow)).toBe(true);
+        expect(isCommandVisibleInPalette(connect, local)).toBe(true);
+        expect(isCommandVisibleInPalette(connect, sshHostWindow)).toBe(true);
+    });
+
     it('hides gated commands when the current session lacks the matching Agent Terminal', () => {
         const context = {
             sessionHasLiveAgent: false,
             sessionHasDetachedAgent: false,
             sessionHasPullRequest: false,
+            ...localWindow,
         };
         expect(isCommandVisibleInPalette(detach, context)).toBe(false);
         expect(isCommandVisibleInPalette(resume, context)).toBe(false);
@@ -90,6 +114,7 @@ describe('isCommandVisibleInPalette', () => {
                 sessionHasLiveAgent: false,
                 sessionHasDetachedAgent: false,
                 sessionHasPullRequest: true,
+                ...localWindow,
             }),
         ).toBe(true);
     });
@@ -100,6 +125,7 @@ describe('isCommandVisibleInPalette', () => {
                 sessionHasLiveAgent: true,
                 sessionHasDetachedAgent: false,
                 sessionHasPullRequest: false,
+                ...localWindow,
             }),
         ).toBe(true);
         expect(
@@ -107,6 +133,7 @@ describe('isCommandVisibleInPalette', () => {
                 sessionHasLiveAgent: false,
                 sessionHasDetachedAgent: true,
                 sessionHasPullRequest: false,
+                ...localWindow,
             }),
         ).toBe(true);
         expect(
@@ -114,6 +141,7 @@ describe('isCommandVisibleInPalette', () => {
                 sessionHasLiveAgent: false,
                 sessionHasDetachedAgent: true,
                 sessionHasPullRequest: false,
+                ...localWindow,
             }),
         ).toBe(false);
     });

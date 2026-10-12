@@ -100,6 +100,8 @@ export const core = {
     // stores/automatic-naming-notice.ts
     'core.automaticNaming.sandboxBoundaryConflict':
         '{{subject}}: Automatic naming is blocked by the Project sandbox boundary. Choose a more specific Project folder and restart the Agent.',
+    'core.automaticNaming.sandboxUnavailable':
+        '{{subject}}: Automatic naming needs bubblewrap (bwrap) on this machine. Install it, then restart the Agent.',
     'core.automaticNaming.unverifiedPaths':
         '{{subject}}: Automatic naming is unavailable because its sandbox paths could not be verified. Restart the Agent after correcting the paths.',
 

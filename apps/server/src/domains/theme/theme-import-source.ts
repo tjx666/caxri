@@ -1,5 +1,6 @@
 /**
- * Guards for untrusted theme-import documents, shared by the iTerm2, Warp, and VS Code parsers in `index.ts`.
+ * Guards and the fallback seed for untrusted theme-import documents, shared by the VS Code parser in `index.ts` and the
+ * iTerm2 and Warp parsers in `theme-terminal-formats.ts`.
  *
  * Two failure shapes used to escape the importer uncategorized. A parser throwing (`yaml` on a broken document,
  * `jsonc-parser` on an empty file, `plist` on a missing root element) reached the wire as `INTERNAL` with a stack, so
@@ -8,7 +9,13 @@
  * belong to the importer's closed reason set beside `CAPACITY`, `IO`, and the contrast floor.
  */
 
-import { CaxriError } from '@caxri/protocol';
+import type { ThemeImportWarning, ThemeTokens } from '@caxri/protocol';
+import { CaxriError, draculaTheme } from '@caxri/protocol';
+
+/**
+ * Theme tokens a format parser produced, plus the warnings to show the user about what it could not import.
+ */
+export type ParsedThemeImport = ThemeTokens & { warnings: ThemeImportWarning[] };
 
 /**
  * Position of a parse failure, for a user repairing a hand-edited theme.
@@ -56,4 +63,17 @@ export function themeDocumentRoot(value: unknown, message: string): Record<strin
         throw new CaxriError('VALIDATION', message);
     }
     return value as Record<string, unknown>;
+}
+
+/**
+ * Seeds a parsed import with the fallback theme, so roles a format does not define keep usable colors.
+ */
+export function cloneFallback(source: ThemeTokens['source'], name: string): ParsedThemeImport {
+    return structuredClone({
+        ...draculaTheme,
+        id: `${source}-${Date.now()}`,
+        name,
+        source,
+        warnings: [],
+    });
 }

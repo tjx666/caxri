@@ -56,6 +56,20 @@ const serverArtifactNativeDependencySchema = z
 const serverArtifactRuntimeSchema = z
     .object({
         executable: artifactRelativePathSchema,
+        /**
+         * Where an SSH Host can fetch the runtime itself instead of receiving it from Desktop: the official tarball,
+         * its SHA-256, and the binary's path inside it. Present only on cross-assembled Linux targets.
+         */
+        source: z
+            .object({
+                member: z.string().regex(/^node-v[\w.-]+\/bin\/node$/u),
+                sha256: z.string().regex(/^[a-f\d]{64}$/u),
+                url: z
+                    .string()
+                    .regex(/^https:\/\/nodejs\.org\/dist\/v[\w.-]+\/node-v[\w.-]+\.tar\.gz$/u),
+            })
+            .strict()
+            .optional(),
         version: z.string().min(1).max(100),
     })
     .strict();

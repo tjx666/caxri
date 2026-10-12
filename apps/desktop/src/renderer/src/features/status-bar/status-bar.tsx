@@ -16,6 +16,7 @@ import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
+import { useIsLocalOnlyAvailable } from '../../stores/environment';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { NotificationCenter } from '../toasts/notification-center';
@@ -33,6 +34,7 @@ import { PermissionAutoAllowChip } from './permission-auto-allow-chip';
 import { RemoteDebuggingChip } from './remote-debugging-chip';
 import { RepoStatusChips } from './repo-status-chips';
 import { ScreencastModeChip } from './screencast-mode-chip';
+import { SshHostStatus } from './ssh-host-status';
 import { StatusItem } from './status-item';
 import { UpdateStatusChip } from './update-status-chip';
 import { WorkbenchRootPicker } from './workbench-root-picker';
@@ -226,6 +228,10 @@ export function StatusBar() {
     const degraded = serverStatus ? DEGRADED_STATES[serverStatus] : undefined;
     const containerReference = useRef<HTMLElement>(null);
     const chipVisibility = useChipVisibility(containerReference, sessionId);
+    /**
+     * The Agent Commander runs beside this Mac's own Server, so an SSH Host window has no Commander to report.
+     */
+    const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     return (
         /**
          * `data-runtime-status` is the stable readiness signal: it is present in every visual state, including the
@@ -236,6 +242,7 @@ export function StatusBar() {
             className="statusbar col-span-full flex items-center gap-2 bg-surface px-2 text-[11px] text-muted"
             data-runtime-status={serverStatus ?? 'starting'}
         >
+            <SshHostStatus />
             <StatusBarContext
                 chipVisibility={chipVisibility}
                 isWorktree={Boolean(
@@ -265,8 +272,8 @@ export function StatusBar() {
                 )}
                 <PeerApprovalChip />
                 <UpdateStatusChip />
-                <CommanderStatusChip />
-                <CommanderInboxChip />
+                {isLocalOnlyAvailable && <CommanderStatusChip />}
+                {isLocalOnlyAvailable && <CommanderInboxChip />}
                 <RemoteDebuggingChip />
                 <ScreencastModeChip />
                 <PermissionAutoAllowChip />

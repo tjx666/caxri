@@ -14,7 +14,6 @@ import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     getMethodSpec,
-    hasRequiredCapabilities,
     isServerRequest,
     isTransientServerEvent,
     projectObservableEventRecovery,
@@ -29,6 +28,7 @@ import { agentCommandRequest } from './agent-command-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { retireEndpointsForOperation } from './agent-endpoints/retire-for-operation';
+import { sendAgentMessage } from './agent-message-send';
 import { ControlServer } from './control-server';
 import type { CoreForwardedMethod } from './core-methods';
 import { createAgentMessaging } from './create-agent-messaging';
@@ -60,11 +60,7 @@ import {
     logDurableRecovery,
     prepareServerEventForDelivery,
 } from './recovery-observability';
-import {
-    dispatchIdFor,
-    principalRequestKey,
-    RequestCancellationRegistry,
-} from './request-cancellation';
+import { principalRequestKey, RequestCancellationRegistry } from './request-cancellation';
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import type { CommandStopFallbackReference } from './server-core-control-callbacks';
 import { createServerCoreControlCallbacks } from './server-core-control-callbacks';
@@ -377,73 +373,16 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         principalKind: context.principal.kind,
                     });
                 }
-                case 'agent.message.send': {
-                    if (!request.params.wake)
-                        return agentInbox.send(context, request.params, invocation.requestId);
-                    if (!hasRequiredCapabilities(context, ['agents.dispatch', 'agents.control']))
-                        throw new CaxriError(
-                            'FORBIDDEN',
-                            'Waking an Agent requires an agent:control grant',
-                        );
-                    let isTargetIsActive = true;
-                    try {
-                        agentEndpoints.resolve(request.params.to);
-                    } catch {
-                        isTargetIsActive = false;
-                    }
-                    if (isTargetIsActive)
-                        return agentInbox.send(context, request.params, invocation.requestId);
-                    /**
-                     * Only an exact bounded tombstone can be promoted into a wake dispatch.
-                     */
-                    const retired = agentEndpoints.resolveRetired(request.params.to);
-                    assertProjectScope(context, retired.projectId);
-                    mutationAdmission.begin();
-                    try {
-                        const dispatch = await domainService.request(
-                            'agent.dispatch.wakeInternal',
-                            {
-                                dispatchId: dispatchIdFor(context, invocation.requestId),
-                                principal: context.principal,
-                                target: {
-                                    projectId: retired.projectId,
-                                    sessionId: retired.sessionId,
-                                    terminalId: retired.terminalId,
-                                },
-                            },
-                        );
-                        if (dispatch.status !== 'running' || !dispatch.endpoint)
-                            throw new CaxriError('UNAVAILABLE', 'Agent wake dispatch failed', {
-                                dispatchId: dispatch.dispatchId,
-                                status: dispatch.status,
-                            });
-                        const current = agentEndpoints.resolveTerminal(retired.terminalId);
-                        if (
-                            current.ref.endpointId !== dispatch.endpoint.endpointId ||
-                            current.ref.generation !== dispatch.endpoint.generation
-                        )
-                            throw new CaxriError(
-                                'UNAVAILABLE',
-                                'Agent generation changed after wake dispatch',
-                                { dispatchId: dispatch.dispatchId },
-                            );
-                        return agentInbox.send(
-                            context,
-                            {
-                                body: request.params.body,
-                                to: current.ref,
-                                ttlMs: request.params.ttlMs,
-                                ...(request.params.idempotencyKey && {
-                                    idempotencyKey: request.params.idempotencyKey,
-                                }),
-                            },
-                            invocation.requestId,
-                            dispatch.dispatchId,
-                        );
-                    } finally {
-                        mutationAdmission.finish();
-                    }
-                }
+                case 'agent.message.send':
+                    return sendAgentMessage({
+                        agentEndpoints,
+                        agentInbox,
+                        context,
+                        domainService,
+                        mutationAdmission,
+                        parameters: request.params,
+                        requestId: invocation.requestId,
+                    });
                 case 'agent.message.reply': {
                     if (request.params.wake)
                         throw new CaxriError(
@@ -632,6 +571,13 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             bootId: lease.identity.processIdentity,
             buildId: options.buildId ?? 'unknown',
             commit: options.commit,
+            /**
+             * The Extension Host only serves Desktop and Mobile view, tree, and command requests, so it starts when a
+             * Desktop attaches (below) or on the first such request instead of at Core ready. Desktop attaches right
+             * after Core is ready, so a local Desktop sees no difference; a Server only an operator, the CLI, or Agents
+             * talk to (an SSH Host started before Desktop attaches) skips a resident Node process.
+             */
+            deferHostStart: true,
             desktopRouter: () => desktopRouter,
             domainService,
             executable: options.executable,
@@ -698,6 +644,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     fields: { clientCount },
                 });
                 idleExitConnections.updateControlCount(clientCount);
+            },
+            onDesktopAttached: () => {
+                // Starting is idempotent and logs its own failure; the handshake callback cannot await it.
+                // eslint-disable-next-line no-void -- fire-and-forget Extension Host start on Desktop attach
+                void extensionService?.startHost('desktop-attached');
             },
             ...createServerCoreControlCallbacks({
                 agentEndpoints,

@@ -5,7 +5,6 @@ import {
     identifierSchema,
     MAX_TERMINAL_INPUT_LENGTH,
     mobileTerminalWheelLinesSchema,
-    pathSchema,
     serverCredentialTokenSchema,
     serverProcessIdentitySchema,
     terminalRecordSchema,
@@ -15,6 +14,12 @@ import {
 import { z } from 'zod';
 
 import { observationContextSchema } from '../observability/context-schema';
+import { isJsonWithinByteLimit } from './json-byte-length';
+import {
+    outputRecoverySettingsSchema,
+    terminalGridSizeSchema,
+    terminalLaunchPlanSchema,
+} from './launch-plan-schema';
 
 export const TERMINAL_HOST_PROTOCOL_VERSION = 5 as const;
 export const MAX_TERMINAL_HOST_MESSAGE_BYTES = 32 * 1024 * 1024;
@@ -75,20 +80,6 @@ const terminalHostScopeSchema = z.discriminatedUnion('scope', [
     terminalScopeSchema,
 ]);
 
-const terminalGridSizeSchema = z
-    .object({
-        cols: z.number().int().positive().max(10_000),
-        rows: z.number().int().positive().max(10_000),
-    })
-    .strict();
-
-const environmentSchema = z
-    .record(z.string().min(1).max(256), z.string().max(64 * 1024))
-    .refine((environment) => Object.keys(environment).length <= 512, {
-        message: 'Terminal launch environment exceeds 512 entries',
-    });
-const terminalArgumentsSchema = z.array(z.string().max(16_384)).max(256);
-
 const nodeSignalSchema = z.enum([
     'SIGABRT',
     'SIGALRM',
@@ -128,44 +119,6 @@ const nodeSignalSchema = z.enum([
     'SIGXFSZ',
     'SIGBREAK',
 ]);
-
-const outputRecoverySettingsSchema = z
-    .object({
-        enabled: z.boolean(),
-        patterns: z.array(z.string().max(8_192)).max(100),
-        settleDelayMs: z.number().int().nonnegative().max(60_000),
-        continueDelayMs: z.number().int().nonnegative().max(60_000),
-    })
-    .strict();
-
-const terminalLaunchPlanSchema = z
-    .object({
-        record: terminalRecordSchema,
-        executable: pathSchema,
-        args: terminalArgumentsSchema,
-        environment: environmentSchema,
-        agent: z
-            .object({
-                launchId: identifierSchema,
-                provider: agentProviderSchema,
-                executable: pathSchema,
-                args: terminalArgumentsSchema,
-                environment: environmentSchema,
-            })
-            .strict()
-            .optional(),
-        initialSnapshot: terminalSnapshotSchema.optional(),
-        initialSize: terminalGridSizeSchema.optional(),
-        outputRecovery: outputRecoverySettingsSchema.optional(),
-        colors: z
-            .object({
-                background: z.string().min(1).max(100),
-                foreground: z.string().min(1).max(100),
-            })
-            .strict()
-            .optional(),
-    })
-    .strict();
 
 const terminalRequestSchemas = [
     z.object({ method: z.literal('terminal.reserve'), params: terminalRecordSchema }).strict(),
@@ -612,10 +565,10 @@ export function isTerminalHostResult(
     return terminalHostResultSchemas[method].safeParse(value).success;
 }
 
+/**
+ * Checks every Terminal Host IPC message in both directions, so it measures the JSON size without building the JSON
+ * text (see `isJsonWithinByteLimit`).
+ */
 export function isBoundedTerminalHostMessage(value: unknown): boolean {
-    try {
-        return Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_TERMINAL_HOST_MESSAGE_BYTES;
-    } catch {
-        return false;
-    }
+    return isJsonWithinByteLimit(value, MAX_TERMINAL_HOST_MESSAGE_BYTES);
 }

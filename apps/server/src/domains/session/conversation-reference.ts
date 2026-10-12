@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { getuid } from 'node:process';
 
@@ -33,7 +33,8 @@ import { ownedFileTimestamp, pruneOwnedFiles } from '../owned-file-retention';
  * carries a space, and an `@` mention ends at the first space in every Agent composer.
  */
 export function defaultSessionReferenceDirectory(): string {
-    return join(tmpdir(), 'caxri-session-references');
+    // Scoped by uid so another account on a shared `/tmp` (Linux) cannot squat the name and block references.
+    return join(tmpdir(), `caxri-session-references-${userInfo().uid}`);
 }
 const REFERENCE_FILE_NAME = /^session-\d{8}T\d{6}-[\da-f-]{36}\.md$/u;
 /**

@@ -23,6 +23,8 @@ import {
 } from '@caxri/protocol';
 import { profileIdForPath } from '@caxri/system';
 
+import type { LockHandle, ProcessLock } from './linux-profile-lock';
+import { acquireLinuxProcessLock } from './linux-profile-lock';
 import { fileSystemCode, readPrivateJsonFile, replacePrivateJsonFile } from './private-json-store';
 
 const MAX_PRIVATE_FILE_BYTES = 16 * 1024;
@@ -105,9 +107,16 @@ export async function readServerManifest(path: string): Promise<ServerManifest> 
     return parsed.data;
 }
 
-async function acquireProcessLock(path: string) {
-    if (process.platform !== 'darwin')
-        throw new CaxriError('UNAVAILABLE', 'Headless Host locking requires macOS');
+async function acquireProcessLock(path: string, profileId: string): Promise<ProcessLock> {
+    if (process.platform === 'darwin') {
+        const handle = await acquireDarwinProcessLock(path);
+        return { handle, close: () => handle.close() };
+    }
+    if (process.platform === 'linux') return acquireLinuxProcessLock(path, profileId);
+    throw new CaxriError('UNAVAILABLE', 'Headless Host locking requires macOS or Linux');
+}
+
+async function acquireDarwinProcessLock(path: string): Promise<LockHandle> {
     const flags =
         fileConstants.O_RDWR |
         fileConstants.O_NONBLOCK |
@@ -136,9 +145,7 @@ async function acquireProcessLock(path: string) {
     throw new CaxriError('CONFLICT', 'Another Host won the profile startup race');
 }
 
-async function readLockHandle(
-    handle: Awaited<ReturnType<typeof open>>,
-): Promise<ServerLock | undefined> {
+async function readLockHandle(handle: LockHandle): Promise<ServerLock | undefined> {
     const metadata = await handle.stat();
     if (!metadata.isFile() || (metadata.mode & 0o077) !== 0)
         throw new CaxriError('PATH_DENIED', 'Host lock metadata is not private');
@@ -167,10 +174,7 @@ async function readLockHandle(
     return parsed.data;
 }
 
-async function writeLockHandle(
-    handle: Awaited<ReturnType<typeof open>>,
-    value: ServerLock | undefined,
-): Promise<void> {
+async function writeLockHandle(handle: LockHandle, value: ServerLock | undefined): Promise<void> {
     const source = value ? Buffer.from(`${JSON.stringify(value)}\n`, 'utf8') : Buffer.alloc(0);
     await handle.truncate(0);
     if (source.length > 0) await handle.write(source, 0, source.length, 0);
@@ -268,7 +272,8 @@ export async function acquireServerProfile(options: {
     /**
      * The kernel lock makes both ordinary startup and stale takeover one atomic profile CAS.
      */
-    const lockHandle = await acquireProcessLock(paths.lock);
+    const processLock = await acquireProcessLock(paths.lock, paths.profileId);
+    const lockHandle = processLock.handle;
     const processIdentity = randomBytes(16).toString('hex');
     const startedAt = options.startedAt ?? Date.now();
     const lock = serverLockSchema.parse({
@@ -282,7 +287,7 @@ export async function acquireServerProfile(options: {
     try {
         previousLock = await readLockHandle(lockHandle);
     } catch (error) {
-        await lockHandle.close();
+        await processLock.close();
         throw error;
     }
 
@@ -291,7 +296,7 @@ export async function acquireServerProfile(options: {
         await writeLockHandle(lockHandle, lock);
         await chmod(paths.lock, 0o600);
     } catch (error) {
-        await lockHandle.close();
+        await processLock.close();
         throw error;
     }
 
@@ -351,7 +356,7 @@ export async function acquireServerProfile(options: {
             try {
                 await writeLockHandle(lockHandle, undefined);
             } finally {
-                await lockHandle.close();
+                await processLock.close();
             }
         },
     };

@@ -27,6 +27,7 @@ import { secondarySidebar } from './secondary-sidebar';
 import { session } from './session';
 import { settings } from './settings';
 import { shellCommand } from './shell-command';
+import { sshHost } from './ssh-host';
 import { statusBar } from './status-bar';
 import { tabs } from './tabs';
 import { terminal } from './terminal';
@@ -68,6 +69,7 @@ export const zhCNResources: TranslatedNamespace<typeof enResources> = {
     ...session,
     ...settings,
     ...shellCommand,
+    ...sshHost,
     ...statusBar,
     ...tabs,
     ...terminal,
