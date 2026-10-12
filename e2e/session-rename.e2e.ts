@@ -240,7 +240,9 @@ test('Activity renames the selected Session from the palette and an unselected r
         await palette
             .getByPlaceholder('Search projects, sessions, and commands…')
             .fill('Rename Session');
-        await palette.getByRole('option', { name: /Rename Session/ }).click();
+        // The option's accessible name continues with its description, so anchor the title and exclude the
+        // sibling `Rename Session with AI` command instead of matching the whole name exactly.
+        await palette.getByRole('option', { name: /^Rename Session(?! with AI)/ }).click();
         const selectedInput = selectedRow.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(selectedInput).toBeFocused();
         await expect(unselectedRow.getByRole('textbox')).toHaveCount(0);

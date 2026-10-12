@@ -31,7 +31,9 @@ on:
       vitest_max_workers:
         description: Vitest worker cap for self-hosted A/B runs
         required: true
-        default: '1'
+        # Match the nightly/PR fallback below; one worker stretches the checks branch into the
+        # parallel-safe pool and past the concurrent-validation deadline (issue #1842).
+        default: '2'
         type: choice
         options: ['1', '2', '3', '4']
       e2e_parallel_workers:

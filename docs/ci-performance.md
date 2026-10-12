@@ -77,6 +77,10 @@ extra worker lands during `desktop-exclusive`, which has the headroom for it.
 
 Treat this as a standing constraint whenever a pool gets faster: **the checks branch should finish
 before `parallel-safe` starts.** Shorten the checks branch to restore it; never slow E2E back down.
+A manual `workflow_dispatch` defaults `vitest_max_workers` to the same two workers: a one-worker
+default once stretched the checks branch about 6 minutes into `parallel-safe` and pushed the run past
+the 25-minute concurrent-validation deadline
+([issue #1842](https://github.com/tjx666/caxri/issues/1842)).
 
 ### Per-spec attribution
 
