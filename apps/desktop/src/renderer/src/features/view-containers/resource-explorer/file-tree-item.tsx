@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { GitFileStatusLetter } from '../../../components/git-file-status-letter';
 import { Input } from '../../../components/ui/input';
 import { useContextMenu } from '../../../hooks/use-context-menu';
+import { useTranslation } from '../../../i18n';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
@@ -171,17 +172,22 @@ export function FileTreeCreateRow({
     requestFocus: (target: FocusTarget) => void;
     setEditing: (editing?: EditRequest) => void;
 }) {
+    const { t } = useTranslation();
     const client = useResourceExplorerClient();
     return (
         <InlineFileName
             depth={depth}
             initialValue=""
-            label={editing.itemKind === 'directory' ? 'New folder name' : 'New file name'}
-            failureLabel={
+            label={t(
                 editing.itemKind === 'directory'
-                    ? 'Unable to create folder'
-                    : 'Unable to create file'
-            }
+                    ? 'viewContainers.files.newFolderName'
+                    : 'viewContainers.files.newFileName',
+            )}
+            failureLabel={t(
+                editing.itemKind === 'directory'
+                    ? 'viewContainers.files.createFolderFailed'
+                    : 'viewContainers.files.createFileFailed',
+            )}
             onCancel={() => {
                 setEditing(undefined);
                 requestFocus(editing.returnFocus);
@@ -219,12 +225,13 @@ export function FileTreeNotice({
     depth: number;
     truncatedCount?: number;
 }) {
+    const { t } = useTranslation();
     return truncatedCount === undefined ? (
         <div
             className="px-2 py-1 text-[11px] text-muted italic"
             style={{ paddingLeft: fileTreeLeafIndent(depth) }}
         >
-            Empty folder
+            {t('viewContainers.files.emptyFolder')}
         </div>
     ) : (
         <div
@@ -233,7 +240,7 @@ export function FileTreeNotice({
             className="px-2 py-1 text-[11px] text-muted italic"
             style={{ paddingLeft: fileTreeLeafIndent(depth) }}
         >
-            Showing the first {truncatedCount.toLocaleString()} items
+            {t('viewContainers.files.truncated', { count: truncatedCount.toLocaleString() })}
         </div>
     );
 }
@@ -298,6 +305,7 @@ export function FileTreeItem({
     setEditing,
     setSize,
 }: FileTreeItemProperties) {
+    const { t } = useTranslation();
     const client = useResourceExplorerClient();
     const decoration = useGitDecoration(entry.path);
     const childRepo = useGitChildRepo(entry.path);
@@ -364,8 +372,8 @@ export function FileTreeItem({
             <InlineFileName
                 depth={depth}
                 initialValue={entry.name}
-                label={`Rename ${entry.name}`}
-                failureLabel="Unable to rename item"
+                label={t('viewContainers.files.renameLabel', { name: entry.name })}
+                failureLabel={t('viewContainers.files.renameFailed')}
                 onCancel={() => {
                     setEditing(undefined);
                     requestFocus({ kind: 'path', path: entry.path });
@@ -386,7 +394,7 @@ export function FileTreeItem({
             />
         );
 
-    const rowDescription = fileTreeRowDescription(entry, childRepo, decoration);
+    const rowDescription = fileTreeRowDescription(entry, childRepo, decoration, t);
 
     const row = (
         <button
@@ -412,7 +420,7 @@ export function FileTreeItem({
             data-selected={selected}
             draggable={!dragBlocked}
             style={fileTreeRowStyle({ depth, isDirectory })}
-            title={fileTreeRowTooltip(entry, childRepo)}
+            title={fileTreeRowTooltip(entry, childRepo, t)}
             onClick={(event) =>
                 discard(
                     activateEntry({

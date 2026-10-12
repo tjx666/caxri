@@ -1,5 +1,6 @@
 import type { AgentChatPermissionRequest } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
 
@@ -14,7 +15,7 @@ export async function didConfigureAgentChatPermission(
     change: AgentChatPermissionRequest,
 ): Promise<boolean> {
     let isConfigured = false;
-    await tryCommand('Unable to change permissions', async () => {
+    await tryCommand(translate('agentChat.permission.changeFailed'), async () => {
         await caxri.request('agentChat.configure', { terminalId, ...change });
         isConfigured = true;
     });

@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 
 /**
@@ -37,11 +39,15 @@ export function agentChatMessageFullTime(timestamp: number): string {
  * The day break above the first message of a day: `Today 17:59`, `Yesterday 09:12`, `Oct 3 17:59`, or with the year
  * once the message is from another year. `now` decides what "today" is, so a caller re-renders it as days turn over.
  */
-export function agentChatDayLabel(timestamp: number, now: number): string {
+export function agentChatDayLabel(
+    timestamp: number,
+    now: number,
+    t: Translate = translate,
+): string {
     const time = agentChatMessageTime(timestamp);
     const days = Math.round((startOfDay(now) - startOfDay(timestamp)) / DAY_MS);
-    if (days === 0) return `Today ${time}`;
-    if (days === 1) return `Yesterday ${time}`;
+    if (days === 0) return t('agentChat.time.today', { time });
+    if (days === 1) return t('agentChat.time.yesterday', { time });
     const isSameYear = new Date(timestamp).getFullYear() === new Date(now).getFullYear();
     return `${(isSameYear ? MONTH_DAY_FORMAT : FULL_DATE_FORMAT).format(timestamp)} ${time}`;
 }

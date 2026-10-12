@@ -2,6 +2,7 @@ import type { FileEntry, MethodResult, MutableFileEntry } from '@caxri/protocol'
 import { errorMessage, isCaxriError } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
+import { translate } from '../../../i18n';
 import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
 import { getSelectedSession, getSessionProjectId } from '../../../stores/selectors';
@@ -129,7 +130,7 @@ async function runDurableFileMutationAttempt<Value>(options: {
         if (operation) await reconcileFileMutation(options.client, operation);
         else if (!(await didFileMutationReconcile(options.id))) {
             useFileOperationStore.getState().finish(options.id);
-            pushToast('error', 'File operation recovery is temporarily unavailable');
+            pushToast('error', translate('viewContainers.files.recoveryUnavailable'));
         }
         return result;
     } catch (error) {
@@ -142,12 +143,12 @@ async function runDurableFileMutationAttempt<Value>(options: {
             }
             if (!operation) {
                 if (!(await didFileMutationReconcile(options.id)))
-                    pushToast('error', 'File operation recovery is temporarily unavailable');
+                    pushToast('error', translate('viewContainers.files.recoveryUnavailable'));
                 return undefined;
             }
             if (operation.phase === 'staged') {
                 await reconcileFileMutation(options.client, operation);
-                pushToast('info', 'File change is still finishing safely in the background');
+                pushToast('info', translate('viewContainers.files.stillFinishing'));
                 return undefined;
             }
             await reconcileFileMutation(options.client, operation);
@@ -163,14 +164,14 @@ async function runDurableFileMutationAttempt<Value>(options: {
         }
         if (operation?.phase === 'staged') {
             await reconcileFileMutation(options.client, operation);
-            pushToast('info', 'File change is still finishing safely in the background');
+            pushToast('info', translate('viewContainers.files.stillFinishing'));
             return undefined;
         }
         if (operation) {
             try {
                 await reconcileFileMutation(options.client, operation);
             } catch {
-                pushToast('error', 'File operation recovery is temporarily unavailable');
+                pushToast('error', translate('viewContainers.files.recoveryUnavailable'));
             }
         } else if (await didFileMutationReconcile(options.id)) {
             if (options.shouldPropagateFailure) throw error;
@@ -196,9 +197,9 @@ export async function createItem(
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
     const created = await runDurableFileMutation({
         affectedPaths: [directory],
-        errorLabel: 'Unable to create item',
+        errorLabel: translate('viewContainers.files.createFailed'),
         id: operationId,
-        label: 'Creating item…',
+        label: translate('viewContainers.files.creating'),
         projectId,
         shouldPropagateFailure: true,
         client,
@@ -222,11 +223,11 @@ function copyItem(
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
     return runTrackedFileOperation({
         affectedPaths: [directory],
-        errorLabel: 'Unable to copy item',
+        errorLabel: translate('viewContainers.files.copyFailed'),
         id: JSON.stringify(['copy', projectId, path, directory]),
-        label: 'Copying item…',
+        label: translate('viewContainers.files.copying'),
         projectId,
-        successMessage: (copied) => `'${copied.name}' copied`,
+        successMessage: (copied) => translate('viewContainers.files.copied', { name: copied.name }),
         run: async () => {
             const copied = await client.copy(path, directory);
             await invalidateDirectory(client, directory);
@@ -245,9 +246,9 @@ export async function renameFile(
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
     return runDurableFileMutation({
         affectedPaths: [path, parentDirectoryPath(path)],
-        errorLabel: 'Unable to rename item',
+        errorLabel: translate('viewContainers.files.renameFailed'),
         id: operationId,
-        label: 'Renaming item…',
+        label: translate('viewContainers.files.renaming'),
         projectId,
         shouldPropagateFailure: true,
         client,
@@ -270,9 +271,9 @@ function attemptMove(
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
     return runDurableFileMutation({
         affectedPaths: [path, parentDirectoryPath(path), directory],
-        errorLabel: 'Unable to move item',
+        errorLabel: translate('viewContainers.files.moveFailed'),
         id: operationId,
-        label: 'Moving item…',
+        label: translate('viewContainers.files.moving'),
         projectId,
         shouldPropagateFailure,
         client,
@@ -316,7 +317,7 @@ export async function moveFile(
         return await attemptMove(client, sessionId, path, directory, 'reject', true);
     } catch (error) {
         if (!isCaxriError(error) || error.code !== 'CONFLICT') {
-            pushToast('error', errorMessage(error, 'Unable to move item'));
+            pushToast('error', errorMessage(error, translate('viewContainers.files.moveFailed')));
             return undefined;
         }
         const name = pathBasename(path);
@@ -357,11 +358,11 @@ export async function cancelFileOperation(
         operation = null;
     }
     if (!operation) {
-        pushToast('error', 'Unable to cancel item operation');
+        pushToast('error', translate('viewContainers.files.cancelFailed'));
         return;
     }
     if (operation.phase === 'staged')
-        pushToast('info', 'File change is still finishing safely in the background');
+        pushToast('info', translate('viewContainers.files.stillFinishing'));
     await reconcileFileMutation(client, operation);
 }
 
@@ -371,7 +372,14 @@ export function rememberFile(
     mode: FileClipboardEntry['mode'],
 ): void {
     useFileClipboardStore.getState().set({ mode, path, projectId });
-    pushToast('info', mode === 'cut' ? 'Ready to move item' : 'Ready to copy item');
+    pushToast(
+        'info',
+        translate(
+            mode === 'cut'
+                ? 'viewContainers.files.readyToMove'
+                : 'viewContainers.files.readyToCopy',
+        ),
+    );
 }
 
 export async function pasteFile(
@@ -382,7 +390,7 @@ export async function pasteFile(
     clipboard: FileClipboardEntry,
 ): Promise<MutableFileEntry | MethodResult<'files.move'> | undefined> {
     if (clipboard.projectId !== projectId) {
-        pushToast('error', 'Files can only be pasted inside the same Project');
+        pushToast('error', translate('viewContainers.files.pasteOtherProject'));
         return undefined;
     }
     if (clipboard.mode === 'copy') return copyItem(client, sessionId, clipboard.path, directory);
@@ -417,7 +425,7 @@ export async function didTrashFile(
      * restore the last bytes written to disk, never an unsaved buffer.
      */
     const hasUnsavedChanges = hasUnsavedChangesUnderPath(workbenchProjectId, path);
-    const result = await tryCommand('Unable to move item to Trash', () =>
+    const result = await tryCommand(translate('viewContainers.files.trashFailed'), () =>
         client.trash(path, { hasUnsavedChanges }),
     );
     if (!result || 'canceled' in result) return false;
@@ -426,7 +434,7 @@ export async function didTrashFile(
      * Only this root's pane layout is in memory, so the call above cannot reach a Session parked on another root. Its
      * layout for this root lives on the Server, and a tab left there reopens stuck on `Loading file…` (issue #909).
      */
-    await tryCommand('Trashed editor state could not be cleaned up', () =>
+    await tryCommand(translate('viewContainers.files.trashCleanupFailed'), () =>
         client.forgetEditorPath(workbenchProjectId, result.path),
     );
     await invalidateDirectory(client, parentDirectoryPath(result.path));
@@ -436,9 +444,12 @@ export async function didTrashFile(
      */
     pushToast(
         hasUnsavedChanges ? 'warning' : 'success',
-        hasUnsavedChanges
-            ? `Moved '${result.name}' to Trash. Unsaved changes were discarded; only the last saved version can be restored.`
-            : `Moved '${result.name}' to Trash`,
+        translate(
+            hasUnsavedChanges
+                ? 'viewContainers.files.trashedUnsaved'
+                : 'viewContainers.files.trashed',
+            { name: result.name },
+        ),
         { persist: hasUnsavedChanges },
     );
     return true;

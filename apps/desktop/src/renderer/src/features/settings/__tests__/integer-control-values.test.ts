@@ -1,6 +1,7 @@
 import type { IntegerSettingSpec } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import { formatIntegerSettingValue, parseIntegerSettingInput } from '../integer-control-values';
 
 const MEBIBYTE = 1024 * 1024;
@@ -38,32 +39,38 @@ const INCOMPLETE = { status: 'incomplete' };
 
 describe('parseIntegerSettingInput', () => {
     it('accepts a value inside the range, including both bounds', () => {
-        expect(parseIntegerSettingInput('120', completionThreshold)).toEqual({
+        expect(parseIntegerSettingInput(translate, '120', completionThreshold)).toEqual({
             status: 'valid',
             value: 120,
         });
-        expect(parseIntegerSettingInput('0', completionThreshold)).toEqual({
+        expect(parseIntegerSettingInput(translate, '0', completionThreshold)).toEqual({
             status: 'valid',
             value: 0,
         });
-        expect(parseIntegerSettingInput('3600', completionThreshold)).toEqual({
+        expect(parseIntegerSettingInput(translate, '3600', completionThreshold)).toEqual({
             status: 'valid',
             value: 3600,
         });
     });
 
     it('rejects a value above the maximum with plain-language copy', () => {
-        expect(parseIntegerSettingInput('6099999', completionThreshold)).toEqual(RANGE_ERROR);
-        expect(parseIntegerSettingInput('3601', completionThreshold)).toEqual(RANGE_ERROR);
+        expect(parseIntegerSettingInput(translate, '6099999', completionThreshold)).toEqual(
+            RANGE_ERROR,
+        );
+        expect(parseIntegerSettingInput(translate, '3601', completionThreshold)).toEqual(
+            RANGE_ERROR,
+        );
     });
 
     it('rejects a value below the minimum', () => {
-        expect(parseIntegerSettingInput('-1', completionThreshold)).toEqual(RANGE_ERROR);
+        expect(parseIntegerSettingInput(translate, '-1', completionThreshold)).toEqual(RANGE_ERROR);
     });
 
     it('treats an empty field as unfinished rather than zero or wrong', () => {
-        expect(parseIntegerSettingInput('', completionThreshold)).toEqual(INCOMPLETE);
-        expect(parseIntegerSettingInput(' '.repeat(3), completionThreshold)).toEqual(INCOMPLETE);
+        expect(parseIntegerSettingInput(translate, '', completionThreshold)).toEqual(INCOMPLETE);
+        expect(parseIntegerSettingInput(translate, ' '.repeat(3), completionThreshold)).toEqual(
+            INCOMPLETE,
+        );
     });
 
     /**
@@ -73,44 +80,48 @@ describe('parseIntegerSettingInput', () => {
      * to type it.
      */
     it('does not accuse a half-typed decimal of being out of range', () => {
-        expect(parseIntegerSettingInput('', maxFileBytes)).toEqual(INCOMPLETE);
-        expect(parseIntegerSettingInput('-', maxFileBytes)).toEqual(INCOMPLETE);
-        expect(parseIntegerSettingInput('2.5', maxFileBytes)).toEqual({
+        expect(parseIntegerSettingInput(translate, '', maxFileBytes)).toEqual(INCOMPLETE);
+        expect(parseIntegerSettingInput(translate, '-', maxFileBytes)).toEqual(INCOMPLETE);
+        expect(parseIntegerSettingInput(translate, '2.5', maxFileBytes)).toEqual({
             status: 'valid',
             value: 2.5 * MEBIBYTE,
         });
     });
 
     it('treats text that is not a number as unfinished, never as a value', () => {
-        expect(parseIntegerSettingInput('abc', completionThreshold)).toEqual(INCOMPLETE);
-        expect(parseIntegerSettingInput('12px', completionThreshold)).toEqual(INCOMPLETE);
-        expect(parseIntegerSettingInput('Infinity', completionThreshold)).toEqual(INCOMPLETE);
+        expect(parseIntegerSettingInput(translate, 'abc', completionThreshold)).toEqual(INCOMPLETE);
+        expect(parseIntegerSettingInput(translate, '12px', completionThreshold)).toEqual(
+            INCOMPLETE,
+        );
+        expect(parseIntegerSettingInput(translate, 'Infinity', completionThreshold)).toEqual(
+            INCOMPLETE,
+        );
     });
 
     it('rejects a fraction when the field edits the stored unit, instead of rounding it silently', () => {
-        expect(parseIntegerSettingInput('60.5', completionThreshold)).toEqual({
+        expect(parseIntegerSettingInput(translate, '60.5', completionThreshold)).toEqual({
             error: 'Enter a whole number between 0 and 3600 seconds.',
             status: 'invalid',
         });
     });
 
     it('converts a scaled field into stored units and names the scaled bounds', () => {
-        expect(parseIntegerSettingInput('1.5', maxFileBytes)).toEqual({
+        expect(parseIntegerSettingInput(translate, '1.5', maxFileBytes)).toEqual({
             status: 'valid',
             value: 1.5 * MEBIBYTE,
         });
-        expect(parseIntegerSettingInput('16', maxFileBytes)).toEqual({
+        expect(parseIntegerSettingInput(translate, '16', maxFileBytes)).toEqual({
             status: 'valid',
             value: 16 * MEBIBYTE,
         });
-        expect(parseIntegerSettingInput('17', maxFileBytes)).toEqual({
+        expect(parseIntegerSettingInput(translate, '17', maxFileBytes)).toEqual({
             error: 'Enter a number between 0.001 and 16 MB.',
             status: 'invalid',
         });
     });
 
     it('accepts the lower bound exactly as the copy states it', () => {
-        expect(parseIntegerSettingInput('0.001', maxFileBytes)).toEqual({
+        expect(parseIntegerSettingInput(translate, '0.001', maxFileBytes)).toEqual({
             status: 'valid',
             value: 1049,
         });

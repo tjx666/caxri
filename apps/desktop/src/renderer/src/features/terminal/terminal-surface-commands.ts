@@ -6,6 +6,8 @@ import {
     isChatTerminal,
 } from '@caxri/protocol';
 
+import type { TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import type { ContextMenuEntry } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
@@ -15,9 +17,14 @@ import { refreshWorkbench } from '../../stores/workbench';
 import type { TerminalSurfaceSwitchRegistry } from './terminal-surface-switch-pending';
 import { terminalSurfaceSwitches } from './terminal-surface-switch-pending';
 
-const surfaceLabels: Record<TerminalSurface, string> = {
-    chat: 'Open as Chat',
-    pty: 'Open as Terminal',
+const surfaceLabels: Record<TerminalSurface, TranslationKey> = {
+    chat: 'terminal.surface.openAsChat',
+    pty: 'terminal.surface.openAsTerminal',
+};
+
+const surfaceFailureTitles: Record<TerminalSurface, TranslationKey> = {
+    chat: 'terminal.surface.openAsChatFailed',
+    pty: 'terminal.surface.openAsTerminalFailed',
 };
 
 type SurfaceSwitchTerminal = Pick<TerminalRecord, 'id' | 'kind' | 'provider' | 'surface'>;
@@ -52,7 +59,7 @@ export function terminalSurfaceMenuEntry(
 ): ContextMenuEntry | undefined {
     if (!canSwitchTerminalSurface(terminal)) return undefined;
     return {
-        label: surfaceLabels[otherTerminalSurface(terminal)],
+        label: translate(surfaceLabels[otherTerminalSurface(terminal)]),
         shortcut: shouldShowShortcut
             ? readCommandShortcut('terminal.switchAgentSurface')
             : undefined,
@@ -99,14 +106,19 @@ export async function switchTerminalSurface(
     providerName: string,
 ): Promise<void> {
     await tryCommand(
-        `${surfaceLabels[surface]} failed`,
+        translate(surfaceFailureTitles[surface]),
         async () => {
             const result = await caxri.request('terminal.switchSurface', { terminalId, surface });
             if (result.status === 'switched') return;
             const isConfirmed = await caxri.window.showConfirm({
-                title: 'Stop the running turn?',
-                message: `${providerName} is still working. Switching stops the current turn and continues the conversation ${surface === 'chat' ? 'in Chat' : 'in the Terminal'}.`,
-                confirmLabel: 'Stop and Switch',
+                title: translate('terminal.turnGuard.title'),
+                message: translate(
+                    surface === 'chat'
+                        ? 'terminal.surface.confirmSwitchToChat'
+                        : 'terminal.surface.confirmSwitchToTerminal',
+                    { provider: providerName },
+                ),
+                confirmLabel: translate('terminal.surface.confirmSwitchLabel'),
             });
             if (!isConfirmed) return;
             await caxri.request('terminal.switchSurface', {
@@ -166,12 +178,12 @@ export async function isAgentConversationResumable(
 export function agentResumeCommandMenuEntry(
     terminal: Pick<TerminalRecord, 'agentSessionId' | 'cwd' | 'provider'> | undefined,
     isResumable: boolean,
-    disabledReason = 'Send a message first; there is no conversation to resume yet',
+    disabledReason = translate('terminal.conversation.notStarted'),
 ): ContextMenuEntry {
     const provider = terminal?.provider;
     const agentSessionId = terminal?.agentSessionId;
     return {
-        label: 'Copy Resume Command',
+        label: translate('terminal.resumeCommand.copy'),
         disabled: !provider || !agentSessionId || !isResumable,
         disabledReason,
         onSelect: () =>
@@ -182,8 +194,8 @@ export function agentResumeCommandMenuEntry(
 }
 
 function copyAgentResumeCommand(command: string): Promise<unknown> {
-    return tryCommand('Unable to copy the resume command', async () => {
+    return tryCommand(translate('terminal.resumeCommand.copyFailed'), async () => {
         await navigator.clipboard.writeText(command);
-        pushToast('success', 'Resume command copied');
+        pushToast('success', translate('terminal.resumeCommand.copied'));
     });
 }

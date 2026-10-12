@@ -4,6 +4,7 @@ import type { MethodResult } from '@caxri/protocol';
 import type { QueryObserverResult } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 
+import { translate } from '../../../../i18n';
 import { shouldToastQueryError } from '../../../../queries/client';
 import { describeFailure, pushToast } from '../../../../stores/toasts';
 import { useResourceExplorerClient } from '../../controlled-view-context';
@@ -126,7 +127,10 @@ export function useFileTreeRows({
             )
                 continue;
             toastedErrors.current.add(error);
-            pushToast('error', describeFailure(error, 'Unable to read directory'));
+            pushToast(
+                'error',
+                describeFailure(error, translate('viewContainers.files.readDirectoryFailed')),
+            );
         }
     }, [listings]);
 

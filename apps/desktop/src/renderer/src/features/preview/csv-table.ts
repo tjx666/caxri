@@ -1,6 +1,9 @@
 import { filePreviewExtension } from '@caxri/protocol';
 import Papa from 'papaparse';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 /**
  * Data rows the table view parses and shows. Parsing stops at this bound (Papa Parse's `preview`), so a file at the
  * editor's read ceiling costs a bounded amount of main-thread work and memory instead of a full split of every record.
@@ -85,10 +88,10 @@ function delimiterFor(path: string): string {
     return filePreviewExtension(path) === 'tsv' ? '\t' : '';
 }
 
-function columnLabel(value: string | undefined, index: number): string {
+function columnLabel(value: string | undefined, index: number, t: Translate): string {
     const label = value?.trim();
     if (label) return label;
-    return `Column ${index + 1}`;
+    return t('preview.table.column', { index: index + 1 });
 }
 
 /**
@@ -98,7 +101,11 @@ function columnLabel(value: string | undefined, index: number): string {
  * Parse. A malformed record (an unclosed quote, say) is reported as an issue rather than thrown: the reader still sees
  * every record the parser could recover, the way a spreadsheet opens a damaged file.
  */
-export function parseDelimitedTable(source: string, path: string): DelimitedTable {
+export function parseDelimitedTable(
+    source: string,
+    path: string,
+    t: Translate = translate,
+): DelimitedTable {
     const result = Papa.parse<string[]>(source, {
         delimiter: delimiterFor(path),
         // The header plus one record past the bound, so the view can tell a full table from a truncated one.
@@ -112,7 +119,7 @@ export function parseDelimitedTable(source: string, path: string): DelimitedTabl
     );
     const truncatedColumns = records.some((record) => record.length > MAX_TABLE_COLUMNS);
     const header = Array.from({ length: width }, (_, index) =>
-        columnLabel(records[0]?.[index], index),
+        columnLabel(records[0]?.[index], index, t),
     );
     const body = records.slice(1, MAX_TABLE_ROWS + 1);
     const rows = body.map((record) =>
@@ -157,28 +164,39 @@ export function parseDelimitedTable(source: string, path: string): DelimitedTabl
     };
 }
 
-function countLabel(count: number, noun: string): string {
-    return `${count.toLocaleString('en-US')} ${noun}${count === 1 ? '' : 's'}`;
+function rowsLabel(count: number, t: Translate): string {
+    return t(count === 1 ? 'preview.table.rowsOne' : 'preview.table.rowsOther', {
+        count: count.toLocaleString('en-US'),
+    });
+}
+
+function columnsLabel(count: number, t: Translate): string {
+    return t(count === 1 ? 'preview.table.columnsOne' : 'preview.table.columnsOther', {
+        count: count.toLocaleString('en-US'),
+    });
 }
 
 /**
  * The status line under the table: its size. What the bounds cut off is a warning, not a statistic, and is reported by
  * {@link describeTableLimits} in the warning bar above the table.
  */
-export function describeTableSize(table: DelimitedTable): string {
-    return `${countLabel(table.rows.length, 'row')} × ${countLabel(table.header.length, 'column')}`;
+export function describeTableSize(table: DelimitedTable, t: Translate = translate): string {
+    return `${rowsLabel(table.rows.length, t)} × ${columnsLabel(table.header.length, t)}`;
 }
 
 /**
  * The warning-bar sentence when parsing stopped at a bound, so the reader knows the table is not the whole file.
  */
-export function describeTableLimits(table: DelimitedTable): string | undefined {
-    const rows = `${MAX_TABLE_ROWS.toLocaleString('en-US')} rows`;
-    const columns = `${MAX_TABLE_COLUMNS.toLocaleString('en-US')} columns`;
+export function describeTableLimits(
+    table: DelimitedTable,
+    t: Translate = translate,
+): string | undefined {
+    const rows = rowsLabel(MAX_TABLE_ROWS, t);
+    const columns = columnsLabel(MAX_TABLE_COLUMNS, t);
     if (table.truncatedRows && table.truncatedColumns)
-        return `Only the first ${rows} and ${columns} are shown.`;
-    if (table.truncatedRows) return `Only the first ${rows} are shown.`;
-    if (table.truncatedColumns) return `Only the first ${columns} are shown.`;
+        return t('preview.table.limitRowsAndColumns', { rows, columns });
+    if (table.truncatedRows) return t('preview.table.limitRows', { rows });
+    if (table.truncatedColumns) return t('preview.table.limitColumns', { columns });
     return undefined;
 }
 
@@ -207,10 +225,23 @@ export function isCellClipped(value: string, columnWidth: number): boolean {
  * The warning above the table when the parser had to recover, naming the first issue so the reader knows where to look
  * in the source.
  */
-export function describeTableIssues(table: DelimitedTable): string | undefined {
+export function describeTableIssues(
+    table: DelimitedTable,
+    t: Translate = translate,
+): string | undefined {
     const first = table.issues.at(0);
     if (!first) return undefined;
-    const location = first.row === undefined ? '' : `Row ${first.row.toLocaleString('en-US')}: `;
-    const more = table.issueCount > 1 ? ` (${countLabel(table.issueCount - 1, 'more issue')})` : '';
-    return `Some rows may be split incorrectly. ${location}${first.message}${more}.`;
+    const location =
+        first.row === undefined
+            ? ''
+            : t('preview.table.issueLocation', { row: first.row.toLocaleString('en-US') });
+    const moreCount = table.issueCount - 1;
+    const more =
+        moreCount > 0
+            ? t(moreCount === 1 ? 'preview.table.moreIssuesOne' : 'preview.table.moreIssuesOther', {
+                  count: moreCount.toLocaleString('en-US'),
+              })
+            : '';
+    // Papa Parse's own message stays English: it is the parser's diagnostic, quoted as-is.
+    return t('preview.table.issues', { location, message: first.message, more });
 }

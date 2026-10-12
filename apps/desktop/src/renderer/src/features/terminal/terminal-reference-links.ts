@@ -4,6 +4,8 @@ import {
     TERMINAL_REFERENCE_NUMBER_PLACEHOLDER,
 } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
+
 interface GitHubRepoReference {
     owner: string;
     repo: string;
@@ -35,10 +37,6 @@ function escapeRegex(value: string): string {
     return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
-function referenceHint(action: string): string {
-    return `⌘ click to ${action}`;
-}
-
 function githubMatch(
     text: string,
     startIndex: number,
@@ -50,10 +48,10 @@ function githubMatch(
     const reference = text.slice(startIndex, endIndex);
     const target = `https://github.com/${owner}/${repo}/issues/${number}`;
     return {
-        accessibleName: `Open GitHub issue or pull request ${reference}`,
-        detail: `${owner}/${repo} on GitHub`,
+        accessibleName: translate('terminal.links.github.accessibleName', { reference }),
+        detail: translate('terminal.links.github.detail', { repository: `${owner}/${repo}` }),
         endIndex,
-        hint: referenceHint(`open ${reference} on GitHub`),
+        hint: translate('terminal.links.github.hint', { reference }),
         isReference: true,
         kind: 'url',
         overridesFile: true,
@@ -103,12 +101,17 @@ function configuredReferenceMatches(
             const reference = text.slice(startIndex, endIndex);
             const number = match[3];
             if (!rule.alphanumeric || /\d/.test(number)) {
-                const title = rule.title ?? `${rule.prefix} reference`;
+                const title =
+                    rule.title ??
+                    translate('terminal.links.rule.defaultTitle', { prefix: rule.prefix });
                 matches.push({
-                    accessibleName: `Open ${title} ${reference}`,
+                    accessibleName: translate('terminal.links.rule.accessibleName', {
+                        reference,
+                        title,
+                    }),
                     detail: title,
                     endIndex,
-                    hint: referenceHint(`open ${title} ${reference}`),
+                    hint: translate('terminal.links.rule.hint', { reference, title }),
                     isReference: true,
                     kind: 'url',
                     overridesFile: false,
@@ -191,10 +194,10 @@ function commitReferenceMatches(text: string): TerminalReferenceMatch[] {
         if (text[startIndex - 1] === '#' || text[startIndex - 1] === '-' || text[endIndex] === '-')
             continue;
         matches.push({
-            accessibleName: `Show Git commit ${reference}`,
-            detail: 'Git commit',
+            accessibleName: translate('terminal.links.commit.accessibleName', { reference }),
+            detail: translate('terminal.links.commit.detail'),
             endIndex,
-            hint: referenceHint(`show commit ${reference} in Git`),
+            hint: translate('terminal.links.commit.hint', { reference }),
             isReference: true,
             kind: 'commit',
             overridesFile: false,

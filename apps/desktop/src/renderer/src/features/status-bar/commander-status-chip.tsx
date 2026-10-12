@@ -1,6 +1,7 @@
 import { Bot } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import { commanderStatusChipCopy } from './commander-status-label';
 import { StatusItem } from './status-item';
@@ -10,8 +11,9 @@ import { StatusItem } from './status-item';
  * status bar redline). `state.changed` invalidates the read, so it follows the Commander without polling.
  */
 export function CommanderStatusChip() {
+    const { t } = useTranslation();
     const { data } = useCaxriQuery('commander.status', {});
-    const copy = data && commanderStatusChipCopy(data.state);
+    const copy = data && commanderStatusChipCopy(data.state, t);
     if (!copy) return null;
     return (
         <StatusItem

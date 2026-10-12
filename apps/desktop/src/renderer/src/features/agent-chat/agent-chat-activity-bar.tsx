@@ -2,6 +2,7 @@ import { formatShortDuration } from '@caxri/protocol';
 import { MessageCircleQuestionMark } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { AgentChatActivity } from './agent-chat-presentation';
 import { useClockTick } from './hooks/use-clock-tick';
@@ -34,6 +35,7 @@ export function AgentChatActivityBar({
      */
     showsDeliveryHint: boolean;
 }) {
+    const { t } = useTranslation();
     return (
         <>
             <span aria-live="polite" className="sr-only" role="status">
@@ -62,8 +64,10 @@ export function AgentChatActivityBar({
                     )}
                     {showsDeliveryHint && (
                         <span className="ml-auto shrink-0 text-[11px] whitespace-nowrap">
-                            <kbd className="font-sans">Enter</kbd> to queue ·{' '}
-                            <kbd className="font-sans">⌘Enter</kbd> to steer
+                            <kbd className="font-sans">Enter</kbd>{' '}
+                            {t('agentChat.activity.enterHint')}{' '}
+                            <kbd className="font-sans">⌘Enter</kbd>{' '}
+                            {t('agentChat.activity.steerHint')}
                         </span>
                     )}
                     {(activity.kind === 'working' ||
@@ -81,7 +85,7 @@ export function AgentChatActivityBar({
                             type="button"
                             onClick={onStop}
                         >
-                            <kbd className="font-sans">Esc</kbd> to stop
+                            <kbd className="font-sans">Esc</kbd> {t('agentChat.activity.stopHint')}
                         </button>
                     )}
                 </div>

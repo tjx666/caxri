@@ -155,6 +155,7 @@ const settingsProjection: SettingsProjection = {
     'primarySidebar.autoCollapseProjects': exportAsIs,
     'window.zoomLevel': exportAsIs,
     'workbench.fontFamily': exportAsIs,
+    'workbench.language': exportAsIs,
     /**
      * A command line (`code --profile work`), so credential flags go through the same rule as launch arguments.
      */

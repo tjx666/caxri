@@ -19,6 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import {
@@ -92,11 +93,12 @@ function ArchivedFilterBar({
     query: string;
     view: ArchivedSessionView;
 }) {
+    const { t } = useTranslation();
     const selectedProject = view.projectOptions.find((project) => project.id === view.projectId);
     return (
         <div className="grid grid-cols-[minmax(220px,1fr)_minmax(160px,0.6fr)_minmax(150px,0.5fr)] gap-3 border-b border-border bg-background px-4 py-3">
             <label className="grid gap-1 text-[11px] text-muted" htmlFor="archived-search">
-                Search
+                {t('common.search')}
                 <span className="relative block text-foreground">
                     <Search
                         aria-hidden="true"
@@ -107,23 +109,28 @@ function ArchivedFilterBar({
                         autoFocus
                         id="archived-search"
                         className="pl-8"
-                        placeholder="Search Session titles"
+                        placeholder={t('session.archived.searchPlaceholder')}
                         value={query}
                         onChange={(event) => onQueryChange(event.target.value)}
                     />
                 </span>
             </label>
             <label className="grid gap-1 text-[11px] text-muted" htmlFor="archived-project">
-                Project
+                {t('session.archived.projectFilter')}
                 <Select
                     value={view.projectId}
                     onValueChange={(value) => onProjectChange(value ?? 'all')}
                 >
-                    <SelectTrigger id="archived-project" aria-label="Filter by Project">
-                        <SelectValue>{selectedProject?.displayTitle ?? 'All Projects'}</SelectValue>
+                    <SelectTrigger
+                        id="archived-project"
+                        aria-label={t('session.archived.filterByProject')}
+                    >
+                        <SelectValue>
+                            {selectedProject?.displayTitle ?? t('session.archived.allProjects')}
+                        </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All Projects</SelectItem>
+                        <SelectItem value="all">{t('session.archived.allProjects')}</SelectItem>
                         {view.projectOptions.map((project) => (
                             <SelectItem key={project.id} value={project.id}>
                                 {project.displayTitle}
@@ -133,15 +140,20 @@ function ArchivedFilterBar({
                 </Select>
             </label>
             <label className="grid gap-1 text-[11px] text-muted" htmlFor="archived-agent">
-                Agent
+                {t('session.archived.agentFilter')}
                 <Select value={agent} onValueChange={(value) => onAgentChange(value ?? 'all')}>
-                    <SelectTrigger id="archived-agent" aria-label="Filter by Agent">
+                    <SelectTrigger
+                        id="archived-agent"
+                        aria-label={t('session.archived.filterByAgent')}
+                    >
                         <SelectValue>
-                            {agent === 'all' ? 'All Agents' : resolveAgentIcon(agent).label}
+                            {agent === 'all'
+                                ? t('session.archived.allAgents')
+                                : resolveAgentIcon(agent).label}
                         </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All Agents</SelectItem>
+                        <SelectItem value="all">{t('session.archived.allAgents')}</SelectItem>
                         {view.agentOptions.map((kind) => (
                             <SelectItem key={kind} value={kind}>
                                 {resolveAgentIcon(kind).label}
@@ -171,6 +183,7 @@ function ArchivedSelectionToolbar({
     untitledIds: readonly string[];
     visibleIds: readonly string[];
 }) {
+    const { t } = useTranslation();
     const isAllVisibleSelected = visibleIds.length > 0 && selection.size === visibleIds.length;
     const allUntitledSelected =
         untitledIds.length > 0 && untitledIds.every((sessionId) => selection.has(sessionId));
@@ -178,12 +191,12 @@ function ArchivedSelectionToolbar({
         <div className="archived-selection-toolbar mb-3 flex flex-wrap items-center gap-2">
             <label className="flex h-7 cursor-pointer items-center gap-2 text-[11px] text-muted">
                 <Checkbox
-                    aria-label="Select all visible archived Sessions"
+                    aria-label={t('session.archived.selectAllVisible')}
                     checked={isAllVisibleSelected}
                     indeterminate={!isAllVisibleSelected && selection.size > 0}
                     onCheckedChange={(next) => onToggle(visibleIds, next === true)}
                 />
-                Select all
+                {t('session.archived.selectAll')}
             </label>
             <Button
                 aria-pressed={allUntitledSelected}
@@ -192,17 +205,21 @@ function ArchivedSelectionToolbar({
                 variant="ghost"
                 onClick={() => onToggle(untitledIds, !allUntitledSelected)}
             >
-                {allUntitledSelected ? 'Deselect Untitled' : 'Select Untitled'}
+                {t(
+                    allUntitledSelected
+                        ? 'session.archived.deselectUntitled'
+                        : 'session.archived.selectUntitled',
+                )}
                 <span className="text-muted tabular-nums">{untitledIds.length}</span>
             </Button>
             {selection.size > 0 && (
                 <>
                     <span className="ml-auto text-[11px] text-muted tabular-nums">
-                        {selection.size} selected
+                        {t('session.archived.selectedCount', { count: selection.size })}
                     </span>
                     <Button size="sm" variant="secondary" onClick={onRestoreSelected}>
                         <ArchiveRestore aria-hidden="true" size={13} />
-                        Restore Selected
+                        {t('session.archived.restoreSelected')}
                     </Button>
                     <Button
                         className="text-danger hover:text-danger"
@@ -211,10 +228,10 @@ function ArchivedSelectionToolbar({
                         onClick={onDeleteSelected}
                     >
                         <Trash2 aria-hidden="true" size={13} />
-                        Delete Selected
+                        {t('session.archived.deleteSelected')}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={onClear}>
-                        Clear
+                        {t('common.clear')}
                     </Button>
                 </>
             )}
@@ -231,6 +248,7 @@ function ArchivedSessionRow({
     item: ArchivedSessionItem;
     onToggle: ToggleSessions;
 }) {
+    const { t } = useTranslation();
     return (
         <div
             aria-selected={isSelected}
@@ -238,7 +256,9 @@ function ArchivedSessionRow({
             data-session-id={item.session.id}
         >
             <Checkbox
-                aria-label={`Select ${item.session.displayTitle}`}
+                aria-label={t('session.archived.selectSession', {
+                    title: item.session.displayTitle,
+                })}
                 checked={isSelected}
                 onCheckedChange={(next) => onToggle([item.session.id], next === true)}
             />
@@ -251,29 +271,35 @@ function ArchivedSessionRow({
                     <p className="m-0 text-[10px] text-muted">
                         {resolveAgentIcon(item.agent).label}
                         {' · '}
-                        Archived {archivedTimestamp(item.archivedAt)}
+                        {t('session.archived.archivedAt', {
+                            time: archivedTimestamp(item.archivedAt),
+                        })}
                     </p>
                 </div>
             </div>
             <div className="flex gap-1">
                 <Button
-                    aria-label={`Restore ${item.session.displayTitle}`}
+                    aria-label={t('session.archived.restoreSession', {
+                        title: item.session.displayTitle,
+                    })}
                     size="sm"
                     variant="secondary"
                     onClick={() => unarchiveSession(item.session.id)}
                 >
                     <ArchiveRestore aria-hidden="true" size={13} />
-                    Restore
+                    {t('common.restore')}
                 </Button>
                 <Button
-                    aria-label={`Delete ${item.session.displayTitle}`}
+                    aria-label={t('session.archived.deleteSession', {
+                        title: item.session.displayTitle,
+                    })}
                     className="text-danger hover:text-danger"
                     size="sm"
                     variant="ghost"
                     onClick={() => deleteSession(item.session.id)}
                 >
                     <Trash2 aria-hidden="true" size={13} />
-                    Delete
+                    {t('common.delete')}
                 </Button>
             </div>
         </div>
@@ -289,6 +315,7 @@ function ArchivedProjectGroup({
     onToggle: ToggleSessions;
     selection: ReadonlySet<string>;
 }) {
+    const { t } = useTranslation();
     const headingId = `archived-project-${group.project.id}`;
     const groupIds = group.sessions.map((item) => item.session.id);
     const groupSelectedCount = groupIds.filter((sessionId) => selection.has(sessionId)).length;
@@ -301,7 +328,9 @@ function ArchivedProjectGroup({
         >
             <header className="flex h-9 items-center gap-2 border-b border-border bg-surface px-3">
                 <Checkbox
-                    aria-label={`Select all archived Sessions in ${group.project.displayTitle}`}
+                    aria-label={t('session.archived.selectAllInProject', {
+                        project: group.project.displayTitle,
+                    })}
                     checked={isGroupSelected}
                     indeterminate={!isGroupSelected && groupSelectedCount > 0}
                     onCheckedChange={(next) => onToggle(groupIds, next === true)}
@@ -339,23 +368,24 @@ function ArchivedEmptyState({
     isFiltered: boolean;
     onClearFilters: () => void;
 }) {
+    const { t } = useTranslation();
     return (
         <div className="grid min-h-48 place-items-center rounded border border-dashed border-border p-8 text-center">
             {isFiltered ? (
                 <div>
-                    <p className="m-0 text-[13px] font-medium">
-                        No archived Sessions match these filters
-                    </p>
+                    <p className="m-0 text-[13px] font-medium">{t('session.archived.noMatches')}</p>
                     <Button className="mt-3" size="sm" variant="secondary" onClick={onClearFilters}>
-                        Clear Filters
+                        {t('session.archived.clearFilters')}
                     </Button>
                 </div>
             ) : (
                 <div>
                     <Archive aria-hidden="true" className="mx-auto mb-3 text-muted" />
-                    <p className="m-0 text-[13px] font-medium">No archived Sessions yet</p>
+                    <p className="m-0 text-[13px] font-medium">
+                        {t('session.archived.emptyTitle')}
+                    </p>
                     <p className="mt-1 mb-0 text-[11px] text-muted">
-                        Archived Sessions will remain available here for restoration or deletion.
+                        {t('session.archived.emptyDescription')}
                     </p>
                 </div>
             )}
@@ -369,6 +399,7 @@ function openSessionContentSearchFromArchive(): void {
 }
 
 function ArchivedSessionsDialogBody() {
+    const { t } = useTranslation();
     const projects = useProjects() ?? NO_RECORDS;
     const sessions = useSessions() ?? NO_RECORDS;
     const terminals = useTerminals();
@@ -408,14 +439,11 @@ function ArchivedSessionsDialogBody() {
     return (
         <>
             <DialogHeader>
-                <DialogTitle>Archived Sessions</DialogTitle>
+                <DialogTitle>{t('session.archived.title')}</DialogTitle>
                 <Button variant="secondary" onClick={openSessionContentSearchFromArchive}>
-                    Search Session Content
+                    {t('session.contentSearch.title')}
                 </Button>
-                <DialogDescription>
-                    Search and manage archived work across every Project. Restoring a Session does
-                    not start its Terminal.
-                </DialogDescription>
+                <DialogDescription>{t('session.archived.description')}</DialogDescription>
             </DialogHeader>
             <ArchivedFilterBar
                 agent={agent}
@@ -464,11 +492,19 @@ function ArchivedSessionsDialogBody() {
             <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
                 <span className="text-[11px] text-muted" aria-live="polite">
                     {view.matchingCount === view.totalCount
-                        ? `${view.totalCount} archived ${view.totalCount === 1 ? 'Session' : 'Sessions'}`
-                        : `${view.matchingCount} of ${view.totalCount} archived Sessions`}
+                        ? t(
+                              view.totalCount === 1
+                                  ? 'session.archived.countOne'
+                                  : 'session.archived.countOther',
+                              { count: view.totalCount },
+                          )
+                        : t('session.archived.matchingCount', {
+                              matching: view.matchingCount,
+                              total: view.totalCount,
+                          })}
                 </span>
                 <Button variant="secondary" onClick={() => setArchivedSessionsOpen(false)}>
-                    Done
+                    {t('common.done')}
                 </Button>
             </div>
         </>

@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 
 interface FilesExcludeEditorProperties {
     label: string;
@@ -25,6 +26,7 @@ export function FilesExcludeEditor({
     onChange,
     placeholder = '**/node_modules',
 }: FilesExcludeEditorProperties) {
+    const { t } = useTranslation();
     const [draft, setDraft] = useState('');
     const patterns = Object.keys(value);
 
@@ -37,14 +39,17 @@ export function FilesExcludeEditor({
 
     return (
         <div role="group" aria-label={label} className="flex flex-col gap-1">
-            <ul aria-label="Excluded file patterns" className="m-0 flex list-none flex-col p-0">
+            <ul
+                aria-label={t('settings.excludeEditor.listLabel')}
+                className="m-0 flex list-none flex-col p-0"
+            >
                 {patterns.map((pattern) => (
                     <li
                         key={pattern}
                         className="group/pattern flex min-h-8 items-center gap-2 rounded px-1"
                     >
                         <Switch
-                            aria-label={`Hide files matching ${pattern}`}
+                            aria-label={t('settings.excludeEditor.toggle', { pattern })}
                             checked={value[pattern]}
                             onCheckedChange={(checked) =>
                                 onChange({ ...value, [pattern]: checked })
@@ -53,9 +58,9 @@ export function FilesExcludeEditor({
                         <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground">
                             {pattern}
                         </code>
-                        <Tooltip content="Remove pattern">
+                        <Tooltip content={t('settings.excludeEditor.removeTooltip')}>
                             <Button
-                                aria-label={`Remove excluded pattern ${pattern}`}
+                                aria-label={t('settings.excludeEditor.remove', { pattern })}
                                 className="opacity-0 group-focus-within/pattern:opacity-100 group-hover/pattern:opacity-100"
                                 size="icon"
                                 variant="ghost"
@@ -73,7 +78,7 @@ export function FilesExcludeEditor({
             </ul>
             <div className="flex items-center gap-2">
                 <Input
-                    aria-label="New excluded pattern"
+                    aria-label={t('settings.excludeEditor.newLabel')}
                     className="bg-background"
                     placeholder={placeholder}
                     size="dense"
@@ -84,13 +89,13 @@ export function FilesExcludeEditor({
                     }}
                 />
                 <Button
-                    aria-label="Add excluded pattern"
+                    aria-label={t('settings.excludeEditor.add')}
                     disabled={!draft.trim()}
                     size="sm"
                     variant="secondary"
                     onClick={addPattern}
                 >
-                    <Plus size={13} /> Add
+                    <Plus size={13} /> {t('common.add')}
                 </Button>
             </div>
         </div>

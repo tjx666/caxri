@@ -5,6 +5,7 @@ import {
     parseFilePreviewTab,
 } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { isPathAtOrBelow } from '../../lib/file-path';
 import { getBootstrap } from '../../stores/selectors';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
@@ -54,7 +55,7 @@ function closeOpenEditorsUnderPathInSession(
     if (closingIds.length === 0) return;
     patchSessionState(
         { ...current, paneLayout: closeTabs(current.paneLayout, closingIds) },
-        'Trashed editor state could not be saved',
+        translate('editor.document.trashStateSaveFailed'),
     );
 }
 

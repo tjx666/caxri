@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     projectSearchDisplayState,
     projectSearchTerminationMessage,
@@ -65,13 +66,13 @@ describe('projectSearchDisplayState', () => {
 
 describe('projectSearchTerminationMessage', () => {
     it('explains why an empty result is incomplete', () => {
-        expect(projectSearchTerminationMessage('timeout', 8_087, false)).toBe(
+        expect(projectSearchTerminationMessage(translate, 'timeout', 8_087, false)).toBe(
             'Search timed out after scanning 8,087 files. Narrow the search to try again.',
         );
     });
 
     it('labels bounded matches as partial results', () => {
-        expect(projectSearchTerminationMessage('result-limit', 42, true)).toBe(
+        expect(projectSearchTerminationMessage(translate, 'result-limit', 42, true)).toBe(
             'Search reached the result limit. Showing partial results.',
         );
     });

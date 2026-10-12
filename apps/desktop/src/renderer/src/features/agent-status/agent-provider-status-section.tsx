@@ -5,6 +5,7 @@ import { ReportCard } from '../../components/report-card';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useRelativeTime } from '../../hooks/use-relative-time';
+import { useTranslation } from '../../i18n';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import {
@@ -23,6 +24,7 @@ function openUrl(url: string) {
 
 function IncidentItem({ incident }: { incident: AgentProviderStatusIncident }) {
     const updatedAgo = useRelativeTime(incident.updatedAt);
+    const { t } = useTranslation();
     return (
         <li className="min-w-0 rounded-md border border-border px-3 py-2">
             <div className="flex min-w-0 items-baseline gap-2">
@@ -38,10 +40,10 @@ function IncidentItem({ incident }: { incident: AgentProviderStatusIncident }) {
             </div>
             <div className="mt-1 text-[11px] text-muted">
                 {[
-                    incidentPhaseLabel(incident.phase),
-                    providerServiceStatusLabel(incident.status),
+                    incidentPhaseLabel(incident.phase, t),
+                    providerServiceStatusLabel(incident.status, t),
                     incident.components.join(', '),
-                    updatedAgo && `updated ${updatedAgo}`,
+                    updatedAgo && t('agentStatus.provider.updatedAgo', { time: updatedAgo }),
                 ]
                     .filter(Boolean)
                     .join(' · ')}
@@ -72,52 +74,55 @@ export function AgentProviderStatusSection({
     status: AgentProviderStatus | null | undefined;
 }) {
     const checkedAgo = useRelativeTime(status?.checkedAt);
+    const { t } = useTranslation();
     const view = providerStatusView(status, isError);
     if (view === 'failed')
         return (
-            <ReportCard title="API status">
+            <ReportCard title={t('agentStatus.provider.title')}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="m-0 text-[12px] text-muted">
-                        Caxri could not read {agentName}&apos;s status page.
+                        {t('agentStatus.provider.readFailed', { agent: agentName })}
                     </p>
                     <Button size="sm" variant="secondary" onClick={onRetry}>
-                        Retry
+                        {t('common.retry')}
                     </Button>
                 </div>
             </ReportCard>
         );
     if (status === null)
         return (
-            <ReportCard title="API status">
+            <ReportCard title={t('agentStatus.provider.title')}>
                 <p className="m-0 text-[12px] text-muted">
-                    {agentName} has no public status page to read.
+                    {t('agentStatus.provider.noPage', { agent: agentName })}
                 </p>
             </ReportCard>
         );
     if (!status)
         return (
-            <ReportCard title="API status">
+            <ReportCard title={t('agentStatus.provider.title')}>
                 <p className="m-0 flex items-center gap-2 text-[12px] text-muted">
                     <Spinner aria-hidden="true" />
-                    Checking the status page…
+                    {t('agentStatus.provider.checking')}
                 </p>
             </ReportCard>
         );
     const openPage = (
         <Button size="sm" variant="secondary" onClick={() => openUrl(status.pageUrl)}>
             <ExternalLink aria-hidden="true" size={12} />
-            Open status page
+            {t('agentStatus.provider.openPage')}
         </Button>
     );
     return (
         <ReportCard
-            title={`${status.pageName} API status`}
-            caption={checkedAgo && `Checked ${checkedAgo}`}
+            title={t('agentStatus.provider.pageTitle', { page: status.pageName })}
+            caption={checkedAgo && t('agentStatus.provider.checkedAgo', { time: checkedAgo })}
         >
             {status.state === 'unavailable' ? (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="m-0 text-[12px] text-muted">
-                        {providerStatusFailureLabel(status.reason)}. Caxri tries again every minute.
+                        {t('agentStatus.provider.unavailable', {
+                            reason: providerStatusFailureLabel(status.reason, t),
+                        })}
                     </p>
                     {openPage}
                 </div>
@@ -126,7 +131,7 @@ export function AgentProviderStatusSection({
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2 text-[13px] font-semibold">
                             <ProviderStatusDot className="size-2.5" status={status.status} />
-                            <span className="min-w-0">{describeProviderStatus(status)}</span>
+                            <span className="min-w-0">{describeProviderStatus(status, t)}</span>
                         </div>
                         {openPage}
                     </div>
@@ -139,15 +144,17 @@ export function AgentProviderStatusSection({
                                 <span className="truncate">{component.name}</span>
                                 <span className="flex flex-none items-center gap-1.5 text-muted">
                                     <ProviderStatusDot status={component.status} />
-                                    {providerServiceStatusLabel(component.status)}
+                                    {providerServiceStatusLabel(component.status, t)}
                                 </span>
                             </li>
                         ))}
                     </ul>
-                    <h3 className="mt-4 mb-2 text-[12px] font-semibold">Active incidents</h3>
+                    <h3 className="mt-4 mb-2 text-[12px] font-semibold">
+                        {t('agentStatus.provider.activeIncidents')}
+                    </h3>
                     {status.incidents.length === 0 ? (
                         <p className="m-0 text-[12px] text-muted">
-                            No open incident affects these components.
+                            {t('agentStatus.provider.noIncidents')}
                         </p>
                     ) : (
                         <ul className="m-0 flex list-none flex-col gap-2 p-0">

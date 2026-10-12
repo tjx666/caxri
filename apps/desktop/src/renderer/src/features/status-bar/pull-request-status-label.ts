@@ -1,5 +1,8 @@
 import type { PullRequestUnavailable } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 /**
  * What the status bar says when the pull request could not be read.
  *
@@ -12,18 +15,9 @@ import type { PullRequestUnavailable } from '@caxri/protocol';
  * check the connection and the other to check a proxy or certificate, and a chip reading `PR offline` would send the
  * second one looking in the wrong place.
  */
-const PULL_REQUEST_UNAVAILABLE_LABELS: Record<PullRequestUnavailable['reason'], string> = {
-    'not-found': 'PR needs gh',
-    'not-logged-in': 'PR needs login',
-    'not-linked': 'PR needs setup',
-    'permission-denied': 'PR needs access',
-    'rate-limited': 'PR rate limited',
-    'timeout': 'PR timed out',
-    'network': 'PR offline',
-    'tls': 'PR TLS error',
-    'other': 'PR unknown',
-};
-
-export function pullRequestUnavailableLabel(reason: PullRequestUnavailable['reason']): string {
-    return PULL_REQUEST_UNAVAILABLE_LABELS[reason];
+export function pullRequestUnavailableLabel(
+    reason: PullRequestUnavailable['reason'],
+    t: Translate = translate,
+): string {
+    return t(`statusBar.pullRequest.unavailable.${reason}`);
 }

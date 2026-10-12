@@ -1,6 +1,7 @@
 import type { ClipboardEvent } from 'react';
 import { useState } from 'react';
 
+import { translate } from '../../../i18n';
 import { pushToast } from '../../../stores/toasts';
 import { longPasteFailureMessage } from '../../terminal/terminal-long-paste';
 import { saveAgentChatLongPaste } from '../agent-chat-commands';
@@ -53,10 +54,7 @@ export function useAgentChatLongPaste({
             if (disposition === 'too-large')
                 pushToast('error', longPasteFailureMessage('too-large'));
             else if (disposition === 'no-room')
-                pushToast(
-                    'error',
-                    'This message is too long to cite pasted text. Your clipboard is unchanged; shorten the message and paste again.',
-                );
+                pushToast('error', translate('agentChat.composer.pasteNoRoom'));
             // eslint-disable-next-line no-void -- saveAgentChatLongPaste reports its own failures through tryCommand
             else void save(pasted, { end: selectionEnd, start: selectionStart, value });
             return true;

@@ -9,6 +9,7 @@ import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { PanelHeader } from '../../components/panel-header';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import { tryCommand } from '../../stores/toasts';
 import { getBuiltinViewComponent } from './builtin-components';
@@ -20,6 +21,7 @@ import { ResourceExplorerView } from './resource-explorer/resource-explorer-view
 import { SourceControlView } from './source-control/source-control-view';
 import { ViewContainerActivityProvider } from './view-container-activity';
 import { retryExtension } from './view-container-commands';
+import { viewTitle } from './view-container-labels';
 import { ViewContainerTabStrip } from './view-container-tab-strip';
 
 export function ViewContainerSurface({
@@ -37,6 +39,7 @@ export function ViewContainerSurface({
     trailing?: ReactNode;
     hasUnscopedSelection?: boolean;
 }) {
+    const { t } = useTranslation();
     const [unscopedDesiredId, setUnscopedDesiredId] = useState<ViewContainerId>();
     const [retryingExtensionIds, setRetryingExtensionIds] = useState<ReadonlySet<string>>(
         () => new Set(),
@@ -50,7 +53,7 @@ export function ViewContainerSurface({
             <LoadingSkeleton
                 variant="list"
                 className="min-h-0 flex-1 py-1"
-                label="Loading views…"
+                label={t('viewContainers.surface.loading')}
             />
         );
     if (catalogQuery.isError)
@@ -59,7 +62,7 @@ export function ViewContainerSurface({
                 role="alert"
                 className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-xs text-muted"
             >
-                <AlertTriangle size={15} /> Unable to load views.
+                <AlertTriangle size={15} /> {t('viewContainers.surface.loadFailed')}
                 <Button
                     size="sm"
                     variant="secondary"
@@ -71,7 +74,7 @@ export function ViewContainerSurface({
                         void catalogQuery.refetch();
                     }}
                 >
-                    Retry
+                    {t('common.retry')}
                 </Button>
             </div>
         );
@@ -125,9 +128,9 @@ export function ViewContainerSurface({
                                       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted">
                                           <AlertTriangle className="text-danger" size={18} />
                                           <p className="font-medium text-foreground">
-                                              Extension unavailable
+                                              {t('viewContainers.surface.extensionUnavailable')}
                                           </p>
-                                          <p>{describeExtensionFailure(container.error)}</p>
+                                          <p>{describeExtensionFailure(container.error, t)}</p>
                                           {container.source.kind === 'extension' &&
                                               (() => {
                                                   const extensionId = container.source.extensionId;
@@ -147,7 +150,9 @@ export function ViewContainerSurface({
                                                               );
                                                               // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand() reports its own errors
                                                               void tryCommand(
-                                                                  'Unable to retry extension',
+                                                                  t(
+                                                                      'viewContainers.surface.retryExtensionFailed',
+                                                                  ),
                                                                   async () => {
                                                                       try {
                                                                           await retryExtension(
@@ -178,7 +183,7 @@ export function ViewContainerSurface({
                                                                   style={{ width: 13, height: 13 }}
                                                               />
                                                           )}
-                                                          Retry
+                                                          {t('common.retry')}
                                                       </Button>
                                                   );
                                               })()}
@@ -204,7 +209,7 @@ export function ViewContainerSurface({
                                                               id === view.source.extensionId,
                                                       )?.generation ?? 0
                                                   }
-                                                  title={view.title}
+                                                  title={viewTitle(view, t)}
                                                   viewId={view.id}
                                               />
                                           );
@@ -239,7 +244,9 @@ export function ViewContainerSurface({
                                               className="flex min-h-0 flex-1 flex-col overflow-hidden"
                                           >
                                               {/* One caption row for every panel title; see `components/panel-header.tsx`. */}
-                                              {!isOnlyView && <PanelHeader title={view.title} />}
+                                              {!isOnlyView && (
+                                                  <PanelHeader title={viewTitle(view, t)} />
+                                              )}
                                               {content}
                                           </div>
                                       );

@@ -1,5 +1,6 @@
 import type { MarkdownInline } from '@caxri/markdown';
 
+import { useTranslation } from '../../i18n';
 import { linkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { Tooltip } from '../ui/tooltip';
@@ -16,6 +17,7 @@ export function InlineNodes({ nodes }: { nodes: readonly MarkdownInline[] }) {
 }
 
 function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> }) {
+    const { t } = useTranslation();
     const { onOpenFile, variant } = useMarkdownContext();
     /**
      * A transcript sits on the pane background, where a `--surface` chip reads as a hole; the lifted `--elevated` chip
@@ -33,7 +35,7 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
      * accent color.
      */
     return (
-        <Tooltip content={`Open ${file}`}>
+        <Tooltip content={t('core.markdown.openFile', { file })}>
             <button
                 className={cn(
                     className,

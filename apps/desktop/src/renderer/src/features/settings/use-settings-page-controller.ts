@@ -10,6 +10,7 @@ import type {
 } from '@caxri/protocol';
 import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import type { SettingsView } from '../../stores/dialogs';
 import { useDialogStore } from '../../stores/dialogs';
@@ -20,6 +21,11 @@ import {
     pushToast,
 } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
+import {
+    argvRestartNotice,
+    isArgvRestartNotice,
+    rememberArgvRestartNotice,
+} from './argv-restart-notice';
 import type { ConfigKind } from './config-edit';
 import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS } from './config-edit';
 import {
@@ -42,7 +48,6 @@ import {
 } from './settings-client';
 import type { ConfigAction, ConfigSourceError } from './settings-drafts';
 import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
-import { settingsRows } from './settings-registry';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
 import type { ThemeImportResult } from './theme-import-error';
@@ -62,8 +67,8 @@ const scrolledSettingsViews: ReadonlySet<SettingsView> = new Set([
 
 /**
  * Both `argv.jsonc` boot flags are reached by scrolling their own row into view, so one request carries the row id
- * rather than one prop per flag. `settingTitleForArgvKey` already ties a boot flag to its row through the binding type;
- * this is the same convention on the navigation side.
+ * rather than one prop per flag. `settingTitleForArgvKey` (`argv-restart-notice.ts`) already ties a boot flag to its
+ * row through the binding type; this is the same convention on the navigation side.
  */
 const ARGV_ROW_IDS: Partial<Record<SettingsView, string>> = {
     'hardware-acceleration': 'terminal.hardwareAcceleration',
@@ -76,74 +81,6 @@ function argvRowFocusRequest(request: {
 }): { id: number; rowId: string } | undefined {
     const rowId = ARGV_ROW_IDS[request.view];
     return rowId ? { id: request.id, rowId } : undefined;
-}
-
-/**
- * A boot flag and the Settings row that owns it share one name: the row backing `argv.jsonc`'s `hardwareAcceleration`
- * declares the binding type `hardware-acceleration`. Resolving the row through that convention keeps the restart notice
- * on the exact title the user just read instead of a second hardcoded label list here, so a boot flag added later is
- * named correctly without touching this file. The owning test asserts every boot flag still resolves to a row.
- */
-export function settingTitleForArgvKey(key: keyof ArgvConfig): string | undefined {
-    const bindingType = key.replaceAll(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
-    return settingsRows.find((row) => row.binding.type === bindingType)?.title;
-}
-
-/**
- * Settings titles are sentence case ("Hardware acceleration"), so the first letter has to drop to sit inside a
- * sentence. A title opening on an acronym keeps its capitals: a second capital right after the first means the word is
- * not ordinary sentence case.
- */
-function inSentence(title: string): string {
-    const second = title.slice(1, 2);
-    if (second && second !== second.toLowerCase()) return title;
-    return title.slice(0, 1).toLowerCase() + title.slice(1);
-}
-
-function joinTitles(titles: string[]): string {
-    if (titles.length <= 1) return titles.join('');
-    return `${titles.slice(0, -1).join(', ')} and ${titles.at(-1)}`;
-}
-
-/**
- * Opening shared by every restart notice. The notice is a replaceable status card rather than a stream of events, so
- * the surface that raises it has to be able to recognize and retract its own previous wording.
- */
-export const ARGV_RESTART_NOTICE_PREFIX = 'Restart Caxri to apply the new ';
-
-export interface ArgvRestartNoticeInput {
-    /**
-     * What the running instance actually launched with, as of Settings load. Undefined until `argv.get` resolves.
-     */
-    baseline: ArgvConfig | undefined;
-    /**
-     * What `argv.jsonc` holds after the write completed.
-     */
-    applied: ArgvConfig;
-}
-
-/**
- * The user-facing sentence for the boot flags the next launch would pick up, or undefined when nothing is pending.
- *
- * Every flag still differing from the boot baseline is named, not only the one this write touched: the notice is a
- * single replaceable card, so naming just the latest row would silently retract a restart the user still owes for an
- * earlier one. Returning a flag to the value the running instance launched with cancels its own restart and drops it
- * back out of the sentence.
- */
-export function argvRestartNotice(input: ArgvRestartNoticeInput): string | undefined {
-    const { applied, baseline } = input;
-    if (!baseline) return undefined;
-    const pending = (Object.keys(applied) as Array<keyof ArgvConfig>).filter(
-        (key) => applied[key] !== baseline[key],
-    );
-    if (pending.length === 0) return undefined;
-    const titles = pending
-        .map((key) => settingTitleForArgvKey(key))
-        .filter((title): title is string => title !== undefined)
-        .map((title) => inSentence(title));
-    const noun = pending.length === 1 ? 'setting' : 'settings';
-    if (titles.length === 0) return `${ARGV_RESTART_NOTICE_PREFIX}${noun}.`;
-    return `${ARGV_RESTART_NOTICE_PREFIX}${joinTitles(titles)} ${noun}.`;
 }
 
 const onApplied = (): void => {
@@ -354,7 +291,7 @@ export function useSettingsPageController() {
                 argvConfigAtLoad.current ??= argvResult.value;
                 setLoaded(true);
             } catch (error: unknown) {
-                reportSettingsError(error, 'Unable to load configuration');
+                reportSettingsError(error, translate('settings.page.loadFailed'));
             }
         }
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -366,7 +303,7 @@ export function useSettingsPageController() {
             try {
                 setAgentSkillHealth(await getAgentSkillHealth());
             } catch (error: unknown) {
-                reportSettingsError(error, 'Unable to inspect Caxri CLI skills');
+                reportSettingsError(error, translate('settings.page.skillHealthFailed'));
             }
         }
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -649,11 +586,14 @@ export function useSettingsPageController() {
                 // The card is a status, not an event: retract the previous wording first so a write that changes which
                 // flags are pending (including one that returns the last of them to its launch value) can never leave
                 // a stale instruction on screen.
-                dismissToastsMatching((message) => message.startsWith(ARGV_RESTART_NOTICE_PREFIX));
+                dismissToastsMatching(isArgvRestartNotice);
                 // Held until dismissed: the user is still looking at the Settings row they just flipped, so a
                 // four-second expiry would take away the only record of the restart they now owe before they can act
                 // on it.
-                if (notice) pushToast('info', notice, { persist: true });
+                if (notice) {
+                    rememberArgvRestartNotice(notice);
+                    pushToast('info', notice, { persist: true });
+                }
             } catch (error) {
                 reportSettingsError(error, 'argv.jsonc');
             }

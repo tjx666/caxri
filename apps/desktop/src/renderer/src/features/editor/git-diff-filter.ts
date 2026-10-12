@@ -2,6 +2,8 @@ import type { GitDiffTab, GitFileStatus } from '@caxri/protocol';
 import { gitChangesDiffTabPath, gitPullRequestChangesDiffTabPath } from '@caxri/protocol';
 import { isGlobMatch } from '@caxri/utils';
 
+import type { Translate } from '../../i18n';
+
 export interface FilteredGitDiffFiles {
     files: readonly GitFileStatus[];
     hiddenCount: number;
@@ -34,9 +36,20 @@ export function filterGitDiffFiles(
 export function describeHiddenGitDiffFiles(
     hiddenCount: number,
     areAllHidden: boolean,
-    isTruncated = false,
+    isTruncated: boolean,
+    t: Translate,
 ): string {
-    if (areAllHidden)
-        return `All ${hiddenCount.toLocaleString()} ${isTruncated ? 'loaded ' : ''}changed ${hiddenCount === 1 ? 'file is' : 'files are'} hidden by Git diff exclusions.`;
-    return `${hiddenCount.toLocaleString()} changed ${hiddenCount === 1 ? 'file is' : 'files are'} hidden by Git diff exclusions.`;
+    const count = hiddenCount.toLocaleString();
+    const isOne = hiddenCount === 1;
+    if (areAllHidden) {
+        if (isTruncated)
+            return t(
+                isOne ? 'editor.gitDiff.allHiddenLoadedOne' : 'editor.gitDiff.allHiddenLoadedOther',
+                { count },
+            );
+        return t(isOne ? 'editor.gitDiff.allHiddenOne' : 'editor.gitDiff.allHiddenOther', {
+            count,
+        });
+    }
+    return t(isOne ? 'editor.gitDiff.hiddenOne' : 'editor.gitDiff.hiddenOther', { count });
 }

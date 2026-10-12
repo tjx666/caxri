@@ -1,13 +1,13 @@
 import type { UsageDay } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     activityCardLabel,
     activityHighlights,
     agentTimeDetail,
     buildCumulative,
     buildHeatmap,
-    buildUsageInsights,
     burnRateCaption,
     canOpenUsageSession,
     computeStreaks,
@@ -21,7 +21,6 @@ import {
     peakHour,
     topCaption,
     usageCostDisplay,
-    usageCoverageNotes,
     usageDayTooltip,
     usageEmptyState,
     usageHourTooltip,
@@ -29,6 +28,7 @@ import {
     usageScanCaption,
     usageSessionCount,
 } from '../usage-metrics';
+import { buildUsageInsights, usageCoverageNotes } from '../usage-notes';
 
 function day(date: string, tokens: number, costUsd = 0): UsageDay {
     return { date, tokens, costUsd, activeMs: 0 };
@@ -41,7 +41,7 @@ const TODAY = '2026-03-10';
 
 describe('buildHeatmap', () => {
     it('ends on the week of today, starts each column on Sunday, and marks future days', () => {
-        const weeks = buildHeatmap([day(TODAY, 5)], TODAY, 'tokens');
+        const weeks = buildHeatmap(translate, [day(TODAY, 5)], TODAY, 'tokens');
 
         expect(weeks).toHaveLength(HEATMAP_WEEKS);
         const last = weeks.at(-1)!;
@@ -66,7 +66,9 @@ describe('buildHeatmap', () => {
             day('2026-03-03', 3),
             day('2026-03-04', 1000),
         ];
-        const cells = buildHeatmap(activity, TODAY, 'tokens').flatMap((week) => week.cells);
+        const cells = buildHeatmap(translate, activity, TODAY, 'tokens').flatMap(
+            (week) => week.cells,
+        );
         const levelOf = (date: string) => cells.find((cell) => cell.date === date)?.level;
 
         expect(levelOf('2026-03-01')).toBe(1);
@@ -77,7 +79,7 @@ describe('buildHeatmap', () => {
     });
 
     it('switches to cost', () => {
-        const weeks = buildHeatmap([day(TODAY, 5, 1.5)], TODAY, 'cost');
+        const weeks = buildHeatmap(translate, [day(TODAY, 5, 1.5)], TODAY, 'cost');
         expect(weeks.at(-1)!.total).toBe(1.5);
     });
 });
@@ -85,7 +87,7 @@ describe('buildHeatmap', () => {
 describe('buildCumulative', () => {
     it('accumulates through today and stops before future days', () => {
         const points = buildCumulative(
-            buildHeatmap([day('2026-03-08', 2), day(TODAY, 3)], TODAY, 'tokens'),
+            buildHeatmap(translate, [day('2026-03-08', 2), day(TODAY, 3)], TODAY, 'tokens'),
         );
 
         expect(points.at(-1)).toEqual({ date: TODAY, total: 5 });
@@ -126,17 +128,19 @@ describe('activityHighlights and peakHour', () => {
 describe('usageDayTooltip and usageHourTooltip', () => {
     it('names the day or hour span with its figures, or says there was no usage', () => {
         expect(
-            usageDayTooltip('2026-03-09', {
+            usageDayTooltip(translate, '2026-03-09', {
                 date: '2026-03-09',
                 tokens: 2_500_000,
                 costUsd: 1.5,
                 activeMs: 90 * 60_000,
             }),
         ).toBe('Mar 9, 2026 · 2.5M tokens · $1.50 · 1h 30m active');
-        expect(usageDayTooltip('2026-03-08', day('2026-03-08', 0))).toBe('Mar 8, 2026 · No usage');
-        expect(usageDayTooltip('2026-03-07', undefined)).toBe('Mar 7, 2026 · No usage');
-        expect(usageHourTooltip(11, 12_300_000)).toBe('11:00–12:00 · 12.3M tokens');
-        expect(usageHourTooltip(23, 0)).toBe('23:00–00:00 · No usage');
+        expect(usageDayTooltip(translate, '2026-03-08', day('2026-03-08', 0))).toBe(
+            'Mar 8, 2026 · No usage',
+        );
+        expect(usageDayTooltip(translate, '2026-03-07', undefined)).toBe('Mar 7, 2026 · No usage');
+        expect(usageHourTooltip(translate, 11, 12_300_000)).toBe('11:00–12:00 · 12.3M tokens');
+        expect(usageHourTooltip(translate, 23, 0)).toBe('23:00–00:00 · No usage');
     });
 });
 
@@ -153,35 +157,45 @@ describe('usageEmptyState', () => {
 
     it('waits for the first scan outside Caxri before calling the page empty', () => {
         const scanning = { agentSessions: 0, pendingScans: 40 };
-        expect(usageEmptyState(report(0, 0, scanning), undefined)).toEqual({ kind: 'scanning' });
+        expect(usageEmptyState(translate, report(0, 0, scanning), undefined)).toEqual({
+            kind: 'scanning',
+        });
         expect(
-            usageEmptyState(report(0, 5, { agentSessions: 1, pendingScans: 40 }), undefined),
+            usageEmptyState(
+                translate,
+                report(0, 5, { agentSessions: 1, pendingScans: 40 }),
+                undefined,
+            ),
         ).toBeUndefined();
         expect(
-            usageEmptyState(report(0, 0, { agentSessions: 2, pendingScans: 0 }), undefined),
+            usageEmptyState(
+                translate,
+                report(0, 0, { agentSessions: 2, pendingScans: 0 }),
+                undefined,
+            ),
         ).toBeUndefined();
     });
 
     it('waits for the background ledger scan in the Caxri scope too', () => {
-        expect(usageEmptyState(report(3, 0, undefined, 3), undefined)).toEqual({
+        expect(usageEmptyState(translate, report(3, 0, undefined, 3), undefined)).toEqual({
             kind: 'scanning',
         });
     });
 
     it('names the filtered Agent when it used nothing in the range', () => {
-        expect(usageEmptyState(report(3, 0), 'claude')).toEqual({
+        expect(usageEmptyState(translate, report(3, 0), 'claude')).toEqual({
             kind: 'agentFilter',
             title: 'No Claude usage in this range',
         });
-        expect(usageEmptyState(report(0, 0), 'claude')).toMatchObject({
+        expect(usageEmptyState(translate, report(0, 0), 'claude')).toMatchObject({
             kind: 'agentFilter',
         });
     });
 
     it('reports no usage at all only without a filter', () => {
-        expect(usageEmptyState(report(0, 0), undefined)).toEqual({ kind: 'noUsage' });
-        expect(usageEmptyState(report(3, 0), undefined)).toBeUndefined();
-        expect(usageEmptyState(report(3, 10), 'claude')).toBeUndefined();
+        expect(usageEmptyState(translate, report(0, 0), undefined)).toEqual({ kind: 'noUsage' });
+        expect(usageEmptyState(translate, report(3, 0), undefined)).toBeUndefined();
+        expect(usageEmptyState(translate, report(3, 10), 'claude')).toBeUndefined();
     });
 });
 
@@ -193,8 +207,12 @@ describe('usage page captions', () => {
     });
 
     it('labels the burn-rate pace as an API-price estimate over its fixed window', () => {
-        expect(burnRateCaption(30)).toBe('Last 30 days · est. $30.40/month at API prices');
-        expect(burnRateCaption(0, true)).toBe('Last 30 days · no price for the models used');
+        expect(burnRateCaption(translate, 30)).toBe(
+            'Last 30 days · est. $30.40/month at API prices',
+        );
+        expect(burnRateCaption(translate, 0, true)).toBe(
+            'Last 30 days · no price for the models used',
+        );
     });
 
     it('opens only Sessions that still exist in the PrimarySidebar', () => {
@@ -206,32 +224,36 @@ describe('usage page captions', () => {
     });
 
     it('counts Agent Sessions outside Caxri beside the Sessions', () => {
-        expect(agentTimeDetail({ sessionsWithUsage: 1, outsideSessionsWithUsage: 0 })).toBe(
-            'Across 1 Session',
-        );
-        expect(agentTimeDetail({ sessionsWithUsage: 81, outsideSessionsWithUsage: 120 })).toBe(
-            'Across 81 Sessions + 120 outside',
-        );
+        expect(
+            agentTimeDetail(translate, { sessionsWithUsage: 1, outsideSessionsWithUsage: 0 }),
+        ).toBe('Across 1 Session');
+        expect(
+            agentTimeDetail(translate, { sessionsWithUsage: 81, outsideSessionsWithUsage: 120 }),
+        ).toBe('Across 81 Sessions + 120 outside');
     });
 
     it('counts Agent Sessions run outside Caxri as Agent Sessions, not Sessions', () => {
-        expect(usageSessionCount(1, false)).toBe('1 Session');
-        expect(usageSessionCount(3, false)).toBe('3 Sessions');
-        expect(usageSessionCount(1, true)).toBe('1 Agent Session');
-        expect(usageSessionCount(2819, true)).toBe('2,819 Agent Sessions');
+        expect(usageSessionCount(translate, 1, false)).toBe('1 Session');
+        expect(usageSessionCount(translate, 3, false)).toBe('3 Sessions');
+        expect(usageSessionCount(translate, 1, true)).toBe('1 Agent Session');
+        expect(usageSessionCount(translate, 2819, true)).toBe('2,819 Agent Sessions');
     });
 
     it('shows scan progress only while transcripts remain', () => {
         const coverage = (pendingScans: number, ledger = 0) => ({
             coverage: { pendingScans: ledger, outsideCaxri: { agentSessions: 0, pendingScans } },
         });
-        expect(usageScanCaption(coverage(1_234))).toBe('Reading 1,234 more transcripts…');
-        expect(usageScanCaption(coverage(1_234, 6))).toBe('Reading 1,240 more transcripts…');
-        expect(usageScanCaption(coverage(0))).toBeUndefined();
-        expect(usageScanCaption({ coverage: { pendingScans: 1 } })).toBe(
+        expect(usageScanCaption(translate, coverage(1_234))).toBe(
+            'Reading 1,234 more transcripts…',
+        );
+        expect(usageScanCaption(translate, coverage(1_234, 6))).toBe(
+            'Reading 1,240 more transcripts…',
+        );
+        expect(usageScanCaption(translate, coverage(0))).toBeUndefined();
+        expect(usageScanCaption(translate, { coverage: { pendingScans: 1 } })).toBe(
             'Reading 1 more transcript…',
         );
-        expect(usageScanCaption({ coverage: { pendingScans: 0 } })).toBeUndefined();
+        expect(usageScanCaption(translate, { coverage: { pendingScans: 0 } })).toBeUndefined();
     });
 
     it('says what the coverage counts for each scope', () => {
@@ -245,11 +267,11 @@ describe('usage page captions', () => {
                 unpricedModels: [],
             },
         };
-        expect(usageCoverageNotes({ ...base, scope: 'caxri' })[1]).toBe(
+        expect(usageCoverageNotes(translate, { ...base, scope: 'caxri' })[1]).toBe(
             'Counts 2 Agent Sessions started in Caxri Sessions, including archived and deleted Sessions.',
         );
         expect(
-            usageCoverageNotes({
+            usageCoverageNotes(translate, {
                 ...base,
                 scope: 'all',
                 coverage: { ...base.coverage, outsideCaxri: { agentSessions: 5, pendingScans: 0 } },
@@ -261,7 +283,7 @@ describe('usage page captions', () => {
 
     it('calls a transcript missing only once the scan has looked for it', () => {
         const coverage = (pendingScans: number) =>
-            usageCoverageNotes({
+            usageCoverageNotes(translate, {
                 pricing: { source: 'bundled' },
                 scope: 'caxri',
                 coverage: {
@@ -292,14 +314,14 @@ describe('buildUsageInsights', () => {
     });
 
     it('names the busiest day of the week without calling a weekend day a weekday', () => {
-        expect(buildUsageInsights(report(0))).toContain(
+        expect(buildUsageInsights(translate, report(0))).toContain(
             'Saturday is your busiest day of the week.',
         );
     });
 
     it('projects output per active hour only from at least a minute of Agent time', () => {
         const perHour = (activeMs: number) =>
-            buildUsageInsights(report(activeMs)).find((insight) =>
+            buildUsageInsights(translate, report(activeMs)).find((insight) =>
                 insight.includes('per active hour'),
             );
         expect(perHour(50)).toBeUndefined();
@@ -311,7 +333,7 @@ describe('buildUsageInsights', () => {
 describe('heatmap month labels', () => {
     it('does not print the current month at both ends of the year', () => {
         const today = '2026-10-14';
-        const weeks = buildHeatmap([], today, 'tokens');
+        const weeks = buildHeatmap(translate, [], today, 'tokens');
         const labels = weeks.map((week) => week.monthLabel).filter(Boolean);
         expect(labels.filter((label) => label === 'Oct')).toHaveLength(1);
         expect(labels.at(-1)).toBe('Oct');
@@ -320,17 +342,17 @@ describe('heatmap month labels', () => {
 
 describe('Usage page wording helpers', () => {
     it('pluralizes counts and captions truncated lists', () => {
-        expect(countLabel(1, 'pull request')).toBe('1 pull request');
-        expect(countLabel(3, 'merged pull request')).toBe('3 merged pull requests');
-        expect(topCaption(12, 40)).toBe('Top 12 of 40');
-        expect(topCaption(12, 12)).toBeUndefined();
+        expect(countLabel(translate, 1, 'pullRequest')).toBe('1 pull request');
+        expect(countLabel(translate, 3, 'mergedPullRequest')).toBe('3 merged pull requests');
+        expect(topCaption(translate, 12, 40)).toBe('Top 12 of 40');
+        expect(topCaption(translate, 12, 12)).toBeUndefined();
     });
 
     it('names the picked range and the metric the Activity card is drawn in', () => {
-        expect(usageRangeLabel('7d')).toBe('Last 7 days');
-        expect(usageRangeLabel('all')).toBe('All time');
-        expect(activityCardLabel('tokens')).toBe('Token activity');
-        expect(activityCardLabel('cost')).toBe('Cost activity');
+        expect(usageRangeLabel(translate, '7d')).toBe('Last 7 days');
+        expect(usageRangeLabel(translate, 'all')).toBe('All time');
+        expect(activityCardLabel(translate, 'tokens')).toBe('Token activity');
+        expect(activityCardLabel(translate, 'cost')).toBe('Cost activity');
     });
 });
 
@@ -361,7 +383,6 @@ describe('unpriced usage', () => {
     it('shows No price instead of $0 and marks a partly priced figure', () => {
         expect(usageCostDisplay({ costUsd: 0, hasTokens: true, hasUnpriced: true })).toEqual({
             kind: 'unpriced',
-            label: 'No price',
         });
         expect(usageCostDisplay({ costUsd: 4.2, hasTokens: true, hasUnpriced: true })).toEqual({
             kind: 'partial',
@@ -381,7 +402,7 @@ describe('unpriced usage', () => {
         expect(hasUnpricedProviderModel(models, 'claude')).toBe(true);
         expect(hasUnpricedProviderModel(models, 'codex')).toBe(false);
         expect(
-            costTileDetail({
+            costTileDetail(translate, {
                 coverage: {
                     agentSessions: 1,
                     unavailable: 0,
@@ -394,6 +415,7 @@ describe('unpriced usage', () => {
         ).toBe('Partial: 2 models unpriced');
         expect(
             costTileDetail(
+                translate,
                 {
                     coverage: {
                         agentSessions: 1,
@@ -410,7 +432,7 @@ describe('unpriced usage', () => {
     });
 
     it('never says most spend goes to a model with no spend', () => {
-        const insights = buildUsageInsights({
+        const insights = buildUsageInsights(translate, {
             activity: [],
             models: [
                 {

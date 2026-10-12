@@ -1,11 +1,7 @@
 import { useState } from 'react';
 
 import type { AgentChatPermissionMode, AgentChatSnapshot, AgentProvider } from '@caxri/protocol';
-import {
-    agentChatPermissionModeDescription,
-    agentChatPermissionModeLabel,
-    agentChatPermissionModes,
-} from '@caxri/protocol';
+import { agentChatPermissionModes } from '@caxri/protocol';
 import { ChevronDown, ShieldAlert, ShieldCheck } from 'lucide-react';
 
 import {
@@ -20,10 +16,16 @@ import {
     MenuTrigger,
 } from '../../components/ui/menu';
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 import { useProjectById, useSessionById, useTerminal } from '../../stores/selectors';
 import { saveAgentChatProjectDefault } from './agent-chat-commands';
 import type { AgentChatProjectDefaultItem } from './agent-chat-permissions';
-import { AGENT_CHAT_CUSTOM_PERMISSION, agentChatPermissionView } from './agent-chat-permissions';
+import {
+    AGENT_CHAT_CUSTOM_PERMISSION,
+    agentChatPermissionModeHint,
+    agentChatPermissionModeName,
+    agentChatPermissionView,
+} from './agent-chat-permissions';
 import { useAgentChatPermissionSelection } from './hooks/use-agent-chat-permission-selection';
 
 const TRIGGER_CLASS_NAME =
@@ -53,6 +55,7 @@ export function AgentChatPermissionMenu({
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'permissionMode' | 'planMode'> | undefined;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
     const [isOpen, setOpen] = useState(false);
     const terminal = useTerminal(terminalId);
     const project = useProjectById(useSessionById(terminal?.sessionId)?.projectId);
@@ -72,12 +75,19 @@ export function AgentChatPermissionMenu({
             <MenuTrigger aria-label={view.ariaLabel} className={TRIGGER_CLASS_NAME}>
                 <Icon className={`size-3.5 shrink-0 ${view.isFullAccess ? 'text-warning' : ''}`} />
                 <span className="truncate">{view.label}</span>
-                {snapshot.planMode && <span className="shrink-0 text-foreground">Plan</span>}
+                {snapshot.planMode && (
+                    <span className="shrink-0 text-foreground">
+                        {t('agentChat.permission.plan')}
+                    </span>
+                )}
                 {view.pendingCaption && (
                     <span className="truncate text-[11px] text-muted">{view.pendingCaption}</span>
                 )}
                 {isPending ? (
-                    <Spinner aria-label="Switching" className="size-3 shrink-0" />
+                    <Spinner
+                        aria-label={t('agentChat.model.switching')}
+                        className="size-3 shrink-0"
+                    />
                 ) : (
                     <ChevronDown className="size-3 shrink-0" />
                 )}
@@ -170,13 +180,14 @@ function AgentChatPermissionMenuItems({
     onLevelChange: (permissionMode: AgentChatPermissionMode) => void;
     onPlanModeChange: (isOn: boolean) => void;
 }) {
+    const { t } = useTranslation();
     return (
         <>
             <MenuGroup>
-                <MenuGroupLabel>Permissions</MenuGroupLabel>
+                <MenuGroupLabel>{t('agentChat.permission.permissions')}</MenuGroupLabel>
                 {isNextTurnOnly && (
                     <p className="m-0 px-2 pb-1 text-[11px] leading-4 text-muted">
-                        Applies to the next turn.
+                        {t('agentChat.permission.appliesNextTurn')}
                     </p>
                 )}
                 <MenuRadioGroup
@@ -190,10 +201,10 @@ function AgentChatPermissionMenuItems({
                         <MenuRadioItem value={AGENT_CHAT_CUSTOM_PERMISSION.value}>
                             <span className="flex min-w-0 flex-col">
                                 <span className="truncate">
-                                    {AGENT_CHAT_CUSTOM_PERMISSION.label}
+                                    {t('agentChat.permission.customRow')}
                                 </span>
                                 <span className="truncate text-[11px] leading-4 text-muted">
-                                    {AGENT_CHAT_CUSTOM_PERMISSION.description}
+                                    {t('agentChat.permission.customRowDescription')}
                                 </span>
                             </span>
                         </MenuRadioItem>
@@ -202,10 +213,10 @@ function AgentChatPermissionMenuItems({
                         <MenuRadioItem key={mode} value={mode}>
                             <span className="flex min-w-0 flex-col">
                                 <span className="truncate">
-                                    {agentChatPermissionModeLabel(mode, provider)}
+                                    {agentChatPermissionModeName(mode, provider)}
                                 </span>
                                 <span className="truncate text-[11px] leading-4 text-muted">
-                                    {agentChatPermissionModeDescription(provider, mode)}
+                                    {agentChatPermissionModeHint(provider, mode)}
                                 </span>
                             </span>
                         </MenuRadioItem>
@@ -221,9 +232,9 @@ function AgentChatPermissionMenuItems({
                         onCheckedChange={onPlanModeChange}
                     >
                         <span className="flex min-w-0 flex-col">
-                            <span className="truncate">Plan mode</span>
+                            <span className="truncate">{t('agentChat.permission.planMode')}</span>
                             <span className="truncate text-[11px] leading-4 text-muted">
-                                Plans first and changes nothing until you approve
+                                {t('agentChat.permission.planModeDescription')}
                             </span>
                         </span>
                     </MenuCheckboxItem>

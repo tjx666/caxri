@@ -2,11 +2,23 @@ import { useState } from 'react';
 
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
+import type { Translate } from '../../i18n';
+import { translate, useLocaleStore } from '../../i18n';
 import { editGitReviewComment, removeGitReviewComment } from './git-review-comment-commands';
 import type { GitReviewComment } from './git-review-comments';
-import { reviewSideLabel } from './git-review-comments';
+
+/**
+ * The card mounts in its own React root inside a Monaco view zone (`git-review-comment-binding.ts`), outside the
+ * window's `I18nProvider`, so `useTranslation()` would not see the active locale. Subscribing to the module-level
+ * locale store re-renders the card on a language change and keeps `translate()` current.
+ */
+function useViewZoneTranslate(): Translate {
+    useLocaleStore((state) => state.locale);
+    return translate;
+}
 
 export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
+    const t = useViewZoneTranslate();
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState('');
     const isEditing = editing || !comment.text;
@@ -23,21 +35,29 @@ export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
         <div
             className="git-review-card"
             role="group"
-            aria-label={`Review comment for lines ${comment.startLine} to ${comment.endLine}`}
+            aria-label={t('editor.review.cardLabel', {
+                start: comment.startLine,
+                end: comment.endLine,
+            })}
         >
             <div className="git-review-card-heading">
                 <span>
-                    Review · {reviewSideLabel(comment.side)} L{comment.startLine}
-                    {comment.endLine > comment.startLine ? `–${comment.endLine}` : ''}
+                    {t('editor.review.heading', {
+                        side: t(`editor.review.side.${comment.side}`),
+                        lines:
+                            comment.endLine > comment.startLine
+                                ? `${comment.startLine}–${comment.endLine}`
+                                : comment.startLine,
+                    })}
                 </span>
                 <span className={`git-review-status git-review-status-${comment.status}`}>
-                    {comment.status}
+                    {t(`editor.review.status.${comment.status}`)}
                 </span>
             </div>
             {isEditing ? (
                 <Textarea
                     autoFocus
-                    aria-label="Review comment"
+                    aria-label={t('editor.review.commentInput')}
                     className="my-1"
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
@@ -59,7 +79,7 @@ export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
             <div className="git-review-card-actions">
                 {isEditing ? (
                     <Button size="sm" variant="ghost" onClick={save}>
-                        Save
+                        {t('common.save')}
                     </Button>
                 ) : (
                     <Button
@@ -70,11 +90,11 @@ export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
                             setEditing(true);
                         }}
                     >
-                        Edit
+                        {t('common.edit')}
                     </Button>
                 )}
                 <Button size="sm" variant="ghost" onClick={() => remove(comment.id)}>
-                    Delete
+                    {t('common.delete')}
                 </Button>
             </div>
         </div>

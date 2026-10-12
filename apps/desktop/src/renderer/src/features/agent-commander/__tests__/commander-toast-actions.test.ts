@@ -14,7 +14,7 @@ vi.mock('../../terminal/terminal-commands', () => ({
 vi.mock('../../../stores/selectors', () => ({ getBootstrap: mocks.getBootstrap }));
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
-import { runToastAction, UNKNOWN_TOAST_ACTION_REASON } from '../../../stores/toast-actions';
+import { runToastAction, unknownToastActionReason } from '../../../stores/toast-actions';
 import { configureCommanderToastActions } from '../commander-toast-actions';
 
 beforeEach(() => {
@@ -50,6 +50,6 @@ describe('Agent Commander toast actions', () => {
     });
 
     it('refuses a follow-up only the Workbench window can run', () => {
-        expect(runToastAction({ id: 'settings.open' })).toBe(UNKNOWN_TOAST_ACTION_REASON);
+        expect(runToastAction({ id: 'settings.open' })).toBe(unknownToastActionReason());
     });
 });

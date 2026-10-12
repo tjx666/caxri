@@ -5,6 +5,7 @@ import type { FileSearchMatch } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
+import { useTranslation } from '../../i18n';
 import { setProjectSearchOpen, useDialogStore } from '../../stores/dialogs';
 import { sessionViewScope } from '../../stores/session-view';
 import { openFile } from '../editor/document-commands';
@@ -74,6 +75,7 @@ async function openSearchMatch(
 export function ProjectSearchDialog() {
     const isOpen = useDialogStore((state) => state.projectSearchOpen);
     const seedRequest = useDialogStore((state) => state.projectSearchSeedRequest);
+    const { t } = useTranslation();
     const draft = useProjectSearchDraft();
     /**
      * Applied during render rather than in an effect so the opening frame already shows the seeded query and scope,
@@ -89,7 +91,7 @@ export function ProjectSearchDialog() {
     return (
         <Dialog open={isOpen} onOpenChange={setProjectSearchOpen}>
             <PickerDialogContent
-                aria-label="Search Files"
+                aria-label={t('projectSearch.dialog.title')}
                 backdropClassName="bg-overlay backdrop-blur-[2px]"
                 className="top-1/2 flex h-[70vh] max-h-[calc(100vh-64px)] w-[70vw] max-w-6xl -translate-y-1/2 flex-col"
             >
@@ -100,6 +102,7 @@ export function ProjectSearchDialog() {
 }
 
 function ProjectSearchDialogBody({ draft }: { draft: ProjectSearchDraft }) {
+    const { t } = useTranslation();
     const rowIdPrefix = useId();
     const resultsId = useId();
     const isOpen = useDialogStore((state) => state.projectSearchOpen);
@@ -152,7 +155,7 @@ function ProjectSearchDialogBody({ draft }: { draft: ProjectSearchDraft }) {
 
     return (
         <>
-            <DialogTitle className="sr-only">Search Files</DialogTitle>
+            <DialogTitle className="sr-only">{t('projectSearch.dialog.title')}</DialogTitle>
             <div className="project-search flex min-h-0 flex-1 flex-col">
                 <ProjectSearchControls
                     activeDescendantId={selected ? rowId(selected) : undefined}
@@ -198,10 +201,10 @@ function ProjectSearchDialogBody({ draft }: { draft: ProjectSearchDraft }) {
                     <ProjectSearchPreview match={selected} sessionId={sessionId ?? ''} />
                 </div>
                 <div className="flex h-7 flex-none items-center gap-3 border-t border-border px-3 text-[11px] text-muted">
-                    <span>↑↓ to move</span>
-                    <span>Enter to open</span>
-                    <span>⌘Enter to open to the side</span>
-                    <span>Double-click a result to open it</span>
+                    <span>{t('projectSearch.dialog.helpMove')}</span>
+                    <span>{t('projectSearch.dialog.helpOpen')}</span>
+                    <span>{t('projectSearch.dialog.helpOpenToSide')}</span>
+                    <span>{t('projectSearch.dialog.helpDoubleClick')}</span>
                 </div>
             </div>
         </>
@@ -215,15 +218,20 @@ function ProjectSearchMessage({
     displayState: ProjectSearchDisplayState;
     terminationMessage: string | undefined;
 }) {
+    const { t } = useTranslation();
     switch (displayState) {
         case 'idle':
             return <div className="min-h-0 flex-1" />;
         case 'searching':
-            return <div className="p-3 text-center text-muted">Searching…</div>;
+            return (
+                <div className="p-3 text-center text-muted">
+                    {t('projectSearch.status.searching')}
+                </div>
+            );
         case 'error':
             return (
                 <div className="p-3 text-center text-danger" role="alert">
-                    Search failed.
+                    {t('projectSearch.status.failed')}
                 </div>
             );
         case 'incomplete':
@@ -233,6 +241,10 @@ function ProjectSearchMessage({
                 </div>
             );
         default:
-            return <div className="p-3 text-center text-muted">No results.</div>;
+            return (
+                <div className="p-3 text-center text-muted">
+                    {t('projectSearch.status.noResults')}
+                </div>
+            );
     }
 }

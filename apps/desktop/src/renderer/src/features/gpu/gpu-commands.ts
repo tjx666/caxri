@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { openSettings } from '../../stores/dialogs';
 import { tryCommand } from '../../stores/toasts';
@@ -9,23 +10,25 @@ import { tryCommand } from '../../stores/toasts';
  * consequences at once: it restarts now, it lasts past this session, and Settings takes it back. VS Code gates its one
  * comparable boot-flag write the same way: confirm, then write, then restart
  * (`services/localization/electron-browser/localeService.ts`), and never flips this particular flag for the user at
- * all. Exported as data so the wording is covered by a unit test rather than only by a screenshot.
+ * all. Exported so the wording is covered by a unit test rather than only by a screenshot; a function rather than a
+ * constant so the copy follows the active language.
  */
-export const TURN_OFF_HARDWARE_ACCELERATION_CONFIRM = {
-    confirmLabel: 'Turn Off and Restart',
-    message:
-        'Caxri restarts now and keeps drawing with software rendering every time it starts. Terminals keep working, but drawing may feel slower. You can turn hardware acceleration back on in Settings.',
-    title: 'Turn off hardware acceleration and restart Caxri?',
-} as const;
+export function turnOffHardwareAccelerationConfirm() {
+    return {
+        confirmLabel: translate('gpu.turnOffConfirm.confirmLabel'),
+        message: translate('gpu.turnOffConfirm.message'),
+        title: translate('gpu.turnOffConfirm.title'),
+    };
+}
 
 /**
  * Asks, then restarts without hardware acceleration. Answering anything but the confirming button leaves the boot
  * configuration untouched and the window running, because the confirmation is resolved before the request is sent.
  */
 export async function confirmTurnOffHardwareAcceleration(): Promise<void> {
-    const isConfirmed = await caxri.window.showConfirm(TURN_OFF_HARDWARE_ACCELERATION_CONFIRM);
+    const isConfirmed = await caxri.window.showConfirm(turnOffHardwareAccelerationConfirm());
     if (!isConfirmed) return;
-    await tryCommand('Unable to restart Caxri', () => caxri.request('gpu.restartInSafeMode'));
+    await tryCommand(translate('gpu.restartFailed'), () => caxri.request('gpu.restartInSafeMode'));
 }
 
 /**

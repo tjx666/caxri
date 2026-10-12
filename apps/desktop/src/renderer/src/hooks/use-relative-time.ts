@@ -1,7 +1,10 @@
 import { useRef, useSyncExternalStore } from 'react';
 
 import type { RelativeTimeStyle } from '@caxri/utils';
-import { notifyListeners, relativeTime } from '@caxri/utils';
+import { notifyListeners } from '@caxri/utils';
+
+import { useTranslation } from '../i18n';
+import { localizedRelativeTime } from '../lib/relative-time';
 
 /**
  * How often every relative-time label on screen is re-checked. Half a minute is the coarsest cadence that still turns
@@ -98,8 +101,13 @@ export function useRelativeTime(
     timestamp: number | undefined,
     style: RelativeTimeStyle = 'long',
 ): string | undefined {
+    // The locale is read on every render, so a language change relabels the caller without waiting for a tick.
+    const { locale } = useTranslation();
     return useTickedValue(
-        () => (timestamp === undefined ? undefined : relativeTime(timestamp, Date.now(), style)),
+        () =>
+            timestamp === undefined
+                ? undefined
+                : localizedRelativeTime(timestamp, Date.now(), style, locale),
         Object.is,
     );
 }
@@ -123,10 +131,13 @@ export function useRelativeTimes(
     timestamps: ReadonlyArray<number | undefined>,
     style: RelativeTimeStyle = 'long',
 ): ReadonlyArray<string | undefined> {
+    const { locale } = useTranslation();
     return useTickedValue(
         () =>
             timestamps.map((timestamp) =>
-                timestamp === undefined ? undefined : relativeTime(timestamp, Date.now(), style),
+                timestamp === undefined
+                    ? undefined
+                    : localizedRelativeTime(timestamp, Date.now(), style, locale),
             ),
         areLabelsEqual,
     );

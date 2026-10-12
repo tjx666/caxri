@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 
+import { translate } from '../../../../i18n';
 import { dragPath } from '../../../../lib/file-drag';
 import { resolveEntryKind } from '../../../../lib/file-entry';
 import { parentDirectoryPath } from '../../../../lib/file-path';
@@ -162,7 +163,7 @@ export function useFileTreeItemInteractions({
         const { scopeId, sessionId } = scope;
         setSelectedPath(entry.path);
         const intent = ++activation.current;
-        await tryCommand('Unable to open path', async () => {
+        await tryCommand(translate('viewContainers.files.openFailed'), async () => {
             const kind = await resolveEntryKind(sessionId, entry);
             // A slow link probe must not replace a newer row selection or activation, nor act on a Session the user
             // has since switched away from.

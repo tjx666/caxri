@@ -1,5 +1,6 @@
 import type { UpdateState } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { createStore } from '../../lib/store';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -69,7 +70,7 @@ async function requestState(label: string, request: () => Promise<UpdateState>):
 }
 
 async function runManualCheck(): Promise<void> {
-    await requestState('Unable to check for updates', () => caxri.request('updates.check'));
+    await requestState(translate('updates.error.check'), () => caxri.request('updates.check'));
     // The dialog is already showing the result, so this process has offered the release however the check started;
     // without this, closing the dialog and reloading the window would surface the same release a second time.
     acknowledgeAvailableUpdate();
@@ -85,19 +86,17 @@ export function checkForUpdates(): void {
 
 export function downloadUpdate(): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void requestState('Unable to download the update', () => caxri.request('updates.download'));
+    void requestState(translate('updates.error.download'), () => caxri.request('updates.download'));
 }
 
 export function cancelUpdateDownload(): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void requestState('Unable to cancel the update download', () =>
-        caxri.request('updates.cancel'),
-    );
+    void requestState(translate('updates.error.cancel'), () => caxri.request('updates.cancel'));
 }
 
 export function openDownloadedUpdate(): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void requestState('Unable to open the update', () => caxri.request('updates.open'));
+    void requestState(translate('updates.error.open'), () => caxri.request('updates.open'));
 }
 
 /**
@@ -106,21 +105,18 @@ export function openDownloadedUpdate(): void {
  * The dialog closes only once the write succeeded, so a failed write never looks like a recorded decision.
  */
 export async function skipUpdateVersion(version: string): Promise<void> {
-    const result = await tryCommand('Unable to skip this version', () =>
+    const result = await tryCommand(translate('updates.error.skip'), () =>
         caxri.request('settings.patch', {
             changes: [{ key: 'updates.skippedVersion', value: version }],
         }),
     );
     if (!result) return;
     closeUpdateDialog();
-    pushToast(
-        'info',
-        `Caxri will not offer ${version} again until a newer version is released. Settings can undo this.`,
-    );
+    pushToast('info', translate('updates.skipped', { version }));
 }
 
 export async function clearSkippedUpdateVersion(): Promise<void> {
-    await tryCommand('Unable to stop skipping this version', () =>
+    await tryCommand(translate('updates.error.stopSkipping'), () =>
         caxri.request('settings.patch', {
             changes: [{ key: 'updates.skippedVersion', value: null }],
         }),
@@ -133,7 +129,9 @@ function announceAvailableUpdate(state: UpdateState | undefined): void {
     pushToast('info', announcement.message, {
         action: {
             id: 'updates.show',
-            accessibleLabel: `Show Update for Caxri ${announcement.version}`,
+            accessibleLabel: translate('updates.announcement.showLabel', {
+                version: announcement.version,
+            }),
         },
     });
     acknowledgeAvailableUpdate();

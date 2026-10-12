@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { copyFilePath } from '../../lib/copy-file-path';
@@ -26,22 +28,25 @@ import { documentTabDesktopActionState } from './document-tab-path-actions';
  * The desktop actions are the ones a Files tree row already offers, so one file behaves identically from either menu;
  * `documentTabDesktopActionState` owns when they are available.
  */
-export function documentTabPathMenu({
-    resolution,
-    unavailableReason,
-    externalDocumentId,
-    previewSwitch,
-}: {
-    resolution?: DocumentTabPathResolution;
-    unavailableReason: string;
-    externalDocumentId?: string;
-    /**
-     * The view switch this tab offers (`previewTabSwitch`): Open Preview from a source tab a previewer claims, Open
-     * Source from a preview tab. Absent for every other tab, which hides the item instead of disabling it: "cannot
-     * preview a `.ts` file" is not a state worth explaining.
-     */
-    previewSwitch?: PreviewTabSwitch;
-}): ContextMenuEntries {
+export function documentTabPathMenu(
+    {
+        resolution,
+        unavailableReason,
+        externalDocumentId,
+        previewSwitch,
+    }: {
+        resolution?: DocumentTabPathResolution;
+        unavailableReason: string;
+        externalDocumentId?: string;
+        /**
+         * The view switch this tab offers (`previewTabSwitch`): Open Preview from a source tab a previewer claims, Open
+         * Source from a preview tab. Absent for every other tab, which hides the item instead of disabling it: "cannot
+         * preview a `.ts` file" is not a state worth explaining.
+         */
+        previewSwitch?: PreviewTabSwitch;
+    },
+    t: Translate = translate,
+): ContextMenuEntries {
     const desktop = documentTabDesktopActionState(resolution, {
         externalDocumentId,
         unavailableReason,
@@ -52,11 +57,11 @@ export function documentTabPathMenu({
             ? [
                   previewSwitch.kind === 'openSource'
                       ? {
-                            label: 'Open Source',
+                            label: t('editor.pathMenu.openSource'),
                             onSelect: () => openPreviewSource(previewSwitch.path),
                         }
                       : {
-                            label: 'Open Preview',
+                            label: t('editor.pathMenu.openPreview'),
                             shortcut: readCommandShortcut('editor.openPreview'),
                             onSelect: () => openFilePreview(previewSwitch.path),
                         },
@@ -64,32 +69,32 @@ export function documentTabPathMenu({
               ]
             : []),
         {
-            label: 'Open with Default App',
+            label: t('editor.load.openWithDefaultApp'),
             disabled: !target,
             disabledReason: desktop.disabledReason,
             onSelect: () => target && openWithDefaultApp(target),
         },
         {
-            label: 'Reveal in Finder',
+            label: t('editor.pathMenu.revealInFinder'),
             disabled: !target,
             disabledReason: desktop.disabledReason,
             onSelect: () => target && reveal(target),
         },
         {
-            label: 'Open in Terminal',
+            label: t('editor.pathMenu.openInTerminal'),
             disabled: !target,
             disabledReason: desktop.disabledReason,
             onSelect: () => target && openInTerminal(target),
         },
         CONTEXT_MENU_SEPARATOR,
         {
-            label: 'Copy Path',
+            label: t('editor.pathMenu.copyPath'),
             disabled: !resolution,
             disabledReason: unavailableReason,
             onSelect: () => resolution && copyFilePath(resolution.absolutePath),
         },
         !externalDocumentId && {
-            label: 'Copy Relative Path',
+            label: t('editor.pathMenu.copyRelativePath'),
             disabled: !resolution?.relativeRoot,
             disabledReason: unavailableReason,
             onSelect: () =>

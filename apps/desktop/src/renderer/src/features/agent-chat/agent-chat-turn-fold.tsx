@@ -6,6 +6,7 @@ import { Bot, ChevronRight, CircleStop, CircleX } from 'lucide-react';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
 import { agentChatTurnExpansionKey, agentChatTurnWorkItems } from './agent-chat-expansion';
@@ -13,7 +14,11 @@ import { AgentChatFindQueryContext, isAgentChatTurnFoldMatch } from './agent-cha
 import type { AgentChatTurnSubagent } from './agent-chat-tasks';
 import { agentChatTurnSubagents } from './agent-chat-tasks';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
-import { agentChatTurnTimeTooltip, agentChatTurnTone } from './agent-chat-timeline';
+import {
+    agentChatTurnLabel,
+    agentChatTurnTimeTooltip,
+    agentChatTurnTone,
+} from './agent-chat-timeline';
 import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatTaskLinksContext } from './hooks/use-agent-chat-task-link';
 
@@ -36,11 +41,12 @@ function TurnSubagentButton({
     onOpen: (taskId: string) => void;
     subagent: AgentChatTurnSubagent;
 }) {
-    const title = subagent.title ?? 'Subagent';
+    const { t } = useTranslation();
+    const title = subagent.title ?? t('agentChat.fold.subagent');
     return (
-        <Tooltip content={`Open ${title}`}>
+        <Tooltip content={t('agentChat.timeline.openNamed', { name: title })}>
             <Button
-                aria-label={`Open subagent ${title}`}
+                aria-label={t('agentChat.fold.openSubagent', { name: title })}
                 className="min-h-6 max-w-48 min-w-0 shrink gap-1 px-1.5 text-muted"
                 size="sm"
                 variant="ghost"
@@ -175,6 +181,7 @@ export function AgentChatTurnFold({
     const isExpanded = expansion.isExpanded || find.isOpen;
     const detailId = useId();
     const links = use(AgentChatTaskLinksContext);
+    const { t } = useTranslation();
     const subagents = useMemo(
         () => (links ? agentChatTurnSubagents(turnItems(entry), links.tasksByItem) : []),
         [entry, links],
@@ -184,10 +191,10 @@ export function AgentChatTurnFold({
             <TurnFoldHeader
                 detailId={detailId}
                 isExpanded={isExpanded}
-                label={entry.label}
+                label={agentChatTurnLabel(entry, t)}
                 status={entry.status}
                 subagents={subagents}
-                timeTooltip={agentChatTurnTimeTooltip(entry)}
+                timeTooltip={agentChatTurnTimeTooltip(entry, t)}
                 onOpenSubagent={links?.openTask}
                 onToggle={(element) => {
                     expansion.toggle(element, !isExpanded);

@@ -22,6 +22,7 @@ import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
 } from '../features/workbench/workbench-root-prompt-store';
+import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import { createStore } from '../lib/store';
 import { reportAutomaticNamingNotices } from './automatic-naming-notice';
@@ -132,7 +133,8 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
     refresh: refreshWorkbench,
     async patchSessionState(
         next,
-        failureLabel = 'Session layout could not be saved',
+        // A default parameter is evaluated per call, so this reads the language active when the write fails.
+        failureLabel = translate('core.workbench.layoutSaveFailed'),
         onLatestFailure,
         failureMode = 'rollback',
         shouldReportFailure = true,
@@ -598,10 +600,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             }
             case 'host.connectionChanged': {
                 if (event.payload.status === 'replaced') {
-                    pushToast(
-                        'error',
-                        'Another Caxri window took over this profile. Continue in the other window.',
-                    );
+                    pushToast('error', translate('core.workbench.profileTakenOver'));
                     return;
                 }
                 /**

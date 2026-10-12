@@ -1,22 +1,24 @@
 import { PanelHeader } from '../../../components/panel-header';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import type { SourceControlController } from './hooks/use-source-control-controller';
 import { SourceControlIcon } from './source-control-icon';
 
 export function SourceControlHeader({ controller }: { controller: SourceControlController }) {
+    const { t } = useTranslation();
     if (controller.status !== 'ready')
         return (
             <PanelHeader
                 className="git-heading"
-                title="Source Control"
+                title={t('viewContainers.sourceControl.title')}
                 actions={
-                    <Tooltip content="Refresh Source Control">
+                    <Tooltip content={t('viewContainers.sourceControl.refresh')}>
                         <Button
                             size="icon"
                             variant="ghost"
-                            aria-label="Refresh Source Control"
+                            aria-label={t('viewContainers.sourceControl.refresh')}
                             aria-busy={controller.isRefreshing || undefined}
                             aria-disabled={
                                 controller.status === 'no-session' ||
@@ -42,7 +44,7 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
 
     const { model, runAction, selectMode } = controller;
     const refreshLabel = controller.isRefreshing
-        ? 'Refreshing Source Control'
+        ? t('viewContainers.sourceControl.refreshing')
         : model.refreshAction.label;
     return (
         <PanelHeader

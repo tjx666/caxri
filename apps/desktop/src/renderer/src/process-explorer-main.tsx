@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 
 import { ErrorBoundary } from './components/error-boundary';
 import { ProcessExplorerRoot } from './features/process-explorer/process-explorer-root';
+import { I18nProvider } from './i18n';
 import { observeWindowActive } from './lib/window-active';
 import { installRendererErrorReporter } from './renderer-error-reporter';
 
@@ -13,13 +14,15 @@ observeWindowActive();
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>
-        <ErrorBoundary
-            title="Process Explorer stopped rendering"
-            description="Reload Process Explorer to resume live diagnostics."
-            reloadLabel="Reload Process Explorer"
-            logScope="Process Explorer"
-        >
-            <ProcessExplorerRoot />
-        </ErrorBoundary>
+        <I18nProvider>
+            <ErrorBoundary
+                titleKey="core.errorBoundary.processExplorer.title"
+                descriptionKey="core.errorBoundary.processExplorer.description"
+                reloadLabelKey="core.errorBoundary.processExplorer.reload"
+                logScope="Process Explorer"
+            >
+                <ProcessExplorerRoot />
+            </ErrorBoundary>
+        </I18nProvider>
     </StrictMode>,
 );

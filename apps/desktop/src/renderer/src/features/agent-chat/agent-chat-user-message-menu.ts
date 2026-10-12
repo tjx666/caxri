@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import type { ContextMenuEntries, ContextMenuEntry } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 
@@ -50,20 +51,27 @@ function rewindEntry(
 export function agentChatUserMessageMenu(input: AgentChatUserMessageMenuInput): ContextMenuEntries {
     const selection = input.selectedText.trim() === '' ? '' : input.selectedText;
     const copy: ContextMenuEntry | undefined = selection
-        ? { label: 'Copy', onSelect: () => input.onCopy(selection) }
+        ? { label: translate('common.copy'), onSelect: () => input.onCopy(selection) }
         : input.text
-          ? { label: 'Copy Message', onSelect: () => input.onCopy(input.text) }
+          ? {
+                label: translate('agentChat.userMenu.copyMessage'),
+                onSelect: () => input.onCopy(input.text),
+            }
           : undefined;
     return [
         copy,
         CONTEXT_MENU_SEPARATOR,
-        rewindEntry('Edit from Here', input.edit, input.onEdit),
+        rewindEntry(translate('agentChat.userMenu.editFromHere'), input.edit, input.onEdit),
         rewindEntry(
-            'Fork from Here',
+            translate('agentChat.userMenu.forkFromHere'),
             input.fork,
             input.onFork,
-            input.isForking ? 'A fork from this message is already opening' : undefined,
+            input.isForking ? translate('agentChat.userMenu.forkOpening') : undefined,
         ),
-        rewindEntry('Restore Code to Here', input.restore, input.onRestore),
+        rewindEntry(
+            translate('agentChat.userMenu.restoreCodeToHere'),
+            input.restore,
+            input.onRestore,
+        ),
     ];
 }

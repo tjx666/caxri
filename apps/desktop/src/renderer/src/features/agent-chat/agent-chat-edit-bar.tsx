@@ -4,6 +4,7 @@ import { Pencil, X } from 'lucide-react';
 
 import { Checkbox } from '../../components/ui/checkbox';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { agentChatEditCaption } from './agent-chat-edit';
 
 /**
@@ -42,6 +43,7 @@ function EditBar({
     onCancel,
     onRestoreFilesChange,
 }: AgentChatEditBarProperties) {
+    const { t } = useTranslation();
     const checkboxId = useId();
     const isFilesDisabled = filesUnsupportedReason !== undefined;
     return (
@@ -68,13 +70,13 @@ function EditBar({
                         }
                         htmlFor={checkboxId}
                     >
-                        Also revert file changes
+                        {t('agentChat.edit.revertFiles')}
                     </label>
                 </span>
             </Tooltip>
-            <Tooltip content="Cancel edit" shortcut={cancelShortcut}>
+            <Tooltip content={t('agentChat.edit.cancel')} shortcut={cancelShortcut}>
                 <button
-                    aria-label="Cancel edit"
+                    aria-label={t('agentChat.edit.cancel')}
                     className="-mr-1.5 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                     type="button"
                     onClick={onCancel}

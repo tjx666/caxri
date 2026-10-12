@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { getBootstrap, getSessionState } from '../../stores/selectors';
@@ -33,11 +34,11 @@ export async function sendGitReviewComments(
             sessionId,
             getSessionState()?.paneLayout,
         );
-    if (!agent) return { ok: false, message: 'No running Agent Terminal in this Session' };
+    if (!agent) return { ok: false, message: translate('editor.reviewSend.noAgentTerminal') };
     try {
         activateTerminal(agent.id);
         if (!(await whenTerminalAttached(agent.id, 3000)))
-            throw new Error('Agent Terminal is not ready for input');
+            throw new Error(translate('editor.reviewSend.agentNotReady'));
         await caxri.request('gitReview.send', {
             sessionId,
             repositoryId: repoId,
@@ -48,7 +49,7 @@ export async function sendGitReviewComments(
     } catch (error) {
         return {
             ok: false,
-            message: error instanceof Error ? error.message : 'Unable to send review comments',
+            message: error instanceof Error ? error.message : translate('editor.reviewSend.failed'),
         };
     }
 }

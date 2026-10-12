@@ -2,6 +2,7 @@ import type { TerminalRecord } from '@caxri/protocol';
 import { bugReportText } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../../i18n';
 import type { BugReportContext, BugReportDraft } from '../bug-report';
 import {
     bugReportImageDeliveryNotice,
@@ -216,7 +217,7 @@ describe('bug report target selection', () => {
     });
 
     it('promises the saved file path for every Agent', () => {
-        const notice = bugReportImageDeliveryNotice('claude');
+        const notice = bugReportImageDeliveryNotice(translate, 'claude');
 
         expect(notice).toContain('saved to a temporary file');
         expect(notice).toContain('the Agent can open it');
@@ -224,7 +225,7 @@ describe('bug report target selection', () => {
     });
 
     it('discloses Codex clipboard-backed screenshot delivery before capture', () => {
-        const notice = bugReportImageDeliveryNotice('codex');
+        const notice = bugReportImageDeliveryNotice(translate, 'codex');
 
         expect(notice).toContain('saved to a temporary file');
         expect(notice).toContain('pasted into this Agent directly');

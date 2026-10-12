@@ -9,7 +9,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
-import { BUG_REPORT_SCREENSHOT_ALT } from './bug-report-screenshot-field';
+import { useTranslation } from '../../i18n';
+import { BUG_REPORT_SCREENSHOT_ALT_KEY } from './bug-report-screenshot-field';
 
 interface BugReportPreviewProperties {
     busy: boolean;
@@ -50,6 +51,7 @@ export function BugReportPreview({
     target,
     targets,
 }: BugReportPreviewProperties) {
+    const { t } = useTranslation();
     return (
         <div className="grid gap-3 p-4">
             <pre className="m-0 max-h-72 overflow-auto rounded border border-border bg-background p-3 text-[11px] leading-relaxed whitespace-pre-wrap text-foreground">
@@ -58,11 +60,10 @@ export function BugReportPreview({
             {screenshotDataUrl && (
                 <div className="grid gap-2">
                     <p className="m-0 text-[11px] text-warning">
-                        This screenshot is unredacted: it captures everything currently visible in
-                        the Caxri window, including open files and Terminal output.
+                        {t('bugReport.preview.unredactedNotice')}
                     </p>
                     <img
-                        alt={BUG_REPORT_SCREENSHOT_ALT}
+                        alt={t(BUG_REPORT_SCREENSHOT_ALT_KEY)}
                         className="max-h-96 w-full rounded border border-border bg-background object-contain"
                         src={screenshotDataUrl}
                     />
@@ -72,7 +73,7 @@ export function BugReportPreview({
             {screenshotError && <p className="m-0 text-[11px] text-warning">{screenshotError}</p>}
             <div className="grid gap-1">
                 <label className="text-[12px]" htmlFor="bug-report-target">
-                    Target Agent
+                    {t('bugReport.preview.targetAgent')}
                 </label>
                 <Select
                     value={selectedTargetId}
@@ -80,13 +81,13 @@ export function BugReportPreview({
                 >
                     <SelectTrigger
                         id="bug-report-target"
-                        aria-label="Target Agent"
+                        aria-label={t('bugReport.preview.targetAgent')}
                         disabled={targets.length === 0}
                     >
                         <SelectValue>
                             {target
                                 ? `${agentProviderCatalog[target.provider!].displayName} — ${target.title}`
-                                : 'No running Agent in this Session'}
+                                : t('bugReport.preview.noRunningAgent')}
                         </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -100,9 +101,11 @@ export function BugReportPreview({
             </div>
             {(sessionChanged || !target) && (
                 <p className="m-0 text-[11px] text-warning">
-                    {sessionChanged
-                        ? 'The selected Session changed. Copy the report or reopen this flow.'
-                        : 'No running Agent is available. You can still copy the report.'}
+                    {t(
+                        sessionChanged
+                            ? 'bugReport.preview.sessionChanged'
+                            : 'bugReport.preview.noAgentAvailable',
+                    )}
                 </p>
             )}
             {sendError && (
@@ -112,14 +115,14 @@ export function BugReportPreview({
             )}
             <div className="flex justify-between gap-2">
                 <Button variant="secondary" onClick={onBack}>
-                    Back
+                    {t('common.back')}
                 </Button>
                 <div className="flex gap-2">
                     <Button variant="secondary" onClick={onCopyReport}>
-                        Copy Report
+                        {t('bugReport.preview.copyReport')}
                     </Button>
                     <Button disabled={busy || sessionChanged || !target} onClick={onSend}>
-                        {busy ? 'Sending…' : 'Send to Agent'}
+                        {t(busy ? 'bugReport.preview.sending' : 'bugReport.preview.sendToAgent')}
                     </Button>
                 </div>
             </div>

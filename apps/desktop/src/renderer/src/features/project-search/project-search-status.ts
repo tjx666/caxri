@@ -1,5 +1,7 @@
 import type { FileSearchTerminationReason } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+
 export type ProjectSearchDisplayState =
     'empty' | 'error' | 'idle' | 'incomplete' | 'results' | 'searching';
 
@@ -35,23 +37,29 @@ export function projectSearchDisplayState({
 }
 
 export function projectSearchTerminationMessage(
+    t: Translate,
     reason: FileSearchTerminationReason,
     scannedFiles: number,
     hasMatches: boolean,
 ): string | undefined {
-    const partial = hasMatches ? ' Showing partial results.' : ' Narrow the search to try again.';
+    const next = t(
+        hasMatches
+            ? 'projectSearch.termination.showingPartial'
+            : 'projectSearch.termination.narrowSearch',
+    );
+    const count = scannedFiles.toLocaleString();
     switch (reason) {
         case 'completed':
             return;
         case 'canceled':
-            return 'Search canceled.';
+            return t('projectSearch.termination.canceled');
         case 'timeout':
-            return `Search timed out after scanning ${scannedFiles.toLocaleString()} files.${partial}`;
+            return t('projectSearch.termination.timeout', { count, next });
         case 'file-limit':
-            return `Search stopped after reaching the ${scannedFiles.toLocaleString()} file limit.${partial}`;
+            return t('projectSearch.termination.fileLimit', { count, next });
         case 'result-limit':
-            return 'Search reached the result limit. Showing partial results.';
+            return t('projectSearch.termination.resultLimit');
         case 'payload-limit':
-            return 'Search reached the response size limit. Showing partial results.';
+            return t('projectSearch.termination.payloadLimit');
     }
 }

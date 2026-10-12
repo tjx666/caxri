@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react';
 
 import type { CommanderBoardRow } from '@caxri/protocol';
-import { relativeTime } from '@caxri/utils';
 import {
     Bot,
     CheckCheck,
@@ -23,7 +22,10 @@ import {
 } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
+import { agentCommander as englishAgentCommander } from '../../i18n/locales/en/agent-commander';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { localizedRelativeTime } from '../../lib/relative-time';
 import { cn } from '../../lib/utilities';
 import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
@@ -100,9 +102,10 @@ export function CommanderBoardItem({
      */
     showsOwnership: boolean;
 }) {
-    const presentation = commanderRowPresentation(row);
-    const badge = commanderPullRequestBadge(row);
-    const task = commanderTaskBadge(row.task);
+    const { locale, t } = useTranslation();
+    const presentation = commanderRowPresentation(row, t);
+    const badge = commanderPullRequestBadge(row, t);
+    const task = commanderTaskBadge(row.task, t);
     const GlyphIcon = GLYPH_COMPONENTS[presentation.glyph];
     const ProcessIcon = presentation.processIcon && PROCESS_ICONS[presentation.processIcon];
     const ChecksIcon = badge?.checksIcon && CHECKS_ICONS[badge.checksIcon];
@@ -140,7 +143,7 @@ export function CommanderBoardItem({
                         <CommanderTaskIcon showsOwnership={showsOwnership} task={task} />
                     )}
                     <span className="commander-board-time ml-auto flex-none pl-1 text-[11px] whitespace-nowrap text-muted tabular-nums">
-                        {relativeTime(row.lastActivityAt, now, 'narrow')}
+                        {localizedRelativeTime(row.lastActivityAt, now, 'narrow', locale)}
                     </span>
                 </span>
                 <span className="commander-board-metadata flex h-4 min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted">
@@ -209,9 +212,13 @@ function CommanderTaskIcon({
     showsOwnership: boolean;
     task: ReturnType<typeof commanderTaskBadge>;
 }) {
+    const { t } = useTranslation();
     const TaskIcon = task ? TASK_ICONS[task.icon] : Bot;
-    const description = task?.title ?? 'Created by Agent Commander, so it can delegate tasks here.';
-    const label = showsOwnership && task ? `Commander task. ${description}` : description;
+    const description = task?.title ?? t('agentCommander.board.ownedSession');
+    const label =
+        showsOwnership && task
+            ? t('agentCommander.board.commanderTask', { description })
+            : description;
     return (
         <Tooltip content={label}>
             <span
@@ -221,7 +228,12 @@ function CommanderTaskIcon({
                     'commander-board-task relative flex size-3.5 flex-none items-center justify-center',
                     task?.toneClassName ?? 'text-muted',
                 )}
-                data-task-label={task?.label ?? 'Commander'}
+                // A stable English value in every locale: E2E and diagnostics match on it.
+                data-task-label={
+                    task
+                        ? englishAgentCommander[task.labelKey as keyof typeof englishAgentCommander]
+                        : 'Commander'
+                }
             >
                 <TaskIcon size={12} />
             </span>

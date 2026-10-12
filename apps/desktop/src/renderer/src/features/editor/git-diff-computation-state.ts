@@ -1,3 +1,5 @@
+import type { TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import type { EditorLoadAction } from './editor-load-state';
 import type { GitDiffComputationOutcome } from './git-diff-stall-watch';
 
@@ -6,8 +8,7 @@ import type { GitDiffComputationOutcome } from './git-diff-stall-watch';
  * with no highlights are exactly what an unchanged file looks like, so the sentence has to rule that out explicitly. No
  * Worker, no timeout, no IPC: the user never asked for a diff to be computed anywhere in particular.
  */
-export const DIFF_STALL_REASON =
-    "Couldn't compare these two versions. This isn't a result — the comparison never finished, so the file may well have changed.";
+export const DIFF_STALL_REASON_KEY = 'editor.gitDiff.stallReason' satisfies TranslationKey;
 
 /**
  * The first reply is missing. Shares the sibling reason's vocabulary on purpose: the user asked to see a comparison,
@@ -17,14 +18,16 @@ export const DIFF_STALL_REASON =
  * as the cause and hand almost every user an instruction they cannot act on. The operator-facing explanation lives in
  * `docs/editor-worker-stalls.md`; the visible text stops at the recovery action.
  */
-export const DIFF_WORKER_NOT_STARTED_REASON =
-    "Couldn't compare these two versions. This comparison never started, so the file may well have changed. Choose Retry.";
+export const DIFF_WORKER_NOT_STARTED_REASON_KEY =
+    'editor.gitDiff.workerNotStartedReason' satisfies TranslationKey;
 
 /**
  * Translates one diff computation's outcome into the editor surface's load transition, so the diff shares the file
  * editor's single failure vocabulary instead of growing a second one. `attempt` travels with the outcome because a
  * stall can land long after the user pressed Retry, and an outcome that belongs to an abandoned attempt must not paint
  * over the one now in flight. See issue #978.
+ *
+ * Called from the diff editor's outcome callback, outside render, so the reason is translated here as a snapshot.
  */
 export function gitDiffComputationAction(
     outcome: GitDiffComputationOutcome,
@@ -34,8 +37,11 @@ export function gitDiffComputationAction(
     return {
         type: 'failed',
         attempt,
-        reason:
-            outcome === 'worker-not-started' ? DIFF_WORKER_NOT_STARTED_REASON : DIFF_STALL_REASON,
+        reason: translate(
+            outcome === 'worker-not-started'
+                ? DIFF_WORKER_NOT_STARTED_REASON_KEY
+                : DIFF_STALL_REASON_KEY,
+        ),
         tone: 'failed',
     };
 }

@@ -6,6 +6,9 @@ import type {
 } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { commandCategory, commandDescription, commandTitle } from '../../lib/command-labels';
+
 const STATIC_COMMAND_IDS: ReadonlySet<string> = new Set(commandDefinitions.map(({ id }) => id));
 
 export type CommandPaletteWhenContext = Readonly<Record<CommandWhen, boolean>>;
@@ -21,13 +24,48 @@ export function isCommandVisibleInPalette(
     return command.when === undefined || context[command.when];
 }
 
-export function getStaticCommandPaletteValue(command: CommandDefinition): string {
+/**
+ * The search value always carries the English catalog copy, so an English query finds a command in any language; with
+ * `t`, the translated title, category, and description are appended when they differ from English.
+ */
+export function getStaticCommandPaletteValue(command: CommandDefinition, t?: Translate): string {
+    const translated = t
+        ? [
+              commandCategory(command.category, t),
+              commandTitle(command, t),
+              commandDescription(command, t),
+          ].filter(
+              (text) =>
+                  text !== undefined &&
+                  text !== command.category &&
+                  text !== command.title &&
+                  text !== command.description,
+          )
+        : [];
     return [
         command.category,
         command.title,
         command.id,
         command.description,
         ...(command.keywords ?? []),
+        ...translated,
+    ].join(' ');
+}
+
+/**
+ * Search value for a View catalog or extension command row: English title plus its translation when one exists.
+ */
+export function getDynamicCommandPaletteValue(
+    command: { id: string; title: string; description?: string },
+    t: Translate,
+): string {
+    const title = commandTitle(command, t);
+    return [
+        'Extension',
+        command.title,
+        command.id,
+        command.description ?? '',
+        ...(title === command.title ? [] : [title]),
     ].join(' ');
 }
 

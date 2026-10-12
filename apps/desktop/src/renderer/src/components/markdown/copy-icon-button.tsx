@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { Check, Copy } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { CopyFeedbackStatus } from '../copy-feedback';
 import { COPY_FEEDBACK_RESET_MS, copyButtonLabel } from '../copy-feedback';
@@ -20,13 +21,14 @@ export function CopyIconButton({
     copy: () => Promise<CopyFeedbackStatus>;
     label: string;
 }) {
+    const { t } = useTranslation();
     const [status, setStatus] = useState<CopyFeedbackStatus>('idle');
     useEffect(() => {
         if (status === 'idle') return;
         const timer = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_RESET_MS);
         return () => clearTimeout(timer);
     }, [status]);
-    const accessibleLabel = copyButtonLabel(status, label);
+    const accessibleLabel = copyButtonLabel(status, label, t);
     return (
         <Tooltip content={accessibleLabel}>
             <button

@@ -9,6 +9,7 @@ import { CommandTooltip } from '../../components/command-tooltip';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-session-menu';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
@@ -131,6 +132,13 @@ export function ProjectGroup({
     const [menuOpen, setMenuOpen] = useState(false);
     const headingReference = useRef<HTMLDivElement>(null);
     const visibleSessionIds = useVisibleSessionIds(visibleSessions);
+    const { t } = useTranslation();
+    const disclosureLabel = t(
+        expanded ? 'primarySidebar.project.collapse' : 'primarySidebar.project.expand',
+        {
+            title: project.displayTitle,
+        },
+    );
     /**
      * A collapsed Project hides its rows, and with them every running arc and attention ring. Summarize them on the
      * heading so an Agent waiting on the user is never folded out of sight; an expanded Project shows the rows
@@ -183,14 +191,12 @@ export function ProjectGroup({
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}
                 >
-                    <Tooltip
-                        content={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
-                    >
+                    <Tooltip content={disclosureLabel}>
                         <button
                             className="project-disclosure grid h-7 w-4 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-muted hover:text-foreground"
                             aria-controls={projectDisclosureId}
                             aria-expanded={expanded}
-                            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
+                            aria-label={disclosureLabel}
                             tabIndex={-1}
                             onClick={(event) => {
                                 onToggle();
@@ -219,7 +225,7 @@ export function ProjectGroup({
                                 aria-expanded={expanded}
                                 aria-level={1}
                                 aria-selected={active}
-                                aria-description="Press Shift+F10 for Project actions"
+                                aria-description={t('primarySidebar.project.actionsHint')}
                                 aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
                                 // The count moved into the detail card visually but stays in the treeitem's name so
                                 // collapsed Projects remain equally informative to assistive technology.
@@ -289,7 +295,9 @@ export function ProjectGroup({
                                 className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
                                 size="icon"
                                 variant="ghost"
-                                aria-label={`Customize Project Icon for ${project.displayTitle}`}
+                                aria-label={t('primarySidebar.project.customizeIconAriaLabel', {
+                                    title: project.displayTitle,
+                                })}
                                 tabIndex={-1}
                                 onClick={() =>
                                     executeCommand('project.customizeIcon', {
@@ -323,7 +331,9 @@ export function ProjectGroup({
             >
                 {() => (
                     <div
-                        aria-label={`${project.displayTitle} Sessions`}
+                        aria-label={t('primarySidebar.project.sessionsAriaLabel', {
+                            title: project.displayTitle,
+                        })}
                         className="session-list pb-1 pl-4"
                         role="group"
                     >
@@ -355,24 +365,13 @@ export function ProjectGroup({
                             />
                         ))}
                         {hiddenSessionCount > 0 && (
-                            /*
-                             * The button is the row: it holds the roving Tab stop, so it carries the tree semantics
-                             * itself instead of sitting inside a `treeitem` wrapper focus never reaches. No disclosure
-                             * chevron: this is not a collapsible branch, and a twistie would spend width on a meaning
-                             * the row does not have.
-                             */
-                            <button
-                                className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                                role="treeitem"
-                                aria-label={`Show ${nextRevealCount} more ${nextRevealCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
-                                aria-level={2}
-                                aria-selected={false}
-                                data-row-id={revealRowId}
-                                tabIndex={revealRowId === rovingRowId ? 0 : -1}
-                                onClick={onRevealMoreSessions}
-                            >
-                                Show {nextRevealCount} more
-                            </button>
+                            <ProjectRevealRow
+                                count={nextRevealCount}
+                                projectTitle={project.displayTitle}
+                                roving={revealRowId === rovingRowId}
+                                rowId={revealRowId}
+                                onReveal={onRevealMoreSessions}
+                            />
                         )}
                         {visibleSessions.length === 0 && (
                             <EmptyProjectSessionMenu
@@ -385,5 +384,45 @@ export function ProjectGroup({
                 )}
             </DisclosureMotion>
         </section>
+    );
+}
+
+/**
+ * The button is the row: it holds the roving Tab stop, so it carries the tree semantics itself instead of sitting
+ * inside a `treeitem` wrapper focus never reaches. No disclosure chevron: this is not a collapsible branch, and a
+ * twistie would spend width on a meaning the row does not have.
+ */
+function ProjectRevealRow({
+    count,
+    projectTitle,
+    roving,
+    rowId,
+    onReveal,
+}: {
+    count: number;
+    projectTitle: string;
+    roving: boolean;
+    rowId: string;
+    onReveal: () => void;
+}) {
+    const { t } = useTranslation();
+    return (
+        <button
+            className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+            role="treeitem"
+            aria-label={t(
+                count === 1
+                    ? 'primarySidebar.project.revealAriaLabelOne'
+                    : 'primarySidebar.project.revealAriaLabelOther',
+                { count, title: projectTitle },
+            )}
+            aria-level={2}
+            aria-selected={false}
+            data-row-id={rowId}
+            tabIndex={roving ? 0 : -1}
+            onClick={onReveal}
+        >
+            {t('primarySidebar.reveal.showMore', { count })}
+        </button>
     );
 }

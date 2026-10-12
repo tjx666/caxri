@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 
 /**
@@ -36,9 +38,18 @@ export function isAgentChatMessageRailShown(marks: readonly AgentChatRailMark[])
 /**
  * The first line of a message, collapsed and cut to fit a tooltip. A message of images alone says so.
  */
-export function agentChatRailPreview(text: string, imageCount: number): string {
+export function agentChatRailPreview(
+    text: string,
+    imageCount: number,
+    t: Translate = translate,
+): string {
     const line = text.replaceAll(/\s+/gu, ' ').trim();
-    if (!line) return imageCount === 1 ? 'Image' : imageCount > 1 ? `${imageCount} images` : '';
+    if (!line)
+        return imageCount === 1
+            ? t('agentChat.rail.image')
+            : imageCount > 1
+              ? t('agentChat.rail.images', { count: imageCount })
+              : '';
     return line.length <= PREVIEW_LENGTH ? line : `${line.slice(0, PREVIEW_LENGTH - 1)}…`;
 }
 
@@ -48,12 +59,13 @@ export function agentChatRailPreview(text: string, imageCount: number): string {
  */
 export function agentChatRailMarks(
     timeline: readonly AgentChatTimelineEntry[],
+    t: Translate = translate,
 ): AgentChatRailMark[] {
     const marks: AgentChatRailMark[] = [];
     for (const entry of timeline) {
         if (entry.kind !== 'item' || entry.item.type !== 'userMessage') continue;
         const { id, text, images } = entry.item;
-        marks.push({ id, preview: agentChatRailPreview(text, images?.length ?? 0) });
+        marks.push({ id, preview: agentChatRailPreview(text, images?.length ?? 0, t) });
     }
     return marks;
 }

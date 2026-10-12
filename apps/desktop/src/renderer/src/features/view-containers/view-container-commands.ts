@@ -5,6 +5,7 @@ import type {
     ViewCatalogSnapshot,
 } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
@@ -63,7 +64,10 @@ export async function dispatchExtensionViewAction(
             arguments: [...arguments_],
         });
     if (!feedback) {
-        const result = await tryCommand(`Unable to run ${commandTitle}`, execute);
+        const result = await tryCommand(
+            translate('viewContainers.commands.runFailed', { title: commandTitle }),
+            execute,
+        );
         if (result === undefined) return 'failed';
         if (result.message) pushToast('success', result.message);
         return 'executed';
@@ -78,7 +82,11 @@ export async function dispatchExtensionViewAction(
         if (!isCancelledRequest(error))
             pushToast(
                 'error',
-                actionFailureMessage(error, feedback.failure ?? `Unable to run ${commandTitle}`),
+                actionFailureMessage(
+                    error,
+                    feedback.failure ??
+                        translate('viewContainers.commands.runFailed', { title: commandTitle }),
+                ),
                 { action },
             );
         return 'failed';
@@ -192,7 +200,7 @@ export async function executeViewCatalogShortcut(
     arguments_: readonly unknown[] = [],
 ): Promise<void> {
     if (didRevealCachedViewContainerCommand(commandId)) return;
-    const catalog = await tryCommand('Unable to load extension commands', () =>
+    const catalog = await tryCommand(translate('viewContainers.commands.loadFailed'), () =>
         queryClient.query({
             queryKey: caxriQueryKey('viewContainers.catalog', {}),
             queryFn: () => caxri.request('viewContainers.catalog', {}),
@@ -200,7 +208,7 @@ export async function executeViewCatalogShortcut(
     );
     if (!catalog) return;
     if (!didExecuteViewCatalogCommand(catalog, commandId, arguments_))
-        pushToast('error', `Unknown command: ${commandId}`);
+        pushToast('error', translate('viewContainers.commands.unknown', { commandId }));
 }
 
 /**
@@ -211,7 +219,7 @@ export async function executeEditableViewCatalogShortcut(
     commandId: string,
     arguments_: readonly unknown[] = [],
 ): Promise<void> {
-    const catalog = await tryCommand('Unable to load extension commands', () =>
+    const catalog = await tryCommand(translate('viewContainers.commands.loadFailed'), () =>
         queryClient.query({
             queryKey: caxriQueryKey('viewContainers.catalog', {}),
             queryFn: () => caxri.request('viewContainers.catalog', {}),

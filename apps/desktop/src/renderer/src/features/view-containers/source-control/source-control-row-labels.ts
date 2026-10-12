@@ -1,5 +1,7 @@
 import type { SourceControlAction, SourceControlViewModel } from '@caxri/protocol';
 
+import type { Translate } from '../../../i18n';
+import { translate } from '../../../i18n';
 import type { ConfirmRequest } from '../../../stores/confirmations';
 
 type ProviderModel = SourceControlViewModel['providers'][number];
@@ -7,24 +9,27 @@ type ProviderModel = SourceControlViewModel['providers'][number];
 /**
  * Names the trailing number of a group caption, which otherwise reads as a bare `2` after the `+3 -1` line counts.
  */
-export function changedFileCountLabel(count: number): string {
-    return `${count} changed file${count === 1 ? '' : 's'}`;
+export function changedFileCountLabel(count: number, t: Translate = translate): string {
+    return t(
+        count === 1
+            ? 'viewContainers.sourceControl.changedFilesOne'
+            : 'viewContainers.sourceControl.changedFilesOther',
+        { count },
+    );
 }
 
 /**
  * The group caption's visible file count (`2 files`). A bare `2` beside the `+4 -1` line counts read as a third diff
  * figure, so the count names its unit on screen as well as in the accessible description.
  */
-export function changedFileCountText(count: number): string {
-    return `${count} ${count === 1 ? 'file' : 'files'}`;
+export function changedFileCountText(count: number, t: Translate = translate): string {
+    return t(
+        count === 1
+            ? 'viewContainers.sourceControl.filesOne'
+            : 'viewContainers.sourceControl.filesOther',
+        { count },
+    );
 }
-
-/**
- * The caption's line-count tooltip. These lines are summed from the listed files, which include a new file's lines,
- * while the status bar's changes chip counts only the tracked diff; saying what is counted keeps the two from reading
- * as a disagreement.
- */
-export const GROUP_LINE_STATS_NOTE = 'Lines changed in the listed files, including new files';
 
 /**
  * Detail lines of the branch row's tooltip. The provider's hover text leads with the same branch name the tooltip
@@ -65,6 +70,7 @@ export function branchRowInteraction(
         | 'descriptionKind'
         | 'kindLabel'
     >,
+    t: Translate = translate,
 ): BranchRowInteraction {
     const canSwitchBranch = !provider.kindLabel;
     /**
@@ -77,20 +83,31 @@ export function branchRowInteraction(
                   (action) => action.id === provider.descriptionBadgeActionId && !action.disabled,
               )
             : undefined;
-    const switchVerb =
-        provider.descriptionKind === 'commit' ? 'switch to a branch' : 'switch branches';
     return {
         canSwitchBranch,
         syncAction,
         hints: [
-            canSwitchBranch && `Click or press Enter to ${switchVerb}`,
-            syncAction && `Click ${provider.descriptionBadge} to sync changes`,
+            canSwitchBranch &&
+                t(
+                    provider.descriptionKind === 'commit'
+                        ? 'viewContainers.sourceControl.branch.switchToBranchHint'
+                        : 'viewContainers.sourceControl.branch.switchBranchesHint',
+                ),
+            syncAction &&
+                t('viewContainers.sourceControl.branch.syncHint', {
+                    badge: provider.descriptionBadge ?? '',
+                }),
         ].filter((hint): hint is string => Boolean(hint)),
     };
 }
 
-function commitCount(count: number): string {
-    return `${count} commit${count === 1 ? '' : 's'}`;
+function commitCount(count: number, t: Translate): string {
+    return t(
+        count === 1
+            ? 'viewContainers.sourceControl.sync.commitsOne'
+            : 'viewContainers.sourceControl.sync.commitsOther',
+        { count },
+    );
 }
 
 /**
@@ -109,18 +126,31 @@ export function trackedRemoteBranch(descriptionTooltip: string): string | undefi
 export function branchSyncConfirmRequest(
     provider: Pick<ProviderModel, 'descriptionTooltip'>,
     syncAction: Pick<SourceControlAction, 'command'>,
+    t: Translate = translate,
 ): ConfirmRequest {
     const [, ahead, behind] = syncAction.command.arguments ?? [];
     const remote = trackedRemoteBranch(provider.descriptionTooltip);
-    const target = remote ?? 'its remote branch';
+    const target = remote ?? t('viewContainers.sourceControl.sync.remoteFallback');
     const steps = [
-        typeof behind === 'number' && behind > 0 && `pull ${commitCount(behind)} from ${target}`,
-        typeof ahead === 'number' && ahead > 0 && `push ${commitCount(ahead)} to ${target}`,
+        typeof behind === 'number' &&
+            behind > 0 &&
+            t('viewContainers.sourceControl.sync.pull', {
+                commits: commitCount(behind, t),
+                target,
+            }),
+        typeof ahead === 'number' &&
+            ahead > 0 &&
+            t('viewContainers.sourceControl.sync.push', { commits: commitCount(ahead, t), target }),
     ].filter((step): step is string => Boolean(step));
-    const summary = steps.length > 0 ? steps.join(', then ') : `sync with ${target}`;
+    const summary =
+        steps.length > 0
+            ? steps.join(t('viewContainers.sourceControl.sync.stepSeparator'))
+            : t('viewContainers.sourceControl.sync.fallbackSummary', { target });
     return {
-        title: remote ? `Sync with ${remote}?` : 'Sync this branch?',
-        message: `This will ${summary}.`,
-        confirmLabel: 'Sync',
+        title: remote
+            ? t('viewContainers.sourceControl.sync.titleRemote', { remote })
+            : t('viewContainers.sourceControl.sync.title'),
+        message: t('viewContainers.sourceControl.sync.message', { summary }),
+        confirmLabel: t('viewContainers.sourceControl.sync.confirm'),
     };
 }

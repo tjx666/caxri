@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { GitDecoration } from '../../lib/git-decorations';
 import { gitDecorationDescription } from '../../lib/git-decorations';
 
@@ -42,22 +44,25 @@ export function workTabNavigationTarget(
  * applies. "Unsaved changes" and the Git state are genuinely different facts: a file can be committed-clean with an
  * unsaved buffer, or modified on disk with nothing pending, so both are spoken when both hold.
  */
-export function workTabDescription({
-    accessibleDetail,
-    detail,
-    dirty,
-    gitDecoration,
-}: {
-    accessibleDetail?: string;
-    detail?: string;
-    dirty?: boolean;
-    gitDecoration?: Pick<GitDecoration, 'kind'>;
-}): string {
+export function workTabDescription(
+    {
+        accessibleDetail,
+        detail,
+        dirty,
+        gitDecoration,
+    }: {
+        accessibleDetail?: string;
+        detail?: string;
+        dirty?: boolean;
+        gitDecoration?: Pick<GitDecoration, 'kind'>;
+    },
+    t: Translate = translate,
+): string {
     return [
-        detail ? `In ${detail}.` : undefined,
+        detail ? t('tabs.description.inDetail', { detail }) : undefined,
         accessibleDetail ? `${accessibleDetail}.` : undefined,
         gitDecoration ? gitDecorationDescription(gitDecoration.kind) : undefined,
-        dirty ? 'Unsaved changes.' : undefined,
+        dirty ? t('tabs.description.unsaved') : undefined,
     ]
         .filter(Boolean)
         .join(' ');

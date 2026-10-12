@@ -1,5 +1,8 @@
 import type { AgentChatModel, AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
-import { findAgentChatModel } from '@caxri/protocol';
+import { agentChatEffortLabel, findAgentChatModel } from '@caxri/protocol';
+
+import type { Translate } from '../../i18n';
+import { isTranslationKey, translate } from '../../i18n';
 
 /**
  * The model picker's optimistic state. A switch takes a round trip through Server Core and the provider, and the picker
@@ -71,9 +74,22 @@ export function agentChatSelectionView<Snapshot extends SelectionSnapshot>(
  * The toast title for a failed switch, naming what the user tried to change.
  */
 export function agentChatConfigureFailureMessage(change: AgentChatModelRequest): string {
-    if (change.model !== undefined) return 'Unable to switch the model';
-    if (change.effort !== undefined) return 'Unable to switch the effort';
-    return change.ultracode ? 'Unable to turn on Ultracode' : 'Unable to turn off Ultracode';
+    if (change.model !== undefined) return translate('agentChat.model.switchModelFailed');
+    if (change.effort !== undefined) return translate('agentChat.model.switchEffortFailed');
+    return translate(
+        change.ultracode
+            ? 'agentChat.model.ultracodeOnFailed'
+            : 'agentChat.model.ultracodeOffFailed',
+    );
+}
+
+/**
+ * The display name of one effort level. The known levels are translated; an effort id the protocol does not name keeps
+ * `agentChatEffortLabel`'s capitalized fallback.
+ */
+export function agentChatEffortDisplayName(t: Translate, effort: string): string {
+    const key = `agentChat.model.effort.${effort}`;
+    return isTranslationKey(key) ? t(key) : agentChatEffortLabel(effort);
 }
 
 /**
@@ -87,4 +103,26 @@ export function agentChatMenuModel(
     if (snapshot.model === undefined)
         return snapshot.models?.find((candidate) => candidate.id === 'default');
     return findAgentChatModel(snapshot.models, snapshot.model);
+}
+
+/**
+ * The trigger's visible model and effort words plus its accessible name. `agentChatModelLabel` names an unreported
+ * model "Default"; a listed model's name is the provider's own and stays as reported.
+ */
+export function agentChatModelTriggerText(
+    t: Translate,
+    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'ultracode'> | undefined,
+    label: { model: string; effort?: string },
+): { modelName: string; effortName: string | undefined; ariaLabel: string } {
+    const modelName = snapshot?.model ? label.model : t('agentChat.model.default');
+    const effortName =
+        label.effort && snapshot?.effort
+            ? agentChatEffortDisplayName(t, snapshot.effort)
+            : label.effort;
+    const ariaLabel = [
+        t('agentChat.model.triggerLabel', { model: modelName }),
+        effortName ? t('agentChat.model.triggerEffort', { effort: effortName }) : '',
+        snapshot?.ultracode ? t('agentChat.model.triggerUltracode') : '',
+    ].join('');
+    return { modelName, effortName, ariaLabel };
 }

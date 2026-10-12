@@ -1,5 +1,6 @@
 import type { AgentProvider } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -14,7 +15,7 @@ import { useAgentCommanderStore } from './commander-client';
 export function revealCommanderSession(sessionId: string): void {
     // Fire-and-forget: tryCommand reports a failed hand-off through a toast.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Unable to show this Session in the Workbench', () =>
+    void tryCommand(translate('agentCommander.commands.revealFailed'), () =>
         caxri.request('agentCommander.revealSession', { sessionId }),
     );
 }
@@ -28,7 +29,7 @@ export function openWorkbenchSettings(provider?: AgentProvider): void {
     // untargeted case, matching every other zero-argument Commander request (e.g. `agentCommander.stop` below),
     // rather than always sending an empty `{}` body.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Unable to open Settings in the Workbench', () =>
+    void tryCommand(translate('agentCommander.commands.openSettingsFailed'), () =>
         provider
             ? caxri.request('agentCommander.openSettings', {
                   target: { kind: 'agentExecutable', provider },
@@ -52,7 +53,7 @@ export function configureCommanderTerminalHost(): void {
  * Stopping ends the Commander's Agent Run, so a running turn asks first through the same question as Restart Agent.
  */
 export function stopCommander(): void {
-    const failureTitle = 'Unable to stop Agent Commander';
+    const failureTitle = translate('agentCommander.commands.stopFailed');
     const stop = (): void => {
         // Fire-and-forget: tryCommand reports a failed stop through a toast.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -67,10 +68,9 @@ export function stopCommander(): void {
     void confirmBeforeEndingTurn(
         terminalId,
         {
-            confirmLabel: 'Stop and Close',
+            confirmLabel: translate('agentCommander.commands.stopAndClose'),
             failureTitle,
-            outcome:
-                'Stopping the Commander ends the current turn and closes this window. Tasks it delegated keep running.',
+            outcome: translate('agentCommander.commands.stopOutcome'),
         },
         stop,
     );

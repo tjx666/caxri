@@ -1,4 +1,5 @@
 import { CodeView } from '../../components/markdown/code-view';
+import { useTranslation } from '../../i18n';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 
@@ -27,6 +28,7 @@ export function AgentChatTaskOutput({
     output: string | undefined;
     revision: number;
 }) {
+    const { t } = useTranslation();
     const { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest } =
         useAgentChatScroll(revision);
     const text = output?.replace(/\n+$/u, '') ?? '';
@@ -40,11 +42,9 @@ export function AgentChatTaskOutput({
             )}
             {(isOutputCapped || isTruncated) && (
                 <div className="flex shrink-0 flex-col gap-0.5 border-b border-border px-4 py-1.5 text-[11px] leading-4 text-muted">
-                    {isTruncated && <span>Showing the latest output</span>}
+                    {isTruncated && <span>{t('agentChat.tasks.showingLatestOutput')}</span>}
                     {isOutputCapped && (
-                        <span className="text-warning">
-                            Output stopped streaming; the command may still be running
-                        </span>
+                        <span className="text-warning">{t('agentChat.tasks.outputCapped')}</span>
                     )}
                 </div>
             )}
@@ -60,13 +60,17 @@ export function AgentChatTaskOutput({
                             <CodeView
                                 code={text}
                                 isPaintable={!isRunning}
-                                label="Output"
+                                label={t('agentChat.tasks.outputLabel')}
                                 language="shell"
                             />
                         </div>
                     ) : (
                         <p className="m-0 px-4 py-3 text-[12px] text-muted">
-                            {isRunning ? 'No output yet' : 'No output'}
+                            {t(
+                                isRunning
+                                    ? 'agentChat.tasks.noOutputYet'
+                                    : 'agentChat.tasks.noOutput',
+                            )}
                         </p>
                     )}
                 </div>

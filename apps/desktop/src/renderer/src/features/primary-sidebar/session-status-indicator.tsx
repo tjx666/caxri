@@ -4,6 +4,7 @@ import { useId } from 'react';
 import type { SessionRecord } from '@caxri/protocol';
 import { CircleQuestionMark, Unplug } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { SessionStatusTerminal } from './session-status';
 import { sessionStatus } from './session-status';
@@ -41,6 +42,8 @@ export function SessionStatusIndicator({
     terminal?: SessionStatusTerminal;
 }) {
     const descriptionId = useId();
+    // `sessionStatus` words its labels through `translate()`; subscribing re-renders them on a language change.
+    useTranslation();
     const status = sessionStatus(session, terminal);
     if (status.kind === 'default')
         return (

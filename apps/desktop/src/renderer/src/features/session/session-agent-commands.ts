@@ -1,5 +1,6 @@
 import type { SessionRecord, TerminalRecord } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { copyFilePath } from '../../lib/copy-file-path';
 import { getBootstrap, getSelectedSession } from '../../stores/selectors';
@@ -41,7 +42,7 @@ export function detachSession(sessionId: string): void {
     const latest = getBootstrap();
     const session = latest?.sessions.find((entry) => entry.id === sessionId);
     const terminalId = session ? detachTurnTerminalId(session, latest?.terminals ?? []) : undefined;
-    const failureTitle = 'Session detach failed';
+    const failureTitle = translate('session.errors.detachFailed');
     const detach = (): void => {
         // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -57,10 +58,9 @@ export function detachSession(sessionId: string): void {
     void confirmBeforeEndingTurn(
         terminalId,
         {
-            confirmLabel: 'Stop and Detach',
+            confirmLabel: translate('session.detach.confirm'),
             failureTitle,
-            outcome:
-                'Detaching stops the current turn so another client can resume this conversation.',
+            outcome: translate('session.detach.outcome'),
         },
         detach,
     );
@@ -69,9 +69,13 @@ export function detachSession(sessionId: string): void {
 export function resumeSession(sessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Session resume failed', () => caxri.request('session.resume', { sessionId }), {
-        refresh: refreshWorkbench,
-    });
+    void tryCommand(
+        translate('session.errors.resumeFailed'),
+        () => caxri.request('session.resume', { sessionId }),
+        {
+            refresh: refreshWorkbench,
+        },
+    );
 }
 
 export function detachSelectedSession(): void {
@@ -92,9 +96,9 @@ export function resumeSelectedSession(): void {
 export function copyAgentSessionId(agentSessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Unable to copy the conversation ID', async () => {
+    void tryCommand(translate('session.errors.copyConversationIdFailed'), async () => {
         await navigator.clipboard.writeText(agentSessionId);
-        pushToast('success', 'Conversation ID copied');
+        pushToast('success', translate('session.agent.conversationIdCopied'));
     });
 }
 
@@ -106,12 +110,12 @@ export function copyAgentSessionId(agentSessionId: string): void {
 export function copyAgentTranscriptPath(terminalId: string): void {
     // Fire-and-forget: `tryCommand` funnels the failure into a toast internally, and `copyFilePath` reports its own.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Unable to copy the transcript path', async () => {
+    void tryCommand(translate('session.errors.copyTranscriptPathFailed'), async () => {
         const transcript = await caxri.request('terminal.agentTranscript', {
             terminalId,
             withContent: false,
         });
-        if (!transcript) throw new Error('This Agent keeps no on-disk transcript');
+        if (!transcript) throw new Error(translate('session.agent.noTranscript'));
         await copyFilePath(transcript.path);
     });
 }

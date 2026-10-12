@@ -5,6 +5,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { setBugReportOpen, useDialogStore } from '../../stores/dialogs';
 import { BugReportForm } from './bug-report-form';
@@ -46,6 +47,7 @@ function BugReportDialogContent() {
         targets,
         updateDraft,
     } = useBugReportDialog();
+    const { t } = useTranslation();
 
     return (
         <>
@@ -55,11 +57,8 @@ function BugReportDialogContent() {
                 data-bug-report-dialog
             >
                 <DialogHeader>
-                    <DialogTitle>Report Bug to Agent</DialogTitle>
-                    <DialogDescription>
-                        Capture, annotate, and send a redacted Markdown bug report to a running
-                        Agent in the current Session.
-                    </DialogDescription>
+                    <DialogTitle>{t('bugReport.dialog.title')}</DialogTitle>
+                    <DialogDescription>{t('bugReport.dialog.description')}</DialogDescription>
                     {/**
                      * Closing this dialog keeps the draft, so a reopened dialog that is already full of text has to say where that text
                      * came from. A plain line rather than an Alert: nothing is wrong, and a live region would announce a non-event every
@@ -67,8 +66,7 @@ function BugReportDialogContent() {
                      */}
                     {isRestoredDraft && !report && (
                         <p className="mt-2 mb-0 text-[11px] leading-[1.45] text-muted">
-                            Restored your unsent draft, including the screenshot and its
-                            annotations. Use Discard Draft below to start over.
+                            {t('bugReport.dialog.restoredDraft')}
                         </p>
                     )}
                 </DialogHeader>

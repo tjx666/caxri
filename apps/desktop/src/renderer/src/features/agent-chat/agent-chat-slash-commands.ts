@@ -1,5 +1,6 @@
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { searchAgentActions } from '../agent-actions/agent-action-search';
 
 /**
@@ -61,7 +62,8 @@ export function filterAgentChatActions(
 }
 
 /**
- * The group heading a row starts, or `undefined` when it continues the group above it.
+ * The group heading a row starts, or `undefined` when it continues the group above it. An identity, not display text:
+ * the menu translates it.
  */
 export function agentChatMenuGroupHeading(
     actions: readonly AgentAction[],
@@ -82,8 +84,10 @@ export function agentChatSkillDiscoveryNotice(state: {
     isLoading: boolean;
 }): { text: string; isLoading: boolean } | undefined {
     if (!state.isAgentRunning)
-        return { text: 'Skills appear once the Agent is running', isLoading: false };
-    return state.isLoading ? { text: 'Loading skills…', isLoading: true } : undefined;
+        return { text: translate('agentChat.slash.skillsNeedAgent'), isLoading: false };
+    return state.isLoading
+        ? { text: translate('agentChat.slash.loadingSkills'), isLoading: true }
+        : undefined;
 }
 
 /**

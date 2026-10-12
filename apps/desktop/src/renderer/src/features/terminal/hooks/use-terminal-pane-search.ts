@@ -4,6 +4,7 @@ import type { ThemeTokens } from '@caxri/protocol';
 import type { ISearchOptions } from '@xterm/addon-search';
 import { SearchAddon } from '@xterm/addon-search';
 
+import { translate } from '../../../i18n';
 import { emptySearchResults, opaqueSearchColor } from '../terminal-pane-support';
 import type {
     TerminalSearchOptions,
@@ -116,10 +117,11 @@ export function useTerminalPaneSearch(latest: TerminalThemeReference) {
             } catch (error) {
                 search.clearDecorations();
                 setSearchResults({
-                    error:
+                    error: translate(
                         error instanceof SyntaxError
-                            ? 'Invalid regular expression'
-                            : 'Search unavailable',
+                            ? 'terminal.search.invalidRegex'
+                            : 'terminal.search.unavailable',
+                    ),
                     resultCount: 0,
                     resultIndex: -1,
                 });

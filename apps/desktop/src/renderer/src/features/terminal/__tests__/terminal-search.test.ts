@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { translate } from '../../../i18n';
 import {
     createTerminalSearchSelectionGuard,
     initialTerminalSearchState,
@@ -44,19 +45,23 @@ describe('Terminal search state', () => {
     });
 
     it('formats current, empty, invalid, and highlight-limit result states', () => {
-        expect(terminalSearchResultLabel('', { resultCount: 0, resultIndex: -1 })).toBe('');
-        expect(terminalSearchResultLabel('x', { resultCount: 0, resultIndex: -1 })).toBe(
+        expect(terminalSearchResultLabel(translate, '', { resultCount: 0, resultIndex: -1 })).toBe(
+            '',
+        );
+        expect(terminalSearchResultLabel(translate, 'x', { resultCount: 0, resultIndex: -1 })).toBe(
             'No results',
         );
-        expect(terminalSearchResultLabel('x', { resultCount: 4, resultIndex: 1 })).toBe('2/4');
-        expect(terminalSearchResultLabel('x', { resultCount: 1_000, resultIndex: 0 })).toBe(
-            '1/1000',
-        );
-        expect(terminalSearchResultLabel('x', { resultCount: 1_001, resultIndex: 0 })).toBe(
-            '1000+ results',
+        expect(terminalSearchResultLabel(translate, 'x', { resultCount: 4, resultIndex: 1 })).toBe(
+            '2/4',
         );
         expect(
-            terminalSearchResultLabel('(', {
+            terminalSearchResultLabel(translate, 'x', { resultCount: 1_000, resultIndex: 0 }),
+        ).toBe('1/1000');
+        expect(
+            terminalSearchResultLabel(translate, 'x', { resultCount: 1_001, resultIndex: 0 }),
+        ).toBe('1000+ results');
+        expect(
+            terminalSearchResultLabel(translate, '(', {
                 error: 'Invalid regular expression',
                 resultCount: 0,
                 resultIndex: -1,

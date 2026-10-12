@@ -11,6 +11,7 @@ import {
     DialogTitle,
 } from '../../components/ui/dialog';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
 import { getBootstrap, selectSelectedWorkbenchProject } from '../../stores/selectors';
@@ -25,6 +26,7 @@ export function GitReviewSend({
     sessionId: string;
     repositoryId: string;
 }) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [sending, setSending] = useState(false);
     const [sendError, setSendError] = useState<string | undefined>(undefined);
@@ -55,15 +57,20 @@ export function GitReviewSend({
             setSending(false);
         }
     };
-    const sendLabel = `Send ${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} to Agent`;
+    const sendLabel = t(
+        comments.length === 1
+            ? 'editor.reviewSend.sendToAgentOne'
+            : 'editor.reviewSend.sendToAgentOther',
+        { count: comments.length },
+    );
     return (
         <>
             {hasResolved && (
-                <Tooltip content="Clear sent and outdated">
+                <Tooltip content={t('editor.reviewSend.clearResolved')}>
                     <Button
                         size="icon"
                         variant="ghost"
-                        aria-label="Clear sent and outdated"
+                        aria-label={t('editor.reviewSend.clearResolved')}
                         onClick={() => {
                             // eslint-disable-next-line no-void -- floating-promise discard: list refetches via `gitReview.changed`
                             void clearResolvedGitReviewComments(sessionId, repositoryId);
@@ -92,15 +99,14 @@ export function GitReviewSend({
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent className="w-[min(720px,calc(100vw-32px))]">
                     <DialogHeader>
-                        <DialogTitle>Send review comments to Agent</DialogTitle>
+                        <DialogTitle>{t('editor.reviewSend.dialogTitle')}</DialogTitle>
                         <DialogDescription>
-                            Review the text before sending it to the current Session's Agent
-                            Terminal.
+                            {t('editor.reviewSend.dialogDescription')}
                         </DialogDescription>
                     </DialogHeader>
                     <pre
                         className="max-h-[50vh] overflow-auto px-4 py-3 text-xs whitespace-pre-wrap"
-                        aria-label="Review comment prompt preview"
+                        aria-label={t('editor.reviewSend.promptPreview')}
                     >
                         {prompt}
                     </pre>
@@ -111,12 +117,17 @@ export function GitReviewSend({
                     )}
                     <div className="flex justify-end gap-2 px-4 pb-4">
                         <Button variant="ghost" onClick={() => setOpen(false)}>
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button disabled={sending || comments.length === 0} onClick={send}>
                             {sending
-                                ? 'Sending…'
-                                : `Send ${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}`}
+                                ? t('editor.reviewSend.sending')
+                                : t(
+                                      comments.length === 1
+                                          ? 'editor.reviewSend.sendOne'
+                                          : 'editor.reviewSend.sendOther',
+                                      { count: comments.length },
+                                  )}
                         </Button>
                     </div>
                 </DialogContent>

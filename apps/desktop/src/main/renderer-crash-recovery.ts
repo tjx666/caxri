@@ -4,6 +4,7 @@ import type { BrowserWindow } from 'electron';
 import { app, dialog } from 'electron';
 
 import { decideCrashRecovery } from './crash-policy';
+import { translateMain } from './locale';
 
 /**
  * Reloads a crashed Workbench Renderer with backoff and, once it is crash-looping, asks whether to relaunch or quit.
@@ -68,10 +69,13 @@ export function observeRendererCrashes(
         (async () => {
             const result = await dialog.showMessageBox(window, {
                 type: 'error',
-                title: 'Caxri Keeps Crashing',
-                message: 'The Caxri window has crashed repeatedly and automatic reload stopped.',
-                detail: 'Relaunch Caxri, or quit to investigate.',
-                buttons: ['Relaunch', 'Quit'],
+                title: translateMain('desktop.crash.title'),
+                message: translateMain('desktop.crash.message'),
+                detail: translateMain('desktop.crash.detail'),
+                buttons: [
+                    translateMain('desktop.crash.relaunch'),
+                    translateMain('desktop.crash.quit'),
+                ],
                 defaultId: 0,
                 cancelId: 1,
             });

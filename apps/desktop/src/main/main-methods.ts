@@ -56,6 +56,7 @@ import {
 import { openExternalUrl } from './external-links';
 import { createLinkFavicons } from './link-favicons';
 import { createLinkPreviews } from './link-previews';
+import { translateMain } from './locale';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { requestWindowOr } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
@@ -330,7 +331,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 const running = sumRunningWork(counts);
                 const projectTitle =
                     state.projects.find((project) => project.id === projectId)?.displayTitle ??
-                    'this Project';
+                    translateMain('desktop.fallback.thisProject');
                 const result = await dialog.showMessageBox(
                     mainWindow!,
                     deleteProjectPrompt(
@@ -348,7 +349,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 const bootstrap = await supervisor.request('app.bootstrap');
                 const sessionTitle =
                     bootstrap.sessions.find((session) => session.id === sessionId)?.displayTitle ??
-                    'this Session';
+                    translateMain('desktop.fallback.thisSession');
                 const sessionPrompt = deleteSessionPrompt(sessionTitle, running);
                 const result = sessionDeleteFixture
                     ? await sessionDeleteFixture.confirm(sessionId, sessionPrompt)
@@ -370,7 +371,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                         ? deleteSessionPrompt(
                               (await supervisor.request('app.bootstrap')).sessions.find(
                                   (session) => session.id === sessionIds[0],
-                              )?.displayTitle ?? 'this Session',
+                              )?.displayTitle ?? translateMain('desktop.fallback.thisSession'),
                               running,
                           )
                         : deleteSessionsPrompt(sessionIds.length, running),

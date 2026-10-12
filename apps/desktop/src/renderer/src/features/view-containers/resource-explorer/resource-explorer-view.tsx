@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { useTranslation } from '../../../i18n';
 import { useActivePaneTab } from '../../workbench/pane-actions';
 import { useIsViewContainerActive } from '../view-container-activity';
 import { useResourceExplorerController } from './hooks/use-resource-explorer-controller';
@@ -8,13 +9,14 @@ import { clearScopeRevealPath, followEditorFileInScope } from './resource-explor
 import { paneTabFilePath } from './resource-explorer-state';
 
 export function ResourceExplorerView() {
+    const { t } = useTranslation();
     const controller = useResourceExplorerController();
     const isContainerActive = useIsViewContainerActive();
 
     if (!controller)
         return (
             <div className="empty-panel px-3 py-4 text-center text-muted">
-                Create a Session to browse files.
+                {t('viewContainers.files.noSessionHint')}
             </div>
         );
 

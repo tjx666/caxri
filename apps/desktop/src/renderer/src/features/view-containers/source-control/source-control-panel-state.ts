@@ -1,5 +1,7 @@
 import type { SourceControlViewModel } from '@caxri/protocol';
 
+import { translate } from '../../../i18n';
+
 export type SourceControlPanelState =
     | { status: 'no-session' }
     | { status: 'loading' }
@@ -21,7 +23,10 @@ export function resolveSourceControlPanelState({
 }): SourceControlPanelState {
     if (!hasSession) return { status: 'no-session' };
     if (hasSnapshotError)
-        return { status: 'unavailable', message: 'Source Control is unavailable right now.' };
+        return {
+            status: 'unavailable',
+            message: translate('viewContainers.sourceControl.unavailable'),
+        };
     if (!model) return { status: 'loading' };
     if (model.emptyKind === 'no-repository') return { status: 'no-repository' };
     if (model.emptyMessage) return { status: 'unavailable', message: model.emptyMessage };

@@ -1,0 +1,59 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+
+import type { agentStatus as source } from '../en/agent-status';
+
+export const agentStatus: TranslatedNamespace<typeof source> = {
+    // Provider service status, worded like the provider's own status page
+    'agentStatus.service.operational': '运行正常',
+    'agentStatus.service.maintenance': '维护中',
+    'agentStatus.service.degraded': '性能下降',
+    'agentStatus.service.partialOutage': '部分中断',
+    'agentStatus.service.majorOutage': '严重中断',
+    'agentStatus.failure.network': '状态不可用：无法访问状态页',
+    'agentStatus.failure.http': '状态不可用：状态页返回了错误',
+    'agentStatus.failure.invalidResponse': '状态不可用：状态页格式已变更',
+    'agentStatus.affectedComponents': '{{status}}：{{components}}',
+    'agentStatus.alertLabel': 'API 状态：{{status}}',
+    'agentStatus.phase.investigating': '调查中',
+    'agentStatus.phase.identified': '已定位',
+    'agentStatus.phase.monitoring': '监控中',
+    'agentStatus.phase.resolved': '已解决',
+    'agentStatus.phase.postmortem': '事后复盘',
+    'agentStatus.moreIncidents': '另有 {{count}} 个',
+    'agentStatus.incidentWithPhase': '{{name}}（{{phase}}）',
+    // Status-bar card summary
+    'agentStatus.summary.readFailed': '无法读取状态页',
+    'agentStatus.summary.checking': '正在检查…',
+    // Agent status tab
+    'agentStatus.page.terminalClosed': '此终端已关闭，数据不再更新。',
+    // Output speed section
+    'agentStatus.throughput.title': '输出速度',
+    'agentStatus.throughput.loading': '正在读取对话记录…',
+    'agentStatus.throughput.error': '无法读取 Agent 的对话记录。',
+    'agentStatus.throughput.closed': '此终端关闭前未测得任何数据。',
+    'agentStatus.throughput.notMeasured': '尚未测得任何响应。Agent 完成首次响应后将显示速度。',
+    'agentStatus.throughput.chartLabel': '最近 {{count}} 次响应的输出速度',
+    'agentStatus.throughput.barDescription': '{{sample}}，完成于 {{time}}',
+    'agentStatus.throughput.recentAverage': '近期平均',
+    'agentStatus.throughput.lastResponse': '上次响应',
+    'agentStatus.throughput.thisTurn': '本轮',
+    'agentStatus.throughput.noResponseThisTurn': '本轮尚无响应',
+    'agentStatus.throughput.firstToken': '首个 Token',
+    'agentStatus.throughput.firstTokenNotReported': '最近完成的一轮未报告',
+    'agentStatus.throughput.firstTokenLastTurn': '最近完成的一轮',
+    'agentStatus.throughput.agentSession': 'Agent 会话',
+    'agentStatus.throughput.chartCaption': '最近 {{count}} 次响应，从旧到新；虚线为近期平均值',
+    'agentStatus.throughput.chartPending': '测得第二次响应后将显示图表。',
+    // API status section
+    'agentStatus.provider.title': 'API 状态',
+    'agentStatus.provider.pageTitle': '{{page}} API 状态',
+    'agentStatus.provider.readFailed': 'Caxri 无法读取 {{agent}} 的状态页。',
+    'agentStatus.provider.noPage': '{{agent}} 没有可读取的公开状态页。',
+    'agentStatus.provider.checking': '正在检查状态页…',
+    'agentStatus.provider.openPage': '打开状态页',
+    'agentStatus.provider.checkedAgo': '检查于 {{time}}',
+    'agentStatus.provider.updatedAgo': '更新于 {{time}}',
+    'agentStatus.provider.unavailable': '{{reason}}。Caxri 每分钟会重试一次。',
+    'agentStatus.provider.activeIncidents': '进行中的事件',
+    'agentStatus.provider.noIncidents': '没有影响这些组件的未解决事件。',
+};

@@ -19,7 +19,7 @@ import { SourceControlHistoryAvatar } from './source-control-history-avatar';
 import { SourceControlHistoryDetails } from './source-control-history-details';
 import { SourceControlHistoryHoverCard } from './source-control-history-hover-card';
 import { SourceControlHistoryPathFilter } from './source-control-history-path-filter';
-import { REFRESHING_ACTION_MESSAGE } from './source-control-history-state';
+import { refreshingActionMessage } from './source-control-history-state';
 import { SourceControlIcon } from './source-control-icon';
 import { SourceControlTreeRow } from './source-control-tree-row';
 
@@ -191,7 +191,7 @@ export function SourceControlHistory({
                                                     if (!areActionsCurrent) {
                                                         pushToast(
                                                             'warning',
-                                                            REFRESHING_ACTION_MESSAGE,
+                                                            refreshingActionMessage(),
                                                         );
                                                         return;
                                                     }
@@ -275,7 +275,7 @@ export function SourceControlHistory({
                                     // within the same second, so only the stale-revision case is worth a sentence.
                                     if (loading || (!scope && path !== debouncedPath)) return;
                                     if (!areActionsCurrent) {
-                                        pushToast('warning', REFRESHING_ACTION_MESSAGE);
+                                        pushToast('warning', refreshingActionMessage());
                                         return;
                                     }
                                     // eslint-disable-next-line no-void -- loadPage owns its loading and error state

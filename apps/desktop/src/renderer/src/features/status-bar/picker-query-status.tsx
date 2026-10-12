@@ -1,6 +1,7 @@
 import { Button } from '../../components/ui/button';
 import { CommandEmpty } from '../../components/ui/command';
 import { Spinner } from '../../components/ui/spinner';
+import { useTranslation } from '../../i18n';
 
 /**
  * Query failures remain actionable even when a picker pins its current selection.
@@ -9,7 +10,7 @@ export function PickerQueryStatus({
     noun,
     query,
 }: {
-    noun: string;
+    noun: 'branches' | 'worktrees';
     query: {
         isLoading: boolean;
         isError: boolean;
@@ -17,11 +18,12 @@ export function PickerQueryStatus({
         refetch: () => Promise<unknown>;
     };
 }) {
+    const { t } = useTranslation();
     if (query.isLoading)
         return (
             <div role="status" className="flex items-center gap-2 px-2 py-2 text-muted">
                 <Spinner aria-hidden="true" className="size-3" />
-                Loading {noun}…
+                {t(`statusBar.picker.${noun}.loading`)}
             </div>
         );
     if (query.isError)
@@ -30,7 +32,7 @@ export function PickerQueryStatus({
                 role="alert"
                 className="flex items-center justify-between gap-2 px-2 py-2 text-muted"
             >
-                <span>Unable to load {noun}.</span>
+                <span>{t(`statusBar.picker.${noun}.loadFailed`)}</span>
                 <Button
                     size="sm"
                     variant="secondary"
@@ -42,9 +44,9 @@ export function PickerQueryStatus({
                         void query.refetch();
                     }}
                 >
-                    Retry
+                    {t('common.retry')}
                 </Button>
             </div>
         );
-    return <CommandEmpty>No matching {noun}.</CommandEmpty>;
+    return <CommandEmpty>{t(`statusBar.picker.${noun}.empty`)}</CommandEmpty>;
 }

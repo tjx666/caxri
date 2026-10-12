@@ -8,6 +8,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
+import { useTranslation } from '../../i18n';
 import {
     confirmationLabels,
     resolveConfirm,
@@ -20,9 +21,10 @@ import {
  * instead of hand-rolling another Dialog per feature.
  */
 export function ConfirmationDialog() {
+    const { t } = useTranslation();
     const request = useConfirmationStore((state) => state.request);
     const contentReference = useRef<HTMLDivElement>(null);
-    const labels = request ? confirmationLabels(request) : undefined;
+    const labels = request ? confirmationLabels(request, t) : undefined;
 
     return (
         <Dialog

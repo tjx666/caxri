@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { ProcessColumnDefinition, ProcessColumnKey, ProcessSort } from './process-columns';
 import {
@@ -50,6 +51,7 @@ function ProcessColumnResizer({
     onReset: () => void;
     width: number;
 }) {
+    const { t } = useTranslation();
     const dragResize = usePointerDragResize({
         value: width,
         min: column.minWidth,
@@ -82,7 +84,7 @@ function ProcessColumnResizer({
             tabIndex={0}
             className={resizerClassName}
             aria-orientation="vertical"
-            aria-label={`Resize ${column.label} column`}
+            aria-label={t('processExplorer.header.resize', { column: t(column.labelKey) })}
             aria-valuemin={column.minWidth}
             aria-valuemax={PROCESS_COLUMN_MAX_WIDTH}
             aria-valuenow={Math.round(width)}
@@ -116,6 +118,7 @@ export function ProcessTableHeader({
     sort: ProcessSort;
     widths: Record<ProcessColumnKey, number>;
 }) {
+    const { t } = useTranslation();
     return (
         <div
             className="process-header sticky top-0 z-10 grid border-b border-border bg-surface"
@@ -124,6 +127,7 @@ export function ProcessTableHeader({
         >
             {PROCESS_COLUMNS.map((column) => {
                 const isSorted = sort.column === column.key;
+                const label = t(column.labelKey);
                 const SortIcon = sort.direction === 'ascending' ? ChevronUp : ChevronDown;
                 return (
                     <div
@@ -133,7 +137,7 @@ export function ProcessTableHeader({
                          * Named explicitly because the cell's contents would otherwise compose the sort button's label
                          * with the resize handle's ("Sort by PID Resize PID column").
                          */
-                        aria-label={column.label}
+                        aria-label={label}
                         aria-sort={isSorted ? sort.direction : 'none'}
                         className={cn(
                             'relative flex min-h-7 items-stretch border-l border-border',
@@ -148,11 +152,11 @@ export function ProcessTableHeader({
                                 column.isNumeric && 'flex-row-reverse text-right',
                                 isSorted && 'text-foreground',
                             )}
-                            aria-label={`Sort by ${column.label}`}
+                            aria-label={t('processExplorer.header.sortBy', { column: label })}
                             onClick={() => onSort(column.key)}
                         >
                             <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                {column.label}
+                                {label}
                             </span>
                             <SortIcon
                                 className={cn('shrink-0', !isSorted && 'invisible')}

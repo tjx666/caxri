@@ -3,6 +3,7 @@ import { Braces, GitCommitHorizontal } from 'lucide-react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
+import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import { sessionViewScope } from '../../stores/session-view';
 import {
@@ -24,15 +25,17 @@ export function ActiveFileStatus({
     tier: Exclude<ActiveFileStatusTier, 'hidden'>;
     workbenchProjectId: string;
 }) {
+    const { t } = useTranslation();
     const key = editorStatusKey(sessionViewScope(sessionId, workbenchProjectId), path);
     const editorStatus = useEditorStatusStore((state) => state.statuses[key]);
     // An external document shows only what its own editor published. A tab whose editor never reported (its file is
     // gone or unreadable) shows nothing rather than a made-up `Ln 1, Col 1` in Plain Text.
     if (tier === 'cursorOnly' && !editorStatus) return null;
-    const language = editorLanguageLabel(editorStatus?.languageId ?? 'plaintext');
-    const cursor = editorStatus
-        ? `Ln ${editorStatus.line}, Col ${editorStatus.column}`
-        : 'Ln 1, Col 1';
+    const language = editorLanguageLabel(editorStatus?.languageId ?? 'plaintext', t);
+    const cursor = t('statusBar.file.cursor', {
+        line: editorStatus?.line ?? 1,
+        column: editorStatus?.column ?? 1,
+    });
     const selection = editorStatus?.selectedCharacters ?? 0;
     return (
         <>
@@ -44,18 +47,25 @@ export function ActiveFileStatus({
                 />
             )}
             <StatusInfo
-                ariaLabel={`Editor position: ${cursor}${selection > 0 ? `, ${selection} characters selected` : ''}`}
+                ariaLabel={
+                    selection > 0
+                        ? t('statusBar.file.positionWithSelectionAriaLabel', {
+                              cursor,
+                              count: selection,
+                          })
+                        : t('statusBar.file.positionAriaLabel', { cursor })
+                }
                 className="statusbar-selection"
-                title="Editor selection"
+                title={t('statusBar.file.selectionTitle')}
             >
-                {selection > 0 && `${selection} selected · `}
+                {selection > 0 && t('statusBar.file.selected', { count: selection })}
                 {cursor}
             </StatusInfo>
             <StatusInfo
-                ariaLabel={`File type: ${language}`}
+                ariaLabel={t('statusBar.file.typeAriaLabel', { language })}
                 className="statusbar-language"
                 icon={<Braces />}
-                title="File type"
+                title={t('statusBar.file.type')}
             >
                 {language}
             </StatusInfo>
@@ -76,6 +86,7 @@ function ActiveFileBlame({
     path: string;
     sessionId: string;
 }) {
+    const { t } = useTranslation();
     const line = useDebouncedValue(cursorLine, 150);
     const blameQuery = useCaxriQuery(
         'git.blame',
@@ -101,14 +112,18 @@ function ActiveFileBlame({
                 <StatusInfo
                     ariaLabel={
                         blame.uncommitted
-                            ? `Git blame: uncommitted changes on line ${line}`
-                            : `Git blame: ${blame.author}, ${authored}, ${blame.subject}`
+                            ? t('statusBar.file.blameUncommittedAriaLabel', { line })
+                            : t('statusBar.file.blameAriaLabel', {
+                                  author: blame.author,
+                                  time: authored ?? '',
+                                  subject: blame.subject,
+                              })
                     }
                     className="statusbar-blame w-full"
                     icon={<GitCommitHorizontal />}
                     title={
                         blame.uncommitted ? (
-                            `Uncommitted changes · line ${line}`
+                            t('statusBar.file.blameUncommittedTitle', { line })
                         ) : (
                             // The tooltip primitive doesn't collapse `\n` like a native `title`
                             // attribute would, so the three-line author/sha/subject summary needs
@@ -120,7 +135,7 @@ function ActiveFileBlame({
                     }
                 >
                     {blame.uncommitted
-                        ? 'Uncommitted changes'
+                        ? t('statusBar.file.uncommittedChanges')
                         : `${blame.author}, ${authored} · ${blame.subject}`}
                 </StatusInfo>
             )}

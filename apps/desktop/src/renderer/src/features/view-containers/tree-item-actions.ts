@@ -1,5 +1,6 @@
 import type { TreeItemDto } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { isCancelledRequest, pushToast } from '../../stores/toasts';
@@ -45,15 +46,20 @@ async function sendTreeItemPromptToAgent(
     command: TreeItemAction['command'],
     feedback?: TreeItemAction['feedback'],
 ): Promise<void> {
-    const failure = feedback?.failure ?? `Unable to run ${command.title}`;
+    const failure =
+        feedback?.failure ??
+        translate('viewContainers.commands.runFailed', { title: command.title });
     const prompt = agentPromptText(command.arguments?.[0]);
     if (!prompt) {
-        pushToast('error', `${failure}. The prompt is missing.`);
+        pushToast('error', translate('viewContainers.commands.promptMissing', { failure }));
         return;
     }
     try {
         const agentName = await sendPromptToSessionAgent(prompt);
-        pushToast('success', `Sent to ${agentName}`);
+        pushToast(
+            'success',
+            translate('viewContainers.commands.sentToAgent', { agent: agentName }),
+        );
     } catch (error) {
         if (!isCancelledRequest(error)) pushToast('error', actionFailureMessage(error, failure));
     }
@@ -73,7 +79,11 @@ export async function runTreeItemCommand(
         const [url] = command.arguments ?? [];
         if (typeof url === 'string')
             await openExternalUrl(url, (message) => pushToast('error', message));
-        else pushToast('error', `Unable to run ${command.title}. The link is missing.`);
+        else
+            pushToast(
+                'error',
+                translate('viewContainers.commands.linkMissing', { title: command.title }),
+            );
         return;
     }
     if (command.id === SEND_TO_AGENT_COMMAND) {

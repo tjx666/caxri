@@ -5,6 +5,7 @@ import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 import { ContextMenuTrigger } from '../../../components/context-menu-trigger';
 import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { useScrollEdge } from '../../../hooks/use-scroll-edge';
+import { useTranslation } from '../../../i18n';
 import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
 import { virtualTreeRenderedIndexes } from '../virtual-tree-range';
 import {
@@ -97,6 +98,7 @@ function FileTreeStickyRow({
  * instead, because the row it needs may not be mounted. Rows still own their own interactions and store subscriptions.
  */
 export function FileTree({ controller }: { controller: ResourceExplorerController }) {
+    const { t } = useTranslation();
     const { editing, projectId } = controller;
     const root = controller.session.rootPath;
     const scrollElement = useRef<HTMLDivElement>(null);
@@ -297,7 +299,7 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
                 <div
                     ref={scrollElement}
                     role="tree"
-                    aria-label="Files"
+                    aria-label={t('viewContainers.files.treeLabel')}
                     className="file-list min-h-0 flex-1 overflow-auto"
                     data-scrolled="false"
                     onBlur={(event) => {

@@ -7,6 +7,8 @@ import {
     splitShortcutChords,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { commandCategory, commandTitle } from '../../lib/command-labels';
 import { applyFormEdit } from './config-edit';
 
 export interface KeybindingRow {
@@ -19,6 +21,12 @@ export interface KeybindingRow {
     key?: string;
     title: string;
 }
+
+/**
+ * Category id of a binding whose command is not in the catalog. Kept as English data so search and grouping stay
+ * stable; the form translates it when it renders the group heading.
+ */
+export const CUSTOM_KEYBINDING_CATEGORY = 'Custom';
 
 const catalogById = new Map<string, CommandDefinition>(
     commandDefinitions.map((command) => [command.id, command]),
@@ -54,7 +62,7 @@ export function buildKeybindingRows(keybindings: readonly Keybinding[]): Keybind
         const definition = catalogById.get(binding.command);
         return {
             bindingIndex,
-            category: definition?.category ?? 'Custom',
+            category: definition?.category ?? CUSTOM_KEYBINDING_CATEGORY,
             command: binding.command,
             defaultKey: defaultByCommand.get(binding.command),
             description: definition?.description ?? 'Custom command not present in the catalog',
@@ -77,9 +85,14 @@ export function buildKeybindingRows(keybindings: readonly Keybinding[]): Keybind
     return rows;
 }
 
+/**
+ * Matches the English catalog text and, when `t` is given, the displayed (possibly translated) title and category, so a
+ * search typed in the active language finds what the row shows.
+ */
 export function filterKeybindingRows(
     rows: readonly KeybindingRow[],
     query: string,
+    t?: Translate,
 ): KeybindingRow[] {
     const needle = query.trim().toLowerCase();
     if (!needle) return [...rows];
@@ -88,6 +101,8 @@ export function filterKeybindingRows(
             row.title,
             row.command,
             row.category,
+            t ? commandTitle({ id: row.command, title: row.title }, t) : '',
+            t ? commandCategory(row.category, t) : '',
             row.key ?? '',
             row.key ? formatShortcut(row.key) : '',
         ].some((value) => value.toLowerCase().includes(needle)),

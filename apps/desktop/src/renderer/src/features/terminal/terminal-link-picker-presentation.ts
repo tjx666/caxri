@@ -1,6 +1,8 @@
+import type { Translate } from '../../i18n';
 import type { TerminalLinkScanStatus } from './terminal-link-scanner';
 
 export function terminalLinkPickerCopy(
+    t: Translate,
     mode: 'candidates' | 'detected',
     isCommit: boolean,
     status: TerminalLinkScanStatus,
@@ -8,21 +10,22 @@ export function terminalLinkPickerCopy(
     if (mode === 'candidates')
         return isCommit
             ? {
-                  title: 'Choose Git Repository',
-                  placeholder: 'Search matching repositories…',
-                  empty: 'No matching repositories.',
+                  title: t('terminal.linkPicker.repository.title'),
+                  placeholder: t('terminal.linkPicker.repository.placeholder'),
+                  empty: t('terminal.linkPicker.repository.empty'),
               }
             : {
-                  title: 'Choose Terminal File',
-                  placeholder: 'Search matching files…',
-                  empty: 'No matching files.',
+                  title: t('terminal.linkPicker.file.title'),
+                  placeholder: t('terminal.linkPicker.file.placeholder'),
+                  empty: t('terminal.linkPicker.file.empty'),
               };
     return {
-        title: 'Open Detected Link',
-        placeholder: 'Search links in the Terminal…',
-        empty:
+        title: t('terminal.linkPicker.detected.title'),
+        placeholder: t('terminal.linkPicker.detected.placeholder'),
+        empty: t(
             status === 'scanning'
-                ? 'Scanning Terminal links…'
-                : 'No links found in the Terminal buffer.',
+                ? 'terminal.linkPicker.detected.scanning'
+                : 'terminal.linkPicker.detected.empty',
+        ),
     };
 }

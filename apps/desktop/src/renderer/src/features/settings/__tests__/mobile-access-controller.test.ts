@@ -6,7 +6,7 @@ describe('mobile access controller load state', () => {
     it('distinguishes an initial failure from loading and allows a clean retry', () => {
         const failed = mobileAccessReducer(initialMobileAccessState, { type: 'load-failed' });
         expect(failed).toMatchObject({
-            error: 'Unable to load mobile access.',
+            error: 'settings.mobileAccess.error.load',
             loadState: 'error',
         });
         expect(failed.status).toBeUndefined();

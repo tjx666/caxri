@@ -5,6 +5,7 @@ import type {
     TerminalKind,
 } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import type { SessionStatusTerminal } from './session-status';
 
 export interface SessionActivityPresentation {
@@ -15,50 +16,33 @@ export interface SessionActivityPresentation {
     tone: 'danger' | 'neutral' | 'success' | 'warning';
 }
 
-const PRESENTATIONS: Record<AgentActivityState, SessionActivityPresentation> = {
-    completed: presentation(
-        'Finished',
-        'The Agent finished its latest turn.',
-        'neutral',
-        'text-muted',
-    ),
-    failed: presentation(
-        'Failed',
-        'The latest reliable Agent state is a failure.',
-        'danger',
-        'text-danger',
-    ),
-    idle: presentation('Idle', 'The Agent is currently idle.', 'neutral', 'text-muted'),
-    running: presentation('Working', 'The Agent is running.', 'success', 'text-success'),
-    unknown: presentation(
-        'No activity reported',
-        'No reliable Agent activity is available.',
-        'neutral',
-        'text-muted',
-    ),
-    waiting: presentation(
-        'Waiting for you',
-        'The Agent is waiting for input or confirmation.',
-        'warning',
-        'text-warning',
-    ),
+type ActivityKey = 'compacting' | 'detached' | 'noAgent' | 'suspended' | AgentActivityState;
+
+const PRESENTATIONS: Record<
+    AgentActivityState,
+    Pick<SessionActivityPresentation, 'indicatorClassName' | 'tone'>
+> = {
+    completed: { tone: 'neutral', indicatorClassName: 'text-muted' },
+    failed: { tone: 'danger', indicatorClassName: 'text-danger' },
+    idle: { tone: 'neutral', indicatorClassName: 'text-muted' },
+    running: { tone: 'success', indicatorClassName: 'text-success' },
+    unknown: { tone: 'neutral', indicatorClassName: 'text-muted' },
+    waiting: { tone: 'warning', indicatorClassName: 'text-warning' },
 };
 
-const COMPACTION_PRESENTATION = presentation(
-    'Compacting',
-    'The Agent is summarizing earlier context before continuing.',
-    'success',
-    'text-success',
-);
-
+/**
+ * Resolves the label and sentence at call time so a language change is picked up by the next render; the tone and class
+ * name tables stay static.
+ */
 function presentation(
-    label: string,
-    description: string,
+    key: ActivityKey,
     tone: SessionActivityPresentation['tone'],
     indicatorClassName: string,
 ): SessionActivityPresentation {
+    const label = translate(`primarySidebar.activity.${key}.label`);
+    const description = translate(`primarySidebar.activity.${key}.description`);
     return {
-        ariaLabel: `${label}. ${description}`,
+        ariaLabel: translate('primarySidebar.activity.ariaLabel', { description, label }),
         description,
         indicatorClassName,
         label,
@@ -105,46 +89,10 @@ export function sessionActivityPresentation(
     state: AgentActivityState,
     operation?: AgentOperation,
 ): SessionActivityPresentation {
-    if (operation === 'compacting') return COMPACTION_PRESENTATION;
-    return PRESENTATIONS[state];
+    if (operation === 'compacting') return presentation('compacting', 'success', 'text-success');
+    const { indicatorClassName, tone } = PRESENTATIONS[state];
+    return presentation(state, tone, indicatorClassName);
 }
-
-/**
- * A detached Agent was stopped on purpose so another client can resume it; the last probed lifecycle state would
- * misreport it as still working or waiting here.
- */
-const DETACHED_PRESENTATION: SessionActivityPresentation = {
-    ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
-    description:
-        'Stopped so another client can resume this conversation. Resume it from the row menu.',
-    indicatorClassName: 'text-muted',
-    label: 'Detached',
-    tone: 'neutral',
-};
-
-/**
- * A suspended Agent was parked while its Session sat in the background; its last probed state would claim it is still
- * idle at its prompt. Opening the Session resumes it, so the card says that and where the automatic rule is changed.
- * The sentence stays neutral about the cause because the record does not say whether the idle rule, an archive, or a
- * Process Explorer stop parked it.
- */
-const SUSPENDED_PRESENTATION = presentation(
-    'Suspended',
-    'Paused in the background to save memory, and resumes when you open this Session. Automatic suspension is set in Settings > Agents.',
-    'neutral',
-    'text-muted',
-);
-
-/**
- * A Shell Session has no Agent, so its card must not claim one is idle or working; Session Activity only ever describes
- * an Agent's turn.
- */
-const NO_AGENT_PRESENTATION = presentation(
-    'No Agent',
-    'This Session has no Agent.',
-    'neutral',
-    'text-muted',
-);
 
 /**
  * What the Session's Agent is doing right now, as the hover card words it. `terminal.kind` is the Session's Terminal
@@ -154,8 +102,21 @@ export function currentSessionActivityPresentation(
     session: Pick<SessionRecord, 'lastActivityState'>,
     terminal?: SessionStatusTerminal & { kind?: TerminalKind },
 ): SessionActivityPresentation {
-    if (terminal?.kind === 'shell') return NO_AGENT_PRESENTATION;
-    if (terminal?.lastProcessState === 'detached') return DETACHED_PRESENTATION;
-    if (terminal?.lastProcessState === 'suspended') return SUSPENDED_PRESENTATION;
+    // A Shell Session has no Agent, so its card must not claim one is idle or working.
+    if (terminal?.kind === 'shell') return presentation('noAgent', 'neutral', 'text-muted');
+    // A detached Agent was stopped on purpose so another client can resume it; the last probed lifecycle state would
+    // misreport it as still working or waiting.
+    if (terminal?.lastProcessState === 'detached') {
+        return {
+            ...presentation('detached', 'neutral', 'text-muted'),
+            ariaLabel: translate('primarySidebar.activity.detached.ariaLabel'),
+        };
+    }
+    // A suspended Agent was parked while its Session sat in the background; opening the Session resumes it. The sentence
+    // stays neutral about the cause because the record does not say whether the idle rule, an archive, or a Process
+    // Explorer stop parked it.
+    if (terminal?.lastProcessState === 'suspended') {
+        return presentation('suspended', 'neutral', 'text-muted');
+    }
     return sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
 }

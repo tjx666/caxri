@@ -1,6 +1,8 @@
-import type { CommanderInboxItem } from '@caxri/protocol';
-import { commanderInboxKindLabel, isCommanderInboxQuestion } from '@caxri/protocol';
+import type { CommanderInboxItem, CommanderInboxKind } from '@caxri/protocol';
+import { isCommanderInboxQuestion } from '@caxri/protocol';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import type { CaretMention, SuggestionOption } from '../../lib/suggestion-options';
 
 type CommanderInboxSectionId = 'merge' | 'questions';
@@ -11,9 +13,9 @@ export interface CommanderInboxSection {
     items: CommanderInboxItem[];
 }
 
-const SECTION_TITLES: Record<CommanderInboxSectionId, string> = {
-    merge: 'Ready to merge',
-    questions: 'Questions',
+const SECTION_TITLE_KEYS: Record<CommanderInboxSectionId, TranslationKey> = {
+    merge: 'agentCommander.inbox.section.merge',
+    questions: 'agentCommander.inbox.section.questions',
 };
 
 /**
@@ -22,6 +24,7 @@ const SECTION_TITLES: Record<CommanderInboxSectionId, string> = {
  */
 export function commanderInboxSections(
     items: readonly CommanderInboxItem[],
+    t: Translate = translate,
 ): CommanderInboxSection[] {
     const open = items.filter((item) => item.status === 'open');
     const sections: CommanderInboxSection[] = [];
@@ -30,7 +33,7 @@ export function commanderInboxSections(
             (item) => isCommanderInboxQuestion(item) === (id === 'questions'),
         );
         if (inSection.length > 0)
-            sections.push({ id, title: SECTION_TITLES[id], items: inSection });
+            sections.push({ id, title: t(SECTION_TITLE_KEYS[id]), items: inSection });
     }
     return sections;
 }
@@ -57,38 +60,79 @@ export interface CommanderInboxMergeState {
  * wrong disable it: a stale report, a draft, or a conflict. Pending or failing checks stay mergeable because the
  * repository's own branch protection decides whether they block, and GitHub answers that on the merge itself.
  */
-export function commanderInboxMergeState(item: CommanderInboxItem): CommanderInboxMergeState {
+export function commanderInboxMergeState(
+    item: CommanderInboxItem,
+    t: Translate = translate,
+): CommanderInboxMergeState {
     if (item.staleReason === 'headMoved')
         return {
             canMerge: false,
-            label: 'Changed since verified',
+            label: t('agentCommander.mergeState.changedSinceVerified'),
             tone: 'warning',
-            reason: 'New commits landed after the Commander verified this pull request. It re-verifies before you merge.',
+            reason: t('agentCommander.mergeState.changedSinceVerifiedReason'),
         };
     const live = item.pullRequestLive;
     if (live?.lifecycle === 'draft')
         return {
             canMerge: false,
-            label: 'Draft',
+            label: t('agentCommander.mergeState.draft'),
             tone: 'muted',
-            reason: 'The pull request is still a draft.',
+            reason: t('agentCommander.mergeState.draftReason'),
         };
     if (live?.mergeState === 'conflicting')
         return {
             canMerge: false,
-            label: 'Conflicts',
+            label: t('agentCommander.mergeState.conflicts'),
             tone: 'danger',
-            reason: 'The pull request conflicts with its base branch.',
+            reason: t('agentCommander.mergeState.conflictsReason'),
         };
-    if (!live) return { canMerge: true, label: 'GitHub state unknown', tone: 'muted' };
+    if (!live)
+        return { canMerge: true, label: t('agentCommander.mergeState.unknown'), tone: 'muted' };
     if (live.checks === 'failure')
-        return { canMerge: true, label: 'Checks failing', tone: 'danger' };
+        return {
+            canMerge: true,
+            label: t('agentCommander.mergeState.checksFailing'),
+            tone: 'danger',
+        };
     if (live.checks === 'pending')
-        return { canMerge: true, label: 'Checks running', tone: 'muted' };
-    if (live.mergeState === 'blocked') return { canMerge: true, label: 'Blocked', tone: 'warning' };
+        return {
+            canMerge: true,
+            label: t('agentCommander.mergeState.checksRunning'),
+            tone: 'muted',
+        };
+    if (live.mergeState === 'blocked')
+        return { canMerge: true, label: t('agentCommander.mergeState.blocked'), tone: 'warning' };
     if (live.mergeState === 'behind')
-        return { canMerge: true, label: 'Behind base', tone: 'warning' };
-    return { canMerge: true, label: 'Checks passed', tone: 'success' };
+        return {
+            canMerge: true,
+            label: t('agentCommander.mergeState.behindBase'),
+            tone: 'warning',
+        };
+    return { canMerge: true, label: t('agentCommander.mergeState.checksPassed'), tone: 'success' };
+}
+
+/**
+ * The item's kind in the interface language: the localized counterpart of `@caxri/protocol`'s
+ * `commanderInboxKindLabel`, which stays English for the phone and the CLI.
+ */
+export function commanderInboxKindText(kind: CommanderInboxKind, t: Translate = translate): string {
+    return t(`agentCommander.inbox.kind.${kind}`);
+}
+
+/**
+ * Whether the Commander has read the owner's latest reply, worded in the interface language; the localized counterpart
+ * of `@caxri/protocol`'s `commanderInboxReplyState`. Undefined until the owner replied.
+ */
+export function commanderInboxReplyText(
+    replyState: { isRead: boolean } | undefined,
+    t: Translate = translate,
+): string | undefined {
+    if (!replyState) return undefined;
+    return t(
+        replyState.isRead
+            ? 'agentCommander.inbox.replyState.read'
+            : 'agentCommander.inbox.replyState.delivered',
+    );
 }
 
 /**
@@ -97,6 +141,7 @@ export function commanderInboxMergeState(item: CommanderInboxItem): CommanderInb
 export function inboxMentionCandidates(
     items: readonly CommanderInboxItem[],
     query: string,
+    t: Translate = translate,
 ): CommanderInboxItem[] {
     const needle = query.toLocaleLowerCase();
     return items.filter(
@@ -104,7 +149,7 @@ export function inboxMentionCandidates(
             item.status === 'open' &&
             (needle === '' ||
                 item.title.toLocaleLowerCase().includes(needle) ||
-                commanderInboxKindLabel(item.kind).toLocaleLowerCase().includes(needle)),
+                commanderInboxKindText(item.kind, t).toLocaleLowerCase().includes(needle)),
     );
 }
 
@@ -121,12 +166,15 @@ export function removeInboxMention(
 /**
  * An `@` picker row for an Inbox item: its title, with its kind beside it.
  */
-export function inboxMentionSuggestion(item: CommanderInboxItem): SuggestionOption {
+export function inboxMentionSuggestion(
+    item: CommanderInboxItem,
+    t: Translate = translate,
+): SuggestionOption {
     return {
         key: item.id,
         label: item.title,
         isLabelLiteral: false,
-        description: commanderInboxKindLabel(item.kind),
+        description: commanderInboxKindText(item.kind, t),
     };
 }
 

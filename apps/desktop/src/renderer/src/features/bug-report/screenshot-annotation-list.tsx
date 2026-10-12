@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { ScreenshotAnnotation } from './screenshot-annotations';
 import {
@@ -31,6 +32,7 @@ function AnnotationNoteRow({
     onSelect: () => void;
     shouldFocus: boolean;
 }) {
+    const { t } = useTranslation();
     const noteReference = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
@@ -55,16 +57,16 @@ function AnnotationNoteRow({
             </span>
             <Textarea
                 ref={noteReference}
-                aria-label={`Note for annotation ${index + 1}`}
+                aria-label={t('bugReport.annotations.noteLabel', { number: index + 1 })}
                 id={`bug-report-annotation-note-${index}`}
                 maxLength={ANNOTATION_NOTE_MAX_LENGTH}
-                placeholder="What's wrong here?"
+                placeholder={t('bugReport.annotations.notePlaceholder')}
                 value={annotation.note}
                 onChange={(event) => onNoteChange(event.target.value)}
                 onFocus={onSelect}
             />
             <Button
-                aria-label={`Delete annotation ${index + 1}`}
+                aria-label={t('bugReport.annotations.delete', { number: index + 1 })}
                 size="icon"
                 variant="ghost"
                 onClick={onRemove}
@@ -98,18 +100,19 @@ export function ScreenshotAnnotationList({
     onSelect,
     selectedId,
 }: ScreenshotAnnotationListProperties) {
+    const { t } = useTranslation();
     return (
         <div className="grid content-start gap-2">
             <div className="grid gap-1">
-                <h3 className="m-0 text-[13px] font-semibold">Annotations</h3>
+                <h3 className="m-0 text-[13px] font-semibold">
+                    {t('bugReport.annotations.title')}
+                </h3>
                 <p className="m-0 text-[11px] leading-[1.45] text-muted">
-                    Describe what is wrong in each marked area.
+                    {t('bugReport.annotations.description')}
                 </p>
             </div>
             {annotations.length === 0 ? (
-                <p className="m-0 text-[12px] text-muted">
-                    No marks yet. Drag on the screenshot to add one, or press Enter on it.
-                </p>
+                <p className="m-0 text-[12px] text-muted">{t('bugReport.annotations.empty')}</p>
             ) : (
                 <div className="grid max-h-[70vh] gap-1 overflow-auto">
                     {annotations.map((annotation, index) => (

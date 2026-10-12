@@ -1,0 +1,48 @@
+import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+
+import type { preview as source } from '../en/preview';
+
+export const preview: TranslatedNamespace<typeof source> = {
+    'preview.loading': '正在加载预览…',
+    'preview.unavailable': '此文件没有可用的预览。',
+    'preview.externalClosed.reason': '此文件不在任何项目中，且已不再打开。请重新打开它以进行预览。',
+    'preview.externalClosed.action': '打开文件…',
+
+    'preview.openSource': '打开源文件',
+    'preview.openPreviewToSide': '在侧边打开预览',
+
+    'preview.markdown.copyCodeBlock': '复制代码块',
+    'preview.mermaid.label': 'Mermaid 图表',
+    'preview.mermaid.empty': '此图表为空。',
+    'preview.mermaid.renderFailed': '无法渲染此图表。',
+
+    'preview.pdf.passwordProtected': '此 PDF 受密码保护，暂不支持预览受保护的 PDF。',
+    'preview.pdf.invalid': '此文件不是有效的 PDF，或已损坏。',
+    'preview.pdf.tooLarge': '此 PDF 超过了 {{limit}} 的预览上限。',
+    'preview.pdf.displayFailed': '无法显示此 PDF。',
+    'preview.pdf.label': 'PDF 预览',
+    'preview.pdf.page': '页码',
+    'preview.pdf.pageCount': '/ {{count}}',
+    'preview.pdf.zoomLabel': '缩放：{{percent}}%',
+    'preview.pdf.zoomIn': '放大',
+    'preview.pdf.zoomOut': '缩小',
+    'preview.pdf.fitWidth': '适合宽度',
+    'preview.pdf.fitPage': '适合页面',
+    'preview.pdf.viewAnnouncement': '第 {{page}} 页，共 {{count}} 页，{{percent}}%',
+
+    'preview.table.label': '表格预览',
+    'preview.table.noRows': '此文件没有任何行。',
+    'preview.table.rowHeader': '行',
+    'preview.table.column': '第 {{index}} 列',
+    'preview.table.rowsOne': '{{count}} 行',
+    'preview.table.rowsOther': '{{count}} 行',
+    'preview.table.columnsOne': '{{count}} 列',
+    'preview.table.columnsOther': '{{count}} 列',
+    'preview.table.limitRowsAndColumns': '仅显示前 {{rows}}和前 {{columns}}。',
+    'preview.table.limitRows': '仅显示前 {{rows}}。',
+    'preview.table.limitColumns': '仅显示前 {{columns}}。',
+    'preview.table.issueLocation': '第 {{row}} 行：',
+    'preview.table.moreIssuesOne': '（另有 {{count}} 个问题）',
+    'preview.table.moreIssuesOther': '（另有 {{count}} 个问题）',
+    'preview.table.issues': '部分行可能拆分有误。{{location}}{{message}}{{more}}。',
+};

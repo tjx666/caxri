@@ -5,10 +5,12 @@ import {
     MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+
 export type RecoveryPatternParseResult =
     { ok: true; patterns: string[] } | { ok: false; error: string };
 
-export function parseRecoveryPatterns(source: string): RecoveryPatternParseResult {
+export function parseRecoveryPatterns(t: Translate, source: string): RecoveryPatternParseResult {
     const patterns: string[] = [];
     const seen = new Set<string>();
     for (const line of source.split('\n')) {
@@ -17,7 +19,9 @@ export function parseRecoveryPatterns(source: string): RecoveryPatternParseResul
         if (pattern.length > MAX_AGENT_OUTPUT_RECOVERY_PATTERN_LENGTH)
             return {
                 ok: false,
-                error: `Each pattern must be ${MAX_AGENT_OUTPUT_RECOVERY_PATTERN_LENGTH} characters or fewer.`,
+                error: t('settings.providerRecovery.patternTooLong', {
+                    max: MAX_AGENT_OUTPUT_RECOVERY_PATTERN_LENGTH,
+                }),
             };
         const normalized = pattern.toLocaleLowerCase();
         if (seen.has(normalized)) continue;
@@ -27,7 +31,9 @@ export function parseRecoveryPatterns(source: string): RecoveryPatternParseResul
     if (patterns.length > MAX_AGENT_OUTPUT_RECOVERY_PATTERNS)
         return {
             ok: false,
-            error: `Add at most ${MAX_AGENT_OUTPUT_RECOVERY_PATTERNS} patterns.`,
+            error: t('settings.providerRecovery.tooManyPatterns', {
+                max: MAX_AGENT_OUTPUT_RECOVERY_PATTERNS,
+            }),
         };
     return { ok: true, patterns };
 }

@@ -1,5 +1,6 @@
 import type { ContextMenuItemSpec } from '@caxri/protocol';
 
+import { translate } from '../i18n';
 import { tryCommand } from '../stores/toasts';
 import { caxri } from './caxri';
 
@@ -103,7 +104,7 @@ export async function showContextMenu(
 ): Promise<void> {
     const { items, actions } = serializeContextMenu(entries);
     if (items.length === 0) return;
-    const result = await tryCommand('Unable to show the menu', () =>
+    const result = await tryCommand(translate('core.contextMenu.showFailed'), () =>
         caxri.request('contextMenu.show', {
             items,
             ...(position && {

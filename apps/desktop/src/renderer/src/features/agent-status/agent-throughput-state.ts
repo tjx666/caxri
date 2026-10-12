@@ -1,5 +1,7 @@
 import type { AgentThroughput, AgentThroughputSample } from '@caxri/protocol';
 
+import type { TranslationKey } from '../../i18n';
+
 /**
  * What the Agent status tab's speed report can say, kept apart so a failed read, a closed Terminal, and an Agent that
  * has not answered yet never collapse into one "nothing measured" sentence.
@@ -31,10 +33,9 @@ export function agentThroughputViewState({
     return { kind: 'notMeasured' };
 }
 
-export const AGENT_THROUGHPUT_STATE_MESSAGES = {
-    loading: 'Reading the transcript…',
-    error: "Couldn't read the Agent's transcript.",
-    closed: 'Nothing was measured before this Terminal closed.',
-    notMeasured:
-        'No response has been measured yet. Speed appears after the Agent finishes its first response.',
-} as const satisfies Record<Exclude<AgentThroughputViewState['kind'], 'measured'>, string>;
+export const AGENT_THROUGHPUT_STATE_MESSAGE_KEYS = {
+    loading: 'agentStatus.throughput.loading',
+    error: 'agentStatus.throughput.error',
+    closed: 'agentStatus.throughput.closed',
+    notMeasured: 'agentStatus.throughput.notMeasured',
+} as const satisfies Record<Exclude<AgentThroughputViewState['kind'], 'measured'>, TranslationKey>;

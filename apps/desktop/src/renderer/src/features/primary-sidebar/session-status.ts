@@ -1,5 +1,6 @@
 import type { AgentOperation, ProcessState, SessionRecord } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { sessionActivityPresentation } from './session-activity';
 
 /**
@@ -56,15 +57,19 @@ export function sessionStatus(
         );
         const currentStatus =
             agentOperation === 'compacting' || session.lastActivityState === 'running'
-                ? ` Current status: ${currentActivity.label}.`
+                ? translate('primarySidebar.status.currentStatus', {
+                      status: currentActivity.label,
+                  })
                 : '';
         return {
             ariaDescription: `${attentionActivity.description}${currentStatus}`,
             // `Unread, finished` rather than `Needs attention: Finished`: a finished turn needs nothing, it is unread.
             ariaLabel:
                 session.lastAttentionKind === undefined
-                    ? 'Unread'
-                    : `Unread, ${attentionActivity.label.toLowerCase()}`,
+                    ? translate('primarySidebar.status.unread')
+                    : translate('primarySidebar.status.unreadWithKind', {
+                          kind: attentionActivity.label.toLowerCase(),
+                      }),
             kind: 'attention',
             variant: session.lastAttentionKind === 'waiting' ? 'waiting' : 'result',
         };
@@ -76,8 +81,8 @@ export function sessionStatus(
      */
     if (terminal.lastProcessState === 'detached') {
         return {
-            ariaDescription: 'The Agent was stopped so another client can resume it.',
-            ariaLabel: 'Detached',
+            ariaDescription: translate('primarySidebar.status.detached.description'),
+            ariaLabel: translate('primarySidebar.status.detached.label'),
             kind: 'detached',
         };
     }

@@ -1,5 +1,7 @@
 import type { SourceControlHistoryPage } from '@caxri/protocol';
 
+import { translate } from '../../../i18n';
+
 type SourceControlHistoryItem = SourceControlHistoryPage['items'][number];
 
 /**
@@ -11,8 +13,9 @@ type SourceControlHistoryItem = SourceControlHistoryPage['items'][number];
  * field because every field of `controlledViewPresentationSchema` is required, so adding one would break every provider
  * that already ships a presentation.
  */
-export const REFRESHING_ACTION_MESSAGE =
-    'Source Control is refreshing. Try that action again in a moment.';
+export function refreshingActionMessage(): string {
+    return translate('viewContainers.sourceControl.refreshingAction');
+}
 
 export interface SourceControlHistoryPageIdentity {
     path: string | undefined;

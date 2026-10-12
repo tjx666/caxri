@@ -7,6 +7,8 @@ import type {
     ProcessExplorerSnapshot,
 } from '@desktop-shared/process-explorer';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import type { ProcessColumnKey, ProcessSort } from './process-columns';
 import { DEFAULT_PROCESS_SORT } from './process-columns';
 
@@ -50,11 +52,11 @@ export interface ProcessTreeNode {
 export const SESSIONS_GROUP_ID = 'group:sessions';
 export const CAXRI_GROUP_ID = 'group:caxri';
 
-const KIND_TAGS: Partial<Record<ProcessExplorerKind, string>> = {
-    helper: 'Helper',
-    main: 'Main process',
-    service: 'Service',
-    window: 'Window',
+const KIND_TAG_KEYS: Partial<Record<ProcessExplorerKind, TranslationKey>> = {
+    helper: 'processExplorer.kind.helper',
+    main: 'processExplorer.kind.main',
+    service: 'processExplorer.kind.service',
+    window: 'processExplorer.kind.window',
 };
 
 function compareColumn(left: ProcessTreeNode, right: ProcessTreeNode, column: ProcessColumnKey) {
@@ -92,7 +94,8 @@ function compareProcessNodes(
     return left.id.localeCompare(right.id);
 }
 
-function processNode(process: ProcessExplorerEntry): ProcessTreeNode {
+function processNode(process: ProcessExplorerEntry, t: Translate): ProcessTreeNode {
+    const tagKey = KIND_TAG_KEYS[process.kind];
     return {
         children: [],
         command: process.command,
@@ -104,7 +107,7 @@ function processNode(process: ProcessExplorerEntry): ProcessTreeNode {
         memoryMb: process.memoryMb,
         name: process.name,
         pid: process.pid,
-        tag: KIND_TAGS[process.kind],
+        tag: tagKey ? t(tagKey) : undefined,
     };
 }
 
@@ -129,9 +132,9 @@ function treeUsage(node: ProcessTreeNode): { cpuPercent: number; memoryMb: numbe
     return sumUsage(collectTreeSubtree(node, (candidate) => candidate.children));
 }
 
-function terminalDisplayName(terminal: TerminalProcessEntry): string {
+function terminalDisplayName(terminal: TerminalProcessEntry, t: Translate): string {
     if (terminal.provider) return agentProviderCatalog[terminal.provider].displayName;
-    return terminal.title || 'Terminal';
+    return terminal.title || t('processExplorer.terminal');
 }
 
 /**
@@ -143,8 +146,14 @@ function terminalDisplayName(terminal: TerminalProcessEntry): string {
 export function buildProcessTree(
     snapshot: Pick<ProcessExplorerSnapshot, 'processes' | 'terminals'>,
     sort: ProcessSort = DEFAULT_PROCESS_SORT,
+    /**
+     * Components pass `useTranslation().t` so the tree rebuilds when the language changes; the default serves tests.
+     */
+    t: Translate = translate,
 ): ProcessTreeNode[] {
-    const nodes = new Map(snapshot.processes.map((process) => [process.pid, processNode(process)]));
+    const nodes = new Map(
+        snapshot.processes.map((process) => [process.pid, processNode(process, t)]),
+    );
     for (const process of snapshot.processes) {
         const parent = nodes.get(process.parentPid);
         if (parent && process.parentPid !== process.pid)
@@ -166,8 +175,11 @@ export function buildProcessTree(
             id: `terminal:${terminal.terminalId}`,
             isHigh: isTerminalResourceUsageHigh(usage),
             kind: 'terminal',
-            name: terminalDisplayName(terminal),
-            tag: processCount > 1 ? `${processCount} processes` : undefined,
+            name: terminalDisplayName(terminal, t),
+            tag:
+                processCount > 1
+                    ? t('processExplorer.processCount', { count: processCount })
+                    : undefined,
             terminalId: terminal.terminalId,
         };
         const session = sessions.get(terminal.sessionId) ?? {
@@ -178,7 +190,7 @@ export function buildProcessTree(
             isHigh: false,
             kind: 'session' as const,
             memoryMb: 0,
-            name: terminal.sessionTitle || 'Untitled Session',
+            name: terminal.sessionTitle || t('processExplorer.untitledSession'),
         };
         session.children.push(terminalNode);
         session.cpuPercent += usage.cpuPercent;
@@ -205,7 +217,7 @@ export function buildProcessTree(
             id: SESSIONS_GROUP_ID,
             isHigh: false,
             kind: 'group',
-            name: 'Sessions',
+            name: t('processExplorer.sessionsGroup'),
         });
     if (caxriNodes.length > 0)
         groups.push({

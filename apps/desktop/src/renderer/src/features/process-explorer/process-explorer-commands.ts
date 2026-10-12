@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
 
@@ -7,5 +8,7 @@ import { tryCommand } from '../../stores/toasts';
  */
 export function openProcessExplorer(): void {
     // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
-    void tryCommand('Unable to open Process Explorer', () => caxri.request('processExplorer.open'));
+    void tryCommand(translate('processExplorer.openFailed'), () =>
+        caxri.request('processExplorer.open'),
+    );
 }

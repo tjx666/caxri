@@ -15,6 +15,7 @@ import {
     executeViewCatalogShortcut,
     invalidateControlledViewSnapshot,
 } from '../../../../features/view-containers/view-container-commands';
+import { useTranslation } from '../../../../i18n';
 import { useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession, useSettings } from '../../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../../stores/toasts';
@@ -33,7 +34,7 @@ import {
     runSourceControlActionAgainstLatest,
     SUPERSEDED,
 } from '../source-control-action-resolution';
-import { REFRESHING_ACTION_MESSAGE } from '../source-control-history-state';
+import { refreshingActionMessage } from '../source-control-history-state';
 import type { SourceControlPanelState } from '../source-control-panel-state';
 import { resolveSourceControlPanelState } from '../source-control-panel-state';
 import type { SourceControlViewNavigation } from '../source-control-state';
@@ -187,6 +188,7 @@ export function useSourceControlController(
     navigationScope?: SourceControlNavigationScope,
     persistedNavigation?: SourceControlViewState,
 ): SourceControlController {
+    const { t } = useTranslation();
     const { configurationDependencies, presentation, providerGeneration, viewId } =
         useControlledView();
     const client = useSourceControlClient();
@@ -230,7 +232,7 @@ export function useSourceControlController(
     useToastOnQueryError(
         snapshot.isError,
         snapshot.error,
-        presentation?.refreshErrorMessage ?? 'Source Control refresh failed',
+        presentation?.refreshErrorMessage ?? t('viewContainers.sourceControl.refreshFailed'),
     );
     useEffect(() => {
         // A transition placeholder still names the old mode, not a provider fallback for the new request.
@@ -272,7 +274,7 @@ export function useSourceControlController(
             const label =
                 action.errorMessage ??
                 presentation?.actionErrorMessage ??
-                'Source Control action failed';
+                t('viewContainers.sourceControl.actionFailed');
             const run = (target: SourceControlAction, revision: string) =>
                 tryCommand(label, async () => {
                     try {
@@ -290,7 +292,7 @@ export function useSourceControlController(
                 run,
             });
             if (outcome === SUPERSEDED) {
-                pushToast('warning', REFRESHING_ACTION_MESSAGE);
+                pushToast('warning', refreshingActionMessage());
                 return;
             }
             const { result, revision } = outcome;
@@ -305,6 +307,7 @@ export function useSourceControlController(
             snapshot.data,
             snapshot.isFetching,
             refetchSnapshot,
+            t,
         ],
     );
     const selectMode = useCallback(
@@ -324,18 +327,20 @@ export function useSourceControlController(
         return {
             ...panelState,
             isRefreshing: snapshot.isFetching,
-            loadingMessage: presentation?.loadingMessage ?? 'Loading Git status…',
+            loadingMessage:
+                presentation?.loadingMessage ?? t('viewContainers.sourceControl.loading'),
             noContextMessage:
-                presentation?.noContextMessage ?? 'Pick a Session to inspect its Git state.',
+                presentation?.noContextMessage ?? t('viewContainers.sourceControl.noSessionHint'),
             refresh: requestRefresh,
         };
     if (!snapshot.data)
         return {
             status: 'loading',
             isRefreshing: true,
-            loadingMessage: presentation?.loadingMessage ?? 'Loading Git status…',
+            loadingMessage:
+                presentation?.loadingMessage ?? t('viewContainers.sourceControl.loading'),
             noContextMessage:
-                presentation?.noContextMessage ?? 'Pick a Session to inspect its Git state.',
+                presentation?.noContextMessage ?? t('viewContainers.sourceControl.noSessionHint'),
             refresh: requestRefresh,
         };
 

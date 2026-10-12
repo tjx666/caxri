@@ -10,7 +10,6 @@ import {
 function group(id: AgentActivityGroup['id'], sessionIds: readonly string[]): AgentActivityGroup {
     return {
         id,
-        label: id,
         rows: sessionIds.map((sessionId) => ({ session: { id: sessionId } }) as AgentActivityRow),
     };
 }

@@ -6,6 +6,8 @@ import {
     parseGitDiffTab,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { relativePathRoot } from '../../lib/copy-file-path';
 import { projectRelativePath } from '../../lib/file-path';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
@@ -29,6 +31,7 @@ export function editorTabActionsPath(tab: PaneTab | undefined): string | undefin
 export function documentTabPathMenuState(
     path: string,
     query: { isError: boolean; isPending: boolean },
+    t: Translate = translate,
 ): { externalDocumentId?: string; showMenu: boolean; unavailableReason: string } {
     const external = parseExternalEditorTab(path);
     const diff = parseGitDiffTab(path);
@@ -38,11 +41,13 @@ export function documentTabPathMenuState(
             !isVirtualEditorTabPath(path) ||
             Boolean(external) ||
             Boolean(diff && diff.kind !== 'changes'),
-        unavailableReason: query.isError
-            ? 'Unable to load repository information'
-            : query.isPending
-              ? 'Repository information is still loading'
-              : 'The file path is unavailable',
+        unavailableReason: t(
+            query.isError
+                ? 'editor.pathMenu.repositoryLoadFailed'
+                : query.isPending
+                  ? 'editor.pathMenu.repositoryLoading'
+                  : 'editor.pathMenu.pathUnavailable',
+        ),
     };
 }
 

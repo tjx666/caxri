@@ -2,6 +2,7 @@ export * from './builtin-themes/index.js';
 export * from './config-files.js';
 export * from './configuration-contract.js';
 export * from './ignored-checks.js';
+export * from './language-settings-spec.js';
 export * from './settings-changes.js';
 export * from './settings-schema.js';
 export * from './settings-spec.js';

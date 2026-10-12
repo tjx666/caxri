@@ -12,6 +12,7 @@ import type { Terminal } from '@xterm/xterm';
 
 import { useLatestReference } from '@/hooks/use-latest-reference';
 
+import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
 import { pushToast } from '../../../stores/toasts';
@@ -199,7 +200,7 @@ export function useTerminalPaneRuntime({
             try {
                 await loadTerminalFonts();
             } catch (error) {
-                onError(errorMessage(error, 'Bundled terminal fonts failed to load'));
+                onError(errorMessage(error, translate('terminal.errors.fontsFailed')));
             } finally {
                 /**
                  * A corrupt font must degrade to the system monospace stack instead of blocking the PTY.
@@ -307,11 +308,7 @@ export function useTerminalPaneRuntime({
              * The controller drops (rather than queues) a paste that arrives while a previous long paste is still being
              * saved, so this toast is the user's only feedback that their paste was discarded.
              */
-            onDropped: () =>
-                pushToast(
-                    'info',
-                    'Previous long paste is still being saved; paste again in a moment.',
-                ),
+            onDropped: () => pushToast('info', translate('terminal.longPaste.previousPending')),
             onFailure: (reason) => onError(longPasteFailureMessage(reason)),
             onPendingChange: (pending, shouldDisableStdin) => {
                 xterm.options.disableStdin = shouldDisableStdin;
@@ -415,7 +412,7 @@ export function useTerminalPaneRuntime({
             (error) => {
                 if (isClipboardFailureReported) return;
                 isClipboardFailureReported = true;
-                onError(errorMessage(error, 'Terminal selection could not be copied'));
+                onError(errorMessage(error, translate('terminal.errors.copyFailed')));
             },
         );
         const selectionDisposable = xterm.onSelectionChange(() => {
@@ -445,7 +442,7 @@ export function useTerminalPaneRuntime({
             try {
                 await longPaste.pasteFromClipboard(() => navigator.clipboard.readText());
             } catch (error) {
-                onError(errorMessage(error, 'Terminal paste failed'));
+                onError(errorMessage(error, translate('terminal.errors.pasteFailed')));
             }
         };
         pasteReference.current = pasteFromClipboard;
@@ -490,7 +487,7 @@ export function useTerminalPaneRuntime({
                 replay.reattach(() =>
                     attachTerminal(terminalId, { cols: xterm.cols, rows: xterm.rows }),
                 ),
-            (error) => reportTerminalOperationError(error, 'Terminal output recovery failed'),
+            (error) => reportTerminalOperationError(error, 'terminal.errors.outputRecoveryFailed'),
         );
         replayReference.current = replay;
         const unsubscribe = caxri.onEvent((event) => {
@@ -559,7 +556,8 @@ export function useTerminalPaneRuntime({
                 if (initialSize && latestReference.current.processState === 'running')
                     resizeController.confirmSent(initialSize);
             } catch (error) {
-                if (!isDisposed) reportTerminalOperationError(error, 'Terminal attachment failed');
+                if (!isDisposed)
+                    reportTerminalOperationError(error, 'terminal.errors.attachFailed');
             }
             if (isDisposed) {
                 settleSnapshotReplay();
@@ -696,7 +694,7 @@ export function useTerminalPaneRuntime({
                 latestReference.current.processState === 'running'
                     ? { cols: xterm.cols, rows: xterm.rows }
                     : undefined,
-            'Terminal reattachment failed',
+            'terminal.errors.reattachFailed',
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
     }, [attachEpoch, terminalId]);
@@ -733,7 +731,7 @@ export function useTerminalPaneRuntime({
             terminalId,
             replay,
             () => ({ cols: xterm.cols, rows: xterm.rows }),
-            'Terminal recovery reconciliation failed',
+            'terminal.errors.recoveryFailed',
         );
         return invalidateFocus;
     }, [active, longPastePending, processState, terminalId]);

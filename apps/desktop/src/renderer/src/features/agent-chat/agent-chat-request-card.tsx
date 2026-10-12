@@ -1,20 +1,21 @@
 import { useRef, useState } from 'react';
 
 import type { AgentChatItem, AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
-import {
-    AGENT_CHAT_EXIT_PLAN_TOOL,
-    agentChatApprovalChoices,
-    agentChatRequestTitle,
-} from '@caxri/protocol';
+import { AGENT_CHAT_EXIT_PLAN_TOOL } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { AGENT_CHAT_APPROVE_SHORTCUT, AGENT_CHAT_DENY_SHORTCUT } from './agent-chat-approval-keys';
 import { didAnswerAgentChatRequest } from './agent-chat-commands';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMessage } from './agent-chat-message';
 import { agentChatCommandCwd } from './agent-chat-presentation';
 import { AgentChatQuestionForm } from './agent-chat-question-form';
+import {
+    agentChatLocalizedApprovalChoices,
+    agentChatLocalizedRequestTitle,
+} from './agent-chat-request-labels';
 import {
     AGENT_CHAT_APPROVAL_ATTRIBUTE,
     useAgentChatApprovalKeys,
@@ -78,6 +79,7 @@ export function AgentChatRequestCard({
     request: AgentChatRequest;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
     const [isAnswering, setAnswering] = useState(false);
     const cardReference = useRef<HTMLElement>(null);
     const respond = (response: AgentChatResponse): void => {
@@ -94,7 +96,8 @@ export function AgentChatRequestCard({
             if (focused === document.body || cardReference.current?.contains(focused)) onAnswered();
         });
     };
-    const choices = request.kind === 'question' ? [] : agentChatApprovalChoices(request);
+    const choices =
+        request.kind === 'question' ? [] : agentChatLocalizedApprovalChoices(request, t);
     useAgentChatApprovalKeys(cardReference, {
         isEnabled: choices.length > 0 && !isAnswering,
         onDecision: (decision) => {
@@ -104,7 +107,7 @@ export function AgentChatRequestCard({
     });
     const cwd =
         request.kind === 'command' ? agentChatCommandCwd(request.cwd, projectRoot) : undefined;
-    const title = agentChatRequestTitle(request, providerName);
+    const title = agentChatLocalizedRequestTitle(request, providerName, t);
     return (
         <section
             ref={cardReference}
@@ -132,7 +135,7 @@ export function AgentChatRequestCard({
                     )}
                     {cwd && (
                         <p className="m-0 font-mono text-[11px] wrap-anywhere text-muted">
-                            in {cwd}
+                            {t('agentChat.request.cwd', { cwd })}
                         </p>
                     )}
                     {request.kind === 'fileChange' && <ApprovalFiles item={linkedItem} />}

@@ -3,6 +3,7 @@ import { findResourceTabs, parseExternalEditorTab } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import type { SessionDocuments } from '@desktop-shared/editor-state';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getBootstrap, getSessionState } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
@@ -86,13 +87,20 @@ export function unsavedEditorNames(paths: readonly string[], limit: number): str
 export function unreachableUnsavedEditorsMessage(paths: readonly string[]): string {
     const names = unsavedEditorNames(paths, MAX_PROMPT_NAMES);
     const more = paths.length - names.length;
+    const separator = translate('editor.unsaved.listSeparator');
     const subject =
         more > 0
-            ? `${names.join(', ')}, and ${more} more`
+            ? translate('editor.unsaved.listMore', { names: names.join(separator), count: more })
             : names.length === 1
               ? names[0]
-              : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
-    return `${subject} ${paths.length === 1 ? 'belongs' : 'belong'} to a Workbench Root that is not open. Switch back to it to save, or choose Don't Save.`;
+              : translate('editor.unsaved.listPair', {
+                    names: names.slice(0, -1).join(separator),
+                    last: names.at(-1) ?? '',
+                });
+    return translate(
+        paths.length === 1 ? 'editor.unsaved.unreachableOne' : 'editor.unsaved.unreachableOther',
+        { subject },
+    );
 }
 
 function currentUnsavedEditorDocuments(): UnsavedEditorDocument[] {

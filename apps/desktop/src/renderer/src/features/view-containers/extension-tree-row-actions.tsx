@@ -6,6 +6,7 @@ import type { TreeItemDto } from '@caxri/protocol';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { ExtensionTreeActionIcon } from './extension-tree-item-icon';
 import { extensionTreeActionsHint } from './extension-tree-navigation';
@@ -172,13 +173,14 @@ export function ExtensionTreeRowActions({
     descriptionId: string;
     rowElement: RefObject<HTMLDivElement | null>;
 }) {
+    const { t } = useTranslation();
     const [focusedCommandId, setFocusedCommandId] = useState<string>();
     if (!actions?.length) return null;
     const hasPersistentAction = actions.some(isPersistentAction);
     return (
         <>
             <span className="sr-only" id={descriptionId}>
-                {extensionTreeActionsHint(actions, isCollapsedBranch)}
+                {extensionTreeActionsHint(actions, isCollapsedBranch, t)}
             </span>
             <span
                 className={cn(

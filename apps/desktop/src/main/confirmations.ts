@@ -1,6 +1,8 @@
 import type { MethodResult } from '@caxri/protocol';
 import type { MessageBoxOptions } from 'electron';
 
+import { translateMain as t } from './locale';
+
 /**
  * Native confirmation copy and button semantics, kept separate from the IPC handlers that show them. DESIGN.md requires
  * every destructive command to name its target and state what is and is not affected; expressing that as pure functions
@@ -21,13 +23,15 @@ export type ExternalLinkChoice = 'open_once' | 'trust' | 'trust_parent' | 'cance
  * the count, and the indices stay exactly as they were.
  */
 function externalLinkButtons(target: URL, canTrust: boolean, parentHostname?: string): string[] {
-    if (!canTrust) return ['Open Once', 'Cancel'];
-    if (!parentHostname) return ['Open Once', 'Trust Domain and Open', 'Cancel'];
+    const openOnce = t('desktop.externalLink.openOnce');
+    const cancel = t('desktop.dialog.cancel');
+    if (!canTrust) return [openOnce, cancel];
+    if (!parentHostname) return [openOnce, t('desktop.externalLink.trustDomain'), cancel];
     return [
-        'Open Once',
-        `Trust ${target.host} and Open`,
-        `Trust *.${parentHostname} and Open`,
-        'Cancel',
+        openOnce,
+        t('desktop.externalLink.trustHost', { host: target.host }),
+        t('desktop.externalLink.trustParent', { parent: parentHostname }),
+        cancel,
     ];
 }
 
@@ -38,10 +42,13 @@ function externalLinkButtons(target: URL, canTrust: boolean, parentHostname?: st
  * domain anyone can publish under.
  */
 function externalLinkDetail(target: URL, canTrust: boolean, parentHostname?: string): string {
-    if (!canTrust) return `${target.href}\n\nYou can open this link once.`;
-    if (!parentHostname)
-        return `${target.href}\n\nYou can open this link once or trust this exact origin for future links. Trusted origins can be reviewed or removed in Settings.`;
-    return `${target.href}\n\nTrusting ${target.host} covers that host alone. Trusting *.${parentHostname} covers every subdomain of ${parentHostname}, including ones you have never visited — on a shared hosting domain that means sites other people control. Both rules can be reviewed or removed in Settings.`;
+    if (!canTrust) return t('desktop.externalLink.detailOnce', { url: target.href });
+    if (!parentHostname) return t('desktop.externalLink.detailTrust', { url: target.href });
+    return t('desktop.externalLink.detailTrustParent', {
+        url: target.href,
+        host: target.host,
+        parent: parentHostname,
+    });
 }
 
 export function externalLinkPrompt(
@@ -53,8 +60,8 @@ export function externalLinkPrompt(
     const buttons = externalLinkButtons(target, canTrust, parentHostname);
     return {
         type: 'question',
-        title: 'Open External Link',
-        message: `Open ${target.host} in your default browser?`,
+        title: t('desktop.externalLink.title'),
+        message: t('desktop.externalLink.message', { host: target.host }),
         detail,
         buttons,
         defaultId: buttons.length - 1,
@@ -84,16 +91,16 @@ export function trashPrompt(item: {
 }): MessageBoxOptions {
     return {
         type: 'warning',
-        title: 'Move to Trash',
-        message: `Move '${item.name}' to the Trash?`,
+        title: t('desktop.trash.title'),
+        message: t('desktop.trash.message', { name: item.name }),
         /**
          * The Trash only restores what was last written to disk, so the blanket "you can recover this" reassurance
          * would be false for a file whose Editor tab still holds unsaved changes.
          */
-        detail: item.hasUnsavedChanges
-            ? `${item.path}\n\nThis file has unsaved changes in the editor. Only the last saved version can be recovered from the Trash.`
-            : `${item.path}\n\nYou can recover this item from the Trash.`,
-        buttons: ['Move to Trash', 'Cancel'],
+        detail: t(item.hasUnsavedChanges ? 'desktop.trash.detailUnsaved' : 'desktop.trash.detail', {
+            path: item.path,
+        }),
+        buttons: [t('desktop.trash.confirm'), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,
     };
@@ -110,12 +117,21 @@ export function shellCommandElevationPrompt(
     const isInstall = action === 'install';
     return {
         type: 'info',
-        title: isInstall ? "Install 'caxri' Command" : "Uninstall 'caxri' Command",
-        message: `Caxri will now prompt for administrator privileges to ${isInstall ? 'install' : 'uninstall'} the 'caxri' shell command.`,
-        detail: isInstall
-            ? `${linkPath} will link to the caxri launcher inside this Caxri app.`
-            : `${linkPath} will be removed. The Caxri app itself is not affected.`,
-        buttons: ['OK', 'Cancel'],
+        title: t(
+            isInstall ? 'desktop.shellCommand.installTitle' : 'desktop.shellCommand.uninstallTitle',
+        ),
+        message: t(
+            isInstall
+                ? 'desktop.shellCommand.installMessage'
+                : 'desktop.shellCommand.uninstallMessage',
+        ),
+        detail: t(
+            isInstall
+                ? 'desktop.shellCommand.installDetail'
+                : 'desktop.shellCommand.uninstallDetail',
+            { path: linkPath },
+        ),
+        buttons: [t('desktop.dialog.ok'), t('desktop.dialog.cancel')],
         defaultId: 0,
         cancelId: 1,
     };
@@ -148,20 +164,27 @@ export function sumRunningWork(counts: readonly RunningWork[]): RunningWork {
 /**
  * Names running work by kind, for example `2 Terminals and 1 Chat`, so a confirmation tells a plain shell from an Agent
  * still working. Each noun takes its own plural and a kind with nothing running is left out; `qualifier` precedes each
- * noun (`1 running Terminal`). Every prompt that stops or keeps running work words it through here, so the window-close
- * and deletion confirmations stay consistent. Callers check {@link runningWorkTotal} first: nothing running reads as an
- * empty string.
+ * noun (`1 running Terminal`); each phrase is translated, so a locale can order the count and the noun its own way.
+ * Every prompt that stops or keeps running work words it through here, so the window-close and deletion confirmations
+ * stay consistent. Callers check {@link runningWorkTotal} first: nothing running reads as an empty string.
  */
-export function runningWorkPhrase({ terminals, chats }: RunningWork, qualifier?: string): string {
-    const prefix = qualifier ? `${qualifier} ` : '';
-    const parts: Array<[number, string]> = [
-        [terminals, 'Terminal'],
-        [chats, 'Chat'],
-    ];
-    return parts
+export function runningWorkPhrase(
+    { terminals, chats }: RunningWork,
+    qualifier?: 'running',
+): string {
+    const terminalKey = qualifier
+        ? 'desktop.runningWork.runningTerminal'
+        : 'desktop.runningWork.terminal';
+    const chatKey = qualifier ? 'desktop.runningWork.runningChat' : 'desktop.runningWork.chat';
+    const parts = [
+        [terminals, terminalKey],
+        [chats, chatKey],
+    ] as const;
+    const phrases = parts
         .filter(([count]) => count > 0)
-        .map(([count, noun]) => `${count} ${prefix}${noun}${count === 1 ? '' : 's'}`)
-        .join(' and ');
+        .map(([count, key]) => t(`${key}${count === 1 ? 'One' : 'Other'}`, { count }));
+    if (phrases.length === 0) return '';
+    return phrases.reduce((first, second) => t('desktop.runningWork.and', { first, second }));
 }
 
 /**
@@ -169,20 +192,22 @@ export function runningWorkPhrase({ terminals, chats }: RunningWork, qualifier?:
  * the same one file managers use for erasing files.
  */
 function deletePrompt(
-    kind: 'Project' | 'Session',
+    kind: 'deleteProject' | 'deleteSession',
     title: string,
     running: RunningWork,
-    folderClause: string,
 ): MessageBoxOptions {
     return {
         type: 'warning',
-        title: `Delete ${kind}`,
+        title: t(`desktop.${kind}.title`),
         message:
             runningWorkTotal(running) > 0
-                ? `Delete '${title}' and terminate ${runningWorkPhrase(running, 'running')}?`
-                : `Delete '${title}'?`,
-        detail: `Only Caxri metadata and snapshots are deleted. ${folderClause} and its files are never touched.`,
-        buttons: [`Delete ${kind}`, 'Cancel'],
+                ? t('desktop.delete.messageRunning', {
+                      title,
+                      running: runningWorkPhrase(running, 'running'),
+                  })
+                : t('desktop.delete.message', { title }),
+        detail: t(`desktop.${kind}.detail`),
+        buttons: [t(`desktop.${kind}.confirm`), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,
     };
@@ -209,23 +234,28 @@ export function deleteProjectPrompt(
     running: RunningWork,
     worktreeProjectTitles: readonly string[] = [],
 ): MessageBoxOptions {
-    const prompt = deletePrompt('Project', title, running, 'The Project folder');
+    const prompt = deletePrompt('deleteProject', title, running);
     const count = worktreeProjectTitles.length;
     if (count === 0) return prompt;
     const named = worktreeProjectTitles.slice(0, NAMED_WORKTREE_PROJECT_LIMIT);
     const listed = named.map((worktreeTitle) => `'${worktreeTitle}'`).join(', ');
     const remainder = count - named.length;
-    const names = remainder > 0 ? `${listed}, and ${remainder} more` : listed;
+    const names =
+        remainder > 0
+            ? t('desktop.deleteProject.worktreeMore', { names: listed, count: remainder })
+            : listed;
     const isSingle = count === 1;
     const cascade = isSingle
-        ? `1 linked worktree Project is removed with it: ${names}.`
-        : `${count} linked worktree Projects are removed with it: ${names}.`;
-    const provenance = `Caxri registered ${isSingle ? 'it' : 'them'} automatically when a Session adopted the worktree, and a cascade like this is the only way ${isSingle ? 'it is' : 'they are'} removed. Any Session still working in ${isSingle ? 'it' : 'one of them'} survives, with its Workbench Root back at its own Project root.`;
+        ? t('desktop.deleteProject.worktreeOne', { names })
+        : t('desktop.deleteProject.worktreeOther', { names, count });
+    const provenance = t(
+        isSingle ? 'desktop.deleteProject.provenanceOne' : 'desktop.deleteProject.provenanceOther',
+    );
     return { ...prompt, detail: `${cascade} ${provenance}\n\n${prompt.detail}` };
 }
 
 export function deleteSessionPrompt(title: string, running: RunningWork): MessageBoxOptions {
-    return deletePrompt('Session', title, running, 'The selected folder');
+    return deletePrompt('deleteSession', title, running);
 }
 
 /**
@@ -238,13 +268,16 @@ export function deleteSessionsPrompt(
 ): MessageBoxOptions {
     return {
         type: 'warning',
-        title: 'Delete Sessions',
+        title: t('desktop.deleteSessions.title'),
         message:
             runningWorkTotal(running) > 0
-                ? `Delete ${sessionCount} Sessions and terminate ${runningWorkPhrase(running, 'running')}?`
-                : `Delete ${sessionCount} Sessions?`,
-        detail: 'Only Caxri metadata and snapshots are deleted. The selected folders and their files are never touched.',
-        buttons: ['Delete Sessions', 'Cancel'],
+                ? t('desktop.deleteSessions.messageRunning', {
+                      count: sessionCount,
+                      running: runningWorkPhrase(running, 'running'),
+                  })
+                : t('desktop.deleteSessions.message', { count: sessionCount }),
+        detail: t('desktop.deleteSessions.detail'),
+        buttons: [t('desktop.deleteSessions.confirm'), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,
     };
@@ -257,10 +290,10 @@ export function revokeMobileDevicePrompt(device: {
     const platform = device.platform === 'ios' ? 'iOS' : 'Android';
     return {
         type: 'warning',
-        title: 'Revoke Mobile Device',
-        message: `Revoke '${device.displayName}'?`,
-        detail: `This ${platform} device immediately loses access to Caxri. To reconnect it, you must pair it again. Projects and files are not affected.`,
-        buttons: ['Revoke Device', 'Cancel'],
+        title: t('desktop.revokeDevice.title'),
+        message: t('desktop.revokeDevice.message', { name: device.displayName }),
+        detail: t('desktop.revokeDevice.detail', { platform }),
+        buttons: [t('desktop.revokeDevice.confirm'), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,
     };
@@ -278,25 +311,31 @@ export function discardGitChangesPrompt(target: {
         const untracked = target.scope.untracked;
         return {
             type: 'warning',
-            title: 'Discard Changes',
-            message: untracked
-                ? `Delete '${target.scope.path}'?`
-                : `Discard changes in '${target.scope.path}'?`,
-            detail: untracked
-                ? 'This file is untracked. It will be permanently deleted and cannot be restored.'
-                : 'The file is restored to its last committed state. Uncommitted changes cannot be restored.',
-            buttons: [untracked ? 'Delete File' : 'Discard Changes', 'Cancel'],
+            title: t('desktop.discard.title'),
+            message: t(untracked ? 'desktop.discard.deleteMessage' : 'desktop.discard.message', {
+                path: target.scope.path,
+            }),
+            detail: t(
+                untracked ? 'desktop.discard.untrackedDetail' : 'desktop.discard.trackedDetail',
+            ),
+            buttons: [
+                t(untracked ? 'desktop.discard.deleteFile' : 'desktop.discard.confirm'),
+                t('desktop.dialog.cancel'),
+            ],
             defaultId: 1,
             cancelId: 1,
         };
     }
-    const plural = target.scope.fileCount === 1 ? '' : 's';
+    const { fileCount } = target.scope;
     return {
         type: 'warning',
-        title: 'Discard All Changes',
-        message: `Discard all changes in ${target.scope.fileCount} file${plural} in '${target.repositoryName}'?`,
-        detail: 'Tracked files are restored to their last committed state and untracked files are permanently deleted. Uncommitted changes cannot be restored.',
-        buttons: ['Discard All Changes', 'Cancel'],
+        title: t('desktop.discardAll.title'),
+        message: t(
+            fileCount === 1 ? 'desktop.discardAll.messageOne' : 'desktop.discardAll.messageOther',
+            { count: fileCount, repository: target.repositoryName },
+        ),
+        detail: t('desktop.discardAll.detail'),
+        buttons: [t('desktop.discardAll.confirm'), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,
     };
@@ -307,10 +346,14 @@ export type DiscardChoice = 'save' | 'discard' | 'cancel';
 export function unsavedChangesPrompt(name: string): MessageBoxOptions {
     return {
         type: 'warning',
-        title: 'Unsaved Changes',
-        message: `Do you want to save the changes you made to '${name}'?`,
-        detail: "Your changes will be lost if you don't save them.",
-        buttons: ['Save', "Don't Save", 'Cancel'],
+        title: t('desktop.unsaved.title'),
+        message: t('desktop.unsaved.message', { name }),
+        detail: t('desktop.unsaved.detail'),
+        buttons: [
+            t('desktop.unsaved.save'),
+            t('desktop.unsaved.dontSave'),
+            t('desktop.dialog.cancel'),
+        ],
         /**
          * MacOS convention: Enter saves, Escape cancels, never the destructive choice.
          */
@@ -335,13 +378,17 @@ export function revertAgentChatFilesPrompt({
     providerName: string;
     removedTurns: number;
 }): MessageBoxOptions {
-    const turns = removedTurns === 1 ? 'this turn' : `these ${removedTurns} turns`;
     return {
         type: 'warning',
-        title: 'Revert File Changes',
-        message: `Revert the files ${providerName} changed in ${turns}?`,
-        detail: 'Files return to how they were before this message. Changes made to them since, including your own, are lost.',
-        buttons: ['Revert Files', 'Cancel'],
+        title: t('desktop.revertFiles.title'),
+        message: t(
+            removedTurns === 1
+                ? 'desktop.revertFiles.messageOne'
+                : 'desktop.revertFiles.messageOther',
+            { provider: providerName, count: removedTurns },
+        ),
+        detail: t('desktop.revertFiles.detail'),
+        buttons: [t('desktop.revertFiles.confirm'), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,
     };

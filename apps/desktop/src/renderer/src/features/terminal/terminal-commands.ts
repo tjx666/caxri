@@ -8,6 +8,8 @@ import {
     splitTabIntoPane,
 } from '@caxri/protocol';
 
+import type { TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -35,7 +37,7 @@ export function activateTerminal(terminalId: string): void {
                 ...sessionState,
                 paneLayout: selectTab(sessionState.paneLayout, occurrence.tab.id),
             },
-            'Unable to activate Terminal',
+            translate('terminal.errors.activateFailed'),
         );
 }
 
@@ -92,7 +94,7 @@ export async function createTerminalForSession(
     { cwd, externalDocumentId, paneId, split, surface }: CreateTerminalOptions,
 ): Promise<string | undefined> {
     return tryCommand(
-        'Terminal creation failed',
+        translate('terminal.errors.createFailed'),
         async () => {
             const terminal = externalDocumentId
                 ? await caxri.request('externalDocument.openInTerminal', {
@@ -160,7 +162,7 @@ export function closeTerminal(terminalId: string): void {
     // This is a sync UI handler; tryCommand already routes any failure into a toast.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
-        'Terminal close failed',
+        translate('terminal.errors.closeFailed'),
         async () => {
             await caxri.request('terminal.close', { terminalId });
             clearTerminalProgress(terminalId);
@@ -177,14 +179,14 @@ export function closeTerminal(terminalId: string): void {
  */
 export function stopTerminal(terminalId: string): void {
     // eslint-disable-next-line no-void -- tryCommand reports stop failures through the toast
-    void tryCommand('Unable to stop the Terminal', () =>
+    void tryCommand(translate('terminal.errors.stopFailed'), () =>
         caxri.request('terminal.suspend', { terminalId }),
     );
 }
 
 export function refreshTerminalState(): void {
     // eslint-disable-next-line no-void -- tryCommand reports refresh failures through the toast
-    void tryCommand('Terminal refresh failed', refreshWorkbench);
+    void tryCommand(translate('terminal.errors.refreshFailed'), refreshWorkbench);
 }
 
 async function requestTerminalRestart(
@@ -203,14 +205,17 @@ async function requestTerminalRestart(
     await caxri.request('terminal.restart', { terminalId, mode });
 }
 
+const TERMINAL_RESTART_FAILED: TranslationKey = 'terminal.errors.restartFailed';
+
 /**
  * Resume-restarts a Terminal with the lost-reply recovery offer, without asking first: the notification center's Retry
  * and {@link restartTerminal} (after its running-turn confirmation) both land here. `failureTitle` names the action the
- * user took, so a failed Restart Agent does not report itself as a Terminal restart.
+ * user took, so a failed Restart Agent does not report itself as a Terminal restart. It is a translation key,
+ * translated when the failure is reported, so callers outside this module never hold a language-frozen string.
  */
 export function restartTerminalWithRecovery(
     terminalId: string,
-    failureTitle = 'Terminal restart failed',
+    failureTitle: TranslationKey = TERMINAL_RESTART_FAILED,
 ): void {
     let isRestartSubmitted = false;
     // Captured before the attempt: the offer stays in the notification center indefinitely, and the handler refuses it
@@ -218,7 +223,7 @@ export function restartTerminalWithRecovery(
     const processId = getBootstrap()?.terminals.find((entry) => entry.id === terminalId)?.processId;
     // eslint-disable-next-line no-void -- tryCommand reports restart failures through the toast
     void tryCommand(
-        failureTitle,
+        translate(failureTitle),
         () =>
             requestTerminalRestart(terminalId, 'resume', () => {
                 isRestartSubmitted = true;
@@ -234,7 +239,7 @@ export function restartTerminalWithRecovery(
     );
 }
 
-export const RESTART_AGENT_FAILED = 'Restart Agent failed';
+export const RESTART_AGENT_FAILED: TranslationKey = 'terminal.errors.restartAgentFailed';
 
 /**
  * Restarts a Terminal: a Shell starts again, and an Agent Terminal ends its current Agent Run and resumes the same
@@ -247,14 +252,14 @@ export function restartTerminal(terminalId: string): void {
     const isAgent = Boolean(
         getBootstrap()?.terminals.find((entry) => entry.id === terminalId)?.provider,
     );
-    const failureTitle = isAgent ? RESTART_AGENT_FAILED : 'Terminal restart failed';
+    const failureTitle = isAgent ? RESTART_AGENT_FAILED : TERMINAL_RESTART_FAILED;
     // eslint-disable-next-line no-void -- the confirmation and the restart report their own errors
     void confirmBeforeEndingTurn(
         terminalId,
         {
-            confirmLabel: 'Stop and Restart',
-            failureTitle,
-            outcome: 'Restarting stops the current turn and resumes the same conversation.',
+            confirmLabel: translate('terminal.restart.confirmLabel'),
+            failureTitle: translate(failureTitle),
+            outcome: translate('terminal.restart.outcome'),
         },
         () => restartTerminalWithRecovery(terminalId, failureTitle),
     );
@@ -267,8 +272,6 @@ export function restartActiveTerminal(terminalId: string): void {
     restartTerminal(terminalId);
 }
 
-const START_NEW_CONVERSATION_FAILED = 'Starting a new conversation failed';
-
 /**
  * Start New Conversation: the only user action allowed to clear a durable provider-session binding. It ends the current
  * Agent Run like a restart, and it always asks first, even for an exited or idle Agent: once confirmed, this Terminal
@@ -280,24 +283,22 @@ const START_NEW_CONVERSATION_FAILED = 'Starting a new conversation failed';
 export function startNewAgentSession(terminalId: string): void {
     const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
     if (!terminal?.provider || !terminal.agentSessionId) {
-        pushToast('info', 'The active Terminal has no conversation to replace.');
+        pushToast('info', translate('terminal.newConversation.none'));
         return;
     }
-    const failureTitle = START_NEW_CONVERSATION_FAILED;
+    const failureTitle = translate('terminal.newConversation.failed');
     // eslint-disable-next-line no-void -- the confirmation and the restart report their own errors
     void confirmBeforeEndingTurn(
         terminalId,
         {
-            confirmLabel: 'Stop and Start New',
+            confirmLabel: translate('terminal.newConversation.stopConfirmLabel'),
             failureTitle,
             idle: {
-                confirmLabel: 'Start New',
-                message:
-                    'This Terminal stops resuming its current conversation and starts a new one.',
-                title: 'Start a new conversation?',
+                confirmLabel: translate('terminal.newConversation.confirmLabel'),
+                message: translate('terminal.newConversation.message'),
+                title: translate('terminal.newConversation.title'),
             },
-            outcome:
-                'Starting a new conversation stops the current turn, and this Terminal stops resuming the current conversation.',
+            outcome: translate('terminal.newConversation.outcome'),
         },
         () =>
             // eslint-disable-next-line no-void -- tryCommand routes any failure into a toast
@@ -316,7 +317,7 @@ export function sendTerminalSequence(terminalId: string, text: string): void {
     if (!canSendTerminalInput(terminalId)) return;
     // This is a sync command handler; tryCommand already routes any failure into a toast.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Terminal input failed', () =>
+    void tryCommand(translate('terminal.errors.inputFailed'), () =>
         caxri.request('terminal.input', { terminalId, data: text }),
     );
 }

@@ -72,7 +72,7 @@ describe('agentChatTurnWorkItems', () => {
         const entry: Extract<AgentChatTimelineEntry, { kind: 'turn' }> = {
             kind: 'turn',
             id: 'turn:t1',
-            label: 'Worked for 2s',
+            durationMs: 2000,
             status: 'completed',
             entries: [
                 { kind: 'work', id: 'work:c1', items: [command('c1')] },

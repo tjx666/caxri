@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
 
@@ -7,16 +8,15 @@ import { tryCommand } from '../../stores/toasts';
  * Commander window's own Stop button before its turn ends.
  */
 export async function stopCommanderFromWorkbench(): Promise<void> {
-    const failureTitle = 'Unable to stop Agent Commander';
+    const failureTitle = translate('agentCommander.commands.stopFailed');
     const status = await tryCommand(failureTitle, () => caxri.request('commander.status', {}));
     if (status === undefined) return;
     if (status.state === 'working') {
         const isConfirmed = await tryCommand(failureTitle, () =>
             caxri.window.showConfirm({
-                title: 'Stop the running turn?',
-                message:
-                    'Agent Commander is still working. Stopping it ends the current turn and closes its window. Tasks it delegated keep running.',
-                confirmLabel: 'Stop and Close',
+                title: translate('agentCommander.commands.stopTurnTitle'),
+                message: translate('agentCommander.commands.stopTurnMessage'),
+                confirmLabel: translate('agentCommander.commands.stopAndClose'),
             }),
         );
         if (isConfirmed !== true) return;

@@ -38,6 +38,10 @@ catalog:
   ws: ^8.21.3
   zod: ^4.6.5
 
+# CI's pnpm applies its default one-day release-age floor. Declaring it here keeps a contributor's user-level
+# `minimumReleaseAge` override from resolving a lockfile that CI's frozen install then rejects.
+minimumReleaseAge: 1440
+
 minimumReleaseAgeExclude:
   - '@yutengjing/eslint-config-basic@4.0.0'
   - '@yutengjing/eslint-config-typescript@4.0.0'

@@ -11,6 +11,7 @@ import {
     SplitButtonTrigger,
 } from '../../components/ui/split-button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useCommandShortcut } from '../../lib/keybindings';
@@ -29,8 +30,6 @@ import {
     resolveNewTerminalTarget,
 } from './new-terminal-agent';
 import { createTerminal } from './terminal-commands';
-
-const MENU_LABEL = 'Select a different Agent';
 
 /**
  * The in-Session New Terminal control. The tab strip's + opens the Agent list on hover; the empty pane's labelled
@@ -54,6 +53,7 @@ export function NewTerminalButton({
      */
     paneId?: string;
 }) {
+    const { t } = useTranslation();
     const session = usePaneViewSession();
     const terminals = useTerminals();
     const primaryTerminal = session ? sessionAgentTerminal(session, terminals) : undefined;
@@ -73,7 +73,8 @@ export function NewTerminalButton({
     /**
      * Unlabelled on purpose: Base UI points the popup's `aria-labelledby` at whichever trigger opened it (`MenuRoot`),
      * and `aria-labelledby` outranks `aria-label`, so naming the popup here would be inert. Both triggers already say
-     * what the list is for: `New Terminal` when the control is collapsed, `MENU_LABEL` on the split button's chevron.
+     * what the list is for: `New Terminal` when the control is collapsed, `Select a different Agent` on the split
+     * button's chevron.
      */
     const menu = (
         <MenuContent align="end">
@@ -98,7 +99,11 @@ export function NewTerminalButton({
         // stale setting. See `resolveNewTerminalTarget`.
         const target = resolveNewTerminalTarget(primaryTerminal, defaultAgent, openInChat);
         if (target) {
-            const actionLabel = newTerminalActionLabel(target, resolveAgentIcon(target.kind).label);
+            const actionLabel = newTerminalActionLabel(
+                target,
+                resolveAgentIcon(target.kind).label,
+                t,
+            );
             /**
              * `⌘T` creates the configured default, while a press here may clone the Session's live Agent instead; the
              * chip shows only when both create the same Terminal, so it never promises what the shortcut will not do.
@@ -165,7 +170,7 @@ export function NewTerminalButton({
                     delay={100}
                     closeDelay={150}
                     render={
-                        <Button aria-label="New Terminal" size="icon" variant="ghost">
+                        <Button aria-label={t('terminal.new.terminal')} size="icon" variant="ghost">
                             <Plus size={14} />
                         </Button>
                     }
@@ -180,8 +185,12 @@ export function NewTerminalButton({
             <Menu>
                 <MenuTrigger
                     render={
-                        <Button aria-label="New Terminal" size="default" variant="default">
-                            New Terminal
+                        <Button
+                            aria-label={t('terminal.new.terminal')}
+                            size="default"
+                            variant="default"
+                        >
+                            {t('terminal.new.terminal')}
                         </Button>
                     }
                 />
@@ -194,10 +203,13 @@ export function NewTerminalButton({
      * configured, so "New Terminal" alone would leave a screen reader user guessing which Agent starts.
      */
     const defaultSurface = newAgentSurface(defaultAgent, openInChat);
-    const buttonText = newTerminalButtonText(defaultSurface);
+    const buttonText = newTerminalButtonText(defaultSurface, t);
     const action = (
         <SplitButtonAction
-            aria-label={`${buttonText} (${resolveAgentIcon(defaultAgent).label})`}
+            aria-label={t('terminal.new.buttonWithAgent', {
+                action: buttonText,
+                agent: resolveAgentIcon(defaultAgent).label,
+            })}
             onClick={() => create(defaultAgent, defaultSurface)}
             size="default"
             variant="default"
@@ -213,7 +225,7 @@ export function NewTerminalButton({
                 <MenuTrigger
                     render={
                         <SplitButtonTrigger
-                            aria-label={MENU_LABEL}
+                            aria-label={t('terminal.new.selectAgent')}
                             size="default"
                             variant="default"
                         />

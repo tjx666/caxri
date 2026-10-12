@@ -5,6 +5,7 @@ import type { ProjectRecord } from '@caxri/protocol';
 import { FolderClosed, MessageCircle } from 'lucide-react';
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
+import { useTranslation } from '../../i18n';
 import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
 import { ProjectIcon } from './project-icon';
 import { sidebarDetailCardDismissal } from './sidebar-detail-card-dismissal';
@@ -30,7 +31,7 @@ export function ProjectDetailsCard({
 }) {
     const accessibleDescriptionId = useId();
     const [open, setOpen] = useState(false);
-    const sessionLabel = sessionCount === 1 ? 'active Session' : 'active Sessions';
+    const { t } = useTranslation();
     const visible = open && !suppressed;
 
     useEffect(() => {
@@ -55,7 +56,7 @@ export function ProjectDetailsCard({
                 render={trigger}
             />
             <span id={accessibleDescriptionId} className="sr-only">
-                Project root {project.rootPath}.
+                {t('primarySidebar.projectDetails.rootAriaDescription', { path: project.rootPath })}
             </span>
             <HoverCardContent
                 anchor={anchor}
@@ -78,7 +79,12 @@ export function ProjectDetailsCard({
                         <p className="mt-1 mb-0 flex items-center gap-1.5 text-[11px] text-muted">
                             <MessageCircle aria-hidden="true" className="flex-none" size={13} />
                             <span className="tabular-nums">
-                                {sessionCount} {sessionLabel}
+                                {t(
+                                    sessionCount === 1
+                                        ? 'primarySidebar.projectDetails.activeSessionsOne'
+                                        : 'primarySidebar.projectDetails.activeSessionsOther',
+                                    { count: sessionCount },
+                                )}
                             </span>
                         </p>
                     </div>

@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import { ArrowDown } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 
 /**
  * The floating "Jump to latest" control over a following scroll view (`useAgentChatScroll`), shown only while the user
@@ -18,6 +19,7 @@ export function AgentChatJumpToLatest({
     isFollowing: boolean;
     onJump: () => void;
 }) {
+    const { t } = useTranslation();
     if (isFollowing) return null;
     return (
         <Button
@@ -30,7 +32,7 @@ export function AgentChatJumpToLatest({
             }}
         >
             <ArrowDown className="size-3.5" />
-            Jump to latest
+            {t('agentChat.timeline.jumpToLatest')}
         </Button>
     );
 }

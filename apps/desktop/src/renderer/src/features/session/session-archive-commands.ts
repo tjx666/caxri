@@ -1,5 +1,6 @@
 import type { SessionRestorePlacement } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { useDialogStore } from '../../stores/dialogs';
 import { getSelectedSession } from '../../stores/selectors';
@@ -17,19 +18,24 @@ const SESSION_NOTICE_TITLE_MAX_LENGTH = 48;
  * record (a Shell-only Session has no Agent to name it) and quoting nothing reads as a rendering bug, so that case
  * names the noun instead of the title.
  */
-function describeSessionNotice(verb: string, displayTitle: string | undefined): string {
+function describeSessionNotice(
+    change: 'archived' | 'restored',
+    displayTitle: string | undefined,
+): string {
     const title = displayTitle?.trim() ?? '';
-    if (title.length === 0) return `${verb} Session`;
+    if (title.length === 0) return translate(`session.notice.${change}Untitled`);
     // Count and cut by code point: an Agent-authored title can end on an emoji, and a UTF-16 cut would leave a lone
     // surrogate that renders as the replacement character.
     const characters = [...title];
-    if (characters.length <= SESSION_NOTICE_TITLE_MAX_LENGTH) return `${verb} "${title}"`;
-    const head = characters.slice(0, SESSION_NOTICE_TITLE_MAX_LENGTH).join('').trimEnd();
-    return `${verb} "${head}…"`;
+    const quoted =
+        characters.length <= SESSION_NOTICE_TITLE_MAX_LENGTH
+            ? title
+            : `${characters.slice(0, SESSION_NOTICE_TITLE_MAX_LENGTH).join('').trimEnd()}…`;
+    return translate(`session.notice.${change}`, { title: quoted });
 }
 
 export function describeArchivedSession(displayTitle: string | undefined): string {
-    return describeSessionNotice('Archived', displayTitle);
+    return describeSessionNotice('archived', displayTitle);
 }
 
 /**
@@ -38,7 +44,7 @@ export function describeArchivedSession(displayTitle: string | undefined): strin
  * and it happens inside a dialog large enough to cover the PrimarySidebar row it just brought back.
  */
 export function describeRestoredSession(displayTitle: string | undefined): string {
-    return describeSessionNotice('Restored', displayTitle);
+    return describeSessionNotice('restored', displayTitle);
 }
 
 /**
@@ -47,7 +53,7 @@ export function describeRestoredSession(displayTitle: string | undefined): strin
  */
 export function describeRestoredSessions(displayTitles: ReadonlyArray<string | undefined>): string {
     if (displayTitles.length === 1) return describeRestoredSession(displayTitles[0]);
-    return `Restored ${displayTitles.length} Sessions`;
+    return translate('session.notice.restoredCount', { count: displayTitles.length });
 }
 
 /**
@@ -60,7 +66,7 @@ export function describeRestoredSessions(displayTitles: ReadonlyArray<string | u
  */
 async function archiveSessionWithNotice(sessionId: string): Promise<void> {
     const archived = await tryCommand(
-        'Session archive failed',
+        translate('session.errors.archiveFailed'),
         () => caxri.request('session.archive', { sessionId }),
         { refresh: refreshWorkbench },
     );
@@ -80,7 +86,9 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
             params: { sessionId },
             // Several archived Sessions leave several `Undo` buttons in the history, identical to a screen reader
             // reading the buttons alone. The title says which one this is.
-            accessibleLabel: `Undo archiving ${archived.displayTitle}`,
+            accessibleLabel: translate('session.notice.undoArchive', {
+                title: archived.displayTitle,
+            }),
         },
     });
 }
@@ -109,7 +117,7 @@ async function unarchiveSessionWithNotice(
     placement: SessionRestorePlacement,
 ): Promise<void> {
     const restored = await tryCommand(
-        'Session restore failed',
+        translate('session.errors.restoreFailed'),
         () => caxri.request('session.unarchive', { placement, sessionId }),
         { refresh: refreshWorkbench },
     );
@@ -143,7 +151,7 @@ export function unarchiveSession(
  */
 async function unarchiveSessionsWithNotice(sessionIds: readonly string[]): Promise<void> {
     const restored = await tryCommand(
-        'Session restore failed',
+        translate('session.errors.restoreFailed'),
         () =>
             caxri.request('session.unarchiveMany', {
                 placement: 'top',

@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/pop
 import { Separator } from '../../components/ui/separator';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
@@ -39,21 +40,32 @@ function WorktreeOption({
     disabled: boolean;
     onSelect: () => void;
 }) {
-    const label = workbenchRootLabel(root, roots);
-    const authorization = root.authorization === 'required' ? 'Authorize' : '';
+    const { t } = useTranslation();
+    const label = workbenchRootLabel(root, roots, t);
+    const authorization =
+        root.authorization === 'required' ? t('statusBar.workbenchRoot.authorize') : '';
+    const mainWorktree = t('statusBar.workbenchRoot.mainWorktree');
     return (
         <Tooltip
             content={
                 <StructuredTooltip
                     title={label}
-                    rows={[{ label: 'Path', value: root.rootPath, isCode: true }]}
+                    rows={[
+                        {
+                            label: t('statusBar.workbenchRoot.path'),
+                            value: root.rootPath,
+                            isCode: true,
+                        },
+                    ]}
                 />
             }
         >
             <CommandItem
                 value={root.worktreeId}
                 keywords={[root.branch, root.displayTitle, root.rootPath]}
-                aria-label={`${label}${authorization ? `, ${authorization}` : ''}${root.isMain ? ', Main worktree' : ''}`}
+                aria-label={[label, authorization, root.isMain ? mainWorktree : '']
+                    .filter(Boolean)
+                    .join(t('statusBar.listSeparator'))}
                 disabled={disabled}
                 onSelect={onSelect}
                 className="items-center text-[13px]"
@@ -65,7 +77,7 @@ function WorktreeOption({
                 />
                 <span className="min-w-0 flex-1 truncate">{label}</span>
                 {root.isMain && (
-                    <span className="flex-none text-[11px] text-muted">Main worktree</span>
+                    <span className="flex-none text-[11px] text-muted">{mainWorktree}</span>
                 )}
                 {authorization && (
                     <span className="flex-none text-[11px] text-muted">{authorization}</span>
@@ -128,20 +140,30 @@ function WorkbenchRootTrigger({
     title: string;
     rootPath: string;
 }) {
+    const { t } = useTranslation();
+    const switchingText = t('statusBar.workbenchRoot.switching', { name: switchingLabel });
     return (
         <Tooltip
             content={
                 isSwitching ? (
-                    `Switching to ${switchingLabel}…`
+                    switchingText
                 ) : (
                     <StructuredTooltip
-                        eyebrow={isWorktree ? 'Linked worktree' : 'Workbench Root'}
+                        eyebrow={t(
+                            isWorktree
+                                ? 'statusBar.workbenchRoot.linkedWorktree'
+                                : 'statusBar.workbenchRoot.workbenchRoot',
+                        )}
                         title={title}
                         rows={[
-                            { label: 'Branch', value: branch },
-                            { label: 'Path', value: rootPath, isCode: true },
+                            { label: t('statusBar.workbenchRoot.branch'), value: branch },
+                            {
+                                label: t('statusBar.workbenchRoot.path'),
+                                value: rootPath,
+                                isCode: true,
+                            },
                         ]}
-                        hint="Click to switch Workbench Root"
+                        hint={t('statusBar.workbenchRoot.hint')}
                     />
                 )
             }
@@ -157,8 +179,8 @@ function WorkbenchRootTrigger({
                 aria-busy={isSwitching}
                 aria-label={
                     isSwitching
-                        ? `Switching to ${switchingLabel}…`
-                        : `Switch Workbench Root from ${title}, branch ${branch}`
+                        ? switchingText
+                        : t('statusBar.workbenchRoot.switchFrom', { title, branch })
                 }
                 className={cn(
                     statusItemClassName,
@@ -174,7 +196,7 @@ function WorkbenchRootTrigger({
                     <FolderGit2 size={13} className="flex-none" />
                 )}
                 <span className="min-w-0 truncate" role={isSwitching ? 'status' : undefined}>
-                    {isSwitching ? `Switching to ${switchingLabel}…` : title}
+                    {isSwitching ? switchingText : title}
                 </span>
             </PopoverTrigger>
         </Tooltip>
@@ -187,6 +209,7 @@ interface WorkbenchRootPickerProperties {
 }
 
 function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerProperties) {
+    const { t } = useTranslation();
     const session = useSelectedSession();
     const workbenchProject = useSelectedWorkbenchProject();
     const picker = useWorkbenchRootPicker(sessionId);
@@ -208,7 +231,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
     return (
         <Popover open={picker.open} onOpenChange={picker.changeOpen}>
             <WorkbenchRootTrigger
-                branch={branch ?? current?.branch ?? 'No branch'}
+                branch={branch ?? current?.branch ?? t('statusBar.workbenchRoot.noBranch')}
                 isExpanded={picker.open}
                 isSwitching={picker.switching}
                 switchingLabel={picker.switchingLabel}
@@ -219,7 +242,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
             <PopoverContent
                 side="top"
                 className="w-96 max-w-[calc(100vw-16px)]"
-                aria-label="Workbench Roots"
+                aria-label={t('statusBar.workbenchRoot.dialogLabel')}
             >
                 <Command
                     key={picker.all ? 'all' : 'recent'}
@@ -227,7 +250,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                     // `aria-labelledby` outranks `aria-label`, so this string (not a prop on
                     // `CommandInput`) is the search field's accessible name. The popup keeps
                     // `Workbench Roots` as its own dialog name above.
-                    label="Search worktrees"
+                    label={t('statusBar.workbenchRoot.searchLabel')}
                     defaultValue={current?.worktreeId}
                     filter={pickerSearchScore}
                 >
@@ -235,13 +258,13 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                         autoFocus
                         value={picker.search}
                         onValueChange={picker.setSearch}
-                        placeholder="Search worktrees…"
+                        placeholder={t('statusBar.workbenchRoot.searchPlaceholder')}
                     />
                     <CommandList className="max-h-[min(360px,var(--available-height))]">
                         <PickerQueryStatus noun="worktrees" query={picker.rootsQuery} />
                         {recommended.length > 0 && (
                             <>
-                                <CommandGroup heading="From this conversation">
+                                <CommandGroup heading={t('statusBar.source.conversation')}>
                                     <WorktreeOptions
                                         options={recommended}
                                         roots={roots}
@@ -268,7 +291,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                                         className="text-[13px]"
                                         onSelect={() => picker.setAll(true)}
                                     >
-                                        Show all worktrees…
+                                        {t('statusBar.workbenchRoot.showAll')}
                                         <span className="text-muted">{roots.length}</span>
                                     </CommandItem>
                                 </>

@@ -5,6 +5,7 @@ import { useEditorOptions } from '@/hooks/use-editor-options';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
+import { useTranslation } from '../../i18n';
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { useCaxriQuery } from '../../queries/client';
 import { useTheme } from '../../stores/selectors';
@@ -23,6 +24,7 @@ const emptyWorkDangerClassName =
  * which Monaco's `json` mode would cover in bogus multi-root diagnostics.
  */
 export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
+    const { t } = useTranslation();
     const theme = useTheme();
     const editorOptions = useEditorOptions();
     const query = useCaxriQuery('terminal.agentTranscript', {
@@ -31,23 +33,20 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
     });
     const follow = useAgentTranscriptFollow(query.data?.path ?? tab.terminalId);
     if (!theme) return null;
-    if (query.isPending) return <LoadingSkeleton variant="document" label="Loading transcript…" />;
+    if (query.isPending)
+        return <LoadingSkeleton variant="document" label={t('editor.load.loadingTranscript')} />;
     if (query.isError)
         return (
             <div className={emptyWorkDangerClassName}>
-                {describeFailure(query.error, 'Unable to load transcript')}
+                {describeFailure(query.error, t('editor.transcript.loadFailed'))}
             </div>
         );
     if (!query.data)
-        return (
-            <div className={emptyWorkClassName}>
-                This terminal has no bound agent transcript to show.
-            </div>
-        );
+        return <div className={emptyWorkClassName}>{t('editor.transcript.unbound')}</div>;
     if (!query.data.exists)
         return (
             <div className={emptyWorkClassName}>
-                <span>Transcript file not found.</span>
+                <span>{t('editor.transcript.notFound')}</span>
                 <code className="max-w-full px-6 text-[11px] break-all">{query.data.path}</code>
             </div>
         );
@@ -60,7 +59,7 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
                 <span className="truncate">{query.data.path}</span>
                 {query.data.truncated && (
                     <span className="ml-auto flex-none text-warning">
-                        Truncated — showing the newest part
+                        {t('editor.transcript.truncated')}
                     </span>
                 )}
             </div>
@@ -89,7 +88,7 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
                         variant="secondary"
                         onClick={follow.jumpToLatest}
                     >
-                        Jump to Latest
+                        {t('editor.transcript.jumpToLatest')}
                     </Button>
                 )}
             </div>

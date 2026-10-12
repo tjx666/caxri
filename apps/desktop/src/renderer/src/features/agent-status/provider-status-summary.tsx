@@ -4,6 +4,7 @@ import type {
     AgentProviderStatusIncident,
 } from '@caxri/protocol';
 
+import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import {
     describeProviderStatus,
@@ -33,12 +34,16 @@ export function ProviderStatusDot({
 }
 
 function IncidentLine({ incidents }: { incidents: readonly AgentProviderStatusIncident[] }) {
-    const { first, moreLabel } = summarizeIncidents(incidents);
+    const { t } = useTranslation();
+    const { first, moreLabel } = summarizeIncidents(incidents, t);
     if (!first) return null;
     return (
         <span className="flex min-w-0 gap-1.5 text-muted">
             <span className="min-w-0 truncate">
-                {first.name} ({incidentPhaseLabel(first.phase)})
+                {t('agentStatus.incidentWithPhase', {
+                    name: first.name,
+                    phase: incidentPhaseLabel(first.phase, t),
+                })}
             </span>
             {moreLabel && <span className="flex-none">{moreLabel}</span>}
         </span>
@@ -57,20 +62,21 @@ export function ProviderStatusSummary({
     isError?: boolean;
     status: AgentProviderStatus | undefined;
 }) {
+    const { t } = useTranslation();
     if (!status)
         return (
             <span className="text-muted">
-                {isError ? 'Could not read the status page' : 'Checking…'}
+                {t(isError ? 'agentStatus.summary.readFailed' : 'agentStatus.summary.checking')}
             </span>
         );
     if (status.state === 'unavailable')
-        return <span className="text-muted">{providerStatusFailureLabel(status.reason)}</span>;
+        return <span className="text-muted">{providerStatusFailureLabel(status.reason, t)}</span>;
     return (
         <span className="flex min-w-0 flex-col gap-0.5">
             <span className="flex min-w-0 items-baseline gap-1.5">
                 {/* Nudged onto the text's x-height so the dot reads as part of the first line. */}
                 <ProviderStatusDot className="translate-y-[-1px]" status={status.status} />
-                <span>{describeProviderStatus(status)}</span>
+                <span>{describeProviderStatus(status, t)}</span>
             </span>
             <IncidentLine incidents={status.incidents} />
         </span>

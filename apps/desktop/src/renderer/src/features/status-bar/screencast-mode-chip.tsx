@@ -1,6 +1,7 @@
 import { Cast } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { useTranslation } from '../../i18n';
 import { useScreencastStore } from '../screencast/screencast';
 import { StatusItem } from './status-item';
 
@@ -17,21 +18,19 @@ const screencastChipClassName = 'text-muted';
  * (see `screencast.ts`'s `describeScreencastKey`): it never hides or redacts anything already visible on screen, so
  * source code and Terminal output stay exactly as exposed as they would be without it.
  */
-const SCREENCAST_CHIP_LABEL =
-    'Screencast Mode is on — click to turn it off. It overlays click ripples and keystroke hints for recording; it does not hide or redact anything already on screen.';
-
 export function ScreencastModeChip() {
+    const { t } = useTranslation();
     const isEnabled = useScreencastStore((state) => state.enabled);
     if (!isEnabled) return null;
     return (
         <StatusItem
             icon={<Cast />}
-            ariaLabel={SCREENCAST_CHIP_LABEL}
-            title={SCREENCAST_CHIP_LABEL}
+            ariaLabel={t('statusBar.screencast.description')}
+            title={t('statusBar.screencast.description')}
             className={screencastChipClassName}
             onClick={() => executeCommand('developer.toggleScreencastMode')}
         >
-            Screencast
+            {t('statusBar.screencast.label')}
         </StatusItem>
     );
 }

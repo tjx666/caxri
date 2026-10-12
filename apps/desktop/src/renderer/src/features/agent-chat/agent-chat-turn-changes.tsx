@@ -8,6 +8,7 @@ import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { parentDirectoryPath, projectRelativePath } from '../../lib/file-path';
 import { cn } from '../../lib/utilities';
@@ -64,6 +65,7 @@ function EditedFileRow({
     isExpanded: boolean;
     onToggle: () => void;
 }) {
+    const { t } = useTranslation();
     const detailId = useId();
     const directory = parentDirectoryPath(displayPath);
     return (
@@ -71,7 +73,12 @@ function EditedFileRow({
             <button
                 aria-controls={detailId}
                 aria-expanded={isExpanded}
-                aria-label={`${isExpanded ? 'Hide' : 'Show'} changes: ${displayPath}, ${diffStatLabel(file)}`}
+                aria-label={t(
+                    isExpanded
+                        ? 'agentChat.changes.hideFileChanges'
+                        : 'agentChat.changes.showFileChanges',
+                    { path: displayPath, stat: diffStatLabel(file, t) },
+                )}
                 className="flex h-9 w-full min-w-0 cursor-pointer items-center gap-3 border-0 bg-transparent px-3 text-left text-[12px] hover:bg-elevated focus-visible:outline focus-visible:-outline-offset-1 focus-visible:outline-accent"
                 type="button"
                 onClick={onToggle}
@@ -111,6 +118,7 @@ export function AgentChatTurnChanges({
     files: readonly AgentChatEditedFile[];
     turnId: string;
 }) {
+    const { t } = useTranslation();
     const session = usePaneViewSession();
     const terminalId = useAgentChatTerminal();
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -121,7 +129,7 @@ export function AgentChatTurnChanges({
     const displayPath = (path: string): string =>
         (session?.rootPath && projectRelativePath(path, session.rootPath)) ?? path;
     const stat = agentChatEditedFilesStat(files);
-    const title = agentChatEditedFilesTitle(files, pathBasename);
+    const title = agentChatEditedFilesTitle(files, pathBasename, t);
     const isAllExpanded = files.every((file) => expanded.has(file.path));
     /**
      * The hover preview only stands in for the diffs while they are hidden. A click on the counts discloses them in
@@ -160,7 +168,12 @@ export function AgentChatTurnChanges({
                                 <button
                                     aria-controls={files.length === 1 ? detailId : undefined}
                                     aria-expanded={isAllExpanded}
-                                    aria-label={`${isAllExpanded ? 'Hide' : 'View'} changes, ${diffStatLabel(stat)}`}
+                                    aria-label={t(
+                                        isAllExpanded
+                                            ? 'agentChat.changes.hideAllWithStat'
+                                            : 'agentChat.changes.viewAllWithStat',
+                                        { stat: diffStatLabel(stat, t) },
+                                    )}
                                     className="group/stat flex h-5 cursor-pointer items-center border-0 bg-transparent p-0 text-[12px] text-muted hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                                     type="button"
                                     onClick={toggleAll}
@@ -173,7 +186,11 @@ export function AgentChatTurnChanges({
                                 deletions={stat.deletions}
                             />
                             <span className="hidden group-hover/stat:inline group-focus-visible/stat:inline">
-                                {isAllExpanded ? 'Hide changes' : 'View changes'}
+                                {t(
+                                    isAllExpanded
+                                        ? 'agentChat.changes.hideChanges'
+                                        : 'agentChat.changes.viewChanges',
+                                )}
                             </span>
                             {/* Always shown, so the counts read as a disclosure before the pointer finds them. */}
                             <ChevronDown
@@ -201,14 +218,16 @@ export function AgentChatTurnChanges({
                 </div>
                 {sessionId !== undefined &&
                     (undoStatus === 'undone' ? (
-                        <span className="shrink-0 text-[12px] text-muted">Undone</span>
+                        <span className="shrink-0 text-[12px] text-muted">
+                            {t('agentChat.undo.undone')}
+                        </span>
                     ) : (
                         <Tooltip
-                            content={
+                            content={t(
                                 isTruncated
-                                    ? 'A diff was too large to keep in full, so this turn cannot be undone'
-                                    : 'Restore the files to how they were before this turn'
-                            }
+                                    ? 'agentChat.undo.truncatedTooltip'
+                                    : 'agentChat.undo.tooltip',
+                            )}
                         >
                             <Button
                                 aria-disabled={isTruncated || undoStatus === 'undoing'}
@@ -226,7 +245,7 @@ export function AgentChatTurnChanges({
                                     });
                                 }}
                             >
-                                Undo
+                                {t('agentChat.undo.button')}
                                 {undoStatus === 'undoing' ? (
                                     <LoaderCircle
                                         aria-hidden="true"
@@ -239,7 +258,7 @@ export function AgentChatTurnChanges({
                         </Tooltip>
                     ))}
                 {terminalId !== undefined && (
-                    <Tooltip content="Review this turn's changes beside the Chat and comment on them">
+                    <Tooltip content={t('agentChat.review.tooltip')}>
                         <Button
                             className="shrink-0 gap-1 text-[12px]"
                             size="sm"
@@ -247,7 +266,7 @@ export function AgentChatTurnChanges({
                             onClick={() => openAgentChatTurnReview(terminalId, turnId)}
                         >
                             <MessageSquareDiff aria-hidden="true" className="size-3.5" />
-                            Review
+                            {t('agentChat.review.button')}
                         </Button>
                     </Tooltip>
                 )}

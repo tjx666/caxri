@@ -1,6 +1,7 @@
 import type { MethodResult, ProjectRecord, SessionPullRequest } from '@caxri/protocol';
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { caxriQueryKey, queryClient } from '../../queries/client';
@@ -35,7 +36,7 @@ const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {}
 async function didRequestSelection(sessionId: string): Promise<boolean> {
     const convergence = registerSessionCommandConvergence('session.select');
     const finishPerformanceRequest = beginRendererPerformanceRequest('session.select');
-    const selected = await tryCommand('Session selection failed', async () => {
+    const selected = await tryCommand(translate('session.errors.selectFailed'), async () => {
         try {
             return await caxri.request('session.select', { sessionId });
         } finally {
@@ -121,7 +122,7 @@ export function selectProject(projectId: string): void {
 }
 
 export async function didReorderProject(projectId: string, targetIndex: number): Promise<boolean> {
-    const reordered = await tryCommand('Project reordering failed', () =>
+    const reordered = await tryCommand(translate('session.errors.reorderProjectFailed'), () =>
         caxri.request('project.reorder', { projectId, targetIndex }),
     );
     return reordered !== undefined;
@@ -133,7 +134,7 @@ export async function didReorderSession(
     placement: 'before' | 'after',
 ): Promise<boolean> {
     const convergence = registerSessionCommandConvergence('session.reorder');
-    const reordered = await tryCommand('Session reordering failed', () =>
+    const reordered = await tryCommand(translate('session.errors.reorderSessionFailed'), () =>
         caxri.request('session.reorder', { sessionId, anchorSessionId, placement }),
     );
     if (reordered === undefined) {
@@ -154,7 +155,7 @@ export async function didReorderPinnedSession(
     placement: 'before' | 'after',
 ): Promise<boolean> {
     const convergence = registerSessionCommandConvergence('session.reorderPinned');
-    const reordered = await tryCommand('Pinned Session reordering failed', () =>
+    const reordered = await tryCommand(translate('session.errors.reorderPinnedFailed'), () =>
         caxri.request('session.reorderPinned', { sessionId, anchorSessionId, placement }),
     );
     if (reordered === undefined) {
@@ -175,7 +176,7 @@ export function setSessionPinned(sessionId: string, shouldPin: boolean): void {
     // Fire-and-forget: `tryCommand` funnels its own failures into a toast.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
-        shouldPin ? 'Pin Session failed' : 'Unpin Session failed',
+        translate(shouldPin ? 'session.errors.pinFailed' : 'session.errors.unpinFailed'),
         () => caxri.request('session.setPinned', { sessionId, pinned: shouldPin }),
         { refresh: refreshWorkbench },
     ).then((pinned) => {
@@ -234,7 +235,7 @@ export async function didRenameSession(sessionId: string, displayTitle: string):
     const attempt = beginPendingSessionTitle(sessionId, displayTitle, currentTitle ?? displayTitle);
     showSessionTitle(sessionId, displayTitle);
     const renamed = await tryCommand(
-        'Session rename failed',
+        translate('session.errors.renameFailed'),
         () => caxri.request('session.rename', { sessionId, displayTitle }),
         { refresh: refreshWorkbench },
     );
@@ -276,7 +277,7 @@ export function openProjectInExternalEditor(
     const targetProject = workbenchProject ?? project;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Opening the Project in the external editor failed', () =>
+    void tryCommand(translate('session.errors.openInEditorFailed'), () =>
         sessionId === undefined
             ? caxri.request('project.openRoot', { projectId: project.id, application: 'editor' })
             : caxri.request('project.openInEditor', {
@@ -289,7 +290,7 @@ export function openProjectInExternalEditor(
 export function deleteSession(sessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Session deletion failed', async () => {
+    void tryCommand(translate('session.errors.deleteFailed'), async () => {
         const result = await caxri.request('session.delete', { sessionId });
         if ('canceled' in result) return;
         useSessionViewStore.getState().dropSessions([sessionId]);
@@ -306,7 +307,7 @@ export function deleteSessions(sessionIds: readonly string[]): void {
     if (sessionIds.length === 0) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Session deletion failed', async () => {
+    void tryCommand(translate('session.errors.deleteFailed'), async () => {
         const result = await caxri.request('session.deleteMany', { sessionIds: [...sessionIds] });
         if ('canceled' in result) return;
         useSessionViewStore.getState().dropSessions([...sessionIds]);
@@ -333,7 +334,7 @@ export function moveTerminalToNewSession(terminalId: string, isOnlyWorkTab = fal
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
-        'Move to new session failed',
+        translate('session.errors.moveToNewSessionFailed'),
         () => caxri.request('terminal.moveToNewSession', { terminalId }),
         { refresh: refreshWorkbench },
     );

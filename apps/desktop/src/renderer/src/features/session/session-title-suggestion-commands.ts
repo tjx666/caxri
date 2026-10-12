@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
 
@@ -6,7 +7,7 @@ import { tryCommand } from '../../stores/toasts';
  * to `undefined`; the caller decides whether to commit the suggestion through `didRenameSession`.
  */
 export function suggestSessionTitle(sessionId: string): Promise<string | undefined> {
-    return tryCommand("Couldn't name this Session", async () => {
+    return tryCommand(translate('session.errors.suggestTitleFailed'), async () => {
         const { displayTitle } = await caxri.request('session.suggestTitle', { sessionId });
         return displayTitle;
     });

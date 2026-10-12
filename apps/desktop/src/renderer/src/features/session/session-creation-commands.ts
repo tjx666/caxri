@@ -1,5 +1,6 @@
 import type { TerminalKind } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
@@ -12,7 +13,7 @@ import { selectProject } from './session-commands';
 
 async function createSession(projectId: string, defaultAgent: TerminalKind | null): Promise<void> {
     await tryCommand(
-        'Session creation failed',
+        translate('session.errors.createFailed'),
         async () => {
             /**
              * `session.openAgentsInChat` covers every Session entry: the anchored menu, the centered dialog, and direct
@@ -39,7 +40,7 @@ async function createProjectSession(
     rootPath: string,
     defaultAgent: TerminalKind | null,
 ): Promise<void> {
-    await tryCommand('Project creation failed', async () => {
+    await tryCommand(translate('session.errors.createProjectFailed'), async () => {
         const project = await caxri.request('project.create', { rootPath });
         /**
          * Keeps the Agent-choice dialog open, now anchored to the created Project.
@@ -107,7 +108,7 @@ async function restoreHiddenProject(rootPath: string): Promise<void> {
 }
 
 export async function chooseProjectFolder(): Promise<void> {
-    await tryCommand('Project folder selection failed', async () => {
+    await tryCommand(translate('session.errors.selectFolderFailed'), async () => {
         const rootPath = await caxri.request('dialog.selectDirectory');
         if (!rootPath) return;
         if (await caxri.request('project.restorable', { rootPath })) {

@@ -6,6 +6,7 @@ import {
     copyButtonLabel,
     writeToClipboardWithFeedback,
 } from '../../components/copy-feedback';
+import { translate } from '../../i18n';
 import { colorizeCode } from '../../lib/code-colorize';
 
 /**
@@ -37,19 +38,19 @@ function attachCopyButton(element: HTMLElement, code: string, signal: AbortSigna
     const button = element.ownerDocument.createElement('button');
     button.type = 'button';
     button.className = 'caxri-markdown-copy';
-    button.title = 'Copy';
-    button.setAttribute('aria-label', 'Copy code block');
+    button.title = translate('common.copy');
+    button.setAttribute('aria-label', translate('preview.markdown.copyCodeBlock'));
     button.innerHTML = COPY_GLYPH;
     const state = { reset: undefined as ReturnType<typeof setTimeout> | undefined };
     const copy = async (): Promise<void> => {
         const status = await writeToClipboardWithFeedback(navigator.clipboard, code);
         button.innerHTML = status === 'copied' ? CHECK_GLYPH : COPY_GLYPH;
-        button.title = copyButtonLabel(status, 'Copy');
+        button.title = copyButtonLabel(status, translate('common.copy'));
         button.dataset.state = status;
         clearTimeout(state.reset);
         state.reset = setTimeout(() => {
             button.innerHTML = COPY_GLYPH;
-            button.title = 'Copy';
+            button.title = translate('common.copy');
             delete button.dataset.state;
         }, COPY_FEEDBACK_RESET_MS);
     };

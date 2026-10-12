@@ -1,5 +1,6 @@
 import { errorMessage } from '@caxri/protocol';
 
+import { translate } from '../i18n';
 import { caxri } from './caxri';
 
 type ExternalOpenRejectionReason =
@@ -10,9 +11,11 @@ type ExternalOpenRejectionReason =
  * so the reason -> message mapping is testable as pure logic below the desktop boundary.
  */
 export function externalOpenRejectionMessage(reason: ExternalOpenRejectionReason): string {
-    if (reason === 'unsupported_protocol') return 'Only HTTP and HTTPS links can be opened';
-    if (reason === 'credentials_not_allowed') return 'External links cannot include credentials';
-    return 'External link is invalid';
+    if (reason === 'unsupported_protocol')
+        return translate('core.externalLink.unsupportedProtocol');
+    if (reason === 'credentials_not_allowed')
+        return translate('core.externalLink.credentialsNotAllowed');
+    return translate('core.externalLink.invalid');
 }
 
 /**
@@ -30,6 +33,6 @@ export async function openExternalUrl(
         if (result.status !== 'rejected') return;
         onError(externalOpenRejectionMessage(result.reason));
     } catch (error) {
-        onError(errorMessage(error, 'External link could not be opened'));
+        onError(errorMessage(error, translate('core.externalLink.openFailed')));
     }
 }
