@@ -1,7 +1,7 @@
 /**
  * Background-work scenarios for the fake Claude Code CLI (`fake-claude-cli.ts`): subagents whose own frames carry
- * `parent_tool_use_id`, background shells and subagents with `task_*` and `background_tasks_changed` frames, and the
- * `stop_task` and `get_task_output` control requests. Kept apart so the CLI stand-in stays readable.
+ * `parent_tool_use_id`, background shells, subagents, and workflows with `task_*` and `background_tasks_changed`
+ * frames, and the `stop_task` and `get_task_output` control requests. Kept apart so the CLI stand-in stays readable.
  */
 import { Buffer } from 'node:buffer';
 import crypto from 'node:crypto';
@@ -13,7 +13,7 @@ import type { FakeClaudeIo } from './fake-claude-io.ts';
 type Json = Record<string, unknown>;
 
 interface BackgroundTask {
-    kind: 'agent' | 'shell';
+    kind: 'agent' | 'shell' | 'workflow';
     toolUseId: string;
     description: string;
     timer?: NodeJS.Timeout;
@@ -63,10 +63,16 @@ function childStreamStart(io: FakeClaudeIo, parent: string, messageId: string, t
         io.send(childFrame(io, parent, { type: 'stream_event', event }));
 }
 
+const TASK_TYPES = {
+    agent: 'local_agent',
+    shell: 'local_bash',
+    workflow: 'local_workflow',
+} as const;
+
 function liveBackground(): Json[] {
     return [...tasks.background].map(([taskId, task]) => ({
         task_id: taskId,
-        task_type: task.kind === 'agent' ? 'local_agent' : 'local_bash',
+        task_type: TASK_TYPES[task.kind],
         description: task.description,
         ...(task.kind === 'agent' && { subagent_type: 'general-purpose' }),
     }));
@@ -191,7 +197,7 @@ export async function runSubagent(io: FakeClaudeIo, startedAt: number) {
     io.result(startedAt, 'done');
 }
 
-export function startBackgroundAgent(io: FakeClaudeIo, startedAt: number) {
+function startBackgroundAgent(io: FakeClaudeIo, startedAt: number) {
     const toolUseId = `toolu_${crypto.randomUUID()}`;
     const taskId = `a${tasks.nextTaskId++}`;
     const description = 'Watch the build';
@@ -231,7 +237,7 @@ export function startBackgroundAgent(io: FakeClaudeIo, startedAt: number) {
  * A background Bash command printing a tick every 100 ms. With `finishAfterMs` it ends on its own and wakes the main
  * thread; otherwise it runs until `stop_task`.
  */
-export function startBackgroundShell(io: FakeClaudeIo, startedAt: number, finishAfterMs?: number) {
+function startBackgroundShell(io: FakeClaudeIo, startedAt: number, finishAfterMs?: number) {
     const toolUseId = `toolu_${crypto.randomUUID()}`;
     const taskId = `b${tasks.nextTaskId++}`;
     const command = finishAfterMs ? 'sleep 0.3' : 'while true; do echo tick; sleep 0.1; done';
@@ -281,10 +287,62 @@ export function startBackgroundShell(io: FakeClaudeIo, startedAt: number, finish
 }
 
 /**
+ * A `Workflow` tool call, which returns at once while its `local_workflow` task runs in the background. Claude Code
+ * names the task by the script's `meta.name` (`workflow_name`) and sets no `is_backgrounded` on it. The task reports
+ * progress, then finishes on its own after `finishAfterMs`, or otherwise runs until `stop_task`.
+ */
+function startWorkflow(io: FakeClaudeIo, startedAt: number, finishAfterMs?: number) {
+    const toolUseId = `toolu_${crypto.randomUUID()}`;
+    const taskId = `w${tasks.nextTaskId++}`;
+    const description = 'Review the change from three angles';
+    io.assistant(`msg_${crypto.randomUUID()}`, {
+        type: 'tool_use',
+        id: toolUseId,
+        name: 'Workflow',
+        input: { name: 'review' },
+    });
+    tasks.background.set(taskId, { kind: 'workflow', toolUseId, description });
+    io.system('background_tasks_changed', { tasks: liveBackground() });
+    io.system('task_started', {
+        task_id: taskId,
+        tool_use_id: toolUseId,
+        description,
+        task_type: 'local_workflow',
+        workflow_name: 'review',
+    });
+    io.toolResult(toolUseId, `Workflow launched in the background with ID: ${taskId}`);
+    io.result(startedAt, 'done');
+    setTimeout(() => {
+        if (!tasks.background.has(taskId)) return;
+        io.system('task_progress', {
+            task_id: taskId,
+            tool_use_id: toolUseId,
+            description,
+            usage: { total_tokens: 900, tool_uses: 3, duration_ms: 50 },
+            last_tool_name: 'Agent',
+        });
+    }, 30);
+    if (finishAfterMs) setTimeout(() => endBackground(io, taskId, 'completed'), finishAfterMs);
+}
+
+/**
+ * Starts the background task a message asks for, or returns false when it asks for none.
+ */
+export function didStartBackgroundTask(io: FakeClaudeIo, startedAt: number, text: string): boolean {
+    if (text.includes('quick workflow')) startWorkflow(io, startedAt, 300);
+    else if (text.includes('workflow')) startWorkflow(io, startedAt);
+    else if (text.includes('background agent')) startBackgroundAgent(io, startedAt);
+    else if (text.includes('quick background')) startBackgroundShell(io, startedAt, 300);
+    else if (text.includes('background')) startBackgroundShell(io, startedAt);
+    else return false;
+    return true;
+}
+
+/**
  * The task side of a control request. `initialize` records which Agent SDK options the host declared, `interrupt` kills
- * background subagents unless the host declared `perTaskStopAffordance` and never a background shell (as the real CLI
- * does), and `stop_task` and `get_task_output` answer for a background task or fail like the real CLI for an unknown
- * one.
+ * background subagents and workflows unless the host declared `perTaskStopAffordance` and never a background shell (as
+ * the real CLI does), and `stop_task` and `get_task_output` answer for a background task or fail like the real CLI for
+ * an unknown one.
  */
 export function taskControl(io: FakeClaudeIo, request: Json): { response?: Json; error?: string } {
     const taskId = typeof request.task_id === 'string' ? request.task_id : '';
@@ -298,7 +356,7 @@ export function taskControl(io: FakeClaudeIo, request: Json): { response?: Json;
             // Real Claude Code 2.1.296 keeps a background shell through an interrupt either way (#1611).
             if (!tasks.hasPerTaskStop)
                 for (const [id, task] of tasks.background)
-                    if (task.kind === 'agent') endBackground(io, id, 'stopped');
+                    if (task.kind !== 'shell') endBackground(io, id, 'stopped');
             return {};
         }
         case 'stop_task': {
