@@ -68,8 +68,9 @@ export function AgentChatMessage({
  * row keeps its height either way, so revealing it never shifts the transcript. Copy takes the Markdown source, which
  * pastes back into an issue, a document, or another Agent intact. The reply text is selectable in an otherwise
  * `select-none` transcript, as are the user's messages, notice text, reasoning, and code and diff bodies; a native
- * Cmd+C copies silently, as macOS apps do. A reply that ends a turn which changed files or filed an issue or pull
- * request carries those cards between its text and the action row, as the Codex app does.
+ * Cmd+C copies silently, as macOS apps do, and releasing a selection floats Copy and Add to message over it
+ * (`AgentChatSelectionToolbar`). A reply that ends a turn which changed files or filed an issue or pull request carries
+ * those cards between its text and the action row, as the Codex app does.
  */
 export function AgentChatReply({
     artifacts,
