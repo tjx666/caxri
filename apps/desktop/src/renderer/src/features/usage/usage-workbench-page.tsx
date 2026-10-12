@@ -272,7 +272,9 @@ export function UsageWorkbenchPage() {
                 <div className="min-w-0">
                     <UsageHeading
                         sessionId={sessionId}
-                        sessionReportRow={report?.sessions[0]}
+                        sessionReportRow={report?.sessions.find(
+                            (row) => row.sessionId === sessionId,
+                        )}
                         onClearSession={() => setSessionId(undefined)}
                     />
                     <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
