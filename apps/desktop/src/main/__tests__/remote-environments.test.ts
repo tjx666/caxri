@@ -124,6 +124,19 @@ describe('SSH Host environments', () => {
         ]);
     });
 
+    it('focuses the window opened for the same spelling without resolving the destination again', async () => {
+        const keyOf = vi.fn((destination: string) => Promise.resolve(destination));
+        const { environments, harnesses } = setup(undefined, keyOf);
+        await environments.connect('work');
+        keyOf.mockImplementation(() => new Promise<string>(() => {}));
+
+        await environments.connect('work');
+
+        expect(keyOf).toHaveBeenCalledTimes(1);
+        expect(harnesses).toHaveLength(1);
+        expect(harnesses[0].window.focus).toHaveBeenCalledTimes(1);
+    });
+
     it('routes a window to its own environment and answers local for any other sender', async () => {
         const { environments, harnesses } = setup();
         await environments.connect('dev@build-box');
