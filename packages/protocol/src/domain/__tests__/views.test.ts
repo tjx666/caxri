@@ -369,6 +369,37 @@ describe('extension view contracts', () => {
                 providers: [{ ...provider, externalLink: { ...externalLink, url: 'pull/7' } }],
             }).success,
         ).toBe(false);
+
+        // The badge action is named by the provider's own action id, never by a provider-specific command id.
+        const syncAction = {
+            id: 'action-3',
+            label: 'Sync Changes in project',
+            icon: { kind: 'theme' as const, id: 'sync' },
+            command: { id: 'publisher.fixture.sync' },
+        };
+        const withBadgeAction = {
+            ...provider,
+            descriptionBadge: '↑2 ↓1',
+            descriptionBadgeActionId: syncAction.id,
+            actions: [syncAction],
+        };
+        expect(
+            sourceControlViewModelSchema.parse({ ...model, providers: [withBadgeAction] })
+                .providers[0].descriptionBadgeActionId,
+        ).toBe('action-3');
+        // An id that names none of the row's actions, or a missing badge to click, is a provider bug.
+        expect(
+            sourceControlViewModelSchema.safeParse({
+                ...model,
+                providers: [{ ...withBadgeAction, descriptionBadgeActionId: 'action-9' }],
+            }).success,
+        ).toBe(false);
+        expect(
+            sourceControlViewModelSchema.safeParse({
+                ...model,
+                providers: [{ ...withBadgeAction, descriptionBadge: undefined }],
+            }).success,
+        ).toBe(false);
     });
 
     it('validates one unified builtin and extension catalog shape', () => {

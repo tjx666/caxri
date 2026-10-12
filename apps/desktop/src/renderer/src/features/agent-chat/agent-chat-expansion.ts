@@ -1,3 +1,5 @@
+import { notifyListeners } from '@caxri/utils';
+
 import type { AgentChatTimelineEntry, AgentChatWorkItem } from './agent-chat-timeline';
 
 /**
@@ -34,7 +36,11 @@ export class AgentChatExpansionState {
     set(key: string, isExpanded: boolean): void {
         if (this.expanded.get(key) === isExpanded) return;
         this.expanded.set(key, isExpanded);
-        for (const listener of this.listeners) listener();
+        // One throwing row must not keep the other subscribed rows from seeing the user's choice; Desktop mirrors
+        // `console.error` into `logs/desktop.jsonl`.
+        notifyListeners(this.listeners, undefined, (error) =>
+            console.error('agentChat.expansion listener failed', error),
+        );
     }
 
     /**

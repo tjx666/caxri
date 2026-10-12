@@ -14,7 +14,7 @@ const sync: SourceControlAction = {
     id: 'action-sync',
     label: 'Sync Changes in project',
     icon: { kind: 'theme', id: 'sync' },
-    command: { id: 'caxri.git.sync', arguments: ['repo-1', 1, 0] },
+    command: { id: 'publisher.scm.sync', arguments: ['repo-1', 1, 0] },
 };
 
 describe('Source Control row labels', () => {
@@ -40,6 +40,7 @@ describe('Source Control row labels', () => {
             branchRowInteraction({
                 actions: [sync],
                 descriptionBadge: '↑1',
+                descriptionBadgeActionId: sync.id,
                 descriptionKind: 'branch',
             }),
         ).toEqual({
@@ -65,6 +66,40 @@ describe('Source Control row labels', () => {
             branchRowInteraction({
                 actions: [{ ...sync, disabled: true }],
                 descriptionBadge: '↓2',
+                descriptionBadgeActionId: sync.id,
+                descriptionKind: 'branch',
+            }).syncAction,
+        ).toBeUndefined();
+    });
+
+    it('runs only the action the provider names for its badge, whatever its command id', () => {
+        const other: SourceControlAction = {
+            ...sync,
+            id: 'action-other',
+            command: { id: 'publisher.scm.other' },
+        };
+        // A badge without a named action is status only, even when a sync-looking action exists.
+        expect(
+            branchRowInteraction({
+                actions: [sync],
+                descriptionBadge: '↑1',
+                descriptionKind: 'branch',
+            }).syncAction,
+        ).toBeUndefined();
+        expect(
+            branchRowInteraction({
+                actions: [sync, other],
+                descriptionBadge: '↑1 ↓1',
+                descriptionBadgeActionId: other.id,
+                descriptionKind: 'branch',
+            }).syncAction,
+        ).toBe(other);
+        // A stale id that names no current action leaves the badge inert instead of guessing.
+        expect(
+            branchRowInteraction({
+                actions: [sync],
+                descriptionBadge: '↑1',
+                descriptionBadgeActionId: 'action-missing',
                 descriptionKind: 'branch',
             }).syncAction,
         ).toBeUndefined();
@@ -76,7 +111,7 @@ describe('branch sync confirmation', () => {
         expect(
             branchSyncConfirmRequest(
                 { descriptionTooltip: 'main · tracking origin/main · 2 ahead, 1 behind' },
-                { command: { id: 'caxri.git.sync', arguments: ['repo-1', 2, 1] } },
+                { command: { id: 'publisher.scm.sync', arguments: ['repo-1', 2, 1] } },
             ),
         ).toEqual({
             title: 'Sync with origin/main?',
@@ -90,7 +125,7 @@ describe('branch sync confirmation', () => {
         expect(
             branchSyncConfirmRequest(
                 { descriptionTooltip: 'feature' },
-                { command: { id: 'caxri.git.sync', arguments: ['repo-1', 3, 0] } },
+                { command: { id: 'publisher.scm.sync', arguments: ['repo-1', 3, 0] } },
             ),
         ).toEqual({
             title: 'Sync this branch?',

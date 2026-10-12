@@ -5,12 +5,6 @@ import type { ConfirmRequest } from '../../../stores/confirmations';
 type ProviderModel = SourceControlViewModel['providers'][number];
 
 /**
- * The Git extension's sync action id. The branch row's ahead/behind badge reuses that registered action instead of
- * dispatching a second sync path of its own.
- */
-const SYNC_COMMAND_ID = 'caxri.git.sync';
-
-/**
  * Names the trailing number of a group caption, which otherwise reads as a bare `2` after the `+3 -1` line counts.
  */
 export function changedFileCountLabel(count: number): string {
@@ -63,17 +57,26 @@ export interface BranchRowInteraction {
 }
 
 export function branchRowInteraction(
-    provider: Pick<ProviderModel, 'actions' | 'descriptionBadge' | 'descriptionKind' | 'kindLabel'>,
+    provider: Pick<
+        ProviderModel,
+        | 'actions'
+        | 'descriptionBadge'
+        | 'descriptionBadgeActionId'
+        | 'descriptionKind'
+        | 'kindLabel'
+    >,
 ): BranchRowInteraction {
     const canSwitchBranch = !provider.kindLabel;
     /**
-     * Only the unsynced-commit counts (`↑2 ↓1`) mean sync; a `detached` badge does not.
+     * The provider names the action its badge runs, so the badge reuses that registered action instead of dispatching a
+     * second sync path of its own. A status-only badge (`detached`) names none.
      */
-    const syncAction = /[↑↓]/.test(provider.descriptionBadge ?? '')
-        ? provider.actions.find(
-              (action) => action.command.id === SYNC_COMMAND_ID && !action.disabled,
-          )
-        : undefined;
+    const syncAction =
+        provider.descriptionBadge && provider.descriptionBadgeActionId
+            ? provider.actions.find(
+                  (action) => action.id === provider.descriptionBadgeActionId && !action.disabled,
+              )
+            : undefined;
     const switchVerb =
         provider.descriptionKind === 'commit' ? 'switch to a branch' : 'switch branches';
     return {
