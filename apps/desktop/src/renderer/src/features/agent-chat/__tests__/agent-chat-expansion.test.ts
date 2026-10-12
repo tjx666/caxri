@@ -40,6 +40,23 @@ describe('AgentChatExpansionState', () => {
         state.set('a', false);
         expect(listener).toHaveBeenCalledTimes(1);
     });
+
+    it('still notifies later subscribers when one throws', () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const state = new AgentChatExpansionState();
+        const later = vi.fn();
+        state.subscribe(() => {
+            throw new Error('row failed');
+        });
+        state.subscribe(later);
+        state.set('a', true);
+        expect(later).toHaveBeenCalledTimes(1);
+        expect(consoleError).toHaveBeenCalledWith(
+            'agentChat.expansion listener failed',
+            expect.any(Error),
+        );
+        consoleError.mockRestore();
+    });
 });
 
 describe('isAgentChatExpanded', () => {
