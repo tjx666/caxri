@@ -93,6 +93,7 @@ export const commandIds = [
     'agentCommander.open',
     'agentCommander.stop',
     'agentCommander.handOver',
+    'agentCommander.takeBack',
     'developer.toggleScreencastMode',
     'developer.reportBug',
     'diagnostics.export',

@@ -30,6 +30,7 @@ import {
 import { sessionTitleForDisplay } from '../session/session-title';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
 import {
+    commanderPaletteWhenContext,
     getDynamicCommandPaletteValue,
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
@@ -145,7 +146,21 @@ function CommandPaletteBody() {
     const terminals = useTerminals();
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     const isRemote = useIsRemote();
+    /**
+     * Read fresh on each open, as the Session row menu does: the Commander takes and returns Sessions without a
+     * Workbench record change. The cache entry is the one the Session row markers share.
+     */
+    const managedSessionIds = useCaxriQuery(
+        'commander.managedSessions',
+        {},
+        { enabled: isLocalOnlyAvailable, staleTime: 0 },
+    ).data?.sessionIds;
     const whenContext = {
+        ...commanderPaletteWhenContext({
+            isLocalOnlyAvailable,
+            managedSessionIds,
+            selectedSessionId: selectedSession?.id,
+        }),
         localMachine: isLocalOnlyAvailable,
         sshHost: isRemote,
         sessionHasLiveAgent:

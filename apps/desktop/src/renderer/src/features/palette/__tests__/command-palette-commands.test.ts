@@ -3,6 +3,7 @@ import { commandDefinitions } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    commanderPaletteWhenContext,
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
     isCommandVisibleInPalette,
@@ -67,7 +68,13 @@ describe('isCommandVisibleInPalette', () => {
         agentChatPermissionModes: false,
         agentChatPlanMode: false,
     };
-    const localWindow = { localMachine: true, sshHost: false, ...noChat };
+    const localWindow = {
+        commanderHandOverAvailable: true,
+        commanderTakeBackAvailable: false,
+        localMachine: true,
+        sshHost: false,
+        ...noChat,
+    };
     const detach = commandDefinitions.find((command) => command.id === 'session.detach');
     const resume = commandDefinitions.find((command) => command.id === 'session.resume');
     const openPullRequest = commandDefinitions.find(
@@ -89,7 +96,14 @@ describe('isCommandVisibleInPalette', () => {
             sessionHasDetachedAgent: false,
             sessionHasPullRequest: false,
         };
-        const sshHostWindow = { ...session, ...noChat, localMachine: false, sshHost: true };
+        const sshHostWindow = {
+            ...session,
+            ...noChat,
+            commanderHandOverAvailable: false,
+            commanderTakeBackAvailable: false,
+            localMachine: false,
+            sshHost: true,
+        };
         const local = { ...session, ...localWindow };
 
         expect(isCommandVisibleInPalette(processExplorer, local)).toBe(true);
@@ -174,6 +188,79 @@ describe('isCommandVisibleInPalette', () => {
                 ...localWindow,
             }),
         ).toBe(false);
+    });
+});
+
+describe('commanderPaletteWhenContext', () => {
+    const handOver = commandDefinitions.find(({ id }) => id === 'agentCommander.handOver');
+    const takeBack = commandDefinitions.find(({ id }) => id === 'agentCommander.takeBack');
+    if (!handOver || !takeBack) throw new Error('Commander commands are missing from the catalog');
+    const visible = (context: ReturnType<typeof commanderPaletteWhenContext>) => {
+        const full = {
+            ...context,
+            localMachine: true,
+            sessionHasDetachedAgent: false,
+            sessionHasLiveAgent: false,
+            sessionHasPullRequest: false,
+            sshHost: false,
+        };
+        return [handOver, takeBack]
+            .filter((command) => isCommandVisibleInPalette(command, full))
+            .map(({ id }) => id);
+    };
+
+    it('offers Hand Over for a Session the Commander does not manage, and Take Back once it does', () => {
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: true,
+                    managedSessionIds: ['other'],
+                    selectedSessionId: 'selected',
+                }),
+            ),
+        ).toEqual(['agentCommander.handOver']);
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: true,
+                    managedSessionIds: ['other', 'selected'],
+                    selectedSessionId: 'selected',
+                }),
+            ),
+        ).toEqual(['agentCommander.takeBack']);
+    });
+
+    it('offers Hand Over with no Session selected or before the managed set is read', () => {
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: true,
+                    managedSessionIds: ['other'],
+                    selectedSessionId: undefined,
+                }),
+            ),
+        ).toEqual(['agentCommander.handOver']);
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: true,
+                    managedSessionIds: undefined,
+                    selectedSessionId: 'selected',
+                }),
+            ),
+        ).toEqual(['agentCommander.handOver']);
+    });
+
+    it('offers neither in an SSH Host window', () => {
+        expect(
+            visible(
+                commanderPaletteWhenContext({
+                    isLocalOnlyAvailable: false,
+                    managedSessionIds: ['selected'],
+                    selectedSessionId: 'selected',
+                }),
+            ),
+        ).toEqual([]);
     });
 });
 

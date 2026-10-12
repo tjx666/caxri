@@ -105,6 +105,8 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
         '停止在后台运行的 Agent Commander；再次打开会恢复同一对话',
     'commands.description.agentCommander.handOver':
         '选择会话或在 Caxri 之外开始的 Agent 对话，交给 Agent Commander 接手',
+    'commands.description.agentCommander.takeBack':
+        '结束 Agent Commander 对所选会话的管理；会话中的 Agent 继续运行',
     'commands.description.processExplorer.open': '查看 Caxri 各进程的资源占用',
     'commands.description.developer.toggleScreencastMode': '显示点击和 Caxri 快捷键，便于外部录屏',
     'commands.description.developer.reportBug':

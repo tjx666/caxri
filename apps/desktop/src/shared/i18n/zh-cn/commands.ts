@@ -107,6 +107,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.agentCommander.open': '打开 Agent Commander',
     'commands.agentCommander.stop': '停止 Agent Commander',
     'commands.agentCommander.handOver': '转交给 Agent Commander…',
+    'commands.agentCommander.takeBack': '从 Agent Commander 收回',
     'commands.processExplorer.open': '打开进程资源管理器',
     'commands.developer.toggleScreencastMode': '切换录屏模式',
     'commands.developer.reportBug': '向 Agent 报告问题',

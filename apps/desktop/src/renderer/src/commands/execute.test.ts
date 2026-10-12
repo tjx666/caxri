@@ -10,6 +10,8 @@ import {
 } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { useCommanderHandoverStore } from '../features/agent-commander/commander-handover-store';
+import { useEnvironmentStore } from '../stores/environment';
 import { useWorkbenchStore } from '../stores/workbench';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
 import type { CommandContext } from './execute';
@@ -122,6 +124,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 resumeSelected: record('session.resume'),
                 selectAdjacent: record('session.selectAdjacent'),
                 switchMru: record('session.switchMru'),
+                takeBackSelectedFromCommander: record('session.takeBackFromCommander'),
             },
             terminal: {
                 create: record('terminal.create'),
@@ -284,8 +287,10 @@ describe('executeCommand', () => {
 
     it('offers local-only commands only in a local window and SSH Host commands only in an SSH Host window', () => {
         const localOnly = [
+            'agentCommander.handOver',
             'agentCommander.open',
             'agentCommander.stop',
+            'agentCommander.takeBack',
             'developer.reportBug',
             'diagnostics.export',
             'pathBrowser.open',
@@ -308,11 +313,35 @@ describe('executeCommand', () => {
         expect(local.calls).toHaveLength(localOnly.length + 1);
         expect(local.calls).not.toContain('remote.reconnect');
         expect(remote.calls).toEqual(['remote.reconnect', 'remote.stopServer', 'remote.connect']);
+        // Each of these palette predicates holds only in a local window; see `commanderPaletteWhenContext`.
+        const localWindowPredicates = [
+            'localMachine',
+            'commanderHandOverAvailable',
+            'commanderTakeBackAvailable',
+        ];
         for (const id of localOnly)
             expect(
-                sharedCommandDefinitions.find((definition) => definition.id === id)?.when,
+                localWindowPredicates,
                 `${id} must stay out of an SSH Host window's palette`,
-            ).toBe('localMachine');
+            ).toContain(sharedCommandDefinitions.find((definition) => definition.id === id)?.when);
+    });
+
+    it('opens the hand-over picker with the selected Session checked', () => {
+        useEnvironmentStore.setState({ state: { kind: 'local' } });
+        useWorkbenchStore.setState({
+            bootstrap: {
+                selectedSessionId: 'session-1',
+                sessions: [{ id: 'session-1', projectId: 'project-1' }],
+                sessionStates: [],
+            } as unknown as BootstrapState,
+            attachEpoch: 0,
+        });
+
+        executeCommand('agentCommander.handOver');
+
+        expect(useCommanderHandoverStore.getState().request?.sessionIds).toEqual(['session-1']);
+        useCommanderHandoverStore.setState({ request: undefined });
+        useEnvironmentStore.setState({ state: undefined });
     });
 
     it('passes a Project row target through the delete command', () => {

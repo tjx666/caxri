@@ -473,8 +473,9 @@ scratch.
 **Picking.** The Commander window's title bar **Hand Over** button opens a searchable, multi-select
 dialog (`commander-handover-dialog.tsx`); so do the **Hand Over…** button in the empty board and
 empty Inbox, and the Workbench command palette's **Hand Over to Agent Commander…**
-(`agentCommander.handOver`). A Workbench Session's context menu opens the same dialog with that
-Session already selected, and offers **Take Back** instead once the Commander manages it.
+(`agentCommander.handOver`). A Workbench Session's context menu and the palette command open the
+same dialog with that (selected) Session already checked, and both offer **Take Back from Agent
+Commander** (`agentCommander.takeBack`) instead once the Commander manages it.
 The dialog has two tabs that share one selection and one optional note:
 
 - **Sessions** lists every Workbench Session the Commander does not manage yet, grouped by Project,
