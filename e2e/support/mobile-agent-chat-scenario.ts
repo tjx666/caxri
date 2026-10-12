@@ -130,9 +130,9 @@ async function executeMobileAgentChatScenario(
 
         await sendFromPhone(serial, 'ask');
         await waitForCheck(serial, 'agent-chat-question-0-option-1');
-        await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
         await capture(environment, 'question', artifacts);
-        await tapMobileCheckByBounds(serial, 'agent-chat-question-submit');
+        // One question: a single tap on an option answers and sends it, as in the Codex app.
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You chose Blue.') && !snapshot.activeTurnId,
