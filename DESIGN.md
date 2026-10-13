@@ -434,7 +434,9 @@ and menus) because in a long list the color is what tells one Agent from another
 carries no lifecycle decoration. The right-edge slot answers "does this Agent need me, or is it
 working?" first: running work (including compaction) shows a thin open ring spinning in `--muted`,
 as Codex's thread list does, with no color so several working Agents never turn the list into a
-wall of green; unacknowledged attention shows a pinging warning ring around a warning dot; a
+wall of green. A Claude turn that ended while background subagents, workflows, or monitors it
+started still run is still running, but shows a slower dotted ring in the same `--muted` (Orca's
+quiet monitoring sub-mode) so it reads as waiting rather than busy; unacknowledged attention shows a pinging warning ring around a warning dot; a
 detached Agent shows a static unplugged glyph. Attention wins over running; there is deliberately no
 second, static amber state, so reading a Session is the only thing that clears it and nothing can
 bring it back unread. Lifecycle outranks delivery: only a settled Session (idle, unknown, failed,

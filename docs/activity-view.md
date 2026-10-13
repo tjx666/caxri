@@ -36,7 +36,7 @@ Rows are grouped, and the groups are ordered:
 | Group             | A Session is here when                                          |
 | ----------------- | --------------------------------------------------------------- |
 | Needs attention   | It has Unread Attention                                         |
-| Working           | Its Agent is running, including a compaction turn               |
+| Working           | Its Agent is running, including compaction and background waits |
 | Waiting           | Its last Agent Activity was `waiting` and has already been read |
 | Failed            | Its last Agent Activity was `failed`                            |
 | Recently finished | It completed within the retention window below                  |
@@ -120,7 +120,13 @@ chose a glyph over a colored word because a shape is what a scanning eye resolve
 
 Six states, six shapes: a check for a finished turn, a question mark for one waiting on you, a cross
 for a failure, a spinner while the Agent runs, a hollow circle for idle, a dashed one when no
-activity was ever reported. A detached Agent shows the unplugged glyph instead of its frozen state.
+activity was ever reported. A detached Agent shows the unplugged glyph instead of its frozen state. A Claude Code turn that
+ended while background subagents, workflows, or monitors it started still run stays under
+**Working** but swaps the spinner for a slow, muted dotted ring: it is waiting for that work to
+wake it, not busy, and it is not ready for review. Background shells never hold a turn there; a dev
+server can outlive the turn by hours. Orca's quiet monitoring sub-mode is the precedent for keeping
+this inside running instead of adding a state; T3 Code's shell exclusion is the precedent for the
+shell rule.
 
 Color is the one thing the shape does not carry, and it follows the two-tier rule: only
 **Needs attention** and **Failed** rows are tinted warning or danger, so that weight always means

@@ -100,6 +100,13 @@ function firstPresent(payload, keys) {
   const key = keys.find((candidate) => payload[candidate] !== undefined && payload[candidate] !== null);
   return key === undefined ? undefined : payload[key];
 }
+// Claude's Stop lists in-flight background work (v2.1.145+). Only work that wakes the Agent again holds completion: a
+// background shell can be a dev server that never ends. Only the task types are read, never descriptions or commands.
+const WAKING_BACKGROUND_TASK_TYPES = ['subagent', 'workflow', 'monitor'];
+function hasWakingBackgroundWork(tasks) {
+  return Array.isArray(tasks) && tasks.some((task) => task && WAKING_BACKGROUND_TASK_TYPES.includes(task.type) &&
+    (task.status === undefined || task.status === 'running' || task.status === 'pending'));
+}
 function readIdentifiers(callback) {
   let source = '';
   let done = false;
@@ -130,6 +137,7 @@ function readIdentifiers(callback) {
     let responseDigest;
     let responseByteLength;
     let turnContinues;
+    let backgroundWork;
     let failure;
     let worktreeCreateIntent = false;
     try {
@@ -148,6 +156,8 @@ function readIdentifiers(callback) {
           turnContinues = true;
         }
       }
+      if (provider === 'claude' && signal.phase === 'turnFinished' && !agentValue && hasWakingBackgroundWork(payload.background_tasks))
+        backgroundWork = true;
       if (typeof agentValue === 'string' && agentValue.length > 0 && agentValue.length <= 256) agentId = agentValue;
       const value = payload && (payload.session_id ?? payload.sessionId);
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
@@ -187,7 +197,7 @@ function readIdentifiers(callback) {
       turnId = prefixString(turnIdKeys);
     }
     const responseStop = captureDigests && provider === 'grok' && signal.phase === 'turnFinished';
-    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, failure, overflow: captureDigests && overflow });
+    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, backgroundWork, failure, overflow: captureDigests && overflow });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
   const timer = setTimeout(finish, ${BRIDGE_STDIN_TIMEOUT_MS});
@@ -290,7 +300,7 @@ if (!hasAnyLaunchContext) {
   readAttention(sendAttention);
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
-readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, failure, overflow, ignored }) => {
+readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, backgroundWork, failure, overflow, ignored }) => {
   if (ignored) { process.stdin.pause(); return; }
   if (agentId) signal.agentId = agentId;
   if (cwd) signal.agentCwd = cwd;
@@ -305,6 +315,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
   if (failure) signal.agentFailure = failure;
   if (overflow) signal.agentContentOverflow = true;
   if (turnContinues) signal.agentTurnContinues = true;
+  if (backgroundWork) signal.agentBackgroundWork = true;
   if (worktreeCreateIntent) signal.worktreeCreateIntent = true;
   const socket = net.createConnection(socketPath);
   let response = '';

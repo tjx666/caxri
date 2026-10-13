@@ -173,6 +173,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             query: () => (this.isOpen ? this.query : undefined),
             takeDeclined: (toolUseId) => this.requests.takeDeclined(toolUseId),
             isInterruptRequested: () => this.turns.isInterruptRequested,
+            onTasksChanged: () => this.turns.onTasksChanged(),
         });
     }
 

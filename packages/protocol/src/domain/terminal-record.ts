@@ -12,7 +12,7 @@ import {
  * Terminal records and screen snapshots. The Terminal Host validates these on every message, so this module stays a
  * leaf: it must not import Project, Session, or settings schemas (`docs/server-footprint.md`).
  */
-const agentOperationSchema = z.enum(['compacting']);
+const agentOperationSchema = z.enum(['compacting', 'background']);
 export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
 const processStateSchema = z.enum([
     'starting',
@@ -65,7 +65,9 @@ export const terminalRecordSchema = z.object({
     orderIndex: z.number(),
     agentSessionId: z.string().optional(),
     /**
-     * Live Runtime-only Agent subphase. It is projected with Terminal records and is never persisted.
+     * Live Runtime-only Agent subphase. It is projected with Terminal records and is never persisted. `compacting`
+     * summarizes the context; `background` means the main turn ended but its completion waits on background work (a
+     * subagent, workflow, or monitor) that wakes the Agent again, so the Session still counts as running.
      */
     agentOperation: agentOperationSchema.optional(),
     lastAgentProcessState: processStateSchema.optional(),

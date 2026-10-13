@@ -145,6 +145,9 @@ export const primarySidebar = {
     'primarySidebar.activity.waiting.label': 'Waiting for you',
     'primarySidebar.activity.waiting.description':
         'The Agent is waiting for input or confirmation.',
+    'primarySidebar.activity.background.label': 'In background',
+    'primarySidebar.activity.background.description':
+        'The turn ended while background work it started is still running; the Agent continues once that work reports back.',
     'primarySidebar.activity.compacting.label': 'Compacting',
     'primarySidebar.activity.compacting.description':
         'The Agent is summarizing earlier context before continuing.',

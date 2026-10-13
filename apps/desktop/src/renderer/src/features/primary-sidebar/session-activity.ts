@@ -17,7 +17,8 @@ export interface SessionActivityPresentation {
     tone: 'danger' | 'neutral' | 'success' | 'warning';
 }
 
-type ActivityKey = 'compacting' | 'detached' | 'noAgent' | 'suspended' | AgentActivityState;
+type ActivityKey =
+    'background' | 'compacting' | 'detached' | 'noAgent' | 'suspended' | AgentActivityState;
 
 const PRESENTATIONS: Record<
     AgentActivityState,
@@ -96,6 +97,8 @@ export function sessionActivityPresentation(
     operation?: AgentOperation,
 ): SessionActivityPresentation {
     if (operation === 'compacting') return presentation('compacting', 'success', 'text-success');
+    // The turn ended and waits on work that wakes the Agent again: still running, but nothing to watch.
+    if (operation === 'background') return presentation('background', 'neutral', 'text-muted');
     const { indicatorClassName, tone } = PRESENTATIONS[state];
     return presentation(state, tone, indicatorClassName);
 }

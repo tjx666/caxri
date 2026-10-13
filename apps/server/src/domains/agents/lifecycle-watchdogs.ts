@@ -110,12 +110,16 @@ export class AgentLifecycleWatchdogs {
         if (!wasCompacting) this.onOperationChange(terminalId);
     }
 
-    clearCompaction(terminalId: string, shouldNotify = true): void {
+    /**
+     * Returns whether a compaction was in progress.
+     */
+    clearCompaction(terminalId: string, shouldNotify = true): boolean {
         const timeout = this.compactionTimeouts.get(terminalId);
         if (timeout) clearTimeout(timeout);
         this.compactionTimeouts.delete(terminalId);
         const hadOperation = this.operations.delete(terminalId);
         if (shouldNotify && hadOperation) this.onOperationChange(terminalId);
+        return hadOperation;
     }
 
     startRunningTurn(terminalId: string, launchId: string, agentTurnId: string): void {
