@@ -1,18 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
 
-import type { LucideIcon } from 'lucide-react';
-import {
-    CheckCheck,
-    ChevronDown,
-    ChevronRight,
-    Hand,
-    Hourglass,
-    Moon,
-    Pin,
-    TriangleAlert,
-    Zap,
-} from 'lucide-react';
-
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
@@ -25,10 +12,10 @@ import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { markSessionRead } from '../session/session-commands';
+import { AgentActivityHeading } from './agent-activity-heading';
 import { AgentActivityRowItem } from './agent-activity-row-item';
 import type {
     AgentActivityGroup,
-    AgentActivityGroupId,
     AgentActivityRow,
     AgentActivitySelectionAnchor,
 } from './agent-activity-rows';
@@ -48,36 +35,7 @@ import {
 import { useAgentActivityClock } from './use-agent-activity-clock';
 
 const NO_RECORDS: never[] = [];
-/**
- * A glyph before each group heading, so the eye finds a group by shape before it reads the label; Paseo's status list
- * does the same. Every shape is deliberately different from the circle-family glyphs the rows use: a heading icon names
- * the section, and repeating the row glyph above its own rows would say the same thing twice. They stay in the
- * heading's muted tone, because color in this list is reserved for rows that want the user.
- *
- * "Needs attention" is a raised hand rather than a bell: the status bar's notification center already owns the bell,
- * and a Session in this group is waiting for the user's turn, not announcing an app notification.
- */
-const GROUP_ICONS: Record<AgentActivityGroupId, LucideIcon> = {
-    pinned: Pin,
-    attention: Hand,
-    failed: TriangleAlert,
-    finished: CheckCheck,
-    idle: Moon,
-    waiting: Hourglass,
-    working: Zap,
-};
-function AgentActivityGroupIcon({ groupId }: { groupId: AgentActivityGroupId }) {
-    const Icon = GROUP_ICONS[groupId];
-    return <Icon aria-hidden="true" className="agent-activity-heading-icon flex-none" size={12} />;
-}
-
 const VERTICAL_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home']);
-const PINNED_DISCLOSURE_KEYS: ReadonlySet<string> = new Set([
-    'ArrowLeft',
-    'ArrowRight',
-    'Enter',
-    ' ',
-]);
 
 type RenderRow =
     | {
@@ -318,76 +276,22 @@ export function AgentActivityView() {
                     }}
                 >
                     {renderRows.map((entry) =>
-                        entry.kind === 'heading' && entry.group.id === 'pinned' ? (
-                            /*
-                             * The one heading that is a focus stop: it collapses, like the Project tree's Pinned
-                             * heading, so Enter, Space, and Left/Right toggle it the way a tree branch does.
-                             */
-                            <div
+                        entry.kind === 'heading' ? (
+                            <AgentActivityHeading
                                 key={entry.group.id}
-                                aria-expanded={pinnedCollapse.expanded}
-                                aria-level={1}
-                                aria-selected={false}
-                                className="agent-activity-heading agent-activity-pinned-heading mt-2 flex cursor-pointer items-center gap-1.5 rounded-md px-2 pb-1 text-[11px] font-medium text-muted first:mt-0 hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                                data-activity-group={entry.group.id}
-                                data-row-id={entry.group.id}
-                                role="treeitem"
-                                tabIndex={rovingRowId === entry.group.id ? 0 : -1}
-                                onClick={pinnedCollapse.toggle}
-                                onFocus={() => setFocusedRowId(entry.group.id)}
-                                onKeyDown={(event) => {
-                                    if (!PINNED_DISCLOSURE_KEYS.has(event.key)) return;
-                                    if (event.key === 'ArrowRight' && pinnedCollapse.expanded)
-                                        return;
-                                    if (event.key === 'ArrowLeft' && !pinnedCollapse.expanded)
-                                        return;
-                                    event.preventDefault();
-                                    pinnedCollapse.toggle();
-                                }}
-                            >
-                                <AgentActivityGroupIcon groupId={entry.group.id} />
-                                <span>{entry.heading.label}</span>
-                                {entry.heading.count !== undefined && (
-                                    <span aria-hidden="true">{entry.heading.count}</span>
-                                )}
-                                <span className="sr-only">{entry.heading.summary}</span>
-                                {pinnedCollapse.expanded ? (
-                                    <ChevronDown
-                                        aria-hidden="true"
-                                        className="flex-none"
-                                        size={12}
-                                    />
-                                ) : (
-                                    <ChevronRight
-                                        aria-hidden="true"
-                                        className="flex-none"
-                                        size={12}
-                                    />
-                                )}
-                            </div>
-                        ) : entry.kind === 'heading' ? (
-                            /*
-                             * A heading is a `treeitem` because everything inside `role="tree"` has to be one, but an
-                             * `aria-disabled` one with no Tab stop: these groups are derived from Agent state and cannot be
-                             * collapsed, so there is no action to land focus on. Arrow keys step over it, the same way
-                             * DESIGN.md has them step over a branch placeholder.
-                             */
-                            <div
-                                key={entry.group.id}
-                                aria-disabled="true"
-                                aria-level={1}
-                                className="agent-activity-heading mt-2 flex items-center gap-1.5 px-2 pb-1 text-[11px] font-medium text-muted first:mt-0"
-                                data-activity-group={entry.group.id}
-                                data-row-id={entry.group.id}
-                                role="treeitem"
-                            >
-                                <AgentActivityGroupIcon groupId={entry.group.id} />
-                                <span>{entry.heading.label}</span>
-                                {entry.heading.count !== undefined && (
-                                    <span aria-hidden="true">{entry.heading.count}</span>
-                                )}
-                                <span className="sr-only">{entry.heading.summary}</span>
-                            </div>
+                                group={entry.group}
+                                heading={entry.heading}
+                                pinnedDisclosure={
+                                    entry.group.id === 'pinned'
+                                        ? {
+                                              expanded: pinnedCollapse.expanded,
+                                              roving: rovingRowId === entry.group.id,
+                                              onFocus: () => setFocusedRowId(entry.group.id),
+                                              onToggle: pinnedCollapse.toggle,
+                                          }
+                                        : undefined
+                                }
+                            />
                         ) : (
                             <AgentActivityRowItem
                                 key={entry.row.rowId}
