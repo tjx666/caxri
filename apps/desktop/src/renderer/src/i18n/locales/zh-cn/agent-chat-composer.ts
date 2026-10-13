@@ -12,6 +12,8 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
         '消息过长，无法引用粘贴的文本。剪贴板内容未改变；请缩短消息后重新粘贴。',
     'agentChat.composer.fileHasNoPath':
         '该文件在磁盘上没有可插入的路径。请先保存，再拖入保存后的文件。',
+    'agentChat.composer.localFileOnSshHost':
+        '无法在 SSH Host 上引用此 Mac 上的文件。请先将文件复制到 SSH Host，再从“文件”中拖入。图片仍可作为附件添加。',
 
     'agentChat.attachments.fallbackName': '附件 {{number}}',
     'agentChat.attachments.label': '已附加的图片',

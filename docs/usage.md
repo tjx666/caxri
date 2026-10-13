@@ -55,7 +55,7 @@ Server Core owns everything below; the page only renders `usage.report`.
    pruned transcript keeps its last aggregate. A Claude conversation missing from the directory its working directory
    names is searched for across every Claude project directory once; a miss is remembered until that base directory
    changes or an hour passes, so a pruned transcript does not cost a full search on every report.
-3. **Pricing.** Cost uses LiteLLM's public price list, the same source as `ccusage`: a cached copy refreshed daily,
+3. **Pricing.** Cost uses LiteLLM's public price list, the same source as `ccusage`: a cached copy refreshed daily from raw.githubusercontent.com (15 s timeout, 16 MiB cap; skipped under E2E),
    falling back to the snapshot bundled at build time (`scripts/update-model-prices.ts` regenerates it). Costs are API
    list-price estimates, not what a subscription plan charged. Models without a price are listed in the coverage note
    and count zero. Long-context tiers (LiteLLM's `*_above_<N>k_tokens` rates, for example Codex models above 272k and
@@ -119,8 +119,9 @@ The pipeline is split so a per-conversation readout like the one above can reuse
   calling `advance` again parses only appended records.
 - `summarizeUsage` and `pricedUsageBuckets` (`apps/server/src/domains/usage/summary.ts`) total and price one aggregate,
   optionally from a start time.
-- `formatUsd`, `formatTokens`, `formatDuration`, and `formatPercent` (`packages/protocol/src/domain/usage-format.ts`)
-  keep every surface rendering the same number the same way.
+- `formatUsd`, `formatTokens`, and `formatPercent` (`packages/protocol/src/domain/usage-format.ts`) keep every
+  surface rendering the same number the same way; Desktop localizes durations and limit windows in
+  `apps/desktop/src/renderer/src/lib/usage-format.ts`.
 
 ## Privacy
 

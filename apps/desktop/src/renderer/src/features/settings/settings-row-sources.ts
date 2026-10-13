@@ -52,8 +52,8 @@ export interface SettingRowSource {
     detailKey?: TranslationKey;
     /**
      * A boolean setting this row only applies under. While that switch is off the row's control is disabled, so a
-     * dependent value (Pause idle Agents after) cannot read as if it were in force. Honored by the generic boolean and
-     * integer controls of a `setting` binding.
+     * dependent value (Suspend idle Agents after) cannot read as if it were in force. Honored by the generic boolean
+     * and integer controls of a `setting` binding.
      */
     enabledBy?: SettingKey;
     binding: SettingRowBinding;

@@ -10,6 +10,7 @@ export type {
     ExternalAgentUsageRow,
     PullRequestOutcomeRow,
 } from './models/agent-session-usage';
+export { BenchmarkRunsModel } from './models/benchmark-runs';
 export type { StoredCommanderInboxItem } from './models/commander-inbox';
 export type {
     CommanderPendingNotice,

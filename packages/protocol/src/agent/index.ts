@@ -1,4 +1,5 @@
 export * from './agent-action-contract.js';
+export * from './agent-benchmark-contract.js';
 export * from './agent-chat-approval.js';
 export * from './agent-chat-commands.js';
 export * from './agent-chat-context.js';

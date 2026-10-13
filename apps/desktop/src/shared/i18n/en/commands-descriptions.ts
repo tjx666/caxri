@@ -122,6 +122,8 @@ export const commandDescriptions = {
     'commands.description.view.resetZoom': 'Return the interface to its original size',
     'commands.description.usage.open':
         'Show token usage, estimated cost, and delivery stats for Caxri Sessions',
+    'commands.description.benchmark.open':
+        'Run one prompt across several Agents and models and compare quality, time, tokens, and cost',
     'commands.description.settings.open': 'Open Caxri Settings',
     'commands.description.settings.openSource': 'Open settings.jsonc in the Caxri source editor',
     'commands.description.settings.openKeybindings': 'Edit Caxri keyboard shortcuts',

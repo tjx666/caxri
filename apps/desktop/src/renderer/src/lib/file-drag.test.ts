@@ -2,11 +2,14 @@ import type { DragEvent } from 'react';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { useEnvironmentStore } from '../stores/environment';
 import {
     dragPath,
     FILE_TREE_DRAG_TYPE,
     hasDraggedPath,
     hasTerminalDraggedPath,
+    isOsFileReferenceRefused,
+    osFilePaths,
     PROJECT_PATH_DRAG_TYPE,
     projectTerminalInput,
     shellRelativePath,
@@ -227,5 +230,68 @@ describe('Terminal file references', () => {
             '/worktrees/task/src/file.ts',
         );
         expect(terminalReferencePath('/repo/src/file.ts', terminal)).toBe('src/file.ts');
+    });
+});
+
+describe('OS file references in an SSH Host window', () => {
+    const finderDrop = {
+        dataTransfer: {
+            files: [{ name: 'crash.log' }],
+            getData: () => '',
+            types: ['Files'],
+        },
+    } as unknown as DragEvent;
+
+    function useEnvironment(kind: 'local' | 'ssh'): void {
+        vi.stubGlobal('caxri', {
+            pathForFile: (file: { name: string }) => `/Users/me/Downloads/${file.name}`,
+        });
+        useEnvironmentStore.setState({
+            state:
+                kind === 'local'
+                    ? { kind: 'local' }
+                    : {
+                          kind: 'ssh',
+                          destination: 'builder',
+                          hostIdentity: 'builder',
+                          phase: 'connected',
+                          needsUserAction: false,
+                      },
+        });
+    }
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        useEnvironmentStore.setState({ state: undefined });
+    });
+
+    it('cites no path from this Mac and signals the refusal, so an Agent on the SSH Host never gets a path it cannot open', () => {
+        useEnvironment('ssh');
+        expect(isOsFileReferenceRefused()).toBe(true);
+        expect(terminalDragPaths(finderDrop)).toEqual([]);
+        expect(osFilePaths([{ name: 'crash.log' } as File])).toEqual([]);
+        // The drag is still accepted, so the drop can explain the refusal instead of falling through.
+        expect(hasTerminalDraggedPath(finderDrop)).toBe(true);
+    });
+
+    it("still inserts Caxri's own Files entries, which carry SSH Host paths", () => {
+        useEnvironment('ssh');
+        const data: Record<string, string> = {};
+        startFilePathDrag(
+            {
+                setData: (type: string, value: string) => {
+                    data[type] = value;
+                },
+            } as DataTransfer,
+            '/home/me/repo/src/main.ts',
+            false,
+        );
+        expect(terminalDragPaths(fakeDragEvent(data))).toEqual(['/home/me/repo/src/main.ts']);
+    });
+
+    it('keeps citing files from another application in a local window', () => {
+        useEnvironment('local');
+        expect(isOsFileReferenceRefused()).toBe(false);
+        expect(terminalDragPaths(finderDrop)).toEqual(['/Users/me/Downloads/crash.log']);
     });
 });

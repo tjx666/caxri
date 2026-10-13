@@ -8,7 +8,7 @@ import type {
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Bot, ChartColumn, Gauge, Layers, Settings, SquareTerminal, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
@@ -28,6 +28,8 @@ import { gitDecorationClassName } from '../../lib/git-decorations';
 import { motionDurationMs, motionEasing } from '../../lib/motion';
 import { cn } from '../../lib/utilities';
 import { workTabDescription } from './work-tab-accessibility';
+import type { WorkTabGlyph } from './work-tab-glyphs';
+import { isWorkTabGlyph, WORK_TAB_GLYPHS } from './work-tab-glyphs';
 
 /**
  * Wraps the tab in the shared `Tooltip` only when there is an untruncated title to reveal, so an Editor tab keeps its
@@ -101,15 +103,7 @@ interface WorkTabProperties {
      * and `'shell-task'` mark an Agent Chat's subagent and background shell tabs with the glyphs their timeline rows
      * use.
      */
-    icon:
-        | 'file'
-        | 'settings'
-        | 'usage'
-        | 'agent-task'
-        | 'shell-task'
-        | 'agent-status'
-        | 'agent-context'
-        | AgentIconIdentity;
+    icon: 'file' | WorkTabGlyph | AgentIconIdentity;
     label: string;
     /**
      * Hover/focus detail shown alongside `label`. For a Terminal this is the untruncated title behind an abbreviated
@@ -205,23 +199,6 @@ function useWorkTabMotion(shouldFill: boolean) {
             overflow: isSettled ? 'visible' : 'hidden',
         },
     } as const;
-}
-
-/**
- * Built-in glyphs for tabs that show neither a file nor an Agent. Settings takes the gear: the sliders glyph is the
- * Settings page's own "UI" view toggle, and one glyph meaning two things on one screen read as a duplicate.
- */
-const WORK_TAB_GLYPHS = {
-    'settings': Settings,
-    'usage': ChartColumn,
-    'agent-task': Bot,
-    'shell-task': SquareTerminal,
-    'agent-status': Gauge,
-    'agent-context': Layers,
-} as const;
-
-function isWorkTabGlyph(icon: WorkTabProperties['icon']): icon is keyof typeof WORK_TAB_GLYPHS {
-    return Object.hasOwn(WORK_TAB_GLYPHS, icon);
 }
 
 function WorkTabIcon({

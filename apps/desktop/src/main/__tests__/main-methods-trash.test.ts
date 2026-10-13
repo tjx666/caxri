@@ -86,6 +86,7 @@ describe('files.trash', () => {
             get: () => ({
                 kind: 'ssh',
                 destination: 'devbox',
+                hostIdentity: 'devbox',
                 phase: 'connected',
                 needsUserAction: false,
             }),

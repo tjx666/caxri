@@ -6,7 +6,6 @@ import {
     agentChatDiffLines,
     agentChatDiffStat,
     agentChatFileChangesStat,
-    agentChatFilesChangedLabel,
     canOpenAgentChatChange,
 } from '../agent-chat-diff';
 
@@ -113,11 +112,6 @@ describe('diff stats', () => {
             ]),
         ).toEqual({ additions: 4, deletions: 2 });
         expect(agentChatFileChangesStat([])).toEqual({ additions: 0, deletions: 0 });
-    });
-
-    it('labels the file count', () => {
-        expect(agentChatFilesChangedLabel(1)).toBe('1 file changed');
-        expect(agentChatFilesChangedLabel(3)).toBe('3 files changed');
     });
 });
 

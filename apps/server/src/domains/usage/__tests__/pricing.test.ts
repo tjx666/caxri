@@ -12,6 +12,7 @@ import {
     estimateCacheRewriteUsd,
     modelPriceCandidates,
     ModelPricing,
+    offlinePriceListFetch,
     projectLiteLlmPrices,
     ratesFor,
 } from '../pricing';
@@ -118,6 +119,37 @@ describe('long-context pricing', () => {
 });
 
 describe('ModelPricing', () => {
+    it('drops a price list larger than the cap without buffering it whole', async () => {
+        const path = await userDataPath();
+        let pulled = 0;
+        const chunk = new Uint8Array(1024 * 1024).fill(0x20);
+        const body = new ReadableStream<Uint8Array>({
+            pull(controller) {
+                pulled += 1;
+                controller.enqueue(chunk);
+            },
+        });
+        const pricing = new ModelPricing({
+            userDataPath: path,
+            fetch: () => Promise.resolve(new Response(body)),
+            now: () => 1000,
+        });
+        await pricing.ensureFresh();
+
+        expect(pricing.source).toBe('bundled');
+        expect(pulled).toBeLessThanOrEqual(18);
+    });
+
+    it('serves the bundled list without a network call under the E2E fetch', async () => {
+        const pricing = new ModelPricing({
+            userDataPath: await userDataPath(),
+            fetch: offlinePriceListFetch,
+            now: () => 1000,
+        });
+        await pricing.ensureFresh();
+        expect(pricing.source).toBe('bundled');
+    });
+
     it('refreshes from the network once, caches the list, and reuses the cache', async () => {
         const path = await userDataPath();
         const fetch = vi.fn(() =>

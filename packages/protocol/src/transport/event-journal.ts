@@ -25,6 +25,7 @@ export type TransientServerEvent = Extract<
             | 'agent.permissionAutoAllowChanged'
             | 'agent.message.receipt'
             | 'agent.messaging.changed'
+            | 'benchmark.changed'
             | 'command.execute'
             | 'commanderInbox.changed'
             | 'desktop.openRequested'
@@ -70,6 +71,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'agent.messaging.changed',
     'agent.message.held',
     'agent.message.receipt',
+    /**
+     * A Benchmark view re-reads the run it shows on reconnect, so a replay would only repeat that read.
+     */
+    'benchmark.changed',
     'command.execute',
     /**
      * An Inbox reader that missed this re-reads the whole list on reconnect, and the list is small and bounded, so a

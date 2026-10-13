@@ -32,6 +32,7 @@ import {
 const connecting: EnvironmentState = {
     kind: 'ssh',
     destination: 'build-box',
+    hostIdentity: 'build-box',
     phase: 'connecting',
     needsUserAction: false,
 };

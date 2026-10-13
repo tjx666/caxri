@@ -90,20 +90,25 @@ async function applyChanges(changes: FileChange[]): Promise<void> {
     }
 }
 
+/**
+ * Requires a clean checkout whose HEAD is exactly the freshly fetched `origin/main`. The branch name is
+ * deliberately unchecked: releases are prepared on a linked worktree's release branch, because the primary
+ * checkout stays on `main` and Git cannot check `main` out twice.
+ */
 export async function assertReleaseSource(
     cwd: string,
     readGit: GitReader = defaultGitReader,
 ): Promise<void> {
     const root = resolve(cwd);
-    const branch = await readGit(['branch', '--show-current'], root);
-    if (branch !== 'main') throw new Error(`Release preparation requires main; current branch is ${branch}`);
-
     const status = await readGit(['status', '--porcelain', '--untracked-files=all'], root);
     if (status) throw new Error('Release preparation requires a clean worktree');
 
+    await readGit(['fetch', '--quiet', 'origin', 'main'], root);
     const head = await readGit(['rev-parse', 'HEAD'], root);
-    const upstream = await readGit(['rev-parse', '@{upstream}'], root);
-    if (head !== upstream) throw new Error('Release preparation requires main to match its upstream');
+    const remoteMain = await readGit(['rev-parse', 'refs/remotes/origin/main'], root);
+    if (head !== remoteMain) {
+        throw new Error('Release preparation requires HEAD to match origin/main; run `git rebase origin/main` first');
+    }
 }
 
 export async function prepareRelease(cwd: string, target: string): Promise<PreparedRelease> {

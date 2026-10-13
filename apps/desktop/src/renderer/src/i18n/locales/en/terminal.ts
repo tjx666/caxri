@@ -78,6 +78,8 @@ export const terminal = {
         'Long paste could not be saved. Your clipboard is unchanged; try again or save it to a file.',
     'terminal.drop.noPath':
         'This file has no path on disk to insert. Save it, then drop the saved file.',
+    'terminal.drop.localFileOnSshHost':
+        'Files on this Mac cannot be referenced on the SSH Host. Copy the file to the SSH Host, then drop it from Files.',
     // Detected links, the link picker, and reference hover cards.
     'terminal.links.hint.openInEditor': '⌘ click to open in editor',
     'terminal.links.hint.openInBrowser': '⌘ click to open in browser',

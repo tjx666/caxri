@@ -4,6 +4,7 @@ import { useImperativeHandle } from 'react';
 import type { TerminalRecord } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
+import { isOsFileReferenceRefused } from '../../../lib/file-drag';
 import { pushToast } from '../../../stores/toasts';
 import {
     terminalDropInput,
@@ -76,7 +77,15 @@ export function useAgentChatComposerInput({
             insertText(input);
             return true;
         }
-        if (files.length > 0) pushToast('warning', translate('agentChat.composer.fileHasNoPath'));
+        if (files.length > 0)
+            pushToast(
+                'warning',
+                translate(
+                    isOsFileReferenceRefused()
+                        ? 'agentChat.composer.localFileOnSshHost'
+                        : 'agentChat.composer.fileHasNoPath',
+                ),
+            );
         return false;
     };
     /**
