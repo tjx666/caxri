@@ -22,10 +22,10 @@ const GITHUB_KIND_ICONS = {
 } as const;
 
 /**
- * A web link in a transcript or a user's message: the site's icon ahead of the text, a dotted underline, and a hover
- * card showing the full address (cut to one line) with Copy Link and Open actions, modeled on the Codex app. The card
- * previews the page (its share image, title, and description) once Main has read them; until then, or when the page
- * declares none, it names where on the site the link leads. A right-click offers Open Link and Copy Link.
+ * A web link in a transcript or a user's message: the site's icon ahead of the text, the caller's text treatment, and a
+ * hover card showing the full address (cut to one line) with Copy Link and Open actions, modeled on the Codex app. The
+ * card previews the page (its share image, title, and description) once Main has read them; until then, or when the
+ * page declares none, it names where on the site the link leads. A right-click offers Open Link and Copy Link.
  */
 export function WebLink({
     children,
@@ -65,7 +65,7 @@ export function WebLink({
                 render={
                     <button
                         className={cn(
-                            'cursor-pointer border-0 bg-transparent p-0 text-left underline decoration-dotted underline-offset-3 hover:decoration-solid focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent',
+                            'cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-3 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent',
                             className,
                         )}
                         type="button"

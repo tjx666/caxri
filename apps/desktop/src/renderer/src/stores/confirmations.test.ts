@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
     confirmationLabels,
     resolveConfirm,
+    setDontAskAgain,
     showConfirm,
+    showConfirmChoice,
     useConfirmationStore,
 } from './confirmations';
 
@@ -56,6 +58,27 @@ describe('confirmation store', () => {
 
         resolveConfirm(true);
         await expect(second).resolves.toBe(true);
+    });
+
+    it('reports "Don\'t ask again" only when the user confirms with it ticked', async () => {
+        const offered = { ...request, dontAskAgainLabel: "Don't ask again" };
+        const confirmed = showConfirmChoice(offered);
+        setDontAskAgain(true);
+        resolveConfirm(true);
+        await expect(confirmed).resolves.toEqual({ isConfirmed: true, dontAskAgain: true });
+
+        const dismissed = showConfirmChoice(offered);
+        expect(useConfirmationStore.getState().isDontAskAgainChecked).toBe(false);
+        setDontAskAgain(true);
+        resolveConfirm(false);
+        await expect(dismissed).resolves.toEqual({ isConfirmed: false, dontAskAgain: false });
+    });
+
+    it('ignores the checkbox for a request that never offered it', async () => {
+        const answer = showConfirmChoice(request);
+        setDontAskAgain(true);
+        resolveConfirm(true);
+        await expect(answer).resolves.toEqual({ isConfirmed: true, dontAskAgain: false });
     });
 
     it('falls back to the shared button labels when the request omits them', () => {

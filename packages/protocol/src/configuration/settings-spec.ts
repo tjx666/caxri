@@ -163,6 +163,16 @@ export const settingsSpec = [
         default: 'ask',
     },
     {
+        kind: 'boolean',
+        key: 'workbench.confirmWorktreeAuthorization',
+        title: 'Confirm worktree authorization',
+        description:
+            'Ask before authorizing a worktree picked from the status bar. Turn off to authorize and switch right away.',
+        category: 'general',
+        keywords: ['git', 'branch', 'worktree', 'authorize', 'confirm', 'workbench root'],
+        default: true,
+    },
+    {
         kind: 'enum',
         key: 'primarySidebar.autoCollapseProjects',
         title: 'Auto-collapse inactive Projects',

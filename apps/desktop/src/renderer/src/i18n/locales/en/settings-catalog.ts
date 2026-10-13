@@ -58,6 +58,10 @@ export const settingsCatalog = {
     'settings.workbench.newWorktreeBehavior.option.continueAutomatically': 'Continue automatically',
     'settings.workbench.newWorktreeBehavior.option.ignore': 'Ignore',
 
+    'settings.workbench.confirmWorktreeAuthorization.title': 'Confirm worktree authorization',
+    'settings.workbench.confirmWorktreeAuthorization.description':
+        'Ask before authorizing a worktree picked from the status bar. Turn off to authorize and switch right away.',
+
     'settings.primarySidebar.autoCollapseProjects.title': 'Auto-collapse inactive Projects',
     'settings.primarySidebar.autoCollapseProjects.description':
         'Keeps active, working, unread, and manually expanded Projects open',

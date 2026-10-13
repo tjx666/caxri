@@ -153,6 +153,7 @@ const settingsProjection: SettingsProjection = {
     'session.openAgentsInChat': exportAsIs,
     'agentChat.longPasteThreshold': exportAsIs,
     'workbench.newWorktreeBehavior': exportAsIs,
+    'workbench.confirmWorktreeAuthorization': exportAsIs,
     'primarySidebar.autoCollapseProjects': exportAsIs,
     'window.zoomLevel': exportAsIs,
     'workbench.fontFamily': exportAsIs,
