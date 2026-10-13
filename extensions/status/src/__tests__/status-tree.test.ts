@@ -81,7 +81,7 @@ describe('Status extension tree', () => {
         (kind) => {
             // The last column is the trailing count word: only a check that asks for attention spends that slot.
             for (const [state, checkLabel, checkIcon, badgeLabel, attention] of [
-                ['success', 'CI passed', 'circle-check', 'passed', undefined],
+                ['success', 'CI passed', 'circle-check-merged', 'passed', undefined],
                 ['failure', 'CI failed', 'circle-x', 'failed', 'failing'],
                 ['pending', 'CI running', 'loading', 'running', 'running'],
                 ['queued', 'CI queued', 'circle-small-filled', 'queued', 'queued'],
