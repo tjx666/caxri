@@ -137,6 +137,10 @@ directories.
   colon, semicolon, comma, period, or parentheses instead. Product copy (UI strings, Agent prompts)
   is out of scope; do not rewrite its punctuation as a side effect of a style rule. `bun run
 em-dash-check` enforces this in the `guards` job and the pre-commit hook.
+- When delivered work adopts an idea, interaction, value, or format from an external project,
+  record it in `.agents/skills/competitors/references/feature-references.md` in the same change
+  (procedure: `competitors`); copied code, assets, or text also needs a `THIRD_PARTY_NOTICES.md`
+  entry. For example, a shortcut chosen because Orca uses it gets a row under Orca.
 - Prefer JSDoc for non-obvious lifecycle or security behavior, and document why a workaround
   exists.
 - Coding agents reproduce the dominant precedent they see in neighboring code, so exemplar hygiene
