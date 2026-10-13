@@ -31,7 +31,6 @@ import {
     Layers,
     ListTodo,
     MessageCircleQuestionMark,
-    PanelRight,
     Plug,
     Search,
     Sparkles,
@@ -42,7 +41,6 @@ import {
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { CodeView } from '../../components/markdown/code-view';
-import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { useTranslation } from '../../i18n';
@@ -54,7 +52,12 @@ import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
-import { agentChatTaskActivity, agentChatTaskGlyphStatus } from './agent-chat-tasks';
+import { AgentChatTaskOpenButton } from './agent-chat-task-open-button';
+import {
+    agentChatTaskActivity,
+    agentChatTaskGlyphStatus,
+    isAgentChatTaskItemRunning,
+} from './agent-chat-tasks';
 import { describeAgentChatWork, summarizeAgentChatWork } from './agent-chat-timeline';
 import { agentChatToolActiveLabel } from './agent-chat-tool-labels';
 import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
@@ -137,6 +140,7 @@ function DisclosureRow({
     expansionKey,
     glyph,
     isRunning = false,
+    itemId,
     title,
     trailing,
 }: {
@@ -157,6 +161,11 @@ function DisclosureRow({
      * row.
      */
     isRunning?: boolean;
+    /**
+     * The work item a single row shows, exposed as `data-agent-chat-work-item` so a finished turn's row can scroll it
+     * into view (see `AgentChatTurnFold`).
+     */
+    itemId?: string;
     title: ReactNode;
     trailing?: ReactNode;
 }) {
@@ -198,7 +207,7 @@ function DisclosureRow({
         </div>
     );
     return (
-        <div className="text-[12px] leading-5">
+        <div className="text-[12px] leading-5" data-agent-chat-work-item={itemId}>
             {action ? (
                 <div className="flex min-w-0 items-center gap-1">
                     {row}
@@ -363,45 +372,6 @@ function FileChangeStat({ item }: { item: Extract<AgentChatWorkItem, { type: 'fi
 }
 
 /**
- * Opens a work row's subagent or background shell in the side split.
- */
-function AgentChatTaskOpenButton({
-    onOpen,
-    task,
-}: {
-    onOpen: () => void;
-    task: AgentChatTask | undefined;
-}) {
-    const { t } = useTranslation();
-    return (
-        <Tooltip
-            content={
-                task
-                    ? t('agentChat.timeline.openNamed', {
-                          name: task.title || t('agentChat.workGroup.task'),
-                      })
-                    : t('agentChat.workGroup.openSubagent')
-            }
-        >
-            <Button
-                aria-label={t(
-                    task?.kind === 'shell'
-                        ? 'agentChat.workGroup.openShell'
-                        : 'agentChat.workGroup.openSubagent',
-                )}
-                className="min-h-6 shrink-0 gap-1 px-1.5 text-muted"
-                size="sm"
-                variant="ghost"
-                onClick={onOpen}
-            >
-                <PanelRight aria-hidden="true" className="size-3.5" />
-                {t('common.open')}
-            </Button>
-        </Tooltip>
-    );
-}
-
-/**
  * A work row's trailing state: the diff stat, a task's elapsed time and status, or the item's own outcome and duration.
  */
 function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?: AgentChatTask }) {
@@ -451,6 +421,7 @@ const AgentChatWorkRow = memo(
                 expansionKey={agentChatItemExpansionKey(item.id)}
                 glyph={<WorkGlyph kind={presentation.kind} />}
                 isRunning={isRunning}
+                itemId={item.id}
                 title={
                     <>
                         <span className="shrink-0">{verb}</span>
@@ -579,9 +550,8 @@ export function AgentChatWorkGroup({
     onOpenFile?: (target: string) => void;
 }) {
     const links = useContext(AgentChatTaskLinksContext);
-    const { summarized, rows } = splitAgentChatWork(
-        items,
-        (item) => links?.tasksByItem.get(item.id)?.status === 'running',
+    const { summarized, rows } = splitAgentChatWork(items, (item) =>
+        isAgentChatTaskItemRunning(links?.tasksByItem, item),
     );
     return (
         <div className="flex flex-col">

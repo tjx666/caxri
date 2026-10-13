@@ -1,7 +1,15 @@
-import { createContext, useContext, useState, useSyncExternalStore } from 'react';
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
+    useSyncExternalStore,
+} from 'react';
 
 import type { AgentChatWorkItem } from '@caxri/protocol';
 
+import { motionSettleTimeoutMs } from '../../../lib/motion';
 import { AgentChatExpansionState, isAgentChatExpanded } from '../agent-chat-expansion';
 
 /**
@@ -61,5 +69,37 @@ export function useAgentChatExpansion(
             onUserToggle?.(element);
             state.set(key, isNextExpanded);
         },
+    };
+}
+
+/**
+ * Reveals one work row inside disclosures the user has not opened: opens each of `keys` (see `agentChatRevealItemKeys`)
+ * as a user toggle anchored at the clicked control, then, once the height animation settles, scrolls the row
+ * (`data-agent-chat-work-item`) into view within `container`. A finished turn's row uses it where the host cannot open
+ * the subagent beside the Chat (the Agent Commander window). `undefined` without a provider, since a private state
+ * could not reach the rows that hold the target.
+ */
+export function useAgentChatRevealWorkItem():
+    | ((options: {
+          container: HTMLElement | null;
+          element: HTMLElement;
+          itemId: string;
+          keys: readonly string[];
+      }) => void)
+    | undefined {
+    const provided = useContext(AgentChatExpansionContext);
+    const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    useEffect(() => () => clearTimeout(timer.current), []);
+    if (!provided) return undefined;
+    const { state, onUserToggle } = provided;
+    return ({ container, element, itemId, keys }) => {
+        onUserToggle?.(element);
+        for (const key of keys) state.set(key, true);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => {
+            container
+                ?.querySelector(`[data-agent-chat-work-item="${CSS.escape(itemId)}"]`)
+                ?.scrollIntoView({ block: 'nearest' });
+        }, motionSettleTimeoutMs('--motion-expand'));
     };
 }

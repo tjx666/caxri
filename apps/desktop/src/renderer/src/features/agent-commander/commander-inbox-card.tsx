@@ -50,7 +50,13 @@ export function CommanderInboxCard({
     return (
         <li
             className={cn(
-                'commander-inbox-item flex flex-col gap-1.5 rounded-md border border-border p-2 outline-none focus-visible:border-accent',
+                'commander-inbox-item flex flex-col gap-1.5 rounded-md border border-border p-2 outline-none',
+                /*
+                 * A 2px inset accent outline, not just the 1px border recolor: the `N need you` chip lands focus here
+                 * from another window, so it must read at a glance. Drawn inside the border box so the scrolling list
+                 * never clips it, and gated on `:focus-visible` so a pointer click shows no ring.
+                 */
+                'focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-accent focus-visible:outline-solid',
                 /*
                  * The reply target is a persistent selection, not focus, so it takes the raised `--elevated` fill
                  * instead of the accent DESIGN.md reserves for the one focus indicator.
