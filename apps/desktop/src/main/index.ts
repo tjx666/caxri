@@ -22,6 +22,7 @@ import { app, BrowserWindow, dialog, Menu, powerMonitor } from 'electron';
 
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import type { AgentCommanderWindowController } from './agent-commander-window';
+import { agentCommanderMenuOptions } from './agent-commander-window';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
 import { createAppQuitHandler, createAppQuitPromptOptions, readAppQuitStatus } from './app-quit';
@@ -528,26 +529,23 @@ if (ownsProfileInstance) {
 
     const remoteWindowMenu = createRemoteWindowMenu(() => remoteEnvironments);
     function installMenu(keybindings: Keybinding[]): void {
-        remoteWindowMenu.setApplicationMenu(
-            Menu.buildFromTemplate(
-                buildAppMenuTemplate({
-                    keybindings,
-                    dispatchCommand: dispatchWorkbenchCommand,
-                    openProcessExplorer: () => processExplorer.open(),
-                    openAgentCommander: () => agentCommander?.open(),
-                    openBenchmark: () => benchmarkWindow?.open(),
-                    workbenchWindow: () =>
-                        mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
-                    isFollowingAppZoom: (window) =>
-                        isZoomingWithApp(window, [agentCommander, benchmarkWindow]),
-                    dispatchToRemoteWindow: remoteWindowMenu.dispatch,
-                    focusWorkbench: () => {
-                        // eslint-disable-next-line no-void -- best effort: the command reaches the Workbench whether or not it came forward
-                        void focusMainWindow().catch(() => {});
-                    },
-                }),
-            ),
-        );
+        const template = buildAppMenuTemplate({
+            keybindings,
+            dispatchCommand: dispatchWorkbenchCommand,
+            openProcessExplorer: () => processExplorer.open(),
+            ...agentCommanderMenuOptions(() => agentCommander),
+            openBenchmark: () => benchmarkWindow?.open(),
+            workbenchWindow: () =>
+                mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+            isFollowingAppZoom: (window) =>
+                isZoomingWithApp(window, [agentCommander, benchmarkWindow]),
+            dispatchToRemoteWindow: remoteWindowMenu.dispatch,
+            focusWorkbench: () => {
+                // eslint-disable-next-line no-void -- best effort: the command reaches the Workbench whether or not it came forward
+                void focusMainWindow().catch(() => {});
+            },
+        });
+        remoteWindowMenu.setApplicationMenu(Menu.buildFromTemplate(template));
     }
 
     // Top-level await is unavailable in this bundle target, so the bootstrap sequence below is

@@ -24,14 +24,15 @@ import { openTerminalLinkPicker } from '../terminal/terminal-link-actions';
 import { clearActiveTerminal, findInActiveTerminal } from '../terminal/terminal-pane-handlers';
 import { switchTerminalToOtherSurface } from '../terminal/terminal-surface-commands';
 import { useAgentCommanderStore } from './commander-client';
+import { requestCommanderPalette } from './commander-dialogs-store';
 
-interface CommanderTerminalCommandEntry {
+interface CommanderKeyboardCommandEntry {
     allowInEditable: boolean;
     run: (terminalId: string) => void;
     when?: (terminalId: string) => boolean;
 }
 
-function composerCommand(command: AgentChatComposerCommand): CommanderTerminalCommandEntry {
+function composerCommand(command: AgentChatComposerCommand): CommanderKeyboardCommandEntry {
     return {
         allowInEditable: true,
         run: (terminalId) => runAgentChatComposerCommand(terminalId, command),
@@ -41,15 +42,17 @@ function composerCommand(command: AgentChatComposerCommand): CommanderTerminalCo
 
 /**
  * The commands this window runs from the keyboard: the Terminal actions its context menu offers, the Restart its exited
- * pane shows with this shortcut, the `Terminal | Chat` switch its title bar offers, and its Chat composer's model menu,
- * permission menu, and plan toggle. The native Edit menu already owns Copy and Paste, and every other command belongs
- * to the Workbench window. `allowInEditable` matches each command's Workbench definition (`commands/definitions.ts`):
- * Restart replaces the PTY, so it does not reach through a focused Terminal or input. This window deliberately does not
- * load the Workbench registry, so the values are a copy; the parity test in `__tests__/commander-shortcuts.test.ts`
- * fails when either table changes without the other. A command with `when` leaves its chord to the focused surface
- * while `when` is false, as the Workbench's does.
+ * pane shows with this shortcut, the `Terminal | Chat` switch its title bar offers, its Chat composer's model menu,
+ * permission menu, and plan toggle, and its own Command Palette, which lists every other entry here. The native Edit
+ * menu already owns Copy and Paste, and every other command belongs to the Workbench window. The palette's default
+ * chord is a native menu accelerator that Main forwards to this window as `agentCommander.commandPaletteRequested`; the
+ * entry here serves a chord the user rebound to one Main leaves to the Renderer. `allowInEditable` matches each
+ * command's Workbench definition (`commands/definitions.ts`): Restart replaces the PTY, so it does not reach through a
+ * focused Terminal or input. This window deliberately does not load the Workbench registry, so the values are a copy;
+ * the parity test in `__tests__/commander-shortcuts.test.ts` fails when either table changes without the other. A
+ * command with `when` leaves its chord to the focused surface while `when` is false, as the Workbench's does.
  */
-export const COMMANDER_TERMINAL_COMMANDS = {
+export const COMMANDER_KEYBOARD_COMMANDS = {
     'terminal.clear': { allowInEditable: true, run: clearActiveTerminal },
     'terminal.find': { allowInEditable: true, run: findInActiveTerminal },
     'terminal.openDetectedLink': { allowInEditable: true, run: openTerminalLinkPicker },
@@ -58,23 +61,24 @@ export const COMMANDER_TERMINAL_COMMANDS = {
     'agentChat.changeModel': composerCommand('changeModel'),
     'agentChat.changePermissionMode': composerCommand('changePermissionMode'),
     'agentChat.togglePlanMode': composerCommand('togglePlanMode'),
-} satisfies Partial<Record<CommandId, CommanderTerminalCommandEntry>>;
+    'commandPalette.open': { allowInEditable: true, run: requestCommanderPalette },
+} satisfies Partial<Record<CommandId, CommanderKeyboardCommandEntry>>;
 
-type CommanderTerminalCommand = keyof typeof COMMANDER_TERMINAL_COMMANDS;
+export type CommanderKeyboardCommand = keyof typeof COMMANDER_KEYBOARD_COMMANDS;
 
-function isCommanderTerminalCommand(command: string): command is CommanderTerminalCommand {
-    return Object.hasOwn(COMMANDER_TERMINAL_COMMANDS, command);
+function isCommanderKeyboardCommand(command: string): command is CommanderKeyboardCommand {
+    return Object.hasOwn(COMMANDER_KEYBOARD_COMMANDS, command);
 }
 
-function isCommanderCommandAvailable(command: string, terminalId: string): boolean {
-    if (!isCommanderTerminalCommand(command)) return false;
-    const entry: CommanderTerminalCommandEntry = COMMANDER_TERMINAL_COMMANDS[command];
+export function isCommanderCommandAvailable(command: string, terminalId: string): boolean {
+    if (!isCommanderKeyboardCommand(command)) return false;
+    const entry: CommanderKeyboardCommandEntry = COMMANDER_KEYBOARD_COMMANDS[command];
     return entry.when?.(terminalId) ?? true;
 }
 
 function isAllowedInEditable(command: string): boolean {
     return (
-        isCommanderTerminalCommand(command) && COMMANDER_TERMINAL_COMMANDS[command].allowInEditable
+        isCommanderKeyboardCommand(command) && COMMANDER_KEYBOARD_COMMANDS[command].allowInEditable
     );
 }
 
@@ -96,7 +100,7 @@ export function createCommanderShortcutState(): CommanderShortcutState {
 
 /**
  * Runs one keystroke against the Commander Terminal. The Workbench's chord state machine resolves it against the user's
- * keybindings narrowed to {@link COMMANDER_TERMINAL_COMMANDS}, so a rebound chord follows the user and any other chord,
+ * keybindings narrowed to {@link COMMANDER_KEYBOARD_COMMANDS}, so a rebound chord follows the user and any other chord,
  * including the start of another command's sequence, reaches the focused surface untouched.
  */
 export function dispatchCommanderKeydown(
@@ -108,7 +112,7 @@ export function dispatchCommanderKeydown(
     const keybindings = useWorkbenchStore.getState().bootstrap?.keybindings;
     if (!keybindings) return;
     if (keybindings !== state.keybindings) {
-        const admitted = keybindings.filter(({ command }) => isCommanderTerminalCommand(command));
+        const admitted = keybindings.filter(({ command }) => isCommanderKeyboardCommand(command));
         state.keybindings = keybindings;
         state.shortcutMap = buildShortcutMap(admitted);
         /**
@@ -156,7 +160,7 @@ export function dispatchCommanderKeydown(
     }
     if (outcome.kind === 'cancelChord' || useDialogStore.getState().isModalOpen()) return;
     const { command } = outcome.binding;
-    if (isCommanderTerminalCommand(command)) COMMANDER_TERMINAL_COMMANDS[command].run(terminalId);
+    if (isCommanderKeyboardCommand(command)) COMMANDER_KEYBOARD_COMMANDS[command].run(terminalId);
 }
 
 /**

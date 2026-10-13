@@ -7,14 +7,107 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.window.title': 'Agent Commander',
     'agentCommander.window.sessionsLabel': '会话',
     'agentCommander.window.stop': '停止 Commander',
-    'agentCommander.window.stopTooltip':
-        '停止 Commander 并关闭此窗口。它委派的任务会继续运行，再次打开时会恢复同一段对话。',
+    'agentCommander.window.more': '更多',
+    'agentCommander.window.commandPalette': '命令面板…',
     'agentCommander.window.needsYou': '需要你处理',
     'agentCommander.window.hideNeedsYou': '隐藏“需要你处理”',
     'agentCommander.window.showColumn': '显示“{{column}}”',
     'agentCommander.window.hideColumn': '隐藏“{{column}}”',
     'agentCommander.window.resizeNeedsYou': '调整“需要你处理”宽度',
     'agentCommander.window.resizeSessions': '调整“会话”宽度',
+
+    // Commander Agent
+    'agentCommander.agent.label': 'Commander 使用的 Agent：{{agent}}',
+    'agentCommander.agent.tooltip': 'Commander 正在使用 {{agent}}，点击切换',
+    'agentCommander.agent.menuLabel': 'Commander 使用的 Agent',
+    'agentCommander.agent.switchTitle': '将 Commander 切换到 {{agent}}？',
+    'agentCommander.agent.switchMessage':
+        'Commander 会在 {{agent}} 上开始一段新对话。任务、记忆和“需要你处理”的条目都会保留，它委派的任务也会继续运行。',
+    'agentCommander.agent.switchConfirm': '切换到 {{agent}}',
+    'agentCommander.agent.switchFailed': '无法将 Commander 切换到 {{agent}}',
+
+    // Command Palette
+    'agentCommander.palette.placeholder': '输入命令或会话名称',
+    'agentCommander.palette.empty': '未找到命令或会话。',
+    'agentCommander.palette.group.commander': 'Commander',
+    'agentCommander.palette.group.view': '视图',
+    'agentCommander.palette.group.agent': 'Agent',
+    'agentCommander.palette.switchAgent': '将 Commander 切换到 {{agent}}',
+    'agentCommander.palette.switchAgentKeywords':
+        'agent model provider change run on 切换 模型 智能体',
+    'agentCommander.palette.handover': '转交给 Commander…',
+    'agentCommander.palette.handoverKeywords':
+        'handover delegate sessions conversations import 转交 委派 会话 对话 导入',
+    'agentCommander.palette.clearData': '清除 Commander 数据…',
+    'agentCommander.palette.clearDataKeywords':
+        'clear delete reset forget memory tasks agents.md instructions cleanup 清除 清理 删除 重置 记忆 任务 指令',
+    'agentCommander.palette.openSettings': '打开设置',
+    'agentCommander.palette.stopKeywords': 'quit close exit stop 退出 关闭 停止',
+    'agentCommander.palette.boardKeywords': 'board sidebar sessions column 看板 侧栏 会话',
+    'agentCommander.palette.showCommanderSessions': '只显示 Commander 的会话',
+    'agentCommander.palette.showAllSessions': '显示全部会话',
+    'agentCommander.palette.inboxKeywords':
+        'inbox needs you questions pull requests column 收件箱 需要你处理 问题 拉取请求',
+
+    // Clear Commander Data
+    'agentCommander.clearData.title': '清除 Commander 数据',
+    'agentCommander.clearData.description':
+        '选择 Commander 要忘掉的内容。会话、终端和你的仓库都不会受影响。',
+    'agentCommander.clearData.loadFailed': '无法读取 Commander 保存的数据。',
+    'agentCommander.clearData.loading': '正在读取 Commander 保存的数据…',
+    'agentCommander.clearData.tasks': '任务',
+    'agentCommander.clearData.tasksDescription':
+        'Commander 用来跟踪委派工作的任务清单。删除未完成的任务后，Commander 不再跟进它。',
+    'agentCommander.clearData.tasksMeta': '{{open}} 个进行中 · {{closed}} 个已结束',
+    'agentCommander.clearData.taskChoiceLabel': '要删除的任务',
+    'agentCommander.clearData.taskChoiceClosed': '已结束',
+    'agentCommander.clearData.taskChoiceAll': '全部',
+    'agentCommander.clearData.taskChoiceChosen': '自选…',
+    'agentCommander.clearData.olderTasks':
+        '还有 {{count}} 个较早的任务未列出；选择“已结束”或“全部”即可包含它们。',
+    'agentCommander.clearData.olderTasksOne':
+        '还有 1 个较早的任务未列出；选择“已结束”或“全部”即可包含它。',
+    'agentCommander.clearData.taskStatus.pending': '待处理',
+    'agentCommander.clearData.taskStatus.dispatched': '已委派',
+    'agentCommander.clearData.taskStatus.waiting_user': '等你处理',
+    'agentCommander.clearData.taskStatus.done': '已完成',
+    'agentCommander.clearData.taskStatus.dropped': '已放弃',
+    'agentCommander.clearData.taskFiles': '任务文件',
+    'agentCommander.clearData.taskFilesDescription':
+        'Commander 在任务旁保存的任务说明和拉取请求报告。',
+    'agentCommander.clearData.taskFilesMeta': '{{count}} 个文件 · {{size}}',
+    'agentCommander.clearData.taskFilesMetaOne': '1 个文件 · {{size}}',
+    'agentCommander.clearData.inboxDescription': '等你处理的问题和拉取请求，以及已经处理过的条目。',
+    'agentCommander.clearData.inboxMeta': '{{open}} 个待处理 · {{closed}} 个已关闭',
+    'agentCommander.clearData.memory': '记忆',
+    'agentCommander.clearData.memoryDescription':
+        'Commander 记下的关于你和你的项目的内容恢复为初始模板。',
+    'agentCommander.clearData.memoryLearned': '已有记录',
+    'agentCommander.clearData.memoryEmpty': '尚无记录',
+    'agentCommander.clearData.instructions': '指令',
+    'agentCommander.clearData.instructionsDescription':
+        '按当前模板重写 AGENTS.md，丢弃对它做过的修改。',
+    'agentCommander.clearData.instructionsWithMemory': 'AGENTS.md 承载记忆，重置记忆时会一并重写。',
+    'agentCommander.clearData.conversation': '对话',
+    'agentCommander.clearData.conversationDescription':
+        '开始一段新的 {{agent}} 对话，当前对话的内容不再延续。',
+    'agentCommander.clearData.conversationNone': '尚未开始',
+    'agentCommander.clearData.stillInConversation':
+        '{{agent}} 在这段对话中已经读过旧的记忆和指令。勾选“对话”即可从头开始。',
+    'agentCommander.clearData.submit': '清除数据',
+    'agentCommander.clearData.failed': '无法清除 Commander 数据',
+    'agentCommander.clearData.outcome.tasks': '{{count}} 个任务',
+    'agentCommander.clearData.outcome.tasksOne': '1 个任务',
+    'agentCommander.clearData.outcome.files': '{{count}} 个任务文件',
+    'agentCommander.clearData.outcome.filesOne': '1 个任务文件',
+    'agentCommander.clearData.outcome.inbox': '{{count}} 个“需要你处理”条目',
+    'agentCommander.clearData.outcome.inboxOne': '1 个“需要你处理”条目',
+    'agentCommander.clearData.outcome.memory': '记忆',
+    'agentCommander.clearData.outcome.instructions': '指令',
+    'agentCommander.clearData.outcome.conversation': '对话',
+    'agentCommander.clearData.outcome.separator': '、',
+    'agentCommander.clearData.outcome.summary': '已清除{{parts}}',
+    'agentCommander.clearData.outcome.nothing': '没有可清除的内容了',
 
     // Commander Terminal
     'agentCommander.terminal.couldNotStart': 'Agent Commander 无法启动。',

@@ -138,9 +138,6 @@ export function isKeybindingRecordingEventTarget(target: EventTarget | null): bo
 }
 
 /**
- * Looks up the live raw keybinding for a command; presentation belongs to `ShortcutBadge`.
- */
-/**
  * Non-subscribing read of a command's live shortcut, for builders that run at the moment a menu opens rather than on
  * every render.
  */
@@ -150,7 +147,11 @@ export function readCommandShortcut(commandId: CommandId): string | undefined {
         .bootstrap?.keybindings.find((item) => item.command === commandId)?.key;
 }
 
-export function useCommandShortcut(commandId: CommandId): string | undefined {
+/**
+ * Looks up the live raw keybinding for a command; presentation belongs to `ShortcutBadge`. A row that may carry no
+ * command passes `undefined` and gets no shortcut, so lists can call it unconditionally.
+ */
+export function useCommandShortcut(commandId: CommandId | undefined): string | undefined {
     const keybindings = useWorkbenchStore((state) => state.bootstrap?.keybindings);
     return useMemo(() => {
         const binding = keybindings?.find((item) => item.command === commandId);

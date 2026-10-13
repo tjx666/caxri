@@ -139,7 +139,7 @@ export function formatCommanderResumePrompt(
     const parts = ['[Caxri notice] The Agent Commander restarted.'];
     if (wasTurnInterrupted)
         parts.push(
-            'Your previous turn did not finish: Caxri or Codex restarted, or the turn was interrupted. Continue it unless the user stopped it on purpose.',
+            'Your previous turn did not finish: Caxri or your Agent CLI restarted, or the turn was interrupted. Continue it unless the user stopped it on purpose.',
         );
     if (entries.length + inboxEntries.length + handoverEntries.length > 0)
         parts.push(

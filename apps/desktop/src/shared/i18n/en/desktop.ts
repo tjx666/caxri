@@ -100,6 +100,24 @@ export const desktop = {
     'desktop.deleteSessions.detail':
         'Only Caxri metadata and snapshots are deleted. The selected folders and their files are never touched.',
 
+    'desktop.clearCommanderData.title': 'Clear Agent Commander Data',
+    'desktop.clearCommanderData.message': 'Clear the selected Agent Commander data?',
+    'desktop.clearCommanderData.allTasks': 'Every task in the task ledger',
+    'desktop.clearCommanderData.closedTasks': 'Every finished task in the task ledger',
+    'desktop.clearCommanderData.someTasks': '{{count}} tasks from the task ledger',
+    'desktop.clearCommanderData.someTasksOne': '1 task from the task ledger',
+    'desktop.clearCommanderData.taskFiles': 'Task briefs and pull request reports',
+    'desktop.clearCommanderData.inbox': 'Every Needs you item and reply',
+    'desktop.clearCommanderData.memory':
+        'Long-term memory, reset to the starting notes; AGENTS.md is rewritten to match',
+    'desktop.clearCommanderData.instructions':
+        'AGENTS.md, rewritten from the built-in instructions',
+    'desktop.clearCommanderData.conversation':
+        'The current conversation; the Commander starts over',
+    'desktop.clearCommanderData.detail':
+        'This cannot be undone. Projects, Sessions, and the work running in them are not affected.',
+    'desktop.clearCommanderData.confirm': 'Clear Data',
+
     'desktop.revokeDevice.title': 'Revoke Mobile Device',
     'desktop.revokeDevice.message': "Revoke '{{name}}'?",
     'desktop.revokeDevice.detail':

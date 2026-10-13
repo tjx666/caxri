@@ -18,6 +18,7 @@ export type TransientServerEvent = Extract<
         event:
             | 'agentChat.patch'
             | 'agentChat.taskPatch'
+            | 'agentCommander.commandPaletteRequested'
             | 'agentCommander.inboxRequested'
             | 'agent.message.held'
             | 'agent.notification'
@@ -133,6 +134,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * reopen an Inbox the user may have closed since.
      */
     'agentCommander.inboxRequested',
+    /**
+     * One-shot: the Command Palette shortcut typed in the Commander window. Replaying it would reopen a palette the
+     * user already dismissed.
+     */
+    'agentCommander.commandPaletteRequested',
     'viewContainers.catalogChanged',
     'viewContainers.treeChanged',
     'viewContainers.viewChanged',

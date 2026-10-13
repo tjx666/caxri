@@ -380,6 +380,31 @@ export class CommanderInboxModel {
         );
     }
 
+    counts(): { open: number; closed: number } {
+        const rows = this.database
+            .select({ status: commanderInboxItems.status, value: sql<number>`count(*)` })
+            .from(commanderInboxItems)
+            .groupBy(commanderInboxItems.status)
+            .all();
+        const count = (status: string) => rows.find((row) => row.status === status)?.value ?? 0;
+        return { open: count('open'), closed: count('closed') };
+    }
+
+    /**
+     * Deletes every item, open or closed, with its replies (the foreign key cascades), and returns the deleted IDs.
+     */
+    deleteAll(): string[] {
+        return this.transaction(() => {
+            const ids = this.database
+                .select({ id: commanderInboxItems.id })
+                .from(commanderInboxItems)
+                .all()
+                .map((row) => row.id);
+            this.database.delete(commanderInboxItems).run();
+            return ids;
+        });
+    }
+
     /**
      * Closes an open item and prunes the oldest closed items beyond the retained window. Returns false when the item
      * was not open.

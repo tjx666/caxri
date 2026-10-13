@@ -95,6 +95,21 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.deleteSessions.detail':
         '只会删除 Caxri 的元数据和快照，所选文件夹及其中的文件不会被改动。',
 
+    'desktop.clearCommanderData.title': '清除 Agent Commander 数据',
+    'desktop.clearCommanderData.message': '要清除所选的 Agent Commander 数据吗？',
+    'desktop.clearCommanderData.allTasks': '任务台账中的全部任务',
+    'desktop.clearCommanderData.closedTasks': '任务台账中全部已结束的任务',
+    'desktop.clearCommanderData.someTasks': '任务台账中的 {{count}} 个任务',
+    'desktop.clearCommanderData.someTasksOne': '任务台账中的 1 个任务',
+    'desktop.clearCommanderData.taskFiles': '任务说明和拉取请求报告',
+    'desktop.clearCommanderData.inbox': '全部“需要你处理”事项及回复',
+    'desktop.clearCommanderData.memory': '长期记忆，恢复为初始笔记，并据此重新生成 AGENTS.md',
+    'desktop.clearCommanderData.instructions': 'AGENTS.md，按内置指令重新生成',
+    'desktop.clearCommanderData.conversation': '当前对话；Commander 将重新开始',
+    'desktop.clearCommanderData.detail':
+        '此操作无法撤销。项目、会话以及其中正在运行的工作不受影响。',
+    'desktop.clearCommanderData.confirm': '清除数据',
+
     'desktop.revokeDevice.title': '撤销移动设备',
     'desktop.revokeDevice.message': '要撤销“{{name}}”吗？',
     'desktop.revokeDevice.detail':

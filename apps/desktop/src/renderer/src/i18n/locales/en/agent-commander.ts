@@ -3,14 +3,106 @@ export const agentCommander = {
     'agentCommander.window.title': 'Agent Commander',
     'agentCommander.window.sessionsLabel': 'Sessions',
     'agentCommander.window.stop': 'Stop Commander',
-    'agentCommander.window.stopTooltip':
-        'Stop the Commander and close this window. Tasks it delegated keep running, and opening it again resumes the same conversation.',
+    'agentCommander.window.more': 'More',
+    'agentCommander.window.commandPalette': 'Command Palette…',
     'agentCommander.window.needsYou': 'Needs you',
     'agentCommander.window.hideNeedsYou': 'Hide Needs you',
     'agentCommander.window.showColumn': 'Show {{column}}',
     'agentCommander.window.hideColumn': 'Hide {{column}}',
     'agentCommander.window.resizeNeedsYou': 'Resize Needs you',
     'agentCommander.window.resizeSessions': 'Resize Sessions',
+
+    // Commander Agent
+    'agentCommander.agent.label': 'Commander Agent: {{agent}}',
+    'agentCommander.agent.tooltip': 'The Commander runs on {{agent}}. Click to switch.',
+    'agentCommander.agent.menuLabel': 'Run the Commander on',
+    'agentCommander.agent.switchTitle': 'Switch the Commander to {{agent}}?',
+    'agentCommander.agent.switchMessage':
+        'The Commander starts a new conversation on {{agent}}. Its tasks, memory, and Needs you items stay, and tasks it delegated keep running.',
+    'agentCommander.agent.switchConfirm': 'Switch to {{agent}}',
+    'agentCommander.agent.switchFailed': 'Unable to switch the Commander to {{agent}}',
+
+    // Command Palette
+    'agentCommander.palette.placeholder': 'Type a command or a Session',
+    'agentCommander.palette.empty': 'No command or Session found.',
+    'agentCommander.palette.group.commander': 'Commander',
+    'agentCommander.palette.group.view': 'View',
+    'agentCommander.palette.group.agent': 'Agent',
+    'agentCommander.palette.switchAgent': 'Switch the Commander to {{agent}}',
+    'agentCommander.palette.switchAgentKeywords': 'agent model provider change run on',
+    'agentCommander.palette.handover': 'Hand Over to the Commander…',
+    'agentCommander.palette.handoverKeywords': 'handover delegate sessions conversations import',
+    'agentCommander.palette.clearData': 'Clear Commander Data…',
+    'agentCommander.palette.clearDataKeywords':
+        'clear delete reset forget memory tasks agents.md instructions cleanup',
+    'agentCommander.palette.openSettings': 'Open Settings',
+    'agentCommander.palette.stopKeywords': 'quit close exit stop',
+    'agentCommander.palette.boardKeywords': 'board sidebar sessions column',
+    'agentCommander.palette.showCommanderSessions': 'Show Only Commander Sessions',
+    'agentCommander.palette.showAllSessions': 'Show Every Session',
+    'agentCommander.palette.inboxKeywords': 'inbox needs you questions pull requests column',
+
+    // Clear Commander Data
+    'agentCommander.clearData.title': 'Clear Commander Data',
+    'agentCommander.clearData.description':
+        'Pick what the Commander should forget. Sessions, their Terminals, and your repositories are never touched.',
+    'agentCommander.clearData.loadFailed': 'Unable to read what the Commander keeps.',
+    'agentCommander.clearData.loading': 'Reading what the Commander keeps…',
+    'agentCommander.clearData.tasks': 'Tasks',
+    'agentCommander.clearData.tasksDescription':
+        'The task ledger the Commander tracks delegated work with. A deleted open task stops being followed up.',
+    'agentCommander.clearData.tasksMeta': '{{open}} open · {{closed}} finished',
+    'agentCommander.clearData.taskChoiceLabel': 'Which tasks',
+    'agentCommander.clearData.taskChoiceClosed': 'Finished',
+    'agentCommander.clearData.taskChoiceAll': 'All',
+    'agentCommander.clearData.taskChoiceChosen': 'Choose…',
+    'agentCommander.clearData.olderTasks':
+        '{{count}} older tasks are not listed; choose Finished or All to include them.',
+    'agentCommander.clearData.olderTasksOne':
+        '1 older task is not listed; choose Finished or All to include it.',
+    'agentCommander.clearData.taskStatus.pending': 'Pending',
+    'agentCommander.clearData.taskStatus.dispatched': 'Delegated',
+    'agentCommander.clearData.taskStatus.waiting_user': 'Waiting for you',
+    'agentCommander.clearData.taskStatus.done': 'Done',
+    'agentCommander.clearData.taskStatus.dropped': 'Dropped',
+    'agentCommander.clearData.taskFiles': 'Task files',
+    'agentCommander.clearData.taskFilesDescription':
+        'Task briefs and pull request reports the Commander saved beside its tasks.',
+    'agentCommander.clearData.taskFilesMeta': '{{count}} files · {{size}}',
+    'agentCommander.clearData.taskFilesMetaOne': '1 file · {{size}}',
+    'agentCommander.clearData.inboxDescription':
+        'Questions and pull requests waiting for you, and the ones already answered.',
+    'agentCommander.clearData.inboxMeta': '{{open}} open · {{closed}} closed',
+    'agentCommander.clearData.memory': 'Memory',
+    'agentCommander.clearData.memoryDescription':
+        'What the Commander learned about you and your Projects goes back to the starting template.',
+    'agentCommander.clearData.memoryLearned': 'Learned notes',
+    'agentCommander.clearData.memoryEmpty': 'Nothing learned yet',
+    'agentCommander.clearData.instructions': 'Instructions',
+    'agentCommander.clearData.instructionsDescription':
+        'Rewrite AGENTS.md from the current template, dropping any edits made to it.',
+    'agentCommander.clearData.instructionsWithMemory':
+        'Rewritten with the memory reset, since AGENTS.md carries the memory.',
+    'agentCommander.clearData.conversation': 'Conversation',
+    'agentCommander.clearData.conversationDescription':
+        'Start a new {{agent}} conversation, so nothing from the current one carries over.',
+    'agentCommander.clearData.conversationNone': 'Not started',
+    'agentCommander.clearData.stillInConversation':
+        '{{agent}} has already read the old memory and instructions in this conversation. Tick Conversation to start fresh.',
+    'agentCommander.clearData.submit': 'Clear Data',
+    'agentCommander.clearData.failed': 'Unable to clear Commander data',
+    'agentCommander.clearData.outcome.tasks': '{{count}} tasks',
+    'agentCommander.clearData.outcome.tasksOne': '1 task',
+    'agentCommander.clearData.outcome.files': '{{count}} task files',
+    'agentCommander.clearData.outcome.filesOne': '1 task file',
+    'agentCommander.clearData.outcome.inbox': '{{count}} Needs you items',
+    'agentCommander.clearData.outcome.inboxOne': '1 Needs you item',
+    'agentCommander.clearData.outcome.memory': 'the memory',
+    'agentCommander.clearData.outcome.instructions': 'the instructions',
+    'agentCommander.clearData.outcome.conversation': 'the conversation',
+    'agentCommander.clearData.outcome.separator': ', ',
+    'agentCommander.clearData.outcome.summary': 'Cleared {{parts}}',
+    'agentCommander.clearData.outcome.nothing': 'There was nothing left to clear',
 
     // Commander Terminal
     'agentCommander.terminal.couldNotStart': 'Agent Commander could not start.',

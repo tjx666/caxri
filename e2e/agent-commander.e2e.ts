@@ -68,7 +68,9 @@ test('Agent Commander keeps running after its window closes and stops on request
         const reopened = await pageRequest<CommanderSnapshot>(running.page, 'commander.snapshot');
         expect(reopened.identity).toEqual(identity);
 
-        await reopenedWindow.getByRole('button', { name: 'Stop Commander', exact: true }).click();
+        // Stop sits in the title bar's More menu, below the commands used more often.
+        await reopenedWindow.getByRole('button', { name: 'More', exact: true }).click();
+        await reopenedWindow.getByRole('menuitem', { name: 'Stop Commander', exact: true }).click();
         await expect.poll(() => running.app.windows().length).toBe(1);
         await expect(chip).toHaveCount(0);
     } finally {

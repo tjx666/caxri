@@ -37,6 +37,11 @@ export interface AppMenuOptions {
      */
     isFollowingAppZoom: (window: BaseWindow) => boolean;
     /**
+     * Opens a focused companion window's own Command Palette, as the Agent Commander has; returns false for a window
+     * without one, which then follows the usual routing.
+     */
+    openWindowCommandPalette?: (window: BaseWindow) => boolean;
+    /**
      * Runs a command in an SSH Host window when that window is focused; returns false for any other window. An SSH Host
      * window is a full Workbench of its own, so its commands act on it rather than on the local Workbench.
      */
@@ -187,6 +192,7 @@ export function buildAppMenuTemplate({
     workbenchWindow,
     focusWorkbench,
     isFollowingAppZoom,
+    openWindowCommandPalette,
     dispatchToRemoteWindow,
 }: AppMenuOptions): MenuItemConstructorOptions[] {
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
@@ -221,6 +227,16 @@ export function buildAppMenuTemplate({
             if (definition.id === 'agentCommander.open') return openAgentCommander();
             // Open Benchmark raises its own window from Main too, so it also works while that window is focused.
             if (definition.id === 'benchmark.open') return openBenchmark();
+            /**
+             * The native accelerator consumes `Cmd+Shift+P` before any Renderer sees it, so a window with a palette of
+             * its own gets the request from here instead of raising the Workbench's palette out of sight.
+             */
+            if (
+                focused &&
+                definition.id === 'commandPalette.open' &&
+                openWindowCommandPalette?.(focused)
+            )
+                return;
             // A programmatic `MenuItem.click()` passes no event; it is a deliberate click, not an accelerator.
             const isViaAccelerator = event?.triggeredByAccelerator === true;
             if (focused && dispatchToRemoteWindow?.(focused, definition.id, isViaAccelerator))

@@ -1,24 +1,26 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import type { CommanderDataSummary } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
 import { atomicWrite } from '../atomic-file';
 import { resolveGitLaunch } from '../git';
 
 /**
- * Directory name of the Commander workspace inside the profile. The workspace is the Commander Codex session's working
+ * Directory name of the Commander workspace inside the profile. The workspace is the Commander Agent's working
  * directory and its only writable scratch space; it deliberately contains no product state.
  */
 export const COMMANDER_WORKSPACE_DIRECTORY = 'agent-commander';
 
 /**
- * Standing instructions Codex reads from the workspace `AGENTS.md`. Regenerated on every `commander.ensure`, so a Caxri
- * upgrade replaces them; state the Commander keeps belongs in the task ledger (`commander task`), `memory/`, and
- * `tasks/`, never in this file. The decision and reporting rules were distilled from how the maintainer actually steers
- * coding Agents: most work is bug fixing, the costly part is understanding a bug well enough to trust its fix, and the
- * most resented stops are confirmations of a step the workflow already implies.
+ * Standing instructions the Commander Agent reads from the workspace `AGENTS.md`; Codex and Claude Code both load it
+ * natively (Claude Code when no `CLAUDE.md` exists, and the workspace never has one). Regenerated on every
+ * `commander.ensure`, so a Caxri upgrade replaces them; state the Commander keeps belongs in the task ledger
+ * (`commander task`), `memory/`, and `tasks/`, never in this file. The decision and reporting rules were distilled from
+ * how the maintainer actually steers coding Agents: most work is bug fixing, the costly part is understanding a bug
+ * well enough to trust its fix, and the most resented stops are confirmations of a step the workflow already implies.
  */
 const COMMANDER_INSTRUCTIONS = `# Caxri Agent Commander
 
@@ -94,7 +96,7 @@ credentials are already in the environment, and output is JSON.
   named ID with \`agent delegate status\` or \`agent delegate result\`, find its task with \`commander task list\`,
   then report or act on it under Reporting below. Notices are stored by Caxri, so one that settles while you are not
   running is still delivered.
-- When Caxri or Codex restarts you, your first prompt may be \`[Caxri notice] The Agent Commander restarted.\` It says
+- When Caxri or your Agent CLI restarts you, your first prompt may be \`[Caxri notice] The Agent Commander restarted.\` It says
   whether your previous turn was cut off and which delegation updates you missed. Reconcile with
   \`commander task list\` and \`commander board\`, then continue the interrupted work unless the user stopped it on
   purpose, and report under Reporting.
@@ -375,7 +377,7 @@ async function composeCommanderInstructions(workspacePath: string): Promise<stri
 }
 
 /**
- * Why the workspace could not become its own Git repository. The Commander still starts; Codex then resolves its
+ * Why the workspace could not become its own Git repository. The Commander still starts; its Agent then resolves its
  * project from whatever repository contains the profile, as it did before.
  */
 export type CommanderWorkspaceRepoFailure = 'git_missing' | 'init_failed';
@@ -383,10 +385,11 @@ export type CommanderWorkspaceRepoFailure = 'git_missing' | 'init_failed';
 /**
  * Makes the workspace its own Git repository. Codex resolves its project root, project `.codex/` config and hooks, and
  * hierarchical `AGENTS.md` from the nearest `.git` above its cwd (openai/codex `discover_project_root`,
- * `agents_md_paths`). Without one the Commander inherits the repository that contains the profile: a worktree dev
- * profile lives inside the Caxri checkout's `.git`, where that repository's hooks fail on every tool call, and a home
- * directory kept under Git would do the same in production. A real repository rather than a bare marker keeps Git
- * semantics intact, because Codex's config discovery and `AGENTS.md` discovery disagree on what an empty `.git` means.
+ * `agents_md_paths`), and Claude Code keys its project config and folder trust by the same Git root. Without one the
+ * Commander inherits the repository that contains the profile: a worktree dev profile lives inside the Caxri checkout's
+ * `.git`, where that repository's hooks fail on every tool call, and a home directory kept under Git would do the same
+ * in production. A real repository rather than a bare marker keeps Git semantics intact, because Codex's config
+ * discovery and `AGENTS.md` discovery disagree on what an empty `.git` means.
  */
 async function ensureWorkspaceRepo(
     workspacePath: string,
@@ -414,13 +417,159 @@ async function ensureWorkspaceRepo(
 }
 
 /**
+ * Directories where the Commander writes one brief per delegation (`tasks/`) and one report per ready pull request
+ * (`reports/`), as its instructions ask.
+ */
+const COMMANDER_TASK_FILE_DIRECTORIES = ['tasks', 'reports'] as const;
+
+/**
+ * Memory files at most this large are compared with their template; anything larger has clearly been written to.
+ */
+const MAX_TEMPLATE_COMPARE_BYTES = 64 * 1024;
+
+export function commanderWorkspacePath(userDataPath: string): string {
+    return join(userDataPath, COMMANDER_WORKSPACE_DIRECTORY);
+}
+
+async function inspectMemoryFile(
+    workspacePath: string,
+    file: (typeof COMMANDER_MEMORY_FILES)[number],
+): Promise<CommanderDataSummary['memory'][number]> {
+    const path = join(workspacePath, 'memory', file.name);
+    try {
+        const { size } = await lstat(path);
+        const isTemplate =
+            size <= MAX_TEMPLATE_COMPARE_BYTES &&
+            (await readFile(path, 'utf8')).trim() === file.template.trim();
+        return { name: file.name, bytes: size, isTemplate };
+    } catch {
+        // Missing or unreadable: the next start seeds the template, so there is nothing learned to clear.
+        return { name: file.name, bytes: 0, isTemplate: true };
+    }
+}
+
+/**
+ * A missing task directory has nothing to clear.
+ */
+async function readDirectoryNames(path: string): Promise<string[]> {
+    try {
+        return await readdir(path);
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * A task directory replaced by a link or a file is one workspace entry to count and unlink. Listing or emptying it as a
+ * folder would follow the link to a folder outside the workspace.
+ */
+async function taskDirectoryState(path: string): Promise<'folder' | 'entry' | 'missing'> {
+    try {
+        return (await lstat(path)).isDirectory() ? 'folder' : 'entry';
+    } catch {
+        return 'missing';
+    }
+}
+
+/**
+ * Lists the regular files under the task directories. A symlink is counted as one entry and never followed, so the
+ * count and a later delete stay inside the workspace.
+ */
+async function listTaskFiles(
+    workspacePath: string,
+): Promise<Array<{ path: string; bytes: number }>> {
+    const listed = await Promise.all(
+        COMMANDER_TASK_FILE_DIRECTORIES.map(async (directory) => {
+            const path = join(workspacePath, directory);
+            const state = await taskDirectoryState(path);
+            if (state !== 'folder') return state === 'entry' ? [path] : [];
+            try {
+                const entries = await readdir(path, { recursive: true, withFileTypes: true });
+                return entries
+                    .filter((entry) => !entry.isDirectory())
+                    .map((entry) => join(entry.parentPath, entry.name));
+            } catch {
+                return [];
+            }
+        }),
+    );
+    return Promise.all(
+        listed.flat().map(async (path) => {
+            try {
+                return { path, bytes: (await lstat(path)).size };
+            } catch {
+                // Removed between the listing and the size read: it no longer takes any space.
+                return { path, bytes: 0 };
+            }
+        }),
+    );
+}
+
+/**
+ * Content-free sizes of the Commander's workspace data for the Clear Commander Data dialog. Never creates the
+ * workspace.
+ */
+export async function inspectCommanderWorkspace(
+    workspacePath: string,
+): Promise<Pick<CommanderDataSummary, 'memory' | 'taskFiles'>> {
+    const [memory, taskFiles] = await Promise.all([
+        Promise.all(COMMANDER_MEMORY_FILES.map((file) => inspectMemoryFile(workspacePath, file))),
+        listTaskFiles(workspacePath),
+    ]);
+    return {
+        memory,
+        taskFiles: {
+            count: taskFiles.length,
+            bytes: taskFiles.reduce((total, file) => total + file.bytes, 0),
+        },
+    };
+}
+
+/**
+ * Puts every memory file back to the template Caxri seeds. `AGENTS.md` keeps embedding the old memory until it is
+ * regenerated, so the caller rewrites it afterwards.
+ */
+export async function resetCommanderMemory(workspacePath: string): Promise<void> {
+    const memoryPath = join(workspacePath, 'memory');
+    await mkdir(memoryPath, { recursive: true, mode: 0o700 });
+    await Promise.all(
+        COMMANDER_MEMORY_FILES.map((file) =>
+            atomicWrite(join(memoryPath, file.name), file.template),
+        ),
+    );
+}
+
+/**
+ * Empties the task directories and returns how many files went. Only their contents are removed; `rm` unlinks a
+ * symlinked entry without following it, and a task directory that is itself a link is unlinked rather than emptied, so
+ * nothing outside the workspace is touched.
+ */
+export async function clearCommanderTaskFiles(workspacePath: string): Promise<number> {
+    const count = (await listTaskFiles(workspacePath)).length;
+    await Promise.all(
+        COMMANDER_TASK_FILE_DIRECTORIES.map(async (directory) => {
+            const path = join(workspacePath, directory);
+            if ((await taskDirectoryState(path)) === 'entry') {
+                await rm(path, { force: true });
+                return;
+            }
+            const entries = await readDirectoryNames(path);
+            await Promise.all(
+                entries.map((entry) => rm(join(path, entry), { force: true, recursive: true })),
+            );
+        }),
+    );
+    return count;
+}
+
+/**
  * Creates the Commander workspace under the profile, makes it its own Git repository, and refreshes its generated
  * instructions with the current memory.
  */
 export async function prepareCommanderWorkspace(
     userDataPath: string,
 ): Promise<{ path: string; repoFailure?: CommanderWorkspaceRepoFailure }> {
-    const workspacePath = join(userDataPath, COMMANDER_WORKSPACE_DIRECTORY);
+    const workspacePath = commanderWorkspacePath(userDataPath);
     await mkdir(join(workspacePath, 'tasks'), { recursive: true, mode: 0o700 });
     await atomicWrite(
         join(workspacePath, 'AGENTS.md'),

@@ -23,7 +23,10 @@ export function createCommanderServices({
     sendFullStateChange,
     ...options
 }: Parameters<typeof createCommanderCompletionNotifier>[0] &
-    Omit<CommanderInboxServiceOptions, 'database' | 'logger' | 'notify' | 'now'> & {
+    Omit<
+        CommanderInboxServiceOptions,
+        'database' | 'forgetNotices' | 'logger' | 'notify' | 'now'
+    > & {
         database: CaxriDatabase;
         environment: AgentEnvironment;
         hooks: CommanderTerminalHooks;
@@ -40,6 +43,7 @@ export function createCommanderServices({
         database,
         logger,
         notify: (itemId, event) => hooks.notifier?.notifyInbox(itemId, event),
+        forgetNotices: () => hooks.notifier?.forgetInbox(),
     });
     inbox.start();
     hooks.handovers = new CommanderHandoverService({
