@@ -101,6 +101,10 @@ overrides:
   # last CommonJS-compatible line with the buffer bounds fix (GHSA-w5hq-g745-h8pq); 12+ is ESM-only.
   # https://github.com/advisories/GHSA-w5hq-g745-h8pq
   'xcode>uuid': 11.1.1
+  # react-devtools-core accepts shell-quote ^1.6.1. Pin the first release that rejects line terminators after comment
+  # tokens, without taking 1.12.0's unrelated parse changes on the REACT_EDITOR command path.
+  # https://github.com/advisories/GHSA-pqg4-j6r4-53mv
+  'react-devtools-core>shell-quote': 1.11.0
 
 auditConfig:
   ignoreGhsas:
@@ -109,9 +113,25 @@ auditConfig:
     # query-string 7's CommonJS `require('decode-uri-component')` call, so it cannot be overridden safely.
     # Revisit when Expo moves expo-router to query-string 8+ or an Expo SDK major upgrade lands.
     - GHSA-vcc3-ghjq-m6fr
+    # node-forge 1.4.0 is patched locally with the exact nested DigestAlgorithm validation from upstream PR #1152.
+    # pnpm audits the published version rather than patched bytes. Remove this exception and the patch together when
+    # node-forge publishes a version outside the advisory range or Expo moves off 1.4.0, whichever happens first.
+    # https://github.com/digitalbazaar/forge/pull/1152
+    - GHSA-86w9-cpqp-85rv
+    # braces 3.0.3 is patched locally from upstream PR #72 to reject nesting deeper than 100 before recursive walks.
+    # pnpm audits the published version rather than patched bytes. Remove this exception and the patch together when
+    # braces publishes a version outside the advisory range or Expo/React Native moves off 3.0.3, whichever is first.
+    # https://github.com/micromatch/braces/pull/72
+    - GHSA-vfj7-8cjw-p6xm
 
 patchedDependencies:
   app-builder-lib: patches/app-builder-lib.patch
+  # Bound recursive brace parsing before compile/expand/stringify can exhaust the Node.js stack.
+  # https://github.com/micromatch/braces/pull/72
+  braces@3.0.3: patches/braces@3.0.3.patch
+  # Reject extra children inside RSA PKCS#1 v1.5 DigestAlgorithm sequences.
+  # https://github.com/digitalbazaar/forge/pull/1152
+  node-forge@1.4.0: patches/node-forge@1.4.0.patch
   # Keep the embedded Terminal WebView offline before page configuration or content loading.
   # https://developer.android.com/reference/android/webkit/WebSettings#setBlockNetworkLoads(boolean)
   react-native-webview@13.16.1: patches/react-native-webview.patch
