@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react';
 
-import type { MethodResult } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
+import type { AgentChatImageInput, MethodResult } from '@caxri/protocol';
+import { BUG_REPORT_JPEG_DATA_URL_PREFIX, errorMessage } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
 import { translate, useTranslation } from '../../i18n';
@@ -10,13 +10,16 @@ import { setBugReportOpen } from '../../stores/dialogs';
 import { getBootstrap } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { readAgentChatImage } from '../agent-chat/agent-chat-images';
+import { activateTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab } from '../workbench/pane-actions';
 import type { BugReportContext, BugReportDraft, BugReportScreenshotReference } from './bug-report';
 import {
+    bugReportAgentTargets,
     bugReportImageDeliveryNotice,
     buildBugReport,
+    canAttachBugReportScreenshot,
     chooseBugReportTarget,
-    runningAgentTargets,
 } from './bug-report';
 import {
     captureBugReportScreenshot,
@@ -53,6 +56,26 @@ function visibleWorkContext(): BugReportContext['visibleWork'] {
     const terminal = bootstrap?.terminals.find((item) => item.id === resource.terminalId);
     if (!terminal) return { kind: 'none' };
     return { kind: 'terminal', provider: terminal.provider, terminalId: terminal.id };
+}
+
+/**
+ * Encodes the annotated screenshot as a Chat image attachment. The report already carries the saved file's path, so a
+ * capture that cannot be encoded (for example one that stays over the size limit after resizing) still sends as text.
+ */
+async function bugReportChatImage(dataUrl: string): Promise<AgentChatImageInput | undefined> {
+    try {
+        // Decoded by hand: the Renderer CSP's `connect-src` refuses `fetch` of a `data:` URL.
+        const bytes = Uint8Array.from(
+            atob(dataUrl.slice(BUG_REPORT_JPEG_DATA_URL_PREFIX.length)),
+            (character) => character.codePointAt(0) ?? 0,
+        );
+        const { image } = await readAgentChatImage(
+            new File([bytes], 'bug-report-screenshot.jpg', { type: 'image/jpeg' }),
+        );
+        return image;
+    } catch {
+        return undefined;
+    }
 }
 
 function afterPaint(): Promise<void> {
@@ -282,11 +305,11 @@ export function useBugReportDialog() {
     const savedScreenshot = useRef<{ dataUrl: string; path: string }>(undefined);
 
     const targets = useMemo(
-        () => runningAgentTargets(bootstrap?.terminals ?? [], source?.session.id ?? ''),
+        () => bugReportAgentTargets(bootstrap?.terminals ?? [], source?.session.id ?? ''),
         [bootstrap?.terminals, source?.session.id],
     );
     const target = targets.find((item) => item.id === selectedTargetId);
-    const imageDeliveryNotice = bugReportImageDeliveryNotice(t, target?.provider);
+    const imageDeliveryNotice = bugReportImageDeliveryNotice(t, target);
     const isSessionChanged = Boolean(source && bootstrap?.selectedSessionId !== source.session.id);
     const canPreview = Boolean(
         source && diagnostics && draft.actual.trim() && draft.expected.trim(),
@@ -415,7 +438,7 @@ export function useBugReportDialog() {
             });
             return;
         }
-        const liveTarget = runningAgentTargets(current.terminals, source.session.id).find(
+        const liveTarget = bugReportAgentTargets(current.terminals, source.session.id).find(
             (item) => item.id === selectedTargetId,
         );
         if (!liveTarget) {
@@ -426,14 +449,19 @@ export function useBugReportDialog() {
         }
         updateState({ busy: true, sendError: undefined });
         try {
+            // The Agent-facing image is the annotated one; the original only exists so the marks stay editable.
+            const agentScreenshot = screenshot && {
+                dataUrl: screenshot.annotatedDataUrl ?? screenshot.original.dataUrl,
+                height: screenshot.original.height,
+                width: screenshot.original.width,
+            };
             await sendBugReport({
+                chatImage:
+                    agentScreenshot && canAttachBugReportScreenshot(liveTarget)
+                        ? await bugReportChatImage(agentScreenshot.dataUrl)
+                        : undefined,
                 report,
-                // The Agent-facing image is the annotated one; the original only exists so the marks stay editable.
-                screenshot: screenshot && {
-                    dataUrl: screenshot.annotatedDataUrl ?? screenshot.original.dataUrl,
-                    height: screenshot.original.height,
-                    width: screenshot.original.width,
-                },
+                screenshot: agentScreenshot,
                 sessionId: source.session.id,
                 terminalId: liveTarget.id,
             });
@@ -441,6 +469,8 @@ export function useBugReportDialog() {
             shouldRetainOnClose.current = false;
             clearBugReportDraft();
             setBugReportOpen(false);
+            // A Chat shows the delivered report as a message, so bring it forward like other sends to a Chat.
+            if (liveTarget.surface === 'chat') activateTerminal(liveTarget.id);
             pushToast('success', t('bugReport.flow.sent', { title: liveTarget.title }));
         } catch (error) {
             updateState({ sendError: errorMessage(error, t('bugReport.flow.sendFailed')) });

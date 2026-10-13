@@ -11,7 +11,8 @@ export const bugReport: TranslatedNamespace<typeof source> = {
         '已恢复你未发送的草稿，包括截图及其标注。如需重新开始，请使用下方的“丢弃草稿”。',
 
     // Form
-    'bugReport.form.noRunningAgent': '此会话中没有正在运行的 Agent，你仍可复制报告并手动粘贴。',
+    'bugReport.form.noRunningAgent':
+        '此会话中没有正在运行的 Agent 或对话，你仍可复制报告并手动粘贴。',
     'bugReport.form.actualLabel': '实际行为',
     'bugReport.form.actualPlaceholder': '发生了什么？',
     'bugReport.form.expectedLabel': '预期行为',
@@ -39,6 +40,8 @@ export const bugReport: TranslatedNamespace<typeof source> = {
     // Image delivery notice
     'bugReport.imageDelivery.savedPath':
         '截图会保存到临时文件，其路径会包含在报告中，以便 Agent 打开。',
+    'bugReport.imageDelivery.chatAttached':
+        '截图会保存到临时文件，其路径会包含在报告中。截图还会作为附件随对话消息一起发送。',
     'bugReport.imageDelivery.pasted':
         '截图会保存到临时文件，其路径会包含在报告中，以便 Agent 打开。截图还会直接粘贴给此 Agent；发送时系统剪贴板的内容会被替换为该图片。',
 
@@ -46,9 +49,9 @@ export const bugReport: TranslatedNamespace<typeof source> = {
     'bugReport.preview.unredactedNotice':
         '此截图未经脱敏：它会捕获 Caxri 窗口中当前可见的所有内容，包括打开的文件和终端输出。',
     'bugReport.preview.targetAgent': '目标 Agent',
-    'bugReport.preview.noRunningAgent': '此会话中没有正在运行的 Agent',
+    'bugReport.preview.noRunningAgent': '此会话中没有正在运行的 Agent 或对话',
     'bugReport.preview.sessionChanged': '所选会话已变更。请复制报告或重新打开此流程。',
-    'bugReport.preview.noAgentAvailable': '没有可用的运行中 Agent。你仍可复制报告。',
+    'bugReport.preview.noAgentAvailable': '没有可用的运行中 Agent 或对话。你仍可复制报告。',
     'bugReport.preview.copyReport': '复制报告',
     'bugReport.preview.sending': '正在发送…',
     'bugReport.preview.sendToAgent': '发送给 Agent',

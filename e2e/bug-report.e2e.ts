@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { createProjectSession, launchCaxri, VISIBLE_SESSION } from './support/helpers.ts';
 
 /**
  * The screenshot `alt` text has to say that a screenshot, unlike the text report, is captured pixel-for-pixel and
@@ -192,6 +193,49 @@ test('Bug report delivers an opted-in screenshot through Codex image paste', asy
             })
             .toBe(true);
         expect(agentInput.startsWith('\u{16}\u{1B}[200~# Caxri Bug Report')).toBe(true);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        if (screenshotPath) await rm(screenshotPath, { force: true });
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Bug report reaches an Agent Chat as one message with the screenshot attached', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-bug-report-chat-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root);
+    const agentMode = await fakeCodexChatAgentMode(testDirectory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    let screenshotPath: string | undefined;
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        await page.keyboard.press('Meta+Shift+B');
+
+        const dialog = page.locator('[data-bug-report-dialog]');
+        await expect(dialog).toBeVisible();
+        await dialog.getByLabel('Actual behavior').fill('The Chat preview is stale.');
+        await dialog.getByLabel('Expected behavior').fill('The Chat preview should refresh.');
+        await expect(dialog).toContainText('attached to the Chat message');
+        await dialog.getByRole('button', { name: 'Preview Report' }).click();
+        await expect(dialog.getByAltText(SCREENSHOT_PREVIEW_ALT)).toBeVisible();
+        const previewText = (await dialog.locator('pre').textContent()) ?? '';
+        screenshotPath = /- File: `([^`]+)`/.exec(previewText)?.[1];
+        await expect(dialog.getByRole('combobox', { name: 'Target Agent' })).toContainText('Codex');
+        await dialog.getByRole('button', { name: 'Send to Agent' }).click();
+        await expect(dialog).toHaveCount(0);
+
+        // The report lands as the user's Chat message with its screenshot, not as Terminal input or a clipboard paste.
+        const chat = page.locator(VISIBLE_SESSION);
+        await expect(chat.getByText(/The Chat preview is stale\./u).first()).toBeVisible();
+        await expect(chat.getByText('Received 1 image.').first()).toBeVisible();
+        await page.screenshot({ path: test.info().outputPath('bug-report-sent-to-chat.png') });
     } finally {
         try {
             await running.app.close();

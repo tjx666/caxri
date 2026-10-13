@@ -1,5 +1,5 @@
 import type { AgentProvider, PaneResource, TerminalRecord } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, isChatTerminal } from '@caxri/protocol';
 import { redactSecretText } from '@caxri/utils';
 
 import type { Translate } from '../../i18n';
@@ -108,9 +108,10 @@ export function buildBugReport(
 }
 
 /**
- * Live candidates only; the Server repeats these checks atomically when the user sends.
+ * Agents the report can reach: a running PTY Agent, or any Agent Chat, which the Server starts on demand. The Server
+ * repeats these checks atomically when the user sends.
  */
-export function runningAgentTargets(
+export function bugReportAgentTargets(
     terminals: readonly TerminalRecord[],
     sessionId: string,
 ): TerminalRecord[] {
@@ -118,9 +119,10 @@ export function runningAgentTargets(
         (terminal) =>
             terminal.sessionId === sessionId &&
             terminal.provider !== undefined &&
-            terminal.processId !== undefined &&
-            terminal.lastProcessState === 'running' &&
-            terminal.lastAgentProcessState === 'running',
+            (isChatTerminal(terminal) ||
+                (terminal.processId !== undefined &&
+                    terminal.lastProcessState === 'running' &&
+                    terminal.lastAgentProcessState === 'running')),
     );
 }
 
@@ -129,19 +131,41 @@ export function chooseBugReportTarget(
     sessionId: string,
     activeResource: PaneResource | undefined,
 ): string | undefined {
-    const targets = runningAgentTargets(terminals, sessionId);
+    const targets = bugReportAgentTargets(terminals, sessionId);
     const activeTerminalId =
         activeResource?.kind === 'terminal' ? activeResource.terminalId : undefined;
     return targets.find((terminal) => terminal.id === activeTerminalId)?.id ?? targets[0]?.id;
 }
 
 /**
- * Explains how the screenshot actually reaches the Agent. Every provider now gets the file path in the report text, so
- * the notice always promises that much; only a provider with a Caxri-safe image input adds the clipboard-paste
- * sentence, because that path has a side effect (it overwrites the user's clipboard) they should know about first.
+ * Whether the screenshot travels as a Chat image attachment: only to an Agent Chat whose provider accepts images.
  */
-export function bugReportImageDeliveryNotice(t: Translate, provider?: AgentProvider): string {
-    if (provider && agentProviderCatalog[provider].imageInput)
+export function canAttachBugReportScreenshot(
+    target: Pick<TerminalRecord, 'provider' | 'surface'> | undefined,
+): boolean {
+    return Boolean(
+        target?.provider &&
+        isChatTerminal(target) &&
+        agentProviderCatalog[target.provider].capabilities.chatImages,
+    );
+}
+
+/**
+ * Explains how the screenshot actually reaches the Agent. Every provider now gets the file path in the report text, so
+ * the notice always promises that much. An Agent Chat that accepts images also gets it as a message attachment; a PTY
+ * provider with a Caxri-safe image input adds the clipboard-paste sentence, because that path has a side effect (it
+ * overwrites the user's clipboard) they should know about first.
+ */
+export function bugReportImageDeliveryNotice(
+    t: Translate,
+    target: Pick<TerminalRecord, 'provider' | 'surface'> | undefined,
+): string {
+    if (canAttachBugReportScreenshot(target)) return t('bugReport.imageDelivery.chatAttached');
+    if (
+        target?.provider &&
+        !isChatTerminal(target) &&
+        agentProviderCatalog[target.provider].imageInput
+    )
         return t('bugReport.imageDelivery.pasted');
     return t('bugReport.imageDelivery.savedPath');
 }
