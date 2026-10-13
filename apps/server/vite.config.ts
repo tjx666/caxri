@@ -115,6 +115,10 @@ export default defineConfig(async () => {
                         'src/domains/files/project-search-worker.ts',
                     ),
                     'server-core': resolve(import.meta.dirname, 'src/core/bootstrap.ts'),
+                    'session-search-worker': resolve(
+                        import.meta.dirname,
+                        'src/domains/agents/session-search/worker.ts',
+                    ),
                     'terminal-host': resolve(import.meta.dirname, 'src/terminal-host/process.ts'),
                 },
                 output: {

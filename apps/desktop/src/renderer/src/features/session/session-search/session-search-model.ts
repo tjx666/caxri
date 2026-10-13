@@ -1,0 +1,104 @@
+import type {
+    AgentProvider,
+    SessionSearchEntry,
+    SessionSearchResult,
+    SessionSearchSnippet,
+    SessionSearchStatusFilter,
+} from '@caxri/protocol';
+import { agentProviderIds, sessionSearchStatusFilters } from '@caxri/protocol';
+
+import type { Translate } from '../../../i18n';
+
+/**
+ * What Enter does on a row: open a Session, restore an archived one and open it, or add an external conversation to
+ * Caxri as a new Session. An external conversation without a folder has nowhere to resume, so it has no action.
+ */
+export type SessionSearchAction = 'open' | 'restore' | 'import';
+
+export function sessionSearchAction(entry: SessionSearchEntry): SessionSearchAction | undefined {
+    if (entry.status === 'open') return entry.sessionId ? 'open' : undefined;
+    if (entry.status === 'archived') return entry.sessionId ? 'restore' : undefined;
+    return entry.cwd && entry.provider && entry.agentSessionId ? 'import' : undefined;
+}
+
+export interface SnippetSegment {
+    text: string;
+    isMatch: boolean;
+}
+
+/**
+ * Splits a snippet at its highlight ranges. Ranges arrive sorted and disjoint from the Server; anything out of bounds
+ * or overlapping is clamped rather than trusted, so a bad range can never drop text.
+ */
+export function snippetSegments(snippet: SessionSearchSnippet): SnippetSegment[] {
+    const segments: SnippetSegment[] = [];
+    let cursor = 0;
+    for (const [rawStart, rawEnd] of snippet.highlights) {
+        const start = Math.max(cursor, Math.min(rawStart, snippet.text.length));
+        const end = Math.max(start, Math.min(rawEnd, snippet.text.length));
+        if (start > cursor)
+            segments.push({ text: snippet.text.slice(cursor, start), isMatch: false });
+        if (end > start) segments.push({ text: snippet.text.slice(start, end), isMatch: true });
+        cursor = end;
+    }
+    if (cursor < snippet.text.length)
+        segments.push({ text: snippet.text.slice(cursor), isMatch: false });
+    return segments;
+}
+
+/**
+ * Tab steps through the status filters and wraps, the quickest way to narrow a result list without leaving the input.
+ */
+export function nextStatusFilter(
+    current: SessionSearchStatusFilter,
+    delta: 1 | -1,
+): SessionSearchStatusFilter {
+    const index = sessionSearchStatusFilters.indexOf(current);
+    const count = sessionSearchStatusFilters.length;
+    return sessionSearchStatusFilters[(index + delta + count) % count];
+}
+
+export function nextSelectionIndex(count: number, current: number, delta: number): number {
+    if (count === 0) return 0;
+    return Math.max(0, Math.min(current + delta, count - 1));
+}
+
+export const sessionSearchProviders: readonly AgentProvider[] = agentProviderIds;
+
+/**
+ * The footer's index line: progress while the background index catches up, the indexed count once it has, and a plain
+ * statement when only Caxri's own Sessions could be searched.
+ */
+export function sessionSearchIndexLabel(result: SessionSearchResult, t: Translate): string {
+    const { index } = result;
+    if (index.state === 'unavailable') return t('session.search.unavailable');
+    // A first pass is still listing transcript files before it knows how many remain.
+    if (index.state === 'indexing')
+        return index.pending > 0
+            ? t('session.search.indexing', { pending: index.pending })
+            : t('session.search.indexingStarted');
+    return t('session.search.indexed', { count: index.conversations });
+}
+
+/**
+ * A folder's last two segments, which tell Projects and worktrees apart in a dense row; the full path is the row's
+ * tooltip.
+ */
+export function shortFolder(path: string): string {
+    const segments = path.split('/').filter(Boolean);
+    return segments.length <= 2 ? path : `…/${segments.slice(-2).join('/')}`;
+}
+
+/**
+ * The row of the selected conversation in a refreshed result list, or the best match when it is gone or none was
+ * picked.
+ */
+export function retainedSelectionIndex(
+    entries: ReadonlyArray<Pick<SessionSearchEntry, 'key'>>,
+    selectedKey: string | undefined,
+): number {
+    return Math.max(
+        0,
+        entries.findIndex((entry) => entry.key === selectedKey),
+    );
+}

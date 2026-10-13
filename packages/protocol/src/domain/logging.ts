@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { agentCommanderLogEvents } from './logging-agent-commander.js';
 import { benchmarkLogEvents } from './logging-benchmark.js';
 import { remoteSshLogEvents } from './logging-remote-ssh.js';
+import { sessionContextLogEvents, sessionSearchLogEvents } from './logging-session.js';
 
 /**
  * Canonical structured-log event registry. Writers use these values so adding or renaming an event is one reviewed,
@@ -366,32 +367,8 @@ export const logEventCatalog = {
     sessionCompaction: {
         checked: 'session.compaction_checked',
     },
-    /**
-     * `SessionContextService`'s incremental Agent-transcript scan (issue caxri#1032): the same reader the Workbench
-     * Root picker, the status bar's Linear chip, and `SessionPullRequestService` all share.
-     */
-    sessionContext: {
-        /**
-         * One scan pass produced nothing. Carries a closed `fields.reason` (`TranscriptScanFailureReason` from
-         * `apps/server/src/domains/agents/transcript-security.ts`) so a routine capability miss (`missing`, before an
-         * Agent's first line) never looks like a security rejection or an IO failure in the log.
-         */
-        scanFailed: 'session_context.scan_failed',
-        /**
-         * The provider rewrote a transcript below the cursor, so the scan restarted from byte zero. A state transition,
-         * not a failure: recorded so a shrinking transcript is visible without waiting for the windowed aggregate
-         * below.
-         */
-        cursorReset: 'session_context.cursor_reset',
-        /**
-         * One aggregate per Session per window: scan count, total/max duration, and approximate bytes scanned, so this
-         * every-60-seconds-per-visible-Session path stays answerable without a per-poll record.
-         */
-        scanWindow: 'session_context.scan_window',
-        // `@` Session references: counts and closed reasons only, never conversation text.
-        referenceFailed: 'session_context.reference_failed',
-        referencePrepared: 'session_context.reference_prepared',
-    },
+    sessionContext: sessionContextLogEvents,
+    sessionSearch: sessionSearchLogEvents,
     sessionRename: {
         providerSyncSkipped: 'session_rename.provider_sync_skipped',
         providerTitleMismatch: 'session_rename.provider_title_mismatch',

@@ -26,7 +26,7 @@ import {
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
-import { conversationProject } from './handover-conversation-project';
+import { conversationProject, importExternalConversation } from '../session';
 import {
     commanderHandovers,
     isHandoverTargetBusy,
@@ -205,46 +205,12 @@ export class CommanderHandoverService {
         }
     }
 
-    /**
-     * Creates the Session that holds an external conversation: a parked Agent Terminal bound to the conversation, so
-     * opening the Session or the Commander's first task resumes it. Selection stays where the user is.
-     */
-    private async importConversation(
+    private importConversation(
         conversation: DiscoveredConversation,
     ): Promise<{ session: SessionRecord; terminal: TerminalRecord } | undefined> {
-        const { database } = this.options;
-        let project = await conversationProject(database.listVisibleProjects(), conversation.cwd);
-        if (!project) {
-            let rootPath: string;
-            try {
-                rootPath = await this.options.resolveProjectRoot(conversation.cwd);
-            } catch {
-                return undefined;
-            }
-            project = database.createProject(rootPath);
-            if (!isTopLevelProject(project)) return undefined;
-        }
-        const { session } = database.createSession(project.id, null, undefined, {
-            selection: 'preserve',
-        });
-        const title = conversation.title?.trim().slice(0, 200);
-        if (title) database.renameSession(session.id, title);
-        const terminal = database.createTerminal(
-            session.id,
-            conversation.provider,
-            conversation.cwd,
+        return importExternalConversation(this.options.database, conversation, (path) =>
+            this.options.resolveProjectRoot(path),
         );
-        database.rebindAgentSession(
-            terminal.id,
-            conversation.provider,
-            conversation.providerSessionId,
-        );
-        database.updateTerminalState(terminal.id, 'detached');
-        database.updateAgentProcessState(terminal.id, 'detached');
-        return {
-            session: database.getSession(session.id)!,
-            terminal: database.getTerminal(terminal.id)!,
-        };
     }
 
     private finish(

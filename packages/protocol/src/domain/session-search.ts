@@ -1,0 +1,123 @@
+import { z } from 'zod';
+
+import { agentProviderSchema } from '../agent/agents.js';
+import { identifierSchema, pathSchema } from './identifiers.js';
+
+/**
+ * Upper bound on the conversations one Session search returns, best match first.
+ */
+export const MAX_SESSION_SEARCH_RESULTS = 100;
+
+/**
+ * Where a found conversation lives: an open Session, an archived Session, or only in an Agent CLI's own history on this
+ * machine (started outside Caxri, or left behind by a Session that was deleted).
+ */
+export const sessionSearchStatuses = ['open', 'archived', 'external'] as const;
+export const sessionSearchStatusSchema = z.enum(sessionSearchStatuses);
+export type SessionSearchStatus = z.infer<typeof sessionSearchStatusSchema>;
+
+/**
+ * `caxri` keeps open and archived Sessions together: everything Caxri already holds.
+ */
+export const sessionSearchStatusFilters = ['all', 'caxri', 'archived', 'external'] as const;
+export const sessionSearchStatusFilterSchema = z.enum(sessionSearchStatusFilters);
+export type SessionSearchStatusFilter = z.infer<typeof sessionSearchStatusFilterSchema>;
+
+export const sessionSearchParametersSchema = z.object({
+    /**
+     * Whitespace-separated terms that must all match. Empty lists the most recent conversations.
+     */
+    query: z.string().trim().max(200),
+    /**
+     * Restricts results to these Agent providers; absent or empty means every provider.
+     */
+    providers: z.array(agentProviderSchema).max(16).optional(),
+    status: sessionSearchStatusFilterSchema.optional(),
+});
+export type SessionSearchParameters = z.infer<typeof sessionSearchParametersSchema>;
+
+/**
+ * Which field made the conversation a result. `recent` marks an empty query's listing.
+ */
+export const sessionSearchMatchFields = ['recent', 'id', 'title', 'path', 'content'] as const;
+export const sessionSearchMatchFieldSchema = z.enum(sessionSearchMatchFields);
+export type SessionSearchMatchField = z.infer<typeof sessionSearchMatchFieldSchema>;
+
+/**
+ * A short excerpt of one matching user or Agent message, with the matched ranges as UTF-16 `[start, end)` offsets.
+ */
+const snippetOffsetSchema = z.number().int().nonnegative();
+
+export const sessionSearchSnippetSchema = z.object({
+    role: z.enum(['user', 'assistant']),
+    text: z.string().max(400),
+    highlights: z.array(z.tuple([snippetOffsetSchema, snippetOffsetSchema])).max(32),
+});
+export type SessionSearchSnippet = z.infer<typeof sessionSearchSnippetSchema>;
+
+export const sessionSearchEntrySchema = z.object({
+    /**
+     * Stable row identity: `<provider>:<conversation id>`, or `session:<Session id>` for a Session without an Agent
+     * conversation.
+     */
+    key: z.string().min(1).max(512),
+    title: z.string().max(1_024),
+    status: sessionSearchStatusSchema,
+    /**
+     * The Caxri Session that holds the conversation; absent for an `external` one.
+     */
+    sessionId: identifierSchema.optional(),
+    projectId: identifierSchema.optional(),
+    provider: agentProviderSchema.optional(),
+    /**
+     * The provider's own conversation ID: what its resume argument takes.
+     */
+    agentSessionId: z.string().max(1_024).optional(),
+    /**
+     * The folder the conversation ran in. An `external` conversation without one cannot be added to Caxri.
+     */
+    cwd: pathSchema.optional(),
+    updatedAt: z.number().int().nonnegative(),
+    match: z.object({
+        field: sessionSearchMatchFieldSchema,
+        snippet: sessionSearchSnippetSchema.optional(),
+        /**
+         * Matching messages in the conversation; only for a `content` match.
+         */
+        messageCount: z.number().int().nonnegative().optional(),
+    }),
+});
+export type SessionSearchEntry = z.infer<typeof sessionSearchEntrySchema>;
+
+/**
+ * The background index's progress: `indexing` while transcripts changed since the last pass are still being read, so
+ * results may be missing their newest messages; `unavailable` when the index could not be opened at all, in which case
+ * only Caxri's own Session titles are searched.
+ */
+export const sessionSearchIndexStatusSchema = z.object({
+    state: z.enum(['indexing', 'ready', 'unavailable']),
+    conversations: z.number().int().nonnegative(),
+    pending: z.number().int().nonnegative(),
+});
+export type SessionSearchIndexStatus = z.infer<typeof sessionSearchIndexStatusSchema>;
+
+export const sessionSearchResultSchema = z.object({
+    entries: z.array(sessionSearchEntrySchema).max(MAX_SESSION_SEARCH_RESULTS),
+    index: sessionSearchIndexStatusSchema,
+    /**
+     * A term shorter than three characters cannot use the full-text index, so message text was scanned instead.
+     */
+    usedSubstringScan: z.boolean(),
+});
+export type SessionSearchResult = z.infer<typeof sessionSearchResultSchema>;
+
+export const sessionImportConversationParametersSchema = z.object({
+    provider: agentProviderSchema,
+    agentSessionId: z.string().trim().min(1).max(1_024),
+});
+
+export const sessionImportConversationResultSchema = z.object({
+    sessionId: identifierSchema,
+    projectId: identifierSchema,
+});
+export type SessionImportConversationResult = z.infer<typeof sessionImportConversationResultSchema>;

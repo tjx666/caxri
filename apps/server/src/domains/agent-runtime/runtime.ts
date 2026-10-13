@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import process from 'node:process';
 
 import type { AgentProvider, ServerEvent } from '@caxri/protocol';
@@ -19,6 +20,7 @@ import {
     defaultAgentEnvironment,
     discoverExecutable,
     reconcilePrimaryTurnFailure,
+    SessionSearchIndex,
     shouldAutoAllowAttention,
 } from '../agents';
 import type { ConfigService } from '../config';
@@ -44,6 +46,7 @@ interface CreateAgentRuntimeOptions {
         | 'agentUnknownRecoveryMs'
         | 'hookExecutable'
         | 'hasMobileAttentionRecipient'
+        | 'searchWorkers'
     >;
     logger: StructuredLogger;
     /**
@@ -77,6 +80,12 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     const agentOutputRecoverySettings = (provider: AgentProvider) =>
         configuration.getSettings().value['agents.providers'][provider].recovery;
     const agentEnvironment = dependencies.agentEnvironment ?? defaultAgentEnvironment();
+    const sessionSearchIndex = new SessionSearchIndex({
+        databasePath: join(userDataPath, 'session-search.db'),
+        environment: agentEnvironment,
+        logger,
+        workerPath: dependencies.searchWorkers?.session?.workerPath,
+    });
     const agents = new AgentService(
         logger,
         dependencies.agentAdapters ??
@@ -271,6 +280,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             await automaticNaming.close();
             await settingsReconcile;
             await agentHooks.close();
+            await sessionSearchIndex.close();
         },
         coordinator,
         /**
@@ -290,5 +300,6 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         revokeAutoAllow: (sessionId: string, reason: PermissionAutoAllowRevokeReason) =>
             attentionAutoAllow.revoke(sessionId, reason),
         sessionRenames,
+        sessionSearchIndex,
     };
 }

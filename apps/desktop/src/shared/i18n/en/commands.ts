@@ -44,7 +44,7 @@ export const commands = {
     'commands.session.focusNextAttention': 'Go to Next Session Needing Attention',
     'commands.session.navigateBack': 'Go Back',
     'commands.session.navigateForward': 'Go Forward',
-    'commands.session.searchContent': 'Search Session Content',
+    'commands.session.search': 'Search Sessions',
     'commands.session.openArchived': 'Show Archived Sessions',
     'commands.agentActions.open': 'Run Agent Command or Skill…',
     'commands.terminal.new': 'New Terminal',

@@ -40,7 +40,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.session.focusNextAttention': '转到下一个待处理会话',
     'commands.session.navigateBack': '后退',
     'commands.session.navigateForward': '前进',
-    'commands.session.searchContent': '搜索会话内容',
+    'commands.session.search': '搜索会话',
     'commands.session.openArchived': '显示已归档的会话',
     'commands.agentActions.open': '运行 Agent 命令或 Skill…',
     'commands.terminal.new': '新建终端',
