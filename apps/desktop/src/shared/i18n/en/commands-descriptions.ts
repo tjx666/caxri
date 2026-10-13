@@ -38,8 +38,8 @@ export const commandDescriptions = {
         'Return to the Session you were viewing before this one',
     'commands.description.session.navigateForward':
         'Move forward again through the Sessions you stepped back from',
-    'commands.description.session.searchContent':
-        'Find active and archived Sessions by user and assistant messages',
+    'commands.description.session.search':
+        'Find Agent conversations in Caxri or only on this machine by title, ID, folder, or message',
     'commands.description.session.openArchived':
         'Open the Archived Sessions manager to restore or delete a parked Session',
     'commands.description.agentActions.open':

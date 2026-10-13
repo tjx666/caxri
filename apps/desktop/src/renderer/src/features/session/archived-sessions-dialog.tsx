@@ -24,7 +24,7 @@ import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import {
     setArchivedSessionsOpen,
-    setSessionContentSearchOpen,
+    setSessionSearchOpen,
     useDialogStore,
 } from '../../stores/dialogs';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
@@ -394,9 +394,9 @@ function ArchivedEmptyState({
     );
 }
 
-function openSessionContentSearchFromArchive(): void {
+function openSessionSearchFromArchive(): void {
     setArchivedSessionsOpen(false);
-    setSessionContentSearchOpen(true);
+    setSessionSearchOpen(true);
 }
 
 function ArchivedSessionsDialogBody() {
@@ -441,8 +441,8 @@ function ArchivedSessionsDialogBody() {
         <>
             <DialogHeader>
                 <DialogTitle>{t('session.archived.title')}</DialogTitle>
-                <Button variant="secondary" onClick={openSessionContentSearchFromArchive}>
-                    {t('session.contentSearch.title')}
+                <Button variant="secondary" onClick={openSessionSearchFromArchive}>
+                    {t('session.search.title')}
                 </Button>
                 <DialogDescription>{t('session.archived.description')}</DialogDescription>
             </DialogHeader>

@@ -196,7 +196,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openUsage: record('dialogs.openUsage'),
                 openPathBrowser: record('dialogs.openPathBrowser'),
                 openProjectSearch: record('dialogs.openProjectSearch'),
-                openSessionContentSearch: record('dialogs.openSessionContentSearch'),
+                openSessionSearch: record('dialogs.openSessionSearch'),
                 openCommanderHandover: record('dialogs.openCommanderHandover'),
             },
             windows: {

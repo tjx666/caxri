@@ -25,7 +25,7 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.session.focusNextAttention': '选择下一个有未查看事件的会话',
     'commands.description.session.navigateBack': '返回到之前查看的会话',
     'commands.description.session.navigateForward': '前进到刚才后退离开的会话',
-    'commands.description.session.searchContent': '按用户和助手消息查找活跃及已归档的会话',
+    'commands.description.session.search': '按标题、ID、文件夹或消息查找 Caxri 内外的 Agent 对话',
     'commands.description.session.openArchived': '打开已归档会话管理器，恢复或删除暂存的会话',
     'commands.description.agentActions.open': '为当前 Agent 终端搜索 Agent 命令和 Skill',
     'commands.description.terminal.new': '在当前会话中新建终端',

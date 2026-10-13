@@ -53,7 +53,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [server-architecture.md](server-architecture.md)                   | Current Server/Client architecture contract                    |
 | [server-footprint.md](server-footprint.md)                         | SSH Host Server memory and disk requirements and the baseline  |
 | [session-compaction.md](session-compaction.md)                     | Batch Session compaction command                               |
-| [session-content-search.md](session-content-search.md)             | Session content search                                         |
+| [session-search.md](session-search.md)                             | Session search across Caxri and external Agent conversations   |
 | [session-conversation-context.md](session-conversation-context.md) | Reading a Session's own Agent conversation                     |
 | [terminal-reference-preview.md](terminal-reference-preview.md)     | Terminal commit/reference hover previews                       |
 | [type-aware-linting.md](type-aware-linting.md)                     | ESLint (syntactic) + oxlint/tsgolint (typed) split             |

@@ -17,13 +17,15 @@ import {
 } from './session.js';
 import { sessionCompactionResultSchema } from './session-compaction.js';
 import {
-    sessionContentSearchParametersSchema,
-    sessionContentSearchResultSchema,
-} from './session-content-search.js';
-import {
     sessionConversationReferenceParametersSchema,
     sessionConversationReferenceResultSchema,
 } from './session-conversation-reference.js';
+import {
+    sessionImportConversationParametersSchema,
+    sessionImportConversationResultSchema,
+    sessionSearchParametersSchema,
+    sessionSearchResultSchema,
+} from './session-search.js';
 import { terminalKindSchema, terminalRecordSchema } from './terminal-record.js';
 import { terminalSurfaceSchema } from './terminal-surface.js';
 
@@ -51,10 +53,24 @@ export const sessionMethods = {
         params: z.object({}),
         result: sessionCompactionResultSchema,
     },
-    'session.searchContent': {
+    /**
+     * Finds Agent conversations across every provider's history on this machine, open, archived, or never in Caxri, by
+     * title, conversation or Session ID, folder, and user or Agent message text. Owner-only: the results quote
+     * conversation content.
+     */
+    'session.search': {
         ...commandPolicy('server', 'read'),
-        params: sessionContentSearchParametersSchema,
-        result: sessionContentSearchResultSchema,
+        params: sessionSearchParametersSchema,
+        result: sessionSearchResultSchema,
+    },
+    /**
+     * Adds a conversation found only in a provider's own history as a new Session with a parked Agent Terminal, in the
+     * Project containing its folder (added when none does). Opening the Session resumes the conversation.
+     */
+    'session.importConversation': {
+        ...serverWrite,
+        params: sessionImportConversationParametersSchema,
+        result: sessionImportConversationResultSchema,
     },
     /**
      * Condenses another Session's Agent conversation into a Caxri-owned Markdown file and returns its path, so a

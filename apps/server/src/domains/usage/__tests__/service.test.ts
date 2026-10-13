@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { DiscoveredTranscript } from '../external';
+import type { DiscoveredTranscript } from '../../agents';
 import { describeOutsideTranscripts, reportedPendingScans } from '../service';
 
 describe('reportedPendingScans', () => {

@@ -1,1 +1,0 @@
-export { SessionContentSearch } from './service';

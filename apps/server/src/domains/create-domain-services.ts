@@ -558,7 +558,7 @@ export async function createDomainServices(
             agentChat,
             agentEnvironment,
             agentHooks,
-            awaitAgentSettingsReconcile: agentRuntime.awaitSettingsReconcile,
+            agentRuntime,
             commander: commanderHostOptions({
                 agentChat,
                 agentEnvironment,

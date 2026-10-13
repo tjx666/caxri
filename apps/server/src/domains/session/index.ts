@@ -8,6 +8,8 @@ export {
     SessionConversationReferenceService,
 } from './conversation-reference';
 export { createSessionCreationHandlers, createSessionCreator } from './creation';
+export { conversationProject, importExternalConversation } from './import-conversation';
 export { createSessionMarkReadHandler } from './mark-read';
 export { SessionRenameService } from './rename';
+export { SessionSearchService } from './search';
 export { createSessionSelectionHandlers } from './selection-handlers';

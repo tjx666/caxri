@@ -1,5 +1,6 @@
 import type { StructuredLogger } from '@caxri/system';
 
+import type { SearchWorkers } from '../domains/domain-services';
 import type { TerminalExecutionPort } from '../domains/terminal';
 import type { CreateDomainServices } from './domain-service';
 import type { ServerProfileLease } from './profile';
@@ -36,7 +37,7 @@ export interface ServerCoreOptions {
      * Directory with the Android update bundle (`manifest.json` + APK) shipped with this Desktop build.
      */
     mobileUpdateDirectory?: string;
-    projectSearch?: { executablePath: string; workerPath: string };
+    searchWorkers?: SearchWorkers;
     /**
      * Test seam; production creates the process-backed Terminal execution owner.
      */

@@ -146,7 +146,7 @@ export const commandDefinitions: CommandDefinition[] = [
             when: (context) => context.session.canNavigateHistory('forward'),
         },
     ),
-    fromCatalog('session.searchContent', (context) => context.dialogs.openSessionContentSearch(), {
+    fromCatalog('session.search', (context) => context.dialogs.openSessionSearch(), {
         allowInEditable: true,
     }),
     fromCatalog('session.openArchived', (context) => context.session.openArchived(), {
