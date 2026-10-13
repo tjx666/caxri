@@ -246,8 +246,8 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         // A Files entry dropped on the composer is inserted as its path, relative to where the Agent runs.
         await page.getByRole('treeitem', { name: 'app.ts', exact: true }).dragTo(message);
         await expect(message).toHaveValue('src/app.ts ');
-        // A path written as plain prose, in the user's message and in the reply, opens in the Editor.
-        await message.fill('see src/greeting.ts:2 next');
+        // A path written as plain prose, in the user's message and in the reply, opens in the Editor; the URL shows links' accent.
+        await message.fill('see src/greeting.ts:2 next to https://github.com/example/repo');
         await message.press('Enter');
         // The user's message renders it as an inline link so it wraps with the text; the reply renders a button.
         await expect(
