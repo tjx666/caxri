@@ -102,6 +102,42 @@ function claudePromptCommandInvocation(record: unknown): string | undefined {
     return restorePromptCommandInvocation(text.trim());
 }
 
+const IMAGE_BLOCK_TYPES = new Set(['image', 'input_image']);
+
+/**
+ * A request that is only a pasted screenshot has no visible text, so the visible-message boundary drops it. Naming
+ * needs a user request beside the reply, so without this the Session stayed `Untitled` even after the reply arrived.
+ * `<image>` is language-neutral to {@link messageLanguage}, so the reply still decides the title's language.
+ */
+function imageOnlyRequest(record: unknown): ScannedTitleMessage | undefined {
+    if (!record || typeof record !== 'object') return;
+    const entry = record as {
+        type?: string;
+        payload?: { type?: string; role?: string; content?: unknown };
+        message?: { content?: unknown };
+        isMeta?: boolean;
+        isSidechain?: boolean;
+    };
+    if (entry.isMeta || entry.isSidechain) return;
+    const content =
+        entry.type === 'user'
+            ? entry.message?.content
+            : entry.type === 'response_item' &&
+                entry.payload?.type === 'message' &&
+                entry.payload.role === 'user'
+              ? entry.payload.content
+              : undefined;
+    if (
+        !Array.isArray(content) ||
+        content.every(
+            (part: unknown) =>
+                !IMAGE_BLOCK_TYPES.has((part as { type?: string } | null)?.type ?? ''),
+        )
+    )
+        return;
+    return { isChunk: false, role: 'user', text: '<image>' };
+}
+
 export function extractAgentTitleMessage(record: unknown): ScannedTitleMessage | undefined {
     const commandInvocation = claudePromptCommandInvocation(record);
     if (commandInvocation)
@@ -110,7 +146,7 @@ export function extractAgentTitleMessage(record: unknown): ScannedTitleMessage |
             role: 'user',
             text: [...commandInvocation].slice(0, TITLE_MESSAGE_CHARS).join(''),
         };
-    const message = extractVisibleTranscriptMessage(record);
+    const message = extractVisibleTranscriptMessage(record) ?? imageOnlyRequest(record);
     return (
         message && {
             isChunk: message.isChunk,
