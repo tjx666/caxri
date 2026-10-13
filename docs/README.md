@@ -48,7 +48,6 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [remote-ssh.md](remote-ssh.md)                                     | SSH Host windows: connect, install, lifecycle, remote layers   |
 | [renderer-performance.md](renderer-performance.md)                 | Renderer performance observability                             |
 | [secondary-sidebar-trees.md](secondary-sidebar-trees.md)           | Files/Source Control/extension tree rendering                  |
-| [self-hosted-runner.md](self-hosted-runner.md)                     | Self-hosted macOS CI/release runner                            |
 | [startup-performance.md](startup-performance.md)                   | Launch milestone log, packaged startup runner, rejected tricks |
 | [server-architecture.md](server-architecture.md)                   | Current Server/Client architecture contract                    |
 | [server-footprint.md](server-footprint.md)                         | SSH Host Server memory and disk requirements and the baseline  |
@@ -89,6 +88,7 @@ rewritten, only superseded.
 | [0013](adr/0013-editable-external-documents.md)               | Editable external documents through a Main-issued registry        |
 | [0014](adr/0014-ssh-remote-server.md)                         | SSH Hosts run their own Server over system OpenSSH                |
 | [0015](adr/0015-chat-primary-agent-surface.md)                | Agent Chat is the primary Agent surface; Terminal stays supported |
+| [0016](adr/0016-github-hosted-ci.md)                          | GitHub-hosted CI with explicitly authorized full E2E              |
 
 ## Historical
 

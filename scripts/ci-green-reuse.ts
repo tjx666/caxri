@@ -43,7 +43,7 @@ export function isReusableGreenDeltaPath(path: string): boolean {
 
 /**
  * Reuses macOS evidence only when a prior same-PR run fully validated the unchanged product tree. The current head
- * still receives focused self-hosted checks for its narrow non-product delta.
+ * still receives focused hosted checks for its narrow non-product delta.
  */
 export function evaluateGreenReusePolicy(input: GreenReusePolicyInput): GreenReusePolicyDecision {
     const reject = (reason: string): GreenReusePolicyDecision => ({ eligible: false, reason });

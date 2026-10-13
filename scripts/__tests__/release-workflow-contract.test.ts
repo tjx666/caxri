@@ -37,16 +37,21 @@ function stepScript(name: string): string {
 describe('Release workflow contract', () => {
     it('keeps full E2E as an explicit receipt outside ordinary PR CI', () => {
         expect(releaseSkill).toContain('Ordinary PR and main-push CI');
-        expect(releaseSkill).toMatch(/one successful\s+`self-hosted-final`\s+receipt/u);
+        expect(releaseSkill).toContain('hosted-full');
         expect(releaseGuide).toMatch(/not a full E2E\s+receipt/u);
-        expect(releaseGuide).toMatch(/one owner-dispatched\s+`self-hosted-final`/u);
-        expect(ciPerformanceGuide).toMatch(/one owner-dispatched\s+`self-hosted-final`/u);
+        expect(releaseGuide).toContain('hosted-full');
+        expect(ciPerformanceGuide).toContain('hosted-full');
+        expect(releaseSkill).not.toContain('self-hosted-final');
+        expect(releaseGuide).not.toContain('self-hosted-final');
+        expect(ciPerformanceGuide).not.toContain('self-hosted-final');
         expect(releaseSkill).not.toContain('the full E2E suite stay in PR CI');
     });
 
-    it('routes trusted exact-head packaging to the dedicated self-hosted capability', () => {
-        expect(workflow).toContain('runs-on: [self-hosted, macOS, ARM64, caxri-release]');
+    it('routes trusted exact-head packaging to a GitHub-hosted Apple Silicon runner', () => {
         expect(workflow).toContain('runs-on: macos-15');
+        expect(releaseJobSource).toContain('runs-on: macos-15');
+        expect(releaseJobSource).toContain('test "$RUNNER_ENVIRONMENT" = github-hosted');
+        expect(workflow).not.toContain('self-hosted');
         expect(workflow).toContain('uses: ./.github/actions/verify-trust-boundary');
         expect(workflow).toContain(
             "startsWith(github.event.workflow_run.display_title, 'release: v')",
@@ -162,7 +167,7 @@ describe('Release workflow contract', () => {
         expect(source).not.toContain('contents: write');
     });
 
-    it('keeps publication credentials bounded and cleans the local runner', () => {
+    it('keeps publication credentials bounded on the hosted runner', () => {
         expect(workflow).toContain('contents: write');
         expect(workflow).toContain('persist-credentials: false');
         expect(workflow).toContain('CAXRI_E2E_AGENT_MODE: blocked');
@@ -171,14 +176,14 @@ describe('Release workflow contract', () => {
         expect(workflow).toContain("setup-toolchain: 'true'");
         expect(workflow).toContain("install-dependencies: 'true'");
         expect(workflow).toContain("install-electron: 'true'");
+        expect(releaseJobSource).toContain("install-android-toolchain: 'true'");
         expect(workflow).not.toContain('rebuild-native:');
         expect(workflow).not.toContain('npm ci');
         expect(releaseJobSource.indexOf('name: Validate release commit')).toBeLessThan(
             releaseJobSource.indexOf('uses: ./.github/actions/setup-caxri-job'),
         );
         expect(workflow).not.toContain("require('./package.json').version");
-        expect(workflow).toContain('bun run scripts/self-hosted-runner.ts cleanup');
-        expect(workflow).toContain('name: Clean self-hosted runner boundary\n        if: always()');
+        expect(workflow).not.toContain('scripts/self-hosted-runner.ts');
         expect(workflow).toContain('GH_TOKEN: ${{ github.token }}');
         expect(workflow).toContain('gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}"');
         expect(workflow).not.toContain('git ls-remote');

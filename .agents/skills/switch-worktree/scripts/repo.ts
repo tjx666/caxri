@@ -195,8 +195,8 @@ async function readLockOwner(path: string): Promise<LockOwner | undefined> {
 
 /**
  * Current owners publish a lock only after its owner record is durable, so an ownerless lock is either a legacy
- * launcher mid-publish or the remains of an owner killed while deleting it. A self-hosted CI runner keeps that remnant
- * across jobs, so after a grace period it is reclaimable instead of failing every later operation.
+ * launcher mid-publish or the remains of an owner killed while deleting it. That remnant can survive later local
+ * invocations, so after a grace period it is reclaimable instead of failing every operation.
  */
 async function isOwnerlessLockAbandoned(path: string): Promise<boolean> {
     try {

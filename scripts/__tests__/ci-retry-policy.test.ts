@@ -484,7 +484,6 @@ describe('CI retry policy', () => {
             'scripts/fixtures/playwright-census.config.ts',
             'scripts/fixtures/e2e-census.fixture.ts',
             'scripts/run-ci-parity.ts',
-            'scripts/self-hosted-runner.ts',
             'e2e/editor.performance.e2e.ts',
             'e2e/failure-isolation.e2e.ts',
             'e2e/mobile-acceptance-scenarios.e2e.ts',

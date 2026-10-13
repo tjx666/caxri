@@ -6,8 +6,8 @@
  * - `--staged` (pre-commit hook): scans the Git index, the same diff a commit is about to create.
  * - Default, `GITLEAKS_BASE_REVISION`/`GITLEAKS_HEAD_REVISION` set (focused CI checks): scans only the commits the
  *   triggering push or pull request actually introduced.
- * - Default, no base revision (full CI platform checks, nightly, or a bare local invocation): scans the entire commit
- *   history, matching the "full" gate's complete-not-diffed semantics.
+ * - Default, no base revision (full CI platform checks, manual dispatch, or a bare local invocation): scans the entire
+ *   commit history, matching the "full" gate's complete-not-diffed semantics.
  */
 
 import { resolve } from 'node:path';
@@ -21,9 +21,9 @@ const ALL_ZERO_REVISION = '0000000000000000000000000000000000000000';
 
 /**
  * Resolves the `--log-opts` git-log range gitleaks should scan. A PR or push carries a real base revision; the very
- * first push to a branch reports the all-zero sentinel SHA (not a resolvable commit), and a schedule/manual dispatch on
- * `main` may carry no base boundary at all. Both fall back to `undefined`, which omits `--log-opts` and scans the full
- * history instead of failing the job or silently narrowing the scan to nothing.
+ * first push to a branch reports the all-zero sentinel SHA (not a resolvable commit), and a manual dispatch on `main`
+ * may carry no base boundary at all. Both fall back to `undefined`, which omits `--log-opts` and scans the full history
+ * instead of failing the job or silently narrowing the scan to nothing.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/gitleaks-scan.test.ts
 export function gitleaksLogOptions(

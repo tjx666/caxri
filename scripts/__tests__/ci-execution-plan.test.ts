@@ -113,19 +113,13 @@ describe('CI execution plan', () => {
         });
     });
 
-    it('keeps scheduled checks without starting full E2E', () => {
-        expect(evaluateCIExecutionPlan({ changedFiles: [], eventName: 'schedule' })).toMatchObject({
+    it('fails closed to full checks without E2E for an unknown future event', () => {
+        expect(evaluateCIExecutionPlan({ changedFiles: [], eventName: 'future_event' })).toEqual({
             checksScope: 'full',
-            e2eProfile: 'optimized',
+            e2eProfile: 'control',
+            reason: 'unknown event future_event; running full checks only',
             runE2E: false,
         });
-        expect(
-            evaluateCIExecutionPlan({
-                changedFiles: [],
-                eventName: 'schedule',
-                isNightlyHeadUnchanged: true,
-            }),
-        ).toMatchObject({ checksScope: 'skipped', runE2E: false });
     });
 
     it('does not let future Acceptance source files bypass the type boundary', () => {
@@ -294,10 +288,6 @@ describe('CI execution plan', () => {
                 eventName: 'pull_request',
                 hasFullValidationPath: true,
                 pullRequestDraft: false,
-            },
-            {
-                changedFiles: [],
-                eventName: 'schedule',
             },
             {
                 changedFiles: ['apps/desktop/src/main/index.ts'],

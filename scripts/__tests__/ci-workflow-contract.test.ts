@@ -4,6 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
 const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const performanceTrendWorkflow = await readFile(
+    new URL('../../.github/workflows/performance-trend.yml', import.meta.url),
+    'utf8',
+);
+const performanceBaseline = JSON.parse(
+    await readFile(new URL('../performance-baseline.json', import.meta.url), 'utf8'),
+) as { armed: boolean; metrics: Record<string, unknown>; provenance: string };
 const setupAction = await readFile(
     new URL('../../.github/actions/setup-caxri-job/action.yml', import.meta.url),
     'utf8',
@@ -36,11 +43,12 @@ describe('CI workflow contract', () => {
         expect(document.jobs['retry-policy']['runs-on']).toBe('macos-15');
         expect(document.jobs.checks['runs-on']).toBe('macos-15');
         expect(document.jobs.ci['runs-on']).toBe('ubuntu-latest');
+        expect(document.jobs.e2e['runs-on']).toBe('macos-15');
         expect(document.jobs.e2e.if).toContain("github.event_name == 'workflow_dispatch'");
         expect(document.jobs.e2e.if).not.toContain("github.event_name == 'pull_request'");
         expect(document.jobs.e2e.if).not.toContain("github.event_name == 'push'");
-        expect(document.jobs.e2e.if).toContain("inputs.validation_target == 'self-hosted-final'");
         expect(document.jobs.e2e.if).toContain("inputs.validation_target == 'hosted-full'");
+        expect(workflow).not.toContain('self-hosted-final');
         expect(workflow).toContain('full E2E never runs automatically');
     });
 
@@ -55,19 +63,35 @@ describe('CI workflow contract', () => {
         expect(source).not.toContain('scripts/run-e2e-pools.ts');
     });
 
-    it('keeps the final private self-hosted and first public hosted full routes explicit', () => {
+    it('keeps the explicitly authorized full E2E route hosted and manual', () => {
         const e2e = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1] ?? '';
 
-        expect(e2e).toContain(
-            `runs-on: \${{ inputs.validation_target == 'self-hosted-final' && fromJSON('["self-hosted","macOS","ARM64","caxri-e2e"]') || 'macos-15' }}`,
+        expect(e2e).toContain('runs-on: macos-15');
+        expect(e2e).toContain('test "$RUNNER_ENVIRONMENT" = github-hosted');
+        expect(e2e.indexOf('Prepare hosted E2E temporary root')).toBeLessThan(
+            e2e.indexOf('actions/checkout@'),
         );
-        expect(e2e).toContain('test "$REPOSITORY_VISIBILITY" = private');
-        expect(e2e).toContain('test "$REPOSITORY_VISIBILITY" = public');
+        expect(e2e).toContain('[[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]');
+        expect(e2e).toContain(
+            'CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e',
+        );
+        expect(e2e).not.toContain('CAXRI_DESKTOP_LEASE_OWNER');
+        expect(e2e).toContain('temporary_root="/private/tmp/$owner"');
+        expect(e2e).toContain('> "$temporary_root/.caxri-owner"');
+        expect(e2e).toContain('echo "TMPDIR=$temporary_root"');
+        expect(e2e).toContain('name: Remove hosted E2E temporary root');
+        expect(e2e).toContain('cat "$temporary_root/.caxri-owner"');
+        expect(e2e).toContain('rm -rf -- "$temporary_root"');
         expect(e2e).toContain('bun run scripts/run-e2e-pools.ts --pool parallel-safe');
         expect(e2e).toContain('bun run scripts/run-e2e-pools.ts --pool desktop-exclusive');
         expect(e2e).toContain('bun run scripts/run-e2e-pools.ts --pool control');
-        expect(e2e).toContain("runner.environment == 'self-hosted'");
-        expect(e2e).toContain('bun run scripts/self-hosted-runner.ts cleanup');
+        expect(e2e).toContain('run: bun run benchmark:renderer');
+        expect(e2e).toContain("if: always() && steps.renderer-performance.outcome != 'skipped'");
+        expect(performanceBaseline.armed).toBe(false);
+        expect(performanceBaseline.provenance).toContain('self-hosted CI runs');
+        expect(Object.keys(performanceBaseline.metrics).length).toBeGreaterThan(0);
+        expect(e2e).not.toContain('self-hosted');
+        expect(e2e).not.toContain('repository.visibility');
     });
 
     it('separates event trust from runner hardware trust', () => {
@@ -83,30 +107,34 @@ describe('CI workflow contract', () => {
             expect(job).toContain('test "$RUNNER_ARCH" = ARM64');
             expect(job).toContain('uses: ./.github/actions/verify-trust-boundary');
             expect(job).toContain("allow-external-pull-request: 'true'");
+            expect(job).not.toContain('CAXRI_DESKTOP_LEASE_OWNER');
+            expect(job).not.toContain('CAXRI_RUNNER_OWNER');
         }
+        expect(workflow).not.toContain('CAXRI_DESKTOP_LEASE_OWNER');
         expect(trustAction).not.toContain('test "$RUNNER_ENVIRONMENT"');
         expect(trustAction).not.toContain('test "$RUNNER_OS"');
         expect(trustAction).not.toContain('test "$RUNNER_ARCH"');
     });
 
-    it('installs exact tools on a cold hosted runner without persistent runner assumptions', () => {
+    it('fails closed off GitHub-hosted runners and installs tools without persistent assumptions', () => {
         const checks = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}hosted-smoke:/u)?.[1] ?? '';
         const e2e = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1] ?? '';
 
+        expect(setupAction.indexOf('Verify GitHub-hosted runner boundary')).toBeLessThan(
+            setupAction.indexOf('Read mise tool versions'),
+        );
+        expect(setupAction).toContain('test "$RUNNER_ENVIRONMENT" = github-hosted');
         expect(setupAction).toContain('node-version: ${{ steps.tool_versions.outputs.node }}');
         expect(setupAction).toContain('version: ${{ steps.tool_versions.outputs.pnpm }}');
         expect(setupAction).toContain('dest: ${{ runner.temp }}/caxri-pnpm');
         expect(setupAction).toContain(
             'npm install --global --no-audit --no-fund "bun@$bun_version"',
         );
-        expect(setupAction).toContain("runner.environment == 'github-hosted'");
         expect(setupAction).toContain('cache_root="$RUNNER_TEMP/caxri"');
         expect(setupAction).toContain('echo "CAXRI_CACHE_ROOT=$cache_root" >> "$GITHUB_ENV"');
-        expect(setupAction).toContain("runner.environment == 'self-hosted'");
-        expect(setupAction).toContain(
-            'bun_directory="$RUNNER_TOOL_CACHE/caxri/bun/$bun_version/bin"',
-        );
-        expect(setupAction).toContain('bun run scripts/self-hosted-runner.ts prepare');
+        expect(setupAction).not.toContain('runner.environment');
+        expect(setupAction).not.toContain('RUNNER_TOOL_CACHE');
+        expect(setupAction).not.toContain('self-hosted-runner.ts');
         expect(setupAction).toContain('brew install ffmpeg');
         expect(setupAction).toContain('command -v ffprobe');
         expect(setupAction).toContain('libx264');
@@ -142,10 +170,11 @@ describe('CI workflow contract', () => {
         expect(trustAction).toContain('test "$ALLOW_EXTERNAL_PULL_REQUEST" = true');
     });
 
-    it('rejects the transitional self-hosted route before scheduling it for a public repository', () => {
-        expect(document.jobs.e2e.if).toContain(
-            "inputs.validation_target != 'self-hosted-final' || github.event.repository.private == true",
-        );
+    it('contains no active self-hosted routing or runner preparation', () => {
+        expect(workflow).not.toContain('self-hosted');
+        expect(workflow).not.toContain('fromJSON(\'["self-hosted"');
+        expect(setupAction).not.toContain('self-hosted');
+        expect(setupAction).not.toContain('scripts/self-hosted-runner.ts');
     });
 
     it('keeps the stable gate aware of every explicit route', () => {
@@ -153,9 +182,16 @@ describe('CI workflow contract', () => {
 
         expect(document.jobs.ci.needs).toEqual(['retry-policy', 'checks', 'hosted-smoke', 'e2e']);
         expect(gate).toContain('hosted-smoke)');
-        expect(gate).toContain('self-hosted-final|hosted-full)');
+        expect(gate).toContain('hosted-full)');
+        expect(gate).not.toContain('self-hosted-final');
         expect(gate).toContain('automated|checks-only)');
         expect(gate).toContain('test "$E2E_RESULT" = skipped');
         expect(gate).toContain('test "$E2E_RESULT" = success');
+    });
+
+    it('keeps performance trend comparison manual while the hosted baseline is unarmed', () => {
+        expect(performanceTrendWorkflow).toContain('workflow_dispatch:');
+        expect(performanceTrendWorkflow).not.toContain('schedule:');
+        expect(performanceTrendWorkflow).toContain('dispatch-only');
     });
 });

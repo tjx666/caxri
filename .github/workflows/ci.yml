@@ -12,7 +12,7 @@ on:
         required: true
         default: checks-only
         type: choice
-        options: [checks-only, hosted-smoke, self-hosted-final, hosted-full]
+        options: [checks-only, hosted-smoke, hosted-full]
       e2e_profile:
         description: Full-suite profile for an explicitly selected full E2E route
         required: true
@@ -78,10 +78,8 @@ jobs:
       )
     runs-on: macos-15
     env:
-      CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-retry-policy
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
-      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-retry-policy
     outputs:
       mode: ${{ steps.policy.outputs.mode }}
       reason: ${{ steps.policy.outputs.reason }}
@@ -129,26 +127,20 @@ jobs:
         run: bun run scripts/ci-retry-policy.ts
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Clean self-hosted runner boundary
-        if: always() && runner.environment == 'self-hosted'
-        run: bun run scripts/self-hosted-runner.ts cleanup
-
   checks:
     needs: retry-policy
     if: >-
       needs.retry-policy.outputs.checks_scope != 'skipped' &&
       (
         github.event_name != 'workflow_dispatch' ||
-        (inputs.validation_target != 'self-hosted-final' && inputs.validation_target != 'hosted-full') ||
+        inputs.validation_target != 'hosted-full' ||
         needs.retry-policy.outputs.checks_scope != 'full' ||
         needs.retry-policy.outputs.e2e_profile != 'optimized'
       )
     runs-on: macos-15
     env:
-      CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-checks
       CAXRI_EXPECTED_HEAD: ${{ github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
-      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-checks
     steps:
       - name: Verify hosted runner boundary before checkout
         run: |
@@ -209,10 +201,6 @@ jobs:
           CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
         run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation
-      - name: Clean self-hosted runner boundary
-        if: always() && runner.environment == 'self-hosted'
-        run: bun run scripts/self-hosted-runner.ts cleanup
-
   hosted-smoke:
     name: Hosted macOS smoke
     needs: retry-policy
@@ -261,9 +249,8 @@ jobs:
     # https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#canceling-workflows
     if: >-
       !cancelled() &&
-      (inputs.validation_target != 'self-hosted-final' || github.event.repository.private == true) &&
       github.event_name == 'workflow_dispatch' &&
-      (inputs.validation_target == 'self-hosted-final' || inputs.validation_target == 'hosted-full') &&
+      inputs.validation_target == 'hosted-full' &&
       needs.retry-policy.result == 'success' &&
       needs.retry-policy.outputs.run_e2e == 'true' &&
       (
@@ -286,13 +273,12 @@ jobs:
           )
         )
       )
-    runs-on: ${{ inputs.validation_target == 'self-hosted-final' && fromJSON('["self-hosted","macOS","ARM64","caxri-e2e"]') || 'macos-15' }}
+    runs-on: macos-15
     env:
-      CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
       CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
       CAXRI_E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
-      CAXRI_E2E_RUNNER_KIND: ${{ inputs.validation_target == 'self-hosted-final' && 'self-hosted' || 'github-hosted' }}
+      CAXRI_E2E_RUNNER_KIND: github-hosted
       CAXRI_E2E_RUNNER_REASON: ${{ inputs.validation_target }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       # For pull_request workflows, GitHub defines github.sha as the synthetic merge commit captured
@@ -301,13 +287,27 @@ jobs:
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
     steps:
-      - name: Verify runner boundary before checkout
-        env:
-          EXPECTED_RUNNER_ENVIRONMENT: ${{ inputs.validation_target == 'self-hosted-final' && 'self-hosted' || 'github-hosted' }}
+      - name: Verify hosted runner boundary before checkout
         run: |
-          test "$RUNNER_ENVIRONMENT" = "$EXPECTED_RUNNER_ENVIRONMENT"
+          test "$RUNNER_ENVIRONMENT" = github-hosted
           test "$RUNNER_OS" = macOS
           test "$RUNNER_ARCH" = ARM64
+      - name: Prepare hosted E2E temporary root
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          test ! -e "$temporary_root"
+          test ! -L "$temporary_root"
+          umask 077
+          mkdir "$temporary_root"
+          printf '%s\n' "$owner" > "$temporary_root/.caxri-owner"
+          {
+            echo "TEMP=$temporary_root"
+            echo "TMP=$temporary_root"
+            echo "TMPDIR=$temporary_root"
+          } >> "$GITHUB_ENV"
       - id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -325,17 +325,6 @@ jobs:
           event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           event-ref: ${{ github.ref }}
           pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
-      - name: Enforce repository visibility for the full E2E route
-        env:
-          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
-          VALIDATION_TARGET: ${{ inputs.validation_target }}
-        run: |
-          if [[ "$VALIDATION_TARGET" == self-hosted-final ]]; then
-            test "$REPOSITORY_VISIBILITY" = private
-          else
-            test "$VALIDATION_TARGET" = hosted-full
-            test "$REPOSITORY_VISIBILITY" = public
-          fi
       - id: setup
         uses: ./.github/actions/setup-caxri-job
         with:
@@ -357,7 +346,7 @@ jobs:
       - name: Record validation environment
         env:
           E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
-          RUNNER_LABELS: ${{ inputs.validation_target == 'self-hosted-final' && 'self-hosted,macOS,ARM64,caxri-e2e' || 'github-hosted,macOS,ARM64,macos-15' }}
+          RUNNER_LABELS: github-hosted,macOS,ARM64,macos-15
           VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
           E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
@@ -490,7 +479,6 @@ jobs:
         id: renderer-performance
         if: >-
           always() &&
-          runner.environment == 'self-hosted' &&
           (
             (steps.concurrent-full.outcome == 'success' && steps.concurrent-full.outputs.aborted == 'false') ||
             steps.control.outcome == 'success' ||
@@ -511,14 +499,8 @@ jobs:
           path: test-results/receipts/renderer-performance.json
           if-no-files-found: error
           retention-days: 7
-      # Additive to the fixed thresholds `renderer-performance` already asserts: this compares the same receipt
-      # against the noise-derived committed baseline (see docs/ci-performance.md). It runs whenever the benchmark
-      # produced a receipt at all -- including when a fixed-threshold assertion above already failed -- so the two
-      # signals stay independent. `scripts/performance-baseline.json` is armed from 98 real runner receipts (see
-      # that file's `armed` and `provenance` fields), so this step can fail the build on a per-run regression; a
-      # separate scheduled workflow (.github/workflows/performance-trend.yml) watches for a gradual creep this
-      # per-run gate's margin is too wide to catch. Re-deriving with `--source local` instead always writes
-      # `armed: false`, so this step never silently reports a pass while the baseline it compares against is unarmed.
+      # The committed baseline was derived from different runner hardware and is deliberately unarmed. Keep running
+      # the comparison so it records an explicit unarmed verdict without blocking until macos-15 is recalibrated.
       - name: Run Renderer performance baseline gate
         id: renderer-performance-baseline
         if: always() && steps.renderer-performance.outcome != 'skipped'
@@ -615,10 +597,19 @@ jobs:
           needs.retry-policy.outputs.checks_scope == 'full' &&
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         run: bun run scripts/ci-checks-worktree.ts remove
-      - name: Clean self-hosted runner boundary
-        if: always() && runner.environment == 'self-hosted'
-        run: bun run scripts/self-hosted-runner.ts cleanup
-
+      - name: Remove hosted E2E temporary root
+        if: always()
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          if [[ -e "$temporary_root" || -L "$temporary_root" ]]; then
+            test -d "$temporary_root"
+            test ! -L "$temporary_root"
+            test "$(cat "$temporary_root/.caxri-owner")" = "$owner"
+            rm -rf -- "$temporary_root"
+          fi
   ci:
     name: CI gate
     if: ${{ !cancelled() }}
@@ -639,7 +630,7 @@ jobs:
           test "$RETRY_POLICY_RESULT" = success
           if test "$CHECKS_SCOPE" = skipped; then
             test "$CHECKS_RESULT" = skipped
-          elif test "$VALIDATION_TARGET" = self-hosted-final || test "$VALIDATION_TARGET" = hosted-full; then
+          elif test "$VALIDATION_TARGET" = hosted-full; then
             if test "$CHECKS_SCOPE" = full && test "$E2E_PROFILE" = optimized; then
               test "$CHECKS_RESULT" = skipped
               test "$FULL_CHECKS_RESULT" = success
@@ -655,7 +646,7 @@ jobs:
               test "$SMOKE_RESULT" = success
               test "$E2E_RESULT" = skipped
               ;;
-            self-hosted-final|hosted-full)
+            hosted-full)
               test "$SMOKE_RESULT" = skipped
               test "$E2E_RESULT" = success
               ;;

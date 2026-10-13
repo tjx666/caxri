@@ -106,10 +106,10 @@ duplicated across chunks. Sonda attributes bytes through the source maps every b
 `scripts/ci-bundle-budget.ts` is one of the full platform gates in `scripts/ci-platform-gates.ts`.
 `.github/workflows/ci.yml` runs those gates (in the `checks` job, or beside the E2E pools in the
 `e2e` job for the optimized profile) only when `scripts/ci-execution-plan.ts` selects the `full`
-checks scope: the nightly schedule, `workflow_dispatch`, and ready pull requests that touch a
+checks scope: pushes to `main`, `workflow_dispatch`, and ready pull requests that touch a
 full-validation path (global configuration such as `package.json`, tsconfig, Vite or Vitest config,
 `patches/`, or a protected CI script). Ordinary ready source pull requests run the `affected` scope and skip this gate, so a
-regression can land on `main` and first fail the next nightly run. The gate runs a
+regression can first fail after the merge on `main`. The gate runs a
 timed build, a timed `electron-builder --mac dir` packaging pass, the packaged module-resolution
 artifact integrity and entry-point probe, and asserts every artifact stays under its byte budget. Budgets are absolute ceilings with
 headroom over this baseline: when the gate fails, first try to optimize the regression away;
@@ -121,8 +121,7 @@ the same PR.
 Every gate run appends a Markdown report to the GitHub Actions job summary: phase timings and a
 component-level size breakdown (Electron runtime, asar, standalone Server runtime/native/bundles,
 each Desktop `out/` surface, and the Renderer Monaco workers and fonts), each with its
-budget and a percentage delta. Because the project has no public release yet, the comparison
-baseline is the last green `main` build: a green `main` run stores its measurements in the
-runner-local `~/.cache/caxri/bundle-baseline.json`, and every later run (PRs included) reports
-deltas against it, degrading to `n/a` when no baseline exists. When releases begin, switch the
-baseline source to the latest published release artifact.
+budget and a percentage delta. Repeated local runs on one machine can compare against its
+`~/.cache/caxri/bundle-baseline.json`. Disposable hosted runners do not inherit that user cache, so
+their delta normally reports `n/a`; the absolute byte and time budgets remain the portable gate.
+When releases begin, switch the comparison source to the latest published release artifact.

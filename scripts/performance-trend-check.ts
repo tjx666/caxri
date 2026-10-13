@@ -3,11 +3,11 @@
  * receipts (one per recent runner CI run) and `scripts/performance-baseline.json`, then reports
  * `scripts/performance-trend.ts`'s verdict as a step summary table and a non-zero exit code on alarm.
  *
- * This is a GitHub-hosted-runner tool, not a self-hosted one: fetching artifacts through the REST API and comparing two
- * small JSON structures costs nothing that needs the self-hosted `caxri-ci` label, and the design goal (see
- * docs/ci-performance.md) is to keep the gradual-creep check off that runner and out of the required PR guards
- * entirely. `.github/workflows/performance-trend.yml` is the only caller: it downloads the most recent
- * `renderer-performance-receipt` artifacts with `gh run download` into `--receipts-dir` before invoking this script.
+ * This is a lightweight GitHub-hosted-runner tool: fetching artifacts through the REST API and comparing two small JSON
+ * structures needs no macOS runner or Electron build. The design goal (see docs/ci-performance.md) is to keep the
+ * gradual-creep check out of the required PR guards. `.github/workflows/performance-trend.yml` is the only caller: it
+ * downloads the most recent `renderer-performance-receipt` artifacts with `gh run download` into `--receipts-dir`
+ * before invoking this script.
  *
  * Usage: `bun run performance:trend:check -- --baseline scripts/performance-baseline.json --receipts-dir
  * /tmp/performance-trend-receipts`. `--window` and `--alarm-ratio` default to

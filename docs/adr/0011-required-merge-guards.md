@@ -1,12 +1,13 @@
 ---
 kind: adr
-status: accepted
+status: superseded
 ---
 
 # A required `guards` check replaces direct pushes to `main`
 
 - Date: 2026-09-29
 - Refs: [issue #1438](https://github.com/tjx666/caxri/issues/1438)
+- Superseded by: [ADR 0016](0016-github-hosted-ci.md)
 
 ## Context
 

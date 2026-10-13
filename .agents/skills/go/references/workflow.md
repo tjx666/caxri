@@ -118,35 +118,36 @@ scope decision, run `checkpoint` and `scope-admit`.
 
 ## Discovery routing
 
-| Discovery                                            | Route                                                                                       |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| In-scope regression or missing requirement           | Reopen the owning issue and repair now                                                      |
-| New defect that blocks the frozen business goal      | Create a blocking issue and insert it into the queue                                        |
-| Unrelated pre-existing defect                        | Create or update a follow-up issue; do not expand this Goal                                 |
-| Validation infrastructure defect                     | Repair the owning adapter, fixture, capture, or report tooling only when it blocks delivery |
-| Zero-step self-hosted Actions infrastructure failure | Keep externally blocked; request separate authorization before fallback                     |
-| Durable product technical debt                       | Record it and create a follow-up issue before completion                                    |
-| Non-blocking workflow improvement after threshold    | Route through `scope-admit` to a follow-up                                                  |
-| Issue expectation differs materially                 | Append a structured issue comment; request a decision before scope expansion                |
+| Discovery                                         | Route                                                                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| In-scope regression or missing requirement        | Reopen the owning issue and repair now                                                      |
+| New defect that blocks the frozen business goal   | Create a blocking issue and insert it into the queue                                        |
+| Unrelated pre-existing defect                     | Create or update a follow-up issue; do not expand this Goal                                 |
+| Validation infrastructure defect                  | Repair the owning adapter, fixture, capture, or report tooling only when it blocks delivery |
+| Zero-step hosted Actions infrastructure failure   | Keep externally blocked; preserve logs and retry only after the cause is addressed          |
+| Durable product technical debt                    | Record it and create a follow-up issue before completion                                    |
+| Non-blocking workflow improvement after threshold | Route through `scope-admit` to a follow-up                                                  |
+| Issue expectation differs materially              | Append a structured issue comment; request a decision before scope expansion                |
 
 ## Guarded local CI fallback
 
-Inside `$go`, local substitution always requires separate user authorization.
-Admit a fallback only when:
+Inside `$go`, local substitution always requires separate user authorization. Admit a fallback only
+when:
 
-- the self-hosted Actions job failed before execution with zero executed steps;
+- the current-head Actions job failed before execution with zero executed steps;
 - the cause is external infrastructure, not repository code/tests;
 - the original GitHub failure text is recorded;
 - the user authorizes the exact-head substitution;
 - the exact PR head and aggregate/light review lineage are frozen.
 
-Run the platform-neutral commands exported by `ci-fallback.ts`, in order,
-followed by one `bun run test:e2e` on the same clean head. Both surfaces must
-pass before Acceptance. Keep the PR `checks_blocked`; local evidence never turns
-the Actions check green. Normally one full Electron E2E is allowed. A product
-failure or human rejection can permit one final run after a new reviewed head;
-state validation refuses a third. The [Go skill](../SKILL.md) owns the cooperative ledger trust
-model; this gate does not independently attest the recorded command result.
+Run the platform-neutral commands exported by `ci-fallback.ts`, in order, followed by one `bun run
+test:e2e` on the same clean head. Both surfaces must pass before Acceptance. Keep the PR
+`checks_blocked`; local evidence never turns the Actions check green. Normally one full Electron
+E2E is allowed. A product failure or human rejection can permit one final run after a new reviewed
+head; state validation refuses a third. This generic, explicit fallback is separate from the future
+`hosted-full` route, whose every dispatch or retry still needs fresh maintainer authorization. The
+[Go skill](../SKILL.md) owns the cooperative ledger trust model; this gate does not independently
+attest the recorded command result.
 
 ## Waiting without token churn
 

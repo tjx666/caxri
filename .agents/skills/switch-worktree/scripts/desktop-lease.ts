@@ -21,7 +21,6 @@ interface DesktopLease {
     identity: string;
     label: string;
     namespace?: string;
-    owner?: string;
     pid: number;
     token: string;
     worktreeId: string;
@@ -88,7 +87,6 @@ function parseLease(value: string, path: string): DesktopLease {
         typeof candidate.identity !== 'string' ||
         typeof candidate.label !== 'string' ||
         (candidate.namespace !== undefined && typeof candidate.namespace !== 'string') ||
-        (candidate.owner !== undefined && typeof candidate.owner !== 'string') ||
         typeof candidate.pid !== 'number' ||
         typeof candidate.token !== 'string' ||
         typeof candidate.worktreeId !== 'string' ||
@@ -97,26 +95,6 @@ function parseLease(value: string, path: string): DesktopLease {
         throw new CommandError(`Invalid desktop lease at ${path}; inspect it before continuing`);
     }
     return candidate as DesktopLease;
-}
-
-function validateLeaseOwner(owner: string): string {
-    if (!/^[\w.:-]{1,128}$/u.test(owner)) {
-        throw new CommandError('Desktop lease owner must use a bounded portable identifier');
-    }
-    return owner;
-}
-
-const ciLeaseOwnerPattern = /^caxri-\d+-\d+-(?:checks|e2e|release|retry-policy)$/u;
-
-async function leaseFileNames(stateDirectory: string): Promise<string[]> {
-    try {
-        return (await readdir(stateDirectory)).filter((name) =>
-            /^desktop-lease(?:-[a-z0-9-]+)?\.json$/u.test(name),
-        );
-    } catch (error) {
-        if (errorCode(error) === 'ENOENT') return [];
-        throw error;
-    }
 }
 
 async function readLease(path: string): Promise<DesktopLease | undefined> {
@@ -211,9 +189,6 @@ export async function acquireDesktopLease(
         identity,
         label,
         ...(options.namespace && { namespace: options.namespace }),
-        ...(process.env.CAXRI_DESKTOP_LEASE_OWNER && {
-            owner: validateLeaseOwner(process.env.CAXRI_DESKTOP_LEASE_OWNER),
-        }),
         pid: ownerPid,
         token: randomUUID(),
         worktreeId,
@@ -294,89 +269,6 @@ export async function acquireDesktopLease(
         }
     }
     /* eslint-enable no-await-in-loop */
-}
-
-/**
- * Reclaims only leases carrying the current CI run owner after their process identity is dead. A live process or lease
- * from another owner remains fail-closed for manual inspection.
- */
-async function reclaimDeadDesktopLeases(
-    cwd: string,
-    isMatch: (lease: DesktopLease) => boolean,
-): Promise<number> {
-    const context = await repoContext(cwd);
-    return withRepoLock(context, async () => {
-        const names = await leaseFileNames(context.stateDir);
-        const candidates = await Promise.all(
-            names.map(async (name) => {
-                const path = join(context.stateDir, name);
-                return { lease: await readLease(path), path };
-            }),
-        );
-        const matched = candidates.filter(
-            (candidate): candidate is { lease: DesktopLease; path: string } =>
-                candidate.lease !== undefined && isMatch(candidate.lease),
-        );
-        const liveFlags = await Promise.all(
-            matched.map(({ lease }) => isProcessIdentityAlive(lease.pid, lease.identity)),
-        );
-        const liveIndex = liveFlags.indexOf(true);
-        if (liveIndex !== -1) {
-            throw new CommandError(
-                `Refusing to reclaim live desktop lease ${matched[liveIndex].lease.label} owned by ${matched[liveIndex].lease.owner ?? 'an unscoped owner'}`,
-            );
-        }
-        /**
-         * Worker leases must disappear before their repository-wide coordinator.
-         */
-        matched.sort(({ path: left }, { path: right }) => right.length - left.length);
-        // Unlink order matters here: workers (sorted first) must be removed before the
-        // repository-wide coordinator, so this cannot be parallelized with Promise.all.
-        // eslint-disable-next-line no-await-in-loop -- ordered unlink: workers before coordinator
-        for (const { path } of matched) await unlinkIfExists(path);
-        return matched.length;
-    });
-}
-
-export function reclaimDesktopLeasesByOwner(cwd: string, owner: string): Promise<number> {
-    const validatedOwner = validateLeaseOwner(owner);
-    return reclaimDeadDesktopLeases(cwd, (lease) => lease.owner === validatedOwner);
-}
-
-/**
- * A previous trusted self-hosted job can be interrupted before its final lease cleanup. Recover only leases carrying
- * the exact owner shape emitted by Caxri's checked-in CI and release workflows; manual, unowned, malformed, or live
- * leases remain fail-closed for operator inspection.
- */
-export function reclaimStaleCiDesktopLeases(cwd: string): Promise<number> {
-    return reclaimDeadDesktopLeases(
-        cwd,
-        (lease) => lease.owner !== undefined && ciLeaseOwnerPattern.test(lease.owner),
-    );
-}
-
-/**
- * Fails when any repository desktop lease survives a runner preflight or teardown boundary.
- */
-export async function assertDesktopLeasesReleased(cwd: string): Promise<void> {
-    const context = await repoContext(cwd);
-    await withRepoLock(context, async () => {
-        const names = await leaseFileNames(context.stateDir);
-        const candidates = await Promise.all(
-            names.map(async (name) => {
-                const path = join(context.stateDir, name);
-                return { lease: await readLease(path), path };
-            }),
-        );
-        const found = candidates.find((candidate) => candidate.lease);
-        if (!found?.lease) return;
-        const state = (await isProcessIdentityAlive(found.lease.pid, found.lease.identity))
-            ? 'active'
-            : 'stale';
-        throw new CommandError(
-            `Desktop lease ${found.lease.label} is ${state}; inspect ${found.path} before continuing`,
-        );
-    });
 }
 
 /**

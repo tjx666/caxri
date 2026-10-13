@@ -475,13 +475,19 @@ describe('comparePerformanceSamplesToBaseline', () => {
 const committedBaseline = JSON.parse(
     await readFile(new URL('../performance-baseline.json', import.meta.url), 'utf8'),
 ) as PerformanceBaseline;
+const historicalArmedBaseline: PerformanceBaseline = { ...committedBaseline, armed: true };
 
 describe('committed baseline replay', () => {
+    it('keeps the historical self-hosted baseline unarmed for hosted CI', () => {
+        expect(committedBaseline.armed).toBe(false);
+        expect(committedBaseline.provenance).toContain('self-hosted CI runs');
+    });
+
     /**
      * A run sitting at every gated metric's committed median, except for the overrides under test.
      */
     function medianRunWith(overrides: Record<string, number>): Record<string, number> {
-        const medians = Object.entries(committedBaseline.metrics).map(
+        const medians = Object.entries(historicalArmedBaseline.metrics).map(
             ([metric, entry]) => [metric, entry.median] as const,
         );
         return { ...Object.fromEntries(medians), ...overrides };
@@ -490,20 +496,20 @@ describe('committed baseline replay', () => {
     it('passes a 245.4ms run that stays within its durationMs threshold even though the window spans 14 frames', () => {
         // CI run 38083755666 (issue #1637): durationMs 245.4ms passed its own threshold, but frames.sampleCount 14,
         // the same window counted in vsync intervals, exceeded its bare historical maximum (13) and failed the gate.
-        expect(245.4).toBeLessThanOrEqual(committedBaseline.metrics.durationMs.thresholdMs);
+        expect(245.4).toBeLessThanOrEqual(historicalArmedBaseline.metrics.durationMs.thresholdMs);
         const result = comparePerformanceSamplesToBaseline(
             medianRunWith({ 'durationMs': 245.4, 'frames.sampleCount': 14 }),
-            committedBaseline,
+            historicalArmedBaseline,
         );
         expect(result.rows.filter((row) => row.status === 'regressed')).toEqual([]);
         expect(result.state).toBe('passed');
     });
 
     it('still fails that run once durationMs itself exceeds its threshold', () => {
-        const { thresholdMs } = committedBaseline.metrics.durationMs;
+        const { thresholdMs } = historicalArmedBaseline.metrics.durationMs;
         const result = comparePerformanceSamplesToBaseline(
             medianRunWith({ 'durationMs': thresholdMs + 0.1, 'frames.sampleCount': 14 }),
-            committedBaseline,
+            historicalArmedBaseline,
         );
         expect(result.state).toBe('failed');
         expect(result.rows.find((row) => row.metric === 'durationMs')?.status).toBe('regressed');
@@ -517,7 +523,7 @@ describe('committed baseline replay', () => {
                 'requests.sessionSelect.maxDurationMs': 37,
                 'requests.sessionSelect.totalDurationMs': 37,
             }),
-            committedBaseline,
+            historicalArmedBaseline,
         );
         expect(result.state).toBe('passed');
     });
@@ -525,7 +531,7 @@ describe('committed baseline replay', () => {
     it('still fails a run that sent session.select twice', () => {
         const result = comparePerformanceSamplesToBaseline(
             medianRunWith({ 'requests.sessionSelect.count': 2 }),
-            committedBaseline,
+            historicalArmedBaseline,
         );
         expect(result.state).toBe('failed');
     });

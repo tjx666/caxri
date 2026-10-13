@@ -47,7 +47,6 @@ runs:
         pull_request_event="$(sed -nE 's/^[[:space:]]*"pullRequestEvent":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
         workflow_dispatch_event="$(sed -nE 's/^[[:space:]]*"workflowDispatchEvent":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
         push_event="$(sed -nE 's/^[[:space:]]*"pushEvent":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
-        schedule_event="$(sed -nE 's/^[[:space:]]*"scheduleEvent":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
         push_ref="$(sed -nE 's/^[[:space:]]*"pushRef":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
         release_branch="$(sed -nE 's/^[[:space:]]*"branch":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
 
@@ -56,7 +55,6 @@ runs:
         test -n "$workflow_dispatch_event"
         test -n "$push_event"
         test -n "$push_ref"
-        test -n "$schedule_event"
         test -n "$release_branch"
         test "$POLICY_DOMAIN" = ci || test "$POLICY_DOMAIN" = release
         external_pull_request=false
@@ -83,10 +81,8 @@ runs:
           else
             test "$EVENT_REF" = "$push_ref"
           fi
-        elif [[ "$EVENT_NAME" == "$schedule_event" ]]; then
+        elif [[ "$EVENT_NAME" == "$workflow_dispatch_event" ]]; then
           test "$POLICY_DOMAIN" = ci
-          test "$EVENT_REF" = "$push_ref"
         else
-          test "$POLICY_DOMAIN" = ci
-          test "$EVENT_NAME" = "$workflow_dispatch_event"
+          exit 1
         fi

@@ -1,4 +1,4 @@
 interface:
   display_name: 'E2E Testing Caxri'
-  short_description: 'Run focused and self-hosted Electron E2E validation'
+  short_description: 'Run focused Electron checks and authorized hosted E2E validation'
   default_prompt: 'Use $e2e-testing to validate the current Caxri Electron changes.'
