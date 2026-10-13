@@ -17,7 +17,7 @@ import { isWithinFinishedRetention } from './agent-activity-retention';
  * The state-derived groups. A row always carries one of these, including a row listed under `pinned`, because the row's
  * glyph and tint are decided by the Agent's state rather than by where the row happens to sit.
  */
-export type AgentActivityStatusGroupId =
+type AgentActivityStatusGroupId =
     'attention' | 'working' | 'waiting' | 'failed' | 'finished' | 'idle';
 
 export type AgentActivityGroupId = 'pinned' | AgentActivityStatusGroupId;
