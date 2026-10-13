@@ -73,7 +73,7 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
         '配对此局域网中的手机和平板，以查看授权范围内的 Agent 会话并发送简短回复',
     'settings.row.hardwareAcceleration.title': '硬件加速',
     'settings.row.hardwareAcceleration.description':
-        '控制整个应用是否使用图形硬件绘制，包括下方每个终端的 GPU 加速。关闭后，Caxri 使用软件渲染，速度较慢，但在图形出错时仍能正常工作。Caxri 只会在你确认后更改此项，更改在重启后生效。',
+        '控制整个应用是否使用图形硬件绘制，包括下方的终端硬件加速。关闭后，Caxri 使用软件渲染，速度较慢，但在图形出错时仍能正常工作。Caxri 只会在你确认后更改此项，更改在重启后生效。',
     'settings.row.hardwareAcceleration.offStatus': '在重新开启此项之前，Caxri 会以软件渲染启动。',
     'settings.row.remoteDebugging.title': '调试端口',
     'settings.row.remoteDebugging.description':

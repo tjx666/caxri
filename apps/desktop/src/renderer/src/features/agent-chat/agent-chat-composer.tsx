@@ -17,12 +17,17 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
+import { isAgentChatPlainPasteKey } from './agent-chat-composer-keys';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { agentChatSendBlock } from './agent-chat-presentation';
-import { agentChatComposerPlaceholder, agentChatSendTooltip } from './agent-chat-presentation';
+import {
+    agentChatComposerPlaceholder,
+    agentChatSendTooltip,
+    agentChatSendTooltipShortcut,
+} from './agent-chat-presentation';
 import { agentChatNextQueuedId } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { agentChatGoalDraft, isAgentChatGoalOffered } from './agent-chat-slash-commands';
@@ -132,17 +137,18 @@ interface AgentChatComposerProperties {
  * the input is empty interrupts the turn. Images can be pasted, dropped, or picked from the `+` menu's Files when the
  * provider accepts them; any other dropped or picked file, Files entry, or Editor tab, and an image in a format or size
  * the provider cannot take, is inserted as its path. Text pasted past `agentChat.longPasteThreshold` is saved to a file
- * and the message cites it instead. A drag anywhere over the Chat tints the whole pane with a one-line caption. While a
- * turn runs and something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue glyph.
- * A disabled Send says why in its tooltip, and an Enter it refuses says the same in the strip for two seconds and
- * through the live region. A leading `/` or `$` offers the provider's commands and the discovered skills, and a word
- * that starts with `@` offers other Sessions whose conversation the message can cite; both lists show only while the
- * input has focus. It shares the timeline's centered column so the input lines up with the conversation, and keeps the
- * activity row, attachments, the input, and its actions inside one card so they read as a single control. The action
- * row picks the model and effort for the next turn and shows how full the context window is. Clicking Send, Stop, or a
- * chip or queue action hands focus back to the input, since each of those controls disables or unmounts itself and
- * would otherwise drop focus to the document body. The unsent text survives switching Sessions and restarting Caxri,
- * and ArrowUp on an empty input recalls the prompts this Chat already sent. "Edit from here" on an earlier message
+ * and the message cites it instead, with a notice whose Paste as Text undoes that; Cmd+Shift+V pastes as text without
+ * the conversion. A drag anywhere over the Chat tints the whole pane with a one-line caption. While a turn runs and
+ * something is typed, the activity row says what Enter and Cmd+Enter do, and Send wears the queue glyph. A disabled
+ * Send says why in its tooltip, and an Enter it refuses says the same in the strip for two seconds and through the live
+ * region. A leading `/` or `$` offers the provider's commands and the discovered skills, and a word that starts with
+ * `@` offers other Sessions whose conversation the message can cite; both lists show only while the input has focus. It
+ * shares the timeline's centered column so the input lines up with the conversation, and keeps the activity row,
+ * attachments, the input, and its actions inside one card so they read as a single control. The action row picks the
+ * model and effort for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue
+ * action hands focus back to the input, since each of those controls disables or unmounts itself and would otherwise
+ * drop focus to the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an
+ * empty input recalls the prompts this Chat already sent. "Edit from here" on an earlier message
  * (`useAgentChatComposerEdit`) puts its text in the input and the edit bar above it; sending then rewinds the Chat to
  * before that message and sends the draft in its place, and Escape or Cancel puts the previous draft back.
  */
@@ -204,7 +210,7 @@ export function AgentChatComposer({
     });
     const isTurnRunning = activeTurnId !== undefined;
     const { isStopping, stop } = useAgentChatStop({ activeTurnId, terminalId });
-    const { fileInput, isAttaching } = useAgentChatComposerInput({
+    const { fileInput, isAttaching, pastePlainText } = useAgentChatComposerInput({
         draft,
         dropHandlersReference,
         images,
@@ -254,6 +260,7 @@ export function AgentChatComposer({
         isSending,
     };
     const sendTooltip = agentChatSendTooltip(sendAction, sendState, t);
+    const sendShortcut = agentChatSendTooltipShortcut(sendAction, sendState);
     const composerKeys = useAgentChatComposerEnter({
         cancelEdit: edit.cancel,
         hasPendingQueue: pendingQueue.length > 0,
@@ -321,6 +328,7 @@ export function AgentChatComposer({
                         usage={snapshot?.usage}
                         onCompact={compact}
                         onContinueInNewChat={continueInNewChat}
+                        terminalId={terminalId}
                     />
                 </div>
                 <form
@@ -381,6 +389,12 @@ export function AgentChatComposer({
                         onKeyUp={sessionMenu.trackCaretKey}
                         onSelect={(event) => sessionMenu.followSelection(event.currentTarget)}
                         onKeyDown={(event) => {
+                            if (isAgentChatPlainPasteKey(event)) {
+                                event.preventDefault();
+                                // eslint-disable-next-line no-void -- pastePlainText reports its own failures
+                                void pastePlainText();
+                                return;
+                            }
                             sessionMenu.notePressedKey(event);
                             if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen))
                                 return;
@@ -421,6 +435,7 @@ export function AgentChatComposer({
                         }
                         onStop={stopAndFocus}
                         sendAction={sendAction}
+                        sendShortcut={sendShortcut}
                         sendTooltip={sendTooltip}
                         recentSessions={sessionMenu.recentCandidates(RECENT_SESSION_LIMIT)}
                         showsStop={isTurnRunning && !hasContent}

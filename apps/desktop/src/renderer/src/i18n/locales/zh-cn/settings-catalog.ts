@@ -92,9 +92,9 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.terminal.copyOnSelect.title': '选中即复制',
     'settings.terminal.copyOnSelect.description': '自动将终端中选中的内容复制到剪贴板',
 
-    'settings.terminal.gpuAcceleration.title': 'GPU 加速',
+    'settings.terminal.gpuAcceleration.title': '终端硬件加速',
     'settings.terminal.gpuAcceleration.description':
-        '仅控制终端的 WebGL 渲染；回退到 DOM 渲染时无需重启终端。硬件加速关闭时此项无效，因为那已为所有终端关闭了 GPU。',
+        '使用显卡绘制终端；关闭后改用软件渲染。切换后无需重启终端即可生效。硬件加速关闭时此项无效，因为那时所有终端都已使用软件渲染。',
     'settings.terminal.gpuAcceleration.option.auto': '自动',
     'settings.terminal.gpuAcceleration.option.on': '开启',
     'settings.terminal.gpuAcceleration.option.off': '关闭',
@@ -111,9 +111,9 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.terminal.idleSuspension.afterMinutes.description':
         'Agent 在你未查看的会话中等待多久后被挂起。仅在“在后台挂起空闲的 Agent”开启时生效。',
 
-    'settings.terminal.osc52ClipboardWrite.title': '允许 OSC 52 写入剪贴板',
+    'settings.terminal.osc52ClipboardWrite.title': '允许终端中的程序复制到剪贴板',
     'settings.terminal.osc52ClipboardWrite.description':
-        '终端中的程序可以将文本复制到你的剪贴板，但永远无法读取它',
+        'tmux 或远程 Shell 等程序可以通过 OSC 52 将文本复制到你的剪贴板，但永远无法读取它',
 
     'settings.terminal.wordSeparators.title': '单词分隔符',
     'settings.terminal.wordSeparators.description':

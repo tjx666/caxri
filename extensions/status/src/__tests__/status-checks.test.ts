@@ -64,7 +64,7 @@ describe('partitionPullRequestChecks', () => {
         ];
         const nodes = pullRequestCheckNodes('status:repo', pullRequest([...waiting, failing]));
 
-        expect(nodes.map(({ item }) => item.label)).toEqual(['Test', '4 checks in progress']);
+        expect(nodes.map(({ item }) => item.label)).toEqual(['Test', '4 checks running or queued']);
         expect(nodes[1].item.iconPath?.id).toBe('loading');
         // Unfinished checks are what the user is watching, so their fold opens by default.
         expect(nodes[1].item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);

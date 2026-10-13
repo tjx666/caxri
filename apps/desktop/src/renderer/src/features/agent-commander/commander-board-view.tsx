@@ -120,7 +120,8 @@ export function CommanderBoardView() {
 
 /**
  * Switches between the Commander's own Sessions and every Workbench Session. Each option carries its count, so the
- * default scope never hides that other Sessions exist.
+ * default scope never hides that other Sessions exist; the accessible name starts with the visible label and count
+ * (label-in-name), then says what the option covers.
  */
 function CommanderBoardScopeBar({
     allCount,
@@ -147,12 +148,17 @@ function CommanderBoardScopeBar({
             >
                 <ToggleGroupItem
                     value="commander"
-                    aria-label={t('agentCommander.board.scopeCommanderLabel')}
+                    aria-label={t('agentCommander.board.scopeCommanderLabel', {
+                        count: commanderCount,
+                    })}
                 >
                     {t('agentCommander.board.scopeCommander')}
                     <span className="tabular-nums opacity-70">· {commanderCount}</span>
                 </ToggleGroupItem>
-                <ToggleGroupItem value="all" aria-label={t('agentCommander.board.scopeAllLabel')}>
+                <ToggleGroupItem
+                    value="all"
+                    aria-label={t('agentCommander.board.scopeAllLabel', { count: allCount })}
+                >
                     {t('agentCommander.board.scopeAll')}
                     <span className="tabular-nums opacity-70">· {allCount}</span>
                 </ToggleGroupItem>

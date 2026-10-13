@@ -34,15 +34,17 @@ export function trackerExcerptText(
 const GITHUB_REFERENCE = /^([\w.-]+)\/([\w.-]+)#(\d+)$/u;
 
 /**
- * The reference preview request that can supply a title the card lacks, or `undefined` when there is nothing to ask:
- * the card already has a title, or it is not a GitHub pull request or issue. A `gh api` edit (`-F body=@file`) names
- * only the number, so its card otherwise reads `owner/repo#N` alone.
+ * The reference preview request for a GitHub card, or `undefined` when there is nothing to ask. It supplies a title the
+ * card lacks (a `gh api` edit with `-F body=@file` names only the number, so its card otherwise reads `owner/repo#N`
+ * alone) and a pull request's live state for its glyph, so a pull request is asked about even when it has a title. A
+ * titled issue, another tracker, or an unparsable reference asks nothing.
  */
-export function trackerTitlePreviewRequest(
+export function trackerPreviewRequest(
     artifact: AgentChatTrackerArtifact,
 ): Extract<TerminalReferencePreviewRequest, { kind: 'github' }> | undefined {
-    if (artifact.title !== undefined || artifact.provider !== 'github') return undefined;
-    if (artifact.kind !== 'pull' && artifact.kind !== 'issue') return undefined;
+    if (artifact.provider !== 'github') return undefined;
+    if (artifact.kind !== 'pull' && (artifact.kind !== 'issue' || artifact.title !== undefined))
+        return undefined;
     const match = GITHUB_REFERENCE.exec(artifact.reference);
     if (!match) return undefined;
     const [, owner, repo, number] = match;

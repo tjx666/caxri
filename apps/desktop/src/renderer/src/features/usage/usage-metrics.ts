@@ -17,6 +17,7 @@ import {
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 import { localizedDuration, localizedLimitReset } from '../../lib/usage-format';
 
 /**
@@ -80,7 +81,7 @@ type UsageCountUnit =
  */
 export function countLabel(t: Translate, count: number, unit: UsageCountUnit): string {
     return t(`usage.count.${unit}${count === 1 ? 'One' : 'Other'}`, {
-        count: count.toLocaleString('en-US'),
+        count: formatCount(count),
     });
 }
 
@@ -124,14 +125,16 @@ export function formatMetric(t: Translate, value: number, metric: UsageMetric): 
 }
 
 /**
- * Hover text for one heatmap day: every figure the cell's color stands for, since the color alone is only a quartile.
+ * Hover text for one heatmap day: every figure the cell's color stands for, since the color alone is only a quartile. A
+ * day with tokens but no cost could not be priced (a priced model never bills zero for real usage), so it reads `No
+ * price` like the stat cards instead of a `$0` that would claim the usage was free.
  */
 export function usageDayTooltip(t: Translate, date: string, day: UsageDay | undefined): string {
     const detail =
         !day || day.tokens === 0
             ? t('usage.noUsage')
             : t('usage.activity.dayDetail', {
-                  cost: formatUsd(day.costUsd),
+                  cost: day.costUsd > 0 ? formatUsd(day.costUsd) : t('usage.cost.noPrice'),
                   duration: localizedDuration(day.activeMs, t),
                   tokens: formatTokens(day.tokens),
               });
@@ -374,7 +377,7 @@ export function agentTimeDetail(
     const sessions = countLabel(t, totals.sessionsWithUsage, 'session');
     return totals.outsideSessionsWithUsage > 0
         ? t('usage.agentTime.acrossWithOutside', {
-              outside: totals.outsideSessionsWithUsage.toLocaleString('en-US'),
+              outside: formatCount(totals.outsideSessionsWithUsage),
               sessions,
           })
         : t('usage.agentTime.across', { sessions });
@@ -398,7 +401,7 @@ export function usageScanCaption(
     const pending = pendingTranscriptScans(report);
     return pending > 0
         ? t(pending === 1 ? 'usage.scan.readingOne' : 'usage.scan.readingOther', {
-              count: pending.toLocaleString('en-US'),
+              count: formatCount(pending),
           })
         : undefined;
 }

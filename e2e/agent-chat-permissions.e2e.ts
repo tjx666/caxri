@@ -54,7 +54,7 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
         await expect(menu).toBeHidden();
         await expect(message).toBeFocused();
         const shortcutPlanChip = chat
-            .getByRole('button', { name: 'Turn off plan mode' })
+            .getByRole('button', { name: 'Plan mode', exact: true, pressed: true })
             .filter({ visible: true });
         await page.keyboard.press('Meta+Alt+p');
         await expect(shortcutPlanChip).toBeVisible();
@@ -69,7 +69,7 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
             .click();
         await menu.getByRole('menuitemcheckbox', { name: /Plan mode/ }).click();
         const planChip = chat
-            .getByRole('button', { name: 'Turn off plan mode' })
+            .getByRole('button', { name: 'Plan mode', exact: true, pressed: true })
             .filter({ visible: true });
         await expect(planChip).toBeVisible();
         await picker.click();
@@ -96,7 +96,9 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
             chat.getByRole('button', { name: /^Permissions: / }).filter({ visible: true }),
         ).toHaveAccessibleName('Permissions: Read only');
         await expect(
-            chat.getByRole('button', { name: 'Turn off plan mode' }).filter({ visible: true }),
+            chat
+                .getByRole('button', { name: 'Plan mode', exact: true, pressed: true })
+                .filter({ visible: true }),
         ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-project-default.png') });
 

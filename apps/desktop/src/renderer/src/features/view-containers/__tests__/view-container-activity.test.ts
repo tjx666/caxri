@@ -1,7 +1,11 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
-import { cancelViewContainerQuery, isViewContainerQueryEnabled } from '../view-container-activity';
+import {
+    cancelViewContainerQuery,
+    isViewContainerQueryEnabled,
+    resolveHeldWhileHidden,
+} from '../view-container-activity';
 
 describe('isViewContainerQueryEnabled', () => {
     it('pauses keep-alive reads while the container is hidden', () => {
@@ -13,6 +17,34 @@ describe('isViewContainerQueryEnabled', () => {
         expect(isViewContainerQueryEnabled(true)).toBe(true);
         expect(isViewContainerQueryEnabled(true, false)).toBe(false);
         expect(isViewContainerQueryEnabled(true, true)).toBe(true);
+    });
+});
+
+describe('resolveHeldWhileHidden', () => {
+    it('keeps the last shown input while the container is hidden', () => {
+        expect(resolveHeldWhileHidden(false, '/project/a.ts', '/project/b.ts')).toBe(
+            '/project/a.ts',
+        );
+        expect(resolveHeldWhileHidden(false, '/project/a.ts', undefined)).toBe('/project/a.ts');
+    });
+
+    it('adopts the live input once the container is visible', () => {
+        expect(resolveHeldWhileHidden(true, '/project/a.ts', '/project/b.ts')).toBe(
+            '/project/b.ts',
+        );
+        expect(resolveHeldWhileHidden(true, '/project/a.ts', undefined)).toBeUndefined();
+    });
+
+    it('returns the held reference when a custom comparison treats the inputs as the same', () => {
+        const held = { sessionId: 'session-1', workbenchProjectId: 'project-1' };
+        const live = { sessionId: 'session-1', workbenchProjectId: 'project-1' };
+        const isSame = (left: typeof held, right: typeof held) =>
+            left.sessionId === right.sessionId &&
+            left.workbenchProjectId === right.workbenchProjectId;
+        expect(resolveHeldWhileHidden(true, held, live, isSame)).toBe(held);
+        const switched = { sessionId: 'session-2', workbenchProjectId: 'project-1' };
+        expect(resolveHeldWhileHidden(false, held, switched, isSame)).toBe(held);
+        expect(resolveHeldWhileHidden(true, held, switched, isSame)).toBe(switched);
     });
 });
 

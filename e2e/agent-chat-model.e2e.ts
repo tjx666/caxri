@@ -50,7 +50,8 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         const panel = page.getByRole('dialog');
         const effort = panel.getByRole('slider', { name: 'Reasoning effort' });
         await expect(effort).toHaveAttribute('aria-valuetext', 'Medium');
-        await expect(picker).toHaveText(/Choose effort/u);
+        // The pill keeps naming the current choice while open, so it never resizes under the pointer.
+        await expect(picker).toHaveText(/Fake Codex/u);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-model-menu.png') });
         await effort.press('ArrowRight');
         await expect(picker).toHaveAccessibleName('Model: Fake Codex, High effort');

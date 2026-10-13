@@ -1,7 +1,8 @@
 import type { AgentThroughput } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentThroughputViewState } from '../agent-throughput-state';
+import { translate } from '../../../i18n';
+import { agentThroughputViewState, throughputBarDescription } from '../agent-throughput-state';
 
 const empty = { outputTokens: 0, durationMs: 0, responseCount: 0 };
 
@@ -36,5 +37,17 @@ describe('agentThroughputViewState', () => {
             agentThroughputViewState({ data: undefined, isError: false, isTerminalOpen: true })
                 .kind,
         ).toBe('loading');
+    });
+});
+
+describe('throughputBarDescription', () => {
+    it('reads one response bar the same way in its Tooltip and the keyboard readout', () => {
+        const text = throughputBarDescription(translate, {
+            ...sample,
+            completedAt: new Date(2026, 0, 2, 15, 4, 5).getTime(),
+            model: 'gpt-5',
+            speed: 'fast',
+        });
+        expect(text).toMatch(/^gpt-5 · Fast: .+, finished 3:04:05\sPM$/u);
     });
 });

@@ -4,7 +4,9 @@ import {
     AGENT_CHAT_FIND_REPAINT_INTERVAL_MS,
     agentChatFindCountLabel,
     agentChatFindOccurrences,
+    canAgentChatFindSearchEarlier,
     createAgentChatFindRepaintScheduler,
+    hasAgentChatFindEarlierLoadSettled,
     isAgentChatTurnFoldMatch,
     locateAgentChatFindMatch,
     stepAgentChatFindIndex,
@@ -53,6 +55,15 @@ describe('locateAgentChatFindMatch', () => {
 
     it('refuses a match that runs off the end', () => {
         expect(locateAgentChatFindMatch(spans, 10, 5)).toBeUndefined();
+    });
+});
+
+describe('canAgentChatFindSearchEarlier', () => {
+    it('offers earlier history only for a query that found nothing while more can load', () => {
+        expect(canAgentChatFindSearchEarlier('bug', 0, true)).toBe(true);
+        expect(canAgentChatFindSearchEarlier('bug', 2, true)).toBe(false);
+        expect(canAgentChatFindSearchEarlier('bug', 0, false)).toBe(false);
+        expect(canAgentChatFindSearchEarlier('', 0, true)).toBe(false);
     });
 });
 
@@ -163,5 +174,14 @@ describe('createAgentChatFindRepaintScheduler', () => {
         repaints.cancel();
         vi.advanceTimersByTime(AGENT_CHAT_FIND_REPAINT_INTERVAL_MS * 4);
         expect(repaint).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('hasAgentChatFindEarlierLoadSettled', () => {
+    it('settles a waiting request once the earlier page stops loading', () => {
+        expect(hasAgentChatFindEarlierLoadSettled(true, false, true)).toBe(true);
+        expect(hasAgentChatFindEarlierLoadSettled(true, true, true)).toBe(false);
+        expect(hasAgentChatFindEarlierLoadSettled(false, false, true)).toBe(false);
+        expect(hasAgentChatFindEarlierLoadSettled(true, false, false)).toBe(false);
     });
 });

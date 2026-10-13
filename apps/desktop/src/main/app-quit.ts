@@ -30,6 +30,11 @@ export interface AppQuitImpact {
      */
     running: RunningWork;
     otherClientCount: number;
+    /**
+     * Unsent Git review comments that quitting also loses. Folded into this one prompt instead of a second dialog, so a
+     * quit never stacks a review warning on top of the running-task question.
+     */
+    pendingReviewComments?: GitReviewPendingSummary;
 }
 
 export interface AppQuitOptions {
@@ -37,8 +42,9 @@ export interface AppQuitOptions {
     closeDesktop: () => Promise<void>;
     confirm: (impact: AppQuitImpact) => Promise<AppQuitDecision>;
     /**
-     * Only asked when {@link AppQuitOptions.readPendingReviewComments} reports at least one pending comment: see
-     * `docs/git-diff-review.md` for why quitting loses them.
+     * Only asked when {@link AppQuitOptions.readPendingReviewComments} reports at least one pending comment and nothing
+     * is running (or running work cannot be read); otherwise the comments are summarized inside
+     * {@link AppQuitOptions.confirm}. See `docs/git-diff-review.md` for why quitting loses them.
      */
     confirmPendingReviewComments: (
         summary: GitReviewPendingSummary,
@@ -95,7 +101,15 @@ export interface AppQuitPrompt {
 }
 
 export function appQuitPrompt(impact: AppQuitImpact): AppQuitPrompt {
-    const { otherClientCount, running } = impact;
+    const { otherClientCount, pendingReviewComments, running } = impact;
+    const reviewCount = pendingReviewComments?.count ?? 0;
+    const reviewDetail =
+        reviewCount === 0
+            ? ''
+            : `\n\n${t(
+                  reviewCount === 1 ? 'desktop.quit.reviewLossOne' : 'desktop.quit.reviewLossOther',
+                  { count: reviewCount },
+              )}`;
     const otherClientDetail =
         otherClientCount === 0
             ? ''
@@ -118,7 +132,7 @@ export function appQuitPrompt(impact: AppQuitImpact): AppQuitPrompt {
                 : 'desktop.quit.messageOther',
             { running: runningWorkPhrase(running) },
         ),
-        detail: `${t('desktop.quit.detail')}${otherClientDetail}`,
+        detail: `${t('desktop.quit.detail')}${otherClientDetail}${reviewDetail}`,
         buttons: [
             t('desktop.quit.stopTasks'),
             t('desktop.quit.keepTasks'),
@@ -157,9 +171,9 @@ export interface PendingReviewCommentsPrompt {
 }
 
 /**
- * A separate, smaller warning from {@link appQuitPrompt}: it asks whether to lose local-only Git review comment drafts
- * (issue caxri#1294), not whether to stop running Terminal/Agent processes, so it gets its own two-button prompt
- * instead of overloading the three-button task prompt with an unrelated decision.
+ * The review-only warning (issue caxri#1294): asks whether to lose local-only Git review comment drafts when no
+ * Terminal or Chat is running, so there is no task question to fold them into. With running work, the same loss is one
+ * paragraph of {@link appQuitPrompt} instead, so quitting shows at most one confirmation after the unsaved-Editor one.
  */
 export function pendingReviewCommentsPrompt(
     summary: GitReviewPendingSummary,
@@ -270,21 +284,37 @@ async function attempt(
 }
 
 /**
- * Fail-open on every path except an explicit Cancel: an unreachable Server, or a summary with nothing pending, must
- * never block the rest of {@link decideAppQuit} from running its own (independent) decision.
+ * Fail-open: an unreachable Server, or a summary with nothing pending, must never block the quit decision.
  */
-async function decidePendingReviewComments(
+async function readPendingReviewSummary(
     options: AppQuitOptions,
-): Promise<'cancel' | 'continue'> {
-    let summary: GitReviewPendingSummary;
+): Promise<GitReviewPendingSummary | undefined> {
     try {
-        summary = await options.readPendingReviewComments();
+        const summary = await options.readPendingReviewComments();
+        return summary.count === 0 ? undefined : summary;
     } catch (error) {
         reportFailure(options, 'reviewComments', error);
-        return 'continue';
+        return undefined;
     }
-    if (summary.count === 0) return 'continue';
+}
 
+async function readQuitStatus(options: AppQuitOptions): Promise<AppQuitStatus | undefined> {
+    try {
+        return await options.readStatus();
+    } catch (error) {
+        reportFailure(options, 'status', error);
+        return undefined;
+    }
+}
+
+/**
+ * Fail-open on every path except an explicit Cancel: a failing dialog must not trap the user in Caxri.
+ */
+async function confirmReviewOnly(
+    options: AppQuitOptions,
+    summary: GitReviewPendingSummary | undefined,
+): Promise<'cancel' | 'continue'> {
+    if (!summary) return 'continue';
     try {
         return (await options.confirmPendingReviewComments(summary)) === 'cancel'
             ? 'cancel'
@@ -295,26 +325,35 @@ async function decidePendingReviewComments(
     }
 }
 
+/**
+ * Shows at most one confirmation after the unsaved-Editor decision: running work and unsent review comments share
+ * {@link appQuitPrompt}, and the review-only prompt appears only when nothing is running to ask about.
+ */
 async function decideAppQuit(options: AppQuitOptions): Promise<AppQuitDecision> {
     if (options.quitIntent() !== 'user') return 'keep-running';
 
     if ((await options.decideUnsavedEditors()) === 'cancel') return 'cancel';
-    if ((await decidePendingReviewComments(options)) === 'cancel') return 'cancel';
 
-    let status: AppQuitStatus;
-    try {
-        status = await options.readStatus();
-    } catch (error) {
-        reportFailure(options, 'status', error);
-        return 'keep-running';
+    const [pendingReviewComments, status] = await Promise.all([
+        readPendingReviewSummary(options),
+        readQuitStatus(options),
+    ]);
+
+    if (!status) {
+        return (await confirmReviewOnly(options, pendingReviewComments)) === 'cancel'
+            ? 'cancel'
+            : 'keep-running';
     }
 
-    const impact = {
+    const impact: AppQuitImpact = {
         running: status.running,
         otherClientCount: Math.max(0, status.clientCount - 1),
+        ...(pendingReviewComments && { pendingReviewComments }),
     };
-    if (runningWorkTotal(impact.running) === 0)
+    if (runningWorkTotal(impact.running) === 0) {
+        if ((await confirmReviewOnly(options, pendingReviewComments)) === 'cancel') return 'cancel';
         return impact.otherClientCount === 0 ? 'stop' : 'keep-running';
+    }
 
     try {
         return await options.confirm(impact);

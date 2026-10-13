@@ -20,8 +20,9 @@ import { useAgentChatLongPaste } from './use-agent-chat-long-paste';
 
 /**
  * Everything that puts content into the composer besides typing: pasted, dropped, and picked files (images attach,
- * other files are cited by path) and long pastes saved to a file. Returns the file input handlers and whether picked
- * images are still being read or a long paste saved, which holds Send.
+ * other files are cited by path), long pastes saved to a file, and Cmd+Shift+V's plain-text paste. Returns the file
+ * input handlers, the plain-text paste, and whether picked images are still being read or a long paste saved, which
+ * holds Send.
  */
 export function useAgentChatComposerInput({
     draft,
@@ -97,7 +98,12 @@ export function useAgentChatComposerInput({
         if (input) insertText(input);
         return Boolean(input);
     };
-    const longPaste = useAgentChatLongPaste({ insert: insertText, terminalId });
+    const longPaste = useAgentChatLongPaste({
+        insert: insertText,
+        inputReference,
+        setDraft,
+        terminalId,
+    });
     const fileInput = useAgentChatFileInput({
         add: images.add,
         didInsertPaths,
@@ -107,5 +113,9 @@ export function useAgentChatComposerInput({
         takeLongPaste: longPaste.didTakePaste,
     });
     useImperativeHandle(dropHandlersReference, () => fileInput.dropHandlers);
-    return { fileInput, isAttaching: images.isReading || longPaste.isSaving };
+    return {
+        fileInput,
+        isAttaching: images.isReading || longPaste.isSaving,
+        pastePlainText: longPaste.pastePlainText,
+    };
 }

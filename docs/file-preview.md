@@ -80,10 +80,12 @@ Smart typography is deliberately off, so what you typed is what you see.
 The view is a continuous scroll of pages rendered by
 [pdf.js](https://github.com/mozilla/pdf.js) (`pdfjs-dist`) onto canvases, with a text layer so
 text is selectable and copyable, and link annotations so internal links jump and `http(s)` /
-`mailto` links open in the system browser. The toolbar above the pages has a page field (type a
-number and press Enter to jump; Escape restores the current page) followed by the page count, Zoom
-Out and Zoom In, and the zoom percentage, which opens a menu of Fit Width, Fit Page, and fixed
-scales from 50% to 300%. `Ctrl` + wheel (trackpad pinch) zooms around the pointer. Zoom is clamped
+`mailto` links open in the system browser. The toolbar above the pages has Previous Page and Next Page buttons
+around a page field (type a number and press Enter to jump; Escape restores the current page) and
+the page count; the buttons disable at the first and last page. Then come Zoom Out and Zoom In, and the zoom percentage, which opens a menu of Fit Width, Fit Page, and fixed
+scales from 50% to 300%. `Ctrl` + wheel (trackpad pinch) zooms around the pointer. `Cmd+=`,
+`Cmd+-`, and `Cmd+0` stay window zoom, because the native menu consumes those chords before the
+Renderer sees them. Zoom is clamped
 to 25% to 500%, and a document opens at page width; a fit keeps following the pane as it resizes
 until the user picks a fixed zoom. A screen reader hears the page and zoom after a jump or zoom
 from the toolbar, not at every page boundary while scrolling. Pages keep their own colors in every
@@ -133,7 +135,10 @@ RFC 4180, and edits in the source pane re-render the table. `.tsv` splits on tab
 among comma, tab, pipe, and semicolon. The first record is the header. Rows are virtualized, so a
 50,000-row file scrolls like a short one; numeric columns align right with tabular figures. The
 row-number gutter widens with the largest row number, and a cell cut off by its column shows its
-full value in a tooltip on hover. A footer reports the row and column count. When parsing stops at
+full value in a tooltip on hover. A footer reports the row and column count. A row filter above
+the table (`Cmd+F`, named in its placeholder) narrows the rows; Escape clears it, and Escape on an
+empty filter returns focus to the table. A filter that matches nothing says so and offers
+**Clear Filter**. When parsing stops at
 the row or column cap, or the parser reports a malformed record, a warning bar above the table says
 so (naming the first bad row) and offers **Open Source**, since the table is then not the whole
 file. The table exposes ARIA `table`, `rowgroup`, `row`, `columnheader`, and `cell` roles.

@@ -206,3 +206,16 @@ export function inboxReplyTarget(
     const questions = open.filter((item) => isCommanderInboxQuestion(item));
     return questions.length === 1 ? questions[0] : undefined;
 }
+
+/**
+ * The composer's Send tooltip. While Send cannot send it says why, as the Agent Chat composer does, instead of
+ * advertising a shortcut that does nothing: a reply needs an item to answer, chosen with `@`, and some text.
+ */
+export function inboxSendTooltip(
+    { draft, hasTarget }: { draft: string; hasTarget: boolean },
+    t: Translate = translate,
+): string {
+    if (!hasTarget) return t('agentCommander.composer.sendNeedsTarget');
+    if (draft.trim() === '') return t('agentCommander.composer.sendNeedsText');
+    return t('agentCommander.composer.sendTooltip');
+}

@@ -25,6 +25,7 @@ import { useControlledView, useSourceControlClient } from '../../controlled-view
 import {
     isViewContainerQueryEnabled,
     useCancelViewContainerQueryWhenHidden,
+    useHeldWhileHidden,
     useIsViewContainerActive,
 } from '../../view-container-activity';
 import { subscribeViewEvents } from '../../view-event-bridge';
@@ -195,15 +196,34 @@ export function useSourceControlController(
     const session = useSelectedSession();
     const settings = useSettings();
     const isContainerActive = useIsViewContainerActive();
-    const activeResource = useActivePaneTab()?.resource;
-    const queryScope = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
+    const liveActiveResource = useActivePaneTab()?.resource;
+    /**
+     * The active file is part of the snapshot key. A hidden view keeps the file it last showed: following every
+     * work-tab switch moved its disabled query to an empty key, dropped the panel to `loading`, and remounted the whole
+     * tree.
+     */
+    const activeFilePath = useHeldWhileHidden(
+        liveActiveResource?.kind === 'file' ? liveActiveResource.path : undefined,
+    );
+    /**
+     * Prefer the view's held scope: a Session switch while the view is hidden must not move the disabled query to a new
+     * key either, for the same remount reason as the active file above.
+     */
+    const queryScope = navigationScope
+        ? `${navigationScope.sessionId}:${navigationScope.workbenchProjectId}`
+        : session
+          ? `${session.id}:${session.workbenchProjectId}`
+          : undefined;
     const [fileHistoryExpanded, setFileHistoryExpanded] = useState(false);
     const [refresh, setRefresh] = useState(0);
     const [navigation, updateNavigation] = useSourceControlNavigation(
         navigationScope,
         persistedNavigation,
     );
-    const snapshotRequest = buildSourceControlSnapshotRequest(activeResource, navigation.modeId);
+    const snapshotRequest = buildSourceControlSnapshotRequest(
+        activeFilePath === undefined ? undefined : { kind: 'file', path: activeFilePath },
+        navigation.modeId,
+    );
     const configRevision = JSON.stringify(
         configurationDependencies.map((key) => [
             key,
@@ -345,7 +365,7 @@ export function useSourceControlController(
         };
 
     return {
-        activeEditorResource: activeResource?.kind === 'file' ? activeResource.path : undefined,
+        activeEditorResource: activeFilePath,
         fileHistoryExpanded,
         isRefreshing: snapshot.isFetching,
         model: snapshot.data,

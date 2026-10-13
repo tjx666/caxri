@@ -2,6 +2,7 @@ import type { AgentChatActivity } from '@caxri/protocol';
 import { formatNoticeableDuration } from '@caxri/protocol';
 import { Info, MessageCircleQuestionMark } from 'lucide-react';
 
+import { Kbd } from '../../components/ui/kbd';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
@@ -16,13 +17,13 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
  * The composer strip's row while the Chat starts, works, or waits on the user. The strip sits on top of the card rather
  * than inside it, so the Chat's state never reads as part of what the user is typing. A working turn shows its verb
  * under a sweeping highlight and how long it has run, so a long turn reads as progress rather than a stall; a turn
- * waiting on the user sweeps too, as the Codex app's does, so the row reads as live rather than stalled. The polite
- * live region stays mounted so transitions between starting, working, and waiting are announced, while the ticking time
- * never is. The Esc hint is also clickable, so pointing at it gives feedback instead of reading as dead text. While a
- * turn runs and the user has typed something, the row also says what Enter and Cmd+Enter will do with it, because the
- * difference between queueing and steering is otherwise invisible until the message lands. A `notice` (why Enter did
- * not send, or that a second Enter sends an unmatched `/` draft as text) takes the live region while it lasts and shows
- * as its own row, so a refused Enter is never silent.
+ * waiting on the user holds still, since nothing is in progress until the user answers. The polite live region stays
+ * mounted so transitions between starting, working, and waiting are announced, while the ticking time never is. The Esc
+ * hint is also clickable, so pointing at it gives feedback instead of reading as dead text. While a turn runs and the
+ * user has typed something, the row also says what Enter and Cmd+Enter will do with it, because the difference between
+ * queueing and steering is otherwise invisible until the message lands. A `notice` (why Enter did not send, or that a
+ * second Enter sends an unmatched `/` draft as text) takes the live region while it lasts and shows as its own row, so
+ * a refused Enter is never silent.
  */
 export function AgentChatActivityBar({
     activity,
@@ -59,17 +60,19 @@ export function AgentChatActivityBar({
                         <Spinner className="size-3.5 shrink-0" role="presentation" />
                     )}
                     <span className="min-w-0 truncate">
-                        <span className="activity-shimmer">{activity.text}</span>
+                        <span
+                            className={activity.kind === 'waiting' ? undefined : 'activity-shimmer'}
+                        >
+                            {activity.text}
+                        </span>
                     </span>
                     {activity.kind === 'working' && activity.startedAt !== undefined && (
                         <ElapsedTime startedAt={activity.startedAt} />
                     )}
                     {showsDeliveryHint && (
                         <span className="ml-auto shrink-0 text-[11px] whitespace-nowrap">
-                            <kbd className="font-sans">Enter</kbd>{' '}
-                            {t('agentChat.activity.enterHint')} ·{' '}
-                            <kbd className="font-sans">⌘Enter</kbd>{' '}
-                            {t('agentChat.activity.steerHint')}
+                            <Kbd size="compact">Enter</Kbd> {t('agentChat.activity.enterHint')} ·{' '}
+                            <Kbd size="compact">⌘Enter</Kbd> {t('agentChat.activity.steerHint')}
                         </span>
                     )}
                     {(activity.kind === 'working' ||
@@ -87,7 +90,7 @@ export function AgentChatActivityBar({
                             type="button"
                             onClick={onStop}
                         >
-                            <kbd className="font-sans">Esc</kbd> {t('agentChat.activity.stopHint')}
+                            <Kbd size="compact">Esc</Kbd> {t('agentChat.activity.stopHint')}
                         </button>
                     )}
                 </div>

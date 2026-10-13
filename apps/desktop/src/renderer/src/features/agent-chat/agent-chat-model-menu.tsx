@@ -34,8 +34,9 @@ const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 
  * The model and reasoning effort the next turn uses, and the picker that switches them, after the Codex app's: a pill
  * beside the input opens an effort panel (`AgentChatEffortPanel`) whose model name flips the same popover to the model
  * list (`AgentChatModelList`); choosing a model flips back so its efforts show right away. A model with neither efforts
- * nor a mode toggle opens straight on the list, and choosing from it closes the picker. While the effort panel is open
- * the pill reads `Choose effort`, as the Codex app's does.
+ * nor a mode toggle opens straight on the list, and choosing from it closes the picker. The pill keeps reading the
+ * current choice while the picker is open: swapping in a `Choose effort` caption (the Codex app's) resized the pill
+ * under the pointer and moved the popover's anchor.
  *
  * The choice shows at once with a spinner beside it until the snapshot confirms it (`AgentChatPendingSelection`), and
  * reverts with a toast naming what failed. A provider that listed no models shows the model it reported as plain text.
@@ -101,6 +102,20 @@ export function AgentChatModelMenu({
         snapshot.ultracode === undefined
             ? undefined
             : { description: t('agentChat.model.ultracodeDescription'), isOn: snapshot.ultracode };
+    /**
+     * Returns from the model list to the effort panel. The focused model row unmounts with the list, so focus moves to
+     * the panel's current choice (the slider, else its first button) once it renders, or it would fall to the body.
+     */
+    const backToEffort = (): void => {
+        setView('effort');
+        requestAnimationFrame(() => {
+            const panel = popup.current;
+            (
+                panel?.querySelector<HTMLElement>(CURRENT_CHOICE_SELECTOR) ??
+                panel?.querySelector<HTMLElement>('button')
+            )?.focus();
+        });
+    };
     return (
         <Popover
             open={isOpen}
@@ -114,11 +129,7 @@ export function AgentChatModelMenu({
                     aria-label={ariaLabel}
                     className={`${LABEL_CLASS_NAME} h-7 shrink cursor-pointer rounded-full border-0 bg-transparent px-2.5 transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated`}
                 >
-                    {isOpen && view === 'effort' ? (
-                        <span className="truncate">{t('agentChat.model.chooseEffort')}</span>
-                    ) : (
-                        text
-                    )}
+                    {text}
                     {isPending ? (
                         <Spinner
                             aria-label={t('agentChat.model.switching')}
@@ -156,6 +167,14 @@ export function AgentChatModelMenu({
                     <AgentChatModelList
                         currentId={current?.id}
                         models={models}
+                        onBack={
+                            agentChatPickerOpeningView(
+                                current,
+                                ultracode !== undefined || fast !== undefined,
+                            ) === 'effort'
+                                ? backToEffort
+                                : undefined
+                        }
                         onChoose={(id) => {
                             if (id !== current?.id) configure({ model: id });
                             const next = models.find((model) => model.id === id);

@@ -93,7 +93,7 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
         const initialSettingsTab = await openSettingsTab(running.page);
         await revealSettingsSection(initialSettingsTab, 'Terminal');
         const initialSetting = initialSettingsTab.getByRole('switch', {
-            name: 'Allow OSC 52 clipboard writes',
+            name: 'Let programs in the Terminal copy to your clipboard',
         });
         await expect(initialSetting).toBeChecked();
         await initialSetting.uncheck();

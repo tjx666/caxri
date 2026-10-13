@@ -153,6 +153,7 @@
     --motion-overlay-exit: 100ms;
     --motion-compaction-pulse: 1800ms;
     --motion-activity-shimmer: 2200ms;
+    --motion-skeleton-pulse: 2000ms;
     /* Decelerating "settle" curve for spatial reveals (disclosures, the chrome tab indicator). */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
     /*
@@ -188,6 +189,33 @@
 @media (prefers-reduced-motion: no-preference) {
     .terminal-agent-operation {
         animation: compaction-pulse var(--motion-compaction-pulse) ease-in-out infinite;
+    }
+}
+
+/*
+ * Loading skeleton blocks (`components/ui/skeleton.tsx`): each block fades in on the overlay enter
+ * timing, so a load that finishes quickly never flashes hard-edged gray shapes, then breathes on
+ * `--motion-skeleton-pulse`. The pulse waits out the reveal (its delay), so the two opacity
+ * animations never fight. Reduced motion shows the blocks static and at once.
+ */
+@keyframes skeleton-reveal {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes skeleton-pulse {
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    [data-slot='skeleton'] {
+        animation:
+            skeleton-reveal var(--motion-overlay-enter) var(--motion-ease-enter),
+            skeleton-pulse var(--motion-skeleton-pulse) ease-in-out var(--motion-overlay-enter)
+                infinite;
     }
 }
 

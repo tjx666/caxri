@@ -2,6 +2,7 @@ import type { AgentUsageReadout } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentUsageClockSignature,
     agentUsageCostLabel,
     agentUsageLabel,
     agentUsageLimitTone,
@@ -123,5 +124,27 @@ describe('agent usage limit tone', () => {
             },
         });
         expect(agentUsageLimitTone(reset, NOW)).toBeUndefined();
+    });
+});
+
+describe('agent usage clock signature', () => {
+    const limit = {
+        provider: 'codex' as const,
+        observedAt: NOW,
+        windows: [{ windowMinutes: 300, usedPercent: 40, resetsAt: NOW + 3_600_000 }],
+    };
+
+    it('stays the same across instants that render the same reset wording', () => {
+        expect(agentUsageClockSignature(limit, NOW)).toBe(
+            agentUsageClockSignature(limit, NOW + 2_000),
+        );
+        expect(agentUsageClockSignature(undefined, NOW)).toBe('');
+    });
+
+    it('changes when the reset wording turns over or the window resets', () => {
+        expect(agentUsageClockSignature(limit, NOW + 120_000)).not.toBe(
+            agentUsageClockSignature(limit, NOW),
+        );
+        expect(agentUsageClockSignature(limit, NOW + 3_600_000)).toBe('');
     });
 });

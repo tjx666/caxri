@@ -256,13 +256,13 @@ export const settingRowSources: SettingRowSource[] = [
         category: 'terminal',
         titleKey: 'settings.row.hardwareAcceleration.title',
         /**
-         * Kept as its own setting rather than merged into GPU acceleration below (issue caxri#1289): it gates the GPU
-         * for the whole app, GPU acceleration gates only the Terminal's WebGL renderer, and the two can legitimately
-         * disagree: GPU acceleration can still be "on" while this is off, it just has nothing to accelerate. Placed
-         * directly above it so the dependency reads in cause-then-effect order. Also says what turning it off actually
-         * costs and what takes it back: the previous wording promised "Caxri never changes this automatically", which
-         * stopped being true the moment a crash card could write it, so the promise is now the accurate one: Caxri only
-         * changes it behind a confirmation the user answered.
+         * Kept as its own setting rather than merged into Terminal hardware acceleration below (issue caxri#1289): it
+         * gates the GPU for the whole app, Terminal hardware acceleration gates only the Terminal's WebGL renderer, and
+         * the two can legitimately disagree: the Terminal setting can still be "on" while this is off, it just has
+         * nothing to accelerate. Placed directly above it so the dependency reads in cause-then-effect order. Also says
+         * what turning it off actually costs and what takes it back: the previous wording promised "Caxri never changes
+         * this automatically", which stopped being true the moment a crash card could write it, so the promise is now
+         * the accurate one: Caxri only changes it behind a confirmation the user answered.
          */
         descriptionKey: 'settings.row.hardwareAcceleration.description',
         binding: { type: 'hardware-acceleration' },

@@ -117,8 +117,10 @@ export function CommanderBoardItem({
         <li
             className={cn(
                 'commander-board-item relative flex items-start gap-2 rounded-md px-2 py-1.5 text-foreground',
-                'hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]',
-                'has-[.commander-board-reveal:focus-visible]:ring-1 has-[.commander-board-reveal:focus-visible]:ring-foreground',
+                // The shared `--list-*` row states, as the Hand Over dialog's rows paint them, so an imported theme
+                // reaches the board too. Keyboard focus takes the focus state; hover never paints over it.
+                'hover:bg-list-hover-background hover:text-list-hover-foreground',
+                'has-[.commander-board-reveal:focus-visible]:bg-list-focus-background has-[.commander-board-reveal:focus-visible]:text-list-focus-foreground',
             )}
             data-commander-group={row.group}
             data-session-id={row.sessionId}
@@ -185,7 +187,7 @@ export function CommanderBoardItem({
                             <button
                                 type="button"
                                 aria-label={badge.ariaLabel}
-                                className="commander-board-pull-request relative ml-auto flex h-4 flex-none cursor-pointer items-center gap-0.5 rounded pl-1 text-[11px] leading-4 text-muted tabular-nums outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground"
+                                className="commander-board-pull-request relative ml-auto flex h-4 flex-none cursor-pointer items-center gap-0.5 rounded-md pl-1 text-[11px] leading-4 text-muted tabular-nums outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground"
                                 onClick={() => openCommanderPullRequest(badge.url)}
                             >
                                 <SessionPullRequestIndicator pullRequest={row.pullRequest} />

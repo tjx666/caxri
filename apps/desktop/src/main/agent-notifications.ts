@@ -8,6 +8,8 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, DEFAULT_SESSION_TITLE } from '@caxri/protocol';
 
+import { translateMain } from './locale';
+
 /**
  * The two identity fields are real Electron `NotificationConstructorOptions` on macOS and Windows, not Caxri-private
  * bookkeeping: `id` maps to the `UNNotificationRequest` identifier, so a later banner with the same `id` replaces the
@@ -328,13 +330,16 @@ export function createAgentNotificationCoordinator(
         const providerName = agentProviderCatalog[provider].displayName;
         const projectTitle = projectTitles.get(session.projectId);
         let body: string;
-        if (session.lastAttentionKind === 'waiting') body = 'Waiting for your input';
+        if (session.lastAttentionKind === 'waiting')
+            body = translateMain('desktop.notification.agentWaiting');
         else if (summary) body = summary;
         else
             body =
                 durationMs === undefined
-                    ? 'Turn finished'
-                    : `Finished in ${formatTurnDuration(durationMs)}`;
+                    ? translateMain('desktop.notification.agentTurnFinished')
+                    : translateMain('desktop.notification.agentFinishedIn', {
+                          duration: formatTurnDuration(durationMs),
+                      });
 
         closeNotification(session.id);
         const handle = options.showNotification(

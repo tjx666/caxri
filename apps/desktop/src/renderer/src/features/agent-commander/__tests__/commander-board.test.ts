@@ -306,7 +306,7 @@ describe('commanderTaskBadge', () => {
         });
     });
 
-    it('names the delegation and its failure reason in the tooltip', () => {
+    it('names the failure reason in the tooltip without the internal task ID', () => {
         expect(
             commanderTaskBadge({
                 delegationId: 'task-1',
@@ -314,7 +314,7 @@ describe('commanderTaskBadge', () => {
                 failure: 'startup_not_ready',
                 updatedAt: 1,
             })?.title,
-        ).toBe('Failed. The task failed. Reason: startup not ready. Task task-1.');
+        ).toBe('Failed. The task failed. Reason: startup not ready.');
     });
 
     it('tints a takeover and explains that the Commander let the Session go', () => {

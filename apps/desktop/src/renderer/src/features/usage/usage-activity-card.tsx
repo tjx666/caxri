@@ -5,8 +5,10 @@ import type { UsageDay } from '@caxri/protocol';
 import { HorizontalScrollArea } from '../../components/scroll-fade';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useChartKeyboardCursor } from '../../hooks/use-chart-keyboard-cursor';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { CHART_CURSOR_CLASS } from '../../lib/chart-cursor';
 import { cn } from '../../lib/utilities';
 import type { ActivityHoverTarget, ActivityView } from './usage-activity';
 import {
@@ -18,7 +20,6 @@ import {
 } from './usage-activity';
 import type { EndPin } from './usage-activity-scroll';
 import { attachEndPin } from './usage-activity-scroll';
-import { CHART_CURSOR_CLASS } from './usage-chart-cursor';
 import type { CumulativePoint, HeatmapWeek, UsageMetric } from './usage-metrics';
 import {
     activityCardLabel,
@@ -27,7 +28,6 @@ import {
     usageDayTooltip,
     usageWeekTooltip,
 } from './usage-metrics';
-import { useChartKeyboardCursor } from './use-chart-keyboard-cursor';
 
 /**
  * Intensity steps over the `--chart` role, GitHub style. Level 0 is an empty day on the card's own elevated fill.
@@ -152,18 +152,19 @@ function WeeklyBars({
 const CHART_WIDTH = 1000;
 const CHART_HEIGHT = 112;
 
+/**
+ * The running-total line. `markerIndex` is the point under the pointer, or the keyboard cursor's point when the pointer
+ * is not over the chart, so both ways of inspecting the line draw the same vertical marker.
+ */
 function CumulativeChart({
     points,
-    metric,
-    cursorIndex,
+    markerIndex,
     onHover,
 }: {
     points: readonly CumulativePoint[];
-    metric: UsageMetric;
-    cursorIndex: number | undefined;
-    onHover: (target: ActivityHoverTarget | undefined) => void;
+    markerIndex: number | undefined;
+    onHover: (index: number) => void;
 }) {
-    const { t } = useTranslation();
     const total = points.at(-1)?.total ?? 0;
     const step = CHART_WIDTH / Math.max(1, points.length - 1);
     const y = (value: number) =>
@@ -185,8 +186,7 @@ function CumulativeChart({
                 const index = Math.round(
                     ((event.clientX - bounds.left) / bounds.width) * (points.length - 1),
                 );
-                const point = points.at(Math.min(points.length - 1, Math.max(0, index)));
-                if (point) onHover(cumulativeTarget(t, point, metric));
+                if (points.length > 0) onHover(Math.min(points.length - 1, Math.max(0, index)));
             }}
         >
             <path
@@ -199,13 +199,13 @@ function CumulativeChart({
                 strokeWidth={2}
                 vectorEffect="non-scaling-stroke"
             />
-            {cursorIndex !== undefined && (
+            {markerIndex !== undefined && (
                 <line
                     className="stroke-accent"
                     strokeWidth={1}
                     vectorEffect="non-scaling-stroke"
-                    x1={cursorIndex * step}
-                    x2={cursorIndex * step}
+                    x1={markerIndex * step}
+                    x2={markerIndex * step}
                     y1={0}
                     y2={CHART_HEIGHT}
                 />
@@ -220,8 +220,8 @@ function CumulativeChart({
  * the hovered week in the caption under the chart instead of the summary. The Tokens/Cost switch lives here, beside the
  * view switch, because nothing else on the page follows it. The chart is one `img` whose name is the year's summary
  * plus its busiest day, so a keyboard or screen-reader user gets the reading without stepping through 365 cells; the
- * arrow keys then step through days, weeks, or points (`usage-chart-cursor.ts`), ringing the item and showing its
- * Tooltip text in the caption, announced through a polite live region.
+ * arrow keys then step through days, weeks, or points (`lib/chart-cursor.ts`), ringing the item and showing its Tooltip
+ * text in the caption, announced through a polite live region.
  */
 export function UsageActivityCard({
     activity,
@@ -233,7 +233,10 @@ export function UsageActivityCard({
     const { t } = useTranslation();
     const [view, setView] = useState<ActivityView>('daily');
     const [metric, setMetric] = useState<UsageMetric>('tokens');
-    const [hover, setHover] = useState<ActivityHoverTarget>();
+    /**
+     * The cumulative point under the pointer; only the cumulative view reports hover through the caption.
+     */
+    const [hoverIndex, setHoverIndex] = useState<number>();
     const chartReference = useRef<HTMLDivElement>(null);
     const endPinReference = useRef<EndPin>(undefined);
     /**
@@ -266,6 +269,9 @@ export function UsageActivityCard({
     const cursor = keyboard.cursor;
     const cursorText = activityCursorText(t, { cursor, days, metric, points, view, weeks });
     const { summary, chartLabel } = activityYearSummary(t, activity, today, metric);
+    const hoverPoint = hoverIndex === undefined ? undefined : points.at(hoverIndex);
+    const hover: ActivityHoverTarget | undefined =
+        view === 'cumulative' && hoverPoint ? cumulativeTarget(t, hoverPoint, metric) : undefined;
 
     return (
         <section
@@ -323,11 +329,14 @@ export function UsageActivityCard({
                 onBlur={keyboard.onBlur}
                 onKeyDown={(event) => {
                     // The key takes the readout back from the pointer until the pointer moves again.
-                    setHover(undefined);
+                    setHoverIndex(undefined);
                     keyboard.onKeyDown(event);
                 }}
             >
-                <div className="flex min-w-160 gap-2" onPointerLeave={() => setHover(undefined)}>
+                <div
+                    className="flex min-w-160 gap-2"
+                    onPointerLeave={() => setHoverIndex(undefined)}
+                >
                     {view === 'daily' && (
                         <div
                             className="grid grid-rows-7 gap-0.5 pt-4 text-[11px] text-muted"
@@ -355,9 +364,8 @@ export function UsageActivityCard({
                         {view === 'cumulative' && (
                             <CumulativeChart
                                 points={points}
-                                metric={metric}
-                                cursorIndex={cursor}
-                                onHover={setHover}
+                                markerIndex={hover ? hoverIndex : cursor}
+                                onHover={setHoverIndex}
                             />
                         )}
                     </div>

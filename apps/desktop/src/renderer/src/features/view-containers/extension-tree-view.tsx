@@ -43,6 +43,7 @@ import { useExtensionTreeChildren } from './hooks/use-extension-tree-children';
 import { useExtensionTreeState } from './hooks/use-extension-tree-state';
 import { runTreeItemCommand } from './tree-item-actions';
 import { dispatchExtensionViewAction } from './view-container-commands';
+import { measureKeepAliveElement, observeKeepAliveElementRect } from './virtual-tree-keep-alive';
 import { virtualTreeRenderedIndexes } from './virtual-tree-range';
 
 const MemoizedExtensionTreeItemRow = memo(ExtensionTreeItemRow);
@@ -283,6 +284,8 @@ function ExtensionTreeViewContent({
         },
         getItemKey: (index) => visibleRowKey(rows[index]),
         getScrollElement: () => scrollElement.current,
+        measureElement: measureKeepAliveElement,
+        observeElementRect: observeKeepAliveElementRect,
         overscan: 10,
         rangeExtractor: (range) =>
             virtualTreeRenderedIndexes(defaultRangeExtractor(range), range.count, [tabStopIndex]),

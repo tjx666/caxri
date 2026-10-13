@@ -8,6 +8,7 @@ import { createAgentNotificationDelivery } from './agent-notification-delivery';
 import { createDesktopAgentNotifications } from './agent-notification-runtime';
 import { createAlerterNotificationDriver } from './alerter-notification';
 import { resolveNotificationAppIconPath } from './app-icon';
+import { createDesktopCommanderInboxNotifications } from './commander-inbox-notification-runtime';
 import { createDesktopDeliveryNotifications } from './delivery-notification-runtime';
 import type { DesktopServerConnection } from './server-connection';
 
@@ -34,10 +35,11 @@ export interface DesktopNotifications {
 }
 
 /**
- * Both families of system notification Caxri raises, behind one handle: Agent attention (a Session wants you back) and
- * delivery failures (CI or a Vercel deployment just broke). They share one delivery, so the native/alerter choice is
- * probed (a `codesign` child process) and its fallback logged once per launch rather than once per family, and the
- * composition root should not have to remember to fan `observe` and `dispose` out to each.
+ * Both families of system notification Caxri raises, behind one handle: Agent attention (a Session wants you back), the
+ * Commander Inbox (the Agent Commander raised something for you), and delivery failures (CI or a Vercel deployment just
+ * broke). They share one delivery, so the native/alerter choice is probed (a `codesign` child process) and its fallback
+ * logged once per launch rather than once per family, and the composition root should not have to remember to fan
+ * `observe` and `dispose` out to each.
  */
 export function createDesktopNotifications({
     currentDirectory,
@@ -74,15 +76,25 @@ export function createDesktopNotifications({
         handleMainMethod,
         logger,
     });
+    const commanderInbox = createDesktopCommanderInboxNotifications({
+        delivery: systemNotifications,
+        handleMainMethod,
+        logger,
+        supervisor,
+    });
     return {
         dispose: () => {
             agents.dispose();
             delivery.dispose();
+            commanderInbox.dispose();
         },
-        initialize: () => agents.initialize(),
+        initialize: async () => {
+            await Promise.all([agents.initialize(), commanderInbox.initialize()]);
+        },
         observe: (event) => {
             agents.observe(event);
             delivery.observe(event);
+            commanderInbox.observe(event);
         },
     };
 }

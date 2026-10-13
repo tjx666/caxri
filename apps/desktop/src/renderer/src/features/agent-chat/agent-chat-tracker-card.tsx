@@ -1,19 +1,22 @@
 import type { AgentChatTrackerArtifact } from '@caxri/protocol';
 import { ArrowUpRight, CircleDot, ClipboardCheck, GitPullRequest, ListChecks } from 'lucide-react';
 
+import { useLinkContextMenu } from '../../components/markdown/link-context-menu';
+import { PULL_REQUEST_ICONS } from '../../components/markdown/pull-request-icons';
 import type { Translate, TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
 import { LinearLogoIcon } from '../../icons/brands/linear-logo-icon';
 import { openExternalUrl } from '../../lib/external-link';
+import { pullRequestLinkState } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { pushToast } from '../../stores/toasts';
 import {
     trackerExcerptText,
+    trackerPreviewRequest,
     trackerPreviewTitle,
     trackerReferenceText,
-    trackerTitlePreviewRequest,
 } from './agent-chat-tracker-labels';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
@@ -48,13 +51,10 @@ const KIND_ICON = {
     acceptance: ListChecks,
 } satisfies Record<AgentChatTrackerArtifact['kind'], unknown>;
 
-/**
- * A pull request's glyph carries GitHub's pull request green, matching the untinted pull request link icon in the
- * transcript. The card records what the Agent did, not the pull request's live state, so it never turns purple or red.
- */
-const KIND_ICON_TONE: Partial<Record<AgentChatTrackerArtifact['kind'], string>> = {
-    pull: 'text-success',
-};
+function openTrackerUrl(url: string): void {
+    // eslint-disable-next-line no-void -- openExternalUrl reports its own failures through the callback
+    void openExternalUrl(url, (message) => pushToast('error', message));
+}
 
 /**
  * `Created pull request`, `Updated issue`: what the Agent did, in the words a reader scans for.
@@ -64,13 +64,17 @@ function actionLabel(artifact: AgentChatTrackerArtifact, t: Translate): string {
 }
 
 /**
- * The title of a GitHub pull request or issue the card names only by number, read through the same Terminal reference
- * preview (and its cache) as a Chat pull request link's state glyph. The Server answers only for repositories the
- * Session already has, so another repository, a failed read, or a Chat without a Terminal leaves it `undefined`.
+ * What the Terminal reference preview (and its cache, shared with a Chat pull request link's state glyph) adds to a
+ * GitHub card: the title of a pull request or issue the card names only by number, and a pull request's live state. The
+ * Server answers only for repositories the Session already has, so another repository, a failed read, or a Chat without
+ * a Terminal leaves both `undefined`.
  */
-function useTrackerPreviewTitle(artifact: AgentChatTrackerArtifact): string | undefined {
+function useTrackerPreview(artifact: AgentChatTrackerArtifact): {
+    title: string | undefined;
+    pullState: ReturnType<typeof pullRequestLinkState>;
+} {
     const terminalId = useAgentChatTerminal();
-    const reference = trackerTitlePreviewRequest(artifact);
+    const reference = trackerPreviewRequest(artifact);
     const preview = useCaxriQuery(
         'terminal.reference.preview',
         {
@@ -83,7 +87,37 @@ function useTrackerPreviewTitle(artifact: AgentChatTrackerArtifact): string | un
             staleTime: 5 * 60_000,
         },
     );
-    return reference ? trackerPreviewTitle(preview.data) : undefined;
+    if (!reference) return { title: undefined, pullState: undefined };
+    return {
+        title: artifact.title === undefined ? trackerPreviewTitle(preview.data) : undefined,
+        pullState: artifact.kind === 'pull' ? pullRequestLinkState(preview.data) : undefined,
+    };
+}
+
+/**
+ * The kind glyph beside the action label. A pull request's takes its live state's glyph and tone, as a pull request
+ * link in the transcript does, so a merged or closed one no longer reads as open; while the state is unknown it stays a
+ * plain glyph in the label's own muted color.
+ */
+function TrackerKindIcon({
+    kind,
+    pullState,
+}: {
+    kind: AgentChatTrackerArtifact['kind'];
+    pullState: ReturnType<typeof pullRequestLinkState>;
+}) {
+    if (kind === 'pull' && pullState) {
+        const { icon: Icon, tone } = PULL_REQUEST_ICONS[pullState];
+        return (
+            <Icon
+                aria-hidden="true"
+                className={cn('size-3.5', tone)}
+                data-pull-request-state={pullState}
+            />
+        );
+    }
+    const KindIcon = KIND_ICON[kind];
+    return <KindIcon aria-hidden="true" className="size-3.5" />;
 }
 
 /**
@@ -91,16 +125,17 @@ function useTrackerPreviewTitle(artifact: AgentChatTrackerArtifact): string | un
  * tracker's mark in a tile, the title beside its `owner/repo#N`, `ENG-123`, or `Round N` reference, what was done to
  * it, and the body's first line. Opens the page in the browser, which the trailing external arrow says before the
  * click; the edited-files card beside it expands in place and carries no arrow. A GitHub card without a title shows its
- * reference until the reference preview supplies one.
+ * reference until the reference preview supplies one. A right-click offers Open Link and Copy Link.
  */
 export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerArtifact }) {
     const Mark = PROVIDER_MARK[artifact.provider];
-    const KindIcon = KIND_ICON[artifact.kind];
     const { t } = useTranslation();
     const label = actionLabel(artifact, t);
     const reference = trackerReferenceText(artifact, t);
     const excerpt = trackerExcerptText(artifact, t);
-    const previewTitle = useTrackerPreviewTitle(artifact);
+    const preview = useTrackerPreview(artifact);
+    const previewTitle = preview.title;
+    const onContextMenu = useLinkContextMenu(artifact.url, openTrackerUrl);
     // An acceptance round ingested with `--requirement "$VAR"` carries no readable title; name the report instead of
     // promoting `Round N` to the headline.
     const title =
@@ -117,10 +152,8 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
             className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
             data-agent-chat-tracker={artifact.provider}
             type="button"
-            onClick={() => {
-                // eslint-disable-next-line no-void -- openExternalUrl reports its own failures through the callback
-                void openExternalUrl(artifact.url, (message) => pushToast('error', message));
-            }}
+            onClick={() => openTrackerUrl(artifact.url)}
+            onContextMenu={onContextMenu}
         >
             <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
                 <Mark className="size-4" />
@@ -141,10 +174,7 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
                 )}
             </span>
             <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted">
-                <KindIcon
-                    aria-hidden="true"
-                    className={cn('size-3.5', KIND_ICON_TONE[artifact.kind])}
-                />
+                <TrackerKindIcon kind={artifact.kind} pullState={preview.pullState} />
                 {label}
                 <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </span>

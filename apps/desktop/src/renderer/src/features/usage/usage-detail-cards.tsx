@@ -1,6 +1,6 @@
 import type { UsageReport } from '@caxri/protocol';
 import { formatLineCount, formatTokens, formatUsd } from '@caxri/protocol';
-import { Archive, GitMerge } from 'lucide-react';
+import { Archive, GitMerge, ListFilter } from 'lucide-react';
 
 import { ReportCard } from '../../components/report-card';
 import {
@@ -10,7 +10,8 @@ import {
     tableHeadClass,
 } from '../../components/report-table-classes';
 import { HorizontalScrollArea } from '../../components/scroll-fade';
-import { ShareBar } from '../../components/share-bar';
+import { Button } from '../../components/ui/button';
+import { Tooltip } from '../../components/ui/tooltip';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
@@ -27,8 +28,17 @@ import {
     usageSessionCount,
 } from './usage-metrics';
 import { UsageModelName } from './usage-model-name';
-import { usageRowStatusLabel, usageShare, usageShareBasis } from './usage-presentation';
+import { openUsagePage } from './usage-page-request';
+import {
+    canFilterUsageToSession,
+    usageRowStatusLabel,
+    usageSessionTitle,
+    usageShare,
+    usageShareBasis,
+    usageShareCaption,
+} from './usage-presentation';
 import { UsageSessionTitle } from './usage-session-title';
+import { UsageShareBar } from './usage-share-bar';
 
 function openPullRequest(url: string): void {
     // eslint-disable-next-line no-void -- openExternalUrl reports failures through the shared toast path.
@@ -134,7 +144,12 @@ function ProjectsCard({ report }: { report: UsageReport }) {
     return (
         <ReportCard
             title={t('usage.projects.title')}
-            caption={topCaption(t, top.length, report.projects.length)}
+            caption={[
+                topCaption(t, top.length, report.projects.length),
+                usageShareCaption(t, basis),
+            ]
+                .filter(Boolean)
+                .join(' · ')}
         >
             {top.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">{t('usage.projects.empty')}</p>
@@ -166,7 +181,10 @@ function ProjectsCard({ report }: { report: UsageReport }) {
                                         display={rowCost(report, row.costUsd, row.tokens)}
                                     />
                                 </div>
-                                <ShareBar share={usageShare(row, total, basis)} />
+                                <UsageShareBar
+                                    basis={basis}
+                                    share={usageShare(row, total, basis)}
+                                />
                                 <div className="flex justify-between gap-3 text-[11px] text-muted tabular-nums">
                                     <span>
                                         {formatMetric(t, row.tokens, 'tokens')} ·{' '}
@@ -267,6 +285,24 @@ function SessionsCard({ report }: { report: UsageReport }) {
                                                     <GitMerge aria-hidden="true" size={12} />
                                                     {row.pullRequestsMerged}
                                                 </span>
+                                            )}
+                                            {canFilterUsageToSession(report, row) && (
+                                                <Tooltip content={t('usage.sessions.filter')}>
+                                                    <Button
+                                                        aria-label={t(
+                                                            'usage.sessions.filterLabel',
+                                                            {
+                                                                title: usageSessionTitle(t, row),
+                                                            },
+                                                        )}
+                                                        className="ml-auto size-5 flex-none rounded-md text-muted hover:text-foreground"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        onClick={() => openUsagePage(row.sessionId)}
+                                                    >
+                                                        <ListFilter aria-hidden="true" size={12} />
+                                                    </Button>
+                                                </Tooltip>
                                             )}
                                         </span>
                                     </td>

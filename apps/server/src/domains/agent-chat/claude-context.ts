@@ -63,7 +63,10 @@ export function claudeResponseUsage(
 /**
  * The parts of `getContextUsage` the context meter shows: the rows that occupy the window, and the window Claude Code
  * compacts against when it is smaller than the model's own. Free space and out-of-window (deferred) tool schemas are
- * left out; the autocompact reserve stays, since it is part of what fills the window before compaction.
+ * left out; the autocompact reserve stays, since it is part of what fills the window before compaction. A report with
+ * auto-compact turned off names no compaction window: the meter's card would otherwise promise an automatic compaction
+ * the Context tab (which reads the same flag) says is off. A report without the flag, from an older Claude Code, keeps
+ * the window.
  */
 export function claudeContextDetails(
     response: unknown,
@@ -84,7 +87,9 @@ export function claudeContextDetails(
         .slice(0, MAX_AGENT_CHAT_USAGE_BREAKDOWN);
     const window = response.rawMaxTokens;
     const compactWindow =
-        isPositive(window) && (contextWindow === undefined || window < contextWindow)
+        response.isAutoCompactEnabled !== false &&
+        isPositive(window) &&
+        (contextWindow === undefined || window < contextWindow)
             ? Math.trunc(window)
             : undefined;
     return {

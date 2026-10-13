@@ -71,6 +71,13 @@ export function createTerminalPaneXterm({
     search,
 }: CreateTerminalPaneXtermOptions): TerminalPaneXterm {
     const settleXtermCreate = beginRendererPerformanceTerminalStage('xterm-create');
+    /**
+     * Xterm names its input field and its screen-reader overflow notice from one process-wide string table that
+     * defaults to English (`Terminal input`). It reads the table when `open()` builds the field, so setting it per
+     * instance keeps every new Terminal, including the Commander's, in the current app language.
+     */
+    Terminal.strings.promptLabel = translate('terminal.a11y.promptLabel');
+    Terminal.strings.tooMuchOutput = translate('terminal.a11y.tooMuchOutput');
     const xterm = new Terminal({
         allowProposedApi: true,
         convertEol: false,

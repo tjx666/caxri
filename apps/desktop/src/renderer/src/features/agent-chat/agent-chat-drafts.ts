@@ -187,22 +187,39 @@ export function writeAgentChatDraft(terminalId: string, text: string): void {
 }
 
 /**
- * The mounted composer of each Chat, which takes an appended text into its live draft. A composer reads the stored
- * draft only when it mounts, so writing the store alone would not reach one already on screen.
+ * A change another surface makes to a Chat's draft: the next draft, given the current one.
  */
-const appendListeners = new Map<string, (text: string) => void>();
+export type AgentChatDraftUpdate = (draft: string) => string;
 
 /**
- * Registers the mounted composer of `terminalId` to receive {@link appendToAgentChatDraft}. Returns the unsubscribe.
+ * The mounted composer of each Chat, which applies a draft update from another surface (Add to message, a turn review
+ * comment, Paste as Text) to its live draft. A composer reads the stored draft only when it mounts, so writing the
+ * store alone would not reach one already on screen.
  */
-export function subscribeAgentChatDraftAppends(
+const draftUpdateListeners = new Map<string, (update: AgentChatDraftUpdate) => void>();
+
+/**
+ * Registers the mounted composer of `terminalId` to receive {@link updateAgentChatDraft}. Returns the unsubscribe.
+ */
+export function subscribeAgentChatDraftUpdates(
     terminalId: string,
-    listener: (text: string) => void,
+    listener: (update: AgentChatDraftUpdate) => void,
 ): () => void {
-    appendListeners.set(terminalId, listener);
+    draftUpdateListeners.set(terminalId, listener);
     return () => {
-        if (appendListeners.get(terminalId) === listener) appendListeners.delete(terminalId);
+        if (draftUpdateListeners.get(terminalId) === listener)
+            draftUpdateListeners.delete(terminalId);
     };
+}
+
+/**
+ * Applies `update` to a Chat's draft from outside its composer: to the composer on screen when it is mounted, otherwise
+ * to the stored draft it opens with. The one path every outside writer of a draft takes.
+ */
+export function updateAgentChatDraft(terminalId: string, update: AgentChatDraftUpdate): void {
+    const listener = draftUpdateListeners.get(terminalId);
+    if (listener) listener(update);
+    else writeAgentChatDraft(terminalId, update(readAgentChatDraft(terminalId)));
 }
 
 /**
@@ -225,9 +242,7 @@ export function appendToAgentChatDraft(terminalId: string, text: string): void {
             ...edit,
             appendedDraft: draftWithParagraph(edit.appendedDraft, text),
         });
-    const listener = appendListeners.get(terminalId);
-    if (listener) listener(text);
-    else writeAgentChatDraft(terminalId, draftWithParagraph(readAgentChatDraft(terminalId), text));
+    updateAgentChatDraft(terminalId, (draft) => draftWithParagraph(draft, text));
 }
 
 /**

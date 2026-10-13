@@ -1,7 +1,12 @@
 import { pullRequestUnavailableSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { pullRequestTooltip, pullRequestUnavailableLabel } from '../pull-request-status-label';
+import {
+    pullRequestAriaLabel,
+    pullRequestElsewhereBranch,
+    pullRequestTooltip,
+    pullRequestUnavailableLabel,
+} from '../pull-request-status-label';
 
 const reasons = pullRequestUnavailableSchema.shape.reason.options;
 
@@ -71,5 +76,22 @@ describe('pull request status bar tooltip', () => {
                 'feat/hint',
             ).notes,
         ).toEqual([]);
+    });
+});
+
+describe('pull request on another branch', () => {
+    const pullRequest = { number: 12, headBranch: 'feat/hint' };
+
+    it('reports the head branch only when it differs from the checked-out branch', () => {
+        expect(pullRequestElsewhereBranch(pullRequest, 'main')).toBe('feat/hint');
+        expect(pullRequestElsewhereBranch(pullRequest, 'feat/hint')).toBeUndefined();
+        expect(pullRequestElsewhereBranch({ headBranch: undefined }, 'main')).toBeUndefined();
+    });
+
+    it('names the branch in the accessible name, since the mismatch dot is visual only', () => {
+        expect(pullRequestAriaLabel(pullRequest, 'main')).toBe(
+            'Open pull request #12 for branch feat/hint, not the checked-out branch',
+        );
+        expect(pullRequestAriaLabel(pullRequest, 'feat/hint')).toBe('Open pull request #12');
     });
 });

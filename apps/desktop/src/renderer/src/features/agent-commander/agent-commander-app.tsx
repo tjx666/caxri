@@ -8,8 +8,15 @@ import { subscribeAgentChatPatches } from '../agent-chat/agent-chat-client';
 import { ConfirmationDialog } from '../confirmations/confirmation-dialog';
 import { ToastOutlet } from '../toasts/toast-outlet';
 import { useWindowZoomFactor } from '../window-zoom/use-window-zoom-factor';
+import { PanelDivider } from '../workbench/panel-divider';
 import { AgentCommanderHeader } from './agent-commander-header';
-import { useCommanderBoardUiStore } from './commander-board-store';
+import {
+    COMMANDER_BOARD_DEFAULT_WIDTH,
+    COMMANDER_BOARD_MAX_WIDTH,
+    COMMANDER_BOARD_MIN_WIDTH,
+    setCommanderBoardWidth,
+    useCommanderBoardUiStore,
+} from './commander-board-store';
 import { CommanderBoardView } from './commander-board-view';
 import { CommanderHandoverDialog } from './commander-handover-dialog';
 import { CommanderInboxColumn } from './commander-inbox-column';
@@ -33,18 +40,38 @@ export function AgentCommanderApp() {
     // The Chat pane reads its projection from the query cache, which these patches keep current once it runs as a Chat.
     useEffect(() => subscribeAgentChatPatches(queryClient), []);
     const isBoardVisible = useCommanderBoardUiStore((state) => state.isVisible);
+    const boardWidth = useCommanderBoardUiStore((state) => state.width);
+    useEffect(() => {
+        document.documentElement.style.setProperty('--commander-board-width', `${boardWidth}px`);
+    }, [boardWidth]);
     return (
         <TooltipProvider>
             <div className="agent-commander flex h-screen w-screen flex-col bg-background text-foreground">
                 <AgentCommanderHeader />
                 <div className="relative flex min-h-0 flex-1">
                     {isBoardVisible && (
-                        <aside
-                            aria-label={t('agentCommander.window.sessionsLabel')}
-                            className="agent-commander-board flex w-90 flex-none flex-col bg-surface"
-                        >
-                            <CommanderBoardView />
-                        </aside>
+                        <>
+                            <aside
+                                aria-label={t('agentCommander.window.sessionsLabel')}
+                                className="agent-commander-board flex w-[var(--commander-board-width,360px)] flex-none flex-col bg-surface"
+                            >
+                                <CommanderBoardView />
+                            </aside>
+                            {/* The same seam as the Inbox column's: drag, arrow keys, and a double-click reset. */}
+                            <div className="flex flex-none">
+                                <PanelDivider
+                                    ariaLabel={t('agentCommander.window.resizeSessions')}
+                                    size={boardWidth}
+                                    min={COMMANDER_BOARD_MIN_WIDTH}
+                                    max={COMMANDER_BOARD_MAX_WIDTH}
+                                    defaultSize={COMMANDER_BOARD_DEFAULT_WIDTH}
+                                    cssVariable="--commander-board-width"
+                                    growDirection={1}
+                                    orientation="vertical"
+                                    onCommit={setCommanderBoardWidth}
+                                />
+                            </div>
+                        </>
                     )}
                     <main className="agent-commander-terminal relative min-h-0 min-w-0 flex-1">
                         <CommanderTerminal onRetry={retry} status={status} />

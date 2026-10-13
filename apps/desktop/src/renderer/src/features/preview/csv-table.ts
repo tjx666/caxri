@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 
 /**
  * Data rows the table view parses and shows. Parsing stops at this bound (Papa Parse's `preview`), so a file at the
@@ -177,13 +178,13 @@ export function parseDelimitedTable(
 
 function rowsLabel(count: number, t: Translate): string {
     return t(count === 1 ? 'preview.table.rowsOne' : 'preview.table.rowsOther', {
-        count: count.toLocaleString('en-US'),
+        count: formatCount(count),
     });
 }
 
 function columnsLabel(count: number, t: Translate): string {
     return t(count === 1 ? 'preview.table.columnsOne' : 'preview.table.columnsOther', {
-        count: count.toLocaleString('en-US'),
+        count: formatCount(count),
     });
 }
 
@@ -201,7 +202,7 @@ export function describeTableSize(
         visibleRows === table.rows.length
             ? rowsLabel(table.rows.length, t)
             : t('preview.table.filteredRows', {
-                  visible: visibleRows.toLocaleString('en-US'),
+                  visible: formatCount(visibleRows),
                   total: rowsLabel(table.rows.length, t),
               });
     return `${rows} × ${columnsLabel(table.header.length, t)}`;
@@ -279,12 +280,12 @@ export function describeTableIssues(
     const location =
         first.row === undefined
             ? ''
-            : t('preview.table.issueLocation', { row: first.row.toLocaleString('en-US') });
+            : t('preview.table.issueLocation', { row: formatCount(first.row) });
     const moreCount = table.issueCount - 1;
     const more =
         moreCount > 0
             ? t(moreCount === 1 ? 'preview.table.moreIssuesOne' : 'preview.table.moreIssuesOther', {
-                  count: moreCount.toLocaleString('en-US'),
+                  count: formatCount(moreCount),
               })
             : '';
     // Papa Parse's own message stays English: it is the parser's diagnostic, quoted as-is.

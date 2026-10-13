@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 
 import type { AgentChatModel } from '@caxri/protocol';
-import { Check } from 'lucide-react';
+import { Check, ChevronLeft } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
@@ -15,15 +15,21 @@ const DEFAULT_MODEL_ID = 'default';
 /**
  * The picker's model face, opened from the effort panel's model name, after the Codex app's model list: a caption, one
  * row per model with a check on the current one, and each model's description in a tooltip beside its row. Arrow keys
- * move between rows; the current row takes focus when the list opens.
+ * move between rows; the current row takes focus when the list opens. While the current model has an effort panel
+ * (`onBack`), the caption is a back button to it, and ArrowLeft goes back too, as a submenu returns to its parent.
  */
 export function AgentChatModelList({
     currentId,
     models,
+    onBack,
     onChoose,
 }: {
     currentId: string | undefined;
     models: readonly AgentChatModel[];
+    /**
+     * Returns to the effort panel; omitted when the current model has none, so the list is the picker's only face.
+     */
+    onBack: (() => void) | undefined;
     onChoose: (id: string) => void;
 }) {
     const { t } = useTranslation();
@@ -31,14 +37,33 @@ export function AgentChatModelList({
     const focusId = models.some((model) => model.id === currentId) ? currentId : models[0]?.id;
     return (
         <div className="flex max-h-96 flex-col overflow-y-auto p-1">
-            <div className="px-2 pt-1 pb-0.5 text-[11px] text-muted">
-                {t('agentChat.model.chooseModel')}
-            </div>
+            {onBack ? (
+                <button
+                    aria-label={t('agentChat.model.backToEffort')}
+                    className="flex min-h-6 cursor-pointer items-center gap-1 self-start rounded-md border-0 bg-transparent px-1.5 text-[11px] text-muted outline-none hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground"
+                    type="button"
+                    onClick={onBack}
+                >
+                    <ChevronLeft aria-hidden className="size-3 shrink-0" />
+                    {t('agentChat.model.chooseModel')}
+                </button>
+            ) : (
+                <div className="px-2 pt-1 pb-0.5 text-[11px] text-muted">
+                    {t('agentChat.model.chooseModel')}
+                </div>
+            )}
             <div
                 aria-label={t('agentChat.model.chooseModel')}
                 className="flex flex-col"
                 role="radiogroup"
-                onKeyDown={moveRowFocus}
+                onKeyDown={(event) => {
+                    if (onBack && event.key === 'ArrowLeft') {
+                        event.preventDefault();
+                        onBack();
+                        return;
+                    }
+                    moveRowFocus(event);
+                }}
             >
                 {models.map((model) => (
                     <ModelRow
@@ -71,7 +96,7 @@ function ModelRow({
             aria-checked={isCurrent}
             // The current row takes focus as the list replaces the effort panel, as a menu focuses its checked item.
             autoFocus={isFocusTarget}
-            className="flex min-h-7 w-full cursor-pointer items-center gap-2 rounded px-2 py-1 text-left text-[12px] outline-none hover:bg-[var(--selection)] focus-visible:bg-[var(--selection)]"
+            className="flex min-h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left text-[12px] outline-none hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground"
             role="radio"
             tabIndex={isFocusTarget ? 0 : -1}
             type="button"

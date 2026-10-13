@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import type { CommandId, ProjectStatusOverview } from '@caxri/protocol';
 import { formatLineCount, visibleDiffStatParts } from '@caxri/protocol';
 import { FileDiff, GitPullRequest } from 'lucide-react';
@@ -5,14 +7,25 @@ import { FileDiff, GitPullRequest } from 'lucide-react';
 import { executeCommand } from '../../commands/execute';
 import { DiffStatSign } from '../../components/diff-stat';
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { diffStatLabel } from '../../lib/diff-stat-label';
+import { useCaxriQuery } from '../../queries/client';
+import { useSelectedSession } from '../../stores/selectors';
 import { AcceptanceStatus } from './acceptance-status';
 import type { ChipVisibility } from './chip-priority';
 import { LinearIssueStatus } from './linear-issue-status';
-import { pullRequestTooltip, pullRequestUnavailableLabel } from './pull-request-status-label';
+import { MismatchDot } from './mismatch-dot';
+import {
+    pullRequestAriaLabel,
+    pullRequestElsewhereBranch,
+    pullRequestTooltip,
+    pullRequestUnavailableLabel,
+} from './pull-request-status-label';
 import { StatusInfo } from './status-info';
 import { PriorityChipSlot, StatusItem } from './status-item';
+import { selectWorkbenchRoot } from './workbench-root-commands';
+import { workbenchRootForBranch } from './workbench-root-options';
 
 type Repo = NonNullable<ProjectStatusOverview['repository']>;
 
@@ -80,6 +93,89 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
 }
 
 /**
+ * Matches the Workbench Root picker's closed-state poll, so opening this card reuses the roots that poll already read.
+ */
+const WORKBENCH_ROOTS_STALE_MS = 60_000;
+
+/**
+ * The pull request card's way to the branch it names: `Switch to <branch> Worktree`, through the same confirmation and
+ * switch the Workbench Root picker uses. Mounted only while the card is open, so the roots are read on demand rather
+ * than polled for every pull request chip. Renders nothing when no single worktree has the branch checked out.
+ */
+function PullRequestWorktreeSwitch({ branch, sessionId }: { branch: string; sessionId: string }) {
+    const { t } = useTranslation();
+    const session = useSelectedSession();
+    const [isSwitching, setIsSwitching] = useState(false);
+    const rootsQuery = useCaxriQuery(
+        'session.workbenchRoots',
+        { sessionId },
+        { staleTime: WORKBENCH_ROOTS_STALE_MS },
+    );
+    const root = workbenchRootForBranch(rootsQuery.data ?? [], branch, session?.workbenchProjectId);
+    if (!root) return null;
+    return (
+        <Button
+            variant="secondary"
+            size="sm"
+            className="mt-2 w-full"
+            aria-disabled={isSwitching || undefined}
+            onClick={() => {
+                if (isSwitching) return;
+                setIsSwitching(true);
+                // eslint-disable-next-line no-void -- `selectWorkbenchRoot` reports its own failure through a toast.
+                void selectWorkbenchRoot(sessionId, root).finally(() => setIsSwitching(false));
+            }}
+        >
+            {t('statusBar.pullRequest.switchWorktree', { branch })}
+        </Button>
+    );
+}
+
+/**
+ * The pull request chip. A pull request on another branch carries the same mismatch dot as the Workbench Root picker
+ * and names its branch in the accessible name; its card then offers the switch when a worktree has that branch.
+ */
+function PullRequestStatus({
+    branch,
+    pullRequest,
+    sessionId,
+}: {
+    branch: string;
+    pullRequest: NonNullable<Repo['pullRequest']>;
+    sessionId?: string;
+}) {
+    const { t } = useTranslation();
+    const elsewhereBranch = pullRequestElsewhereBranch(pullRequest, branch);
+    const canSwitch = Boolean(elsewhereBranch && sessionId);
+    return (
+        <StatusItem
+            icon={
+                elsewhereBranch ? (
+                    <GitPullRequest aria-hidden="true" data-pull-request-elsewhere="true">
+                        <MismatchDot key="pull-request-elsewhere" />
+                    </GitPullRequest>
+                ) : (
+                    <GitPullRequest />
+                )
+            }
+            href={pullRequest.url}
+            ariaLabel={pullRequestAriaLabel(pullRequest, branch, t)}
+            interactiveTitle={canSwitch}
+            title={
+                <>
+                    <StructuredTooltip {...pullRequestTooltip(pullRequest, branch, t)} />
+                    {canSwitch && elsewhereBranch && sessionId && (
+                        <PullRequestWorktreeSwitch branch={elsewhereBranch} sessionId={sessionId} />
+                    )}
+                </>
+            }
+        >
+            #{pullRequest.number}
+        </StatusItem>
+    );
+}
+
+/**
  * The chips derived from the Session's primary repository: delivery metadata first, then the local change counter.
  * Split out of `StatusBarContext` because every new external-status source adds another visibility branch here, and the
  * footer's own layout should stay readable next to them.
@@ -87,29 +183,22 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
 export function RepoStatusChips({
     chipVisibility,
     repo,
+    sessionId,
 }: {
     chipVisibility: ChipVisibility;
     repo: Repo;
+    sessionId?: string;
 }) {
     const { t } = useTranslation();
     return (
         <>
             <PriorityChipSlot chip="pullRequest" isHidden={!chipVisibility.pullRequest}>
                 {repo.pullRequest && (
-                    <StatusItem
-                        icon={<GitPullRequest />}
-                        href={repo.pullRequest.url}
-                        ariaLabel={t('statusBar.pullRequest.ariaLabel', {
-                            number: repo.pullRequest.number,
-                        })}
-                        title={
-                            <StructuredTooltip
-                                {...pullRequestTooltip(repo.pullRequest, repo.branch, t)}
-                            />
-                        }
-                    >
-                        #{repo.pullRequest.number}
-                    </StatusItem>
+                    <PullRequestStatus
+                        branch={repo.branch}
+                        pullRequest={repo.pullRequest}
+                        sessionId={sessionId}
+                    />
                 )}
                 {repo.pullRequestUnavailable && (
                     <StatusInfo
