@@ -19,7 +19,8 @@ export interface FootprintReceipt {
 }
 
 /**
- * Allowed growth for one metric group (`memory`, `disk`, `transfer`): `baseline * (1 + relative) + absoluteKiB`.
+ * Allowed growth for one metric group, the metric name's first segment (`memory`, `load`, `disk`, `transfer`):
+ * `baseline * (1 + relative) + absoluteKiB`.
  */
 interface FootprintTolerance {
     absoluteKiB: number;

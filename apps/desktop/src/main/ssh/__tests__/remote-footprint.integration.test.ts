@@ -22,7 +22,7 @@ import {
 
 /**
  * The SSH Host footprint benchmark: installs the Server on a clean lab host, then measures what it costs the host at
- * two stages and writes a receipt that `scripts/server-footprint.ts` compares with the checked-in baseline. Run it
+ * three stages and writes a receipt that `scripts/server-footprint.ts` compares with the checked-in baseline. Run it
  * through that script (`bun run benchmark:server-footprint`), which builds the remote layers, starts a disposable lab,
  * and gates the result; see `docs/server-footprint.md`.
  *
@@ -32,6 +32,9 @@ import {
  * - `attached`: a Desktop is connected and nothing is open (Server Core, Terminal Host, Extension Host).
  * - `working`: one Git Project of 2,000 tracked files and a gitignored `node_modules` is open in a selected Session, with
  *   a shell Terminal, a file listing, and a Git summary.
+ * - `load`: a second Project of 15,000 tracked files takes ten rounds of concurrent Git summaries, content and name
+ *   searches, listings, and reads. Only Server Core is recorded, under its own `load` metric group: its settled `Rss`
+ *   and `Pss` (what a burst leaves resident, which the young-generation cap keeps down) and its peak `VmHWM`.
  *
  * Memory is `Rss` and `Pss` from `/proc/<pid>/smaps_rollup`, the median of several samples after a settle delay. PSS
  * splits the shared Node binary pages between the processes, so the PSS total is what the host actually spends. Disk is
@@ -40,11 +43,14 @@ import {
 const receiptFile = process.env.CAXRI_SERVER_FOOTPRINT_RECEIPT;
 const layersRoot = resolve(import.meta.dirname, '../../../../../server/dist/remote');
 const PROJECT_FOLDER = 'caxri-footprint-project';
-const RESET_SCRIPT = resetRemoteServerScript(PROJECT_FOLDER);
+const LOAD_PROJECT_FOLDER = 'caxri-footprint-load';
+const RESET_SCRIPT = `${resetRemoteServerScript(PROJECT_FOLDER)}rm -rf "$HOME/${LOAD_PROJECT_FOLDER}"\n`;
 const SERVER_ROLES = ['server-core', 'terminal-host', 'extension-host'] as const;
 const SETTLE_MS = 10_000;
 const SAMPLE_COUNT = 5;
 const SAMPLE_INTERVAL_MS = 2000;
+const LOAD_ROUNDS = 10;
+const LOAD_DIRECTORIES_PER_ROUND = 30;
 
 type ServerRole = (typeof SERVER_ROLES)[number];
 
@@ -110,6 +116,36 @@ for i in 0 1 2 3 4; do printf '// changed\n' >> "src/module-$i/file-0.ts"; done
 printf 'export const draft = true;\n' > src/untracked.ts
 `;
 
+/**
+ * The `load` Project: 300 directories of 50 tracked files, with five modified files and one untracked file in every
+ * directory, so Git status and search scan a Project the size of a mid-sized monorepo package.
+ */
+const LOAD_FIXTURE_SCRIPT = `set -eu
+root="$HOME/${LOAD_PROJECT_FOLDER}"
+rm -rf "$root"
+mkdir -p "$root"
+cd "$root"
+git init -q -b main
+i=0
+while [ "$i" -lt 300 ]; do
+    mkdir -p "src/module-$i"
+    j=0
+    while [ "$j" -lt 50 ]; do
+        printf 'export const value%d = %d;\n' "$j" "$((i * 50 + j))" > "src/module-$i/file-$j.ts"
+        j=$((j + 1))
+    done
+    i=$((i + 1))
+done
+git add -A
+git -c user.name=Caxri -c user.email=footprint@example.invalid commit -q -m fixture
+i=0
+while [ "$i" -lt 300 ]; do
+    for j in 0 1 2 3 4; do printf '// changed\n' >> "src/module-$i/file-$j.ts"; done
+    printf 'export const draft = %d;\n' "$i" > "src/module-$i/untracked.ts"
+    i=$((i + 1))
+done
+`;
+
 function median(values: number[]): number {
     const sorted = values.toSorted((left, right) => left - right);
     return sorted[Math.floor(sorted.length / 2)] ?? 0;
@@ -163,23 +199,29 @@ describe.skipIf(!isSshIntegrationEnabled || !receiptFile)('Server footprint on a
     }
 
     /**
-     * Settles, then records the median `Rss`/`Pss` per role and the totals under `memory.<stage>.`.
+     * Settles, then samples every Server process `SAMPLE_COUNT` times, spaced `SAMPLE_INTERVAL_MS` apart.
      */
-    async function measureStage(stage: string, metrics: Record<string, number>): Promise<void> {
+    async function sampleSettled(): Promise<ProcessSample[]> {
         await delay(SETTLE_MS);
-        const rounds: ProcessSample[][] = [];
+        const samples: ProcessSample[] = [];
         for (let round = 0; round < SAMPLE_COUNT; round += 1) {
             // eslint-disable-next-line no-await-in-loop -- samples are spaced in time on purpose
             if (round > 0) await delay(SAMPLE_INTERVAL_MS);
             // eslint-disable-next-line no-await-in-loop -- samples are spaced in time on purpose
-            rounds.push(parseProcessSamples(await remote(SAMPLE_SCRIPT)));
+            samples.push(...parseProcessSamples(await remote(SAMPLE_SCRIPT)));
         }
+        return samples;
+    }
+
+    /**
+     * Records the median `Rss`/`Pss` per role and the totals under `memory.<stage>.`.
+     */
+    async function measureStage(stage: string, metrics: Record<string, number>): Promise<void> {
+        const settled = await sampleSettled();
         let totalRss = 0;
         let totalPss = 0;
         for (const role of SERVER_ROLES) {
-            const samples = rounds.flatMap((round) =>
-                round.filter((sample) => sample.role === role),
-            );
+            const samples = settled.filter((sample) => sample.role === role);
             if (samples.length === 0) continue;
             const rss = median(samples.map((sample) => sample.rssKiB));
             const pss = median(samples.map((sample) => sample.pssKiB));
@@ -190,6 +232,74 @@ describe.skipIf(!isSshIntegrationEnabled || !receiptFile)('Server footprint on a
         }
         metrics[`memory.${stage}.totalRssKiB`] = totalRss;
         metrics[`memory.${stage}.totalPssKiB`] = totalPss;
+    }
+
+    /**
+     * Records Server Core's settled median `Rss`/`Pss` after the load and its peak resident size since it started.
+     */
+    async function measureLoad(metrics: Record<string, number>): Promise<void> {
+        const samples = (await sampleSettled()).filter((sample) => sample.role === 'server-core');
+        const pid = samples.at(-1)?.pid;
+        if (pid === undefined) throw new Error('Server Core is not running after the load');
+        metrics['load.server-core.rssKiB'] = median(samples.map((sample) => sample.rssKiB));
+        metrics['load.server-core.pssKiB'] = median(samples.map((sample) => sample.pssKiB));
+        const peak = await remote(`awk '/^VmHWM:/ { print $2 }' /proc/${pid}/status`);
+        metrics['load.server-core.peakRssKiB'] = Number(peak.trim());
+    }
+
+    /**
+     * Opens the folder `name` under the lab user's home as a Project and selects a new Session in it.
+     */
+    async function openProject(desktop: ServerClient, name: string) {
+        const browsed = await desktop.request('project.browseFolders', {});
+        const entry = browsed.entries.find((candidate) => candidate.name === name);
+        expect(entry).toBeDefined();
+        const project = await desktop.requestServerOperation('project.create', {
+            rootPath: entry?.path ?? '',
+        });
+        const { session } = await desktop.request('session.create', {
+            projectId: project.id,
+            defaultAgent: null,
+        });
+        await desktop.request('session.select', { sessionId: session.id });
+        return session;
+    }
+
+    /**
+     * Each round runs a Git summary, a content search, a name search, and 30 listings each followed by a read, all at
+     * once; the rounds run back to back.
+     */
+    async function runLoad(desktop: ServerClient, sessionId: string): Promise<void> {
+        const listing = await desktop.request('files.list', { sessionId });
+        const source = listing.entries.find((candidate) => candidate.name === 'src');
+        expect(source).toBeDefined();
+        for (let round = 0; round < LOAD_ROUNDS; round += 1) {
+            // eslint-disable-next-line no-await-in-loop -- rounds run back to back; each round is concurrent
+            const [, contentSearch] = await Promise.all([
+                desktop.request('git.summary', { sessionId }),
+                desktop.request('files.search', {
+                    sessionId,
+                    consumer: 'project-search',
+                    mode: 'content',
+                    query: 'value1',
+                }),
+                desktop.request('files.search', {
+                    sessionId,
+                    consumer: 'path-browser',
+                    mode: 'name',
+                    query: 'file-4',
+                }),
+                ...Array.from({ length: LOAD_DIRECTORIES_PER_ROUND }, async (_, index) => {
+                    const directory = await desktop.request('files.list', {
+                        sessionId,
+                        directory: `${source?.path}/module-${round * LOAD_DIRECTORIES_PER_ROUND + index}`,
+                    });
+                    const file = directory.entries.find((entry) => entry.name === 'file-1.ts');
+                    if (file) await desktop.request('files.read', { sessionId, path: file.path });
+                }),
+            ]);
+            expect(contentSearch.matches.length).toBeGreaterThan(0);
+        }
     }
 
     beforeAll(async () => {
@@ -269,17 +379,7 @@ describe.skipIf(!isSshIntegrationEnabled || !receiptFile)('Server footprint on a
 
             await remote(FIXTURE_SCRIPT, 120_000);
             startedAt = Date.now();
-            const browsed = await desktop.request('project.browseFolders', {});
-            const entry = browsed.entries.find((candidate) => candidate.name === PROJECT_FOLDER);
-            expect(entry).toBeDefined();
-            const project = await desktop.requestServerOperation('project.create', {
-                rootPath: entry?.path ?? '',
-            });
-            const { session } = await desktop.request('session.create', {
-                projectId: project.id,
-                defaultAgent: null,
-            });
-            await desktop.request('session.select', { sessionId: session.id });
+            const session = await openProject(desktop, PROJECT_FOLDER);
             const terminal = await desktop.request('terminal.create', {
                 sessionId: session.id,
                 kind: 'shell',
@@ -322,6 +422,13 @@ describe.skipIf(!isSshIntegrationEnabled || !receiptFile)('Server footprint on a
                 metrics[`disk.${name}KiB`] = Number(match[1]);
             }
             expect(metrics['disk.totalKiB']).toBeGreaterThan(0);
+
+            await remote(LOAD_FIXTURE_SCRIPT, 300_000);
+            const loadSession = await openProject(desktop, LOAD_PROJECT_FOLDER);
+            startedAt = Date.now();
+            await runLoad(desktop, loadSession.id);
+            timings.loadMs = Date.now() - startedAt;
+            await measureLoad(metrics);
 
             const receipt = {
                 schemaVersion: 1,

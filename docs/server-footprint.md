@@ -19,11 +19,11 @@ totals are what the host actually spends.
 
 | Resource                 | Need                                                                       |
 | ------------------------ | -------------------------------------------------------------------------- |
-| Disk, first install      | 131 MiB: Node runtime 117 MiB, one build 13.4 MiB, profile 0.6 MiB         |
+| Disk, first install      | 131 MiB: Node runtime 117 MiB, one build 13.4 MiB, profile 0.7 MiB         |
 | Disk, long running       | Up to about 400 MiB with a previous build and every log at its cap (below) |
-| Memory, attached         | 148 MiB PSS (192 MiB RSS): Server Core and the Extension Host              |
-| Memory, Project open     | 180 MiB PSS (272 MiB RSS): adds the Terminal Host and a Project's state    |
-| Memory, heavy Git/search | Server Core alone reaches about 200 MiB RSS on a 15,000-file Project       |
+| Memory, attached         | 147 MiB PSS (190 MiB RSS): Server Core and the Extension Host              |
+| Memory, Project open     | 179 MiB PSS (267 MiB RSS): adds the Terminal Host and a Project's state    |
+| Memory, heavy Git/search | Server Core alone: about 203 MiB RSS after the load, 236 MiB at its peak   |
 | Upload per new build     | 4.6 MiB, the compressed application layer                                  |
 | Runtime download, once   | 55 MiB Node tarball fetched by the host, or 117 MiB streamed over SSH      |
 
@@ -43,12 +43,14 @@ Median of five samples on linux-arm64, recorded by the benchmark below.
 
 | Measure                           | Value     |
 | --------------------------------- | --------- |
-| Attached, total PSS               | 147.6 MiB |
-| Project open, total PSS           | 179.9 MiB |
-| Project open, total RSS           | 271.9 MiB |
-| Project open, Server Core PSS     | 99.2 MiB  |
-| Project open, Terminal Host PSS   | 45.0 MiB  |
-| Project open, Extension Host PSS  | 35.8 MiB  |
+| Attached, total PSS               | 146.8 MiB |
+| Project open, total PSS           | 179.3 MiB |
+| Project open, total RSS           | 266.6 MiB |
+| Project open, Server Core PSS     | 101.2 MiB |
+| Project open, Terminal Host PSS   | 42.6 MiB  |
+| Project open, Extension Host PSS  | 35.5 MiB  |
+| Load, Server Core RSS after it    | 202.9 MiB |
+| Load, Server Core peak RSS        | 236.0 MiB |
 | Disk after the first install      | 131.1 MiB |
 | Upload per build                  | 4.6 MiB   |
 | Terminal Host startup JavaScript  | 516 KiB   |
@@ -73,19 +75,24 @@ real install and launch path. That test writes a receipt to
 `test-results/receipts/server-footprint.json`, which the script compares with the baseline. Pass
 `--skip-build` to reuse `apps/server/dist/remote`, or `--keep-lab` to leave the container running.
 
-The test measures two stages, each the median of five samples taken after a 10 s settle:
+The test measures three stages, each the median of five samples taken after a 10 s settle:
 
 - `attached`: a Desktop is connected and nothing is open, so Server Core and the Extension Host run.
 - `working`: a Git Project of 2,000 tracked files with a gitignored `node_modules` is open in a
   selected Session, with a shell Terminal, a file listing, and a Git summary, so the Terminal Host
   runs too.
+- `load`: a second Project of 15,000 tracked files (1,500 modified, 300 untracked) takes ten rounds
+  of concurrent Git summaries, content and name searches, and 30 listings each followed by a read.
+  Only Server Core is recorded: its settled RSS and PSS, which is what a burst leaves resident, and
+  its peak RSS (`VmHWM`).
 
 Disk is one `du` over `~/.caxri-server` after a cold install, so the runtime hard-linked into each
 build counts once. Transfer is the app layer's compressed size and the bytes actually written to the
 SSH connection during the install; the Node runtime is downloaded by the host itself from nodejs.org.
 
-Each metric group has a tolerance in the baseline file (`memory`, `disk`, `transfer`: a relative
-share plus an absolute floor in KiB). A value above the baseline plus its tolerance fails. A value
+Each metric group has a tolerance in the baseline file (`memory`, `load`, `disk`, `transfer`: a
+relative share plus an absolute floor in KiB). `load` gets a wider share than `memory` because
+memory after a burst varies more between runs. A value above the baseline plus its tolerance fails. A value
 below it by more than the tolerance passes and asks for `--update`, so an improvement is locked in
 instead of becoming headroom for the next regression. Run the benchmark when a change touches Server
 startup, what the Server or its hosts import, the artifact's contents, or the processes' V8 flags,
@@ -112,12 +119,16 @@ and commit an intended change to the baseline file in the same pull request.
   content and name searches, listings, and reads over 15,000 files) it cut Server Core from about
   290 MiB to about 200 MiB resident with the same latency and the same number of full collections;
   scavenges ran half again as often for about 1% more GC time. 16 MiB measured about 210 MiB. It is
-  not a heap ceiling. The Terminal Host already passes the same flag.
+  not a heap ceiling. The Terminal Host already passes the same flag. The benchmark's `load` stage
+  replays that load: a build without the flag measured 298 MiB after it and 326 MiB at its peak,
+  and failed every `load` metric.
 - **Reads size their buffer from the file.** Bounded file reads, including the project search
   Worker, allocate from the file's size instead of the read cap (`files.maxFileBytes`, 2 MiB). A
   cap-sized Buffer per file counts as external memory and forced a full collection every few files
   in each search Worker: under the same heavy load, full collections fell from about 730 to 4 and
-  the load finished about a fifth sooner.
+  the load finished about a fifth sooner. Both share one loop,
+  `apps/server/src/domains/read-file-handle-up-to.ts`, which imports Node builtins only so the
+  Worker can load it.
 - **Bundles stay one-byte.** Server bundles are ASCII-only, so V8 stores their source as one-byte
   strings; see the memory footprint section of [server-architecture.md](server-architecture.md).
 - **The artifact ships runtime inputs only.** Database migrations are compiled into the Server Core
