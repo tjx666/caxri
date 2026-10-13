@@ -18,6 +18,8 @@ import {
     useCommanderBoardUiStore,
 } from './commander-board-store';
 import { CommanderBoardView } from './commander-board-view';
+import { CommanderClearDataDialog } from './commander-clear-data-dialog';
+import { CommanderCommandPalette } from './commander-command-palette';
 import { CommanderHandoverDialog } from './commander-handover-dialog';
 import { CommanderInboxColumn } from './commander-inbox-column';
 import { useCommanderShortcuts } from './commander-shortcuts';
@@ -28,8 +30,9 @@ import { useAgentCommander } from './hooks/use-agent-commander';
  * The Agent Commander window: the board of every Workbench Session on the left, the Commander's own Terminal in the
  * middle, and on the right the Inbox of what the Commander raised for the user ("Needs you"). The user can collapse the
  * board and hide the Inbox from the title bar, and the Terminal takes the freed width. It renders no Workbench chrome
- * and runs no Workbench commands; menu accelerators stay with the Workbench window, and the keyboard reaches only its
- * Terminal's own actions.
+ * and runs no Workbench commands. Its own Command Palette (`Cmd+Shift+P`, which Desktop Main forwards here while this
+ * window is focused) holds the window's actions, Clear Commander Data among them; every other menu accelerator stays
+ * with the Workbench window, and the keyboard otherwise reaches only its Terminal's own actions.
  */
 export function AgentCommanderApp() {
     const { t } = useTranslation();
@@ -80,6 +83,8 @@ export function AgentCommanderApp() {
                 </div>
                 <ConfirmationDialog />
                 <CommanderHandoverDialog isFromWorkbench={false} />
+                <CommanderCommandPalette />
+                <CommanderClearDataDialog />
                 <ToastOutlet />
             </div>
         </TooltipProvider>

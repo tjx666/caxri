@@ -4,6 +4,7 @@ import {
     COMMANDER_BOARD_DEFAULT_WIDTH,
     COMMANDER_BOARD_MAX_WIDTH,
     COMMANDER_BOARD_MIN_WIDTH,
+    commanderBoardScope,
     commanderBoardWidth,
     isCommanderBoardVisible,
 } from '../commander-board-store';
@@ -69,6 +70,26 @@ describe('useCommanderBoardUiStore', () => {
         const { setCommanderBoardVisible, useCommanderBoardUiStore } = await openWindow();
         setCommanderBoardVisible(false);
         expect(useCommanderBoardUiStore.getState().isVisible).toBe(false);
+    });
+});
+
+describe('commanderBoardScope', () => {
+    it("shows the Commander's own Sessions unless every Session was chosen", () => {
+        expect(commanderBoardScope('all')).toBe('all');
+        expect(commanderBoardScope('commander')).toBe('commander');
+        expect(commanderBoardScope(undefined)).toBe('commander');
+        expect(commanderBoardScope(42)).toBe('commander');
+    });
+
+    it('remembers the scope the next time the window opens', async () => {
+        const entries = new Map<string, string>();
+        stubStorage(entries);
+        const first = await openWindow();
+        expect(first.useCommanderBoardUiStore.getState().scope).toBe('commander');
+        first.setCommanderBoardScope('all');
+
+        const reopened = await openWindow();
+        expect(reopened.useCommanderBoardUiStore.getState().scope).toBe('all');
     });
 });
 

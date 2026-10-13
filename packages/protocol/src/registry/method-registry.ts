@@ -6,6 +6,10 @@ import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { agentChatPickedPathSchema } from '../agent/agent-chat-path-references.js';
 import { commanderMethods } from '../agent/agent-commander-contract.js';
 import {
+    commanderDataInternalMethods,
+    commanderDataMethods,
+} from '../agent/agent-commander-data-contract.js';
+import {
     agentDelegationInternalMethods,
     agentDelegationMethods,
 } from '../agent/agent-delegation-contract.js';
@@ -162,6 +166,7 @@ export const methods = {
     ...agentDispatchMethods,
     ...agentDelegationMethods,
     ...commanderMethods,
+    ...commanderDataMethods,
     ...delegationAccessMethods,
     ...agentEndpointMethods,
     ...agentInboxMethods,
@@ -526,6 +531,7 @@ export const internalMethods = {
     ...agentNotificationInternalMethods,
     ...agentDispatchInternalMethods,
     ...agentDelegationInternalMethods,
+    ...commanderDataInternalMethods,
     ...delegationAccessInternalMethods,
     ...businessInternalMethods,
     ...gitInternalMethods,

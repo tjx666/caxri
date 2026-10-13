@@ -21,7 +21,7 @@ const teardowns: Record<string, (chat: ChatFixture) => Promise<void>> = {
     },
     'switching it to a PTY': async ({ database, service, terminal }) => {
         await service.close(terminal.id);
-        database.updateTerminalSurface(terminal.id, 'pty');
+        database.terminalSurfaces.switch(terminal.id, 'pty');
     },
     'archiving its Session': async ({ database, service, terminal }) => {
         database.archiveSession(terminal.sessionId);

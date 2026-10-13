@@ -116,6 +116,9 @@ type ServiceHandlerMethods =
     | 'commander.conversations'
     | 'commander.status'
     | 'commander.stop'
+    | 'commander.data'
+    | 'commander.switchAgent'
+    | 'commander.clearData'
     | 'commander.task.create'
     | 'commander.task.list'
     | 'commander.task.update'
@@ -163,7 +166,7 @@ export function createServiceHandlers(services: {
     awaitAgentSettingsReconcile: () => Promise<void>;
     commander: Omit<
         AgentCommanderServiceOptions,
-        'database' | 'onLaunching' | 'pullRequests' | 'userDataPath'
+        'database' | 'handovers' | 'inbox' | 'onLaunching' | 'pullRequests' | 'userDataPath'
     >;
     commanderHandovers: CommanderHandoverService;
     commanderInbox: CommanderInboxService;
@@ -235,6 +238,8 @@ export function createServiceHandlers(services: {
     const commander = new AgentCommanderService({
         ...services.commander,
         database,
+        handovers: commanderHandovers,
+        inbox: commanderInbox,
         logger,
         onLaunching: () => {
             commanderInbox.announceUnacknowledged();
@@ -415,6 +420,9 @@ export function createServiceHandlers(services: {
         'commander.snapshot': () => commander.snapshot(),
         'commander.status': () => commander.status(),
         'commander.stop': () => commander.stop(),
+        'commander.data': () => commander.data(),
+        'commander.switchAgent': ({ agent }) => commander.switchAgent(agent),
+        'commander.clearData': (request) => commander.clearData(request),
         'commander.board': () => commander.board(),
         'commander.session.create': ({ projectId }) => commander.createSession(projectId),
         'commander.session.handOver': (request) => commanderHandovers.handOver(request),

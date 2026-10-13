@@ -112,7 +112,7 @@ export function createTerminalSurfaceSwitchHandler(
                     stopped,
                     'surfaceSwitch',
                 );
-                options.database.updateTerminalSurface(terminalId, surface);
+                options.database.terminalSurfaces.switch(terminalId, surface);
                 // Starting fresh drops a binding whose conversation was never written, so neither surface tries to resume it.
                 if (agentSessionId) options.coordinator.prepareTerminalResume(terminalId);
                 else options.coordinator.prepareTerminalStart(terminalId);

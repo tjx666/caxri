@@ -72,8 +72,8 @@ describe('Chat permission choices', () => {
         expect(database.getChatPermission(grok.id)).toEqual({ planMode: false });
 
         database.setChatPermission(codex.id, { permissionMode: 'fullAccess', planMode: false });
-        database.updateTerminalSurface(codex.id, 'pty');
-        database.updateTerminalSurface(codex.id, 'chat');
+        database.terminalSurfaces.switch(codex.id, 'pty');
+        database.terminalSurfaces.switch(codex.id, 'chat');
         expect(database.getChatPermission(codex.id)).toEqual({
             permissionMode: 'fullAccess',
             planMode: false,
@@ -92,7 +92,7 @@ describe('Chat permission choices', () => {
         const terminal = database.createTerminal(session.id, 'claude');
         expect(database.getChatPermission(terminal.id)).toEqual({ planMode: false });
 
-        database.updateTerminalSurface(terminal.id, 'chat');
+        database.terminalSurfaces.switch(terminal.id, 'chat');
         expect(database.getChatPermission(terminal.id)).toEqual({
             permissionMode: 'acceptEdits',
             planMode: false,

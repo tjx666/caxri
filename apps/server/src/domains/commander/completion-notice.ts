@@ -97,9 +97,9 @@ export interface CommanderCompletionNotifierOptions {
     logger?: StructuredLogger;
     now?: () => number;
     /**
-     * Delivers one notice line, without a line terminator, to the Commander. A PTY Commander gets a fenced exact-launch
-     * write with `origin: 'delegation'` (`TerminalManager.writeAgentExact`) so the injected line itself never bumps the
-     * input epoch and blocks a later notice's own fence; a Chat Commander gets a Chat message.
+     * Delivers and submits one notice line, given without a line terminator. A PTY Commander gets a paste and an Enter,
+     * as fenced exact-launch writes with `origin: 'delegation'` (`TerminalManager.writeAgentExact`) so the line never
+     * bumps the input epoch a later notice's fence reads; a Chat Commander gets a Chat message.
      */
     write(
         terminalId: string,
@@ -571,6 +571,13 @@ export class CommanderCompletionNotifier {
         });
         const terminalId = this.commander()?.terminalId;
         if (terminalId) this.tryFlush(terminalId);
+    }
+
+    /**
+     * Drops every queued Inbox event, for Clear Commander Data: the items they name no longer exist.
+     */
+    forgetInbox(): void {
+        this.pendingInbox.clear();
     }
 
     /**

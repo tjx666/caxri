@@ -40,6 +40,27 @@ export const agentCommanderLogEvents = {
      */
     stopped: 'agent_commander.stopped',
     /**
+     * `commander.switchAgent` finished. `fields.outcome` is `switched` (the Commander Terminal moved to `fields.to` on
+     * a new conversation), `unchanged` (it already ran that Agent), or `stored` (no Commander Terminal yet; the next
+     * start uses it), with `fields.from` and the duration.
+     */
+    agentSwitched: 'agent_commander.agent_switched',
+    /**
+     * Preparing a Claude Code Commander launch marked its workspace trusted in Claude Code's config. `fields.outcome`
+     * is the closed `ClaudeFolderTrustOutcome`; anything but `granted` or `already_trusted` means the first launch
+     * shows Claude Code's trust prompt.
+     */
+    claudeTrustPrepared: 'agent_commander.claude_trust_prepared',
+    /**
+     * Clear Commander Data finished. On `fields.outcome: 'cleared'` the fields count what went (`tasksDeleted`,
+     * `taskFilesDeleted`, `inboxItemsDeleted`) and flag what was reset (`memoryReset`, `instructionsRewritten`,
+     * `conversationReset`). On `failed` (a `warn`) `fields.failedStage` is `stores`, `instructions`, or `conversation`,
+     * with the `tasksDeleted` already gone. Both carry `fields.handoversForgotten` (hand-overs the Commander had not
+     * continued, dropped with their deleted task), `fields.taskScope` (`all`, `closed`, or `selected`), and the
+     * duration; never a task title, file name, or memory text.
+     */
+    dataCleared: 'agent_commander.data_cleared',
+    /**
      * A coalesced batch of delegation completion notices was injected into the Commander Terminal. `fields.count` is
      * the number of delegations the single line reports, so this also measures how often coalescing fires.
      */

@@ -3,7 +3,10 @@ import { EventEmitter } from 'node:events';
 import type { StructuredLogger } from '@caxri/system';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AgentCommanderWindowController } from '../agent-commander-window';
+import {
+    agentCommanderMenuOptions,
+    AgentCommanderWindowController,
+} from '../agent-commander-window';
 
 const auxiliaryWindow = vi.hoisted(() => ({
     created: [] as FakeWindow[],
@@ -172,5 +175,56 @@ describe('Agent Commander Inbox request delivery', () => {
         eventsReady();
 
         expect(inboxDeliveries(lastWindow())).toBe(0);
+    });
+});
+
+describe('Agent Commander Command Palette request', () => {
+    beforeEach(() => {
+        auxiliaryWindow.created.length = 0;
+    });
+
+    it('opens the palette in the Commander window and leaves any other window to the usual routing', () => {
+        const { controller, eventsReady } = createController();
+        controller.open();
+        eventsReady();
+        const window = lastWindow();
+
+        expect(controller.requestCommandPalette(new FakeWindow() as never)).toBe(false);
+        expect(controller.requestCommandPalette(window as never)).toBe(true);
+
+        expect(window.webContents.send).toHaveBeenCalledExactlyOnceWith('caxri:event', {
+            event: 'agentCommander.commandPaletteRequested',
+            payload: {},
+        });
+    });
+
+    it('swallows the shortcut while its Renderer is still loading instead of raising the Workbench', () => {
+        const { controller } = createController();
+        controller.open();
+        const window = lastWindow();
+
+        expect(controller.requestCommandPalette(window as never)).toBe(true);
+        expect(window.webContents.send).not.toHaveBeenCalled();
+    });
+});
+
+describe('agentCommanderMenuOptions', () => {
+    beforeEach(() => {
+        auxiliaryWindow.created.length = 0;
+    });
+
+    it('routes the menu to the controller once it exists', () => {
+        const holder: { controller?: AgentCommanderWindowController } = {};
+        const options = agentCommanderMenuOptions(() => holder.controller);
+        const other = new FakeWindow();
+
+        expect(options.openWindowCommandPalette?.(other as never)).toBe(false);
+
+        holder.controller = createController().controller;
+        options.openAgentCommander();
+        const window = lastWindow();
+
+        expect(options.openWindowCommandPalette?.(window as never)).toBe(true);
+        expect(options.openWindowCommandPalette?.(other as never)).toBe(false);
     });
 });

@@ -20,9 +20,12 @@ import { z } from 'zod';
  * Workbench's Desktop principal, so this list is its only authority boundary. The hand-over picker's
  * `commander.conversations`, `commander.session.handOver`, and `commander.session.takeBack` are the user's own grant of
  * Sessions to the Commander, the same requests the Workbench's Session menu sends; the Commander's Agent Endpoint still
- * lacks the `agents.control` they require.
+ * lacks the `agents.control` they require. `commander.switchAgent` and `agentCommander.clearData` only touch the
+ * Commander's own Terminal, ledger, Inbox, and workspace, and clearing still passes Main's native confirmation;
+ * `commander.data` reads the sizes that dialog shows.
  */
 const ADMITTED_METHODS = new Set<string>([
+    'agentCommander.clearData',
     'agentCommander.openSettings',
     'agentCommander.revealSession',
     'agentCommander.stop',
@@ -30,6 +33,7 @@ const ADMITTED_METHODS = new Set<string>([
     'agentChat.openPathReference',
     'commander.board',
     'commander.conversations',
+    'commander.data',
     'commander.ensure',
     'commander.inbox.dismiss',
     'commander.inbox.list',
@@ -39,6 +43,7 @@ const ADMITTED_METHODS = new Set<string>([
     'commander.session.handOver',
     'commander.session.takeBack',
     'commander.snapshot',
+    'commander.switchAgent',
     'contextMenu.show',
     'events.recover',
     'external.open',

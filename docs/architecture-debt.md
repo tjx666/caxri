@@ -677,7 +677,7 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-ui-commander-editable-shortcuts: [RESOLVED · Contract drift · S]
 
 - **Summary:** The Agent Commander window hand-copied which Terminal commands run inside editable fields, with no parity test.
-- **Evidence:** `apps/desktop/src/renderer/src/features/agent-commander/commander-shortcuts.ts` exports `COMMANDER_TERMINAL_COMMANDS`, locked by `commander-shortcuts.test.ts`.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-commander/commander-shortcuts.ts` exports `COMMANDER_KEYBOARD_COMMANDS`, locked by `commander-shortcuts.test.ts`.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
 - **Remediation target / Acceptance:** A drift between the copy and the command catalog fails the test.

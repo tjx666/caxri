@@ -101,3 +101,16 @@ export function createTerminalAgentExactInputHandler(
         return null;
     };
 }
+
+/**
+ * Every Terminal input method: submitted text, mouse-report bytes, and long-paste replacements.
+ */
+export function createTerminalInputHandlers(
+    options: TerminalInputHandlerOptions,
+): Pick<DomainHandlers, 'terminal.input' | 'terminal.inputAgentExact' | 'terminal.inputBinary'> {
+    return {
+        'terminal.input': createTerminalInputHandler(options),
+        'terminal.inputBinary': createTerminalBinaryInputHandler(options),
+        'terminal.inputAgentExact': createTerminalAgentExactInputHandler(options),
+    };
+}

@@ -18,7 +18,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [agent-actions.md](agent-actions.md)                               | Unified Agent skills and slash-command picker                  |
 | [agent-chat.md](agent-chat.md)                                     | Chat Terminals over Codex app-server                           |
 | [agent-command-authority.md](agent-command-authority.md)           | Separate Agent command domains and their authority boundaries  |
-| [agent-commander.md](agent-commander.md)                           | Second-window Codex commander and cross-Project Agent board    |
+| [agent-commander.md](agent-commander.md)                           | Second-window Codex or Claude Code commander and Agent board   |
 | [agent-delegation.md](agent-delegation.md)                         | Visible Agent delegation into a sibling pane                   |
 | [agent-dispatch-receipts.md](agent-dispatch-receipts.md)           | Managed dispatch launch requests and observed process lifetime |
 | [agent-suspension.md](agent-suspension.md)                         | Parking idle background Agents and resuming them on return     |

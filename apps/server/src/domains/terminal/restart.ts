@@ -68,6 +68,11 @@ export function createTerminalRestartHandler(
                 else options.coordinator.prepareTerminalStart(terminalId);
                 terminal = await options.terminals.restart(terminalId, {
                     expectedWorkingDirectory,
+                    /**
+                     * A fresh restart asks for a new Agent conversation, so it starts the Agent even when the last one
+                     * exited on its own and left the Terminal `stopped`, which alone reads as "start only a Shell".
+                     */
+                    ...(mode === 'fresh' && { launchAgent: true }),
                     resumeAgentSessionId,
                     shouldKeepAgentAutonomy: mode !== 'fresh',
                 });

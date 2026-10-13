@@ -389,6 +389,44 @@ export class TerminalsModel {
     }
 
     /**
+     * Moves a parked Agent Terminal onto a different provider for a new conversation, keeping its ID. Unlike
+     * {@link switchAgentProvider}, which records an Agent the user already launched in the PTY, nothing runs here yet:
+     * the caller stopped the previous process and relaunches afterwards. Everything the previous provider owned is
+     * dropped with it: the conversation binding, the transcript location, and a Chat's provider-specific permission.
+     */
+    replaceAgentProvider(
+        id: string,
+        provider: AgentProvider,
+        title: string,
+        now = Date.now(),
+    ): boolean {
+        return (
+            this.database
+                .update(terminals)
+                .set({
+                    kind: provider,
+                    provider,
+                    title,
+                    ptyTitle: null,
+                    icon: provider,
+                    agentSessionId: null,
+                    agentCwd: null,
+                    chatPermissionMode: null,
+                    chatPlanMode: null,
+                    updatedAt: now,
+                })
+                .where(
+                    and(
+                        eq(terminals.id, id),
+                        sql`${terminals.provider} IS NOT NULL`,
+                        sql`${terminals.provider} != ${provider}`,
+                    ),
+                )
+                .run().changes === 1
+        );
+    }
+
+    /**
      * Provider-agnostic persistence primitive for the stable semantic title: what the Terminal _is_, not what its
      * process last announced. Production Agent metadata supplies the conversation name; production OSC 0/2 handling
      * never calls this setter and follows the Shell-only policy documented by {@link setPtyTitle}.

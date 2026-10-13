@@ -9,8 +9,8 @@ import { describeFailure } from '../../stores/toasts';
 import type { CommanderBoardScope } from './commander-board';
 import { commanderBoardRowsInScope, commanderBoardSections } from './commander-board';
 import { CommanderBoardItem } from './commander-board-item';
+import { setCommanderBoardScope, useCommanderBoardUiStore } from './commander-board-store';
 import { CommanderHandoverEmptyAction } from './commander-handover-empty-action';
-import { useCommanderBoardScope } from './hooks/use-commander-board-scope';
 
 /**
  * The board polls on its own clock as well as on `state.changed`: pull request and CI state reach it from the Server's
@@ -31,7 +31,7 @@ const MemoizedCommanderBoardItem = memo(CommanderBoardItem);
  */
 export function CommanderBoardView() {
     const { t } = useTranslation();
-    const [scope, setScope] = useCommanderBoardScope();
+    const scope = useCommanderBoardUiStore((state) => state.scope);
     const board = usePolledQuery('commander.board', undefined, {
         intervalMs: BOARD_POLL_INTERVAL_MS,
         label: 'Agent Commander board',
@@ -71,7 +71,7 @@ export function CommanderBoardView() {
             <CommanderBoardScopeBar
                 allCount={data.rows.length}
                 commanderCount={data.rows.filter((row) => row.commanderSession).length}
-                onScopeChange={setScope}
+                onScopeChange={setCommanderBoardScope}
                 scope={scope}
             />
             {sections.length === 0 ? (
