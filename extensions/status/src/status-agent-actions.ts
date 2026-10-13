@@ -158,7 +158,10 @@ function fixDeploymentPrompt(
         ? ` of commit \`${deployment.commit.sha.slice(0, 7)}\`${deployment.commit.message ? ` "${deployment.commit.message.split('\n', 1)[0]}"` : ''}`
         : '';
     return [
-        `The Vercel ${deployment.environment} deployment${commit} in the ${repoLabel(repo)} repository, branch \`${repo.branch}\`, failed: ${deployment.inspectorUrl ?? deployment.url}`,
+        `The Vercel ${deployment.environment} deployment${commit} in the ${repoLabel(repo)} repository failed: ${deployment.inspectorUrl ?? deployment.url}`,
+        '',
+        // A Production row usually shows the default branch's deployment while the Session sits on a feature branch.
+        `This Session is on branch \`${repo.branch}\`. If the failed commit is not on this branch, do not push the fix here; tell me which branch needs it.`,
         '',
         `Read its build logs (for example \`vercel inspect ${deployment.url} --logs\`) and find the cause. If the code is at fault, fix it, run the checks that cover your change, and push. If the cause is outside the code (configuration, environment variables, quota, or a Vercel outage), explain it and what I need to do instead of changing code. Do not redeploy manually.`,
     ].join('\n');

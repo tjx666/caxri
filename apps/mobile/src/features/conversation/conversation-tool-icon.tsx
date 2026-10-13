@@ -34,6 +34,7 @@ import { conversationStyles as styles } from './conversation-styles';
 
 const TOOL_ICONS: Record<AgentToolKind, ComponentType<LucideProps>> = {
     agent: Bot,
+    manage: Bot,
     browser: Globe,
     command: SquareTerminal,
     computer: Command,

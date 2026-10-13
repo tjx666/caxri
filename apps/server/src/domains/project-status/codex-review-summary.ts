@@ -25,12 +25,15 @@ function cellsOf(line: string): string[] | undefined {
  * A cell's words without the emoji, Markdown emphasis, code ticks, or HTML Codex decorates it with.
  */
 function plainText(cell: string): string {
-    return cell
-        .replaceAll(/<([a-z-]+)(?:\s[^>]*)?>[^<]*<\/\1>/giu, '')
-        .replaceAll(/<[^>]*>/gu, '')
-        .replaceAll(/\*\*|`/gu, '')
-        .replace(/^[^\p{L}\p{N}]+/u, '')
-        .trim();
+    return (
+        cell
+            // A timestamp element's text repeats the status cell's date; any other tag keeps its text (a linked name).
+            .replaceAll(/<relative-time(?:\s[^>]*)?>[^<]*<\/relative-time>/giu, '')
+            .replaceAll(/<[^>]*>/gu, '')
+            .replaceAll(/\*\*|`/gu, '')
+            .replace(/^[^\p{L}\p{N}]+/u, '')
+            .trim()
+    );
 }
 
 /**

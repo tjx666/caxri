@@ -78,6 +78,7 @@ function reviewDescription(
 ): string {
     if (unresolved > 0) return `${unresolved} unresolved`;
     if (codexReviews.some((review) => review.state === 'running')) return 'Reviewing';
+    if (codexReviews.some((review) => review.state === 'failed')) return 'Review failed';
     if (threadCount > 0) return 'All resolved';
     return 'No comments';
 }
