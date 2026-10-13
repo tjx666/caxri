@@ -74,6 +74,16 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
 - The Agent Commander uses the same flag, and additionally records the Session as its own for its
   board and archive commands; see [Agent Commander](agent-commander.md).
 
+An Agent learns this without the `caxri-cli` skill installed. Caxri adds one short pointer to the
+context of every ordinary Claude and Codex Agent, once per launch: it says the Agent runs inside
+Caxri and, when the user asks to start or hand off work in another Session or Project, tells it to
+read `"$CAXRI_CLI" skills get caxri-cli --full` and follow this flow
+(`apps/server/src/domains/agents/session-discovery.ts`). A Terminal Agent receives it as
+`additionalContext` from its first `UserPromptSubmit` hook, so it needs lifecycle hooks enabled. A
+Claude Agent Chat appends it to Claude Code's system prompt; a Codex Agent Chat joins it after the
+user's own `developer_instructions`, read with `config/read`, and adds nothing when Codex cannot
+report them. Grok is not covered yet, and the Agent Commander keeps its own workspace instructions.
+
 The request ID is scoped to the authenticated principal and generation. Reusing it with the same
 input returns the existing task; different input conflicts. Wait timeout reports the current receipt
 without interrupting, restarting, or resubmitting the task. A disconnected caller can later fetch

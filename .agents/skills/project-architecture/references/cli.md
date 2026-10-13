@@ -64,4 +64,7 @@ verified parent inode, mark and bound the managed release tree, preserve sibling
 entries, and fail closed for modified, unknown-schema, or newer installations; removal applies only
 to intact current or older marked entries. No provider exposes a stable, documented per-Session
 skill injection boundary in the controlled version matrix, so Caxri reports local installation
-instead of altering Provider launch flags or private state.
+instead of altering Provider launch flags or private state. Discovery does not wait for that
+installation: a short pointer to `skills get caxri-cli --full` reaches every ordinary Claude and
+Codex Agent through its first `UserPromptSubmit` hook or its Chat instructions; see
+[Visible Agent delegation](../../../../docs/agent-delegation.md#start-work-in-a-new-session).
