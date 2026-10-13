@@ -246,7 +246,7 @@ describe('remote scripts', () => {
                     "  code: 'CONFLICT'",
                     '}',
                     '',
-                    'Node.js v24.20.0',
+                    'Node.js v99.0.0',
                 ];
                 fixture = await buildLayerFixture(layers, {
                     extraFiles: {
@@ -282,7 +282,7 @@ describe('remote scripts', () => {
                 await mkdir(logs, { recursive: true });
                 await writeFile(
                     join(logs, 'server-stdio.log'),
-                    'CaxriError: A Host already owns this profile\n\nNode.js v24.20.0\n',
+                    'CaxriError: A Host already owns this profile\n\nNode.js v99.0.0\n',
                 );
                 const launched = await host.run(
                     launchScript({ buildId: fixture.descriptor.buildId }),
