@@ -24,6 +24,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [agent-suspension.md](agent-suspension.md)                         | Parking idle background Agents and resuming them on return     |
 | [agent-throughput.md](agent-throughput.md)                         | Agent output speed (tok/s) in the status bar                   |
 | [architecture-debt.md](architecture-debt.md)                       | Persistent architecture-debt audit ledger                      |
+| [benchmark.md](benchmark.md)                                       | Benchmark tab: one prompt across Agents, models, and efforts   |
 | [bundle-size.md](bundle-size.md)                                   | Packaged app size baseline and the CI budget gate              |
 | [ci-performance.md](ci-performance.md)                             | CI/E2E execution profiles and performance evidence             |
 | [cli.md](cli.md)                                                   | The `caxri` CLI manual                                         |

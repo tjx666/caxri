@@ -115,6 +115,7 @@ export const core = {
 
     // commands/execute.ts
     'core.commands.usageNeedsProject': 'Add a Project to open Usage',
+    'core.commands.benchmarkNeedsProject': 'Add a Project to open Benchmark',
     'core.commands.openAgentCommanderFailed': 'Unable to open Agent Commander',
     'core.commands.diagnosticsExportFailed': 'Diagnostics export failed',
     'core.commands.diagnosticsExported': 'Diagnostics exported to {{path}}',

@@ -12,6 +12,7 @@ import { takeBackFromCommander } from '../features/agent-commander/commander-han
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
+import { openBenchmarkPage } from '../features/benchmark/benchmark-open';
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
 import {
     addGitReviewComment,
@@ -413,6 +414,11 @@ const commandContext: CommandContext = {
             // Usage is a Session pane tab; before the first Project exists there is no pane to open it into.
             if (getSelectedSession()) openUsagePage();
             else pushToast('info', translate('core.commands.usageNeedsProject'));
+        },
+        openBenchmark: () => {
+            // Like Usage, the Benchmark board is a Session pane tab.
+            if (getSelectedSession()) openBenchmarkPage();
+            else pushToast('info', translate('core.commands.benchmarkNeedsProject'));
         },
         openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),
         /**

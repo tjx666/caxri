@@ -130,6 +130,7 @@ export const editor = {
     'editor.tab.preview': 'Preview: {{name}}',
     'editor.tab.settings': 'Settings',
     'editor.tab.usage': 'Usage',
+    'editor.tab.benchmark': 'Benchmark',
 
     // Editor tab context menu.
     'editor.pathMenu.openSource': 'Open Source',

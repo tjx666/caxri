@@ -124,3 +124,24 @@ Attention whose current generation has not been acknowledged by any Client. Visi
 Session is one acknowledgement path, a hook-reported new Agent turn superseding it is another, and
 acknowledgement is shared across all Clients.
 _Avoid_: Activity, per-device notification count
+
+## Benchmark
+
+**Benchmark**:
+One prompt run against several Entries so the user can compare what each produced, how long it took,
+and what it cost. Each start of a Benchmark is one run, kept in the Benchmark history.
+_Avoid_: eval, arena, leaderboard (the ranked table is one view of a Benchmark)
+
+**Entry**:
+One contestant in a Benchmark: an Agent, the model it runs, and optionally a reasoning effort.
+_Avoid_: config, contestant, variant
+
+**Attempt**:
+One execution of an Entry on the Benchmark's prompt, in its own throwaway folder. An Entry has as many
+Attempts as the Benchmark's repeats.
+_Avoid_: trial, sample, Agent Run
+
+**Judge**:
+The model that scores every completed Attempt of a Benchmark from 0 to 100 without knowing which Entry
+produced it.
+_Avoid_: grader, reviewer
