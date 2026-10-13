@@ -312,14 +312,10 @@ export function AgentChatComposer({
                     data-agent-chat-composer-strip=""
                 >
                     <AgentChatGoalBar
+                        activeTurnId={activeTurnId}
                         goal={snapshot?.goal}
-                        runningTurnStartedAt={
-                            isTurnRunning
-                                ? snapshot?.turns.find((turn) => turn.id === activeTurnId)
-                                      ?.startedAt
-                                : undefined
-                        }
                         terminalId={terminalId}
+                        turns={snapshot?.turns}
                     />
                     <AgentChatActivityBar
                         activity={activity}
@@ -377,19 +373,16 @@ export function AgentChatComposer({
                         aria-label={t('agentChat.composer.message')}
                         className="field-sizing-content max-h-48 min-h-18 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
                         maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
-                        placeholder={
-                            goalMode.isOn
-                                ? t('agentChat.goal.placeholder')
-                                : agentChatComposerPlaceholder(
-                                      sendAction,
-                                      {
-                                          hasNextQueued: nextQueuedId !== undefined,
-                                          isEditing: edit.isEditing,
-                                          isTurnRunning,
-                                      },
-                                      t,
-                                  )
-                        }
+                        placeholder={agentChatComposerPlaceholder(
+                            sendAction,
+                            {
+                                hasNextQueued: nextQueuedId !== undefined,
+                                isEditing: edit.isEditing,
+                                isGoalMode: goalMode.isOn,
+                                isTurnRunning,
+                            },
+                            t,
+                        )}
                         ref={inputReference}
                         rows={1}
                         value={draft}
