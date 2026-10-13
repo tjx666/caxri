@@ -1,7 +1,6 @@
 import type {
     GitCommitDetails,
     TerminalCommitLinkResolution,
-    TerminalReferenceContext,
     TerminalReferencePreview,
     TerminalReferencePreviewRequest,
 } from '@caxri/protocol';
@@ -20,10 +19,6 @@ export interface TerminalReferencePreviewOptions {
     commitDetails: (repoId: string, sha: string) => Promise<GitCommitDetails>;
     githubReferences: GitHubReferenceStore;
     logger: StructuredLogger;
-    /**
-     * The repositories this Session actually has; see {@link isKnownRepo}.
-     */
-    referenceContext: () => Promise<TerminalReferenceContext>;
     resolveCommit: (reference: string) => Promise<TerminalCommitLinkResolution>;
     /**
      * Admits the read through the Git command semaphore, so a burst of hovers cannot outrun the concurrency budget the
@@ -31,22 +26,6 @@ export interface TerminalReferencePreviewOptions {
      */
     schedule: <T>(work: () => Promise<T>) => Promise<T>;
     terminalCwd: string;
-}
-
-/**
- * Whether a hover may spend a network request on this repository.
- *
- * A Terminal renders whatever a program writes, so `owner/repo#1` in its output is untrusted text, and hovering is
- * involuntary in a way clicking is not. Restricting rich metadata to the repositories the Session already has means
- * program output can never steer an outbound request at a repository of its choosing just by scrolling past the
- * pointer. The link itself still opens anywhere on an explicit `⌘ click`; only the unattended read is constrained.
- */
-function isKnownRepo(context: TerminalReferenceContext, owner: string, repo: string): boolean {
-    return context.githubRepositories.some(
-        (candidate) =>
-            candidate.owner.toLowerCase() === owner.toLowerCase() &&
-            candidate.repo.toLowerCase() === repo.toLowerCase(),
-    );
 }
 
 /**
@@ -95,13 +74,17 @@ async function commitPreview(
     };
 }
 
+/**
+ * Reads any github.com repository, not only the Session's own. An Agent routinely links pull requests it opened in a
+ * sibling repository, and limiting the read to the Session's remotes left every such link stuck on the unknown glyph
+ * even after it merged. The read is a REST GET on github.com whose answer only reaches this machine; the owner and
+ * repository are held to GitHub's name characters by the protocol, so a crafted link cannot reshape the API path, and
+ * the per-reference cache plus the Git command semaphore bound what a burst of links can spend.
+ */
 async function githubPreview(
     request: Extract<TerminalReferencePreviewRequest, { kind: 'github' }>,
     options: TerminalReferencePreviewOptions,
 ): Promise<TerminalReferencePreview> {
-    const context = await options.referenceContext();
-    if (!isKnownRepo(context, request.owner, request.repo))
-        return { kind: 'unavailable', reason: 'not-found' };
     const startedAt = performance.now();
     return options.schedule(async () => {
         try {

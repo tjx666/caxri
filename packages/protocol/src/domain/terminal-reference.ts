@@ -2,6 +2,21 @@ import { z } from 'zod';
 
 import { identifierSchema } from './domain.js';
 
+/**
+ * Whether `value` can be a GitHub owner or repository name: letters, digits, `.`, `_`, and `-`, but never `.` or `..`.
+ * The Server interpolates both into a REST path for any repository a link names, so a `/`, `?`, `#`, or `%` would let a
+ * crafted link reshape the request (`project%2Fissues%2F1%3F` turns a read of #999 into a read of #1), and a dot
+ * segment would climb out of `repos/`.
+ */
+export function isGitHubName(value: string): boolean {
+    return value.length <= 100 && /^[\w.-]+$/u.test(value) && value !== '.' && value !== '..';
+}
+
+const gitHubNameSchema = z
+    .string()
+    .min(1)
+    .refine(isGitHubName, 'Not a GitHub owner or repository name');
+
 export const terminalGitHubRepoSchema = z.strictObject({
     owner: z.string().min(1).max(100),
     repo: z.string().min(1).max(100),
@@ -44,8 +59,8 @@ export const terminalReferencePreviewRequestSchema = z.discriminatedUnion('kind'
     }),
     z.strictObject({
         kind: z.literal('github'),
-        owner: z.string().min(1).max(100),
-        repo: z.string().min(1).max(100),
+        owner: gitHubNameSchema,
+        repo: gitHubNameSchema,
         number: z.number().int().positive().max(10_000_000),
     }),
 ]);

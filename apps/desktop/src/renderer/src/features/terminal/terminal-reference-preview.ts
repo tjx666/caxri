@@ -1,4 +1,5 @@
 import type { TerminalReferencePreview, TerminalReferencePreviewRequest } from '@caxri/protocol';
+import { isGitHubName } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
 import type { TranslationKey } from '../../i18n';
@@ -100,9 +101,10 @@ export function terminalReferencePreviewRequest(
     if (link.kind !== 'url') return undefined;
     const github = GITHUB_REFERENCE_PATTERN.exec(link.target);
     if (!github) return undefined;
-    const number = Number(github[3]);
-    return Number.isSafeInteger(number) && number > 0
-        ? { kind: 'github', owner: github[1], repo: github[2], number }
+    const [, owner, repo, rawNumber] = github;
+    const number = Number(rawNumber);
+    return Number.isSafeInteger(number) && number > 0 && isGitHubName(owner) && isGitHubName(repo)
+        ? { kind: 'github', owner, repo, number }
         : undefined;
 }
 

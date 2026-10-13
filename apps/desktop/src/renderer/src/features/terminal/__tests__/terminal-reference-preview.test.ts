@@ -58,6 +58,16 @@ describe('terminalReferencePreviewRequest', () => {
             }),
         ).toBeUndefined();
     });
+
+    it('asks nothing for a GitHub link whose names could reshape the REST path', () => {
+        for (const target of [
+            'https://github.com/acme/widgets%2Fissues%2F1%3F/pull/999',
+            'https://github.com/../user/issues/1',
+        ])
+            expect(
+                terminalReferencePreviewRequest({ kind: 'url', target, text: target }),
+            ).toBeUndefined();
+    });
 });
 
 describe('terminalReferencePreviewCard', () => {

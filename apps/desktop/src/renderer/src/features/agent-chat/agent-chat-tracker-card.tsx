@@ -66,8 +66,8 @@ function actionLabel(artifact: AgentChatTrackerArtifact, t: Translate): string {
 /**
  * What the Terminal reference preview (and its cache, shared with a Chat pull request link's state glyph) adds to a
  * GitHub card: the title of a pull request or issue the card names only by number, and a pull request's live state. The
- * Server answers only for repositories the Session already has, so another repository, a failed read, or a Chat without
- * a Terminal leaves both `undefined`.
+ * Server answers for any github.com repository, so only a failed read or a Chat without a Terminal leaves both
+ * `undefined`.
  */
 function useTrackerPreview(artifact: AgentChatTrackerArtifact): {
     title: string | undefined;

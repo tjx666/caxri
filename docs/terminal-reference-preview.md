@@ -78,12 +78,21 @@ commits in two of the Session's repositories returns `ambiguous` rather than pic
 the answer the click path already gives. The commit body is truncated at the Server; the card shows
 two lines and the rest never crosses the wire.
 
-**A GitHub reference is read only for a repository the Session already has.** This is the load-bearing
-restriction. A Terminal renders whatever a program writes, and hovering is involuntary in a way
-clicking is not, so `attacker/repo#1` scrolling past the pointer must not be able to steer an
-outbound request at a repository of its choosing. The link still opens anywhere on an explicit
-`⌘ click`; only the unattended read is constrained. An unknown repository returns `not-found` without
-spending a request.
+**A GitHub reference is read for any github.com repository.** The same method backs the state glyph
+on a pull request link in Agent Chat and the Chat's pull request card, and an Agent routinely links
+pull requests it opened in a sibling repository. An earlier gate that answered only for the
+Session's own remotes left every such link on the unknown glyph, so a merged pull request kept
+looking open. The read is a REST GET whose answer only reaches this machine, which fits Caxri's
+single-user security bar. What makes it safe to take from untrusted text:
+
+- `owner` and `repo` must be GitHub names (letters, digits, `.`, `_`, `-`, never `.` or `..`), checked
+  by the protocol schema and again by every Renderer parser before it asks. They are interpolated
+  into `repos/<owner>/<repo>/issues/<number>`, so a decoded `/`, `?`, or `#` would otherwise reshape
+  the path (`widgets%2Fissues%2F1%3F/pull/999` read #1 instead of #999).
+- `gh api --hostname github.com` pins the host. Every reference comes from a github.com link, and
+  without the flag `gh` would ask whichever host its configuration or `GH_HOST` names.
+- The per-reference cache and the Git command semaphore bound what a burst of links can spend; see
+  [Cost](#cost). A private repository the user cannot read answers `not-found`.
 
 ### Nothing rejects
 
@@ -110,7 +119,11 @@ A hover over a commit is a local Git read admitted through the Git command semap
 hovers cannot outrun the concurrency budget the rest of the Git domain respects.
 
 A hover over a GitHub reference goes through `GitHubReferenceStore`, a separate owner on the
-external-status hub with its own cache and its own budget. See
+external-status hub with its own cache and its own budget. Agent Chat is the one caller that does
+not wait for a hover: a pull request link's state glyph and the Chat's pull request card ask as soon
+as they render, through the same Git command semaphore, so a reply listing many pull requests spends
+one `gh api` process per distinct reference on first render and nothing more until the 10-minute
+record expires. See
 [one projection per reference](./external-status-quota.md#one-projection-per-reference) for why it
 does not share records with the pull-request store and why it reads REST rather than GraphQL.
 
@@ -118,4 +131,5 @@ does not share records with the pull-request store and why it reads REST rather 
 
 - No preview for configured reference rules, file paths, or arbitrary URLs.
 - No body rendering beyond a couple of truncated lines; the card is a decision aid, not a reader.
-- No prefetch. A card is produced for a reference the pointer is on, never for the ones around it.
+- No prefetch in the Terminal. A card is produced for a reference the pointer is on, never for the
+  ones around it. Agent Chat's render-time state read (see [Cost](#cost)) is the deliberate exception.

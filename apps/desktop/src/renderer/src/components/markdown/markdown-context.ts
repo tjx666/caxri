@@ -16,7 +16,7 @@ export interface MarkdownRenderContext {
      */
     onOpenFile?: (target: string) => void;
     /**
-     * The Terminal whose Session scopes GitHub lookups for links, so a pull request link can show its state.
+     * The Terminal GitHub lookups for links are routed through, so a pull request link can show its state.
      */
     referenceTerminalId?: string;
 }

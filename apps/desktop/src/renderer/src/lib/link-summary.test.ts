@@ -28,6 +28,14 @@ describe('linkSummary', () => {
         expect(linkSummary('https://github.com/acme')?.detail).toBe('acme');
     });
 
+    it('names no reference to ask about when a decoded segment is not a GitHub name', () => {
+        // Decoded, `widgets%2Fissues%2F1%3F` would turn a read of #999 into a read of #1.
+        const summary = linkSummary('https://github.com/acme/widgets%2Fissues%2F1%3F/pull/999');
+        expect(summary).toMatchObject({ kind: 'pull' });
+        expect(summary?.reference).toBeUndefined();
+        expect(linkSummary('https://github.com/acme/widgets%3F/pull/1')?.reference).toBeUndefined();
+    });
+
     it('shows the decoded path of any other site, and nothing for its root', () => {
         expect(linkSummary('https://www.example.com/docs/a%20b?tab=1')).toEqual({
             host: 'example.com',

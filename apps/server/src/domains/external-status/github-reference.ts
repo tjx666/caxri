@@ -158,7 +158,14 @@ export class GitHubReferenceStore {
             try {
                 const output = await this.runner(
                     'gh',
-                    ['api', `repos/${lookup.owner}/${lookup.repo}/issues/${lookup.number}`],
+                    [
+                        'api',
+                        // Every reference comes from a github.com link; without the flag `gh` would ask whichever host
+                        // its configuration or `GH_HOST` names, such as a GitHub Enterprise server.
+                        '--hostname',
+                        'github.com',
+                        `repos/${lookup.owner}/${lookup.repo}/issues/${lookup.number}`,
+                    ],
                     lookup.cwd,
                 );
                 reference = output.trim() ? toReference(output) : undefined;
