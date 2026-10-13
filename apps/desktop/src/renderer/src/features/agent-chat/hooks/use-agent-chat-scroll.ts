@@ -82,7 +82,7 @@ const AGENT_CHAT_TURN_TOP_GAP_PX = 112;
  * The empty space kept below the latest turn so it can rest at the top of the view, as ChatGPT and the Codex app show a
  * sent message: `turnHeight` runs from that turn's user message to the end of the content. A reply then grows into the
  * space instead of pushing the message up from the bottom, and once it outgrows the view the space is gone and
- * following the end takes over.
+ * following the end takes over. The space is kept only while the turn is live; see `useAgentChatScroll`.
  */
 export function agentChatTurnSpacerHeight(
     viewHeight: number,
@@ -103,7 +103,9 @@ function offsetInView(view: HTMLElement, element: HTMLElement): number {
  * content is observed too. So is the scroll view itself: a dock below it growing shrinks the view without changing the
  * content, and the end must stay in sight. With `turnSelector` (the Chat's user messages), the space below the latest
  * turn keeps it at the top of the view at the end, so a sent message rises to the top and its reply fills in below it.
- * `isLatestInView` hides the "Jump to latest" control while following or while the latest entry is still on screen.
+ * Like the Codex app, that space lasts only while the turn is live (`isTurnLive`): once it ends, and in a Chat opened
+ * idle, the content rests on the view's bottom instead of leaving a blank view to scroll through. `isLatestInView`
+ * hides the "Jump to latest" control while following or while the latest entry is still on screen.
  *
  * Expanding or collapsing a row is the user reading, not the conversation moving: `anchor` stops following and keeps
  * the clicked row where it is while the disclosure animates, instead of pinning the end and sliding the row away.
@@ -111,7 +113,17 @@ function offsetInView(view: HTMLElement, element: HTMLElement): number {
  */
 export function useAgentChatScroll(
     revision: number | undefined,
-    { turnSelector }: { turnSelector?: string } = {},
+    {
+        isTurnLive = false,
+        turnSelector,
+    }: {
+        /**
+         * Whether the latest turn is still on its way: sent and not yet answered, streaming, or waiting on the user.
+         * The space below it is kept only while it is.
+         */
+        isTurnLive?: boolean;
+        turnSelector?: string;
+    } = {},
 ): {
     scrollReference: RefObject<HTMLDivElement | null>;
     contentReference: RefObject<HTMLDivElement | null>;
@@ -172,12 +184,13 @@ export function useAgentChatScroll(
         if (turnSelector && content && spacer) {
             const turns = content.querySelectorAll<HTMLElement>(turnSelector);
             const turn = turns.item(turns.length - 1) as HTMLElement | null;
-            const height = turn
-                ? agentChatTurnSpacerHeight(
-                      element.clientHeight,
-                      content.getBoundingClientRect().bottom - turn.getBoundingClientRect().top,
-                  )
-                : 0;
+            const height =
+                turn && isTurnLive
+                    ? agentChatTurnSpacerHeight(
+                          element.clientHeight,
+                          content.getBoundingClientRect().bottom - turn.getBoundingClientRect().top,
+                      )
+                    : 0;
             spacer.style.height = `${height}px`;
         }
         const anchored = anchorReference.current;
@@ -196,7 +209,7 @@ export function useAgentChatScroll(
         if (top === null) return;
         element.scrollTop = top;
         lastScrollTopReference.current = element.scrollTop;
-    }, [turnSelector]);
+    }, [isTurnLive, turnSelector]);
     const onScroll = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;

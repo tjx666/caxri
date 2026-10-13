@@ -119,6 +119,7 @@ export function AgentChatPane({
         snapshot,
         { canFork, providerName, supportsRewindFiles },
     );
+    const pending = useAgentChatPending(terminalId, snapshot);
     const {
         scrollReference,
         contentReference,
@@ -128,7 +129,10 @@ export function AgentChatPane({
         jumpToLatest,
         stopFollowing,
         anchor,
-    } = useAgentChatScroll(snapshot?.revision, { turnSelector: AGENT_CHAT_TURN_SELECTOR });
+    } = useAgentChatScroll(snapshot?.revision, {
+        isTurnLive: isAgentChatBusy(snapshot) || pending.timeline.length > 0,
+        turnSelector: AGENT_CHAT_TURN_SELECTOR,
+    });
     /**
      * Which rows the user expanded, kept for the Chat's lifetime so a row stays open when the timeline rebuilds it (a
      * finished turn folding, a live row joining a summary group). Toggling one holds it in place instead of following.
@@ -167,7 +171,6 @@ export function AgentChatPane({
         [jumpTo, stopFollowing],
     );
     const readBackHistory = useMemo(() => ({ canFork }), [canFork]);
-    const pending = useAgentChatPending(terminalId, snapshot);
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId, canOpenBesideChat);
     /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
@@ -294,7 +297,7 @@ export function AgentChatPane({
                                 message={emptyMessage}
                             />
                         </div>
-                        <div aria-hidden ref={spacerReference} />
+                        <div aria-hidden data-agent-chat-turn-space ref={spacerReference} />
                     </div>
                     <AgentChatSelectionToolbar
                         contentReference={contentReference}
