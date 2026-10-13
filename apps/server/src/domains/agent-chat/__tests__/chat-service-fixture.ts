@@ -34,6 +34,11 @@ export async function fixture(
         turnRequestTimeoutMs?: number;
         endpoint?: AgentChatEndpoint;
         onAgentStateChanged?: AgentChatServiceOptions['onAgentStateChanged'];
+        delegation?: AgentChatServiceOptions['delegation'];
+        /**
+         * Also receives every lifecycle signal, after `signals` records it, as the Server's coordinator would.
+         */
+        observeLifecycleSignal?: (signal: AgentLifecycleSignal) => void;
     } = {},
 ) {
     const provider = options.provider ?? 'codex';
@@ -88,6 +93,7 @@ export async function fixture(
         coordinator,
         observeLifecycleSignal: (signal) => {
             signals.push(signal);
+            options.observeLifecycleSignal?.(signal);
             return Promise.resolve('accepted');
         },
         clientVersion: '0.0.0-test',
@@ -98,6 +104,7 @@ export async function fixture(
         }),
         ...(options.endpoint && { endpoint: options.endpoint }),
         onAgentStateChanged: options.onAgentStateChanged,
+        delegation: options.delegation,
     });
     onTestFinished(async () => {
         await service.shutdown();

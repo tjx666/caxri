@@ -1,6 +1,11 @@
 import { Buffer } from 'node:buffer';
 
-import type { AgentEndpointRef, TerminalRecord, TerminalSurface } from '@caxri/protocol';
+import type {
+    AgentEndpointRef,
+    AgentLaunchSettings,
+    TerminalRecord,
+    TerminalSurface,
+} from '@caxri/protocol';
 import { CaxriError, isChatTerminal } from '@caxri/protocol';
 
 import { assertPtyTerminal } from '../pty-guard';
@@ -11,10 +16,36 @@ import type { TerminalManager } from '../terminal';
  */
 export interface DispatchChats {
     isLive(terminalId: string): boolean;
+    /**
+     * Starts a new Chat, or joins a start a Client's first read already began. A fresh delegated child uses it so its
+     * prepared launch is not discarded by a restart racing that read.
+     */
+    start?(terminalId: string): Promise<void>;
     restart(terminalId: string): Promise<TerminalRecord>;
-    send(terminalId: string, message: { text: string }): Promise<void>;
+    /**
+     * `origin` defaults to `human`, which takes a delegated Chat over; see `AgentChatService.send`.
+     */
+    send(
+        terminalId: string,
+        message: { text: string },
+        delivery?: 'queue',
+        origin?: 'human' | 'delegation',
+    ): Promise<void>;
     interrupt(terminalId: string): Promise<void>;
     stopProvider(terminalId: string): Promise<void>;
+    /**
+     * Binds the next start of a delegated child Chat to its task; see `ChatDelegationLinks.prepareStart`.
+     */
+    delegation?: {
+        prepareStart(
+            terminalId: string,
+            start: { launch: AgentLaunchSettings; delegationId?: string; agentSessionId?: string },
+        ): void;
+        /**
+         * The launch whose provider process is live and not being retired; see `ChatDelegationLinks.liveLaunchId`.
+         */
+        liveLaunchId(terminalId: string): string | undefined;
+    };
 }
 
 /**
@@ -44,6 +75,20 @@ export function isAgentLive(
         terminal.lastAgentProcessState === 'running' ||
         terminals.agentProcessId(terminal.id) !== undefined
     );
+}
+
+/**
+ * The Agent launch an exact resume must replace: a Chat's live provider launch, or a PTY Terminal's managed Agent
+ * launch. Both comparison sites of `resume` read it, so a live Chat is compared with its own launch rather than with
+ * the PTY launch it never has.
+ */
+export function currentAgentLaunchId(
+    terminals: Pick<TerminalManager, 'agentLaunchId'>,
+    chats: DispatchChats | undefined,
+    terminal: TerminalRecord,
+): string | undefined {
+    if (isChatTerminal(terminal)) return chats?.delegation?.liveLaunchId(terminal.id);
+    return terminals.agentLaunchId(terminal.id);
 }
 
 /**

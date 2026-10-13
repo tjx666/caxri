@@ -7,9 +7,16 @@ import type { DelegationTranscriptBatch } from '../agents';
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
+import type { DelegationChatTurn } from './chat-child';
+import { chatDelegationCompletion } from './chat-child';
 
 export interface DelegationTranscriptReader {
     readTranscript(terminalId: string): Promise<AgentTranscript | null>;
+    /**
+     * The task's turn in a Chat child's projection, or `undefined` for a PTY Terminal, whose transcript is read
+     * instead.
+     */
+    readChatTurn?(terminalId: string, turnId: string): DelegationChatTurn | undefined;
     readNativeTranscript?(
         terminalId: string,
         sessionId: string,
@@ -27,6 +34,9 @@ export async function readDelegationCompletion(
 ) {
     const adapter = delegationAdapter(record.receipt.provider);
     const terminalId = record.receipt.terminalId!;
+    const chatTurn = record.turnId ? reader.readChatTurn?.(terminalId, record.turnId) : undefined;
+    if (chatTurn)
+        return { completion: chatDelegationCompletion(record, chatTurn), batch: undefined };
     const sessionId = record.providerSessionId!;
     const evidence = {
         sessionId,

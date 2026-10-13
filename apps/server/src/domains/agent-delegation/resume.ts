@@ -120,13 +120,29 @@ export async function resumeTask(
         inputEpoch: parent.inputEpoch,
         receipt: { ...record.receipt, terminalId, status: 'launching' },
     });
-    return launchExactResume(host, saved, authority, {
-        terminalId,
-        providerSessionId: parent.providerSessionId!,
-        inputEpoch: parent.inputEpoch,
-        pointer: prepared.pointer,
-        expectedLaunchId,
-    });
+    try {
+        return await launchExactResume(host, saved, authority, {
+            terminalId,
+            providerSessionId: parent.providerSessionId!,
+            inputEpoch: parent.inputEpoch,
+            pointer: prepared.pointer,
+            expectedLaunchId,
+        });
+    } catch (error) {
+        /**
+         * Dispatch refused the resume before it recorded a receipt (a live Agent it may not replace, a changed
+         * binding), so nothing reached the conversation: return the parent's chain claim, as a refused follow-up does,
+         * or every later resume or follow-up of the parent would fail `parent_chained`.
+         */
+        if (!options.database.getAgentDispatch(id)) {
+            host.save({ ...host.owned(id), hasLostTarget: true });
+            host.save({
+                ...host.owned(previous.receipt.delegationId),
+                nextDelegationId: undefined,
+            });
+        }
+        throw error;
+    }
 }
 
 /**

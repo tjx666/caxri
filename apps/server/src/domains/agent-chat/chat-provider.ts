@@ -47,6 +47,16 @@ export interface ChatLifecycleEvent {
     agentTurnId?: string;
     agentToolUseId?: string;
     agentFailure?: AgentLifecycleSignal['agentFailure'];
+    /**
+     * `turnStarted` of a turn this session started from a message: the digest of that message's exact text (see
+     * `chatTextDigest`), which Agent delegation matches against its task pointer.
+     */
+    agentPromptDigest?: string;
+    /**
+     * `turnFinished` of a completed turn that wrote an answer, when the provider has no native completion record
+     * (Claude Code): the digest of the turn's final assistant message.
+     */
+    agentResponseDigest?: string;
     agentBackgroundWork?: true;
     worktreeCreateIntent?: true;
 }
@@ -148,6 +158,11 @@ export interface AgentChatSessionHost {
      * Agent Session to resume. Absent for a Chat that has never started a turn.
      */
     agentSessionId?: string;
+    /**
+     * The id a new conversation starts with, for a provider that lets the client choose it (Claude Code). Agent
+     * delegation presets it so the child's conversation is the one its task was admitted for. Ignored on resume.
+     */
+    newAgentSessionId?: string;
     /**
      * Where the resumed conversation ends, set only for the restart that follows a rewind whose provider rewinds by
      * resuming at an earlier point of its record (see {@link ChatResumePoint}).

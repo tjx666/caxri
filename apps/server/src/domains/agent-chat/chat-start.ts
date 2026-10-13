@@ -4,6 +4,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { AgentRunAutonomy } from '../agents';
 import { AGENT_SESSION_DISCOVERY_CONTEXT } from '../agents';
+import type { ChatDelegationLinks } from './chat-delegation';
 import { agentChatDrivers } from './chat-drivers';
 import type { ChatExitHost } from './chat-exit';
 import { abandonChatStart, handleChatExit } from './chat-exit';
@@ -25,6 +26,7 @@ import type { ChatState, ChatTerminal } from './chat-states';
  */
 export interface ChatStartHost extends ChatExitHost {
     agentRunAutonomy: AgentRunAutonomy;
+    delegation: ChatDelegationLinks;
     isShuttingDown: () => boolean;
 }
 
@@ -39,7 +41,7 @@ export async function startChat(
     state: ChatState,
     shouldKeepAgentAutonomy: boolean,
 ): Promise<void> {
-    const { options, states, endpoint, agentRunAutonomy } = host;
+    const { options, states, endpoint, agentRunAutonomy, delegation } = host;
     const { database, logger } = options;
     const terminalId = terminal.id;
     const { provider } = terminal;
@@ -53,13 +55,14 @@ export async function startChat(
     options.coordinator.beginTerminalLaunch(terminalId, launchId);
     const isCurrent = () => state.launchId === launchId && states.get(terminalId) === state;
     let session: AgentChatProviderSession | undefined;
+    const delegated = delegation.takeStart(terminalId);
     try {
         const driver = agentChatDrivers[provider];
         if (!driver) throw new AgentChatStartError('spawn_failed');
         const launch = agentRunAutonomy.launch(
             terminalId,
             provider,
-            options.launchSettings(provider, terminal),
+            delegation.launchSettings(terminalId) ?? options.launchSettings(provider, terminal),
             shouldKeepAgentAutonomy,
         );
         const prepared = await prepareChatLaunch(options, provider, launch, terminal.cwd);
@@ -75,6 +78,8 @@ export async function startChat(
             });
             return;
         }
+        // Like a PTY launch environment, binds this launch to Agent delegation before anything spawns.
+        delegation.bindLaunch(terminalId, launchId, delegated.delegationId);
         session = driver.create({
             terminalId,
             cwd,
@@ -84,6 +89,7 @@ export async function startChat(
             isRealAgentE2E,
             permission: database.getChatPermission(terminalId) ?? { planMode: false },
             agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
+            ...(delegated.agentSessionId && { newAgentSessionId: delegated.agentSessionId }),
             ...(state.resumeAt !== undefined && { resumeAt: state.resumeAt }),
             clientVersion: options.clientVersion,
             ...(environment.CAXRI_CLI &&

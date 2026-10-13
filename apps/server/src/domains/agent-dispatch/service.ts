@@ -20,12 +20,16 @@ import { logEventCatalog } from '@caxri/system';
 import { agentProviders } from '../agents';
 import { SingleFlight } from '../single-flight';
 import type { TerminalLifecycleCause, TerminalWorkingDirectoryIdentity } from '../terminal';
-import { launchChat } from './chat-launch';
-import { isAgentLive, requireDispatchChats } from './chat-target';
+import { launchChat, prepareDelegatedChat } from './chat-launch';
+import { currentAgentLaunchId, isAgentLive, requireDispatchChats } from './chat-target';
 import { DispatchWaiters } from './dispatch-waiters';
 import { dispatchFingerprint, launchProjection } from './launch-projection';
 import { isSettled, terminalStatePatch } from './receipt-status';
-import type { AgentDispatchServiceOptions } from './service-options';
+import type {
+    AgentDispatchResumeOptions,
+    AgentDispatchServiceOptions,
+    AgentDispatchStartOptions,
+} from './service-options';
 
 type DispatchReason = AgentDispatchFailure['reason'];
 type TransitionReason =
@@ -39,35 +43,6 @@ type TransitionReason =
     | 'terminalSuspended'
     | 'userDetached'
     | 'processInterrupted';
-
-export interface AgentDispatchStartOptions {
-    delegationId?: string;
-    assignedAgentSessionId?: string;
-    initialPrompt?: string;
-    launch: AgentLaunchSettings;
-    shouldStart?: () => boolean;
-    cwd?: string;
-    /**
-     * Checks current layout capacity after async path validation, immediately before durable creation.
-     */
-    beforeCreate?(): void;
-    /**
-     * Runs after durable Terminal creation and before any provider process can start.
-     */
-    prepared(terminal: TerminalRecord): void;
-}
-
-/**
- * Delegation-only recovery of one frozen native session; ordinary dispatch cannot replace a running Agent.
- */
-export interface AgentDispatchResumeOptions {
-    delegationId?: string;
-    launch: AgentLaunchSettings;
-    initialPrompt: string;
-    replaceLaunchId?: string;
-    shouldStart?: () => boolean;
-    beforeResume(): void;
-}
 
 /**
  * Server-owned dispatch lifecycle with durable idempotency before the first PTY side effect.
@@ -129,12 +104,14 @@ export class AgentDispatchService {
                     now: this.now(),
                 },
                 input.provider,
-                cwd,
+                { cwd, surface: options?.surface },
             );
             this.logTransition(stored.receipt, 'created');
             this.publish(stored.receipt);
             try {
                 options?.prepared(terminal);
+                if (options?.surface === 'chat')
+                    prepareDelegatedChat(this.options.agentChat, terminal, options);
             } catch (error) {
                 // Preparation is synchronous and no process exists yet; restore the exact pre-insert layout.
                 this.options.database.closeTerminal(terminal.id);
@@ -185,7 +162,9 @@ export class AgentDispatchService {
             throw new CaxriError('CONFLICT', 'Dispatch resume requires an Agent Terminal');
         if (terminal.agentSessionId !== input.providerSessionId)
             throw new CaxriError('UNAVAILABLE', 'Provider session binding changed');
-        const expectedLaunchId = this.options.terminals.agentLaunchId(terminal.id);
+        const currentLaunchId = () =>
+            currentAgentLaunchId(this.options.terminals, this.options.agentChat, terminal);
+        const expectedLaunchId = currentLaunchId();
         if (
             isAgentLive(this.options.terminals, this.options.agentChat, terminal) &&
             (!options?.replaceLaunchId || options.replaceLaunchId !== expectedLaunchId)
@@ -225,10 +204,7 @@ export class AgentDispatchService {
             try {
                 identity = await this.options.terminalDirectoryIdentity(terminal.cwd);
                 this.assertNotArchived(input.sessionId);
-                if (
-                    options &&
-                    this.options.terminals.agentLaunchId(terminal.id) !== expectedLaunchId
-                )
+                if (options && currentLaunchId() !== expectedLaunchId)
                     throw new CaxriError('CONFLICT', 'Agent generation changed before resume');
                 options?.beforeResume();
                 this.options.coordinator.prepareTerminalResume(terminal.id);
@@ -265,7 +241,14 @@ export class AgentDispatchService {
         if (isChatTerminal(terminal))
             return launchChat(
                 this.options,
-                { terminal, initialPrompt, shouldStart },
+                {
+                    terminal,
+                    initialPrompt,
+                    shouldStart,
+                    isFresh: resumeAgentSessionId === undefined,
+                    launchSettings,
+                    delegationId,
+                },
                 {
                     update: (patch) => this.update(dispatchId, patch),
                     interrupt: () => this.interrupt(dispatchId, terminal.id),

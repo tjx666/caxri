@@ -17,7 +17,8 @@
  * - `subagent`: a foreground `Agent` subagent whose own frames carry `parent_tool_use_id`, with `task_*` frames and a
  *   subagent transcript (`subagents/agent-<id>.jsonl` plus `.meta.json`) beside the session transcript.
  * - `workflow`: a `Workflow` tool call whose `local_workflow` task runs until `stop_task`; `quick workflow` finishes it.
- * - `background agent`: a background subagent that keeps running until `stop_task`.
+ * - `background agent`: a background subagent that keeps running until `stop_task`; `quick background agent` finishes it
+ *   on its own and then wakes the main thread, which starts a turn without a user message.
  * - `quick background`: a background Bash command that finishes on its own and then wakes the main thread, which starts a
  *   turn without a user message.
  * - `background`: a background Bash command that prints a tick every 100 ms until `stop_task`.
@@ -67,8 +68,9 @@ import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-
 
 type Json = Record<string, unknown>;
 
+// The oldest version visible delegation accepts, still below the provider rename minimum (2.1.232).
 if (process.argv.includes('--version')) {
-    process.stdout.write('2.1.0 (Claude Code)\n');
+    process.stdout.write('2.1.196 (Claude Code)\n');
     exitProcess(0);
 }
 

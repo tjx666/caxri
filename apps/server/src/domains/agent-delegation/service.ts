@@ -20,9 +20,11 @@ import {
     isAgentCommanderCaller,
     resolveDelegationAdmission,
 } from './admission';
+import { delegationChildLaunch } from './chat-child';
 import { readDelegationCompletion } from './collection';
 import { logDelegationRequested, logDelegationTransition } from './diagnostics';
 import { prepareDelegationFollowUp, prepareDelegationLaunch } from './launch';
+import { fenceTerminalLaunch } from './launch-fence';
 import { assertDelegationLayout, delegationLayout } from './layout';
 import {
     applyDelegationLifecycle,
@@ -34,7 +36,6 @@ import { admitDelegationRequest } from './new-session';
 import { isDelegationOwner, listOwnedDelegations } from './ownership';
 import type { DelegationFollowUpRejection } from './rejection';
 import { followUpRejection, reportFollowUpRejection } from './rejection';
-import { restoredDelegationFor } from './restored-task';
 import { applyDelegationCompletion, collectionIntervalMs, shouldCollectDelegation } from './result';
 import type { ExactResumeHost } from './resume';
 import { continueHandover, handoverTarget, resumeTask } from './resume';
@@ -437,9 +438,7 @@ export class AgentDelegationService {
                     },
                     {
                         delegationId: id,
-                        launch: prepared.launch,
-                        initialPrompt: prepared.initialPrompt,
-                        assignedAgentSessionId: prepared.assignedAgentSessionId,
+                        ...delegationChildLaunch(this.options, record, prepared),
                         shouldStart: () => {
                             const current = this.options.database.agentDelegations.get(id);
                             return (
@@ -509,6 +508,27 @@ export class AgentDelegationService {
                 'Delegation request was already used for another task',
             );
         return receipt;
+    }
+
+    /**
+     * Binds a launch to `delegationId`'s task, returning true, or otherwise fences the Terminal's earlier tasks; see
+     * {@link fenceTerminalLaunch}.
+     */
+    private bindTerminalLaunch(terminalId: string, launchId: string, delegationId?: string) {
+        const active = this.activeForTerminal(terminalId);
+        if (delegationId && active?.receipt.delegationId !== delegationId)
+            throw new CaxriError('CANCELLED', 'Delegation no longer owns this launch');
+        if (delegationId && this.bindLaunch(terminalId, launchId)) return true;
+        fenceTerminalLaunch(
+            {
+                database: this.options.database,
+                inputEpoch: (id) => this.options.inputEpoch?.(id),
+                save: (record) => this.save(record),
+            },
+            terminalId,
+            launchId,
+        );
+        return false;
     }
 
     /**
@@ -582,38 +602,7 @@ export class AgentDelegationService {
         environment: NodeJS.ProcessEnv,
         delegationId?: string,
     ): void {
-        const active = this.activeForTerminal(terminalId);
-        if (delegationId && active?.receipt.delegationId !== delegationId)
-            throw new CaxriError('CANCELLED', 'Delegation no longer owns this launch');
-        if (!delegationId || !this.bindLaunch(terminalId, launchId)) {
-            /**
-             * Owner-initiated restart can retain the native session without PTY input. Persist the generation fence
-             * before that launch so Server restart cannot make the earlier delegation eligible to resume again.
-             *
-             * Except a launch resuming the conversation of the Terminal's newest settled task (Session selection after
-             * a Caxri restart, or the user's own Restart and Resume): the same conversation with nothing new typed, so
-             * the task adopts it and stays `--resume`-able. Human input revokes that durably (`hasHumanIntervention`),
-             * and a fresh restart clears the Terminal's native session first, so it never matches.
-             */
-            const adopted = restoredDelegationFor(this.options.database, terminalId);
-            if (adopted)
-                this.save({
-                    ...adopted,
-                    launchId,
-                    inputEpoch: this.options.inputEpoch?.(terminalId),
-                });
-            // Re-read: the adopted task now carries this launch, so the fence skips it.
-            for (const task of this.options.database.agentDelegations.forTerminal(terminalId))
-                if (task.launchId !== launchId && !task.hasLostTarget)
-                    this.save({
-                        ...task,
-                        hasLostTarget: true,
-                        receipt: isDelegationActive(task.receipt)
-                            ? { ...task.receipt, status: 'interrupted', failure: 'target_changed' }
-                            : task.receipt,
-                    });
-            return;
-        }
+        if (!this.bindTerminalLaunch(terminalId, launchId, delegationId)) return;
         if (!environment.CAXRI_HOOK_TOKEN)
             throw new CaxriError(
                 'UNAVAILABLE',
@@ -622,10 +611,18 @@ export class AgentDelegationService {
         environment.CAXRI_HOOK_DIGEST = '1';
     }
 
+    /**
+     * {@link bindEnvironment} for a Chat launch, which reports turns and their digests through its provider protocol
+     * instead of lifecycle hooks.
+     */
+    bindChatLaunch(terminalId: string, launchId: string, delegationId?: string): void {
+        this.bindTerminalLaunch(terminalId, launchId, delegationId);
+    }
+
     observe(signal: AgentLifecycleSignal, source: 'lifecycle' | 'evidence' = 'lifecycle'): void {
         const record = this.activeForTerminal(signal.terminalId);
         if (!record) return;
-        const next = applyDelegationLifecycle(record, signal, source);
+        const next = applyDelegationLifecycle(record, signal, source, this.options.isChatTerminal);
         if (next) {
             const saved = this.save(next);
             // A session that starts past the deadline gets a fresh one, so a turn that never follows still settles.
@@ -670,7 +667,10 @@ export class AgentDelegationService {
 
     initialize(): void {
         for (const record of this.options.database.agentDelegations.active()) {
-            const { next, shouldCollect } = recoveredDelegation(record);
+            const { next, shouldCollect } = recoveredDelegation(
+                record,
+                this.options.isChatTerminal,
+            );
             const saved = this.save(next, false);
             if (shouldCollect) this.scheduleCollection(saved);
         }

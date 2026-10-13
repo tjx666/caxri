@@ -4,6 +4,7 @@ import type { ServerEvent } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import { agentChatEndpoint, AgentChatService } from './agent-chat';
+import type { AgentDelegationService } from './agent-delegation';
 import type { createAgentRuntime } from './agent-runtime';
 import type { CommanderTerminalHooks } from './commander';
 import type { ConfigService } from './config';
@@ -19,6 +20,7 @@ export function createAgentChatService({
     commanderHooks,
     configuration,
     database,
+    delegationState,
     dependencies,
     logger,
     send,
@@ -34,6 +36,10 @@ export function createAgentChatService({
     commanderHooks: Pick<CommanderTerminalHooks, 'chatReady' | 'launchArguments'>;
     configuration: Pick<ConfigService, 'getSettings'>;
     database: CaxriDatabase;
+    /**
+     * Late-bound: the delegation service is composed after the Chat service.
+     */
+    delegationState: { service?: AgentDelegationService };
     dependencies: Pick<DomainDependencies, 'agentEndpoints' | 'terminal'>;
     logger: StructuredLogger;
     send: (event: ServerEvent) => void;
@@ -59,6 +65,14 @@ export function createAgentChatService({
                 : { ...settings, args: [...settings.args, ...extra] };
         },
         onReady: commanderHooks.chatReady,
+        delegation: {
+            bindLaunch: (terminalId, launchId, delegationId) =>
+                delegationState.service?.bindChatLaunch(terminalId, launchId, delegationId),
+            retireLaunch: (terminalId, launchId) =>
+                delegationState.service?.interruptTerminal(terminalId, false, launchId),
+            humanInput: (terminalId) =>
+                delegationState.service?.interruptTerminal(terminalId, true),
+        },
         onAgentStateChanged: agentRuntime.dispatchState.observe,
         resolveExecutable: dependencies.terminal?.resolveExecutable,
         coordinator,

@@ -92,8 +92,9 @@ terminal send`) delivers its text as one Chat message, queued behind a running t
   stops the running turn, and stop ends the provider process but keeps the Terminal and its
   conversation (`AgentChatService.stopProvider`); the next read or message starts it again.
   Dispatch `resume` and `wake` restart a stopped Chat on its bound Agent Session; see
-  [Agent dispatch receipts](agent-dispatch-receipts.md#agent-chats). Dispatch `start` still
-  creates a PTY Terminal.
+  [Agent dispatch receipts](agent-dispatch-receipts.md#agent-chats). Dispatch `start` creates a
+  PTY Terminal, except a visible delegation child, which opens as a Claude Code or Codex Chat while
+  Open Agents in Chat is on; see [Agent Chat children](agent-delegation.md#agent-chat-children).
 - Source Control review comments and bug reports reach a Chat as one message through
   `AgentChatService.send`, starting an idle Chat on demand. A review prompt over the long-paste
   threshold is saved with `LongPasteService.saveForChat` and referenced by path; a bug report's
