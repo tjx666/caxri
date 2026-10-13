@@ -18,8 +18,10 @@ export const MAX_COMMANDER_CONVERSATIONS = 200;
 
 /**
  * Why a handed-over Session gives the Commander ownership only, with no conversation to continue: it has no Agent, its
- * Agent runs as a Chat (whose conversation the delegation domain cannot resume into a PTY), its Agent has not reported
- * a conversation yet, or its Agent CLI is not one the Commander can delegate to.
+ * Agent has not reported a conversation yet, or its Agent CLI is not one the Commander can delegate to.
+ *
+ * `chat_surface` means the Agent runs as a Chat whose provider cannot correlate a Commander task (Grok Build's Chat
+ * reports no prompt digest). Hand-overs recorded before the Commander could continue any Agent Chat also carry it.
  */
 export const commanderHandoverOwnershipReasons = [
     'agent_missing',
@@ -190,6 +192,11 @@ export const commanderManagedSessionsSchema = z.strictObject({
      * the Session back. Sessions the Commander created, and ownership-only hand-overs, are not in it.
      */
     inputTakeBackSessionIds: z.array(identifierSchema).max(1_000),
+    /**
+     * The subset of `inputTakeBackSessionIds` whose Agent runs as a Chat. Typing a draft there takes nothing back; only
+     * sending (a message, command, rewind, Send Now, or queue Resume) or stopping does, so the Workbench words it so.
+     */
+    chatTakeBackSessionIds: z.array(identifierSchema).max(1_000).default([]),
     /**
      * The most recent take-backs caused by the user typing into a handed-over Agent, oldest first. `id` stays unique
      * across Server Core restarts, `at` is the take-back time.

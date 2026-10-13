@@ -58,6 +58,7 @@ export function createAgentCommandRuntime(
         opensAgentsInChat: () =>
             options.agentChat !== undefined && options.settings()['session.openAgentsInChat'],
         isChatTerminal: (terminalId) => chatOf(terminalId) !== undefined,
+        isChatLive: (terminalId) => chatOf(terminalId)?.isLive(terminalId) === true,
         readChatTurn: (terminalId, turnId) =>
             chatOf(terminalId)?.delegation.turnAnswer(terminalId, turnId),
         dispatch: dispatchService,

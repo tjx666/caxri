@@ -33,7 +33,7 @@ export function createAgentChatService({
         | 'dispatchState'
         | 'observeChatLifecycleSignal'
     >;
-    commanderHooks: Pick<CommanderTerminalHooks, 'chatReady' | 'launchArguments'>;
+    commanderHooks: Pick<CommanderTerminalHooks, 'chatInput' | 'chatReady' | 'launchArguments'>;
     configuration: Pick<ConfigService, 'getSettings'>;
     database: CaxriDatabase;
     /**
@@ -70,8 +70,10 @@ export function createAgentChatService({
                 delegationState.service?.bindChatLaunch(terminalId, launchId, delegationId),
             retireLaunch: (terminalId, launchId) =>
                 delegationState.service?.interruptTerminal(terminalId, false, launchId),
-            humanInput: (terminalId) =>
-                delegationState.service?.interruptTerminal(terminalId, true),
+            humanInput: (terminalId) => {
+                commanderHooks.chatInput(terminalId);
+                delegationState.service?.interruptTerminal(terminalId, true);
+            },
         },
         onAgentStateChanged: agentRuntime.dispatchState.observe,
         resolveExecutable: dependencies.terminal?.resolveExecutable,

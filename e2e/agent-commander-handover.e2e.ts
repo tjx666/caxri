@@ -2,13 +2,19 @@ import { mkdir, mkdtemp, realpath, rm, utimes, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import type { CommanderHandoverResult, CommanderManagedSessions } from '@caxri/protocol';
+
+import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
+    closeAppQuietly,
     createAdditionalShellSession,
+    createProjectSession,
     createShellSession,
     launchCaxri,
     pageRequest,
+    VISIBLE_SESSION,
 } from './support/helpers.ts';
 
 const CONVERSATION_ID = 'outside-conversation-1';
@@ -122,6 +128,73 @@ test('Agent Commander hand-over picker hands Sessions and an outside conversatio
         } catch {
             // Ignore close errors during test cleanup.
         }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * The user hands a Session whose Agent runs as a Codex Chat to the Commander. The Commander gets the conversation to
+ * continue, not ownership alone, its row marker says that sending or stopping takes it back, and the user's next Chat
+ * message takes the Session back with the same notice typing into a PTY Agent shows.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('a handed-over Agent Chat stays continuable until the user sends it a message', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-commander-chat-handover-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        const sessionId = await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await message.fill('first');
+        await message.press('Enter');
+        await expect(chat.getByText('Hello from fake Codex. You said: first')).toBeVisible();
+
+        await pageRequest(page, 'commander.ensure');
+        const { outcomes } = await pageRequest<CommanderHandoverResult>(
+            page,
+            'commander.session.handOver',
+            { sessionIds: [sessionId] },
+        );
+        expect(outcomes).toEqual([expect.objectContaining({ outcome: 'accepted', sessionId })]);
+        expect(outcomes[0]).not.toHaveProperty('ownershipReason');
+        const managed = () =>
+            pageRequest<CommanderManagedSessions>(page, 'commander.managedSessions');
+        expect(await managed()).toMatchObject({
+            inputTakeBackSessionIds: [sessionId],
+            chatTakeBackSessionIds: [sessionId],
+        });
+        // The Session row says what takes a Chat back: sending or stopping, not typing a draft.
+        const marker = page.locator(`[data-session-id="${sessionId}"] .commander-session-marker`);
+        await expect(marker).toHaveAttribute('data-commander-marker', 'chatInputTakesBack');
+        await expect(marker).toHaveAttribute(
+            'aria-label',
+            'Managed by Agent Commander · sending a message or stopping here takes it back',
+        );
+
+        // Selecting the Session's tabs again may land on its Shell; the user returns to the Chat to write.
+        await chat.getByRole('tab', { name: 'Codex (Chat)' }).click();
+        await message.fill('second');
+        await message.press('Enter');
+        await expect(chat.getByText('Hello from fake Codex. You said: second')).toBeVisible();
+        await expect(page.getByText(/^Took .+ back from Agent Commander$/u)).toBeVisible();
+        await testInfo.attach('commander-chat-take-back', {
+            body: await page.screenshot(),
+            contentType: 'image/png',
+        });
+        expect(await managed()).toMatchObject({
+            sessionIds: [],
+            inputTakeBacks: [expect.objectContaining({ sessionId })],
+        });
+        await expect(marker).toHaveCount(0);
+    } finally {
+        await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
     }
 });
