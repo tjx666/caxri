@@ -59,6 +59,7 @@ import {
     unconfiguredEnvironment,
 } from './main-environment-methods';
 import { diagnosticsExportDialogOptions, themeImportDialogOptions } from './native-file-dialogs';
+import { netRequestFetch, netResolveHost } from './net-request-fetch';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { requestWindowOr } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
@@ -126,7 +127,7 @@ function assertNever(value: never): never {
  */
 export function createMainMethodHandler(options: MainMethodHandlerOptions) {
     const environment = options.environment ?? unconfiguredEnvironment;
-    const linkFavicon = createLinkFavicons((url, init) => net.fetch(url, init));
+    const linkFavicon = createLinkFavicons(netRequestFetch, netResolveHost);
     const agentProviderStatus = createAgentProviderStatus({
         fetch:
             process.env.CAXRI_E2E === '1'
@@ -134,7 +135,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 : (url, init) => net.fetch(url, init),
         logger: () => options.logger?.(),
     });
-    const linkPreview = createLinkPreviews((url, init) => net.fetch(url, init));
+    const linkPreview = createLinkPreviews(netRequestFetch, netResolveHost);
     const externalOpenFixture =
         options.externalOpenFixture ??
         createAcceptanceExternalOpenFixture({

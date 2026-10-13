@@ -3,9 +3,9 @@ import { Buffer } from 'node:buffer';
 import type { MethodResult } from '@caxri/protocol';
 import { MAX_LINK_FAVICON_DATA_URL_LENGTH } from '@caxri/protocol';
 
+import type { ManualRedirectFetch, PublicHttpsFetch, ResolveHost } from './public-https-fetch';
+import { createPublicHttpsFetch } from './public-https-fetch';
 import { readCappedBody } from './read-capped-body';
-
-type Fetch = (url: string, init: { signal: AbortSignal }) => Promise<Response>;
 
 type LinkFavicon = MethodResult<'links.favicon'>;
 
@@ -35,15 +35,24 @@ function iconType(contentType: string | null): string | undefined {
  * The origin's icon, `{}` when it definitively has none, or `undefined` when the request failed outright and is worth
  * retrying later.
  */
-async function fetchFavicon(fetch: Fetch, origin: string): Promise<LinkFavicon | undefined> {
+async function fetchFavicon(
+    fetch: PublicHttpsFetch,
+    origin: string,
+): Promise<LinkFavicon | undefined> {
     try {
-        const response = await fetch(`${origin}/favicon.ico`, {
+        const result = await fetch(`${origin}/favicon.ico`, {
             signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
+        // A loopback, private, or non-HTTPS hop was refused before it was requested; the link keeps its globe.
+        if (!result) return {};
+        const { response } = result;
         const type = iconType(response.headers.get('content-type'));
-        if (!type || !response.ok) return {};
         const declared = Number(response.headers.get('content-length'));
-        if (declared > MAX_FAVICON_BYTES) return {};
+        if (!type || !response.ok || declared > MAX_FAVICON_BYTES) {
+            // eslint-disable-next-line no-void -- a body that cannot become an icon is never read
+            void response.body?.cancel().catch(() => {});
+            return {};
+        }
         const chunks: Uint8Array[] = [];
         const end = await readCappedBody(response, MAX_FAVICON_BYTES, (chunk) => {
             chunks.push(chunk);
@@ -60,18 +69,20 @@ async function fetchFavicon(fetch: Fetch, origin: string): Promise<LinkFavicon |
 }
 
 /**
- * Site icons for transcript links, fetched once per origin. `fetch` is Electron's `net.fetch` in the app, so the system
- * proxy and Chromium's HTTP cache apply exactly as they would to an `<img>`. A request that failed outright is
+ * Site icons for transcript links, fetched once per origin. `fetch` is Electron's `net.request` in the app, so the
+ * system proxy and Chromium's HTTP cache apply as they would to an `<img>`; it never follows a redirect itself, so
+ * `createPublicHttpsFetch` can refuse every loopback, private, or non-HTTPS hop. A request that failed outright is
  * forgotten rather than cached, so a link first rendered while offline gets its icon once the network is back.
  */
-export function createLinkFavicons(fetch: Fetch) {
+export function createLinkFavicons(fetch: ManualRedirectFetch, resolveHost: ResolveHost) {
+    const publicFetch = createPublicHttpsFetch(fetch, resolveHost);
     const cache = new Map<string, Promise<LinkFavicon>>();
     /**
      * Resolves a cache entry and forgets it when the request failed outright. Only that exact entry is forgotten:
      * eviction may already have replaced it with a newer attempt for the same origin.
      */
     async function settle(origin: string, entry: PromiseWithResolvers<LinkFavicon>): Promise<void> {
-        const result = await fetchFavicon(fetch, origin);
+        const result = await fetchFavicon(publicFetch, origin);
         if (!result && cache.get(origin) === entry.promise) cache.delete(origin);
         entry.resolve(result ?? {});
     }

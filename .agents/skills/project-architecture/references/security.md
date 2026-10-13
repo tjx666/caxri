@@ -49,8 +49,21 @@ Every path that registers a Project is one of these authorities; a new one belon
 ## Main outbound requests
 
 Electron Main makes only these outbound HTTP requests; a new one belongs in this list with its
-trigger and caps. Link and status reads use Electron's `net.fetch`, so the system proxy, cookies,
-and Chromium's HTTP cache apply. None uploads user data.
+trigger and caps, and every response body is read under a byte cap. None uploads user data. Status
+reads use Electron's `net.fetch`, so the system proxy, cookies, and Chromium's HTTP cache apply.
+Link favicons and previews happen without a click, so they go through `createPublicHttpsFetch`
+(`apps/desktop/src/main/public-https-fetch.ts`) over `net.request` (system proxy and HTTP cache, no
+session cookies): every hop must be `https:` and its host must be, or resolve through Chromium's
+resolver only to, public addresses. Loopback, `localhost`, RFC 1918 private, carrier-grade NAT,
+link-local (including `169.254.169.254`), multicast, reserved, and IPv6 unique-local or link-local
+addresses are refused before any request; `198.18.0.0/15` stays allowed because fake-IP proxy
+clients answer public hosts from it. A hostname the local resolver cannot resolve is still requested
+(only the URL-only checks apply): behind an HTTP or PAC proxy on a network without outside DNS,
+the proxy resolves the name, and a name this machine cannot resolve cannot reach a local service
+over a direct connection. Redirects are followed manually, at most 5, each target vetted
+the same way. A refused link keeps the globe icon and a card without a page preview; clicking it is
+unchanged. DNS rebinding between the check and the connection is out of scope for the single-user
+threat model.
 
 - **Link favicons** (`links.favicon`, `apps/desktop/src/main/link-favicons.ts`):
   `GET <origin>/favicon.ico` when a transcript renders a web link (GitHub links use a bundled mark).
@@ -64,7 +77,7 @@ and Chromium's HTTP cache apply. None uploads user data.
 - **Agent provider status** (`agentProviderStatus.read`,
   `apps/desktop/src/main/agent-provider-status.ts`): the fixed public Statuspage endpoints for
   Claude and OpenAI, polled every 60 s while a status bar tok/s item or an Agent status tab for that
-  provider is mounted. 10 s timeout, no body cap (the response is parsed as JSON); cached per
+  provider is mounted. 10 s timeout, 2 MiB body cap (a larger body reads as `invalidResponse`); cached per
   provider for 60 s after success and 30 s after failure. E2E launches read
   fixtures instead.
 - **Update check and download** (`apps/desktop/src/main/updates.ts`): the GitHub latest-release API,

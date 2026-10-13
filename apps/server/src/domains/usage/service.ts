@@ -522,6 +522,12 @@ export class UsageService {
             priceOf: (model) => this.pricing.priceOf(model),
             pricing: { source: this.pricing.source, updatedAt: this.pricing.updatedAt },
             pendingScans: reportedPendingScans(this.syncs.has('ledger'), this.ledgerPendingScans),
+            boundAgentSessions: (sessionId) =>
+                database
+                    .listTerminals(sessionId)
+                    .flatMap(({ provider, agentSessionId }) =>
+                        provider && agentSessionId ? [`${provider}:${agentSessionId}`] : [],
+                    ),
         });
         // Plan limits are account-wide: the status bar's live reading should never trail what this page just saw.
         this.live.observeLimits(report.limits);

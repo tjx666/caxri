@@ -3,15 +3,11 @@ import { usageReportSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { AgentSessionUsageRow, ExternalAgentUsageRow, PullRequestOutcomeRow } from '../../db';
+import { LocalClock } from '../local-clock';
 import type { ModelPrice } from '../pricing';
 import type { UsageRecord } from '../record';
 import type { UsageReportInput } from '../report';
-import {
-    buildUsageReport,
-    DELETED_SESSION_TITLE,
-    LocalClock,
-    OUTSIDE_CAXRI_TITLE,
-} from '../report';
+import { buildUsageReport, DELETED_SESSION_TITLE, OUTSIDE_CAXRI_TITLE } from '../report';
 
 /**
  * 2026-03-10 12:00 in Shanghai (UTC+8).
@@ -218,6 +214,45 @@ describe('buildUsageReport', () => {
         });
         expect(result.sessions.map((item) => item.sessionId)).toEqual(['session-2']);
         expect(result.coverage.agentSessions).toBe(1);
+    });
+
+    it('includes a conversation resumed in the filtered Session without moving its owner', () => {
+        const other = { ...session, id: 'session-2', archivedAt: undefined } as SessionRecord;
+        const entries = [
+            { row: row({}), record: usage(NOW, 10) },
+            {
+                row: row({ sessionId: 'session-2', agentSessionId: 'agent-2' }),
+                record: usage(NOW, 20),
+            },
+        ];
+        const boundAgentSessions = (sessionId: string) =>
+            sessionId === 'session-2' ? ['claude:agent-1'] : [];
+
+        const resumedIn = report({
+            sessions: [session, other],
+            entries,
+            boundAgentSessions,
+            params: { sessionId: 'session-2' },
+        });
+        expect(usageReportSchema.parse(resumedIn)).toEqual(resumedIn);
+        expect(resumedIn.totals.tokens.total).toBe(30);
+        expect(resumedIn.totals.sessionsCreated).toBe(1);
+        expect(resumedIn.sessions.map(({ sessionId, tokens }) => ({ sessionId, tokens }))).toEqual([
+            { sessionId: 'session-2', tokens: 20 },
+            { sessionId: 'session-1', tokens: 10 },
+        ]);
+
+        const owner = report({
+            sessions: [session, other],
+            entries,
+            boundAgentSessions,
+            params: { sessionId: 'session-1' },
+        });
+        expect(owner.totals.tokens.total).toBe(10);
+
+        const unfiltered = report({ sessions: [session, other], entries, boundAgentSessions });
+        expect(unfiltered.totals.tokens.total).toBe(30);
+        expect(unfiltered.sessions.find((item) => item.sessionId === 'session-1')?.tokens).toBe(10);
     });
 
     it('counts merged pull requests once and leaves unfetched ones pending', () => {
