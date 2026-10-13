@@ -166,6 +166,7 @@ const THEME_GLYPHS: Partial<Record<string, ComponentType<GlyphProperties>>> = {
     'archive': ArchiveGlyph,
     'check': lucide(Check),
     'circle-check': lucide(CircleCheck),
+    'circle-check-merged': lucide(CircleCheck),
     'circle-arrow-up': lucide(CircleArrowUp),
     'circle-dot': lucide(CircleDot),
     'circle-outline': lucide(Circle),
@@ -215,6 +216,8 @@ type Tone = 'danger' | 'merged' | 'muted' | 'success' | 'warning';
 const THEME_TONES: Partial<Record<string, Tone>> = {
     'check': 'success',
     'circle-check': 'success',
+    // Violet like Desktop's: a merged pull request's passing checks are settled history, not work in flight.
+    'circle-check-merged': 'merged',
     'circle-dot': 'muted',
     'circle-outline': 'muted',
     'circle-slash': 'muted',
