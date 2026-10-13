@@ -62,6 +62,7 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
          */
         await expect(sessionCards.first()).toHaveAttribute('data-session-id', newestSessionId);
         await expect(reveal).toHaveAccessibleName(/^Show 10 more Sessions in /);
+        await expect(reveal).toHaveText('Show more');
         // The row is not a collapsible branch, so it must not spend a twistie on a meaning it does not have.
         await expect(reveal.locator('svg')).toHaveCount(0);
 

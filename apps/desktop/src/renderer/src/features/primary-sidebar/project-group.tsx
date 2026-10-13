@@ -422,7 +422,7 @@ function ProjectRevealRow({
             tabIndex={roving ? 0 : -1}
             onClick={onReveal}
         >
-            {t('primarySidebar.reveal.showMore', { count })}
+            {t('primarySidebar.reveal.showMore')}
         </button>
     );
 }
