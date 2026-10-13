@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 
-import type { AgentChatGoal } from '@caxri/protocol';
+import type { AgentChatGoal, AgentChatTurn } from '@caxri/protocol';
 import {
     agentChatGoalElapsedSeconds,
     agentChatGoalToggle,
@@ -67,20 +67,26 @@ function GoalAction({
  * counts no time otherwise. A completed goal stays until cleared, so its outcome is not lost when the turn ends.
  */
 export function AgentChatGoalBar({
+    activeTurnId,
     goal,
-    runningTurnStartedAt,
     terminalId,
+    turns,
 }: {
-    goal: AgentChatGoal | undefined;
     /**
-     * When the running turn started, or `undefined` while no turn runs.
+     * The running turn, or `undefined` while no turn runs.
      */
-    runningTurnStartedAt: number | undefined;
+    activeTurnId: string | undefined;
+    goal: AgentChatGoal | undefined;
     terminalId: string;
+    turns: ReadonlyArray<Pick<AgentChatTurn, 'id' | 'startedAt'>> | undefined;
 }) {
     const { t } = useTranslation();
     const [isExpanded, setExpanded] = useState(false);
     if (!goal) return null;
+    const runningTurnStartedAt =
+        activeTurnId === undefined
+            ? undefined
+            : turns?.find((turn) => turn.id === activeTurnId)?.startedAt;
     const toggle = agentChatGoalToggle(goal);
     const isActive = goal.status === 'active';
     return (

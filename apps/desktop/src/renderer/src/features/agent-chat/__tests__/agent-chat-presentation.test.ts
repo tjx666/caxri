@@ -398,7 +398,12 @@ describe('agentChatComposerPlaceholder', () => {
     const sendAction = { placeholder: 'Queue a follow-up (⌘Enter to steer)' };
 
     it('says Enter sends the queued message while one waits, except during an edit', () => {
-        const state = { hasNextQueued: true, isEditing: false, isTurnRunning: true };
+        const state = {
+            hasNextQueued: true,
+            isEditing: false,
+            isGoalMode: false,
+            isTurnRunning: true,
+        };
         expect(agentChatComposerPlaceholder(sendAction, state)).toBe(
             'Enter to steer the queued message, or type a follow-up',
         );
@@ -411,6 +416,17 @@ describe('agentChatComposerPlaceholder', () => {
         expect(agentChatComposerPlaceholder(sendAction, { ...state, hasNextQueued: false })).toBe(
             sendAction.placeholder,
         );
+    });
+
+    it('asks for the goal in Goal mode', () => {
+        expect(
+            agentChatComposerPlaceholder(sendAction, {
+                hasNextQueued: true,
+                isEditing: false,
+                isGoalMode: true,
+                isTurnRunning: true,
+            }),
+        ).toBe('Describe your goal, define measurable outcomes for best results');
     });
 });
 
