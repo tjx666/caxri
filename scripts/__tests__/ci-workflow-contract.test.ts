@@ -83,6 +83,40 @@ describe('CI workflow contract', () => {
         }
     });
 
+    it('keeps a queued release run out of the concurrency group later main pushes cancel', () => {
+        const { concurrency } = parse(workflow) as {
+            concurrency: { 'cancel-in-progress': boolean; 'group': string };
+        };
+        /**
+         * Evaluate the checked-in group expression; GitHub's `&&`/`||` return operands like JavaScript's.
+         */
+        const groupFor = (event_name: string, message: string, sha: string): string => {
+            const expression = /^ci-\$\{\{(?<body>[\s\S]+)\}\}$/u.exec(concurrency.group.trim())
+                ?.groups?.body;
+            if (!expression)
+                throw new Error(`Unexpected CI concurrency group: ${concurrency.group}`);
+            const result: unknown = runInNewContext(expression, {
+                format: (template: string, ...values: string[]) =>
+                    template.replaceAll(/\{(\d+)\}/gu, (_, index: string) => values[Number(index)]),
+                github: {
+                    event: { head_commit: { message } },
+                    event_name,
+                    ref: 'refs/heads/main',
+                    sha,
+                },
+                startsWith: (value: string, prefix: string) => value.startsWith(prefix),
+            });
+            return `ci-${String(result)}`;
+        };
+
+        expect(concurrency['cancel-in-progress']).toBe(true);
+        const release = groupFor('push', 'release: v0.0.98', 'release-sha');
+        expect(release).toBe('ci-release-release-sha');
+        expect(groupFor('push', 'fix: a later merge', 'later-sha')).toBe('ci-refs/heads/main');
+        expect(groupFor('schedule', '', 'nightly-sha')).toBe('ci-nightly');
+        expect(groupFor('push', 'fix: a later merge', 'later-sha')).not.toBe(release);
+    });
+
     it('keeps the pre-install runner boundary free of runtime package imports', () => {
         const packageImports = (source: string): string[] =>
             source
@@ -532,9 +566,6 @@ describe('CI workflow contract', () => {
         const nightlyJob = workflow.match(/\n {2}nightly-report:\n([\s\S]*)$/u)?.[1];
 
         expect(workflow).toContain("- cron: '0 0 * * *'");
-        expect(workflow).toContain(
-            "group: ci-${{ github.event_name == 'schedule' && 'nightly' || github.ref }}",
-        );
         expect(nightlyJob).toContain("github.event_name == 'schedule'");
         expect(nightlyJob).toContain("contains(needs.*.result, 'failure')");
         expect(nightlyJob).toContain('issues: write');
