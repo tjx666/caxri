@@ -17,7 +17,6 @@ export interface ServerArtifactInput {
     cliBundle?: string;
     commit: string;
     extensions: Array<{ id: string; source: string }>;
-    migrationsSource: string;
     nativePackages: Array<{ name: string; source: string; version: string }>;
     platform: string;
     protocolVersion: number;
@@ -96,21 +95,15 @@ async function hasPath(path: string): Promise<boolean> {
     }
 }
 
-async function copyMigrations(source: string, destination: string): Promise<void> {
-    const entries = await readdir(source, { withFileTypes: true });
-    await Promise.all(
-        entries.flatMap((entry) => {
-            if (entry.isFile() && entry.name.endsWith('.sql')) {
-                return cp(join(source, entry.name), join(destination, entry.name));
-            }
-            if (entry.isDirectory() && entry.name === 'meta') {
-                return cp(join(source, entry.name), join(destination, entry.name), {
-                    recursive: true,
-                });
-            }
-            return [];
-        }),
-    );
+/**
+ * Package files Node never loads at runtime: docs, type declarations, source maps, and tests. License and notice files
+ * stay whatever their extension. Every byte here ships in the Desktop app and is uploaded to and stored on each SSH
+ * Host.
+ */
+function isRuntimePackageFile(path: string): boolean {
+    const name = basename(path);
+    if (/^(?:licen[cs]e|notice|copying)\b/i.test(name)) return true;
+    return !/\.(?:d\.[cm]?ts|map|markdown|md)$|\.test\.js$/i.test(name);
 }
 
 async function copyExtension(source: string, destination: string): Promise<void> {
@@ -161,7 +154,6 @@ export async function assembleServerArtifact(
         mkdir(join(input.artifactRoot, 'bundles'), { recursive: true }),
         mkdir(join(input.artifactRoot, 'extensions'), { recursive: true }),
         mkdir(join(input.artifactRoot, 'metadata'), { recursive: true }),
-        mkdir(join(input.artifactRoot, 'migrations'), { recursive: true }),
         mkdir(join(input.artifactRoot, 'native', 'node_modules'), { recursive: true }),
         mkdir(join(input.artifactRoot, 'licenses'), { recursive: true }),
         mkdir(join(input.artifactRoot, 'runtime', 'bin'), { recursive: true }),
@@ -182,8 +174,6 @@ export async function assembleServerArtifact(
             if (!metadata.isFile()) throw new Error(`Missing Server bundle: ${bundleName}`);
         }),
     );
-    await copyMigrations(input.migrationsSource, join(input.artifactRoot, 'migrations'));
-
     const extensions: Array<{ id: string; path: string }> = await Promise.all(
         input.extensions.map(async (extension) => {
             const directoryName = basename(extension.source);
@@ -206,7 +196,7 @@ export async function assembleServerArtifact(
                     'node_modules',
                     ...nativePackage.name.split('/'),
                 ),
-                { recursive: true },
+                { filter: isRuntimePackageFile, recursive: true },
             );
         }),
     );
