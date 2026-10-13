@@ -118,6 +118,12 @@ export interface AgentLifecycleSignal {
      */
     agentTurnContinues?: true;
     /**
+     * The main turn ended while provider work that wakes the Agent again (a background subagent, workflow, or monitor)
+     * is still running. Completion waits for that work instead of settling the Session. A background shell does not
+     * count: it can be a dev server that runs for hours.
+     */
+    agentBackgroundWork?: true;
+    /**
      * Closed StopFailure classification; provider error text never crosses the hook boundary.
      */
     agentFailure?:

@@ -1,5 +1,5 @@
+import { RunningArc } from './running-arc';
 import type { SessionStatusSummary } from './session-status';
-import { RunningArc } from './session-status-indicator';
 
 /**
  * The collapsed heading's decorative Agent summary: a small running arc with its count, then one attention dot. Only

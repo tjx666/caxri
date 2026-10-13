@@ -1,11 +1,21 @@
 import { randomUUID } from 'node:crypto';
 
 import type { SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentChatTurn } from '@caxri/protocol';
+import type { AgentChatSnapshot, AgentChatTurn } from '@caxri/protocol';
 
 import { MAX_TRACKED_TURNS } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { claudeContextWindow, finishedClaudeTurn } from './claude-items';
+
+/**
+ * Whether background work that wakes Claude again is still running: a subagent or workflow (both listed as `agent`). A
+ * background shell does not count; it can be a dev server that runs for hours.
+ */
+function hasWakingBackgroundWork(snapshot: AgentChatSnapshot): boolean {
+    return (snapshot.tasks ?? []).some(
+        (task) => task.kind === 'agent' && task.isBackground && task.status === 'running',
+    );
+}
 
 /**
  * Turn state of one Claude Code Chat. Claude Code has no turn ids: a turn this session starts is identified by the uuid
@@ -21,6 +31,12 @@ export class ClaudeTurns {
     private isAcknowledged = false;
 
     private contextWindowSize: number | undefined;
+
+    /**
+     * The completed turn whose finish was reported with background work still running. Its plain finish is reported
+     * again once that work drains, unless Claude Code resumes with a new turn first.
+     */
+    private backgroundTurnId: string | undefined;
 
     isInterruptRequested = false;
 
@@ -69,6 +85,9 @@ export class ClaudeTurns {
             ]);
         host.onTurnFinished(status, finished.durationMs);
         const agentSessionId = this.options.sessionId();
+        const isWaitingOnBackground =
+            status === 'completed' && hasWakingBackgroundWork(host.read());
+        this.backgroundTurnId = isWaitingOnBackground ? id : undefined;
         host.lifecycle(
             status === 'failed'
                 ? {
@@ -77,7 +96,12 @@ export class ClaudeTurns {
                       agentTurnId: id,
                       agentFailure: 'provider_failed',
                   }
-                : { phase: 'turnFinished', agentSessionId, agentTurnId: id },
+                : {
+                      phase: 'turnFinished',
+                      agentSessionId,
+                      agentTurnId: id,
+                      ...(isWaitingOnBackground && { agentBackgroundWork: true as const }),
+                  },
         );
     }
 
@@ -90,6 +114,7 @@ export class ClaudeTurns {
         const snapshot = host.read();
         const sessionId = this.options.bindSession();
         if (isOwnPrompt) this.isAcknowledged = false;
+        this.backgroundTurnId = undefined;
         this.count += 1;
         this.isInterruptRequested = false;
         host.apply([
@@ -125,6 +150,23 @@ export class ClaudeTurns {
         const error =
             result.subtype === 'success' ? result.result : result.errors.filter(Boolean).join('\n');
         this.end(isSuccess ? 'completed' : 'failed', error);
+    }
+
+    /**
+     * Reports the waiting turn's plain finish once its background work drained while no turn runs. The shared lifecycle
+     * path still waits a short resume window, because Claude Code usually starts a turn on its own to report the
+     * result.
+     */
+    onTasksChanged(): void {
+        const id = this.backgroundTurnId;
+        const snapshot = this.options.host.read();
+        if (!id || snapshot.activeTurnId || hasWakingBackgroundWork(snapshot)) return;
+        this.backgroundTurnId = undefined;
+        this.options.host.lifecycle({
+            phase: 'turnFinished',
+            agentSessionId: this.options.sessionId(),
+            agentTurnId: id,
+        });
     }
 
     onSessionState(state: unknown): void {

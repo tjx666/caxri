@@ -98,6 +98,10 @@ export class ClaudeTasks {
              */
             takeDeclined: (toolUseId: string) => boolean;
             isInterruptRequested: () => boolean;
+            /**
+             * Called after a task frame was handled, so turn state can react to background work draining.
+             */
+            onTasksChanged: () => void;
         },
     ) {
         this.list = new ChatTaskList(options.host);
@@ -434,6 +438,34 @@ export class ClaudeTasks {
         if (this.list.get(id)?.status !== 'running') this.outputs.delete(id);
     }
 
+    private onTaskFrame(message: Json): boolean {
+        switch (message.subtype) {
+            case 'task_started': {
+                this.onTaskStarted(message);
+                return true;
+            }
+            case 'task_updated': {
+                this.onTaskUpdated(message);
+                return true;
+            }
+            case 'task_progress': {
+                this.onTaskProgress(message);
+                return true;
+            }
+            case 'task_notification': {
+                this.onTaskNotification(message);
+                return true;
+            }
+            case 'background_tasks_changed': {
+                this.onBackgroundTasksChanged(message);
+                return true;
+            }
+            default: {
+                return false;
+            }
+        }
+    }
+
     /**
      * Inspects a top-level assistant frame for subagent tool calls.
      */
@@ -529,31 +561,9 @@ export class ClaudeTasks {
      * Handles a `system` frame about tasks. Returns false for any other subtype.
      */
     onSystem(message: Json): boolean {
-        switch (message.subtype) {
-            case 'task_started': {
-                this.onTaskStarted(message);
-                return true;
-            }
-            case 'task_updated': {
-                this.onTaskUpdated(message);
-                return true;
-            }
-            case 'task_progress': {
-                this.onTaskProgress(message);
-                return true;
-            }
-            case 'task_notification': {
-                this.onTaskNotification(message);
-                return true;
-            }
-            case 'background_tasks_changed': {
-                this.onBackgroundTasksChanged(message);
-                return true;
-            }
-            default: {
-                return false;
-            }
-        }
+        const isTaskFrame = this.onTaskFrame(message);
+        if (isTaskFrame) this.options.onTasksChanged();
+        return isTaskFrame;
     }
 
     /**

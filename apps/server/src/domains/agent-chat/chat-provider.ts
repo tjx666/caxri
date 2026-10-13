@@ -47,6 +47,7 @@ export interface ChatLifecycleEvent {
     agentTurnId?: string;
     agentToolUseId?: string;
     agentFailure?: AgentLifecycleSignal['agentFailure'];
+    agentBackgroundWork?: true;
     worktreeCreateIntent?: true;
 }
 

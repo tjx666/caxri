@@ -29,8 +29,8 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { localizedRelativeTime } from '../../lib/relative-time';
 import { cn } from '../../lib/utilities';
 import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
+import { BackgroundArc, RunningArc } from '../primary-sidebar/running-arc';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
-import { RunningArc } from '../primary-sidebar/session-status-indicator';
 import { sessionTitleForDisplay } from '../session/session-title';
 import type {
     CommanderChecksIconId,
@@ -53,6 +53,7 @@ type IconComponent = ComponentType<{ size?: number }>;
  * the sidebar.
  */
 const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, IconComponent> = {
+    background: BackgroundArc,
     check: CircleCheck,
     dashed: CircleDashed,
     hollow: Circle,

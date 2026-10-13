@@ -72,14 +72,26 @@ describe('Session list status', () => {
             ariaDescription: 'The Agent is running.',
             ariaLabel: 'Working',
             kind: 'running',
+            variant: 'active',
         });
         expect(sessionStatus(sessionSource('completed'), { agentOperation: 'compacting' })).toEqual(
             {
                 ariaDescription: 'The Agent is summarizing earlier context before continuing.',
                 ariaLabel: 'Compacting',
                 kind: 'running',
+                variant: 'active',
             },
         );
+    });
+
+    it('shows a turn waiting on background work as the quiet running variant', () => {
+        expect(sessionStatus(sessionSource('running'), { agentOperation: 'background' })).toEqual({
+            ariaDescription:
+                'The turn ended while background work it started is still running; the Agent continues once that work reports back.',
+            ariaLabel: 'In background',
+            kind: 'running',
+            variant: 'background',
+        });
     });
 
     it.each<AgentActivityState>(['completed', 'failed', 'idle', 'unknown', 'waiting'])(

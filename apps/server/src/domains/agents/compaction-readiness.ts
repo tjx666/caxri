@@ -26,7 +26,7 @@ export class CompactionReadiness {
     }
 
     observe(signal: AgentLifecycleSignal): void {
-        if (signal.agentId || signal.agentTurnContinues) return;
+        if (signal.agentId || signal.agentTurnContinues || signal.agentBackgroundWork) return;
         const { terminalId, launchId, agentTurnId: turnId, phase } = signal;
         switch (phase) {
             case 'turnStarted': {
