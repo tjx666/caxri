@@ -1,4 +1,5 @@
 import type { TerminalReferencePreview } from '@caxri/protocol';
+import { isGitHubName } from '@caxri/protocol';
 
 /**
  * What a web link points at, read from its URL alone so a hover card has something to show before Main reads the page
@@ -19,7 +20,8 @@ export interface LinkSummary {
      */
     kind?: 'pull' | 'issue' | 'discussion' | 'repository';
     /**
-     * The issue or pull request a numbered GitHub link opens, so a transcript can ask for its state.
+     * The issue or pull request a numbered GitHub link opens, so a transcript can ask for its state. Absent when the
+     * owner or repository is not a name GitHub allows, since the Server would refuse to ask about it.
      */
     reference?: { owner: string; repo: string; number: number };
     /**
@@ -66,7 +68,9 @@ function githubSummary(
         return {
             detail: `${name} · #${number}`,
             kind,
-            ...(kind !== 'discussion' && { reference: { owner, repo, number: Number(number) } }),
+            ...(kind !== 'discussion' &&
+                isGitHubName(owner) &&
+                isGitHubName(repo) && { reference: { owner, repo, number: Number(number) } }),
         };
     return { detail: name, kind: 'repository' };
 }

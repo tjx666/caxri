@@ -1,4 +1,4 @@
-import type { GitCommitDetails, TerminalReferenceContext } from '@caxri/protocol';
+import type { GitCommitDetails } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { GitHubReferenceStore } from '../../external-status';
@@ -28,14 +28,10 @@ const LOGGER = { write: vi.fn() } as unknown as TerminalReferencePreviewOptions[
 function createOptions(
     overrides: Partial<TerminalReferencePreviewOptions> = {},
 ): TerminalReferencePreviewOptions {
-    const context: TerminalReferenceContext = {
-        githubRepositories: [{ owner: 'tjx666', repo: 'caxri' }],
-    };
     return {
         commitDetails: () => Promise.resolve(COMMIT_DETAILS),
         githubReferences: {} as GitHubReferenceStore,
         logger: LOGGER,
-        referenceContext: () => Promise.resolve(context),
         resolveCommit: () =>
             Promise.resolve({
                 status: 'resolved',
@@ -87,18 +83,30 @@ describe('loadTerminalReferencePreview', () => {
         ).toEqual({ kind: 'unavailable', reason: 'ambiguous' });
     });
 
-    it('never spends a request on a repository the Session does not already have', async () => {
-        const runner = vi.fn(() => Promise.resolve('{}'));
-        const options = createOptions({ githubReferences: new ReferenceStore(runner) });
-        // A Terminal prints whatever a program writes, so `attacker/repo#1` scrolling past the pointer must not be
-        // able to steer an outbound read at a repository of its choosing.
+    it('reads a pull request in a repository the Session does not have', async () => {
+        const runner = vi.fn(() =>
+            Promise.resolve(
+                JSON.stringify({
+                    number: 42,
+                    pull_request: { merged_at: '2026-09-02T00:00:00Z' },
+                    state: 'closed',
+                    title: 'Use the shared icon set',
+                }),
+            ),
+        );
+        // The Session's own repository is `tjx666/caxri`; an Agent linking a pull request it opened in a sibling
+        // repository still needs that pull request's state, or a merged one keeps reading as open.
         const preview = await loadTerminalReferencePreview(
-            { kind: 'github', owner: 'attacker', repo: 'repo', number: 1 },
-            options,
+            { kind: 'github', owner: 'acme', repo: 'widgets', number: 42 },
+            createOptions({ githubReferences: new ReferenceStore(runner) }),
         );
 
-        expect(preview).toEqual({ kind: 'unavailable', reason: 'not-found' });
-        expect(runner).not.toHaveBeenCalled();
+        expect(preview).toMatchObject({ kind: 'github', isMerged: true, isPullRequest: true });
+        expect(runner).toHaveBeenCalledWith(
+            'gh',
+            ['api', '--hostname', 'github.com', 'repos/acme/widgets/issues/42'],
+            '/project',
+        );
     });
 
     it.each([
@@ -158,7 +166,7 @@ describe('loadTerminalReferencePreview', () => {
         });
         expect(runner).toHaveBeenCalledWith(
             'gh',
-            ['api', 'repos/tjx666/caxri/issues/445'],
+            ['api', '--hostname', 'github.com', 'repos/tjx666/caxri/issues/445'],
             '/project',
         );
     });

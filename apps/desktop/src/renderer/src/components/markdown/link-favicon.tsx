@@ -9,11 +9,10 @@ import { PULL_REQUEST_ICONS } from './pull-request-icons';
 
 /**
  * A pull request link's icon, tinted by its state. The state comes from the Terminal reference preview, which reads
- * GitHub's REST API (not the GraphQL budget the sidebar shares), caches per number, and only answers for repositories
- * the Session already has, so a transcript cannot steer requests at an arbitrary repository. Without a Terminal to
- * scope the read, for another repository's pull request, or until it answers, the plain pull request glyph stands in
- * GitHub's pull request green: the neutral glyph keeps it distinct from a confirmed open state, while the tint still
- * reads as a pull request rather than borrowing the link text's color.
+ * GitHub's REST API (not the GraphQL budget the sidebar shares) for any github.com repository and caches per number.
+ * Without a Terminal to scope the read, when the read fails, or until it answers, the plain pull request glyph stands
+ * in the muted tone the Chat's pull request card uses for the same unknown state. A green stand-in read as a confirmed
+ * open pull request, so a merged one whose state never arrived looked as if it had not merged.
  */
 function PullRequestLinkIcon({
     className,
@@ -34,7 +33,7 @@ function PullRequestLinkIcon({
         return (
             <GitPullRequest
                 aria-hidden
-                className={cn(className, 'text-success')}
+                className={cn(className, 'text-muted')}
                 data-link-icon="pull-request"
             />
         );
@@ -63,7 +62,7 @@ export function LinkFavicon({
     className?: string;
     origin: string;
     /**
-     * The Terminal whose Session scopes a pull request's state lookup; without one the glyph stays untinted.
+     * The Terminal a pull request's state lookup is routed through; without one the glyph stays muted.
      */
     referenceTerminalId?: string;
     summary: LinkSummary;

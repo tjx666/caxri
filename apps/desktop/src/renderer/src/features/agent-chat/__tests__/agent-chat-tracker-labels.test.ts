@@ -61,6 +61,7 @@ describe('trackerPreviewRequest', () => {
             ),
         ).toBeUndefined();
         expect(trackerPreviewRequest(artifact({ reference: 'widgets#7' }))).toBeUndefined();
+        expect(trackerPreviewRequest(artifact({ reference: '../user#7' }))).toBeUndefined();
     });
 });
 
