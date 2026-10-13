@@ -223,13 +223,16 @@ export class SessionSearchIndexer {
                 changed.push({ found, identity, stored: row });
         });
         let removed = 0;
-        for (const row of stored.values()) {
+        const unseen = stored
+            .values()
+            .filter((row) => !seen.has(row.path))
+            .toArray();
+        await mapWithConcurrency(unseen, IDENTITY_CONCURRENCY, async (row) => {
             // A discovery budget or a transient directory error must not drop a file that still exists.
-            // eslint-disable-next-line no-await-in-loop -- rows are few; each needs its own existence check
-            if (seen.has(row.path) || (await fileIdentity(row.path))) continue;
+            if (await fileIdentity(row.path)) return;
             this.store.deleteTranscript(row.id);
             removed += 1;
-        }
+        });
         changed.sort((left, right) => right.identity.mtimeMs - left.identity.mtimeMs);
         this.pending = changed.length;
         const codex = await readCodexThreadIndex(
