@@ -83,6 +83,25 @@ export async function agentChatTerminalProjectRoot(
     return agentChatProjectRoot(domainService, principal, terminal.sessionId);
 }
 
+/**
+ * Registers a phone's Agent Chat subscription so idle suspension leaves the Chat running, and returns the release the
+ * subscription calls when it closes.
+ */
+export async function beginMobileAgentChatWatch(
+    domainService: ServerDomainService,
+    principal: Principal,
+    terminalId: string,
+): Promise<() => void> {
+    await agentChatTerminalForPrincipal(domainService, principal, terminalId);
+    await domainService.request('mobile.chatWatch.watchInternal', { terminalId });
+    return () => {
+        // eslint-disable-next-line no-void -- Connection teardown cannot block on a Server IPC reply.
+        void domainService
+            .request('mobile.chatWatch.unwatchInternal', { terminalId })
+            .catch(() => {});
+    };
+}
+
 interface ImageData {
     mediaType: AgentChatImageMediaType;
     data: string;

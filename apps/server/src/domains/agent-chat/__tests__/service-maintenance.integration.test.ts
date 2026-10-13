@@ -30,6 +30,10 @@ describe('Agent Chat idle maintenance', () => {
         expect(database.getTerminal(terminal.id)?.lastProcessState).toBe('running');
         expect((await threadOpens()).at(-1)).toMatchObject({ method: 'thread/resume' });
         expect(database.getTerminal(terminal.id)?.agentSessionId).toBe(threadId);
+
+        // The resumed launch is no longer suspending: an archive's stop records `stopped`, not `suspended`.
+        await service.closeSession(terminal.sessionId);
+        expect(database.getTerminal(terminal.id)?.lastProcessState).toBe('stopped');
     });
 
     it('never stops a Chat inside a turn', async () => {

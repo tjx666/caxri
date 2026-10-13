@@ -30,7 +30,10 @@ interface Subscription {
      * a read resolves the current root and a patch clipped with the old one would name the same file differently.
      */
     agentChatRootRefresh?: symbol;
-    closeConversation?: () => void;
+    /**
+     * Releases what the subscription registered as a phone watching an Agent (a Conversation or an Agent Chat).
+     */
+    closeWatch?: () => void;
     id: string;
     pendingBytes: number;
     pendingFrames: number;
@@ -71,6 +74,7 @@ export interface MobileSubscriptionOptions {
     terminate: () => void;
     connectionId: string;
     beginConversation?: (principal: Principal, sessionId: string) => Promise<() => void>;
+    beginAgentChat?: (principal: Principal, terminalId: string) => Promise<() => void>;
     agentChatProjectRoot?: (principal: Principal, terminalId: string) => Promise<string>;
     terminalExecution?: TerminalExecutionPort;
 }
@@ -146,13 +150,28 @@ export class MobileGatewaySubscriptions {
         }
         if (resource.kind === 'conversation' && this.#options.beginConversation) {
             try {
-                subscription.closeConversation = await this.#options.beginConversation(
+                subscription.closeWatch = await this.#options.beginConversation(
                     this.#options.currentPrincipal(),
                     resource.sessionId,
                 );
                 if (!subscription.active) {
-                    subscription.closeConversation();
+                    subscription.closeWatch();
                     throw new CaxriError('CANCELLED', 'Conversation subscription closed');
+                }
+            } catch (error) {
+                this.unsubscribe(id);
+                throw error;
+            }
+        }
+        if (resource.kind === 'agentChat' && this.#options.beginAgentChat) {
+            try {
+                subscription.closeWatch = await this.#options.beginAgentChat(
+                    this.#options.currentPrincipal(),
+                    resource.terminalId,
+                );
+                if (!subscription.active) {
+                    subscription.closeWatch();
+                    throw new CaxriError('CANCELLED', 'Agent Chat subscription closed');
                 }
             } catch (error) {
                 this.unsubscribe(id);
@@ -243,7 +262,7 @@ export class MobileGatewaySubscriptions {
         if (!subscription) return;
         subscription.active = false;
         this.#subscriptions.delete(id);
-        subscription.closeConversation?.();
+        subscription.closeWatch?.();
         // eslint-disable-next-line no-void -- Observer close catches Host teardown failure internally.
         if (subscription.terminal) void subscription.terminal.close();
     }
@@ -252,7 +271,7 @@ export class MobileGatewaySubscriptions {
         this.#closed = true;
         for (const subscription of this.#subscriptions.values()) {
             subscription.active = false;
-            subscription.closeConversation?.();
+            subscription.closeWatch?.();
             // eslint-disable-next-line no-void -- Observer close catches Host teardown failure internally.
             if (subscription.terminal) void subscription.terminal.close();
         }

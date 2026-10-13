@@ -46,6 +46,7 @@ export async function startChat(
     const launchId = randomUUID();
     const startedAt = Date.now();
     state.launchId = launchId;
+    state.suspending = undefined;
     states.setStatus(terminalId, 'starting');
     database.updateTerminalState(terminalId, 'starting');
     database.updateAgentProcessState(terminalId, 'starting');

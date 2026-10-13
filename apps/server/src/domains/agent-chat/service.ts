@@ -28,6 +28,7 @@ import { forkChat } from './chat-fork';
 import { readChatTerminalHistory } from './chat-history';
 import { isAgentChatCommandListed } from './chat-items';
 import { requireChatTerminal } from './chat-launch';
+import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
 import * as queueActions from './chat-queue-actions';
@@ -54,6 +55,8 @@ export class AgentChatService {
     private readonly starts = new SingleFlight<string, void>();
 
     private readonly agentRunAutonomy = new AgentRunAutonomy();
+
+    private readonly mobileWatchers = new ChatMobileWatchers();
 
     private readonly permissionSwitches: ChatPermissionSwitches;
 
@@ -182,9 +185,10 @@ export class AgentChatService {
     }
 
     /**
-     * Whether a Chat has a provider process or a start in flight, which is what a detach hands over.
+     * Whether a Chat has a provider process or a start in flight, which is what a detach hands over and what batch
+     * compaction requires before it reports a Chat as anything but not running.
      */
-    private isLive(terminalId: string): boolean {
+    isLive(terminalId: string): boolean {
         return this.states.get(terminalId)?.session?.isOpen === true || this.starts.has(terminalId);
     }
 
@@ -467,6 +471,21 @@ export class AgentChatService {
     }
 
     /**
+     * Registers a phone subscribed to this Chat; see {@link ChatMobileWatchers}.
+     */
+    watchMobile(terminalId: string): void {
+        this.mobileWatchers.watch(terminalId);
+    }
+
+    unwatchMobile(terminalId: string): void {
+        this.mobileWatchers.unwatch(terminalId);
+    }
+
+    isObservedRemotely(terminalId: string): boolean {
+        return this.mobileWatchers.has(terminalId);
+    }
+
+    /**
      * Whether idle suspension may stop this Chat now; see {@link isChatIdleForSuspension}.
      */
     isSuspendable(terminalId: string): boolean {
@@ -520,13 +539,12 @@ export class AgentChatService {
         const run = (async () => {
             await previous;
             if (this.states.get(terminalId) !== state || !this.isSuspendable(terminalId)) return;
-            await state.session?.close();
-            state.session = undefined;
-            // The requested exit recorded `stopped`; a suspension is resumable on selection instead.
-            if (this.states.get(terminalId) !== state || !database.getTerminal(terminalId)) return;
-            database.updateTerminalState(terminalId, 'suspended');
-            database.updateAgentProcessState(terminalId, 'suspended');
-            this.states.publish(terminalId);
+            // The requested exit records `suspended` through this flag whenever it lands; a provider (Claude) may
+            // report it after `close` resolves, and writing here instead could overwrite a start that began since.
+            state.suspending = true;
+            const { session } = state;
+            await session?.close();
+            if (state.session === session) state.session = undefined;
             return database.getTerminal(terminalId);
         })();
         state.sendQueue = Promise.allSettled([run]);

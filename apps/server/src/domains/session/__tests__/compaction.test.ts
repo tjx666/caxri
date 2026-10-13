@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { readAgentTranscript } from '../../agents/index';
@@ -74,6 +75,7 @@ async function fixture() {
     const agentChat = {
         compactIdle: vi.fn(() => Promise.resolve()),
         idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(() => 'chat-launch'),
+        isLive: vi.fn(() => true),
     };
     const service = new SessionCompaction({
         agentChat,
@@ -125,12 +127,18 @@ describe('batch compaction', () => {
 
         f.agentChat.idleLaunchId.mockReturnValue(undefined);
         expect((await f.service.run()).items[0]?.outcome).toBe('busy');
+        f.agentChat.isLive.mockReturnValueOnce(false);
+        expect((await f.service.run()).items[0]?.outcome).toBe('not_running');
         f.database.updateTerminalState(f.terminal.id, 'suspended');
         expect((await f.service.run()).items[0]?.outcome).toBe('not_running');
         f.agentChat.compactIdle.mockClear();
         f.database.updateTerminalState(f.terminal.id, 'running');
         f.agentChat.idleLaunchId.mockReturnValue('chat-launch');
-        f.agentChat.compactIdle.mockRejectedValue(new Error('changed'));
+        f.agentChat.compactIdle.mockRejectedValueOnce(new CaxriError('CONFLICT', 'moved on'));
+        expect((await f.service.run()).items[0]?.outcome).toBe('changed');
+        f.agentChat.compactIdle.mockRejectedValueOnce(new CaxriError('VALIDATION', 'no compact'));
+        expect((await f.service.run()).items[0]?.outcome).toBe('unsupported');
+        f.agentChat.compactIdle.mockRejectedValueOnce(new Error('crashed'));
         expect((await f.service.run()).items[0]?.outcome).toBe('failed');
     });
     it.each([30, 31, -1])(
