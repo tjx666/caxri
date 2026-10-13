@@ -7,6 +7,7 @@ import {
     limitBarTone,
     pullRequestTileDetail,
     usageRowStatusLabel,
+    usageSessionFilterTitle,
     usageSessionTitle,
     usageShare,
     usageShareBasis,
@@ -144,5 +145,68 @@ describe('session row title', () => {
         expect(usageSessionTitle(translate, row('Untitled', { isOutsideCaxri: true }))).toBe(
             'Untitled',
         );
+    });
+});
+
+describe('session filter title', () => {
+    const row = (title: string, flags: { isDeleted?: boolean; isOutsideCaxri?: boolean } = {}) => ({
+        title,
+        isDeleted: flags.isDeleted ?? false,
+        isOutsideCaxri: flags.isOutsideCaxri ?? false,
+    });
+
+    afterEach(() => {
+        useLocaleStore.setState({ locale: 'en' });
+    });
+
+    it('translates the unnamed placeholder of the live Session as the PrimarySidebar does', () => {
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        expect(
+            usageSessionFilterTitle(translate, {
+                liveTitle: 'Untitled',
+                reportRow: row('Untitled'),
+                sessionId: 'session-1',
+            }),
+        ).toBe('未命名');
+        expect(
+            usageSessionFilterTitle(translate, {
+                liveTitle: 'Fix login flow',
+                reportRow: undefined,
+                sessionId: 'session-1',
+            }),
+        ).toBe('Fix login flow');
+        useLocaleStore.setState({ locale: 'en' });
+        expect(
+            usageSessionFilterTitle(translate, {
+                liveTitle: 'Untitled',
+                reportRow: undefined,
+                sessionId: 'session-1',
+            }),
+        ).toBe('Untitled');
+    });
+
+    it('falls back to the report row title, then to the raw Session ID', () => {
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        expect(
+            usageSessionFilterTitle(translate, {
+                liveTitle: undefined,
+                reportRow: row('Untitled'),
+                sessionId: 'session-1',
+            }),
+        ).toBe('未命名');
+        expect(
+            usageSessionFilterTitle(translate, {
+                liveTitle: undefined,
+                reportRow: row('Deleted Session', { isDeleted: true }),
+                sessionId: 'session-1',
+            }),
+        ).toBe('已删除的会话');
+        expect(
+            usageSessionFilterTitle(translate, {
+                liveTitle: undefined,
+                reportRow: undefined,
+                sessionId: 'Untitled',
+            }),
+        ).toBe('Untitled');
     });
 });

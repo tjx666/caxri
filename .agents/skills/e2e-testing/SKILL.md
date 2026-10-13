@@ -40,7 +40,7 @@ attention), a wall-clock assertion such as a 4s toast it must catch, or machine 
 `desktopExclusiveSpecs` in `e2e/support/pools.ts` with its reason in the same change. The reason
 enum, admission conditions, and the contract test that derives `clipboard: true`,
 `windowMode: 'visible'`, and `gpuMode: 'enabled'` from spec sources live there; split a spec when
-only some of its tests need the exclusive pool, as `agent-commander-workbench-handoff.e2e.ts` does.
+only some of its tests need the exclusive pool.
 
 ## Focused workflow
 
@@ -169,7 +169,8 @@ evidence rather than automated test or Acceptance evidence.
   enough to write a partial receipt with `abortReason` (`SIGINT` | `SIGTERM`) instead of losing
   whatever already failed, distinguishing specs that finished, the invocation the signal actually
   killed (`abortedInvocations`), and specs that never ran at all (folded into `missingSpecs`); see
-  issue #1446.
+  issue #1446. The killed invocation's settled verdicts survive through the reporter's
+  `<receipt>.progress.jsonl` journal (issue #1847).
 - An interrupted local pool leaves Electron and Playwright processes behind. Clear them with
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop`, never with a name match:
   `pkill -f "Caxri.app"` also matches the installed `/Applications/Caxri.app` and has already

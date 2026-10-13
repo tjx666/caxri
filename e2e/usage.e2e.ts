@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Page } from './support/fixtures.ts';
+import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, VISIBLE_SESSION } from './support/helpers.ts';
 
@@ -75,6 +75,86 @@ test('Open Usage asks for a Project first, then opens the Usage tab and switches
         await expect(usage.getByText('Across 0 Sessions + 1 outside')).toBeVisible();
         await usage.getByRole('button', { name: 'Caxri', exact: true }).click();
         await expect(usage.getByText('No Agent usage yet')).toBeVisible();
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+async function expectNoScrollFade(scroller: Locator): Promise<void> {
+    await expect(scroller).not.toHaveAttribute('data-scroll-fade-start');
+    await expect(scroller).not.toHaveAttribute('data-scroll-fade-end');
+}
+
+/**
+ * A classic scrollbar takes layout space below the content; a macOS overlay scrollbar, hidden at rest, takes none.
+ */
+async function expectVisibleRail(scroller: Locator): Promise<void> {
+    await expect
+        .poll(() =>
+            scroller.evaluate(
+                (element) => (element as HTMLElement).offsetHeight - element.clientHeight,
+            ),
+        )
+        .toBeGreaterThan(0);
+}
+
+/**
+ * Issue #1958: macOS overlay scrollbars stay hidden at rest, so a narrow pane cut off the right of the Models table and
+ * the older weeks of the Activity chart with no sign that more was there. Each sideways scroller now fades the edge
+ * that hides content, and only that edge, and keeps a scrollbar rail visible at rest.
+ */
+test('Usage fades the hidden edge of its tables and Activity chart in a narrow pane', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-usage-e2e-'));
+    const root = join(testDirectory, 'project');
+    const userDataDirectory = join(testDirectory, 'user-data');
+    await mkdir(root, { recursive: true });
+    await writeOutsideCodexRollout(userDataDirectory);
+    const running = await launchCaxri({ userDataDir: userDataDirectory, testRootPath: root });
+    try {
+        await createProjectSession(running.page, 'shell');
+        await runOpenUsage(running.page);
+        const usage = running.page.locator(`${VISIBLE_SESSION} [data-usage-page]`);
+        await usage.getByRole('button', { name: 'Show This Mac', exact: true }).click();
+        await expect(usage.getByText('Outside Caxri', { exact: true }).first()).toBeVisible();
+
+        const models = usage
+            .getByRole('region', { name: 'Models', exact: true })
+            .locator('[data-horizontal-scroll]');
+        const activity = usage.locator('[data-horizontal-scroll][role="img"]');
+        await expect(models.locator('table')).toBeVisible();
+
+        // Wide: nothing overflows, so neither edge is cued.
+        await expectNoScrollFade(models);
+        await expectNoScrollFade(activity);
+
+        // The issue's ~425px editor group, narrower than the window's minimum width allows the whole pane to be.
+        await usage.evaluate((element) => {
+            (element as HTMLElement).style.width = '425px';
+        });
+        // The table starts at its first column, so its right edge hides the figures.
+        await expect(models).toHaveAttribute('data-scroll-fade-end', 'true');
+        await expect(models).not.toHaveAttribute('data-scroll-fade-start');
+        // The chart stays pinned to the newest weeks, so its left edge hides the older ones.
+        await expect(activity).toHaveAttribute('data-scroll-fade-start', 'true');
+        await expect(activity).not.toHaveAttribute('data-scroll-fade-end');
+        // The rail is a classic scrollbar that takes layout space, so it shows at rest even where macOS would use a
+        // hidden overlay scrollbar.
+        await expectVisibleRail(models);
+        await expectVisibleRail(activity);
+
+        // Scrolled to its end, the table's cue moves to the edge that now hides content.
+        await models.evaluate((element) => {
+            element.scrollLeft = element.scrollWidth;
+        });
+        await expect(models).toHaveAttribute('data-scroll-fade-start', 'true');
+        await expect(models).not.toHaveAttribute('data-scroll-fade-end');
+
+        await usage.evaluate((element) => {
+            (element as HTMLElement).style.width = '';
+        });
+        await expect(models).not.toHaveAttribute('data-scroll-fade-start');
+        await expect(activity).not.toHaveAttribute('data-scroll-fade-start');
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });

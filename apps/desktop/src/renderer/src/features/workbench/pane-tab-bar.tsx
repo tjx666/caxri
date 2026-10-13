@@ -5,6 +5,8 @@ import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
 import { partitionPaneTabs } from '@caxri/protocol';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
+import type { ScrollFadeFill } from '../../components/scroll-fade';
+import { ScrollFade } from '../../components/scroll-fade';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
@@ -44,43 +46,6 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: b
     if (properties.tab.resource.kind === 'terminal')
         return terminal ? <TerminalPaneTab {...properties} terminal={terminal} /> : null;
     return <DocumentPaneTab {...properties} path={properties.tab.resource.path} />;
-}
-
-/**
- * The path the tab actions operate on, or `undefined` when the active tab is not an editable document. A virtual tab
- * has no file behind it and so offers no actions, except a Git diff, whose target is a real path the actions can
- * reach.
- */
-/**
- * Which fill the scroll cue has to blend into, named in the bar's own precedence order: the drop-target tint covers
- * everything, then the Workbench bar's title-bar fill, then an ordinary pane bar's surface.
- */
-type ScrollFadeFill = 'dropTarget' | 'surface' | 'titleBar';
-
-const SCROLL_FADE_FILL_CLASS_NAME: Record<ScrollFadeFill, string> = {
-    dropTarget: 'from-elevated',
-    surface: 'from-surface',
-    // Tracks the root bar's own two states, so the cue stays seamless when the window loses focus.
-    titleBar: 'from-title-bar-active-background window-inactive:from-title-bar-inactive-background',
-};
-
-/**
- * The gradient cue for one end of the scrollable rail. It appears only on an edge that actually hides tabs, and fades
- * to whatever background the bar itself currently wears so the cue never draws a visible seam against it.
- * `motion-safe:` keeps the appear/disappear crossfade off entirely under reduced motion (DESIGN.md's motion layer
- * contract), leaving an instant show/hide.
- */
-function ScrollFade({ edge, fill }: { edge: 'end' | 'start'; fill: ScrollFadeFill }) {
-    return (
-        <div
-            aria-hidden="true"
-            className={cn(
-                'pointer-events-none absolute inset-y-0 z-[4] w-6 to-transparent motion-safe:transition-opacity',
-                edge === 'start' ? 'left-0 bg-gradient-to-r' : 'right-0 bg-gradient-to-l',
-                SCROLL_FADE_FILL_CLASS_NAME[fill],
-            )}
-        />
-    );
 }
 
 /**

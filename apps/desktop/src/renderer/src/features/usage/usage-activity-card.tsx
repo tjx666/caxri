@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { UsageDay } from '@caxri/protocol';
 
+import { HorizontalScrollArea } from '../../components/scroll-fade';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { TranslationKey } from '../../i18n';
@@ -311,9 +312,11 @@ export function UsageActivityCard({
                     </ToggleGroup>
                 </div>
             </div>
-            <div
-                ref={chartReference}
-                className="mt-3 overflow-x-auto rounded-sm focus-visible:outline focus-visible:outline-accent"
+            {/* Fades the older weeks' edge while the chart sits pinned to the newest ones in a narrow pane. */}
+            <HorizontalScrollArea
+                scrollReference={chartReference}
+                className="mt-3"
+                scrollClassName="rounded-sm focus-visible:outline focus-visible:outline-accent"
                 role="img"
                 aria-label={chartLabel}
                 tabIndex={0}
@@ -359,7 +362,7 @@ export function UsageActivityCard({
                         )}
                     </div>
                 </div>
-            </div>
+            </HorizontalScrollArea>
             {/* Wraps so a narrow pane puts the legend under the summary instead of clipping the summary. */}
             <div className="mt-3 flex min-h-5 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-muted">
                 {/* Not a live region: it changes on every pointer move, and the chart's own label carries the summary. */}

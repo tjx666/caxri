@@ -70,10 +70,6 @@ export interface DesktopExclusiveClassification {
  * about one of them is a product decision, not a reclassification.
  */
 export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClassification>> = {
-    'e2e/agent-commander-workbench-handoff.e2e.ts': {
-        reasons: ['window-focus'],
-        why: 'Both hand-offs reach focusMainWindow(), which shows the Workbench and calls app.focus({ steal: true }) even when hidden.',
-    },
     'e2e/agent-commander-inbox-chip.e2e.ts': {
         reasons: ['window-focus'],
         why: 'Asserts the first Inbox item is focused after the chip brings Commander forward; toBeFocused() needs the Commander document to hold OS focus.',

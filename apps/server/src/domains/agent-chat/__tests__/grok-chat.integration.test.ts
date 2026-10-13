@@ -128,6 +128,39 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
         });
     });
 
+    it('rebuilds every tool call with its live status from the merged replay frames', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'grok' });
+        const answer = async (text: string, decision: 'accept' | 'decline', turns: number) => {
+            await service.send(terminal.id, { text });
+            const pending = await until((snapshot) => snapshot.requests.length === 1);
+            service.respond(terminal.id, pending.requests[0].id, { kind: 'decision', decision });
+            await until(
+                (snapshot) =>
+                    snapshot.turns.length === turns &&
+                    snapshot.turns.at(-1)?.status === 'completed',
+            );
+        };
+        await answer('please approve this', 'accept', 1);
+        await answer('please approve this', 'decline', 2);
+        await answer('patch it', 'accept', 3);
+        await answer('patch it', 'decline', 4);
+        const statuses = () =>
+            service
+                .read(terminal.id)
+                .items.flatMap((item) => ('status' in item ? [[item.type, item.status]] : []));
+        const live = statuses();
+        expect(live).toEqual([
+            ['command', 'completed'],
+            ['command', 'declined'],
+            ['fileChange', 'completed'],
+            // The rejection replaces the diff, so a declined edit shows as a declined tool call.
+            ['toolCall', 'declined'],
+        ]);
+        // Grok Build replays each tool call as one merged `tool_call` frame, with no `tool_call_update` after it.
+        await service.restart(terminal.id);
+        expect(statuses()).toEqual(live);
+    });
+
     it('answers a pending approval cancelled when the turn is interrupted', async () => {
         const { service, terminal, signals, until } = await fixture({ provider: 'grok' });
         await service.send(terminal.id, { text: 'please approve this' });

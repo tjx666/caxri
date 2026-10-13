@@ -5,12 +5,9 @@ import {
     MAX_LINK_PREVIEW_URL_LENGTH,
 } from '@caxri/protocol';
 
+import type { ManualRedirectFetch, PublicHttpsFetch, ResolveHost } from './public-https-fetch';
+import { createPublicHttpsFetch } from './public-https-fetch';
 import { readCappedBody } from './read-capped-body';
-
-type Fetch = (
-    url: string,
-    init: { signal: AbortSignal; headers: Record<string, string> },
-) => Promise<Response>;
 
 type LinkPreview = MethodResult<'links.preview'>;
 
@@ -154,15 +151,25 @@ async function readHead(response: Response): Promise<string> {
     return html;
 }
 
-async function fetchPreview(fetch: Fetch, url: string): Promise<LinkPreview | undefined> {
+async function fetchPreview(
+    fetch: PublicHttpsFetch,
+    url: string,
+): Promise<LinkPreview | undefined> {
     try {
-        const response = await fetch(url, {
+        const result = await fetch(url, {
             signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
             headers: { accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1' },
         });
+        // A loopback, private, or non-HTTPS hop was refused before it was requested; the card shows the link alone.
+        if (!result) return {};
+        const { response } = result;
         const type = response.headers.get('content-type')?.toLowerCase() ?? '';
-        if (!response.ok || !(type.includes('text/html') || type.includes('xhtml'))) return {};
-        return parseLinkPreview(await readHead(response), response.url || url);
+        if (!response.ok || !(type.includes('text/html') || type.includes('xhtml'))) {
+            // eslint-disable-next-line no-void -- the body of a page that will not be previewed is never read
+            void response.body?.cancel().catch(() => {});
+            return {};
+        }
+        return parseLinkPreview(await readHead(response), result.url);
     } catch {
         // Offline, blocked, timed out, or refused: the card shows the host alone, which is all a missing preview costs.
         return undefined;
@@ -170,18 +177,21 @@ async function fetchPreview(fetch: Fetch, url: string): Promise<LinkPreview | un
 }
 
 /**
- * Page previews for transcript links, fetched once per URL. `fetch` is Electron's `net.fetch` in the app, so the system
- * proxy, cookies, and Chromium's HTTP cache apply as they would in a browser tab. A request that failed outright is
- * forgotten rather than cached, so a link first hovered while offline previews once the network is back.
+ * Page previews for transcript links, fetched once per URL. `fetch` is Electron's `net.request` in the app, so the
+ * system proxy and Chromium's HTTP cache apply; it sends no session cookies and never follows a redirect itself, so
+ * `createPublicHttpsFetch` can refuse every loopback, private, or non-HTTPS hop before it is requested. A request that
+ * failed outright is forgotten rather than cached, so a link first hovered while offline previews once the network is
+ * back.
  */
-export function createLinkPreviews(fetch: Fetch) {
+export function createLinkPreviews(fetch: ManualRedirectFetch, resolveHost: ResolveHost) {
+    const publicFetch = createPublicHttpsFetch(fetch, resolveHost);
     const cache = new Map<string, Promise<LinkPreview>>();
     /**
      * Resolves a cache entry and forgets it when the request failed outright. Only that exact entry is forgotten:
      * eviction may already have replaced it with a newer attempt for the same URL.
      */
     async function settle(url: string, entry: PromiseWithResolvers<LinkPreview>): Promise<void> {
-        const result = await fetchPreview(fetch, url);
+        const result = await fetchPreview(publicFetch, url);
         if (!result && cache.get(url) === entry.promise) cache.delete(url);
         entry.resolve(result ?? {});
     }

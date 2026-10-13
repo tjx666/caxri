@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -37,6 +37,8 @@ it('leaves an interrupted test unknown so the pool census executes it independen
         expect(result.tests).toEqual([
             expect.objectContaining({ verdict: 'unknown', errorIdentity: null, durationMs: 100 }),
         ]);
+        // The complete receipt supersedes the per-test progress journal (issue #1847).
+        await expect(access(`${path}.progress.jsonl`)).rejects.toThrow();
     } finally {
         vi.unstubAllEnvs();
         await rm(directory, { recursive: true, force: true });

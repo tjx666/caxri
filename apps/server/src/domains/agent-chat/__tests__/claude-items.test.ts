@@ -199,6 +199,52 @@ describe('Claude item mapping', () => {
         ).not.toHaveProperty('input');
     });
 
+    it('names a Claude in Chrome call a browser step titled by what it did', () => {
+        const step = (tool: string, input: Record<string, unknown>) =>
+            mapClaudeToolUse({ id: 't', name: `mcp__claude-in-chrome__${tool}`, input }, 'turn');
+        expect(step('navigate', { url: 'https://example.test/docs', tabId: 7 })).toMatchObject({
+            type: 'toolCall',
+            name: 'browserUse',
+            summary: 'Open https://example.test/docs',
+            input: '{"url":"https://example.test/docs","tabId":7}',
+        });
+        const title = (tool: string, input: Record<string, unknown>) => {
+            const item = step(tool, input);
+            return item?.type === 'toolCall' ? item.summary : undefined;
+        };
+        expect(title('navigate', { url: 'back' })).toBe('Go back');
+        expect(title('computer', { action: 'left_click', ref: 'ref_12' })).toBe('Click ref_12');
+        expect(title('computer', { action: 'double_click', coordinate: [120, 48] })).toBe(
+            'Double-click at (120, 48)',
+        );
+        expect(title('computer', { action: 'type', text: 'hello' })).toBe('Type "hello"');
+        expect(title('computer', { action: 'key', text: 'cmd+l' })).toBe('Press cmd+l');
+        expect(title('computer', { action: 'screenshot' })).toBe('Take a screenshot');
+        expect(title('computer', { action: 'scroll', scroll_direction: 'down' })).toBe(
+            'Scroll down',
+        );
+        expect(title('find', { query: 'Save button' })).toBe('Find Save button');
+        expect(title('form_input', { ref: 'ref_3', value: 'Ada' })).toBe('Fill ref_3 with "Ada"');
+        expect(title('read_page', { tabId: 1 })).toBe('Read the page');
+        expect(title('get_page_text', {})).toBe('Read the page text');
+        expect(title('javascript_tool', { action: 'javascript_exec', text: '1' })).toBe(
+            'Run JavaScript',
+        );
+        expect(title('tabs_context_mcp', {})).toBe('Check open tabs');
+        expect(title('tabs_create_mcp', {})).toBe('Open a new tab');
+        expect(title('resize_window', { width: 800, height: 600 })).toBe(
+            'Resize the window to 800x600',
+        );
+        // A tool this table does not know yet still reads as words, not as its identifier.
+        expect(title('read_console_messages', {})).toBe('Read console messages');
+        expect(title('some_new_tool_mcp', {})).toBe('Some new tool');
+        // Another MCP server keeps the generic MCP row.
+        expect(step('navigate', {})).toMatchObject({ name: 'browserUse' });
+        expect(
+            mapClaudeToolUse({ id: 't', name: 'mcp__other__navigate', input: {} }, 'turn'),
+        ).toMatchObject({ name: 'mcp__other__navigate' });
+    });
+
     it('shows an approval the JSON arguments, never a readable digest of them', () => {
         const approval = (name: string, input: Record<string, unknown>) =>
             mapClaudeApproval('t9', name, input, { canRemember: false });

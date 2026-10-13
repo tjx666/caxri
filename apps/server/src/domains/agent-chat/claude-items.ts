@@ -24,6 +24,7 @@ import {
     replacementDiff,
     stringField,
 } from './chat-items';
+import { claudeChromeTitle } from './claude-chrome';
 
 /**
  * Pure translation from Claude Code's message stream (Agent SDK messages and the session JSONL transcript share the
@@ -101,9 +102,23 @@ function subjectField(input: Json): string | undefined {
 /**
  * A tool row's title and, when that title is only a readable digest of the arguments, their JSON preview for the
  * expanded row. An MCP call keeps its arguments as JSON in `summary`: its row title names the server and tool, and
- * tracker detection (`collectAgentChatTrackers`) reads a GitHub or Linear call's title and body back out of them.
+ * tracker detection (`collectAgentChatTrackers`) reads a GitHub or Linear call's title and body back out of them. A
+ * Claude in Chrome call is the exception: it is a browser step titled by what it did (see `claude-chrome.ts`).
  */
-function claudeToolCallFields(name: string, input: Json): { summary?: string; input?: string } {
+function claudeToolCallFields(
+    name: string,
+    input: Json,
+): { name: string; summary?: string; input?: string } {
+    const browserStep = claudeChromeTitle(name, input);
+    if (browserStep) {
+        const preview = jsonPreview(input);
+        return { name: 'browserUse', summary: browserStep, ...(preview && { input: preview }) };
+    }
+    const fields = genericToolCallFields(name, input);
+    return { name: clip(name, 200), ...fields };
+}
+
+function genericToolCallFields(name: string, input: Json): { summary?: string; input?: string } {
     const sendMessage = name === 'SendMessage' ? sendMessageSummary(input) : undefined;
     const subject = sendMessage ? undefined : subjectField(input);
     if (subject) return { summary: subject };
@@ -201,7 +216,6 @@ export function mapClaudeToolUse(
     return {
         ...base,
         type: 'toolCall',
-        name: clip(name, 200),
         status: 'running',
         ...claudeToolCallFields(name, input),
     };

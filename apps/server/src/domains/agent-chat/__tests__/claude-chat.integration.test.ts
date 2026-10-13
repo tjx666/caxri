@@ -173,6 +173,36 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         expect(signals.at(-1)).toMatchObject({ phase: 'turnFailed' });
     });
 
+    it('shows Claude in Chrome calls as titled browser steps, live and after a restart', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'use chrome' });
+        const done = await until(
+            (snapshot) => snapshot.turns.at(-1)?.status === 'completed' && !snapshot.activeTurnId,
+        );
+        const steps = (snapshot: typeof done) =>
+            snapshot.items.flatMap((item) =>
+                item.type === 'toolCall'
+                    ? [{ name: item.name, summary: item.summary, status: item.status }]
+                    : [],
+            );
+        const expected = [
+            {
+                name: 'browserUse',
+                summary: 'Open https://example.test/settings',
+                status: 'completed',
+            },
+            { name: 'browserUse', summary: 'Click ref_12', status: 'completed' },
+            { name: 'browserUse', summary: 'Find Export button', status: 'failed' },
+        ];
+        expect(steps(done)).toEqual(expected);
+        expect(done.items.find((item) => item.type === 'toolCall')).toMatchObject({
+            input: '{"url":"https://example.test/settings","tabId":1}',
+            output: 'Navigated to https://example.test/settings',
+        });
+        await service.restart(terminal.id);
+        expect(steps(service.read(terminal.id))).toEqual(expected);
+    });
+
     it('resumes the bound session with history read from its transcript', async () => {
         const { service, terminal, spawnProcess, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'remember me' });

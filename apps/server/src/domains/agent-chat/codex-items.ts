@@ -19,6 +19,7 @@ import {
 
 import { clip, isRecord, readableToolInputSummary, tail } from './chat-items';
 import { withCacheRewriteEstimate } from './chat-usage';
+import type { CodexComputerUseBindings } from './codex-computer-use';
 import { codexComputerUseCall } from './codex-computer-use';
 import { codexDelivery } from './codex-input';
 
@@ -164,12 +165,14 @@ function mapCollabAgentToolCall(raw: Json, base: { id: string; turnId?: string }
 
 /**
  * Maps one `ThreadItem`. Returns `undefined` for item kinds the Chat does not render (plans arrive through
- * `turn/plan/updated`; review markers and hook prompts are not conversation content).
+ * `turn/plan/updated`; review markers and hook prompts are not conversation content). `computerUse` is the live Chat's
+ * memory of Computer Use variables, which names a running step's surface before its result arrives.
  */
 export function mapCodexItem(
     raw: unknown,
     turnId: string | undefined,
     isStreaming: boolean,
+    computerUse?: CodexComputerUseBindings,
 ): AgentChatItem | undefined {
     if (!isRecord(raw) || typeof raw.id !== 'string' || !raw.id) return undefined;
     const base = { id: clip(raw.id, 200), ...(turnId && { turnId: clip(turnId, 200) }) };
@@ -251,12 +254,12 @@ export function mapCodexItem(
             };
         }
         case 'mcpToolCall': {
-            const computerUse = codexComputerUseCall(raw);
-            if (computerUse)
+            const step = codexComputerUseCall(raw, computerUse);
+            if (step)
                 return {
                     ...base,
                     type: 'toolCall',
-                    ...computerUse,
+                    ...step,
                     status: itemStatus(raw.status),
                     ...(duration(raw.durationMs) !== undefined && {
                         durationMs: duration(raw.durationMs),

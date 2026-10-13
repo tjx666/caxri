@@ -564,7 +564,8 @@ declined too, and the row looks the same after Server Core restarts.
 Grok Build asks through `session/request_permission`, keyed by the tool call id; its permission
 options (`allow_once`, `allow_always`, `reject_once`, `reject_always`) set the offered decisions,
 and Skip or a decision with no matching option answers `cancelled`. Grok Build reports a rejected
-call as `failed`, live and in its `session/load` replay, with the text ``User rejected the execution
+call as `failed`, live and in its `session/load` replay (one merged `tool_call` frame per call, no
+later `tool_call_update`), with the text ``User rejected the execution
 for tool `<tool>` `` (verified on 1.0.50), so `grok-items.ts` reads that text as declined and the row
 looks the same after Server Core restarts; any other failure stays failed. Caxri turns on
 `_x.ai/ask_user_question` (`_meta.askUserQuestion`) when it opens the session, and each question
@@ -706,7 +707,9 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
 - A web link in a reply or pasted into a user message shows the site's favicon and opens a hover
   card naming the host with an Open action. For HTTPS links, the card previews the page's share
   image, title, and description. Main reads them through the `links.preview` desktop method
-  (`apps/desktop/src/main/link-previews.ts`): the HTML head only, at most 256 KiB, a 5 s timeout,
+  (`apps/desktop/src/main/link-previews.ts`): public hosts only (a loopback, private, or
+  link-local URL, or a redirect to one or to plain HTTP, is never requested and keeps the globe and
+  a card without a preview), the HTML head only, at most 256 KiB, a 5 s timeout,
   Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images only, and a per-app-lifetime
   cache of 256 URLs that evicts the oldest inserted entry (a repeat hover does not refresh it; an
   outright network failure is not cached). A page that declares nothing keeps the card's link summary.
@@ -1264,6 +1267,7 @@ table, slow stream, subagent, background shell, Claude workflow, failure, crash)
 SDK drives and writes a real transcript, so resume is exercised end to end. Both answer a message
 with images by counting them and implement compaction, so the E2E covers paste, file pick, and the
 slash list for each provider. The Grok fake persists its frames so `session/load` replays them,
+folding each tool call into one `tool_call` frame with its final status like Grok Build 1.0.50,
 and takes no images. All three implement their provider's rewind (Codex `thread/revert`, the
 Claude transcript chain with `--resume-session-at` and `rewind_files`, Grok `_x.ai/rewind/*`) and
 log each call to a JSON-lines file in their state directory, so `service-rewind.integration.test.ts`
