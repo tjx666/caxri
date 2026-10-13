@@ -5,6 +5,10 @@
             "relative": 0.02,
             "absoluteKiB": 512
         },
+        "load": {
+            "relative": 0.12,
+            "absoluteKiB": 4096
+        },
         "memory": {
             "relative": 0.05,
             "absoluteKiB": 2048
@@ -16,30 +20,33 @@
     },
     "targets": {
         "linux-arm64": {
-            "commit": "afcb3b38",
+            "commit": "1a3c62e5",
             "metrics": {
-                "transfer.appLayerKiB": 4694,
-                "transfer.uploadKiB": 4694,
-                "memory.attached.server-core.rssKiB": 129940,
-                "memory.attached.server-core.pssKiB": 107420,
-                "memory.attached.extension-host.rssKiB": 66140,
-                "memory.attached.extension-host.pssKiB": 43681,
-                "memory.attached.totalRssKiB": 196080,
-                "memory.attached.totalPssKiB": 151101,
-                "memory.working.server-core.rssKiB": 133944,
-                "memory.working.server-core.pssKiB": 101579,
-                "memory.working.terminal-host.rssKiB": 78328,
-                "memory.working.terminal-host.pssKiB": 46037,
-                "memory.working.extension-host.rssKiB": 66156,
-                "memory.working.extension-host.pssKiB": 36617,
-                "memory.working.totalRssKiB": 278428,
-                "memory.working.totalPssKiB": 184233,
+                "transfer.appLayerKiB": 4696,
+                "transfer.uploadKiB": 4696,
+                "memory.attached.server-core.rssKiB": 129332,
+                "memory.attached.server-core.pssKiB": 106997,
+                "memory.attached.extension-host.rssKiB": 65644,
+                "memory.attached.extension-host.pssKiB": 43356,
+                "memory.attached.totalRssKiB": 194976,
+                "memory.attached.totalPssKiB": 150353,
+                "memory.working.server-core.rssKiB": 133668,
+                "memory.working.server-core.pssKiB": 103618,
+                "memory.working.terminal-host.rssKiB": 73676,
+                "memory.working.terminal-host.pssKiB": 43672,
+                "memory.working.extension-host.rssKiB": 65676,
+                "memory.working.extension-host.pssKiB": 36357,
+                "memory.working.totalRssKiB": 273020,
+                "memory.working.totalPssKiB": 183647,
                 "disk.runtimesKiB": 119804,
-                "disk.buildsKiB": 13720,
-                "disk.profileKiB": 664,
-                "disk.totalKiB": 134216
+                "disk.buildsKiB": 13724,
+                "disk.profileKiB": 668,
+                "disk.totalKiB": 134224,
+                "load.server-core.rssKiB": 207744,
+                "load.server-core.pssKiB": 177990,
+                "load.server-core.peakRssKiB": 241684
             },
-            "recordedAt": "2026-10-13T04:54:37.406Z",
+            "recordedAt": "2026-10-13T05:34:51.305Z",
             "runtime": "node-v24.20.0-linux-arm64.tar.gz",
             "runtimeSource": "remote-download"
         }
