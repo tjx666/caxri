@@ -1,6 +1,6 @@
 {
     "schemaVersion": 1,
-    "armed": true,
+    "armed": false,
     "source": "runner",
     "spec": "e2e/renderer.performance.e2e.ts",
     "recordedAt": "2026-10-11T00:17:28.158Z",

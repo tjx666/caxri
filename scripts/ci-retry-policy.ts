@@ -554,23 +554,6 @@ async function writeDecision(
     process.stdout.write(`${JSON.stringify(decision)}\n`);
 }
 
-/**
- * A scheduled run repeats nothing when `main` has not moved since the previous scheduled run finished, whatever that
- * run concluded: a red nightly already filed its report, and rerunning the same tree would only spend the runner.
- */
-async function isNightlyHeadUnchanged(repo: string, currentHeadSha: string): Promise<boolean> {
-    const query = new URLSearchParams({ event: 'schedule', per_page: '5', status: 'completed' });
-    const value = (await githubJson(
-        `/repos/${repo}/actions/workflows/ci.yml/runs?${query.toString()}`,
-    )) as { workflow_runs?: WorkflowRunRecord[] };
-    const previous = (value.workflow_runs ?? []).find(
-        (run) =>
-            String(run.id) !== process.env.GITHUB_RUN_ID &&
-            (run.conclusion === 'success' || run.conclusion === 'failure'),
-    );
-    return previous?.head_sha === currentHeadSha;
-}
-
 async function main(): Promise<void> {
     const eventPath = process.env.GITHUB_EVENT_PATH;
     const repo = process.env.GITHUB_REPOSITORY ?? '';
@@ -679,8 +662,6 @@ async function main(): Promise<void> {
         dispatchE2EProfile: event.inputs?.e2e_profile,
         eventName,
         hasFullValidationPath: allChangedFiles.some(isFullValidationPath),
-        isNightlyHeadUnchanged:
-            eventName === 'schedule' && (await isNightlyHeadUnchanged(repo, currentHeadSha)),
         isVerifiedReleaseCommit,
         pullRequestDraft: event.pull_request?.draft,
         retryMode: retryDecision.mode === 'full' ? undefined : retryDecision.mode,

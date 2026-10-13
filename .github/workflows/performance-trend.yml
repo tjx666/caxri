@@ -1,16 +1,9 @@
 name: Performance trend
 
-# Detects a gradual Renderer performance creep (the issue #1439 motivating case: a steady 3-5% cost increase per
-# change, too small for any single run to cross the per-run baseline gate's margin -- see docs/ci-performance.md)
-# by comparing the median of the most recent `renderer-performance-receipt` artifacts against the committed
-# baseline. Deliberately a separate, GitHub-hosted-runner workflow rather than a `ci.yml` step: it needs no
-# Electron launch and no self-hosted `caxri-ci` time, and it must stay out of the required PR guards -- this
-# workflow never runs on `pull_request` and nothing makes it a required status check.
+# Manually inspects gradual Renderer performance creep by comparing recent receipts with the committed baseline.
+# The historical baseline came from different runner hardware and is unarmed until macos-15 is recalibrated, so
+# this workflow remains dispatch-only and never becomes a required pull-request check.
 on:
-  schedule:
-    # 18:00 UTC = 02:00 Asia/Shanghai, offset from `ci.yml`'s 00:00 UTC nightly full suite so the two never compete
-    # for GitHub's shared Actions capacity even though they run on different runner pools.
-    - cron: '0 18 * * *'
   workflow_dispatch:
     inputs:
       window:

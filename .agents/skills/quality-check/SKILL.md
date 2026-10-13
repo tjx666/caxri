@@ -77,8 +77,9 @@ Successful output reports dirty ownership layers, suggested follow-up gates, and
 checks as separate fields. Suggested gates are not execution receipts. Failures include the
 underlying tool output needed to act.
 
-`bun run knip` is repository-wide, and CI runs it only in the `full` checks scope (nightly, or a
-ready PR on a full-validation path), not in the `affected` scope most PRs get. Run `knip` (or
+`bun run knip` is repository-wide, and CI runs it only in the `full` checks scope (a main push, an
+explicit dispatch, or a ready PR on a full-validation path), not in the `affected` scope most PRs
+get. Run `knip` (or
 `--knip`) locally before pushing Renderer or shared-contract changes. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
 against `origin/main`, full-repo only on an initial push); `doctor` is slower and normally remains
 a CI validator.
@@ -94,8 +95,9 @@ Use these when a focused `check` is the wrong width, not as the default after ev
 - Full local gates: `bun run lint` (syntactic ESLint), `bun run lint:type-aware` (oxlint/tsgolint
   type-aware rules, see `docs/type-aware-linting.md`), and `bun run typecheck`.
 - `bun run test` is **not** one of them. The full unit suite is a remote gate that CI runs in the
-  `full` checks scope (nightly, or a ready PR on a full-validation path); a ready PR's `affected`
-  scope runs only `vitest related` on its changed sources. Either way, `bun run test` and a bare
+  `full` checks scope (a main push, an explicit dispatch, or a ready PR on a full-validation path);
+  a ready PR's `affected` scope runs only `vitest related` on its changed sources. Either way,
+  `bun run test` and a bare
   `vitest run` refuse to start locally. Only the user authorizes a local full run, by setting `CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent never sets that
   variable on its own judgement or on another agent's verdict, including while repairing CI. Use
   `bun run check <changed files>` or name the test files with
@@ -112,7 +114,7 @@ a standalone or repository-wide run.
   false positives, e.g. keyboard-shortcut strings). The pre-commit hook scans the Git index
   (`--staged`); CI scans the commits a push or pull request actually introduced
   (`GITLEAKS_BASE_REVISION`/`GITLEAKS_HEAD_REVISION`), falling back to the full history when no base
-  revision is available (the first push to a branch, a schedule run, or `workflow_dispatch`). A
+  revision is available (the first push to a branch or `workflow_dispatch`). A
   finding fails closed with `--redact`, so the failure output never leaks the secret itself. To fix:
   rotate and remove a real secret; for a verified false positive, extend `.gitleaks.toml` with a
   narrowly scoped allowlist entry (never a blanket one) and explain why in a comment.

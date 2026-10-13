@@ -94,7 +94,8 @@ directories.
   existing branch and update its pull request instead of opening sibling pull requests. Split only
   across different repositories or release boundaries, when the existing branch cannot safely own
   the change, or when the user explicitly requests it; otherwise ask before splitting. Cancel an
-  obsolete run before pushing a replacement so the shared runner performs only useful work.
+  obsolete run before pushing a replacement so exact-head evidence and hosted CI spend stay
+  attributable to the current batch.
 - `main` requires the `guards` status check to pass before anything merges, with no bypass for any
   actor, so a raw `git push` to `main` always fails: GitHub rejects it outright because the pushed
   commit has never had `guards` run against its exact SHA. Every change, including a one-line

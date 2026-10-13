@@ -10,7 +10,7 @@ Use `electron-vite` for Desktop Main, Preload, and Renderer builds; use Vite dir
 Every local and CI package stages beneath `release.noindex/`. The output root must carry the `.noindex` suffix before
 Electron Builder creates a runnable `.app`; modern macOS can index an ordinary staging directory before a later marker
 or cleanup runs, causing worktree artifacts to appear as duplicate installed Caxri applications. Production,
-E2E-specific, bundle-budget, local-DMG, release-workflow, and self-hosted cleanup paths all share this output boundary.
+E2E-specific, bundle-budget, local-DMG, and release-workflow paths all share this output boundary.
 
 `ELECTRON_RENDERER_URL` is an unpackaged electron-vite development input only. Packaged Workbench
 and Process Explorer windows always resolve their renderer entry files from the application bundle,
@@ -111,26 +111,27 @@ upstream and wrapper licenses, and includes those files in artifact integrity re
 imports the npm package; Server Core injects the absolute artifact path into the Files domain. macOS
 release validation must treat `rg` as a nested executable for signing and notarization.
 
-The private GitHub Release path runs on the repository-level Apple Silicon self-hosted runner and
+The GitHub Release path runs on a disposable GitHub-hosted Apple Silicon runner and
 produces unsigned Source Map and no-map arm64 DMGs. Only a pushed `main` commit whose subject exactly matches
 `release: v<package-version>` may trigger it; normal commits remain CI-only. The release job must
 validate the package version and unused tag, run all release gates, launch the canonical Source Map app through
 the startup benchmark, verify both DMGs, and upload one SHA-256 checksum per asset. Signing and notarization are a
 separate public-distribution decision and must not be inferred from the presence of this workflow.
 
-[`docs/self-hosted-runner.md`](../../../../docs/self-hosted-runner.md) owns GitHub Actions runner
-routing, source-admission trust, labels, offline behavior, cleanup, and recovery. This toolchain
-decision relies on that contract rather than restating it. Exact trusted release commits still run
-hosted checks before downstream packaging uses a non-persisted, short-lived `contents: write` token.
-Before the self-hosted runner is removed, the frozen publication candidate must separately pass the
-explicit private `self-hosted-final` full-E2E dispatch.
+Exact trusted release commits run hosted checks before downstream packaging uses a non-persisted,
+short-lived `contents: write` token. Release readiness is established by the complete hosted
+unit/integration suite, build and native checks, package validation, targeted Electron smoke, and
+the no-publish Release rehearsal. A full E2E receipt is not part of that gate; `hosted-full` remains
+a future manual route that requires fresh maintainer authorization for every dispatch. Its fixed
+Renderer performance scenario still emits a receipt, while the retired cross-run baseline remains
+unarmed until enough same-image GitHub-hosted samples support recalibration.
 
 The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI reads exact
 Node and pnpm versions from `mise.toml`, installs them through `actions/setup-node` and `pnpm/setup`,
 and pins Bun through `.bun-version`, without changing the user's interactive installations. Hosted
 jobs install Bun explicitly and keep pnpm, Electron, Playwright, ESLint, and Prettier state below
-`RUNNER_TEMP`; they never require a prewarmed `RUNNER_TOOL_CACHE/caxri/bun`. The transitional
-self-hosted final and publication paths may reuse versioned runner-owned tool and cache locations.
+`RUNNER_TEMP`; they never require a prewarmed `RUNNER_TOOL_CACHE/caxri/bun` or persistent
+runner-owned tool and cache locations.
 Jobs that exercise capture or media-analysis contracts install FFmpeg on disposable hosted runners
 and verify `ffmpeg`, `ffprobe`, and the `libx264` encoder on every runner route before tests start.
 pnpm owns workspace dependency resolution, installation, linking, and the lockfile; Bun is the fast

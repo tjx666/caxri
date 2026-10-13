@@ -743,10 +743,9 @@ describe('managed Agent launcher socket path', () => {
      * The E2E harness gives every Playwright worker its own `caxri-e2e-<pool>-<index>` directory under the per-user
      * temp root, which is exactly the shape that used to exceed `sun_path` and kill Terminal Host at module top level.
      *
-     * How much of the budget that shape actually consumes depends on the machine: the macOS per-user temp root is 49
-     * bytes, while CI points `TMPDIR` at a deliberately short `/private/tmp` symlink (see
-     * `scripts/self-hosted-runner.ts`) where one worker directory still fits. Nesting until the socket provably cannot
-     * fit keeps this a test of the fallback everywhere rather than a test of one machine's temp path.
+     * How much of the budget that shape actually consumes depends on the machine and its temporary-directory layout.
+     * Nesting until the socket provably cannot fit keeps this a test of the fallback everywhere rather than a test of
+     * one machine's temp path.
      */
     it('starts from a worker temp directory too deep for the socket limit', async () => {
         const bootId = '4bd5b8e2-8a1b-4b0e-9d95-2c0a2f1b7e64';

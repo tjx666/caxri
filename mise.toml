@@ -2,7 +2,7 @@
 # Keep the standalone pnpm ahead of any Corepack shim bundled into the Node installation.
 pnpm = "12.0.0"
 node = "24.20.0"
-# Matches the version scripts/prepare-gitleaks.ts pins and .gitleaks.toml was verified against. The self-hosted CI
-# runner has no package manager and does not run `mise install`; scripts/prepare-gitleaks.ts provisions it there
-# instead. This entry is for local `git commit` (the pre-commit hook) and manual `bun run gitleaks` runs.
+# Matches the version scripts/prepare-gitleaks.ts pins and .gitleaks.toml was verified against. Hosted workflows use
+# that script directly instead of relying on the runner image. This entry owns local `git commit` (the pre-commit
+# hook) and manual `bun run gitleaks` runs.
 gitleaks = "8.30.1"

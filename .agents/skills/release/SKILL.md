@@ -53,10 +53,12 @@ beyond the packaged application itself.
   `release: v<package-version>` commit landing on `main` must satisfy the release preparation in
   `RELEASING.md` and the exact-release CI profile in `docs/ci-performance.md`. Its lightweight CI
   run preserves the trusted `workflow_run` handoff but skips platform checks and E2E, relying on the
-  merged changes' hosted PR checks. That evidence is not a full E2E receipt. Before the pre-public
-  runner is removed, the exact frozen candidate must also have one successful `self-hosted-final`
-  receipt; after publication, `hosted-full` owns explicit full-suite proof. The fast-path requires
-  the commit to match `release:prepare`'s exact path
+  merged changes' hosted PR checks. The current release-readiness evidence is the complete hosted
+  unit/integration suite, build and native checks, package validation, targeted Electron smoke, and
+  the hosted no-publish Release rehearsal. It deliberately does not include or require a full E2E
+  receipt. `hosted-full` remains a future manual diagnostic route: every dispatch needs fresh,
+  explicit maintainer authorization and is not a prerequisite for runner removal, GO, repository
+  publication, or anonymous review. The fast-path requires the commit to match `release:prepare`'s exact path
   set and generated contents; any additional, missing, or modified content falls back to normal
   main-push CI. Only a successful CI `workflow_run` for the same commit may start packaging. `main`
   requires the `guards` status check with no bypass, so the release commit reaches `main` through a
@@ -69,11 +71,9 @@ beyond the packaged application itself.
   each. The canonical `Caxri-<version>-arm64.dmg` is the Source Map build and owns the focused
   packaged-app probe; the `-nosourcemap` asset receives structural, manifest, architecture, disk
   image, and checksum verification without duplicating the packaged Electron smoke. Packaged-app
-  verification remains a release responsibility; product checks run in PR CI, while full E2E uses
-  the separate explicit route above. Runner routing, availability, trust, and recovery follow
-  `docs/self-hosted-runner.md`. A release step
-  that fails only on the runner is diagnosed there over SSH, as its Remote diagnosis section
-  describes, before any rerun.
+  verification remains a release responsibility; product checks and release packaging run on
+  GitHub-hosted runners. A future full E2E run uses the separately authorized route above and does
+  not replace the release workflow's own targeted package validation.
 - Follow `RELEASING.md` when preparing the release commit and opening its pull request. Creating that
   commit, opening its pull request, and merging it still require explicit user authorization because
   the merge triggers the remote release.

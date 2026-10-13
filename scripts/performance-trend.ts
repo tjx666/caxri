@@ -5,7 +5,7 @@
  * `DEFAULT_PERFORMANCE_RELATIVE_MARGIN` comment) so it only catches a large, sudden regression; a steady 3-5% creep the
  * issue's motivating example describes never crosses that margin on any single run. This module catches that case by
  * comparing many runs' median against the baseline instead of one run against a per-run threshold.
- * `scripts/performance-trend-check.ts` is the CLI entrypoint a GitHub-hosted scheduled workflow runs; see
+ * `scripts/performance-trend-check.ts` is the CLI entrypoint a manually dispatched GitHub-hosted workflow runs; see
  * docs/ci-performance.md for the bootstrap analysis behind the constants below and how the workflow fetches receipts.
  */
 

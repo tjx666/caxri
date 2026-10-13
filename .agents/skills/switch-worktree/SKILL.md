@@ -40,8 +40,8 @@ local-only, or no-merge restriction narrows that scope.
 4. Call the Skill tool with "pull-request" to push the branch and create or update the delivery
    batch's single pull request.
 5. Keep one current CI run for the batch. Cancel an obsolete run before re-pushing, then watch the
-   replacement, repair failures, and re-push until checks are green. Do not enqueue sibling pull
-   requests against the shared runner for fixes that belong to the same delivery.
+   replacement, repair failures, and re-push until checks are green. Do not split fixes that belong
+   to the same delivery across sibling pull requests and duplicate exact-head evidence.
 6. Merge the PR, close the linked issues, and synchronize the primary checkout.
 7. Call the Skill tool with "file-issue" for any debt or follow-up the delivery leaves behind (deferred findings, known flakes, consciously skipped scope) so nothing survives only
    in the session transcript.
@@ -71,8 +71,8 @@ avoid unrequested remote mutations does not narrow this explicitly activated wor
 that activates it supplies that authorization. Honor a task-specific restriction instead when the
 user explicitly limits the current run.
 
-Queued or running CI, a busy shared runner, and ordinary check latency are waiting states, not
-reasons to end the turn or mark the issue `Blocked`. Keep the primary agent responsible for delivery
+Queued or running CI and ordinary hosted-check latency are waiting states, not reasons to end the
+turn or mark the issue `Blocked`. Keep the primary agent responsible for delivery
 while following the `pull-request` skill's harness-specific CI watcher protocol, including
 [Codex Watch Await](../../references/codex-watch-await.md). Delegating the wait does not delegate
 inspecting the result, repairing failures, or completing the authorized merge. Status questions do

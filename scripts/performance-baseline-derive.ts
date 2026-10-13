@@ -17,7 +17,7 @@
  * per downloaded run) and adds each as an input. `--input` and `--input-dir` are both repeatable and can be combined.
  *
  * `--source local` always writes `armed: false`: a Mac sampled locally, shared with sibling agent sessions, is evidence
- * for the statistical method, never a stand-in for the self-hosted CI runner's own noise. `--source runner` requires
+ * for the statistical method, never a stand-in for the target CI runner image's own noise. `--source runner` requires
  * `--provenance` (a short free-text description of which artifacts this came from: run id range and dates, never a
  * local path, see docs/ci-performance.md's arming recipe for how to compute it).
  */

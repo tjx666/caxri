@@ -21,9 +21,8 @@ jobs:
   # Required status check context on `main` (see the ruleset applied by
   # scripts/apply-required-status-check-ruleset.ts). Keep this job name literal -- unlike ci.yml's
   # templated job names, a required check must report under one stable context string across every
-  # run. Runs on a disposable GitHub-hosted runner, not the trusted self-hosted fleet: it only reads
-  # the diff and a pinned public binary, so it carries none of ci.yml's self-hosted trust-boundary
-  # risk and needs none of that gating.
+  # run. Runs on a disposable GitHub-hosted runner: it only reads the diff and a pinned public binary,
+  # so it carries none of ci.yml's macOS build or Electron dependencies.
   guards:
     name: guards
     runs-on: ubuntu-latest

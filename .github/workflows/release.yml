@@ -194,20 +194,18 @@ jobs:
       github.event.workflow_run.triggering_actor.login == 'tjx666' &&
       startsWith(github.event.workflow_run.display_title, 'release: v')
     needs: linux-natives
-    runs-on: [self-hosted, macOS, ARM64, caxri-release]
+    runs-on: macos-15
     timeout-minutes: 60
     permissions:
       contents: write
     env:
-      CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-release
       CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_EXPECTED_HEAD: ${{ github.event.workflow_run.head_sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
-      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-release
     steps:
-      - name: Verify runner boundary before checkout
+      - name: Verify hosted runner boundary before checkout
         run: |
-          test "$RUNNER_ENVIRONMENT" = self-hosted
+          test "$RUNNER_ENVIRONMENT" = github-hosted
           test "$RUNNER_OS" = macOS
           test "$RUNNER_ARCH" = ARM64
       - id: checkout
@@ -216,7 +214,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
-      - name: Verify self-hosted release boundary
+      - name: Verify hosted release boundary
         uses: ./.github/actions/verify-trust-boundary
         with:
           policy-domain: release
@@ -258,6 +256,7 @@ jobs:
           setup-toolchain: 'true'
           install-dependencies: 'true'
           install-electron: 'true'
+          install-android-toolchain: 'true'
 
       # actions/checkout's default `clean: true` already runs `git clean -ffdx`, which removes the
       # gitignored release.noindex. Keep the explicit cleanup so neither flavor can reuse an older artifact.
@@ -265,9 +264,9 @@ jobs:
         run: rm -rf release.noindex
 
       # Desktop serves this APK to paired Android phones (docs/mobile/update.md). The script
-      # refuses to stage anything but the release-signed APK of this version, and the runner must
-      # already hold the Android toolchain: a missing piece fails the release instead of shipping a
-      # Desktop without its phone build.
+      # refuses to stage anything but the release-signed APK of this version. The shared setup action
+      # installs the Android toolchain explicitly so a missing piece fails the release instead of
+      # shipping a Desktop without its phone build.
       - name: Build Android update bundle
         env:
           CAXRI_ANDROID_KEYSTORE_BASE64: ${{ secrets.CAXRI_ANDROID_KEYSTORE_BASE64 }}
@@ -320,7 +319,7 @@ jobs:
           bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=line,./scripts/reporters/e2e-receipt-reporter.ts
 
       # The packaged-app probe only runs here. Keep its failure receipt without uploading raw
-      # traces, screenshots, or logs from the self-hosted runner.
+      # traces, screenshots, or logs from the hosted runner.
       - name: Upload packaged verification failure artifacts
         if: always() && steps.verify-packaged.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -383,6 +382,3 @@ jobs:
             --notes "$notes" \
             --generate-notes \
             --fail-on-no-commits
-      - name: Clean self-hosted runner boundary
-        if: always()
-        run: bun run scripts/self-hosted-runner.ts cleanup

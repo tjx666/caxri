@@ -3,9 +3,9 @@ import process from 'node:process';
 /**
  * Fail-closed guard for the two repository-wide test gates.
  *
- * Both `bun run test` and `bun run test:e2e` are remote gates: GitHub Actions runs them on every pushed head, on the
- * self-hosted runner, in parallel with whatever the agent does next. Running either locally spends 3-40 minutes
- * producing a result the same push is about to produce anyway, and blocks the checkout for the whole duration.
+ * Both `bun run test` and `bun run test:e2e` are repository-wide gates. GitHub Actions runs the full unit/integration
+ * suite on hosted checks. Full E2E is available only through a separately authorized manual hosted route. Running
+ * either locally spends 3-40 minutes and blocks the checkout for the whole duration.
  *
  * The cost is invisible from inside the run, which is what makes it recur: a full suite looks like diligence, and an
  * agent that has not loaded `e2e-testing` or `quality-check` never sees the rule forbidding it. So the rule is enforced
@@ -102,8 +102,9 @@ const GUIDANCE = new Map<FullSuiteRunner, string>([
     [
         'e2e',
         'Run the specs you touched instead: `bun run check <spec> --e2e`, or push an authorized topic branch and let ' +
-            'the self-hosted runner carry the full Electron suite. See the "Remote full suite" section of the ' +
-            '`e2e-testing` skill.',
+            'hosted checks carry the complete unit/integration, build, native, package, and targeted-smoke gates. ' +
+            'The future `hosted-full` route requires fresh maintainer authorization for every dispatch; see the ' +
+            '"Remote full suite" section of the `e2e-testing` skill.',
     ],
 ]);
 
@@ -140,11 +141,21 @@ export function isFullSuiteInvocation(runner: FullSuiteRunner, argv: readonly st
 
 export function fullSuiteRefusalMessage(runner: FullSuiteRunner): string {
     const gate = runner === 'unit' ? 'full unit suite' : 'full Electron E2E suite';
+    const remotePolicy =
+        runner === 'unit'
+            ? [
+                  `CI owns repository-wide unit validation: ready source PRs run affected tests, while full-validation`,
+                  `paths and main pushes run the full unit gate. Use focused local checks for the changed behavior.`,
+              ]
+            : [
+                  `Full E2E never runs automatically. It is reserved for a maintainer-authorized hosted-full dispatch;`,
+                  `ordinary validation names the smallest focused E2E specs instead.`,
+              ];
     return [
         `Refusing to run the ${gate} locally: this is a wrong operation, not a slow one.`,
         '',
-        `CI runs this exact gate on every pushed head, so a local run duplicates it and blocks this checkout for the`,
-        `whole duration.`,
+        ...remotePolicy,
+        `A local full run blocks this checkout for the whole duration.`,
         '',
         GUIDANCE.get(runner),
         '',

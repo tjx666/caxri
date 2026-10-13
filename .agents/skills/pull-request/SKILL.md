@@ -20,11 +20,11 @@ or cancels the delivery, or a concrete blocker requires their input.
 1. Refresh the current branch, working tree, remote refs, linked issue state, existing PR state,
    and required checks before making a delivery decision. Remote mutations require explicit user or
    owning-workflow authorization.
-   For an authorized multi-issue batch sharing one scarce CI runner, prefer one reviewable integration
-   PR and one exact-head validation when the changes can be assessed together. Reassess an earlier
-   per-issue PR plan when runner capacity becomes clear: preserve completed green checks, then
-   consolidate the remaining branches and retire their duplicate queued runs and PRs after the
-   integration PR is published. Keep unrelated contributors' PRs outside this consolidation.
+   For an authorized multi-issue batch, prefer one reviewable integration PR and one exact-head
+   validation when the changes can be assessed together. Reassess an earlier per-issue PR plan when
+   the work proves to be one delivery: preserve completed green checks, then consolidate the
+   remaining branches and retire their duplicate queued runs and PRs after the integration PR is
+   published. Keep unrelated contributors' PRs outside this consolidation.
 2. Require a clean working tree before rebasing; never rely on implicit autostash. Before opening a
    PR, fetch `origin/main` and verify the topic branch base. If `origin/main` has advanced, rebase
    onto the latest `origin/main`, resolve conflicts without discarding user changes, and rerun every
@@ -51,6 +51,9 @@ or cancels the delivery, or a concrete blocker requires their input.
    authorization covers the rewrite, using an exact
    `--force-with-lease=refs/heads/<branch>:<observed-oid>` lease. Never use bare `--force`, and
    stop if the lease rejects the update.
+   For an ordinary non-force push from a linked worktree, make the destination auditable with
+   `git push origin HEAD:refs/heads/<branch>` instead of a bare `git push`; the repository's
+   default-branch guard cannot safely infer the target of an abbreviated command.
 5. Create or update the PR with an English title and body that describe observable behavior,
    validation, non-goals, and closing issue links. A ready PR records affected E2E but never starts
    the full suite automatically, and the import graph cannot see which Electron workflows a
@@ -82,11 +85,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    PR's run as yours.
    In Codex, read and follow [Codex Watch Await](../../references/codex-watch-await.md)
    before starting or collecting the watcher.
-   A single runner `offline` response is an availability snapshot, not proof that the machine
-   is unreachable or requires owner intervention. Correlate it with this run's job history and
-   subsequent runner status before diagnosing infrastructure failure. Keep following queued work
-   through transient disconnects; do not mark the issue Blocked or end delivery solely because
-   one status sample says offline. Inspect completed failed jobs even while the final gate queues.
+   A queued hosted job is a waiting state, not proof of repository infrastructure failure or a
+   reason to request access to a maintainer machine. Correlate it with this run's job history and
+   subsequent status before diagnosing infrastructure failure. Keep following queued work through
+   transient service delays, and inspect completed failed jobs while another gate remains queued.
    A failed unit, integration, or E2E case gets two local repetitions of the related cases: the
    failed cases plus, when they touch the changed behavior, the delivery's focused tests. Repairing
    CI never runs the local full unit or E2E suite (it occupies the user's machine; only the user's
@@ -99,9 +101,8 @@ or cancels the delivery, or a concrete blocker requires their input.
    [CI-only parity](../e2e-testing/SKILL.md#ci-only-parity).
    Do not require runner access or infrastructure root-cause diagnosis before applying this exception.
    A failure that only a hosted runner produces (a download timeout or missing cold-environment
-   toolchain) is diagnosed from that job's logs and the pinned runner-image contract. SSH diagnosis
-   in [Remote diagnosis](../../../docs/self-hosted-runner.md#remote-diagnosis) applies only to the
-   explicit `self-hosted-final` or legacy publication route.
+   toolchain) is diagnosed from that job's logs and the pinned runner-image contract. Do not replace
+   missing hosted evidence with SSH access or an unrequested local full-suite run.
    Keep the failed CI result red, distinguish waived failures from checks that never ran, and never
    report the whole suite as passed. A failure that reproduces locally or lacks the two local passes
    remains a blocker unless the user explicitly authorizes a narrower exception.
@@ -132,7 +133,7 @@ or cancels the delivery, or a concrete blocker requires their input.
 ## Fast merge without CI
 
 `main` requires the `guards` status check (gitleaks, `docs-check`, `source-size-ratchet` on a
-GitHub-hosted runner, see [ADR 0011](../../../docs/adr/0011-required-merge-guards.md)) to pass
+GitHub-hosted runner, see [ADR 0016](../../../docs/adr/0016-github-hosted-ci.md)) to pass
 before anything merges, and that requirement applies with no bypass: a raw `git push` to `main` is
 rejected outright, so every change, including a one-line documentation fix, goes through a pull
 request. What "fast merge" skips is the separate non-required hosted `checks` job; full E2E never

@@ -77,8 +77,8 @@ export function parseE2EPool(raw: string | undefined): E2EPool | 'control' {
 }
 
 /**
- * Reuses the self-hosted run's short temporary root so its fail-safe cleanup also owns repair artifacts. Local runs
- * have no runner owner and create a separate short directory below instead.
+ * Reuses an E2E job's validated short temporary root so its precise cleanup also owns repair artifacts. Local runs have
+ * no runner owner and create a separate short directory below instead.
  */
 export function resolveOwnedRunnerTemporaryDirectory(
     environment: NodeJS.ProcessEnv,

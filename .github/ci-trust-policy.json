@@ -4,8 +4,7 @@
         "pullRequestEvent": "pull_request",
         "workflowDispatchEvent": "workflow_dispatch",
         "pushEvent": "push",
-        "pushRef": "refs/heads/main",
-        "scheduleEvent": "schedule"
+        "pushRef": "refs/heads/main"
     },
     "release": {
         "conclusion": "success",

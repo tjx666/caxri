@@ -30,10 +30,6 @@ export interface CIExecutionPlanInput {
      * graph cannot bound, so the pull request uses full hosted checks without starting E2E.
      */
     hasFullValidationPath?: boolean;
-    /**
-     * True when the scheduled run's head equals the head of the previous completed scheduled run.
-     */
-    isNightlyHeadUnchanged?: boolean;
     isVerifiedReleaseCommit?: boolean;
     pullRequestDraft?: boolean;
     retryKind?: 'metadata-only' | 'spec-only';
@@ -204,23 +200,6 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
             e2eProfile: 'focused',
             e2eTests,
             reason: 'ready source pull request; affected E2E recorded for explicit validation',
-            runE2E: false,
-        };
-    }
-
-    if (input.eventName === 'schedule') {
-        if (input.isNightlyHeadUnchanged) {
-            return {
-                checksScope: 'skipped',
-                e2eProfile: 'control',
-                reason: 'nightly head unchanged since the previous scheduled run',
-                runE2E: false,
-            };
-        }
-        return {
-            checksScope: 'full',
-            e2eProfile: 'optimized',
-            reason: 'scheduled checks only; full E2E requires an explicit dispatch',
             runE2E: false,
         };
     }

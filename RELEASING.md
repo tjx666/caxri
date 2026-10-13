@@ -8,11 +8,12 @@ change-specific CI profile, including whether E2E runs, is owned by the decision
 E2E, relying on the merged changes' PR CI. This fast-path requires the changed-file set to match
 the exact paths and generated contents from `release:prepare`; any additional, missing, or modified
 content falls back to normal main-push CI. PR and main-push CI provide hosted checks, not a full E2E
-receipt. Before the pre-public runner is removed, the exact frozen candidate must separately pass
-one owner-dispatched `self-hosted-final`; after publication, `hosted-full` is the explicit complete
-hosted route. After the release gate succeeds, the release runner builds the DMGs and creates the
-matching Git tag and GitHub Release. Runner labels, availability, and recovery are owned by
-[`docs/self-hosted-runner.md`](docs/self-hosted-runner.md).
+receipt. Current release readiness comes from the complete hosted unit/integration suite, build and
+native checks, package validation, targeted Electron smoke, and the hosted no-publish Release
+rehearsal. `hosted-full` remains a future manual diagnostic route; every dispatch needs fresh,
+explicit maintainer authorization and is not a prerequisite for runner removal, GO, repository
+publication, or anonymous review. After the release gate succeeds, a GitHub-hosted Apple Silicon
+runner builds the DMGs and creates the matching Git tag and GitHub Release.
 
 `main` requires the `guards` status check to pass before anything merges
 ([ADR 0011](docs/adr/0011-required-merge-guards.md)), with no bypass for any actor, so the release
@@ -62,10 +63,9 @@ isolated output directory. It launches only the canonical Source Map application
 packaged smoke, verifies both disk images and Server manifests, writes one SHA-256 checksum per DMG,
 and publishes all four files to GitHub Releases. This does not run the complete E2E suite.
 
-The transitional production Release job and `self-hosted-final` route follow the self-hosted
-availability contract above. Hosted checks and package rehearsal do not depend on that machine.
-The Release job uses a short-lived `contents: write` token and does not persist checkout
-credentials.
+The production Release job uses a disposable GitHub-hosted Apple Silicon runner, a short-lived
+`contents: write` token, and non-persisted checkout credentials. The same packaging and targeted
+smoke steps are exercised by the read-only no-publish rehearsal before publication.
 
 ## Install a release
 

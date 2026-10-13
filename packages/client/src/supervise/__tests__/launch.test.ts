@@ -22,7 +22,7 @@ afterEach(() => {
     vi.clearAllMocks();
 });
 
-it('keeps detached Server descendants attributable to their CI owner', async () => {
+it('excludes workflow-internal markers and unrelated credentials from detached Server descendants', async () => {
     vi.stubEnv('CAXRI_RUNNER_OWNER', 'caxri-42-1-e2e');
     vi.stubEnv('UNRELATED_SECRET', 'excluded-fixture');
     // eslint-disable-next-line unicorn/prefer-event-target -- child_process uses EventEmitter, not EventTarget.
@@ -41,7 +41,7 @@ it('keeps detached Server descendants attributable to their CI owner', async () 
     expect(argv.at(-1)).toBe('/fixture/server.js');
     const options = spawn.mock.calls[0][2] as SpawnOptions;
     expect(options.detached).toBe(true);
-    expect(options.env?.CAXRI_RUNNER_OWNER).toBe('caxri-42-1-e2e');
+    expect(options.env?.CAXRI_RUNNER_OWNER).toBeUndefined();
     expect(options.env?.UNRELATED_SECRET).toBeUndefined();
 });
 

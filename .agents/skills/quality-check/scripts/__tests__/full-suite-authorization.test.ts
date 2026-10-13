@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     assertFullSuiteAuthorized,
+    fullSuiteRefusalMessage,
     isFullSuiteAuthorized,
     isFullSuiteInvocation,
 } from '../full-suite-authorization.ts';
@@ -65,6 +66,16 @@ describe('full suite authorization', () => {
             /CAXRI_FULL_SUITE_AUTHORIZED=1/u,
         );
         expect(() => assertFullSuiteAuthorized('unit', ['run'], {})).toThrow(/bun run check/u);
+    });
+
+    it('describes distinct remote policies for full unit and E2E gates', () => {
+        expect(() => assertFullSuiteAuthorized('unit', ['run'], {})).toThrow(
+            /main pushes run the full unit gate/u,
+        );
+        expect(() => assertFullSuiteAuthorized('e2e', ['test'], {})).toThrow(
+            /maintainer-authorized hosted-full dispatch/u,
+        );
+        expect(fullSuiteRefusalMessage('e2e')).not.toContain('every pushed head');
     });
 
     it('stays out of the way of a focused or authorized run', () => {

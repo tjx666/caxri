@@ -130,7 +130,7 @@ function reviewDeliveryDelta(
 }
 
 describe('Go local CI fallback', () => {
-    it('routes the self-hosted checks job through the shared executor and manifest', async () => {
+    it('routes the authorized local fallback through the shared executor and manifest', async () => {
         const workflow = await readFile(resolve(projectRoot, '.github/workflows/ci.yml'), 'utf8');
         const steps = parse(workflow) as ActionsWorkflow;
         const checkSteps = steps.jobs?.checks?.steps ?? [];
