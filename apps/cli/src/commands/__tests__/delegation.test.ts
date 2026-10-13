@@ -94,4 +94,18 @@ describe('delegation CLI', () => {
             command.parseParams(Array.from({ length: 33 }, (_, index) => `task-${index}`)),
         ).toThrow(/delegation IDs/u);
     });
+
+    it('lists the caller own tasks with an optional active filter and bounded limit', () => {
+        const command = DELEGATION_COMMANDS.find(
+            (item) => item.method === 'agent.delegation.list',
+        )!;
+
+        expect(command.parseParams([])).toEqual({ active: false });
+        expect(command.parseParams(['--active', '--limit', '5'])).toEqual({
+            active: true,
+            limit: 5,
+        });
+        expect(() => command.parseParams(['--limit', 'all'])).toThrow(/positive integer/u);
+        expect(() => command.parseParams(['--session', 'x'])).toThrow(/Unexpected argument/u);
+    });
 });

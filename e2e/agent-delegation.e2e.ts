@@ -128,11 +128,6 @@ process.stdout.write('Synthetic caller ready\r\n');
                     terminalId: string;
                 };
             };
-            await pageRequest(running.page, 'agent.grant', {
-                endpoint: context.endpoint.ref,
-                policy: 'agent:delegate',
-                ttlMs: 60000,
-            });
             const before = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
             await pageRequest(running.page, 'terminal.input', {
                 terminalId: context.endpoint.terminalId,

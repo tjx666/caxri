@@ -146,6 +146,17 @@ export class AgentDelegationsModel {
         return parsed;
     }
 
+    /**
+     * Every saved task, for a caller's own task list. Bounded by the insert capacity, so a full scan stays small.
+     */
+    all(): StoredAgentDelegation[] {
+        return this.database
+            .select()
+            .from(agentDelegations)
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
+    }
+
     active(): StoredAgentDelegation[] {
         return this.database
             .select()

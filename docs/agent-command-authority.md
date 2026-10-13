@@ -11,14 +11,14 @@ not make their authority, origin, retry, or audit semantics interchangeable.
 | Domain                 | CLI                                                                           | Required authority                                                                                               | Content boundary                                                                                                      |
 | ---------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Peer Message           | `agent message send\|wait\|reply`                                             | Managed Agent Endpoint with `agents.message`                                                                     | Bounded peer-origin text stays in Server Core memory and never becomes PTY input.                                     |
-| Visible Delegation     | `agent delegate create\|status\|wait\|result\|stop`                           | Explicit generation-scoped `agent:delegate` grant, or authenticated owner                                        | Private task/result storage, exact turn evidence, and a same-Session visible child Terminal.                          |
+| Visible Delegation     | `agent delegate create\|list\|status\|wait\|result\|stop`                     | `agents.delegate`, held by every managed Agent Endpoint, or authenticated owner                                  | Private task/result storage, exact turn evidence, and a visible child Terminal in the caller's or a new Session.      |
 | Agent Dispatch/Control | `agent dispatch start\|resume\|status\|wait`, `agent control interrupt\|stop` | Same-Project reads use `agents.read`; mutations require a project-scoped `agent:control` grant                   | Server Core owns durable receipts, exact provider bindings, and Endpoint generations; Terminal Host owns PTY signals. |
 | Human Terminal Steer   | `terminal send --terminal <id> --text <text> [--enter]`                       | Authenticated Desktop or human CLI owner with `terminals.steer`; paired devices have a separate short-reply path | Bounded simulated user input; never a Peer Message and never available to an Agent credential.                        |
 
 ## Dispatch lifecycle
 
 `agent delegate import --from <file> [--dry-run|--apply]` requires the owner-only
-`settings.delegation.write` capability, not `agent:delegate`. The CLI rejects detected Agent and CI
+`settings.delegation.write` capability, not `agents.delegate`. The CLI rejects detected Agent and CI
 environments for this command and `terminal send`. These checks distinguish authenticated connection
 roles; they do not isolate mutually untrusted processes sharing the same OS user.
 

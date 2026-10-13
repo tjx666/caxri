@@ -39,6 +39,20 @@ function scopeFor(principal: Principal): ReadonlySet<string> | undefined {
 }
 
 /**
+ * An Agent may start Sessions in any Project the user added (`authorizeDelegationSession`), so it lists every top-level
+ * Project and its Sessions beside its own, to find the target and the Sessions it created. Paths stay out of its view.
+ * Terminals keep the narrower scope: a Session's receipt names the Terminal an Agent's own task runs in.
+ */
+function catalogScopeFor(
+    principal: Principal,
+    projects: readonly ProjectRecord[],
+): ReadonlySet<string> | undefined {
+    const scope = scopeFor(principal);
+    if (!scope || principal.kind !== 'agent') return scope;
+    return new Set([...scope, ...projects.filter(isTopLevelProject).map(({ id }) => id)]);
+}
+
+/**
  * A paired device lists only the Projects the PrimarySidebar presents at its top level. Auto-registered worktree
  * Projects can never own a Session, so on the mobile Project filter and pickers they were entries the user never added
  * that always filtered to an empty list. Other principals keep the full list; the CLI marks worktree Projects with
@@ -108,7 +122,7 @@ export class RecordQueryService {
     }
 
     project(query: ProjectQuery, principal: Principal): ProjectQueryResult {
-        const scope = scopeFor(principal);
+        const scope = catalogScopeFor(principal, this.source.projects());
         const visible = this.source.projects().filter(({ id }) => !scope || scope.has(id));
         if (scope && query.mode === 'current')
             throw new CaxriError(
@@ -139,7 +153,7 @@ export class RecordQueryService {
     }
 
     session(query: SessionQuery, principal: Principal): SessionQueryResult {
-        const scope = scopeFor(principal);
+        const scope = catalogScopeFor(principal, this.source.projects());
         const visible = this.source
             .sessions()
             .filter(

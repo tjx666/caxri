@@ -368,6 +368,7 @@ export function operatorContext(profileId: string): CommandExecutionContext {
             'host.read',
             'host.stop',
             'projects.read',
+            'projects.write',
             'sessions.read',
             'settings.read',
             'settings.write',

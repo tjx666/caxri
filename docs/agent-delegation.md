@@ -6,7 +6,9 @@ status: current
 # Visible Agent delegation
 
 Visible delegation runs a task in a managed Claude, Codex or Grok Terminal, in a sibling pane of the caller's
-Session. Wide caller panes split right; narrow or tall panes split down. The existing active pane
+Session or in a new Session the caller creates for it (see
+[Start work in a new Session](#start-work-in-a-new-session)). Wide caller panes split right; narrow or
+tall panes split down. The existing active pane
 and tab remain selected. The child uses the caller's working directory and remains available for
 inspection after its answer is collected.
 
@@ -28,6 +30,7 @@ caxri agent delegate status <delegation-id> --json
 caxri agent delegate wait <delegation-id> [<delegation-id>...] --timeout 30000 --json
 caxri agent delegate result <delegation-id> --json
 caxri agent delegate stop <delegation-id> --json
+caxri agent delegate list [--active] [--limit <count>] --json
 caxri agent delegate create --project <project-id> --session <session-id> \
   --provider claude --prompt-file ./next-task.md --follow-up <delegation-id> --json
 caxri agent delegate create --project <project-id> --session <session-id> \
@@ -35,11 +38,41 @@ caxri agent delegate create --project <project-id> --session <session-id> \
 ```
 
 Human mutations additionally require an explicit `--profile <path>` and confirmation (`--yes`
-for unattended use). Managed Agents need an explicit, generation-scoped `agent:delegate` grant.
-That grant provides `agents.delegate`, not dispatch, general Agent control, or human Terminal steer.
+for unattended use). Every managed Agent Endpoint, in a Terminal or an Agent Chat, holds
+`agents.delegate`; it does not provide dispatch, general Agent control, or human Terminal steer.
 Server Core derives the caller Terminal from its authenticated Endpoint; a caller cannot supply a
-different principal or Terminal. Agent access is restricted to its own Session and its own
-delegations. The authenticated human owner can inspect tasks in the selected profile.
+different principal or Terminal. An Agent may start work in its own Session and in Sessions it
+created, and may read, wait on, follow up, or stop only its own delegations; `list` returns them
+newest first so an Agent that lost its context can recover their IDs. The authenticated human owner
+can inspect tasks in the selected profile.
+
+## Start work in a new Session
+
+Creating and talking to another Session is ordinary Agent work, not an Agent Commander privilege.
+Any managed Agent can hand a task to a new Agent in its own visible Session, in any Project the user
+added, and the user can open that Session from the sidebar at any time:
+
+```sh
+caxri project list --json
+caxri project add ../other-repo --json
+caxri agent delegate create --project <project-id> --new-session --title "Fix login retry" \
+  --provider codex --prompt-file ./task.md --request-id <stable-request-id> --json
+```
+
+- An Agent's `project list` and `session list` cover every top-level Project the user added, without
+  root paths. `project add <path>` registers a folder the user has not opened yet, or returns the
+  Project that already owns it; it shows a hidden Project again, and adopts an auto-registered
+  worktree Project as a top-level one.
+- `--new-session --title` creates a plain Session, named manually, without moving the Workbench
+  selection, right before its Agent Terminal, so the Session never sits empty. A retry with the same
+  request ID reuses it; a request refused before its task was recorded removes it again (metadata
+  only).
+- Admission for new work outside the caller's own Session requires a visible top-level Project, an
+  unarchived Session, and either this request's new Session or an earlier delegation by the same
+  caller Terminal in it. A user's other Sessions are refused, because a task there would fill its
+  pane. Reading a task the caller owns is not limited by archiving or hiding.
+- The Agent Commander uses the same flag, and additionally records the Session as its own for its
+  board and archive commands; see [Agent Commander](agent-commander.md).
 
 The request ID is scoped to the authenticated principal and generation. Reusing it with the same
 input returns the existing task; different input conflicts. Wait timeout reports the current receipt

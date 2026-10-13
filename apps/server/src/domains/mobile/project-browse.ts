@@ -12,9 +12,9 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import {
+    addProjectFolder,
     hasVisibleChildDirectory,
     isGitRepoRoot as isGitRepoRoot,
-    resolveOwnerProjectRoot,
 } from '../project';
 
 type BrowseParameters = Omit<
@@ -112,16 +112,7 @@ export function createMobileProjectAddHandler(options: {
     return async ({ path }: AddParameters): Promise<AddResult> => {
         const homeDirectory = await resolveHome();
         const { absolute } = await resolveWithinHome(homeDirectory, path);
-        const rootPath = await resolveOwnerProjectRoot(absolute);
-        /**
-         * `database.createProject` is idempotent by root and un-hides a previously hidden Project on a manual add, so a
-         * device re-adding an existing folder gets the same Project back instead of a duplicate row.
-         */
-        const project = options.database.createProject(rootPath);
-        options.emit({
-            event: 'state.changed',
-            payload: { kind: 'full', reason: 'project.create' },
-        });
+        const project = await addProjectFolder(options.database, options.emit, absolute);
         return { project: { id: project.id, displayTitle: project.displayTitle } };
     };
 }

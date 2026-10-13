@@ -1,3 +1,6 @@
+import { resolve } from 'node:path';
+import { cwd } from 'node:process';
+
 import { methods } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -17,6 +20,7 @@ describe('CLI business command catalog', () => {
                 'project list',
                 'project show',
                 'project current',
+                'project add',
                 'session list',
                 'session show',
                 'session current',
@@ -63,6 +67,19 @@ describe('CLI business command catalog', () => {
                 'skills uninstall',
             ]),
         );
+    });
+
+    it('adds one folder as a Project, resolved from the caller working directory', () => {
+        const add = findCliCommand(['project', 'add', 'repo']);
+
+        expect(add?.kind === 'remote' && add.parseParams(['../repo'])).toEqual({
+            path: resolve(cwd(), '../repo'),
+        });
+        expect(add?.kind === 'remote' && add.parseParams(['/work/repo'])).toEqual({
+            path: '/work/repo',
+        });
+        expect(() => add?.parseParams([])).toThrow(/exactly one folder path/u);
+        expect(() => add?.parseParams(['a', 'b'])).toThrow(/Unexpected argument: b/u);
     });
 
     it('archives exactly one Commander Session by ID', () => {

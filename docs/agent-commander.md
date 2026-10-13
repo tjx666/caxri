@@ -271,11 +271,10 @@ stop runs after it and restores what it parked. Sessions the Commander delegated
 their receipts wait for the Commander's next turn.
 
 A Chat Commander keeps the same identity. A Chat process has no PTY lifecycle environment, so
-`AgentChatService` asks its optional `endpoint` (`apps/server/src/domains/commander/chat-endpoint.ts`)
+`AgentChatService` asks its optional `endpoint` (`apps/server/src/domains/agent-chat/chat-endpoint.ts`)
 for the launch environment, activates the generation once the provider is ready, and retires it when
-the process exits or never started (`agent-chat/chat-endpoint-lease.ts`). Only the recorded
-Commander Terminal receives an Endpoint with the `commander` role; every other Chat still runs
-without one. `commander.stop` parks a Chat Commander through `agentChat.closeSession(..., 'detached')`
+the process exits or never started (`agent-chat/chat-endpoint-lease.ts`). Every Chat receives an
+Endpoint; only the recorded Commander Terminal's carries the `commander` role. `commander.stop` parks a Chat Commander through `agentChat.closeSession(..., 'detached')`
 instead of suspending a PTY, and the Commander restore resumes that detached Chat as well.
 
 `commander.status` is a content-free read for the status bar. The Commander is an Agent CLI inside a
@@ -825,8 +824,9 @@ caxri commander session archive <session-id> --json
 the same request that launches its Agent (`AgentDelegationService.create`), so the Workbench first
 sees the Session with its Agent Terminal already in it. Before it, the Commander ran
 `commander session create` and then `agent delegate create --session` as two tool calls, and the
-Session sat empty for as long as the Commander took to write the second one. Only the recorded
-Commander caller may pass it. A retry of the same request reuses the Session its first attempt
+Session sat empty for as long as the Commander took to write the second one. Any Agent may pass it
+(see [Start work in a new Session](agent-delegation.md#start-work-in-a-new-session)); only the
+Commander's Session is recorded as the Commander's. A retry of the same request reuses the Session its first attempt
 created, and a request refused before any task was recorded removes that empty Session again
 (metadata only). `--new-session` requires `--title`, which becomes the Session's manual title. The
 delegated Agent's first message is only a pointer to the private task file, so automatic naming used

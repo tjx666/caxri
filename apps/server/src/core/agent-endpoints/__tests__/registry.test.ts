@@ -34,24 +34,18 @@ function activate(
 }
 
 describe('AgentEndpointRegistry', () => {
-    it('grants delegation without granting general Terminal or Agent control', () => {
-        let now = 1;
-        const registry = new AgentEndpointRegistry('host-1', {
-            token: () => TOKEN,
-            now: () => now,
-        });
+    it('lets every Agent delegate and register Projects without general Terminal or Agent control', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
         const endpoint = begin(registry);
         activate(registry, endpoint);
-        const credential = { ...endpoint.ref, token: TOKEN };
-        expect(registry.authenticate(credential).capabilities).not.toContain('agents.delegate');
-        registry.grant(endpoint.ref, 'agent:delegate', 1_000);
-        const granted = registry.authenticate(credential).capabilities;
-        expect(granted).toContain('agents.delegate');
-        expect(granted).not.toContain('agents.control');
-        expect(granted).not.toContain('agents.dispatch');
-        expect(granted).not.toContain('terminals.steer');
-        now = 2_000;
-        expect(registry.authenticate(credential).capabilities).not.toContain('agents.delegate');
+        const capabilities = registry.authenticate({ ...endpoint.ref, token: TOKEN }).capabilities;
+        expect(capabilities).toEqual(
+            expect.arrayContaining(['agents.delegate', 'projects.read', 'projects.write']),
+        );
+        expect(capabilities).not.toContain('agents.control');
+        expect(capabilities).not.toContain('agents.dispatch');
+        expect(capabilities).not.toContain('terminals.steer');
+        expect(capabilities).not.toContain('commander');
     });
 
     it('grants the Agent Commander role board and delegation authority without general control', () => {

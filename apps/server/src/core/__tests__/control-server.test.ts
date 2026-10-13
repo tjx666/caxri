@@ -18,6 +18,7 @@ import { diagnosticsSnapshotFixture } from '../../__tests__/support/diagnostics-
 import { AgentEndpointRegistry } from '../agent-endpoints';
 import { AgentInboxRegistry } from '../agent-inbox';
 import { ControlServer } from '../control-server';
+import { operatorContext } from '../control-server-support';
 import { acquireServerProfile } from '../profile';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -175,27 +176,8 @@ describe('local Host transport', () => {
         expect(welcome.principal.kind).toBe('human-cli');
         // Only a Desktop handshake counts as attaching; Server Core starts the Extension Host on it.
         expect(desktopAttached).not.toHaveBeenCalled();
-        expect(welcome.capabilities).toEqual([
-            'desktop.window',
-            'diagnostics.read',
-            'agents.read',
-            'agents.control',
-            'agents.dispatch',
-            'agents.delegate',
-            'agents.delegation.access',
-            'agents.grant',
-            'commander',
-            'events.read',
-            'host.read',
-            'host.stop',
-            'projects.read',
-            'sessions.read',
-            'settings.read',
-            'settings.write',
-            'settings.delegation.write',
-            'terminals.read',
-            'terminals.steer',
-        ]);
+        // `control-server-support.test.ts` pins the exact human-CLI capability set.
+        expect(welcome.capabilities).toEqual(operatorContext('').capabilities);
         expect(welcome.commands).toContain('app.health');
         expect(welcome.commands).toContain('host.status');
         expect(welcome.commands).toContain('desktop.status');

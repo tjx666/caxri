@@ -24,6 +24,7 @@ import {
     discardCommanderSession,
 } from '../commander';
 import { coreRouted } from '../core-routed';
+import { createBackgroundSession, discardEmptySession } from '../session';
 
 /**
  * Composes managed Terminal commands with private task ownership and their shared launch dependencies.
@@ -52,21 +53,24 @@ export function createAgentCommandRuntime(
         dispatch: dispatchService,
         logger: options.logger,
         userDataPath: options.userDataPath,
-        commanderSessions: {
-            create: (projectId, title) => {
-                const sessionId = createCommanderSession(
-                    options.database,
-                    projectId,
-                    options.logger,
-                    title,
-                );
+        newSessions: {
+            create: (projectId, title, isCommander) => {
+                const sessionId = isCommander
+                    ? createCommanderSession(options.database, projectId, options.logger, title)
+                    : createBackgroundSession(options.database, projectId, title);
                 announce('session.create');
                 return sessionId;
             },
-            discard: (sessionId) =>
-                discardCommanderSession(options.database, sessionId, options.logger, () =>
-                    announce('session.delete'),
-                ),
+            discard: (sessionId) => {
+                if (options.database.agentCommanderRows()?.sessionIds.includes(sessionId))
+                    discardCommanderSession(options.database, sessionId, options.logger, () =>
+                        announce('session.delete'),
+                    );
+                else
+                    discardEmptySession(options.database, sessionId, () =>
+                        announce('session.delete'),
+                    );
+            },
         },
         commanderHandovers: commanderHandoverAccess(options.database, options.logger),
         dimensions: (terminalId) => options.terminals.dimensions(terminalId),
