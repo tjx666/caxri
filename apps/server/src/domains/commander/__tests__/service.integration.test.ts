@@ -226,6 +226,39 @@ describe('Agent Commander service', () => {
         );
     });
 
+    it('keeps a hand-over accepted while the first Commander Terminal is being created', async () => {
+        const { createAndStartTerminal, database, sendFullStateChange, service, userSession } =
+            await fixture();
+        const creating = Promise.withResolvers<void>();
+        const reached = Promise.withResolvers<void>();
+        const create = createAndStartTerminal.getMockImplementation()!;
+        createAndStartTerminal.mockImplementationOnce(async (...parameters) => {
+            reached.resolve();
+            await creating.promise;
+            return create(...parameters);
+        });
+        const handovers = new CommanderHandoverService({
+            database,
+            notify: () => {},
+            resolveProjectRoot: (path) => Promise.resolve(path),
+            sendFullStateChange,
+        });
+
+        const opening = service.ensure();
+        await reached.promise;
+        const result = await handovers.handOver({ sessionIds: [userSession.id] });
+        creating.resolve();
+        const { identity } = await opening;
+
+        expect(result.outcomes).toEqual([
+            expect.objectContaining({ outcome: 'accepted', sessionId: userSession.id }),
+        ]);
+        expect(database.agentCommanderRows()).toMatchObject({
+            terminalId: identity.terminalId,
+            sessionIds: [userSession.id],
+        });
+    });
+
     it('makes the workspace its own Git repository even inside another repository', async () => {
         const { directory, service } = await fixture();
         execFileSync('git', ['init', '--quiet'], { cwd: directory });

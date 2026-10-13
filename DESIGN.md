@@ -158,6 +158,11 @@ seeds it with its own `success` value, so the default appearance is unchanged; a
 `charts.green`, falling back to the imported `success`, and `upgradeThemeColors` backfills an older
 custom theme from its `success`.
 
+A chart that compares categories rather than quantities (the Benchmark chart's one series per Agent)
+derives its hues from `--chart` with relative OKLCH, a third of the wheel apart, instead of adding a
+brand palette, so every theme retints it. It clamps lightness and chroma into a readable band, and
+pairs each hue with a marker shape so color is never the only cue.
+
 `--merged` is a role rather than a reuse of `--success` because `--success` also identifies an open
 pull request; sharing it left a landed PR and an open PR distinguishable
 only by glyph shape at 13px. It is violet in every built-in theme, following the convention GitHub

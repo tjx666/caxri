@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { agentCommanderLogEvents } from './logging-agent-commander.js';
+import { benchmarkLogEvents } from './logging-benchmark.js';
 import { remoteSshLogEvents } from './logging-remote-ssh.js';
 
 /**
@@ -314,6 +315,7 @@ export const logEventCatalog = {
         eventLoopStall: 'process.event_loop_stall',
     },
     agentCommander: agentCommanderLogEvents,
+    benchmark: benchmarkLogEvents,
     remoteSsh: remoteSshLogEvents,
     processExplorer: {
         consoleError: 'process_explorer.console_error',

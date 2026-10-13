@@ -127,6 +127,22 @@ function versionSearchText(path: string, source: string): string {
 }
 
 describe('toolchain contract', () => {
+    it('exempts only exact, still-resolved versions from the release-age floor', async () => {
+        const workspace = parse(
+            await readFile(new URL('../../pnpm-workspace.yaml', import.meta.url), 'utf8'),
+        ) as { minimumReleaseAgeExclude: string[] };
+        const lockfile = await readFile(new URL('../../pnpm-lock.yaml', import.meta.url), 'utf8');
+        const resolved = new Set(
+            lockfile.matchAll(/^ {2}'?(@?[^@\s'(]+@[^\s'(:]+)'?:/gmu).map((match) => match[1]),
+        );
+        // An unversioned entry exempts every future release; a version the lockfile no longer resolves exempts nothing
+        // and only hides which exemptions still matter.
+        const stale = workspace.minimumReleaseAgeExclude.filter(
+            (entry) => !/^@?[^@]+@\d/u.test(entry) || !resolved.has(entry),
+        );
+        expect(stale).toEqual([]);
+    });
+
     it('places the standalone pnpm tool ahead of Node Corepack shims', () => {
         expect(mise.search(/^pnpm = /mu)).toBeLessThan(mise.search(/^node = /mu));
     });

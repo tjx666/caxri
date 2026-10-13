@@ -12,6 +12,8 @@ export const agentChatComposer = {
         'This message is too long to cite pasted text. Your clipboard is unchanged; shorten the message and paste again.',
     'agentChat.composer.fileHasNoPath':
         'This file has no path on disk to insert. Save it, then drop the saved file.',
+    'agentChat.composer.localFileOnSshHost':
+        'Files on this Mac cannot be referenced on the SSH Host. Copy the file to the SSH Host, then drop it from Files. Images still attach.',
 
     'agentChat.attachments.fallbackName': 'Attachment {{number}}',
     'agentChat.attachments.label': 'Attached images',

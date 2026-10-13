@@ -1,6 +1,7 @@
 import type { GitDiffTab } from '@caxri/protocol';
 import {
     gitDiffTabLabel,
+    isBenchmarkTabPath,
     isSettingsTabPath,
     isUsageTabPath,
     parseAgentContextTab,
@@ -19,10 +20,9 @@ import { translate } from '../../i18n';
 import { shouldOpenAsPreview } from '../preview/preview-registry';
 
 /**
- * Localized counterparts of `@caxri/protocol`'s English tab label helpers (`gitDiffTabLabel`,
- * `agentTranscriptTabLabel`, `agentTaskTabLabel`, `agentStatusTabLabel`, `filePreviewTabLabel`, and the Settings and
- * Usage labels). The protocol versions stay English because Main and the CLI share them; the Renderer's tab rail
- * translates the same shapes here.
+ * Localized document tab labels for the Renderer's tab rail. Only `gitDiffTabLabel` remains in `@caxri/protocol`, and
+ * it is reused as is for the language-neutral file and commit labels; every worded label (diff changes, transcript,
+ * Agent task, Agent status, file preview, Settings, Usage) is translated here and has no protocol counterpart.
  */
 function diffTabLabel(tab: GitDiffTab, t: Translate): string {
     if (tab.kind !== 'changes') return gitDiffTabLabel(tab);
@@ -126,6 +126,7 @@ export function documentTabPresentation(
     const previewExternal = preview ? parseExternalEditorTab(preview.path) : undefined;
     const isSettings = isSettingsTabPath(path);
     const isUsage = isUsageTabPath(path);
+    const isBenchmark = isBenchmarkTabPath(path);
     const label = diff
         ? diffTabLabel(diff, t)
         : transcript
@@ -144,7 +145,9 @@ export function documentTabPresentation(
                       ? t('editor.tab.settings')
                       : isUsage
                         ? t('editor.tab.usage')
-                        : (external?.name ?? pathBasename(path));
+                        : isBenchmark
+                          ? t('editor.tab.benchmark')
+                          : (external?.name ?? pathBasename(path));
     const isOutsideProject = Boolean(external) || Boolean(previewExternal);
     const detail =
         external && options.displayPath
@@ -169,7 +172,12 @@ export function documentTabPresentation(
                     ? 'transcript.jsonl'
                     : preview
                       ? pathBasename(preview.path)
-                      : isSettings || isUsage || agentTask || agentStatus || agentContext
+                      : isSettings ||
+                          isUsage ||
+                          isBenchmark ||
+                          agentTask ||
+                          agentStatus ||
+                          agentContext
                         ? undefined
                         : (external?.name ?? pathBasename(path)),
         // Settings draws its own glyph, as VS Code's Settings editor tab does, instead of the JSON file it is stored in.
@@ -177,15 +185,17 @@ export function documentTabPresentation(
             ? ('settings' as const)
             : isUsage
               ? ('usage' as const)
-              : agentTask
-                ? options.task?.kind === 'shell'
-                    ? ('shell-task' as const)
-                    : ('agent-task' as const)
-                : agentStatus
-                  ? ('agent-status' as const)
-                  : agentContext
-                    ? ('agent-context' as const)
-                    : ('file' as const),
+              : isBenchmark
+                ? ('benchmark' as const)
+                : agentTask
+                  ? options.task?.kind === 'shell'
+                      ? ('shell-task' as const)
+                      : ('agent-task' as const)
+                  : agentStatus
+                    ? ('agent-status' as const)
+                    : agentContext
+                      ? ('agent-context' as const)
+                      : ('file' as const),
         label,
         // A preview tab shows its source path: the label already says "Preview", so the tooltip's job is locating it.
         labelTooltip: preview
@@ -201,7 +211,8 @@ export function documentTabPresentation(
                   agentContext ||
                   turnReview ||
                   isSettings ||
-                  isUsage
+                  isUsage ||
+                  isBenchmark
                 ? label
                 : (options.displayPath ?? external?.name ?? path),
     };

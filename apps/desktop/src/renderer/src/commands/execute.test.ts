@@ -194,6 +194,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openSettings: record('dialogs.openSettings'),
                 openPalette: record('dialogs.openPalette'),
                 openUsage: record('dialogs.openUsage'),
+                openBenchmark: record('dialogs.openBenchmark'),
                 openPathBrowser: record('dialogs.openPathBrowser'),
                 openProjectSearch: record('dialogs.openProjectSearch'),
                 openSessionContentSearch: record('dialogs.openSessionContentSearch'),

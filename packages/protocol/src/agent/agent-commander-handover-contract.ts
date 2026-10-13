@@ -207,8 +207,9 @@ export type CommanderConversation = z.infer<typeof commanderConversationSchema>;
 export type CommanderConversationReference = z.infer<typeof commanderConversationReferenceSchema>;
 
 /**
- * Hand-over requests are the user's, never the Commander's: `agents.control` is held by the Desktop and the human CLI
- * owner but not by the Commander's Agent Endpoint, so the Commander can never take a Session the user did not give it.
+ * Hand-over requests are the user's, never an Agent's. `agents.control` alone is not enough: an `agent:control` grant
+ * also gives it to an Agent Endpoint, so Server Core refuses these methods for every principal other than the Desktop
+ * and the human CLI owner. The Commander can never take a Session the user did not give it.
  */
 export const commanderHandoverMethods = {
     /**

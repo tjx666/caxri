@@ -10,10 +10,3 @@ const agentStatusTab = terminalTabPathCodec('caxri-agent-status://');
 export const agentStatusTabPath = agentStatusTab.path;
 export const parseAgentStatusTab = agentStatusTab.parse;
 export const isAgentStatusTabPath = agentStatusTab.is;
-
-/**
- * `Codex Status` once the Terminal's Agent is known, `Agent Status` before.
- */
-export function agentStatusTabLabel(agentName: string | undefined): string {
-    return `${agentName ?? 'Agent'} Status`;
-}

@@ -124,6 +124,13 @@ export const environmentStateSchema = z.discriminatedUnion('kind', [
          * The destination this window was opened for, exactly as entered or chosen.
          */
         destination: sshDestinationSchema,
+        /**
+         * Main's identity for the SSH Host (`ssh -G`'s resolved `user@hostname:port`, or the spelling when that fails),
+         * the same key that makes two aliases of one account share this window. Device-local state that must follow the
+         * SSH Host across aliases and relaunches (unsent composer drafts and images) is keyed by it, not by
+         * `destination`.
+         */
+        hostIdentity: z.string().min(1).max(1024),
         phase: remoteConnectionPhaseSchema,
         /**
          * Bytes of the application layer (and, when the SSH Host cannot download it, the runtime) uploaded so far.

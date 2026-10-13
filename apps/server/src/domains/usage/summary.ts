@@ -28,6 +28,10 @@ export interface PricedUsageBucket {
     costUsd: number;
     cacheSavingsUsd: number;
     isPriced: boolean;
+    /**
+     * True when `costUsd` is the provider's own report rather than a list-price estimate.
+     */
+    isNativeCost: boolean;
 }
 
 export type ModelPriceLookup = (model: string) => ModelPrice | undefined;
@@ -65,6 +69,7 @@ export function* pricedUsageBuckets(
                     : nativeCostTicks / NATIVE_COST_TICKS_PER_USD,
             cacheSavingsUsd: price ? cacheSavingsOf(tokens, price, priceClass) : 0,
             isPriced: price !== undefined || nativeCostTicks !== undefined,
+            isNativeCost: nativeCostTicks !== undefined,
         };
     }
 }

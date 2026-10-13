@@ -93,6 +93,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.projectStatusAlert.deploymentFailed': '{{name}} 部署失败',
 
     'core.commands.usageNeedsProject': '添加项目后才能打开用量',
+    'core.commands.benchmarkNeedsProject': '添加项目后才能打开 Benchmark',
     'core.commands.openAgentCommanderFailed': '无法打开 Agent Commander',
     'core.commands.diagnosticsExportFailed': '诊断信息导出失败',
     'core.commands.diagnosticsExported': '诊断信息已导出到 {{path}}',

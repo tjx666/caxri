@@ -69,15 +69,14 @@ afterEach(async () => {
     await Promise.all(paths.map((path) => rm(path, { force: true, recursive: true })));
 });
 
-function cleanMainGit(overrides: Record<string, string> = {}): GitReader {
+function cleanReleaseGit(overrides: Record<string, string> = {}): GitReader {
     return async (arguments_) => {
         const key = arguments_.join(' ');
         return (
             overrides[key] ??
             {
-                'branch --show-current': 'main',
                 'rev-parse HEAD': 'release-head',
-                'rev-parse @{upstream}': 'release-head',
+                'rev-parse refs/remotes/origin/main': 'release-head',
                 'status --porcelain --untracked-files=all': '',
             }[key] ??
             ''
@@ -180,26 +179,38 @@ describe('release version preparation', () => {
         await expect(readFile(join(cwd, 'package.json'), 'utf8')).resolves.toBe(originalRoot);
     });
 
-    it('requires a clean, synchronized main branch before the CLI mutates files', async () => {
+    it('requires a clean checkout at the fetched origin/main before the CLI mutates files', async () => {
         const cwd = await fixture();
+        const gitCalls: string[] = [];
+        const recordingGit = cleanReleaseGit({ 'branch --show-current': 'release/v0.0.25' });
 
         await expect(
-            assertReleaseSource(cwd, cleanMainGit({ 'branch --show-current': 'feature' })),
-        ).rejects.toThrow('requires main');
+            assertReleaseSource(cwd, async (arguments_, root) => {
+                gitCalls.push(arguments_.join(' '));
+                return recordingGit(arguments_, root);
+            }),
+        ).resolves.toBeUndefined();
+        expect(gitCalls.indexOf('fetch --quiet origin main')).toBeLessThan(
+            gitCalls.indexOf('rev-parse refs/remotes/origin/main'),
+        );
+        expect(gitCalls).toContain('fetch --quiet origin main');
         await expect(
             assertReleaseSource(
                 cwd,
-                cleanMainGit({ 'status --porcelain --untracked-files=all': ' M package.json' }),
+                cleanReleaseGit({ 'status --porcelain --untracked-files=all': ' M package.json' }),
             ),
         ).rejects.toThrow('clean worktree');
         await expect(
-            assertReleaseSource(cwd, cleanMainGit({ 'rev-parse @{upstream}': 'remote-head' })),
-        ).rejects.toThrow('match its upstream');
+            assertReleaseSource(
+                cwd,
+                cleanReleaseGit({ 'rev-parse refs/remotes/origin/main': 'remote-head' }),
+            ),
+        ).rejects.toThrow('match origin/main');
 
-        await expect(runPrepareRelease(['0.0.25'], cwd, cleanMainGit())).resolves.toMatchObject({
+        await expect(runPrepareRelease(['0.0.25'], cwd, cleanReleaseGit())).resolves.toMatchObject({
             version: '0.0.25',
         });
-        await expect(runPrepareRelease([], cwd, cleanMainGit())).rejects.toThrow('Usage');
+        await expect(runPrepareRelease([], cwd, cleanReleaseGit())).rejects.toThrow('Usage');
     });
 
     it('rejects malformed, unchanged, and older explicit versions', async () => {

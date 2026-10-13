@@ -6,6 +6,11 @@ export const delegationModelSchema = z.string().trim().min(1).max(256);
 export const delegationEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
 
 /**
+ * Reasoning efforts Grok Build's CLI accepts (`grok --reasoning-effort`). Its Chat protocol lists models without them.
+ */
+export const GROK_REASONING_EFFORTS = ['low', 'medium', 'high'] as const;
+
+/**
  * Preserve dianjiang's model-aware validation without blocking future model names. These are explicit requested
  * settings, not claims about the provider's applied effort or an organization's permitted model access.
  *
@@ -18,7 +23,7 @@ export function isDelegationEffortSupported(
     effort: string | undefined,
 ): boolean {
     if (effort === undefined) return true;
-    if (provider === 'grok') return ['low', 'medium', 'high'].includes(effort);
+    if (provider === 'grok') return (GROK_REASONING_EFFORTS as readonly string[]).includes(effort);
     if (provider === 'claude') return ['low', 'medium', 'high', 'xhigh', 'max'].includes(effort);
     const olderModels = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.3-codex-spark'];
     if (model && olderModels.includes(model))

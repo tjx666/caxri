@@ -6,7 +6,6 @@ import {
     formatReviewComment,
     formatReviewTerminalInput,
     isGitReviewPromptInline,
-    reviewSideLabel,
     reviewSnippet,
 } from '../git-review-contract';
 
@@ -43,11 +42,6 @@ describe('Git review comment formatting', () => {
 
     it('extracts an inclusive line span', () => {
         expect(reviewSnippet('one\ntwo\nthree', 2, 3)).toBe('two\nthree');
-    });
-
-    it('labels each diff side in words a reviewer would say', () => {
-        expect(reviewSideLabel('original')).toBe('Old');
-        expect(reviewSideLabel('modified')).toBe('New');
     });
 
     it('submits a multiline review as one bracketed paste', () => {
