@@ -18,17 +18,24 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.composer.plainPasteTooLong':
         '文本过长，无法直接粘贴到消息中。请用 ⌘V 粘贴，改为以文件引用。',
     'agentChat.composer.fileHasNoPath':
-        '该文件在磁盘上没有可插入的路径。请先保存，再拖入保存后的文件。',
+        '该文件在磁盘上没有可附加的路径。请先保存，再拖入保存后的文件。',
     'agentChat.composer.localFileOnSshHost':
         '无法在 SSH Host 上引用此 Mac 上的文件。请先将文件复制到 SSH Host，再从“文件”中拖入。图片仍可作为附件添加。',
 
     'agentChat.attachments.fallbackName': '附件 {{number}}',
-    'agentChat.attachments.label': '已附加的图片',
+    'agentChat.attachments.label': '附件',
+    'agentChat.attachments.folder': '文件夹',
+    'agentChat.attachments.file': '文件',
     'agentChat.attachments.preparing': '正在准备图片',
     'agentChat.attachments.preview': '预览 {{name}}',
     'agentChat.attachments.remove': '移除 {{name}}',
-    'agentChat.attachments.dropImagesOrPaths': '拖放以附加图片或插入路径',
-    'agentChat.attachments.dropPaths': '拖放以插入路径',
+    'agentChat.attachments.dropImagesOrPaths': '拖放以添加图片、文件或文件夹',
+    'agentChat.attachments.dropPaths': '拖放以添加文件或文件夹',
+
+    'agentChat.pathReference.label': '附加的文件和文件夹',
+    'agentChat.pathReference.openFolder': '在 Finder 中打开 {{name}}',
+    'agentChat.pathReference.revealFile': '在 Finder 中显示 {{name}}',
+    'agentChat.pathReference.openFailed': '无法在 Finder 中显示',
 
     'agentChat.add.tooltip': '添加文件等内容',
     'agentChat.add.add': '添加',

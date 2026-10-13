@@ -22,6 +22,7 @@ type EnvironmentMethodScope = 'any' | 'local-only' | 'remote-override' | 'ssh-on
  */
 const environmentMethodScopes = {
     'agentChat.confirmRevertFiles': 'any',
+    'agentChat.openPathReference': 'local-only',
     'agentCommander.open': 'local-only',
     'agentCommander.stop': 'local-only',
     'agentCommander.revealSession': 'local-only',

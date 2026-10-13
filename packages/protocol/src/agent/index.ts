@@ -9,6 +9,7 @@ export * from './agent-chat-goal.js';
 export * from './agent-chat-goal-contract.js';
 export * from './agent-chat-methods.js';
 export * from './agent-chat-models.js';
+export * from './agent-chat-path-references.js';
 export * from './agent-chat-pending.js';
 export * from './agent-chat-permissions.js';
 export * from './agent-chat-presentation.js';

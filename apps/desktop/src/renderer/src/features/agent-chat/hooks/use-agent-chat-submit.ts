@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-import type { AgentChatCommand } from '@caxri/protocol';
-import { parseAgentChatCommand } from '@caxri/protocol';
+import type { AgentChatCommand, AgentChatMessageInput } from '@caxri/protocol';
+import { agentChatTextWithPathReferences, parseAgentChatCommand } from '@caxri/protocol';
 
 import { cachedAgentChatSnapshot } from '../agent-chat-client';
 import {
@@ -13,6 +13,8 @@ import type { AgentChatAttachment } from '../agent-chat-drafts';
 import {
     didDeliverAgentChatComposerInput,
     draftAfterSend,
+    isAgentChatImageAttachment,
+    isAgentChatPathAttachment,
     returnUnsentAgentChatMessage,
 } from '../agent-chat-drafts';
 import {
@@ -22,17 +24,39 @@ import {
 } from '../agent-chat-pending';
 
 /**
- * Sends the draft as a message with its images, or runs it when it names a listed slash command. A message leaves the
- * composer at once and shows as pending where it will land (`agent-chat-pending.ts`); a failed send takes the pending
- * row away and puts its text and images back. A command and an edit leave the composer at once too, while Send says the
- * composer is sending until Server Core answers, and come back if it refuses them (`didDeliverAgentChatComposerInput`).
- * Each clears only what was actually sent, so text typed or images attached while they are in flight survive them.
+ * The message `text` and `attachments` make: images ride along as images, and file and folder cards are cited ahead of
+ * the text in the provider's own layout (`agentChatTextWithPathReferences`).
+ */
+function agentChatMessageInput(
+    text: string,
+    attachments: readonly AgentChatAttachment[],
+    providerName: string,
+): AgentChatMessageInput {
+    const images = attachments.filter(isAgentChatImageAttachment).map(({ image }) => image);
+    return {
+        text: agentChatTextWithPathReferences(
+            text,
+            attachments.filter(isAgentChatPathAttachment),
+            providerName,
+        ),
+        ...(images.length > 0 && { images }),
+    };
+}
+
+/**
+ * Sends the draft as a message with its images and file and folder cards, or runs it when it names a listed slash
+ * command. A message leaves the composer at once and shows as pending where it will land (`agent-chat-pending.ts`); a
+ * failed send takes the pending row away and puts its text and images back. A command and an edit leave the composer at
+ * once too, while Send says the composer is sending until Server Core answers, and come back if it refuses them
+ * (`didDeliverAgentChatComposerInput`). Each clears only what was actually sent, so text typed or images attached while
+ * they are in flight survive them.
  */
 export function useAgentChatSubmit({
     attachments,
     clearSent,
     commands,
     onSent,
+    providerName,
     setDraft,
     terminalId,
 }: {
@@ -44,6 +68,10 @@ export function useAgentChatSubmit({
      * failure of those.
      */
     onSent?: () => void;
+    /**
+     * The provider catalog's display name, which heads the user's words after cited files and folders.
+     */
+    providerName: string;
     setDraft: (update: (current: string) => string) => void;
     terminalId: string;
 }) {
@@ -91,30 +119,20 @@ export function useAgentChatSubmit({
             return;
         }
         const sentAttachments = attachments;
+        const message = agentChatMessageInput(sent, sentAttachments, providerName);
         const pendingId = showAgentChatPendingMessage(
             terminalId,
             cachedAgentChatSnapshot(terminalId),
             {
-                text: sent,
-                images: sentAttachments.map((attachment) => ({
-                    thumbnail: attachment.image.thumbnail,
-                })),
+                text: message.text,
+                images: (message.images ?? []).map(({ thumbnail }) => ({ thumbnail })),
                 delivery,
             },
         );
         setDraft((current) => draftAfterSend(current, sent));
         clearSent(sentAttachments);
         onSent?.();
-        const isSent = await didSendAgentChatMessage(
-            terminalId,
-            {
-                text: sent,
-                ...(sentAttachments.length > 0 && {
-                    images: sentAttachments.map((attachment) => attachment.image),
-                }),
-            },
-            delivery,
-        );
+        const isSent = await didSendAgentChatMessage(terminalId, message, delivery);
         if (isSent) {
             expireAgentChatPendingMessage(terminalId, pendingId);
             return;
@@ -154,12 +172,7 @@ export function useAgentChatSubmit({
                         restoreFiles: edit.restoreFiles,
                         providerName: edit.providerName,
                         removedTurns: edit.removedTurns,
-                        message: {
-                            text: sent,
-                            ...(sentAttachments.length > 0 && {
-                                images: sentAttachments.map((attachment) => attachment.image),
-                            }),
-                        },
+                        message: agentChatMessageInput(sent, sentAttachments, providerName),
                     },
                     clear,
                 ),

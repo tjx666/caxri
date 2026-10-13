@@ -950,13 +950,24 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   `dialog.selectPaths`, which takes several files and folders at once (Chromium's file input cannot
   pick a folder together with files). It grants nothing, unlike the Project folder dialog, so a pick
   never widens what a Project may reach. When the provider takes images, Main returns each picked
-  image's bytes (up to 64 MB across the pick) so it attaches as a dropped one would; a folder is
-  cited by path like any other file. An SSH Host window keeps Chromium's file-only picker as Files,
-  since a path on this Mac means nothing to an Agent on the SSH Host, while a picked image still
-  attaches. A picked or dropped file that is not an attachable image, and every file for a provider without image input such as Grok Build, is
-  inserted at the caret as its path, relative to the Agent's directory and quoted the way a
-  Terminal drop is. Every provider reads files from disk with its own tools, so a path is the one
-  representation all three send paths share; no file contents are inlined.
+  image's bytes (up to 64 MB across the pick) so it attaches as a dropped one would. An SSH Host
+  window keeps Chromium's file-only picker as Files, since a path on this Mac means nothing to an
+  Agent on the SSH Host, while a picked image still attaches. Every other picked file or folder,
+  every file or folder dropped or pasted from Finder, and every file for a provider without image
+  input such as Grok Build, becomes a card in the attachment tray beside the image thumbnails, as
+  in the Codex app: an icon tile, the name, and `File` or `Folder`, with the full path in its
+  tooltip (a dropped folder is told from a file because reading its first byte fails). Cards persist
+  with the draft's images. On send the composer puts them ahead of the typed text in the Codex app's
+  layout, `# Files mentioned by the user:`, one `## name: /absolute/path` line each (a folder's
+  path ends in `/`), then `## My request for <provider>:` and the text
+  (`agent-chat-path-references.ts`), so the Agent reads each from disk with its own tools and no
+  file contents are inlined. Every Client parses that block back: the transcript, the pending row,
+  the queue, the message rail, prompt history, Copy, Edit, and Fork show only the typed words, and a
+  sent message shows each reference as a chip under its images. Clicking a chip calls the Desktop
+  method `agentChat.openPathReference`, which opens a folder in Finder and reveals a file (or an
+  app-like bundle such as `.app`, which opening would launch) in its folder. A Files entry, an
+  Editor tab, or a Project dragged from inside Caxri is still inserted at the caret as its path,
+  relative to the Agent's directory and quoted the way a Terminal drop is.
 - **Long paste.** Pasted text longer than the `agentChat.longPasteThreshold` setting (default
   32 KiB, `AGENT_CHAT_LONG_PASTE_THRESHOLD`, T3 Code's pasted-text attachment size), or any paste
   the 100,000-character message limit would otherwise cut, never enters the input. Raising the

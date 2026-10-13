@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     agentChatAttachmentLabel,
     agentChatAttachmentName,
+    agentChatAttachmentsWithPaths,
     appendToAgentChatDraft,
     attachmentsWithReturned,
     didDeliverAgentChatComposerInput,
@@ -159,6 +160,22 @@ describe('returning an unsent message', () => {
         unsubscribe();
         writeAgentChatDraft('chat-r', '');
         writeAgentChatAttachments('chat-r', []);
+    });
+});
+
+describe('agentChatAttachmentsWithPaths', () => {
+    it('adds a card per new path after the attachments already there', () => {
+        const folder = { id: 'a', path: '/work/app', isDirectory: true };
+        expect(
+            agentChatAttachmentsWithPaths(
+                [folder],
+                [
+                    { id: 'b', path: '/work/app', isDirectory: true },
+                    { id: 'c', path: '/work/notes.txt', isDirectory: false },
+                    { id: 'd', path: '/work/notes.txt', isDirectory: false },
+                ],
+            ),
+        ).toEqual([folder, { id: 'c', path: '/work/notes.txt', isDirectory: false }]);
     });
 });
 

@@ -46,12 +46,18 @@ export function useAgentChatComposerSend({
      */
     edit: Omit<
         Parameters<typeof useAgentChatComposerEdit>[0],
-        'canSend' | 'draft' | 'focusInput' | 'setDraft' | 'submitEdit' | 'terminalId'
+        | 'attachments'
+        | 'canSend'
+        | 'draft'
+        | 'focusInput'
+        | 'setDraft'
+        | 'submitEdit'
+        | 'terminalId'
     >;
     focusInput: () => void;
     images: Pick<
         ReturnType<typeof useAgentChatAttachments>,
-        'attachments' | 'clearSent' | 'restoreUnsent'
+        'addPaths' | 'attachments' | 'clearSent' | 'removePaths' | 'restoreUnsent'
     >;
     /**
      * Whether picked images are still being read or a long paste saved (`useAgentChatComposerInput`), which holds Send.
@@ -71,6 +77,7 @@ export function useAgentChatComposerSend({
         clearSent: images.clearSent,
         commands,
         onSent,
+        providerName: editInput.providerName,
         setDraft,
         terminalId,
     });
@@ -80,6 +87,7 @@ export function useAgentChatComposerSend({
     });
     const edit = useAgentChatComposerEdit({
         ...editInput,
+        attachments: images,
         canSend,
         draft,
         focusInput,

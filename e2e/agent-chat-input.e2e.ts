@@ -108,7 +108,7 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         await expect(message).toBeVisible();
 
         await pasteImage(message);
-        const attached = chat.getByRole('list', { name: 'Attached images' });
+        const attached = chat.getByRole('list', { name: 'Attachments' });
         await expect(attached.getByRole('button', { name: 'Remove screenshot.png' })).toBeVisible();
         // A drop anywhere on the Chat, here the empty transcript far above the input, attaches like one on the composer.
         await dropImage(chat.getByText('Send a message to start working with Codex.'));
@@ -176,7 +176,7 @@ async function pasteText(message: Locator, text: string): Promise<void> {
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex Chat attaches picked files and saves a long paste to a file', async ({}, testInfo) => {
+test('a Codex Chat attaches picked files and folders as cards and saves a long paste to a file', async ({}, testInfo) => {
     // The real path, so the picked files sit inside the Project root the Agent runs in, not behind a `/var` symlink.
     const temporary = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-attach-'));
     const directory = await realpath(temporary);
@@ -190,6 +190,8 @@ test('a Codex Chat attaches picked files and saves a long paste to a file', asyn
     await Promise.all(shots.map((path) => writeFile(path, PIXEL_PNG)));
     const notes = join(root, 'notes.txt');
     await writeFile(notes, 'release notes\n');
+    const folder = join(root, 'prettier-config');
+    await mkdir(folder);
     const agentMode = await fakeCodexChatAgentMode(directory, userData);
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
@@ -203,10 +205,33 @@ test('a Codex Chat attaches picked files and saves a long paste to a file', asyn
 
         // The picker is the native open panel, so the spec hands its input the chosen files instead of driving it.
         await chat.locator('input[type="file"]').setInputFiles([...shots, notes]);
-        const attached = chat.getByRole('list', { name: 'Attached images' });
-        await expect(attached.getByRole('listitem')).toHaveCount(shots.length);
-        // A file that is not an image is cited by its path relative to the Agent, as a drop cites it.
-        await expect(message).toHaveValue('notes.txt ');
+        const attached = chat.getByRole('list', { name: 'Attachments' });
+        // A file that is not an image becomes a card the message cites by path, as in the Codex app.
+        await expect(attached.getByRole('listitem')).toHaveCount(shots.length + 1);
+        const notesCard = attached.locator(`[data-agent-chat-path-attachment="${notes}"]`);
+        await expect(notesCard).toContainText('notes.txt');
+        await expect(notesCard).toContainText('File');
+        await expect(message).toHaveValue('');
+        // `+` → Files and folders opens the native panel, stubbed in Main to choose the folder; Main tells it is one.
+        await running.app.evaluate(({ dialog, shell }, chosen) => {
+            dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [chosen] });
+            const opened: string[][] = [];
+            Object.assign(globalThis, { caxriE2EOpenedPaths: opened });
+            shell.openPath = (path) => {
+                opened.push(['open', path]);
+                return Promise.resolve('');
+            };
+            shell.showItemInFolder = (path) => {
+                opened.push(['reveal', path]);
+            };
+        }, folder);
+        await chat.getByRole('button', { name: 'Add files and more' }).click();
+        await page.getByRole('menuitem', { name: 'Files and folders' }).click();
+        const folderCard = attached.locator(`[data-agent-chat-path-attachment="${folder}"]`);
+        await expect(folderCard).toContainText('prettier-config');
+        await expect(folderCard).toContainText('Folder');
+        await expect(page.getByRole('menu')).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-attachment-cards.png') });
 
         const long = Array.from(
             { length: 800 },
@@ -223,6 +248,23 @@ test('a Codex Chat attaches picked files and saves a long paste to a file', asyn
 
         await message.press('Enter');
         await expect(chat.getByText(`Received ${shots.length} images.`)).toBeVisible();
+        // The sent message shows what it cited as chips under its images instead of the reference block Codex got.
+        const sent = chat.locator('[data-agent-chat-user-message]').last();
+        await expect(sent).not.toContainText('Files mentioned by the user');
+        const folderChip = sent.getByRole('button', { name: 'Open prettier-config in Finder' });
+        await expect(folderChip).toBeVisible();
+        await folderChip.click();
+        await sent.getByRole('button', { name: 'Show notes.txt in Finder' }).click();
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    () => (globalThis as { caxriE2EOpenedPaths?: string[][] }).caxriE2EOpenedPaths,
+                ),
+            )
+            .toEqual([
+                ['open', folder],
+                ['reveal', notes],
+            ]);
         // The sent reference's path is a link that starts on the same line as the quote before it, not on a line of its
         // own the way an atomic inline-block link would.
         const savedLink = chat.getByRole('link', { name: savedPath });

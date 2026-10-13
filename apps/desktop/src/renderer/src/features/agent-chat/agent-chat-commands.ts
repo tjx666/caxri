@@ -14,6 +14,7 @@ import {
     agentChatAnsweredNotice,
     agentChatGoalArguments,
     formatLongPasteReference,
+    parseAgentChatPathReferences,
 } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
@@ -30,7 +31,7 @@ import {
     restartTerminal,
     restartTerminalWithRecovery,
 } from '../terminal/terminal-commands';
-import { writeAgentChatDraft } from './agent-chat-drafts';
+import { writeAgentChatAttachments, writeAgentChatDraft } from './agent-chat-drafts';
 import { agentChatHandoffPrompt } from './agent-chat-handoff';
 import { agentChatConfigureFailureMessage } from './agent-chat-model-selection';
 import { addAgentChatPendingAnswer, dropAgentChatPendingAnswer } from './agent-chat-pending';
@@ -122,9 +123,9 @@ export async function didRewindAgentChat(
 
 /**
  * "Fork from here": copies the conversation before message `itemId` into a Chat in a new Session, puts the message's
- * text in that Chat's composer to send as it is or change first, and opens the Session. The draft is written before the
- * selection so the new composer mounts with it. A toast then says where the conversation went, since the switch to
- * another Session is otherwise the only sign the fork happened.
+ * text and file and folder cards in that Chat's composer to send as it is or change first, and opens the Session. The
+ * draft is written before the selection so the new composer mounts with it. A toast then says where the conversation
+ * went, since the switch to another Session is otherwise the only sign the fork happened.
  */
 export async function forkAgentChat(
     terminalId: string,
@@ -133,7 +134,13 @@ export async function forkAgentChat(
 ): Promise<void> {
     await tryCommand(translate('agentChat.commands.forkFailed'), async () => {
         const forked = await caxri.request('agentChat.fork', { terminalId, itemId });
-        if (text) writeAgentChatDraft(forked.terminalId, text);
+        const message = parseAgentChatPathReferences(text);
+        if (message.text) writeAgentChatDraft(forked.terminalId, message.text);
+        if (message.references.length > 0)
+            writeAgentChatAttachments(
+                forked.terminalId,
+                message.references.map((reference) => ({ id: crypto.randomUUID(), ...reference })),
+            );
         await didSelectSession(forked.sessionId);
         const session = getBootstrap()?.sessions.find(
             (candidate) => candidate.id === forked.sessionId,
@@ -365,6 +372,16 @@ export async function editAgentChatQueued(
         caxri.request('agentChat.takeQueued', { terminalId, id }),
     );
     if (taken) restore(taken.text);
+}
+
+/**
+ * Opens a file or folder chip from a sent message: a folder in Finder, a file revealed in its folder.
+ */
+export function openAgentChatPathReference(path: string): void {
+    // eslint-disable-next-line no-void -- tryCommand reports failures through the toast
+    void tryCommand(translate('agentChat.pathReference.openFailed'), () =>
+        caxri.request('agentChat.openPathReference', { path }),
+    );
 }
 
 /**

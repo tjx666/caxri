@@ -1,7 +1,8 @@
 import type { RefObject } from 'react';
 import { useState } from 'react';
 
-import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
+import type { AgentChatPathReference } from '@caxri/protocol';
+import { agentChatDraftWithReturnedMessage, parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { readAgentChatDraft, writeAgentChatDraft } from '../agent-chat-drafts';
 import { useAgentChatDraftUpdates } from './use-agent-chat-draft-updates';
@@ -12,9 +13,14 @@ import { useAgentChatDraftUpdates } from './use-agent-chat-draft-updates';
  * review comment, Paste as Text). Dropped and pasted content goes through `useAgentChatComposerInput`.
  */
 export function useAgentChatDraft({
+    addPaths,
     inputReference,
     terminalId,
 }: {
+    /**
+     * Attaches the file and folder cards of a queued message pulled back for editing.
+     */
+    addPaths: (references: readonly AgentChatPathReference[]) => unknown;
     inputReference: RefObject<HTMLTextAreaElement | null>;
     terminalId: string;
 }) {
@@ -34,7 +40,9 @@ export function useAgentChatDraft({
         writeAgentChatDraft(terminalId, '');
         setDraftState('');
     };
-    const restoreQueued = (text: string): void => {
+    const restoreQueued = (message: string): void => {
+        const { references, text } = parseAgentChatPathReferences(message);
+        addPaths(references);
         setDraft((current) => agentChatDraftWithReturnedMessage(current, text));
         inputReference.current?.focus();
     };
