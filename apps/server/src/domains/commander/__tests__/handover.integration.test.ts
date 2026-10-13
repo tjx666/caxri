@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -360,5 +360,76 @@ describe('Commander hand-over', () => {
         expect(result.outcomes[0]).toMatchObject({ outcome: 'accepted' });
         expect(f.resolveProjectRoot).toHaveBeenCalledWith(outside);
         expect(f.database.findProjectByRootPath(outside)).toBeDefined();
+    });
+
+    it('records one hand-over when the same Session is handed over again while discovery is pending', async () => {
+        const f = await fixture();
+        const { session } = f.agentSession();
+        const discovering = Promise.withResolvers<DiscoveredConversation[]>();
+        const service = new CommanderHandoverService({
+            database: f.database,
+            discoverConversations: () => discovering.promise,
+            notify: f.notify,
+            resolveProjectRoot: f.resolveProjectRoot,
+            sendFullStateChange: f.sendFullStateChange,
+        });
+
+        const slow = service.handOver({
+            sessionIds: [session.id],
+            conversations: [{ provider: 'codex', providerSessionId: 'never-seen' }],
+        });
+        const fast = await service.handOver({ sessionIds: [session.id] });
+        discovering.resolve([]);
+        const late = await slow;
+
+        expect(fast.outcomes).toEqual([
+            expect.objectContaining({ outcome: 'accepted', sessionId: session.id }),
+        ]);
+        expect(late.outcomes).toContainEqual({
+            outcome: 'rejected',
+            reason: 'already_managed',
+            sessionId: session.id,
+        });
+        expect(commanderHandovers(f.database)).toHaveLength(1);
+        expect(f.database.commanderTasks.countOpen()).toBe(1);
+        expect(service.managedSessions().sessionIds).toEqual([session.id]);
+    });
+
+    it('matches a conversation reached through a symlinked folder to the Project that contains it', async () => {
+        const f = await fixture();
+        const root = await realpath(join(f.directory, 'repository'));
+        const project = f.database.findProjectByRootPath(root) ?? f.database.createProject(root);
+        const alias = join(f.directory, 'repository-alias');
+        await symlink(join(root, 'packages'), alias);
+        const providerSessionId = 'conversation-through-alias';
+        const conversation: DiscoveredConversation = {
+            provider: 'codex',
+            providerSessionId,
+            cwd: join(alias, 'web'),
+            updatedAt: 40_000,
+            mayBeOpen: false,
+        };
+        const service = new CommanderHandoverService({
+            database: f.database,
+            discoverConversations: (bound) =>
+                Promise.resolve(bound.has(providerSessionId) ? [] : [conversation]),
+            notify: f.notify,
+            resolveProjectRoot: f.resolveProjectRoot,
+            sendFullStateChange: f.sendFullStateChange,
+        });
+        const projectsBefore = f.database.listVisibleProjects().length;
+
+        expect((await service.conversations()).conversations).toEqual([
+            { ...conversation, projectId: project.id },
+        ]);
+        const result = await service.handOver({
+            conversations: [{ provider: 'codex', providerSessionId }],
+        });
+
+        const [accepted] = result.outcomes;
+        if (accepted.outcome !== 'accepted') throw new Error('conversation was refused');
+        expect(f.database.getSession(accepted.sessionId)?.projectId).toBe(project.id);
+        expect(f.resolveProjectRoot).not.toHaveBeenCalled();
+        expect(f.database.listVisibleProjects()).toHaveLength(projectsBefore);
     });
 });

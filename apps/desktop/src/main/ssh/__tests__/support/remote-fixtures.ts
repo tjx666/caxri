@@ -92,6 +92,8 @@ export function hostEnvironment(home: string, shimDirectory: string): NodeJS.Pro
         LANG: 'C',
         PATH: `${shimDirectory}:/usr/bin:/bin:/usr/sbin:/sbin`,
         SSH_CONNECTION: '203.0.113.1 50000 203.0.113.2 22',
+        NODE_OPTIONS: '--max-old-space-size=64',
+        NODE_PATH: '/opt/node-path',
     };
 }
 

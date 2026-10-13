@@ -6,6 +6,7 @@ import { translate } from '../../i18n';
 import {
     hasOsFiles,
     hasTerminalDraggedPath,
+    isOsFileReferenceRefused,
     osFilePaths,
     projectTerminalInput,
     terminalDragPaths,
@@ -46,9 +47,18 @@ export function didPasteDropIntoTerminal(
     if (input) return didPasteIntoTerminal(terminal.id, input);
     /**
      * A file promise, such as a Photos item, reaches the page as a `File` with no path on disk, so there is nothing to
-     * insert. Say so rather than accept the drop and do nothing.
+     * insert. Say so rather than accept the drop and do nothing. An SSH Host window cites no file from this Mac at all
+     * (`isOsFileReferenceRefused`), which gets its own reason.
      */
-    if (hasOsFiles(dataTransfer)) pushToast('warning', translate('terminal.drop.noPath'));
+    if (hasOsFiles(dataTransfer))
+        pushToast(
+            'warning',
+            translate(
+                isOsFileReferenceRefused()
+                    ? 'terminal.drop.localFileOnSshHost'
+                    : 'terminal.drop.noPath',
+            ),
+        );
     return false;
 }
 

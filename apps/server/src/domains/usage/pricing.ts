@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
@@ -294,6 +295,36 @@ export function cacheSavingsOf(
 
 export type PricingSource = 'remote' | 'cache' | 'bundled';
 
+/**
+ * Reads a response body only up to `maxBytes`, cancelling the stream once it is exceeded, so an oversized or endless
+ * body never lands in memory whole.
+ */
+async function readBoundedText(response: Response, maxBytes: number): Promise<string | undefined> {
+    if (Number(response.headers.get('content-length') ?? 0) > maxBytes) {
+        await response.body?.cancel();
+        return undefined;
+    }
+    if (!response.body) return '';
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for await (const chunk of response.body) {
+        total += chunk.byteLength;
+        if (total > maxBytes) {
+            // Returning from the loop cancels the stream through its async iterator.
+            return undefined;
+        }
+        chunks.push(chunk);
+    }
+    return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * The price-list fetch used under E2E and Acceptance (`CAXRI_E2E=1`): it fails at once so pricing serves the bundled
+ * snapshot and those runs never contact the network, like the provider-status and update checks.
+ */
+export const offlinePriceListFetch: typeof fetch = () =>
+    Promise.reject(new Error('The price list is not fetched in E2E runs'));
+
 export interface ModelPricingOptions {
     userDataPath: string;
     fetch?: typeof fetch;
@@ -389,8 +420,8 @@ export class ModelPricing {
                 signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
             });
             if (!response.ok) return;
-            const text = await response.text();
-            if (text.length > MAX_PRICE_LIST_BYTES) return;
+            const text = await readBoundedText(response, MAX_PRICE_LIST_BYTES);
+            if (text === undefined) return;
             const prices = projectLiteLlmPrices(JSON.parse(text));
             return Object.keys(prices).length > 0 ? prices : undefined;
         } catch {

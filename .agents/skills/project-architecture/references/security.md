@@ -45,6 +45,16 @@ Every path that registers a Project is one of these authorities; a new one belon
   visible Project only when `--register-project` is set, rejects a non-top-level (worktree) Project,
   and creates or reuses a dedicated Session in the same transaction without changing the Desktop's
   selection; see [external callers](../../../../docs/agent-delegation.md#external-callers-and-directory-authorization).
+- The SSH Host folder browser. An SSH Host window has no native picker for the SSH Host's disk, so the
+  Renderer submits the folder chosen in the browser that `project.browseFolders` serves, and Main
+  forwards it to the SSH Host's own Server without a grant; that Server canonicalizes it. The window's
+  account can already read that folder, so the authority is the user's choice in that browser; see
+  [Remote SSH](../../../../docs/remote-ssh.md).
+- Commander hand-over of an Agent conversation started outside Caxri. Server Core adds the
+  conversation's folder as a Project when no visible Project contains it. Only the owner's Desktop and
+  human CLI may call `commander.session.handOver`; Server Core refuses every other principal, including
+  an Agent Endpoint holding an `agent:control` grant; see
+  [Agent Commander](../../../../docs/agent-commander.md).
 
 ## Main outbound requests
 
@@ -72,3 +82,14 @@ and Chromium's HTTP cache apply. None uploads user data.
   check. 15 s timeout and 1 MiB response cap; 404 and rate-limit responses degrade to
   `unavailable`. Only a user-started download fetches the release checksum (4 KiB cap) and DMG
   (1 GiB cap).
+
+## Server outbound requests
+
+Server Core makes only this outbound HTTP request; a new one belongs here with its trigger and caps.
+It uses Node's `fetch`, uploads no user data, and is replaced by an immediate failure under
+`CAXRI_E2E=1`, so E2E and Acceptance runs stay offline.
+
+- **Model price list** (`apps/server/src/domains/usage/pricing.ts`): `GET` of LiteLLM's public
+  `model_prices_and_context_window.json` on raw.githubusercontent.com when a Usage report finds the
+  cached copy older than a day. 15 s timeout; the body is streamed and dropped past 16 MiB. Any
+  failure falls back to the cached copy, then the snapshot bundled at build time.

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { sep } from 'node:path';
 
 import type {
     CommanderConversation,
@@ -12,7 +11,6 @@ import type {
     CommanderHandoverResult,
     CommanderInputTakeBack,
     CommanderManagedSessions,
-    ProjectRecord,
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
@@ -28,6 +26,7 @@ import {
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
+import { conversationProject } from './handover-conversation-project';
 import {
     commanderHandovers,
     consumeCommanderHandover,
@@ -109,22 +108,6 @@ function isHandoverTargetBusy(
         terminal?.lastAgentProcessState === 'running' &&
         (session?.lastActivityState === 'running' || session?.lastActivityState === 'waiting')
     );
-}
-
-/**
- * The deepest visible top-level Project whose root contains `path`.
- */
-function containingProject(
-    projects: readonly ProjectRecord[],
-    path: string,
-): ProjectRecord | undefined {
-    return projects
-        .filter(
-            (project) =>
-                isTopLevelProject(project) &&
-                (path === project.rootPath || path.startsWith(`${project.rootPath}${sep}`)),
-        )
-        .toSorted((left, right) => right.rootPath.length - left.rootPath.length)[0];
 }
 
 function conversationKey(conversation: CommanderConversationReference): string {
@@ -245,7 +228,7 @@ export class CommanderHandoverService {
         conversation: DiscoveredConversation,
     ): Promise<{ session: SessionRecord; terminal: TerminalRecord } | undefined> {
         const { database } = this.options;
-        let project = containingProject(database.listVisibleProjects(), conversation.cwd);
+        let project = await conversationProject(database.listVisibleProjects(), conversation.cwd);
         if (!project) {
             let rootPath: string;
             try {
@@ -314,10 +297,12 @@ export class CommanderHandoverService {
             (await this.options.discoverConversations?.(this.boundProviderSessionIds())) ?? [];
         const projects = this.options.database.listVisibleProjects();
         return {
-            conversations: discovered.slice(0, MAX_COMMANDER_CONVERSATIONS).map((conversation) => ({
-                ...conversation,
-                projectId: containingProject(projects, conversation.cwd)?.id ?? null,
-            })),
+            conversations: await Promise.all(
+                discovered.slice(0, MAX_COMMANDER_CONVERSATIONS).map(async (conversation) => ({
+                    ...conversation,
+                    projectId: (await conversationProject(projects, conversation.cwd))?.id ?? null,
+                })),
+            ),
         };
     }
 
@@ -349,15 +334,22 @@ export class CommanderHandoverService {
                 reject('commander_unavailable', { conversation });
             return this.finish(outcomes, []);
         }
-        const owned = new Set(rows.sessionIds);
         const added: CommanderHandover[] = [];
-        let openTasks = database.commanderTasks.countOpen();
+        /**
+         * Read from the database on every check, never from a snapshot taken at the start: conversation discovery and
+         * Project resolution await, and a concurrent hand-over or take-back may commit meanwhile. This call's own
+         * entries count too, because its ownership write happens only once the whole batch is decided.
+         */
+        const currentRows = () => database.agentCommanderRows() ?? rows;
+        const currentOwned = () =>
+            new Set([...currentRows().sessionIds, ...added.map((entry) => entry.sessionId)]);
         const hasCapacity = (entry: {
             sessionId?: string;
             conversation?: CommanderConversationReference;
         }) => {
-            if (owned.size >= MAX_COMMANDER_SESSIONS) reject('ownership_capacity', entry);
-            else if (openTasks >= MAX_COMMANDER_TASKS) reject('task_capacity', entry);
+            if (currentOwned().size >= MAX_COMMANDER_SESSIONS) reject('ownership_capacity', entry);
+            else if (database.commanderTasks.countOpen() >= MAX_COMMANDER_TASKS)
+                reject('task_capacity', entry);
             else return true;
             return false;
         };
@@ -378,7 +370,6 @@ export class CommanderHandoverService {
                 },
                 this.now(),
             );
-            openTasks += 1;
             const handover: CommanderHandover = {
                 id: randomUUID(),
                 projectId: session.projectId,
@@ -396,7 +387,6 @@ export class CommanderHandoverService {
                 taskId: task.id,
                 createdAt: this.now(),
             };
-            owned.add(session.id);
             added.push(handover);
             outcomes.push({
                 outcome: 'accepted',
@@ -407,22 +397,30 @@ export class CommanderHandoverService {
                 ...(conversation && { conversation }),
             });
         };
+        if (conversations.length > 0)
+            await this.importConversations(conversations, { reject, hasCapacity, accept });
+        /**
+         * Existing Sessions are decided only after the last await, so the checks below and the ownership write that
+         * follows run in one synchronous step. Deciding them before discovery let a concurrent hand-over of the same
+         * Session commit in between, and both calls then recorded a hand-over and a pending task for it.
+         */
         const visibleProjects = new Set(
             database
                 .listVisibleProjects()
                 .filter((project) => isTopLevelProject(project))
                 .map((project) => project.id),
         );
+        const commanderSessionId = currentRows().sessionId;
         const seen = new Set<string>();
         for (const sessionId of sessionIds) {
             const session = database.getSession(sessionId);
             if (seen.has(sessionId)) reject('duplicate', { sessionId });
             else if (!session) reject('session_missing', { sessionId });
             else if (session.archivedAt !== undefined) reject('session_archived', { sessionId });
-            else if (sessionId === rows.sessionId) reject('commander_session', { sessionId });
+            else if (sessionId === commanderSessionId) reject('commander_session', { sessionId });
             else if (!visibleProjects.has(session.projectId))
                 reject('project_unavailable', { sessionId });
-            else if (owned.has(sessionId)) reject('already_managed', { sessionId });
+            else if (currentOwned().has(sessionId)) reject('already_managed', { sessionId });
             else if (hasCapacity({ sessionId }))
                 accept(
                     session,
@@ -431,10 +429,8 @@ export class CommanderHandoverService {
                 );
             seen.add(sessionId);
         }
-        if (conversations.length > 0)
-            await this.importConversations(conversations, { reject, hasCapacity, accept });
         if (added.length > 0) {
-            const current = database.agentCommanderRows() ?? rows;
+            const current = currentRows();
             database.setAppState('agentCommander', {
                 projectId: current.projectId,
                 sessionId: current.sessionId,

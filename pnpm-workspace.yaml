@@ -43,19 +43,18 @@ catalog:
 minimumReleaseAge: 1440
 
 minimumReleaseAgeExclude:
+  # Each entry is one exact version a dependency upgrade needed before it was a day old. Remove an entry once the
+  # lockfile no longer resolves that version; `scripts/__tests__/toolchain-contract.test.ts` fails on a stale or
+  # unversioned entry, because an unversioned one exempts every future release.
+  # The maintainer's own lint config and icon packages, released together with the change that adopts them.
   - '@yutengjing/eslint-config-basic@4.0.0'
   - '@yutengjing/eslint-config-typescript@4.0.0'
   - '@yutengjing/eslint-plugin@4.0.0'
-  - eslint-plugin-jsdoc@64.2.0
-  - '@yutengjing/vscode-icons'
-  - knip@6.33.0
-  - lucide-react@1.37.0
-  - zod@4.5.2
+  - '@yutengjing/vscode-icons@0.2.0'
+  # The Expo SDK 57 train: its packages publish together and must resolve as one set.
   - '@expo/cli@57.0.29'
-  - '@expo/metro-file-map@57.0.3'
   - '@expo/ui@57.0.23'
   - babel-preset-expo@57.0.15
-  - expo-glass-effect@57.0.2
   - expo-modules-core@57.0.22
   - expo-modules-jsi@57.1.2
   - expo-router@57.0.26
@@ -70,6 +69,7 @@ minimumReleaseAgeExclude:
   - expo-dev-menu@57.0.20
   - expo-modules-autolinking@57.0.15
   - expo-splash-screen@57.0.10
+  # The DOMPurify security floor below must take a fix the day it ships.
   - dompurify@3.4.17
   # Electron prereleases publish continuously, so the release-age floor would permanently block whichever
   # one we pin. Caxri tracks the 45 prerelease line on purpose (Chromium 155) and pins it exactly.
