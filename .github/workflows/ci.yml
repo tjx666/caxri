@@ -44,8 +44,14 @@ on:
         options: ['2', '3', '4']
 
 concurrency:
-  # A release push on main must not cancel the nightly full suite, nor the other way around.
-  group: ci-${{ github.event_name == 'schedule' && 'nightly' || github.ref }}
+  # A release push on main must not cancel the nightly full suite, nor the other way around. A release push also
+  # gets its own commit-scoped group: Release starts only from that exact commit's successful CI, so a later push to
+  # main cancelling it (while it queues for the shared runner) would silently drop the release.
+  group: >-
+    ci-${{ github.event_name == 'schedule' && 'nightly'
+      || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release: v'))
+        && format('release-{0}', github.sha)
+      || github.ref }}
   cancel-in-progress: true
 
 permissions:

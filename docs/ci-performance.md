@@ -343,7 +343,11 @@ issue with the failed jobs and steps plus every PR merged since the previous gre
 workflow token cannot edit the owner Project, so whoever picks the issue up adds it to the Project
 through `file-issue`.
 
-Ordinary pushes to `main` stay skipped at the workflow level; only `release: v…` commits run CI.
+Ordinary pushes to `main` stay skipped at the workflow level; only `release: v…` commits run CI. A
+skipped run still enters its concurrency group, so each `release: v…` push takes a commit-scoped
+group instead of the shared `main` ref group: otherwise the next merge would cancel the release run
+while it queues for the runner, and Release, which starts only from that commit's successful CI,
+would never run.
 
 ## Current single-runner execution contract
 
