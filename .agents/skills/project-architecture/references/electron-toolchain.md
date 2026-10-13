@@ -131,6 +131,8 @@ and pins Bun through `.bun-version`, without changing the user's interactive ins
 jobs install Bun explicitly and keep pnpm, Electron, Playwright, ESLint, and Prettier state below
 `RUNNER_TEMP`; they never require a prewarmed `RUNNER_TOOL_CACHE/caxri/bun`. The transitional
 self-hosted final and publication paths may reuse versioned runner-owned tool and cache locations.
+Jobs that exercise capture or media-analysis contracts install FFmpeg on disposable hosted runners
+and verify `ffmpeg`, `ffprobe`, and the `libx264` encoder on every runner route before tests start.
 pnpm owns workspace dependency resolution, installation, linking, and the lockfile; Bun is the fast
 script, TypeScript, and repository CLI runner. Dependency trees remain job-local and are rebuilt
 from `pnpm-lock.yaml` for every source job.

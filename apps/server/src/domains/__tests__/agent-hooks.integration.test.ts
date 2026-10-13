@@ -27,6 +27,12 @@ async function flushLoggers(): Promise<void> {
 }
 const temporaryDirectories: string[] = [];
 
+/**
+ * An installed executable that makes provider discovery independent of host Codex or Claude installations. The fake
+ * Terminal adapter owns launch behavior, so hook integration tests never start this executable.
+ */
+const installedProviderExecutable = process.execPath;
+
 afterEach(async () => {
     vi.restoreAllMocks();
     await flushLoggers();
@@ -128,6 +134,10 @@ describe('Runtime Agent hook integration', () => {
                         codex: {
                             ...currentSettings.value['agents.providers'].codex,
                             hooks: { enabled: true },
+                            launch: {
+                                ...currentSettings.value['agents.providers'].codex.launch,
+                                executable: installedProviderExecutable,
+                            },
                         },
                     },
                 }),
@@ -355,6 +365,10 @@ describe('Runtime Agent hook integration', () => {
                         claude: {
                             ...currentSettings.value['agents.providers'].claude,
                             hooks: { enabled: true },
+                            launch: {
+                                ...currentSettings.value['agents.providers'].claude.launch,
+                                executable: installedProviderExecutable,
+                            },
                         },
                     },
                 }),

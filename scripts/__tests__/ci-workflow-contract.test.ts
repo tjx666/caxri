@@ -90,6 +90,9 @@ describe('CI workflow contract', () => {
     });
 
     it('installs exact tools on a cold hosted runner without persistent runner assumptions', () => {
+        const checks = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}hosted-smoke:/u)?.[1] ?? '';
+        const e2e = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1] ?? '';
+
         expect(setupAction).toContain('node-version: ${{ steps.tool_versions.outputs.node }}');
         expect(setupAction).toContain('version: ${{ steps.tool_versions.outputs.pnpm }}');
         expect(setupAction).toContain('dest: ${{ runner.temp }}/caxri-pnpm');
@@ -104,6 +107,13 @@ describe('CI workflow contract', () => {
             'bun_directory="$RUNNER_TOOL_CACHE/caxri/bun/$bun_version/bin"',
         );
         expect(setupAction).toContain('bun run scripts/self-hosted-runner.ts prepare');
+        expect(setupAction).toContain('brew install ffmpeg');
+        expect(setupAction).toContain('command -v ffprobe');
+        expect(setupAction).toContain('libx264');
+        expect(checks).toContain(
+            "install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}",
+        );
+        expect(e2e).toContain("install-media-tools: 'true'");
         expect(checksWorktree).toContain("requiredEnvironment(environment, 'CAXRI_CACHE_ROOT')");
         expect(checksWorktree).not.toContain(
             "requiredEnvironment(environment, 'RUNNER_TOOL_CACHE')",
