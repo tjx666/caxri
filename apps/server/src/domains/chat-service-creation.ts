@@ -25,7 +25,11 @@ export function createAgentChatService({
 }: {
     agentRuntime: Pick<
         Awaited<ReturnType<typeof createAgentRuntime>>,
-        'agentEnvironment' | 'agentLaunchSettings' | 'coordinator' | 'observeChatLifecycleSignal'
+        | 'agentEnvironment'
+        | 'agentLaunchSettings'
+        | 'coordinator'
+        | 'dispatchState'
+        | 'observeChatLifecycleSignal'
     >;
     commanderHooks: Pick<CommanderTerminalHooks, 'chatReady' | 'launchArguments'>;
     configuration: Pick<ConfigService, 'getSettings'>;
@@ -55,6 +59,7 @@ export function createAgentChatService({
                 : { ...settings, args: [...settings.args, ...extra] };
         },
         onReady: commanderHooks.chatReady,
+        onAgentStateChanged: agentRuntime.dispatchState.observe,
         resolveExecutable: dependencies.terminal?.resolveExecutable,
         coordinator,
         observeLifecycleSignal: agentRuntime.observeChatLifecycleSignal,

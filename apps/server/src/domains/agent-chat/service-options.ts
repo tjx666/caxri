@@ -1,6 +1,7 @@
 import type {
     AgentLaunchSettings,
     AgentProvider,
+    ProcessState,
     ServerEvent,
     TerminalRecord,
 } from '@caxri/protocol';
@@ -36,6 +37,13 @@ export interface AgentChatServiceOptions {
      * send what a restart cut off, the Chat equivalent of a PTY launch prompt.
      */
     onReady?(terminalId: string): void;
+    /**
+     * Runs after a Chat's provider process state is durably written (`starting`, `running`, `stopped`, `suspended`,
+     * `detached`, `failed`, `dead`), the Chat counterpart of `TerminalManagerOptions.onAgentStateChanged`, so Agent
+     * dispatch receipts settle when a dispatched Chat stops or fails. Clearing a hand-over marker is not reported: no
+     * process changed state.
+     */
+    onAgentStateChanged?(terminalId: string, state: ProcessState): void;
     resolveExecutable?: TerminalManagerOptions['resolveExecutable'];
     coordinator: {
         beginTerminalLaunch(terminalId: string, launchId: string): void;

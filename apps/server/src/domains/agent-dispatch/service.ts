@@ -10,7 +10,7 @@ import type {
     ProcessState,
     TerminalRecord,
 } from '@caxri/protocol';
-import { CaxriError, toWireError } from '@caxri/protocol';
+import { CaxriError, isChatTerminal, toWireError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 /**
@@ -18,22 +18,14 @@ import { logEventCatalog } from '@caxri/system';
  */
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders } from '../agents';
-import { assertPtyTerminal } from '../pty-guard';
 import { SingleFlight } from '../single-flight';
 import type { TerminalLifecycleCause, TerminalWorkingDirectoryIdentity } from '../terminal';
+import { launchChat } from './chat-launch';
+import { isAgentLive, requireDispatchChats } from './chat-target';
+import { DispatchWaiters } from './dispatch-waiters';
 import { dispatchFingerprint, launchProjection } from './launch-projection';
 import { isSettled, terminalStatePatch } from './receipt-status';
 import type { AgentDispatchServiceOptions } from './service-options';
-
-interface DispatchWaiter {
-    afterRevision: number;
-    resolve(result: AgentDispatchWaitResult): void;
-    timer: NodeJS.Timeout;
-    waitId: string;
-}
-
-const MAX_DISPATCH_WAITERS = 256;
-const MAX_WAITERS_PER_DISPATCH = 32;
 
 type DispatchReason = AgentDispatchFailure['reason'];
 type TransitionReason =
@@ -84,26 +76,12 @@ export class AgentDispatchService {
     private readonly inFlight = new SingleFlight<string, AgentDispatchReceipt>();
     private readonly intentionalRestarts = new Map<string, string>();
     private readonly now: () => number;
-    private readonly waiters = new Map<string, Set<DispatchWaiter>>();
+    private readonly waiters = new DispatchWaiters();
+    private readonly receipt = (dispatchId: string) =>
+        this.options.database.getAgentDispatch(dispatchId)?.receipt;
 
     constructor(private readonly options: AgentDispatchServiceOptions) {
         this.now = options.now ?? Date.now;
-    }
-
-    private cancelWaitersInGroup(
-        waiters: Set<DispatchWaiter>,
-        waitId: string,
-        receipt: AgentDispatchReceipt,
-    ): boolean {
-        let isCanceled = false;
-        for (const waiter of waiters) {
-            if (waiter.waitId !== waitId) continue;
-            clearTimeout(waiter.timer);
-            waiters.delete(waiter);
-            waiter.resolve({ receipt, outcome: 'canceled' });
-            isCanceled = true;
-        }
-        return isCanceled;
     }
 
     private async startOnce(
@@ -209,8 +187,7 @@ export class AgentDispatchService {
             throw new CaxriError('UNAVAILABLE', 'Provider session binding changed');
         const expectedLaunchId = this.options.terminals.agentLaunchId(terminal.id);
         if (
-            (terminal.lastAgentProcessState === 'running' ||
-                this.options.terminals.agentProcessId(terminal.id) !== undefined) &&
+            isAgentLive(this.options.terminals, this.options.agentChat, terminal) &&
             (!options?.replaceLaunchId || options.replaceLaunchId !== expectedLaunchId)
         )
             throw new CaxriError('CONFLICT', 'Agent Terminal is already running');
@@ -285,6 +262,16 @@ export class AgentDispatchService {
         delegationId?: string,
         assignedAgentSessionId?: string,
     ): Promise<AgentDispatchReceipt> {
+        if (isChatTerminal(terminal))
+            return launchChat(
+                this.options,
+                { terminal, initialPrompt, shouldStart },
+                {
+                    update: (patch) => this.update(dispatchId, patch),
+                    interrupt: () => this.interrupt(dispatchId, terminal.id),
+                    fail: (error) => this.fail(dispatchId, error, 'launch_failed'),
+                },
+            );
         try {
             if (resumeAgentSessionId) this.intentionalRestarts.set(terminal.id, dispatchId);
             try {
@@ -396,8 +383,8 @@ export class AgentDispatchService {
         const terminal = this.options.database.getTerminal(target.terminalId);
         if (!terminal || terminal.sessionId !== target.sessionId)
             throw new CaxriError('NOT_FOUND', 'Dispatch Terminal was not found in the Session');
-        // Before the receipt is persisted: dispatch drives a PTY, which a Chat Terminal does not have.
-        assertPtyTerminal(terminal);
+        // Before the receipt is persisted: a Chat resumes through Agent Chat, which this Server may lack.
+        if (isChatTerminal(terminal)) requireDispatchChats(terminal, this.options.agentChat);
         return terminal;
     }
 
@@ -413,7 +400,7 @@ export class AgentDispatchService {
      * now, and killing it to tidy up a lost delegation is far worse than the stale receipt this fixes.
      */
     private interrupt(dispatchId: string, terminalId: string): AgentDispatchReceipt {
-        const settled = this.options.database.getAgentDispatch(dispatchId)?.receipt;
+        const settled = this.receipt(dispatchId);
         if (settled && isSettled(settled)) return settled;
         return this.update(
             dispatchId,
@@ -431,7 +418,7 @@ export class AgentDispatchService {
          * A suspension or detach racing the launch settles the receipt as `interrupted` before the launch promise
          * rejects; the waiter has already seen that outcome, so it must not be rewritten as a failure.
          */
-        const settled = this.options.database.getAgentDispatch(dispatchId)?.receipt;
+        const settled = this.receipt(dispatchId);
         if (settled && isSettled(settled)) return settled;
         const wire = toWireError(error);
         return this.update(dispatchId, {
@@ -454,7 +441,7 @@ export class AgentDispatchService {
         reason?: TransitionReason,
         isAnnounced = true,
     ): AgentDispatchReceipt {
-        const previous = this.options.database.getAgentDispatch(dispatchId)?.receipt;
+        const previous = this.receipt(dispatchId);
         const stored = this.options.database.updateAgentDispatch(dispatchId, {
             ...patch,
             now: this.now(),
@@ -497,15 +484,7 @@ export class AgentDispatchService {
 
     private publish(receipt: AgentDispatchReceipt): void {
         this.options.emit({ event: 'agent.dispatch.changed', payload: receipt });
-        const waiters = this.waiters.get(receipt.dispatchId);
-        if (!waiters) return;
-        for (const waiter of waiters) {
-            if (receipt.revision <= waiter.afterRevision && !isSettled(receipt)) continue;
-            clearTimeout(waiter.timer);
-            waiters.delete(waiter);
-            waiter.resolve({ receipt, outcome: 'changed' });
-        }
-        if (waiters.size === 0) this.waiters.delete(receipt.dispatchId);
+        this.waiters.publish(receipt);
     }
 
     initialize(): void {
@@ -588,40 +567,13 @@ export class AgentDispatchService {
         const current = this.status(dispatchId, projectScope);
         if (current.revision > afterRevision || isSettled(current))
             return Promise.resolve({ receipt: current, outcome: 'changed' });
-        const waiters = this.waiters.get(dispatchId) ?? new Set();
-        const waiterCount = this.waiters.values().reduce((count, group) => count + group.size, 0);
-        if (waiterCount >= MAX_DISPATCH_WAITERS || waiters.size >= MAX_WAITERS_PER_DISPATCH)
-            throw new CaxriError('CAPACITY', 'Too many Agent dispatch waits are pending');
-        return new Promise((resolve) => {
-            const waiter: DispatchWaiter = {
-                afterRevision,
-                resolve,
-                timer: setTimeout(() => {
-                    const currentWaiters = this.waiters.get(dispatchId);
-                    currentWaiters?.delete(waiter);
-                    if (currentWaiters?.size === 0) this.waiters.delete(dispatchId);
-                    resolve({
-                        receipt: this.status(dispatchId, projectScope),
-                        outcome: 'timed_out',
-                    });
-                }, timeoutMs),
-                waitId,
-            };
-            waiter.timer.unref();
-            waiters.add(waiter);
-            this.waiters.set(dispatchId, waiters);
-        });
+        return this.waiters.wait(dispatchId, afterRevision, timeoutMs, waitId, () =>
+            this.status(dispatchId, projectScope),
+        );
     }
 
     cancelWait(waitId: string): boolean {
-        let isCanceled = false;
-        for (const [dispatchId, waiters] of this.waiters) {
-            const receipt = this.options.database.getAgentDispatch(dispatchId)?.receipt;
-            if (!receipt) continue;
-            if (this.cancelWaitersInGroup(waiters, waitId, receipt)) isCanceled = true;
-            if (waiters.size === 0) this.waiters.delete(dispatchId);
-        }
-        return isCanceled;
+        return this.waiters.cancel(waitId, this.receipt);
     }
 
     observeTerminalState(
@@ -680,13 +632,6 @@ export class AgentDispatchService {
     }
 
     close(): void {
-        for (const [dispatchId, waiters] of this.waiters) {
-            const receipt = this.options.database.getAgentDispatch(dispatchId)?.receipt;
-            for (const waiter of waiters) {
-                clearTimeout(waiter.timer);
-                if (receipt) waiter.resolve({ receipt, outcome: 'canceled' });
-            }
-        }
-        this.waiters.clear();
+        this.waiters.close(this.receipt);
     }
 }
