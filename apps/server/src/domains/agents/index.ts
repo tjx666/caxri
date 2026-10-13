@@ -10,7 +10,6 @@ export {
 } from './attention-auto-allow';
 export { AgentAttentionRequests } from './attention-requests';
 export { CompactionReadiness } from './compaction-readiness';
-export { SessionContentSearch } from './content-search';
 export type { ContextCacheObservation } from './context-cache';
 export { inspectContextCache } from './context-cache';
 export {
@@ -55,6 +54,18 @@ export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summar
 export { AgentRunAutonomy } from './run-autonomy';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
 export { AGENT_SESSION_DISCOVERY_CONTEXT } from './session-discovery';
+export {
+    compareHits,
+    conversationKey,
+    type IndexedConversationHit,
+    type IndexSearchRequest,
+    type IndexSearchResponse,
+    type InspectedConversation,
+    metadataMatch,
+    parseSessionQuery,
+    SessionSearchIndex,
+    SessionSearchIndexUnavailableError,
+} from './session-search';
 export { agentSkillHealthReader } from './skills';
 export {
     ThroughputAccumulator,
@@ -87,6 +98,11 @@ export {
     type TranscriptConversation,
     type TranscriptConversationMessage,
 } from './transcript-conversation';
+export {
+    type DiscoveredTranscript,
+    discoverTranscripts,
+    readTranscriptCwd,
+} from './transcript-discovery';
 export {
     createTranscriptPullRequestScan,
     resetTranscriptPullRequestScan,

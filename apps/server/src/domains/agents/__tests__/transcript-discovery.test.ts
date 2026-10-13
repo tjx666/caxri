@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it, onTestFinished } from 'vitest';
 
-import type { AgentEnvironment } from '../../agents';
-import { discoverTranscripts, readTranscriptCwd } from '../external';
+import type { AgentEnvironment } from '../contract';
+import { discoverTranscripts, readTranscriptCwd } from '../transcript-discovery';
 
 const CLAUDE_ID = '0b6a1f8e-2c3d-4e5f-8a9b-1c2d3e4f5a6b';
 const CODEX_THREAD = '01a1169a-d6bd-7b81-9ad9-6a6b432c3892';
@@ -18,7 +18,7 @@ async function write(path: string, content: string) {
 }
 
 async function home(): Promise<AgentEnvironment> {
-    const temporary = await mkdtemp(join(tmpdir(), 'caxri-usage-external-'));
+    const temporary = await mkdtemp(join(tmpdir(), 'caxri-transcript-discovery-'));
     const directory = await realpath(temporary);
     onTestFinished(() => rm(directory, { recursive: true, force: true }));
     return { homeDirectory: directory, variables: {} };

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -75,5 +75,20 @@ describe('scanTranscriptToEnd', () => {
         );
         expect(lines).toBe(0);
         expect(cursor.offset).toBe(0);
+    });
+
+    it('withholds an unterminated final line until an append completes it', async () => {
+        await writeFile(location.path, '{"n":1}\n{"n":2}');
+        const cursor: TranscriptScanCursor = { offset: 0 };
+        const lines: string[] = [];
+        const scan = () =>
+            scanTranscriptToEnd(location, cursor, (line) => lines.push(line), {
+                completeLinesOnly: true,
+            });
+        await scan();
+        expect(lines).toEqual(['{"n":1}']);
+        await appendFile(location.path, '\n{"n":3}\n');
+        await scan();
+        expect(lines).toEqual(['{"n":1}', '{"n":2}', '{"n":3}']);
     });
 });
