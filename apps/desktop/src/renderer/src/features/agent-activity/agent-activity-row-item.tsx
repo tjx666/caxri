@@ -28,6 +28,7 @@ import type { AgentActivityRow } from './agent-activity-rows';
  * either body of the side bar, including the inline rename editor.
  */
 export function AgentActivityRowItem({
+    inPinnedGroup,
     onMarkRead,
     relativeTime,
     roving,
@@ -37,6 +38,10 @@ export function AgentActivityRowItem({
     worktreeProject,
     onFocusChange,
 }: {
+    /**
+     * True for the Pinned group's copy, so its hover card says the row is pinned.
+     */
+    inPinnedGroup: boolean;
     onFocusChange: (rowId: string) => void;
     onMarkRead: () => void;
     relativeTime: string | undefined;
@@ -51,9 +56,9 @@ export function AgentActivityRowItem({
 }) {
     const { t } = useTranslation();
     const { project, session, terminal } = row;
-    const isRenaming = sessionRename.renamingRowId === session.id;
+    const isRenaming = sessionRename.renamingRowId === row.rowId;
     const beginRename = () =>
-        sessionRename.beginRename(session.id, session.displayTitle, session.id);
+        sessionRename.beginRename(session.id, session.displayTitle, row.rowId);
     const canMarkRead = session.hasUnread;
     const { pullRequest, unavailable: pullRequestUnavailable } = useSessionPullRequest(session.id);
     const visiblePullRequest = pullRequestUnavailable ? undefined : pullRequest;
@@ -89,7 +94,7 @@ export function AgentActivityRowItem({
         <SessionRowMenu
             onBeginRename={beginRename}
             onSuggestRename={() =>
-                sessionRename.suggestRename(session.id, session.displayTitle, session.id)
+                sessionRename.suggestRename(session.id, session.displayTitle, row.rowId)
             }
             onMarkRead={canMarkRead ? onMarkRead : undefined}
             onOpenChange={setMenuOpen}
@@ -99,6 +104,7 @@ export function AgentActivityRowItem({
         >
             <div className="agent-activity-row-shell group/activity-row relative">
                 <SessionActivityCard
+                    inPinnedGroup={inPinnedGroup}
                     project={project}
                     pullRequest={pullRequest}
                     pullRequestUnavailable={pullRequestUnavailable}
