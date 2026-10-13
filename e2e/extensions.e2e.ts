@@ -126,9 +126,11 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         });
         await expect(fixtureTab).toBeVisible();
         await fixtureTab.click();
+        // Attached, not visible: the status region is announced at once, but its skeleton shapes wait
+        // LOADING_SKELETON_DELAY_MS, and a fixture activation faster than that never draws them.
         await expect(
             running.page.getByRole('status', { name: 'Loading view…', exact: true }),
-        ).toBeVisible();
+        ).toBeAttached();
 
         const tree = running.page.getByRole('tree', { name: 'Fixture Tree' });
         const lazy = tree.getByRole('treeitem', { name: 'Lazy children', exact: true });

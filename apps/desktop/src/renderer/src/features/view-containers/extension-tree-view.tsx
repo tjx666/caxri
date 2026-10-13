@@ -5,6 +5,7 @@ import { projectStatusErrorLogsSchema } from '@caxri/protocol';
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 
 import { executeCommand } from '../../commands/execute';
+import { LoadingSkeletonScope } from '../../components/loading-skeleton';
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import { useTranslation } from '../../i18n';
 import { useExtensionTreeViewState, useSessionViewScope } from '../../stores/selectors';
@@ -131,14 +132,18 @@ export function ExtensionTreeView({
                 </div>
             </div>
         );
+    // One loading scope per view, so the root's placeholder handing over to its first expanded branch's continues one
+    // wait instead of restarting the delay under the freshly arrived rows.
     return (
-        <ExtensionTreeViewContent
-            key={`${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.extensionGeneration}\0${viewId}`}
-            persisted={persisted}
-            refreshAction={refreshAction}
-            scope={scope}
-            title={title}
-        />
+        <LoadingSkeletonScope>
+            <ExtensionTreeViewContent
+                key={`${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.extensionGeneration}\0${viewId}`}
+                persisted={persisted}
+                refreshAction={refreshAction}
+                scope={scope}
+                title={title}
+            />
+        </LoadingSkeletonScope>
     );
 }
 
