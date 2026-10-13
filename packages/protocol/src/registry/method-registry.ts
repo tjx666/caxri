@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { agentActionMethods } from '../agent/agent-action-contract.js';
+import { benchmarkMethods } from '../agent/agent-benchmark-contract.js';
 import {
     agentChatImageMediaTypeSchema,
     MAX_AGENT_CHAT_PICKED_IMAGES_BYTES,
@@ -179,6 +180,7 @@ export const methods = {
     ...agentInboxMethods,
     ...businessMethods,
     ...usageMethods,
+    ...benchmarkMethods,
     ...bugReportMethods,
     ...mobileMethods,
     ...workbenchMethods,

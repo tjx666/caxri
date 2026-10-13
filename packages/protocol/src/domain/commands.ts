@@ -80,6 +80,7 @@ export const commandIds = [
     'view.resetZoom',
     'settings.open',
     'usage.open',
+    'benchmark.open',
     'settings.openSource',
     'settings.openKeybindings',
     'settings.openNotifications',

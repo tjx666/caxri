@@ -245,6 +245,10 @@ export const serverEventPayloads = {
      */
     'commanderInbox.changed': z.object({ itemIds: z.array(identifierSchema).max(64) }),
     /**
+     * A Benchmark run changed (an Attempt advanced, finished, or the run was removed); Clients re-read it.
+     */
+    'benchmark.changed': z.object({ runId: identifierSchema }),
+    /**
      * One-shot invalidation after the Server-owned review comment store changed for one Session + repository. The
      * payload is deliberately identity-only, never comment text: see the diagnostics privacy rule in `AGENTS.md`.
      */

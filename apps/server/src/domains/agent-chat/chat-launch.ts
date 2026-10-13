@@ -56,6 +56,14 @@ export function requireChatTerminal(
     return { ...terminal, provider };
 }
 
+/**
+ * What resolving a provider launch needs; a headless Benchmark turn supplies it without a Chat service.
+ */
+export type AgentChatLaunchOptions = Pick<
+    AgentChatServiceOptions,
+    'agentEnvironment' | 'environment' | 'resolveExecutable'
+>;
+
 const WORKING_DIRECTORY_CHANGED = 'The working directory changed or is missing; Chat did not start';
 
 /**
@@ -69,7 +77,7 @@ const WORKING_DIRECTORY_CHANGED = 'The working directory changed or is missing; 
  * or removed fails the start instead of running the Agent somewhere else.
  */
 export async function prepareChatLaunch(
-    options: AgentChatServiceOptions,
+    options: AgentChatLaunchOptions,
     provider: AgentProvider,
     launch: AgentLaunchSettings,
     cwd: string,

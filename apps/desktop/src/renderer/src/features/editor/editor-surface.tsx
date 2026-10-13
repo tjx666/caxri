@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import {
+    isBenchmarkTabPath,
     isExternalEditorTabPath,
     isSettingsTabPath,
     isUsageTabPath,
@@ -104,6 +105,14 @@ const SettingsWorkbenchPage = lazy(async () => {
 const UsageWorkbenchPage = lazy(async () => {
     const module = await import('../usage/usage-workbench-page');
     return { default: module.UsageWorkbenchPage };
+});
+
+/**
+ * Lazy so a Session that never opens the Benchmark board does not load its form and chart.
+ */
+const BenchmarkWorkbenchPage = lazy(async () => {
+    const module = await import('../benchmark/benchmark-workbench-page');
+    return { default: module.BenchmarkWorkbenchPage };
 });
 
 const emptyWorkClassName =
@@ -336,6 +345,12 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
                 fallback={<LoadingSkeleton variant="page" label={t('editor.load.loadingUsage')} />}
             >
                 <UsageWorkbenchPage />
+            </Suspense>
+        );
+    if (isBenchmarkTabPath(path))
+        return (
+            <Suspense fallback={<LoadingSkeleton variant="page" label={t('benchmark.loading')} />}>
+                <BenchmarkWorkbenchPage />
             </Suspense>
         );
     return <FileEditorSurface paneId={paneId} path={path} />;

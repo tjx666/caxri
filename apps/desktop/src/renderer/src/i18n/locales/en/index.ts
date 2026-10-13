@@ -6,6 +6,7 @@ import { agentChat } from './agent-chat';
 import { agentCommander } from './agent-commander';
 import { agentInbox } from './agent-inbox';
 import { agentStatus } from './agent-status';
+import { benchmark } from './benchmark';
 import { bugReport } from './bug-report';
 import { common } from './common';
 import { confirmations } from './confirmations';
@@ -47,6 +48,7 @@ export const enResources = {
     ...agentCommander,
     ...agentInbox,
     ...agentStatus,
+    ...benchmark,
     ...bugReport,
     ...commands,
     ...common,

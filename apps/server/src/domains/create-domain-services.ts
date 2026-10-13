@@ -10,6 +10,7 @@ import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
 import { createBackgroundTasks } from './background-tasks';
+import { createBenchmarkService } from './benchmark-service-creation';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createAgentChatService } from './chat-service-creation';
 import { createChatTerminalCreator } from './chat-terminal-creation';
@@ -34,6 +35,7 @@ import {
     createSessionAgentRuntimeHandlers,
     createSessionCreationHandlers,
     createSessionCreator,
+    createSessionMarkReadHandler,
     createSessionSelectionHandlers,
     SessionCompaction,
 } from './session';
@@ -198,6 +200,13 @@ export async function createDomainServices(
         logger,
         send,
     });
+    const benchmark = createBenchmarkService({
+        agentRuntime,
+        database,
+        dependencies,
+        logger,
+        send,
+    });
     const terminalRestores = new TerminalRestoreSupervisor();
     const terminalSuspension = new TerminalSuspensionService({
         database,
@@ -231,7 +240,9 @@ export async function createDomainServices(
         workbenchRoots,
     });
     const countRunning = (sessionId?: string): number =>
-        terminals.runningCount(sessionId) + agentChat.liveCount(sessionId);
+        terminals.runningCount(sessionId) +
+        agentChat.liveCount(sessionId) +
+        (sessionId === undefined ? benchmark.service.liveCount() : 0);
     const diagnostics = new DiagnosticsService(
         database,
         logger,
@@ -386,6 +397,7 @@ export async function createDomainServices(
         commanderRestores.close();
         commanderInbox.close();
         await agentChat.shutdown();
+        await benchmark.service.shutdown();
         await terminalSuspension.close();
         await terminalResourceMonitor.close();
         coordinator.close();
@@ -431,6 +443,7 @@ export async function createDomainServices(
             agentEnvironment,
             createSessionForProject,
         }),
+        ...benchmark.handlers,
         ...createWindowStateHandlers(database),
         ...createWorkbenchRootHandlers(workbenchRoots),
         ...createTerminalMoveHandler({
@@ -476,20 +489,7 @@ export async function createDomainServices(
             terminalSuspension,
             workbenchRoots,
         }),
-        'session.markRead': ({ sessionId, attentionEpoch }) => {
-            const result = database.markSessionAttentionRead(sessionId, attentionEpoch);
-            if (result.acknowledged)
-                send({
-                    event: 'state.changed',
-                    payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
-                });
-            return {
-                acknowledged: result.acknowledged,
-                sessionId: result.session.id,
-                attentionEpoch: result.session.attentionEpoch,
-                hasUnread: result.session.hasUnread,
-            };
-        },
+        ...createSessionMarkReadHandler(database, send),
         'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
             sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
         ...createSessionParkingHandlers(sessionParking),

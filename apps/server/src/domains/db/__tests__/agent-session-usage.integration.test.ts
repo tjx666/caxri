@@ -111,6 +111,7 @@ describe('Agent Session usage ledger', () => {
             'commander_pending_notices',
             'commander_inbox_replies',
             'commander_inbox_items',
+            'benchmark_runs',
         ];
         const upgrades = [
             {

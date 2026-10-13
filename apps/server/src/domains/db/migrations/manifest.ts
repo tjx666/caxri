@@ -9,6 +9,7 @@ import externalAgentUsageMigrationSql from './0003_external_agent_usage.sql?raw'
 import commanderTasksAndNoticesMigrationSql from './0004_commander_tasks_and_notices.sql?raw';
 import commanderInboxMigrationSql from './0005_commander_inbox.sql?raw';
 import chatPermissionModesMigrationSql from './0006_chat_permission_modes.sql?raw';
+import benchmarkRunsMigrationSql from './0007_benchmark_runs.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -52,6 +53,7 @@ export const migrationManifest = [
     { tag: '0004_commander_tasks_and_notices', sql: commanderTasksAndNoticesMigrationSql },
     { tag: '0005_commander_inbox', sql: commanderInboxMigrationSql },
     { tag: '0006_chat_permission_modes', sql: chatPermissionModesMigrationSql },
+    { tag: '0007_benchmark_runs', sql: benchmarkRunsMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an
