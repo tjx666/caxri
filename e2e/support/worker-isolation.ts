@@ -40,18 +40,35 @@ export function resolveE2ELaunchPolicy(
     environment: NodeJS.ProcessEnv,
     capabilities: E2ELaunchCapabilities,
 ): E2EClipboardPolicy {
-    const isParallelSafe = environment.CAXRI_E2E_POOL === 'parallel-safe';
-    if (!isParallelSafe) return { protectClipboard: true };
-    if (capabilities.clipboard) throw new Error('E2E clipboard access is not parallel-safe');
-    const rejected = [
-        capabilities.windowMode === 'visible' && "windowMode: 'visible'",
-        capabilities.gpuMode === 'enabled' && "gpuMode: 'enabled'",
-    ].filter((entry): entry is string => typeof entry === 'string');
-    if (rejected.length > 0) {
-        throw new Error(
-            `E2E launch with ${rejected.join(', ')} is not parallel-safe; list the spec in desktopExclusiveSpecs`,
-        );
+    const clipboardProtection = environment.CAXRI_E2E_CLIPBOARD_PROTECTION;
+    if (clipboardProtection !== undefined && clipboardProtection !== 'skip-hosted') {
+        throw new Error('CAXRI_E2E_CLIPBOARD_PROTECTION must be skip-hosted when set');
     }
+    const isParallelSafe = environment.CAXRI_E2E_POOL === 'parallel-safe';
+    if (isParallelSafe) {
+        if (capabilities.clipboard) throw new Error('E2E clipboard access is not parallel-safe');
+        const rejected = [
+            capabilities.windowMode === 'visible' && "windowMode: 'visible'",
+            capabilities.gpuMode === 'enabled' && "gpuMode: 'enabled'",
+        ].filter((entry): entry is string => typeof entry === 'string');
+        if (rejected.length > 0) {
+            throw new Error(
+                `E2E launch with ${rejected.join(', ')} is not parallel-safe; list the spec in desktopExclusiveSpecs`,
+            );
+        }
+    }
+    if (clipboardProtection === 'skip-hosted') {
+        if (environment.CI !== 'true' || environment.RUNNER_ENVIRONMENT !== 'github-hosted') {
+            throw new Error(
+                'skip-hosted clipboard protection requires a disposable GitHub-hosted CI runner',
+            );
+        }
+        if (capabilities.clipboard) {
+            throw new Error('A clipboard-capable E2E launch cannot skip clipboard protection');
+        }
+        return { protectClipboard: false };
+    }
+    if (!isParallelSafe) return { protectClipboard: true };
     return { protectClipboard: false };
 }
 

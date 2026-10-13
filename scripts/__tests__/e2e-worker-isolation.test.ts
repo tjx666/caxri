@@ -63,6 +63,42 @@ describe('E2E worker isolation', () => {
         ).toThrow('clipboard access is not parallel-safe');
     });
 
+    it('allows only a disposable hosted launch without clipboard access to skip protection', () => {
+        const hidden = { clipboard: false, gpuMode: 'disabled', windowMode: 'hidden' } as const;
+        const hosted = {
+            CAXRI_E2E_CLIPBOARD_PROTECTION: 'skip-hosted',
+            CI: 'true',
+            RUNNER_ENVIRONMENT: 'github-hosted',
+        };
+
+        expect(resolveE2ELaunchPolicy(hosted, hidden)).toEqual({ protectClipboard: false });
+        expect(() => resolveE2ELaunchPolicy(hosted, { ...hidden, clipboard: true })).toThrow(
+            'cannot skip clipboard protection',
+        );
+        expect(() =>
+            resolveE2ELaunchPolicy(
+                { CAXRI_E2E_CLIPBOARD_PROTECTION: 'skip-hosted', CI: 'true' },
+                hidden,
+            ),
+        ).toThrow('disposable GitHub-hosted CI runner');
+        expect(() =>
+            resolveE2ELaunchPolicy(
+                {
+                    CAXRI_E2E_CLIPBOARD_PROTECTION: 'disabled',
+                    CI: 'true',
+                    RUNNER_ENVIRONMENT: 'github-hosted',
+                },
+                hidden,
+            ),
+        ).toThrow('must be skip-hosted');
+        expect(() =>
+            resolveE2ELaunchPolicy(
+                { ...hosted, CAXRI_E2E_POOL: 'parallel-safe' },
+                { ...hidden, windowMode: 'visible' },
+            ),
+        ).toThrow("windowMode: 'visible' is not parallel-safe");
+    });
+
     it('rejects visible windows and an enabled GPU only inside the parallel-safe pool', () => {
         const hidden = { clipboard: false, gpuMode: 'disabled', windowMode: 'hidden' } as const;
         const parallel = { CAXRI_E2E_POOL: 'parallel-safe' };

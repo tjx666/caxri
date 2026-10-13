@@ -59,6 +59,8 @@ describe('CI workflow contract', () => {
         expect(smoke['runs-on']).toBe('macos-15');
         expect(smoke.if).toContain("inputs.validation_target == 'hosted-smoke'");
         expect(source).toContain('run: bun run test:smoke');
+        expect(source).toContain('CAXRI_E2E_CLIPBOARD_PROTECTION: skip-hosted');
+        expect(source).not.toContain('actions/upload-artifact@');
         expect(source).not.toContain('bun run test:e2e');
         expect(source).not.toContain('scripts/run-e2e-pools.ts');
     });

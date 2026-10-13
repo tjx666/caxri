@@ -329,9 +329,12 @@ routes it to the `affected` scope:
 Knip, React Doctor, and bundle budgets run in the `full` checks scope on hosted macOS. Ordinary
 pushes to `main` run those checks but do not start full E2E. There is no scheduled full E2E.
 
-`hosted-smoke` is the repeatable hosted desktop launch and runs only `e2e/smoke.e2e.ts`. Current
-publication-readiness evidence is the complete hosted unit/integration suite, build and native
-checks, package validation, targeted Electron smoke, and the hosted no-publish Release rehearsal.
+`hosted-smoke` is the repeatable hosted desktop launch and runs only `e2e/smoke.e2e.ts`. That spec
+does not request clipboard access, so this one disposable GitHub-hosted route explicitly skips the
+local focused-run clipboard snapshot. The launch policy rejects that override off GitHub-hosted CI
+or for a clipboard-capable launch. Current publication-readiness evidence is the complete hosted
+unit/integration suite, build and native checks, package validation, targeted Electron smoke, and
+the hosted no-publish Release rehearsal.
 Full E2E is deliberately not a runner-removal, GO, repository-publication, Release, or
 anonymous-review gate. `hosted-full` on `macos-15` remains available only as a future manual
 diagnostic route, and every dispatch or retry requires fresh, explicit maintainer authorization.
