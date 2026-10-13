@@ -31,6 +31,7 @@ import type {
     ChatRewindTarget,
     ChatTaskHistory,
 } from './chat-provider';
+import { chatTextDigest } from './chat-turn-answer';
 import type { CodexThreadSettings } from './codex-chat-types';
 import { CodexComputerUseBindings } from './codex-computer-use';
 import { CodexDeliveryCheck, TURN_REQUEST_TIMEOUT_MS } from './codex-delivery-check';
@@ -77,6 +78,12 @@ class CodexChatSession implements AgentChatProviderSession {
     private requested = false;
 
     private turnCount = 0;
+
+    /**
+     * Digest of the message a `turn/start` in flight carries, reported with the `turnStarted` that request opens. The
+     * service's send chain allows one request at a time, so at most one is pending.
+     */
+    private pendingPromptDigest: string | undefined;
 
     private readonly thumbnails = new CodexThumbnails();
 
@@ -148,10 +155,13 @@ class CodexChatSession implements AgentChatProviderSession {
                 },
             },
         ]);
+        const agentPromptDigest = this.pendingPromptDigest;
+        this.pendingPromptDigest = undefined;
         this.options.lifecycle({
             phase: 'turnStarted',
             agentSessionId: this.threadId,
             agentTurnId: id,
+            ...(agentPromptDigest && { agentPromptDigest }),
         });
     }
 
@@ -446,21 +456,35 @@ class CodexChatSession implements AgentChatProviderSession {
                 this.thumbnails.remember(clientUserMessageId, message);
             }
         }
-        const result = await this.deliveries.request(
-            connection,
-            'turn/start',
-            clientUserMessageId,
-            (timeoutMs) =>
-                this.models.startTurn(
-                    connection,
-                    { threadId: this.threadId, input, summary: 'detailed', clientUserMessageId },
-                    timeoutMs,
-                ),
-        );
+        this.pendingPromptDigest = chatTextDigest(message.text);
+        let result: unknown;
+        try {
+            result = await this.deliveries.request(
+                connection,
+                'turn/start',
+                clientUserMessageId,
+                (timeoutMs) =>
+                    this.models.startTurn(
+                        connection,
+                        {
+                            threadId: this.threadId,
+                            input,
+                            summary: 'detailed',
+                            clientUserMessageId,
+                        },
+                        timeoutMs,
+                    ),
+            );
+        } catch (error) {
+            this.pendingPromptDigest = undefined;
+            throw error;
+        }
         const turn = isRecord(result) && isRecord(result.turn) ? result.turn : undefined;
         const turnId = stringField(turn?.id);
         // `turn/started` normally arrives first; the response covers a provider that reorders them.
         if (turnId) this.beginTurn(turnId);
+        // A digest no turn consumed (no id came back) must not attach to a turn Codex later starts on its own.
+        this.pendingPromptDigest = undefined;
     }
 
     isImmediateCommand(name: string): boolean {

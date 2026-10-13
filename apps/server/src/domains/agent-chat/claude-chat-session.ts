@@ -144,7 +144,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         const launched = claudeChatSettings(options.launch);
         this.permissions = new ClaudePermissions(options, launched.permissionMode);
         this.settings = { ...launched, permissionMode: this.permissions.startMode };
-        this.sessionId = options.agentSessionId ?? randomUUID();
+        this.sessionId = options.agentSessionId ?? options.newAgentSessionId ?? randomUUID();
         this.isSessionBound = Boolean(options.agentSessionId);
         this.requests = new ClaudeRequestBroker({
             host: options,
@@ -415,7 +415,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         const uuid = claudePromptUuid(options.delivery);
         const activeTurnId = this.options.read().activeTurnId;
         const turnId = activeTurnId ?? uuid;
-        if (!activeTurnId) this.turns.begin(turnId, { isOwnPrompt: true });
+        if (!activeTurnId) this.turns.begin(turnId, { isOwnPrompt: true, prompt: text });
         const prompt = claudeUserPrompt({
             uuid,
             turnId,

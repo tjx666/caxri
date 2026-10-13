@@ -38,6 +38,7 @@ export function handleChatExit(
     const { database } = options;
     logChatProcessExited(options, terminalId, exit);
     if (state.launchId !== launchId || isSettling(terminalId)) return;
+    options.delegation?.retireLaunch(terminalId, launchId);
     /**
      * The projection already marked the running turn interrupted; end it for Session Activity too. A requested stop
      * (Restart, close) ends the turn the way an interrupt does; an unrequested one is a provider failure.

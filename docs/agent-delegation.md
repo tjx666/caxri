@@ -5,7 +5,8 @@ status: current
 
 # Visible Agent delegation
 
-Visible delegation runs a task in a managed Claude, Codex or Grok Terminal, in a sibling pane of the caller's
+Visible delegation runs a task in a managed Claude, Codex or Grok Terminal (a Claude or Codex child opens as an
+Agent Chat while Open Agents in Chat is on; see [Agent Chat children](#agent-chat-children)), in a sibling pane of the caller's
 Session or in a new Session the caller creates for it (see
 [Start work in a new Session](#start-work-in-a-new-session)). Wide caller panes split right; narrow or
 tall panes split down. The existing active pane
@@ -382,6 +383,54 @@ still `--resume` it, which replaces the restored launch. Typing into the Termina
 durably, and a fresh restart starts a different conversation, which fences every earlier task. The authenticated profile owner can recover saved
 tasks; managed caller authority remains generation-scoped, so a newly launched caller does not
 inherit the previous caller's delegation ownership.
+
+## Agent Chat children
+
+With `session.openAgentsInChat` on, a new Claude Code or Codex child opens as an
+[Agent Chat](agent-chat.md) instead of a PTY Terminal (`delegationChildLaunch` in
+`apps/server/src/domains/agent-delegation/chat-child.ts`). Grok Build children, and every child
+while the setting is off, keep the PTY. The setting is read when the task is admitted.
+
+- **Launch.** The Chat starts with the task's frozen launch settings, translated like any Chat
+  launch (Claude Code's read access to the task directory becomes an additional directory), and a
+  Claude Code child with the preallocated session ID. The launch is handed to the Chat
+  (`ChatDelegationLinks`) before the Terminal is announced, so a Client that reads the new Chat
+  first starts it with that launch and dispatch joins that start. Later starts of the same Chat in
+  this Server Core (restart, return from idle suspension) keep the frozen settings.
+- **Pointer and correlation.** The fixed task pointer is the Chat's first message instead of an
+  argument. A Claude Code or Codex Chat reports `turnStarted` with the SHA-256 of the exact message
+  that opened the turn, digested when the turn starts, and Claude Code's `turnFinished` carries the
+  digest of the turn's final assistant message. The launch, session, turn and prompt-digest checks
+  are the same as for a PTY child, except that a turn Claude Code starts on its own after background
+  work (no prompt, so no digest) continues the task when the coordinator proves it continues the
+  task's deferred turn.
+- **Answer.** Collection reads the turn's final assistant message from the Chat's projection instead
+  of a native transcript. A Claude Code answer must match its reported digest; a Codex task
+  completes once the projection shows its turn finished, checked every two seconds. An interrupted
+  or failed turn returns `provider_failed`, a turn without an assistant message or a Chat this
+  Server Core no longer holds returns `result_missing`, and an answer cut at the projection's text
+  bound returns `payload_overflow`. Chat children report no provider usage.
+- **Follow-up, stop and takeover.** A follow-up pointer becomes one Chat message and a stop becomes a
+  Chat interrupt (`apps/server/src/domains/agent-runtime/delegation-chats.ts`), admitted only while
+  the task's exact Chat launch is live and not being suspended or closed. The message is checked
+  against that launch again when it reaches the head of the Chat's send chain
+  (`ChatDelegationLinks.sendToLaunch`) and never starts a provider, so a launch suspended meanwhile
+  reports it undelivered. Every `AgentChatService.send` is human input by default and takes over
+  like typing into a PTY: a Client message, a Git review send, a pull request merge notice, or a
+  bug report. Only the delegation pointer, a dispatch prompt, and a Commander completion notice
+  (written with `origin: 'delegation'` on a PTY) opt out. Rewinding, running a command,
+  interrupting, or sending a queued message from the Chat also takes over; answering an approval
+  does not.
+- **Exact resume.** `--resume-from` on a child whose Chat is still live replaces that Chat's own
+  launch: dispatch compares the Chat's live launch, not a PTY launch, with the one the task
+  recorded. When dispatch refuses the resume before recording a receipt, the parent's chain claim
+  is released, so the task can still be resumed or followed up.
+- **Launch fencing and recovery.** A Chat start binds its launch the way a PTY launch environment
+  does (`AgentDelegationService.bindChatLaunch`): the delegated start binds its task, and any other
+  start fences the Terminal's earlier tasks. The provider process ending retires the launch. A
+  Chat's projection does not survive a Server restart, so an active task of a Chat child settles
+  `interrupted`/`host_reset` instead of being collected; `--resume` continues it on the bound
+  conversation through the Chat restart path.
 
 ## Provider-reported usage
 

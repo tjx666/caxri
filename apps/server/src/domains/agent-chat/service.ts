@@ -21,6 +21,7 @@ import { assertE2EAgentChatInput, readE2EAgentPolicy } from '@caxri/system';
 import { AgentRunAutonomy } from '../agents';
 import { SingleFlight } from '../single-flight';
 import { readChatContext } from './chat-context';
+import { ChatDelegationLinks } from './chat-delegation';
 import { ChatEndpointLease } from './chat-endpoint-lease';
 import type { ChatExitHost } from './chat-exit';
 import type { CreateForkSession } from './chat-fork';
@@ -38,7 +39,7 @@ import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
 import type { ChatState, ChatStateDelivery } from './chat-states';
 import { ChatStates } from './chat-states';
-import { isChatIdleForSuspension } from './chat-suspension';
+import { isChatIdleForSuspension, suspendIdleChat } from './chat-suspension';
 import { readChatTask, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -64,8 +65,18 @@ export class AgentChatService {
 
     private isShuttingDown = false;
 
+    /**
+     * What Agent delegation reads and reports per Chat; see {@link ChatDelegationLinks}.
+     */
+    readonly delegation: ChatDelegationLinks;
+
     constructor(private readonly options: AgentChatServiceOptions) {
         this.endpoint = new ChatEndpointLease(options);
+        this.delegation = new ChatDelegationLinks({
+            hooks: options.delegation,
+            state: (terminalId) => this.states.get(terminalId),
+            admit: (terminalId, state) => this.states.admit(terminalId, state),
+        });
         this.states = new ChatStates({
             database: options.database,
             logger: options.logger,
@@ -132,9 +143,6 @@ export class AgentChatService {
         }
     }
 
-    /**
-     * Serializes input per Chat, starting the provider first, so messages and commands reach it in the order sent.
-     */
     private exitHost(): ChatExitHost {
         return {
             options: this.options,
@@ -148,6 +156,7 @@ export class AgentChatService {
         return {
             ...this.exitHost(),
             agentRunAutonomy: this.agentRunAutonomy,
+            delegation: this.delegation,
             isShuttingDown: () => this.isShuttingDown,
         };
     }
@@ -231,14 +240,18 @@ export class AgentChatService {
 
     /**
      * Sends a message. While a turn runs it steers that turn when asked to, and otherwise waits in the queue; a message
-     * also waits behind earlier queued ones so the queue keeps its order.
+     * also waits behind earlier queued ones so the queue keeps its order. A `human` message (any Client, review
+     * comment, merge notice, or bug report) takes a delegated Chat over, as PTY input does; only delegation's own input
+     * opts out.
      */
     async send(
         terminalId: string,
         message: Omit<AgentChatMessageInput, 'delivery'>,
         delivery: 'queue' | 'steer' = 'queue',
+        origin: 'human' | 'delegation' = 'human',
     ): Promise<void> {
         assertE2EAgentChatInput(readE2EAgentPolicy(), message.text);
+        if (origin === 'human') this.delegation.observeHumanInput(terminalId);
         await this.enqueue(terminalId, async (session, state) => {
             if (delivery === 'steer' && state.projection.snapshot.activeTurnId) {
                 await session.send(message, { delivery: 'steered' });
@@ -403,6 +416,15 @@ export class AgentChatService {
     }
 
     /**
+     * Starts a stopped Chat's provider, or joins the start in flight, and resolves once it settled. Agent dispatch
+     * opens a new Chat this way: a Client reading the Chat as soon as it appears may already have started it.
+     */
+    async start(terminalId: string): Promise<void> {
+        requireChatTerminal(this.options.database, terminalId);
+        await this.startQuietly(terminalId, this.states.open(terminalId));
+    }
+
+    /**
      * Stops the provider and starts it again on the same Agent Session. Clears a previous failure and ends a hand-over:
      * an explicit restart (Retry, a surface switch to Chat) is the user taking the Chat back. A resume keeps the
      * replaced start's approval mode (see `AgentRunAutonomy`). Queued follow-ups carry over; input still waiting in the
@@ -444,6 +466,7 @@ export class AgentChatService {
         if (state) state.retiring = reason;
         await this.stop(terminalId);
         this.states.forget(terminalId, true);
+        if (reason === 'closed') this.delegation.forget(terminalId);
     }
 
     /**
@@ -544,23 +567,9 @@ export class AgentChatService {
      * read or {@link resumeSuspended}. Returns the record, or `undefined` when the Chat was no longer idle.
      */
     async suspendIdle(terminalId: string): Promise<TerminalRecord | undefined> {
-        const state = this.states.get(terminalId);
-        if (!state) return undefined;
-        const { database } = this.options;
-        const previous = state.sendQueue;
-        const run = (async () => {
-            await previous;
-            if (this.states.get(terminalId) !== state || !this.isSuspendable(terminalId)) return;
-            // The requested exit records `suspended` through this flag whenever it lands; a provider (Claude) may
-            // report it after `close` resolves, and writing here instead could overwrite a start that began since.
-            state.suspending = true;
-            const { session } = state;
-            await session?.close();
-            if (state.session === session) state.session = undefined;
-            return database.getTerminal(terminalId);
-        })();
-        state.sendQueue = Promise.allSettled([run]);
-        return run;
+        return suspendIdleChat(this.options.database, this.states, terminalId, () =>
+            this.isSuspendable(terminalId),
+        );
     }
 
     /**
