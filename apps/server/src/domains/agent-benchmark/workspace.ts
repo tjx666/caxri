@@ -1,14 +1,15 @@
 import { mkdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import process from 'node:process';
 
 import type { BenchmarkCheckResult, BenchmarkDiffStat, BenchmarkRun } from '@caxri/protocol';
 
+import { ProviderProcess } from '../agent-chat';
 import { runExternalCommand } from '../executables';
 
 const GIT_TIMEOUT_MS = 120_000;
 const GIT_MAX_BUFFER = 8 * 1024 * 1024;
 const MAX_ATTEMPT_DIFF_BYTES = 512 * 1024;
-const CHECK_MAX_BUFFER = 4 * 1024 * 1024;
 const CHECK_OUTPUT_TAIL = 8_000;
 
 /**
@@ -148,6 +149,9 @@ export class BenchmarkWorkspaces {
     /**
      * Runs the user's check command in the Attempt folder through `sh -c`, the way a task runner would. It is the
      * user's own command for their own machine, so it gets a shell rather than an argv split.
+     *
+     * The shell leads its own process group, so a timeout or Stop ends everything the command started (test workers, a
+     * dev server it backgrounded), not only `sh`, and a member that outlives a passing command is stopped too.
      */
     async check(
         runId: string,
@@ -158,53 +162,70 @@ export class BenchmarkWorkspaces {
     ): Promise<BenchmarkCheckResult> {
         const startedAt = Date.now();
         const durationMs = () => Date.now() - startedAt;
+        const shell = new ProviderProcess({
+            executable: 'sh',
+            // One combined stream, so the tail interleaves output the way a terminal shows it.
+            args: ['-c', `exec 2>&1\n${command}`],
+            cwd: this.attemptDirectory(runId, attemptId),
+            environment: process.env,
+        });
+        shell.child.stdin.end();
+        let output = '';
+        shell.child.stdout.setEncoding('utf8');
+        shell.child.stdout.on('data', (chunk: string) => {
+            output = (output + chunk).slice(-CHECK_OUTPUT_TAIL);
+        });
+        const ended = new Promise<{ code: number | null } | { error: Error }>((resolve) => {
+            shell.child.once('exit', (code) => resolve({ code }));
+            shell.child.once('error', (error) => resolve({ error }));
+        });
+        const { promise: interrupted, resolve: interrupt } = Promise.withResolvers<
+            'timedOut' | 'stopped'
+        >();
+        const timer = setTimeout(() => interrupt('timedOut'), timeoutMs);
+        const onAbort = () => interrupt('stopped');
+        signal.addEventListener('abort', onAbort, { once: true });
+        if (signal.aborted) onAbort();
         try {
-            const { stdout, stderr } = await runExternalCommand('sh', ['-c', command], {
-                cwd: this.attemptDirectory(runId, attemptId),
-                maxBuffer: CHECK_MAX_BUFFER,
-                timeout: timeoutMs,
-                signal,
-            });
-            return {
-                status: 'passed',
-                exitCode: 0,
-                durationMs: durationMs(),
-                outputTail: tail(stdout, stderr),
-            };
-        } catch (error) {
-            const failure = error as {
-                code?: unknown;
-                killed?: boolean;
-                signal?: unknown;
-                stdout?: unknown;
-                stderr?: unknown;
-            };
-            const outputTail = tail(failure.stdout, failure.stderr);
-            if (failure.killed || failure.signal === 'SIGTERM')
-                return { status: 'timedOut', durationMs: durationMs(), outputTail };
-            if (typeof failure.code === 'number')
+            const result = await Promise.race([ended, interrupted]);
+            if (typeof result === 'string') {
+                await shell.terminate();
+                return result === 'timedOut'
+                    ? { status: 'timedOut', durationMs: durationMs(), outputTail: output }
+                    : { status: 'error', durationMs: durationMs(), outputTail: output };
+            }
+            // Waits for the group to be reaped and the output drained.
+            await shell.exited;
+            if ('error' in result)
                 return {
-                    status: 'failed',
-                    exitCode: failure.code,
+                    status: 'error',
                     durationMs: durationMs(),
-                    outputTail,
+                    outputTail: result.error.message.slice(0, 500),
+                };
+            if (result.code === 0)
+                return {
+                    status: 'passed',
+                    exitCode: 0,
+                    durationMs: durationMs(),
+                    outputTail: output,
                 };
             return {
-                status: 'error',
+                status: 'failed',
+                ...(result.code !== null && { exitCode: result.code }),
                 durationMs: durationMs(),
-                outputTail: error instanceof Error ? error.message.slice(0, 500) : outputTail,
+                outputTail: output,
             };
+        } finally {
+            clearTimeout(timer);
+            signal.removeEventListener('abort', onAbort);
         }
     }
 
     async removeRun(runId: string): Promise<void> {
-        await rm(this.runDirectory(runId), { recursive: true, force: true });
+        const directory = resolve(this.runDirectory(runId));
+        // A recursive delete must never climb out of the runs folder, whatever ID reaches it.
+        if (dirname(directory) !== resolve(this.root))
+            throw new Error('Benchmark run folder is outside the runs folder');
+        await rm(directory, { recursive: true, force: true });
     }
-}
-
-function tail(stdout: unknown, stderr: unknown): string {
-    const text = [stdout, stderr]
-        .filter((part): part is string => typeof part === 'string' && part.length > 0)
-        .join('\n');
-    return text.length > CHECK_OUTPUT_TAIL ? text.slice(-CHECK_OUTPUT_TAIL) : text;
 }

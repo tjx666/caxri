@@ -9,5 +9,6 @@ export type {
 } from './chat-provider';
 export { AgentChatStartError } from './chat-provider';
 export { createAgentChatHandlers } from './handlers';
+export { ProviderProcess } from './provider-process';
 export { AgentChatService } from './service';
 export type { AgentChatEndpoint } from './service-options';
