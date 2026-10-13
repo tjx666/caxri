@@ -174,9 +174,8 @@ export function AgentChatUserMessageBubble({
 
 /**
  * The user's own words, verbatim. A path they typed or dropped in (`src/app.ts:12`, an absolute path) opens in the
- * editor, and a URL they pasted gets the same site icon and hover card as a link in a reply. Both stay in the bubble's
- * text color with a dotted underline, so a message full of links still reads as the user's message rather than a list
- * of links.
+ * editor, and a URL they pasted gets the same site icon and hover card as a link in a reply. Both take the reply's link
+ * treatment (the full accent with no underline until hover), so a link reads the same on both sides of the transcript.
  */
 function UserMessageText({
     text,
@@ -203,7 +202,7 @@ function UserMessageText({
                     key={position}
                 >
                     <a
-                        className="cursor-pointer underline decoration-muted decoration-dotted underline-offset-3 transition-colors hover:text-accent hover:decoration-solid focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                        className="cursor-pointer text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
                         href={segment.file}
                         onClick={(event) => {
                             event.preventDefault();
@@ -218,8 +217,7 @@ function UserMessageText({
         if (!summary) return segment.text;
         return (
             <WebLink
-                // The user's own words keep the text color, so only a dotted underline marks the link.
-                className="underline decoration-muted decoration-dotted hover:text-accent hover:decoration-solid"
+                className="text-accent hover:underline"
                 href={segment.url}
                 key={position}
                 referenceTerminalId={terminalId}
