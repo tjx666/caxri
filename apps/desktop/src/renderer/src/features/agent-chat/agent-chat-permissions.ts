@@ -103,7 +103,7 @@ export interface AgentChatPermissionView {
      */
     ariaLabel: string;
     /**
-     * Full access gets a warning shield so the riskiest level reads differently at a glance.
+     * Full access gets an alert shield so the riskiest level reads differently at a glance.
      */
     isFullAccess: boolean;
     /**
