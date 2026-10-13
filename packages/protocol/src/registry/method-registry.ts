@@ -20,6 +20,10 @@ import {
 import { agentEndpointMethods } from '../agent/agent-endpoint-contract.js';
 import { agentInboxMethods } from '../agent/agent-inbox-contract.js';
 import { agentNotificationInternalMethods } from '../agent/agent-notification-contract.js';
+import {
+    agentSessionInternalMethods,
+    agentSessionMethods,
+} from '../agent/agent-session-contract.js';
 import { agentSkillHealthSchema } from '../agent/agent-skill-contract.js';
 import { agentThroughputSchema } from '../agent/agent-throughput-contract.js';
 import {
@@ -165,6 +169,7 @@ export const methods = {
     ...agentChatMethods,
     ...agentDispatchMethods,
     ...agentDelegationMethods,
+    ...agentSessionMethods,
     ...commanderMethods,
     ...commanderDataMethods,
     ...delegationAccessMethods,
@@ -531,6 +536,7 @@ export const internalMethods = {
     ...agentNotificationInternalMethods,
     ...agentDispatchInternalMethods,
     ...agentDelegationInternalMethods,
+    ...agentSessionInternalMethods,
     ...commanderDataInternalMethods,
     ...delegationAccessInternalMethods,
     ...businessInternalMethods,

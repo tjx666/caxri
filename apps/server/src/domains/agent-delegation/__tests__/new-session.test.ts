@@ -46,10 +46,10 @@ async function fixture() {
         verifyLaunch: () => Promise.resolve(),
         readTranscript: vi.fn().mockResolvedValue(null),
         newSessions: {
-            create: (projectId, title, isCommander) =>
+            create: (projectId, title, isCommander, createdBySessionId) =>
                 isCommander
                     ? createCommanderSession(database, projectId, undefined, title)
-                    : createBackgroundSession(database, projectId, title),
+                    : createBackgroundSession(database, projectId, title, createdBySessionId),
             discard: (sessionId) => {
                 if (database.agentCommanderRows()?.sessionIds.includes(sessionId))
                     discardCommanderSession(database, sessionId);
@@ -89,7 +89,16 @@ async function fixture() {
         newSession: true as const,
         title: 'Fix login retry',
     };
-    return { database, service, commanderAuthority, agentAuthority, project, request };
+    return {
+        database,
+        service,
+        commanderAuthority,
+        commanderSessionId: commander.session.id,
+        agentAuthority,
+        callerSessionId: caller.session.id,
+        project,
+        request,
+    };
 }
 
 /**
@@ -98,13 +107,15 @@ async function fixture() {
  */
 describe('Delegation into a new Commander Session', () => {
     it('creates the Session together with its task, and a retry reuses it', async () => {
-        const { database, service, commanderAuthority, request } = await fixture();
+        const { database, service, commanderAuthority, commanderSessionId, request } =
+            await fixture();
         const id = randomUUID();
 
         const receipt = await service.create(id, commanderAuthority, request);
 
         expect(database.agentCommanderRows()?.sessionIds).toEqual([receipt.sessionId]);
         expect(database.listTerminals(receipt.sessionId)).toHaveLength(1);
+        expect(database.getSession(receipt.sessionId)?.createdBySessionId).toBe(commanderSessionId);
         // The task file pointer is all automatic naming would see, so the Commander's title is kept as a manual one.
         expect(database.getSession(receipt.sessionId)).toMatchObject({
             displayTitle: 'Fix login retry',
@@ -176,13 +187,15 @@ describe('Delegation into a new Commander Session', () => {
  */
 describe('Delegation into a new Session from an ordinary Agent', () => {
     it('creates a visible Session in another added Project and keeps working there', async () => {
-        const { database, service, agentAuthority, project, request } = await fixture();
+        const { database, service, agentAuthority, callerSessionId, project, request } =
+            await fixture();
 
         const receipt = await service.create(randomUUID(), agentAuthority, request);
 
         expect(database.getSession(receipt.sessionId)).toMatchObject({
             projectId: project.id,
             displayTitle: 'Fix login retry',
+            createdBySessionId: callerSessionId,
         });
         // A plain user-visible Session: the Commander never records it as its own.
         expect(database.listVisibleSessions().map(({ id }) => id)).toContain(receipt.sessionId);
@@ -211,6 +224,26 @@ describe('Delegation into a new Session from an ordinary Agent', () => {
                 { active: false, limit: 20 },
             ).delegations,
         ).toEqual([]);
+    });
+
+    it('admits another Agent of the creating Session, which never delegated there itself', async () => {
+        const { database, service, agentAuthority, callerSessionId, project, request } =
+            await fixture();
+        const receipt = await service.create(randomUUID(), agentAuthority, request);
+        const sibling = database.createTerminal(callerSessionId, 'claude');
+
+        const followUp = await service.create(
+            randomUUID(),
+            { ...agentAuthority, callerTerminalId: sibling.id },
+            {
+                projectId: project.id,
+                sessionId: receipt.sessionId,
+                provider: 'claude',
+                prompt: 'Sibling synthetic task',
+            },
+        );
+
+        expect(followUp.sessionId).toBe(receipt.sessionId);
     });
 
     it('refuses a Session the Agent did not create, and a hidden Project', async () => {

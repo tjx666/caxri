@@ -140,6 +140,10 @@ Then write the task to a file and run
   `wait`, `result`, `--follow-up` for the next instruction to the same Agent, and `stop`.
 - Lost track of a task after a context reset? `caxri agent delegate list --active --json` lists
   your own tasks, newest first.
+- The user sees which Session created the new one. Keep what you created tidy:
+  `caxri agent session rename <session-id> --title <title> --json` when its subject changes, and
+  `agent session archive <session-id>` once its work is done and reported (`unarchive` restores it).
+  These accept only Sessions created from your own Session; never archive the user's Sessions.
 
 ## Keep dispatch, control, and steer separate
 

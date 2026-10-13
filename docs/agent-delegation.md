@@ -73,6 +73,21 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   pane. Reading a task the caller owns is not limited by archiving or hiding.
 - The Agent Commander uses the same flag, and additionally records the Session as its own for its
   board and archive commands; see [Agent Commander](agent-commander.md).
+- The new Session records the caller's Session as its creator (`createdBySessionId`), after Orca's
+  worktree lineage, where a workspace an agent creates remembers its parent workspace. The sidebar
+  detail card shows a "Created by" row that opens the creating Session, names it as archived instead
+  of restoring it, or names the Agent Commander for its own hidden Session; the Session menu adds
+  "Go to Creating Session". The column has no foreign key, so deleting the creating Session or its
+  Project clears it in the same transaction
+  (`apps/server/src/domains/db/session-creator.ts`).
+- The creating Agent can keep the sidebar tidy without the Commander's board:
+  `caxri agent session rename <session-id> --title <title>`, `agent session archive <session-id>`,
+  and `agent session unarchive <session-id>`. Any Agent in the creating Session may manage it,
+  because the Session, not one Terminal, created it. Every other Session, including the caller's own
+  and the user's, returns `NOT_FOUND`. The Agent Commander manages only Sessions it still owns, so
+  Take Back revokes this as well (`apps/server/src/domains/parking-handlers.ts`).
+- Delegation admission also accepts an earlier task's Session created by any Agent in the caller's
+  Session, so a sibling Terminal can send it the next task.
 
 An Agent learns this without the `caxri-cli` skill installed. Caxri adds one short pointer to the
 context of every ordinary Claude and Codex Agent, once per launch: it says the Agent runs inside

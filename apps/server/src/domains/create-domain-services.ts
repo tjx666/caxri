@@ -23,7 +23,7 @@ import { createGitReviewHandlers } from './git-review';
 import { createIntrospectionServices } from './introspection';
 import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobile';
 import { createOrderingHandlers } from './ordering-handlers';
-import { createSessionParkingHandlers, createTerminateAllHandler } from './parking-handlers';
+import { createSessionHandlers, createTerminateAllHandler } from './parking-handlers';
 import {
     createProjectFolderBrowser,
     createProjectHidingHandlers,
@@ -494,9 +494,7 @@ export async function createDomainServices(
             workbenchRoots,
         }),
         ...createSessionMarkReadHandler(database, send),
-        'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
-            sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
-        ...createSessionParkingHandlers(sessionParking),
+        ...createSessionHandlers(database, sessionParking, sessionRenames),
         ...createSessionAgentRuntimeHandlers(agentRuntime),
         ...createDeletionHandlers({
             database,

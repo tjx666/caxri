@@ -23,7 +23,6 @@ import type {
 import {
     CaxriError,
     initialAgentChatPermission,
-    isTopLevelProject,
     resolveAgentChatPermissionChange,
 } from '@caxri/protocol';
 import type Database from 'better-sqlite3';
@@ -57,6 +56,9 @@ import {
     listVisibleSessions,
 } from './project-visibility';
 import { archiveOneSession, restoreArchivedSessions } from './session-archive';
+import type { CreateSessionOptions } from './session-create';
+import { createSession as createSessionRow } from './session-create';
+import { clearDeletedSessionCreators } from './session-creator';
 import {
     reorderPinnedSession,
     reorderSessionInProject,
@@ -65,7 +67,6 @@ import {
 import type { ShutdownReason } from './session-policy';
 import {
     choosePrimaryAgentForNewTerminal,
-    DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     firstActiveSession,
     processExitActivityState,
@@ -419,50 +420,15 @@ export class CaxriDatabase {
     }
 
     /**
-     * Remote creation may preserve Desktop selection. Auto-registered worktree Projects cannot own Sessions: their
-     * hidden rows offer no management UI; they can only be Workbench Roots of Sessions in the owning Project.
+     * See {@link createSessionRow}.
      */
     createSession(
         projectId: string,
         kind: TerminalKind | null,
         cwd?: string,
-        options: { selection?: 'select' | 'preserve' } = {},
+        options: CreateSessionOptions = {},
     ): { session: SessionRecord; terminal: TerminalRecord | null } {
-        return this.db.transaction(() => {
-            const project = this.db.projects.get(projectId);
-            if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-            if (!isTopLevelProject(project))
-                throw new CaxriError(
-                    'CONFLICT',
-                    'Sessions cannot be created inside an auto-registered worktree Project',
-                );
-            const session = this.db.sessions.insert({
-                projectId,
-                displayTitle: DEFAULT_SESSION_TITLE,
-            });
-            let terminal: TerminalRecord | null = null;
-            if (kind) {
-                assertTerminalCapacity(this.db.terminals);
-                terminal = this.db.terminals.insert({
-                    sessionId: session.id,
-                    kind,
-                    cwd: cwd ?? project.rootPath,
-                    title: defaultTerminalTitle(kind),
-                });
-                const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
-                if (assignment) this.db.sessions.setPrimaryAgent(session.id, assignment);
-            }
-            this.db.sessions.insertInitialState(session.id, terminal?.id);
-            if (options.selection !== 'preserve') {
-                this.db.appState.set('lastSelectedSessionId', session.id);
-                this.db.appState.set('lastSelectedProjectId', projectId);
-            }
-            this.db.projects.touchLastOpened(projectId);
-            return {
-                session: this.db.sessions.get(session.id)!,
-                terminal: terminal ? this.db.terminals.get(terminal.id)! : null,
-            };
-        });
+        return this.db.transaction(() => createSessionRow(this.db, projectId, kind, cwd, options));
     }
 
     /**
@@ -508,6 +474,7 @@ export class CaxriDatabase {
         this.db.transaction(() => {
             if (!this.db.sessions.remove(sessionId))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
+            clearDeletedSessionCreators(this.db);
             if (this.db.appState.get('lastSelectedSessionId') !== sessionId) return;
             const selectedProjectId = this.db.appState.get('lastSelectedProjectId');
             const candidateSessions = selectedProjectId

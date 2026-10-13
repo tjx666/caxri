@@ -34,10 +34,16 @@ export async function admitDelegationRequest(
         (authority.principal.kind !== 'agent' && authority.principal.kind !== 'human-cli')
     )
         throw new CaxriError('FORBIDDEN', 'This caller cannot delegate into a new Session');
+    const isCommander = isAgentCommanderCaller(database, authority);
+    const callerSessionId =
+        authority.principal.kind === 'agent' && authority.callerTerminalId
+            ? database.getTerminal(authority.callerTerminalId)?.sessionId
+            : undefined;
     const sessionId = newSessions.create(
         fields.projectId,
         title,
-        isAgentCommanderCaller(database, authority),
+        isCommander,
+        isCommander ? undefined : callerSessionId,
     );
     try {
         return await admit({ ...fields, sessionId }, true);
