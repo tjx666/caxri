@@ -369,8 +369,11 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(truncatedNote).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-truncated-end.png') });
 
-        // An applied file's path opens it in the Editor.
-        await chat.getByRole('button', { name: 'Open src/greeting.ts in Editor' }).click();
+        // An applied file's path opens it in the Editor; the changes card's icon button shares the link's name.
+        await chat
+            .getByRole('button', { name: 'Open src/greeting.ts in Editor' })
+            .filter({ hasText: 'src/greeting.ts' })
+            .click();
         await expect(page.getByRole('tab', { name: 'greeting.ts' })).toHaveAttribute(
             'aria-selected',
             'true',
