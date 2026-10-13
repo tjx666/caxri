@@ -37,6 +37,7 @@ import {
     linearBadgeTones,
     linearIcon,
     linkText,
+    pullRequestCheckIcon,
     pullRequestPresentation,
     repoPresentation,
     stateIcons,
@@ -364,7 +365,7 @@ function buildRepoChildren(
                  * description on a `CI failed` string that competed with the title for width. The lifecycle moved up to
                  * the branch row (see `lifecycle` above), so this row no longer repeats it in the trailing slot.
                  */
-                icon: stateIcons[pullRequest.state],
+                icon: pullRequestCheckIcon(pullRequest),
                 /**
                  * Trailing counts name only the checks that ask for attention (`1 failing · 3 running`), so a row whose
                  * checks all passed stays quiet while a pending or failed one says how many without expanding.
