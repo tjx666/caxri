@@ -62,6 +62,10 @@ export class AgentCommanderWindowController {
     /**
      * An `agentCommander.open` asked for the Inbox and the window has not been told yet: a window the request itself
      * opened cannot receive the event until its Renderer subscribes, so the request waits for `onEventsReady`.
+     *
+     * `open()` is the only writer besides delivery: it overwrites the flag on every call, and a window can only appear
+     * through `open()`. So a request whose window closed, or never opened because no logger was available, can never
+     * reach a later window, and neither case needs its own reset.
      */
     private isInboxRequested = false;
     /**
@@ -114,10 +118,7 @@ export class AgentCommanderWindowController {
     private openWindowIfClosed(): void {
         if (isAuxiliaryWindowRevealed(this.window, this.options.windowMode === 'visible')) return;
         const logger = this.options.logger();
-        if (!logger) {
-            this.isInboxRequested = false;
-            return;
-        }
+        if (!logger) return;
         const zoomFactor = zoomFactorForLevel(this.options.zoomLevel());
         const window = createAuxiliaryWindow({
             browserWindow: {
@@ -167,7 +168,6 @@ export class AgentCommanderWindowController {
             if (this.window !== window) return;
             this.window = undefined;
             this.isEventsReady = false;
-            this.isInboxRequested = false;
             this.releaseTerminal(true);
         });
     }

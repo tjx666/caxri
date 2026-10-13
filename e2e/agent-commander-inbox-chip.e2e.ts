@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { solarizedLightTheme } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
@@ -29,6 +30,23 @@ test('the status bar Needs you chip opens the Commander Inbox on its first item'
         providers: { codex: {} },
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    /**
+     * The focus indicator as the user sees it: a 2px accent outline, not just a recolored 1px border.
+     */
+    const focusOutline = (item: ReturnType<Page['locator']>) =>
+        item.evaluate((element) => {
+            const style = getComputedStyle(element);
+            const probe = document.createElement('span');
+            probe.style.color = 'var(--accent)';
+            document.body.append(probe);
+            const accent = getComputedStyle(probe).color;
+            probe.remove();
+            return {
+                isAccent: style.outlineColor === accent,
+                style: style.outlineStyle,
+                width: style.outlineWidth,
+            };
+        });
     const commanderWindow = async (): Promise<Page> => {
         await expect.poll(() => running.app.windows().length).toBe(2);
         return running.app.windows().find((page) => page !== running.page)!;
@@ -64,7 +82,18 @@ test('the status bar Needs you chip opens the Commander Inbox on its first item'
         await expect(commander.locator('.agent-commander-inbox')).toBeVisible();
         await expect(inboxToggle).toHaveAttribute('aria-pressed', 'true');
         await expect(firstItem).toBeFocused();
+        expect(await focusOutline(firstItem)).toEqual({
+            isAccent: true,
+            style: 'solid',
+            width: '2px',
+        });
         await commander.screenshot({ path: testInfo.outputPath('inbox-chip-narrow-drawer.png') });
+
+        // A pointer click focuses an item without the keyboard ring.
+        const secondItem = commander.locator('.commander-inbox-item').nth(1);
+        await secondItem.locator('span').first().click();
+        await expect(secondItem).toBeFocused();
+        expect((await focusOutline(secondItem)).style).toBe('none');
 
         // From a closed window, the request waits for the new window to listen and still lands on the first item.
         await commander.close();
@@ -74,6 +103,24 @@ test('the status bar Needs you chip opens the Commander Inbox on its first item'
         await expect(commander.locator('.agent-commander-inbox')).toBeVisible();
         await expect(commander.locator('.commander-inbox-item').first()).toBeFocused();
         await commander.screenshot({ path: testInfo.outputPath('inbox-chip-reopened.png') });
+
+        // The focus outline stays distinct from the reply target's raised fill when one item is both, in a light theme.
+        await pageRequest(running.page, 'theme.update', {
+            source: JSON.stringify(solarizedLightTheme),
+        });
+        const firstReopened = commander.locator('.commander-inbox-item').first();
+        await firstReopened.locator('.commander-inbox-reply').click();
+        await expect(firstReopened).toHaveAttribute('data-inbox-target', 'true');
+        await chip.click();
+        await expect(firstReopened).toBeFocused();
+        expect(await focusOutline(firstReopened)).toEqual({
+            isAccent: true,
+            style: 'solid',
+            width: '2px',
+        });
+        await commander.screenshot({
+            path: testInfo.outputPath('inbox-chip-light-reply-target.png'),
+        });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

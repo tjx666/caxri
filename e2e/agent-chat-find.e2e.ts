@@ -59,7 +59,17 @@ test('Cmd+F finds text in a Chat, steps through matches, and opens a folded turn
         const input = find.getByRole('textbox', { name: 'Find in Chat' });
         await expect(input).toBeFocused();
 
-        // Each message and its echoed reply mention the query: four matches, the first one current.
+        // A new query starts at the first match at or below the top of the view. The latest turn is pinned to the
+        // top, so every earlier match sits above it and the last one becomes current.
+        await input.fill('ALPHA');
+        await expect(find.getByText('4/4')).toBeVisible();
+
+        // Each message and its echoed reply mention the query: four matches. From the top of the conversation the
+        // first one is current.
+        await input.fill('');
+        await session
+            .getByRole('log', { name: 'Conversation' })
+            .evaluate((element) => element.scrollTo({ top: 0 }));
         await input.fill('ALPHA');
         await expect(find.getByText('1/4')).toBeVisible();
         await expect.poll(() => highlightedText(page, 'agent-chat-find-active')).toEqual(['alpha']);

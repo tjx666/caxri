@@ -43,11 +43,18 @@ test('a Chat asks several questions behind tabs and lists the answers once sent'
         await expect(questions.getByRole('radio', { name: /^Free and Hobby/u })).toBeFocused();
         await page.keyboard.press('2');
         await expect(questionTabs.nth(2)).toHaveAttribute('aria-selected', 'true');
-        // Going back keeps the earlier answer.
+        // Going back keeps the earlier answer, and changing it there moves on to the question still unanswered
+        // without resetting the one answered in between.
         await questionTabs.nth(0).click();
         await expect(questions.getByRole('radio', { name: /^Per request/u })).toBeChecked();
+        await questions.getByRole('radio', { name: /^Per user/u }).click();
+        await expect(questionTabs.nth(2)).toHaveAttribute('aria-selected', 'true');
+        await questionTabs.nth(1).click();
+        await expect(questions.getByRole('radio', { name: /^Free only/u })).toBeChecked();
         await questions.getByRole('button', { name: 'Submit' }).click();
-        await expect(session.getByText('You answered Per request / Free only / -.')).toBeVisible();
+        await expect(
+            session.getByText('You answered Per user (Recommended) / Free only / -.'),
+        ).toBeVisible();
         const answeredSeveral = session.locator('[data-agent-chat-answered]').last();
         await expect(
             answeredSeveral.getByRole('button', { name: 'Asked 3 questions' }),
