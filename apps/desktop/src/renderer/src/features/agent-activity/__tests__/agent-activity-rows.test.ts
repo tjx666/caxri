@@ -59,6 +59,41 @@ function groupsOf(
 }
 
 describe('agentActivityGroups', () => {
+    it('lists pinned Sessions first, in Pinned order, without repeating idle or finished ones', () => {
+        const groups = groupsOf([
+            session('idle-pinned', { pinnedAt: 2, pinnedOrder: 1 }),
+            session('expired-pinned', {
+                lastActivityState: 'completed',
+                lastSessionActivityAt: NOW - AGENT_ACTIVITY_FINISHED_RETENTION_MS - 1,
+                pinnedAt: 1,
+                pinnedOrder: 0,
+            }),
+            session('unread-pinned', {
+                hasUnread: true,
+                lastActivityState: 'completed',
+                pinnedAt: 3,
+                pinnedOrder: 2,
+            }),
+            session('idle-unpinned'),
+        ]);
+        expect(groups.map((group) => [group.id, group.rows.map((row) => row.rowId)])).toEqual([
+            ['pinned', ['pinned:expired-pinned', 'pinned:idle-pinned', 'pinned:unread-pinned']],
+            ['attention', ['unread-pinned']],
+            ['idle', ['idle-unpinned']],
+        ]);
+        // A pinned copy keeps its state group, so the glyph and tint still describe the Agent.
+        expect(groups[0].rows.map((row) => row.groupId)).toEqual(['finished', 'idle', 'attention']);
+    });
+
+    it('keeps the attention queue unaware of the Pinned group', () => {
+        const groups = groupsOf([
+            session('unread-pinned', { hasUnread: true, pinnedAt: 1 }),
+            session('idle-pinned', { pinnedAt: 2 }),
+        ]);
+        expect(nextAgentAttentionSessionId(groups, undefined)).toBe('unread-pinned');
+        expect(nextAgentAttentionSessionId(groups, 'unread-pinned')).toBe('unread-pinned');
+    });
+
     it('orders groups attention-first and omits the empty ones', () => {
         const groups = groupsOf([
             session('idle-one'),

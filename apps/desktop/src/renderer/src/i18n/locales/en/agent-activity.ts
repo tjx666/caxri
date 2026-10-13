@@ -2,6 +2,7 @@ export const agentActivity = {
     'agentActivity.treeLabel': 'Activity',
     'agentActivity.empty': 'No Agent Session is waiting on you.',
     'agentActivity.markReadFailed': 'Unable to mark the Session read',
+    'agentActivity.group.pinned': 'Pinned',
     'agentActivity.group.attention': 'Needs attention',
     'agentActivity.group.failed': 'Failed',
     'agentActivity.group.finished': 'Recently finished',
