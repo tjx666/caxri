@@ -27,6 +27,7 @@ import {
     FileText,
     FolderOpen,
     Globe,
+    Hourglass,
     Image,
     Layers,
     ListTodo,
@@ -69,6 +70,7 @@ import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-age
  */
 const WORK_ICONS: Record<AgentToolKind, LucideIcon> = {
     agent: Bot,
+    manage: Bot,
     browser: Globe,
     command: SquareTerminal,
     computer: Command,
@@ -84,6 +86,7 @@ const WORK_ICONS: Record<AgentToolKind, LucideIcon> = {
     skill: Sparkles,
     stop: CircleStop,
     thought: Brain,
+    wait: Hourglass,
     web: Globe,
     write: FilePlus,
 };

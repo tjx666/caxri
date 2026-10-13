@@ -2,10 +2,12 @@ import type {
     ProjectStatusDeployment,
     ProjectStatusRepository,
     ProjectStatusSummary,
+    TreeItemAction,
     TreeItemTooltipRow,
 } from 'caxri';
 import { ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
 
+import { fixDeploymentAction } from './status-agent-actions';
 import {
     isPullRequestRowExpanded,
     pullRequestCheckNodes,
@@ -43,31 +45,24 @@ import {
     stateIcons,
     stateTones,
 } from './status-presentation';
-import { reviewThreadsNode } from './status-review-threads';
+import { reviewNode } from './status-review';
+import { networkNodes, rateLimitNodes, sharedFailureReasons } from './status-shared-failures';
+
+/**
+ * A failed deployment, Production or Preview, offers `Fix` wherever its row appears: the summary row or its entry under
+ * Deployments. A running or queued one has nothing to fix yet.
+ */
+function deploymentActions(
+    repo: ProjectStatusRepository,
+    deployment: ProjectStatusDeployment,
+): TreeItemAction[] | undefined {
+    return deployment.state === 'failure' ? [fixDeploymentAction(repo, deployment)] : undefined;
+}
 
 const missingGitRepoErrors = new Set<string>([
     ProjectStatusSummaryErrorMessage.missingGitRepository,
     ProjectStatusSummaryErrorMessage.missingPrimaryRepository,
 ]);
-const networkProviderListFormatter = new Intl.ListFormat('en', { type: 'conjunction' });
-
-type ProjectStatusFailure = ProjectStatusRepository['errors'][number];
-
-/**
- * Failures that state one condition for the whole Project rather than a property of the repository that happened to
- * report them: a lost connection, and a provider budget the whole account shares. The root states each of these once
- * and the repository subtrees drop them, a Project holding a repository plus its submodule otherwise printed the same
- * account-level sentence twice, each with its own Refresh button.
- */
-const sharedFailureReasons = new Set<ProjectStatusFailure['reason']>(['network', 'rate-limited']);
-
-const providerNames = {
-    acceptance: 'LobeHub',
-    github: 'GitHub',
-    linear: 'Linear',
-    vercel: 'Vercel',
-} as const satisfies Record<ProjectStatusFailure['source'], string>;
-
 /**
  * Preserves the screenshot-defined pre-extension ordering while assigning stable provider IDs to every row.
  */
@@ -234,7 +229,7 @@ function buildRepoChildren(
             }),
         );
     }
-    const reviewThreads = reviewThreadsNode(repo, prefix);
+    const review = reviewNode(repo, prefix);
     if (repo.deployments) {
         const { branchDeployments, production, preview, url: deploymentsUrl } = repo.deployments;
         const environments = [...new Set(branchDeployments.map(({ environment }) => environment))];
@@ -308,13 +303,14 @@ function buildRepoChildren(
                                     deployment,
                                 ),
                                 url: deployment.inspectorUrl,
+                                actions: deploymentActions(repo, deployment),
                             },
                         ),
                     ),
                 }),
             );
         // fe-helper's order: the deployment list, then the review feedback, then the latest environments.
-        if (reviewThreads) nodes.push(reviewThreads);
+        if (review) nodes.push(review);
         for (const [label, deployment] of [
             ['Production', production],
             ['Preview', preview],
@@ -334,11 +330,12 @@ function buildRepoChildren(
                     icon: deploymentIcon(deployment),
                     tooltip: deploymentTooltip(label, deployment),
                     url: deployment.inspectorUrl,
+                    actions: deploymentActions(repo, deployment),
                 }),
             );
         }
     }
-    if (reviewThreads && !repo.deployments) nodes.push(reviewThreads);
+    if (review && !repo.deployments) nodes.push(review);
     if (repo.pullRequest) {
         const pullRequest = repo.pullRequest;
         /**
@@ -532,62 +529,4 @@ export function buildStatusRootNodes(
         ),
         ...summary.repositories.map((repo) => buildRepoNode(repo, true)),
     ];
-}
-
-/**
- * One row for a connection every provider lost together: the user has a single thing to fix, so naming the providers
- * inside one sentence beats repeating an identical row per provider.
- */
-function networkNodes(errors: readonly ProjectStatusFailure[]): StatusNode[] {
-    if (errors.length === 0) return [];
-    const [first] = errors;
-    const names = failureSources(errors).map((source) => providerNames[source]);
-    const isShared = names.length > 1;
-    return [
-        item('status:network', isShared ? 'No network connection' : first.message, {
-            variant: 'message',
-            description: isShared
-                ? `Caxri could not reach ${networkProviderListFormatter.format(names)}. Reconnect, then refresh.`
-                : first.hint,
-            icon: 'cloud',
-            command: { command: 'caxri.project-status.refresh', title: REFRESH_ACTION_LABEL },
-        }),
-    ];
-}
-
-/**
- * One row per rate-limited provider, rather than one row for all of them: each budget resets on its own schedule, and
- * the Server already wrote that provider's deadline into its hint. Grouping them would have to drop the one fact that
- * makes the row worth reading.
- */
-function rateLimitNodes(errors: readonly ProjectStatusFailure[], now: number): StatusNode[] {
-    const bySource = new Map<ProjectStatusFailure['source'], ProjectStatusFailure>();
-    for (const error of errors) if (!bySource.has(error.source)) bySource.set(error.source, error);
-    return [...bySource]
-        .toSorted(([a], [b]) => a.localeCompare(b))
-        .map(([source, error]) => {
-            /**
-             * Caxri honours this pause itself and recovers without the user, so inside the window there is nothing to
-             * offer: Refresh would spend a click on a request the limiter answers with this very error. Past the
-             * deadline, or with no deadline at all, the action comes back.
-             */
-            const isPaused = error.retryAt !== undefined && error.retryAt > now;
-            return item(`status:rate-limit:${source}`, error.message, {
-                variant: 'message',
-                description: error.hint,
-                icon: 'hourglass',
-                ...(!isPaused && {
-                    command: {
-                        command: 'caxri.project-status.refresh',
-                        title: REFRESH_ACTION_LABEL,
-                    },
-                }),
-            });
-        });
-}
-
-function failureSources(
-    errors: readonly ProjectStatusFailure[],
-): Array<ProjectStatusFailure['source']> {
-    return [...new Set(errors.map((error) => error.source))].toSorted((a, b) => a.localeCompare(b));
 }

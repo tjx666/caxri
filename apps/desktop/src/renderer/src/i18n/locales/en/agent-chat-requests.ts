@@ -36,6 +36,8 @@ export const agentChatRequests = {
     'agentChat.request.action.skill': 'using skill',
     'agentChat.request.action.stop': 'stopping',
     'agentChat.request.action.thought': 'thinking',
+    'agentChat.request.action.wait': 'waiting for agents',
+    'agentChat.request.action.manage': 'managing agent',
     'agentChat.request.action.web': 'browsing',
     'agentChat.request.action.write': 'writing',
 

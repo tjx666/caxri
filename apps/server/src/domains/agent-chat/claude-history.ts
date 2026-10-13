@@ -366,9 +366,28 @@ export function claudeTaskHistoryOperations(
 const storedImageSchema = agentChatImageInputSchema.omit({ thumbnail: true });
 
 /**
- * The `index`th image of the user message whose record `uuid` is `itemId` (the id `applyUserRecord` gives it), as the
- * transcript stores it; `undefined` when the transcript no longer holds that message or image. Only a line naming the
- * id is parsed, so finding one message does not decode every image in the transcript.
+ * The content blocks of the user message `itemId` names: a user record's `uuid` (the id `applyUserRecord` gives it) or
+ * a steered prompt's `source_uuid` (the id `applySteeredRecord` gives it).
+ */
+function userMessageBlocks(record: Json, itemId: string): Json[] | undefined {
+    if (record.type === 'user' && stringField(record.uuid) === itemId) {
+        const message = isRecord(record.message) ? record.message : undefined;
+        return Array.isArray(message?.content) ? message.content.filter(isRecord) : [];
+    }
+    const attachment = isRecord(record.attachment) ? record.attachment : undefined;
+    if (
+        record.type === 'attachment' &&
+        attachment?.type === 'queued_command' &&
+        stringField(attachment.source_uuid) === itemId
+    )
+        return Array.isArray(attachment.prompt) ? attachment.prompt.filter(isRecord) : [];
+    return undefined;
+}
+
+/**
+ * The `index`th image of the user message `itemId` names, as the transcript stores it; `undefined` when the transcript
+ * no longer holds that message or image. Only a line naming the id is parsed, so finding one message does not decode
+ * every image in the transcript.
  */
 export function claudeHistoryImage(
     transcript: string,
@@ -378,11 +397,9 @@ export function claudeHistoryImage(
     for (const line of transcript.split('\n')) {
         if (!line.includes(itemId)) continue;
         const record = parseRecord(line);
-        if (record?.type !== 'user' || stringField(record.uuid) !== itemId) continue;
-        const message = isRecord(record.message) ? record.message : undefined;
-        const images = Array.isArray(message?.content)
-            ? message.content.filter((block) => isRecord(block) && block.type === 'image')
-            : [];
+        const blocks = record && userMessageBlocks(record, itemId);
+        if (!blocks) continue;
+        const images = blocks.filter((block) => block.type === 'image');
         const source: unknown = (images[index] as Json | undefined)?.source;
         if (!isRecord(source) || source.type !== 'base64') return undefined;
         const parsed = storedImageSchema.safeParse({

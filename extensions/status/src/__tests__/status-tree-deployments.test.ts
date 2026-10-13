@@ -185,4 +185,47 @@ describe('Status extension Deployments row', () => {
         // stripping anything.
         expect(row?.accessibilityInformation?.label).toContain('✨ feat: add the status rollup');
     });
+
+    it('offers Fix on a failed deployment and not on a running one', () => {
+        const failed = {
+            environment: 'production' as const,
+            hostname: 'caxri-failed.vercel.app',
+            state: 'failure' as const,
+            url: 'https://caxri-failed.vercel.app',
+            inspectorUrl: 'https://vercel.com/example/caxri/abc',
+            commit: {
+                sha: 'c8c65abfeed00000000000000000000000000000',
+                message: 'feat: seats\n\nbody',
+            },
+        };
+        const running = {
+            ...failed,
+            hostname: 'caxri-running.vercel.app',
+            state: 'pending' as const,
+        };
+        const tree = (production: typeof failed | typeof running) =>
+            buildRepoNode({
+                id: 'fixture',
+                kind: 'primary',
+                name: 'project',
+                branch: 'main',
+                acceptances: [],
+                linearIssues: [],
+                errors: [],
+                deployments: {
+                    url: 'https://vercel.com/example/caxri',
+                    branchDeployments: [],
+                    production,
+                },
+            }).children ?? [];
+        const row = tree(failed).find((node) => node.item.label === 'Production');
+        const [fix] = row?.item.actions ?? [];
+        expect(fix).toMatchObject({ label: 'Fix', command: { command: 'caxri.sendToAgent' } });
+        const prompt = String(fix.command.arguments?.[0]);
+        expect(prompt).toContain('production deployment of commit `c8c65ab` "feat: seats"');
+        expect(prompt).toContain('https://vercel.com/example/caxri/abc');
+        expect(
+            tree(running).find((node) => node.item.label === 'Production')?.item.actions,
+        ).toBeUndefined();
+    });
 });

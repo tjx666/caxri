@@ -54,6 +54,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.workbench.newWorktreeBehavior.option.continueAutomatically': '自动继续',
     'settings.workbench.newWorktreeBehavior.option.ignore': '忽略',
 
+    'settings.workbench.confirmWorktreeAuthorization.title': '授权 Worktree 前确认',
+    'settings.workbench.confirmWorktreeAuthorization.description':
+        '从状态栏选择未授权的 Worktree 时先询问。关闭后直接授权并切换。',
+
     'settings.primarySidebar.autoCollapseProjects.title': '自动折叠不活跃的项目',
     'settings.primarySidebar.autoCollapseProjects.description':
         '活跃、运行中、有未读以及手动展开的项目保持展开',

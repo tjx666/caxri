@@ -2,16 +2,38 @@ import type { ProjectStatusRepository } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ExternalStatusRunner } from '../../external-status';
-import { parseReviewThreads, ReviewThreadStore } from '../review-threads';
+import { parseReviewFeedback, ReviewThreadStore } from '../review-threads';
 
 const PR_URL = 'https://github.com/example/example/pull/7';
 const CONTEXT = { owner: 'example', repo: 'example' };
 
-function response(nodes: unknown[]): string {
+function response(nodes: unknown[], early?: unknown[], recent?: unknown[]): string {
     return JSON.stringify({
-        data: { repository: { pullRequest: { reviewThreads: { nodes } } } },
+        data: {
+            repository: {
+                pullRequest: {
+                    reviewThreads: { nodes },
+                    ...(early && { early: { nodes: early } }),
+                    ...(recent && { recent: { nodes: recent } }),
+                },
+            },
+        },
     });
 }
+
+/**
+ * Codex's summary comment as it appears on GitHub, trimmed to the parts the parser reads.
+ */
+const CODEX_SUMMARY = [
+    '<!-- codex-pull-request-review-summary -->',
+    '',
+    '## Codex Review Summary',
+    '',
+    '| Review | Status | Commit | Review trigger |',
+    '| --- | --- | --- | --- |',
+    '| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-12T18:47:57.170644Z">2026-10-12T18:47:57.170644Z</relative-time> | `9e912c5` | Manual request |',
+    '| 🔒 **Security Review** | ⏳ **In progress** | `9e912c5` | Manual request |',
+].join('\n');
 
 function thread(overrides: Record<string, unknown> = {}, comment: Record<string, unknown> = {}) {
     return {
@@ -56,7 +78,7 @@ function createStore(runner: ExternalStatusRunner, now: () => number = () => 0) 
     return { store: new ReviewThreadStore(telemetry, runner, { now, ttlMs: 1_000 }), telemetry };
 }
 
-describe('parseReviewThreads', () => {
+describe('parseReviewFeedback', () => {
     it('keeps only unresolved, current threads with a linkable opening comment', () => {
         const output = response([
             thread(),
@@ -66,7 +88,7 @@ describe('parseReviewThreads', () => {
             thread({ path: null, line: null }, { author: null, createdAt: null }),
             null,
         ]);
-        expect(parseReviewThreads(output)).toEqual([
+        expect(parseReviewFeedback(output).threads).toEqual([
             {
                 url: `${PR_URL}#discussion_r1`,
                 body: 'Rename this helper.',
@@ -80,7 +102,66 @@ describe('parseReviewThreads', () => {
     });
 
     it('treats a pull request GitHub no longer returns as having no threads', () => {
-        expect(parseReviewThreads(JSON.stringify({ data: { repository: null } }))).toEqual([]);
+        expect(parseReviewFeedback(JSON.stringify({ data: { repository: null } }))).toEqual({
+            threads: [],
+            threadCount: 0,
+            codexReviews: [],
+        });
+    });
+
+    it('counts resolved and outdated threads so a clean review reads as resolved', () => {
+        const output = response([thread({ isResolved: true }), thread({ isOutdated: true })]);
+        expect(parseReviewFeedback(output)).toMatchObject({ threads: [], threadCount: 2 });
+    });
+
+    it("reads Codex's review summary rows from the conversation", () => {
+        const summaryUrl = `${PR_URL}#issuecomment-1`;
+        const output = response(
+            [],
+            [
+                { body: 'Deployed to preview.', url: `${PR_URL}#issuecomment-0` },
+                { body: CODEX_SUMMARY, url: summaryUrl },
+                null,
+            ],
+        );
+        expect(parseReviewFeedback(output).codexReviews).toEqual([
+            {
+                name: 'Code Review',
+                status: 'Completed',
+                state: 'completed',
+                commit: '9e912c5',
+                trigger: 'Manual request',
+                updatedAt: Date.parse('2026-10-12T18:47:57.170Z'),
+                url: summaryUrl,
+            },
+            {
+                name: 'Security Review',
+                status: 'In progress',
+                state: 'running',
+                commit: '9e912c5',
+                trigger: 'Manual request',
+                url: summaryUrl,
+            },
+        ]);
+    });
+});
+
+describe('Codex review summary placement and markup', () => {
+    it('finds a summary posted after the early comments, and keeps a linked review name', () => {
+        const summaryUrl = `${PR_URL}#issuecomment-99`;
+        const linked = CODEX_SUMMARY.replace(
+            'Code Review',
+            '<a href="https://chatgpt.com/codex">Code Review</a>',
+        );
+        const output = response(
+            [],
+            [{ body: 'Deployed to preview.', url: `${PR_URL}#issuecomment-0` }],
+            [{ body: linked, url: summaryUrl }],
+        );
+        expect(parseReviewFeedback(output).codexReviews[0]).toMatchObject({
+            name: 'Code Review',
+            url: summaryUrl,
+        });
     });
 });
 

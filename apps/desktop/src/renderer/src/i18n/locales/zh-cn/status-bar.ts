@@ -166,6 +166,8 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.workbenchRoot.authorizeMessage':
         '允许 Caxri 访问分支“{{branch}}”的文件夹“{{path}}”吗？此会话中的文件、编辑器和 Git 将切换到该 Worktree。',
     'statusBar.workbenchRoot.authorizeConfirm': '授权并切换',
+    'statusBar.workbenchRoot.authorizeDontAskAgain': '不再询问',
+    'statusBar.workbenchRoot.dontAskAgainFailed': '无法保存 Worktree 授权偏好',
     'statusBar.workbenchRoot.authorizeFailed': '无法授权工作台根目录',
     'statusBar.workbenchRoot.switchFailed': '无法切换工作台根目录',
     'statusBar.workbenchRoot.detached': '分离的 HEAD',

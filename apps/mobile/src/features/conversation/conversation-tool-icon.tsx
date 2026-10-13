@@ -17,6 +17,7 @@ import {
     FileText,
     FolderOpen,
     Globe,
+    Hourglass,
     Image,
     Layers,
     ListTodo,
@@ -33,6 +34,7 @@ import { conversationStyles as styles } from './conversation-styles';
 
 const TOOL_ICONS: Record<AgentToolKind, ComponentType<LucideProps>> = {
     agent: Bot,
+    manage: Bot,
     browser: Globe,
     command: SquareTerminal,
     computer: Command,
@@ -48,6 +50,7 @@ const TOOL_ICONS: Record<AgentToolKind, ComponentType<LucideProps>> = {
     skill: Sparkles,
     stop: CircleStop,
     thought: Brain,
+    wait: Hourglass,
     web: Globe,
     write: FilePlus,
 };
