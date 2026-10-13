@@ -1,17 +1,14 @@
 import type { DragEvent, RefObject } from 'react';
 import { useImperativeHandle } from 'react';
 
-import type { TerminalRecord } from '@caxri/protocol';
+import type { AgentChatPathReference, TerminalRecord } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
-import { isOsFileReferenceRefused } from '../../../lib/file-drag';
+import { isOsFileDrag, isOsFileReferenceRefused, osFilePaths } from '../../../lib/file-drag';
 import { pushToast } from '../../../stores/toasts';
-import {
-    terminalDropInput,
-    terminalFilesInput,
-    terminalPathsInput,
-} from '../../terminal/terminal-drop';
+import { terminalDropInput } from '../../terminal/terminal-drop';
 import { draftWithInsertion } from '../agent-chat-drafts';
+import { agentChatOsFileReferences } from '../agent-chat-path-attachments';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
 import type { AgentChatDropHandlers } from './use-agent-chat-file-input';
 import { useAgentChatFileInput } from './use-agent-chat-file-input';
@@ -20,9 +17,10 @@ import { useAgentChatLongPaste } from './use-agent-chat-long-paste';
 
 /**
  * Everything that puts content into the composer besides typing: pasted, dropped, and picked files (images attach,
- * other files are cited by path), long pastes saved to a file, and Cmd+Shift+V's plain-text paste. Returns the file
- * input handlers, the plain-text paste, and whether picked images are still being read or a long paste saved, which
- * holds Send.
+ * other files and folders from another application become cards the message cites by path, and Caxri's own Files,
+ * Editor tab, and Project drags are cited in the text), long pastes saved to a file, and Cmd+Shift+V's plain-text
+ * paste. Returns the file input handlers, the plain-text paste, and whether picked images are still being read or a
+ * long paste saved, which holds Send.
  */
 export function useAgentChatComposerInput({
     draft,
@@ -38,7 +36,7 @@ export function useAgentChatComposerInput({
 }: {
     draft: string;
     dropHandlersReference: RefObject<AgentChatDropHandlers | null>;
-    images: Pick<ReturnType<typeof useAgentChatAttachments>, 'add' | 'isReading'>;
+    images: Pick<ReturnType<typeof useAgentChatAttachments>, 'add' | 'addPaths' | 'isReading'>;
     inputReference: RefObject<HTMLTextAreaElement | null>;
     providerName: string;
     setDraft: (update: (current: string) => string) => void;
@@ -65,20 +63,19 @@ export function useAgentChatComposerInput({
         });
     };
     /**
-     * A dropped or picked file is cited by path the way a drop into a Terminal pastes one, relative to where the Agent
-     * runs, and lands at the caret. Returns whether it inserted anything.
+     * Cites what a drop or pick carries besides the images it attached. Files and folders from another application
+     * (Finder, a file picker, or a paste) become cards, as in the Codex app; a Files entry, an Editor tab, or a Project
+     * is cited at the caret by path relative to where the Agent runs, the way a drop into a Terminal pastes one,
+     * because the user drags those into the sentence they are writing. Returns whether it cited anything.
      */
     const didInsertPaths = (event: DragEvent | undefined, files: readonly File[]): boolean => {
-        const input =
-            terminal &&
-            (event
-                ? terminalDropInput(event, terminal, workbenchRoot, files)
-                : terminalFilesInput(files, terminal, workbenchRoot));
-        if (input) {
-            insertText(input);
-            return true;
+        if (event && !isOsFileDrag(event.dataTransfer)) {
+            const input = terminal && terminalDropInput(event, terminal, workbenchRoot, files);
+            if (input) insertText(input);
+            return Boolean(input);
         }
-        if (files.length > 0)
+        if (files.length === 0) return false;
+        if (osFilePaths(files).length === 0) {
             pushToast(
                 'warning',
                 translate(
@@ -87,17 +84,17 @@ export function useAgentChatComposerInput({
                         : 'agentChat.composer.fileHasNoPath',
                 ),
             );
-        return false;
+            return false;
+        }
+        // eslint-disable-next-line no-void -- reading whether each one is a folder cannot fail
+        void agentChatOsFileReferences(files).then(images.addPaths);
+        return true;
     };
     /**
-     * Paths picked in the native panel, files and folders alike, cited the same way. Returns whether it inserted
-     * anything.
+     * Files and folders picked in the native panel, as cards. Returns whether it attached anything.
      */
-    const didInsertPickedPaths = (paths: readonly string[]): boolean => {
-        const input = terminal && terminalPathsInput(paths, terminal, workbenchRoot);
-        if (input) insertText(input);
-        return Boolean(input);
-    };
+    const didInsertPickedPaths = (references: readonly AgentChatPathReference[]): boolean =>
+        images.addPaths(references).length > 0;
     const longPaste = useAgentChatLongPaste({
         insert: insertText,
         inputReference,

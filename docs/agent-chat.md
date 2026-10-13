@@ -950,13 +950,24 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   `dialog.selectPaths`, which takes several files and folders at once (Chromium's file input cannot
   pick a folder together with files). It grants nothing, unlike the Project folder dialog, so a pick
   never widens what a Project may reach. When the provider takes images, Main returns each picked
-  image's bytes (up to 64 MB across the pick) so it attaches as a dropped one would; a folder is
-  cited by path like any other file. An SSH Host window keeps Chromium's file-only picker as Files,
-  since a path on this Mac means nothing to an Agent on the SSH Host, while a picked image still
-  attaches. A picked or dropped file that is not an attachable image, and every file for a provider without image input such as Grok Build, is
-  inserted at the caret as its path, relative to the Agent's directory and quoted the way a
-  Terminal drop is. Every provider reads files from disk with its own tools, so a path is the one
-  representation all three send paths share; no file contents are inlined.
+  image's bytes (up to 64 MB across the pick) so it attaches as a dropped one would. An SSH Host
+  window keeps Chromium's file-only picker as Files, since a path on this Mac means nothing to an
+  Agent on the SSH Host, while a picked image still attaches. Every other picked file or folder,
+  every file or folder dropped or pasted from Finder, and every file for a provider without image
+  input such as Grok Build, becomes a card in the attachment tray beside the image thumbnails, as
+  in the Codex app: an icon tile, the name, and `File` or `Folder`, with the full path in its
+  tooltip (a dropped folder is told from a file because reading its first byte fails). Cards persist
+  with the draft's images. On send the composer puts them ahead of the typed text in the Codex app's
+  layout, `# Files mentioned by the user:`, one `## name: /absolute/path` line each (a folder's
+  path ends in `/`), then `## My request for <provider>:` and the text
+  (`agent-chat-path-references.ts`), so the Agent reads each from disk with its own tools and no
+  file contents are inlined. Every Client parses that block back: the transcript, the pending row,
+  the queue, the message rail, prompt history, Copy, Edit, and Fork show only the typed words, and a
+  sent message shows each reference as a chip under its images. Clicking a chip calls the Desktop
+  method `agentChat.openPathReference`, which opens a folder in Finder and reveals a file (or an
+  app-like bundle such as `.app`, which opening would launch) in its folder. A Files entry, an
+  Editor tab, or a Project dragged from inside Caxri is still inserted at the caret as its path,
+  relative to the Agent's directory and quoted the way a Terminal drop is.
 - **Long paste.** Pasted text longer than the `agentChat.longPasteThreshold` setting (default
   32 KiB, `AGENT_CHAT_LONG_PASTE_THRESHOLD`, T3 Code's pasted-text attachment size), or any paste
   the 100,000-character message limit would otherwise cut, never enters the input. Raising the
@@ -970,7 +981,7 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   it fits; Cmd+Shift+V pastes as text from the start, skipping the save.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
   `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
-  queue.
+  queue. Codex also lists `/goal` (see [Goals](#goals)).
   Claude Code reports its own list (built-in commands, skills, and custom commands) from the SDK's
   `initialize` response and `commands_changed`, minus the `terminal_slash_commands` that only make
   sense in its terminal UI; the command runs as prompt text, as in Claude Code itself.
@@ -992,6 +1003,34 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   condensed copy of that conversation; see
   [Citing another Session](session-conversation-context.md#citing-another-session-with-).
 - Image bytes, thumbnails, and command arguments never reach logs.
+
+## Goals
+
+A goal is an objective the provider keeps working toward across turns. Only Codex has native goals
+(app-server `thread/goal/*`), so only a Codex Chat lists `/goal` and reports the snapshot's `goal`
+(objective, status, tokens, and the time Codex has counted).
+
+- `/goal <objective>` sets the goal, and `/goal pause`, `/goal resume`, and `/goal clear` act on it,
+  as in the Codex CLI (`parseAgentChatGoalArguments`). Bare `/goal` is refused. Every change carries
+  `origin: "user"`, which Codex records in the conversation as the user's authorization. A new
+  objective replaces a goal that is not complete by clearing it first, because setting an objective on
+  an existing goal edits it and keeps its time and tokens.
+- Codex starts each turn that pursues an active goal on its own: on `thread/goal/set` while the thread
+  is idle, and again after every turn until the goal completes, is paused, stalls (`blocked`, after
+  turns that made no progress), or hits a usage or token budget limit. Server Core never sends
+  `turn/start` for it; the turns arrive through the usual `turn/started` notifications.
+- A goal change is not a turn, so `/goal` runs at once even during a turn and never waits in the
+  follow-up queue (`AgentChatProviderSession.isImmediateCommand`). Pausing or clearing lets the
+  running turn finish; Codex only stops starting new ones.
+- Stop pauses an active goal before it interrupts the turn, as the Codex CLI does. Otherwise Codex
+  would start the next turn for the goal as soon as the interrupted one ended.
+- `thread/goal/updated` and `thread/goal/cleared` keep `goal` current. Opening a thread reads it with
+  `thread/goal/get` after the history replay, whose `reset` drops it, so a resumed Chat shows its goal
+  again. `goal.updatedAt` is when Server Core received the report: Codex counts time only while a turn
+  works on an active goal and reports it at turn boundaries, so a Client adds the running turn's time
+  since the later of its start and that report (`agentChatGoalElapsedSeconds`).
+- Desktop shows the goal as a row in the composer strip and enters Goal mode from `/goal` or the Add
+  menu (see `DESIGN.md`). The phone runs `/goal` as a command and shows no goal row.
 
 ## Context usage and cache
 

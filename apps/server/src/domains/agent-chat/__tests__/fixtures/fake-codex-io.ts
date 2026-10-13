@@ -45,6 +45,10 @@ export interface FakeThread {
      * The collaboration mode the last `turn/start` named (`plan` or `default`), which a resumed thread reports.
      */
     collaborationMode?: string;
+    /**
+     * The thread goal `thread/goal/set` saved, in Codex's wire shape.
+     */
+    goal?: Json;
 }
 
 /**
@@ -73,6 +77,10 @@ export interface FakeCodexIo {
      * Starts a turn of the Chat's own thread that Caxri did not ask for with `turn/start`.
      */
     beginTurn(): FakeTurn;
+    /**
+     * Whether a turn of the Chat's own thread is running.
+     */
+    hasActiveTurn(): boolean;
     finishTurn(turn: FakeTurn): void;
     /**
      * Sends an app-server request to the client and resolves with its response.

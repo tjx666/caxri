@@ -13,14 +13,16 @@ import { useEnvironmentStore } from '../../stores/environment';
 
 /**
  * One attachment as stored; the composer's `AgentChatAttachment` has the same shape, thumbnail included, so a restored
- * chip shows at once without decoding the image again.
+ * chip shows at once without decoding the image again. A file or folder card stores only its path.
  */
-export interface PersistedAgentChatAttachment {
-    id: string;
-    image: AgentChatImageInput;
-    name?: string;
-    isResized?: boolean;
-}
+export type PersistedAgentChatAttachment =
+    | {
+          id: string;
+          image: AgentChatImageInput;
+          name?: string;
+          isResized?: boolean;
+      }
+    | { id: string; path: string; isDirectory: boolean };
 
 export interface PersistedAgentChatAttachmentRecord {
     terminalId: string;
@@ -51,11 +53,14 @@ const MAX_PERSISTED_AGENT_CHAT_ATTACHMENT_CHARACTERS = 128 * 1024 * 1024;
  */
 export function parsePersistedAgentChatAttachments(value: unknown): PersistedAgentChatAttachment[] {
     if (!Array.isArray(value)) return [];
-    return value.flatMap((entry: unknown) => {
+    return value.flatMap((entry: unknown): PersistedAgentChatAttachment[] => {
         if (typeof entry !== 'object' || entry === null) return [];
-        const { id, image, isResized, name } = entry as Record<string, unknown>;
+        const { id, image, isDirectory, isResized, name, path } = entry as Record<string, unknown>;
+        if (typeof id !== 'string' || !id) return [];
+        if (typeof path === 'string' && path.startsWith('/'))
+            return [{ id, path, isDirectory: isDirectory === true }];
         const parsed = agentChatImageInputSchema.safeParse(image);
-        if (typeof id !== 'string' || !id || !parsed.success) return [];
+        if (!parsed.success) return [];
         return [
             {
                 id,
@@ -71,7 +76,10 @@ export function agentChatAttachmentCharacters(
     attachments: readonly PersistedAgentChatAttachment[],
 ): number {
     return attachments.reduce(
-        (total, { image }) => total + image.data.length + image.thumbnail.length,
+        (total, attachment) =>
+            'image' in attachment
+                ? total + attachment.image.data.length + attachment.image.thumbnail.length
+                : total + attachment.path.length,
         0,
     );
 }

@@ -1,11 +1,17 @@
 import type {
+    AgentChatGoalChange,
     AgentChatMessageInput,
     AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatPermission,
     AgentChatResponse,
 } from '@caxri/protocol';
-import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import {
+    AGENT_CHAT_GOAL_COMMAND,
+    CaxriError,
+    MAX_AGENT_CHAT_TEXT_LENGTH,
+    parseAgentChatGoalArguments,
+} from '@caxri/protocol';
 
 import {
     clip,
@@ -28,6 +34,7 @@ import type {
 import type { CodexThreadSettings } from './codex-chat-types';
 import { CodexComputerUseBindings } from './codex-computer-use';
 import { CodexDeliveryCheck, TURN_REQUEST_TIMEOUT_MS } from './codex-delivery-check';
+import { CodexGoals } from './codex-goals';
 import {
     CODEX_COMMANDS,
     codexClientMessageId,
@@ -85,6 +92,8 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private readonly permissions: CodexPermissions;
 
+    private readonly goals: CodexGoals;
+
     constructor(private readonly options: AgentChatSessionHost) {
         const opening = codexOpeningSettings(options);
         this.settings = opening.settings;
@@ -99,6 +108,7 @@ class CodexChatSession implements AgentChatProviderSession {
         this.models = new CodexModelSettings(options, this.permissions);
         this.deliveries = new CodexDeliveryCheck(options, () => this.threadId);
         this.requests = new CodexRequestBroker(options, () => this.threadId);
+        this.goals = new CodexGoals(options, () => this.threadId);
     }
 
     private requireConnection(): JsonRpcConnection {
@@ -242,6 +252,12 @@ class CodexChatSession implements AgentChatProviderSession {
                 ]);
                 return;
             }
+            case 'thread/goal/updated':
+            case 'thread/goal/cleared': {
+                if (!threadId || threadId === this.threadId)
+                    this.goals.onNotification(method, parameters);
+                return;
+            }
             case 'serverRequest/resolved': {
                 this.requests.onResolved(parameters.requestId);
                 return;
@@ -379,6 +395,7 @@ class CodexChatSession implements AgentChatProviderSession {
         // react-doctor-disable-next-line react-doctor/server-sequential-independent-await -- Listing needs the connection `open` creates, and the default effort reads the thread it reported.
         const modelState = await this.models.load(this.requireConnection());
         this.options.apply([{ op: 'state', state: { commands: CODEX_COMMANDS, ...modelState } }]);
+        await this.goals.load(this.requireConnection());
         // eslint-disable-next-line no-void -- best effort: an unreadable list leaves the tasks as they are
         void this.tasks.reconcileTerminals();
         return outcome;
@@ -445,7 +462,17 @@ class CodexChatSession implements AgentChatProviderSession {
         if (turnId) this.beginTurn(turnId);
     }
 
-    async runCommand(name: string): Promise<void> {
+    isImmediateCommand(name: string): boolean {
+        return name === AGENT_CHAT_GOAL_COMMAND;
+    }
+
+    async runCommand(name: string, arguments_?: string): Promise<void> {
+        if (name === AGENT_CHAT_GOAL_COMMAND) {
+            const change: AgentChatGoalChange | undefined = parseAgentChatGoalArguments(arguments_);
+            if (!change) throw new CaxriError('VALIDATION', 'Describe the goal after /goal');
+            await this.goals.change(this.requireConnection(), change);
+            return;
+        }
         if (name !== 'compact')
             throw new CaxriError('VALIDATION', `/${name} is not available in Codex Chat`);
         if (this.options.read().activeTurnId)
@@ -491,6 +518,7 @@ class CodexChatSession implements AgentChatProviderSession {
         const connection = this.requireConnection();
         const { activeTurnId } = this.options.read();
         if (!activeTurnId) return;
+        await this.goals.pauseForInterrupt(connection);
         try {
             await connection.request(
                 'turn/interrupt',

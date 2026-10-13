@@ -2,6 +2,7 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
+import { agentChatGoalSchema } from './agent-chat-goal-contract.js';
 import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-requests.js';
 import { agentChatUsageSchema } from './agent-chat-usage.js';
@@ -125,6 +126,11 @@ export const agentChatCommandSchema = z.strictObject({
      * Placeholder for the command's arguments, such as `<file>`. A command without one runs as soon as it is chosen.
      */
     argumentHint: z.string().max(200).optional(),
+    /**
+     * Marks the provider's native goal command (Codex's `/goal`), which the composer's Goal mode drives. A same-named
+     * custom command, such as a Claude Code `/goal` skill, carries no mark and runs like any other command.
+     */
+    goal: z.literal(true).optional(),
 });
 
 /**
@@ -440,6 +446,11 @@ export const agentChatSnapshotSchema = z.strictObject({
     activeTurnId: z.string().max(200).optional(),
     requests: z.array(agentChatRequestSchema).max(20),
     plan: agentChatPlanSchema.optional(),
+    /**
+     * The goal the provider pursues across turns. Present only for a provider with native goals (Codex) while one is
+     * set.
+     */
+    goal: agentChatGoalSchema.optional(),
     model: z.string().max(200).optional(),
     /**
      * The reasoning effort the next turn uses, when the provider reports it.
@@ -521,6 +532,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 activeTurnId: agentChatSnapshotSchema.shape.activeTurnId.unwrap().nullable(),
                 requests: agentChatSnapshotSchema.shape.requests,
                 plan: agentChatSnapshotSchema.shape.plan.unwrap().nullable(),
+                goal: agentChatSnapshotSchema.shape.goal.unwrap().nullable(),
                 model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
                 effort: agentChatSnapshotSchema.shape.effort.unwrap().nullable(),
                 ultracode: agentChatSnapshotSchema.shape.ultracode.unwrap().nullable(),

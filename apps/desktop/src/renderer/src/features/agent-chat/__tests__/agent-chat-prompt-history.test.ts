@@ -8,6 +8,12 @@ import {
     stepAgentChatPromptHistory,
 } from '../agent-chat-prompt-history';
 
+/**
+ * A message that cites one folder, as the composer sends it.
+ */
+const FOLDER_MESSAGE =
+    '# Files mentioned by the user:\n\n## prettier-config: /work/prettier-config/\n\n## My request for Codex:\n';
+
 const user = (id: string, text: string): AgentChatItem => ({
     id,
     type: 'userMessage',
@@ -29,6 +35,15 @@ const bare = {
 };
 
 describe('agentChatPromptHistory', () => {
+    it('recalls the words of a message that cited files, without the references', () => {
+        expect(
+            agentChatPromptHistory([
+                user('u1', `${FOLDER_MESSAGE}tidy it`),
+                user('u2', FOLDER_MESSAGE),
+            ]),
+        ).toEqual([{ id: 'u1', prompt: 'tidy it' }]);
+    });
+
     it('lists sent prompts oldest first, collapsing repeats and skipping image-only messages', () => {
         const items: AgentChatItem[] = [
             user('u1', 'first'),

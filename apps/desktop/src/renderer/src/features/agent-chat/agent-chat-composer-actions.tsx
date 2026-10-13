@@ -1,11 +1,14 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { ArrowUp, CornerDownLeft } from 'lucide-react';
+import { ArrowUp, CornerDownLeft, Goal, Lightbulb } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { Separator } from '../../components/ui/separator';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useTranslation } from '../../i18n';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { useTerminal } from '../../stores/selectors';
 import type { SessionReferenceCandidate } from '../session/session-reference';
-import { AgentChatAddMenu, AgentChatPlanChip } from './agent-chat-add-menu';
+import { AgentChatAddMenu, AgentChatModeChip } from './agent-chat-add-menu';
 import { agentChatContextUsage } from './agent-chat-context';
 import { AgentChatContextMeter } from './agent-chat-context-meter';
 import { AgentChatModelMenu } from './agent-chat-model-menu';
@@ -73,6 +76,7 @@ export function AgentChatComposerActions({
     isStopping,
     onCompact,
     onGoal,
+    onTurnOffGoalMode,
     onPick,
     onPickPaths,
     onReferenceSession,
@@ -114,9 +118,13 @@ export function AgentChatComposerActions({
      */
     onCompact: (() => void) | undefined;
     /**
-     * Turns the draft into the provider's goal command, or `undefined` when the provider reports none.
+     * Puts the composer in Goal mode, or `undefined` when the provider reports no goal command.
      */
     onGoal: (() => void) | undefined;
+    /**
+     * Leaves Goal mode; defined only while it is on, which shows the Goal chip.
+     */
+    onTurnOffGoalMode: (() => void) | undefined;
     /**
      * Routes picked files: images attach, anything else is cited by path.
      */
@@ -153,6 +161,8 @@ export function AgentChatComposerActions({
         | undefined;
     terminalId: string;
 }) {
+    const { t } = useTranslation();
+    const planModeShortcut = useCommandShortcut('agentChat.togglePlanMode');
     const contextUsage = agentChatContextUsage(snapshot);
     const terminal = useTerminal(terminalId);
     const provider = terminal && terminal.kind !== 'shell' ? terminal.kind : undefined;
@@ -182,7 +192,12 @@ export function AgentChatComposerActions({
                     }
                 />
                 {planMode && (
-                    <AgentChatPlanChip
+                    <AgentChatModeChip
+                        icon={Lightbulb}
+                        label={t('agentChat.permission.plan')}
+                        name={t('agentChat.permission.planMode')}
+                        shortcut={planModeShortcut}
+                        turnOffLabel={t('agentChat.add.turnOffPlanMode')}
                         onTurnOff={() => permission.configure({ planMode: false })}
                     />
                 )}
@@ -192,6 +207,21 @@ export function AgentChatComposerActions({
                     selection={permission}
                     terminalId={terminalId}
                 />
+                {onTurnOffGoalMode && (
+                    <>
+                        <Separator
+                            className="mx-1 data-[orientation=vertical]:h-4"
+                            orientation="vertical"
+                        />
+                        <AgentChatModeChip
+                            icon={Goal}
+                            label={t('agentChat.add.goal')}
+                            name={t('agentChat.add.goalMode')}
+                            turnOffLabel={t('agentChat.add.turnOffGoalMode')}
+                            onTurnOff={onTurnOffGoalMode}
+                        />
+                    </>
+                )}
             </div>
             <div className="flex min-w-0 items-center gap-0.5">
                 {contextUsage && (

@@ -1,4 +1,5 @@
 import type { AgentChatQueuedMessage } from './agent-chat-contract.js';
+import { agentChatPathReferencePreview } from './agent-chat-path-references.js';
 
 /**
  * One queued follow-up as the queue card's row names it, on Desktop and on the phone.
@@ -39,7 +40,10 @@ export function agentChatQueueEntry(
     const imageCount = message.imageCount ?? 0;
     return {
         id: message.id,
-        preview: (message.command ? (message.command.arguments ?? '') : message.text)
+        preview: (message.command
+            ? (message.command.arguments ?? '')
+            : agentChatPathReferencePreview(message.text)
+        )
             .replaceAll(/\s+/gu, ' ')
             .trim(),
         commandLabel: message.command && `/${message.command.name}`,

@@ -1,11 +1,15 @@
 import { useRef, useState } from 'react';
 
+import type { AgentChatPathReference } from '@caxri/protocol';
+
 import { translate } from '../../../i18n';
 import { pushToast } from '../../../stores/toasts';
 import type { AgentChatAttachment } from '../agent-chat-drafts';
 import {
+    agentChatAttachmentsWithPaths,
     attachmentsAfterSend,
     attachmentsWithReturned,
+    isAgentChatImageAttachment,
     readAgentChatAttachments,
     writeAgentChatAttachments,
 } from '../agent-chat-drafts';
@@ -19,10 +23,14 @@ import {
     readAgentChatImage,
 } from '../agent-chat-images';
 
+/**
+ * What `attachments` hold against the image limits. A file or folder card is sent as a path and counts toward neither.
+ */
 function reservationOf(attachments: readonly AgentChatAttachment[]): AgentChatImageReservation {
+    const images = attachments.filter(isAgentChatImageAttachment);
     return {
-        count: attachments.length,
-        bytes: attachments.reduce(
+        count: images.length,
+        bytes: images.reduce(
             (total, attachment) => total + agentChatImageBytes(attachment.image),
             0,
         ),
@@ -30,8 +38,8 @@ function reservationOf(attachments: readonly AgentChatAttachment[]): AgentChatIm
 }
 
 /**
- * The composer's image attachments: validated and read as they are pasted, dropped, or picked, kept per Chat across
- * remounts, and cleared once the message that carried them was accepted.
+ * The composer's attachments: images validated and read as they are pasted, dropped, or picked, and file or folder
+ * cards (`addPaths`), kept per Chat across remounts and cleared once the message that carried them was accepted.
  */
 export function useAgentChatAttachments(terminalId: string) {
     const [attachments, setAttachments] = useState(() => readAgentChatAttachments(terminalId));
@@ -106,6 +114,27 @@ export function useAgentChatAttachments(terminalId: string) {
             })),
         ]);
     };
+    /**
+     * Adds a card for each of `references`, skipping a path already attached. Returns the ids it gave the new cards; a
+     * skipped path's id matches no card.
+     */
+    const addPaths = (references: readonly AgentChatPathReference[]): string[] => {
+        if (references.length === 0) return [];
+        const added = references.map(({ isDirectory, path }) => ({
+            id: crypto.randomUUID(),
+            path,
+            isDirectory,
+        }));
+        update((current) => agentChatAttachmentsWithPaths(current, added));
+        return added.map(({ id }) => id);
+    };
+    /**
+     * Removes the cards `ids` names, such as the ones an "Edit from here" brought back when the edit is cancelled.
+     */
+    const removePaths = (ids: readonly string[]): void => {
+        const removed = new Set(ids);
+        update((current) => current.filter((attachment) => !removed.has(attachment.id)));
+    };
     const release = (released: readonly AgentChatAttachment[]): void => {
         const freed = reservationOf(released);
         reserved.current = {
@@ -146,7 +175,9 @@ export function useAgentChatAttachments(terminalId: string) {
          */
         hasAttachmentRow: attachments.length > 0 || readingCount > 0,
         add,
+        addPaths,
         remove,
+        removePaths,
         clearSent,
         restoreUnsent,
     };
