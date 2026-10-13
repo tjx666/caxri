@@ -7,5 +7,6 @@ export {
     SessionConversationReferenceService,
 } from './conversation-reference';
 export { createSessionCreationHandlers, createSessionCreator } from './creation';
+export { createSessionMarkReadHandler } from './mark-read';
 export { SessionRenameService } from './rename';
 export { createSessionSelectionHandlers } from './selection-handlers';
