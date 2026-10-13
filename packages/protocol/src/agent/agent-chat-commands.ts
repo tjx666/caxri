@@ -1,4 +1,30 @@
-import type { AgentChatCommand } from './agent-chat-contract.js';
+import { z } from 'zod';
+
+export const MAX_AGENT_CHAT_COMMANDS = 200;
+
+/**
+ * A slash command the provider runs. The list is the provider's own (Claude Code reports its commands, Codex has a
+ * fixed set Caxri maps to app-server methods), so a command that is not listed is never offered.
+ */
+export const agentChatCommandSchema = z.strictObject({
+    name: z
+        .string()
+        .min(1)
+        .max(100)
+        .regex(/^[\w:.-]+$/u),
+    description: z.string().max(500).optional(),
+    /**
+     * Placeholder for the command's arguments, such as `<file>`. A command without one runs as soon as it is chosen.
+     */
+    argumentHint: z.string().max(200).optional(),
+    /**
+     * Marks the provider's native goal command (Codex's `/goal`), which the composer's Goal mode drives. A same-named
+     * custom command, such as a Claude Code `/goal` skill, carries no mark and runs like any other command.
+     */
+    goal: z.literal(true).optional(),
+});
+
+export type AgentChatCommand = z.infer<typeof agentChatCommandSchema>;
 
 /**
  * How every Chat composer (Desktop and the phone) reads a draft against the provider's runnable commands

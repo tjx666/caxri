@@ -664,7 +664,13 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   of its first scalar field, never its raw JSON input; the item's `input` keeps that JSON preview
   for the expanded row (`agentChatToolCallArguments`), and an approval card always shows the JSON
   arguments, since that is what the user decides on. MCP calls keep JSON arguments in `summary` for
-  tracker detection. A command the Agent
+  tracker detection. Desktop titles an MCP row by its tool alone and shows the server's icon: the
+  first time a tool call names a server, Server Core asks the provider for that server's MCP
+  `initialize` identity (`readMcpServer`: Codex `mcpServerStatus/list`, Claude Code
+  `mcpServerStatus()`), keeps its title, `serverInfo.icons`, and website or endpoint origins in the
+  snapshot's `mcpServers`, and retries a server that was still connecting after a minute, at most
+  three times. Main fetches a remote icon through `links.favicon`, falling back to the sites'
+  `/favicon.ico`. The phone receives no `mcpServers` and keeps the server name in the label. A command the Agent
   described (Claude Code's `Bash` description) is titled by that description, and its command line
   moves into the expanded view. A row shows its duration once it reaches a second, a non-zero `Exit N`, and a
   `Background` tag for a hand-off; the expanded view ends with its exit code. Codex reports no
