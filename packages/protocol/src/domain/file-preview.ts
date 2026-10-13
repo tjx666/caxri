@@ -1,4 +1,4 @@
-import { isExternalEditorTabPath, parseExternalEditorTab } from './external-editor-tab.js';
+import { isExternalEditorTabPath } from './external-editor-tab.js';
 
 /**
  * Virtual editor tab that renders a file instead of editing it: Markdown as formatted text, `.svg` as an image. The
@@ -42,15 +42,4 @@ export function filePreviewExtension(path: string): string {
     const name = path.slice(path.lastIndexOf('/') + 1);
     const dot = name.lastIndexOf('.');
     return dot <= 0 ? '' : name.slice(dot + 1).toLowerCase();
-}
-
-/**
- * The preview tab's label. `Preview:` tells a preview apart from the source tab of the same file; a format whose only
- * view is the preview (a PDF) has no source tab to be told apart from, so the caller drops the prefix with `isOnlyView`
- * and the tab reads as the bare filename.
- */
-export function filePreviewTabLabel(path: string, options: { isOnlyView?: boolean } = {}): string {
-    const external = parseExternalEditorTab(path);
-    const name = external ? external.name : path.slice(path.lastIndexOf('/') + 1);
-    return options.isOnlyView ? name : `Preview: ${name}`;
 }

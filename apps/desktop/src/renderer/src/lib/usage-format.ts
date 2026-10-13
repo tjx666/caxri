@@ -2,11 +2,9 @@ import type { Translate } from '../i18n';
 import { translate } from '../i18n';
 
 /**
- * Localized counterparts of the worded `@caxri/protocol` usage formatters (`formatDuration`, `formatLimitWindowName`,
- * `formatLimitReset`). The protocol versions stay English because the CLI and the phone share them; these follow the
- * same thresholds so English output is byte-identical, and only the unit words change with the interface language.
- * Number-only formatters (`formatTokens`, `formatUsd`, `formatPercent`) need no counterpart: their `k`/`M`/`B` and `$`
- * suffixes read the same in every supported language.
+ * Worded usage formatters (durations, rate-limit window names, reset times) whose unit words follow the interface
+ * language. They have no `@caxri/protocol` counterpart. Number-only formatters (`formatTokens`, `formatUsd`,
+ * `formatPercent`) stay in the protocol: their `k`/`M`/`B` and `$` suffixes read the same in every supported language.
  */
 
 /**
@@ -25,7 +23,7 @@ export function localizedDuration(ms: number, t: Translate = translate): string 
         return rest > 0
             ? t('core.usageFormat.hoursMinutes', { hours, minutes: rest })
             : t('core.usageFormat.hours', { hours });
-    // Grouped like the protocol's hand-rolled `groupThousands`, which matches `en-US` grouping.
+    // Grouped like the protocol's hand-rolled `groupThousands` (used by `formatUsd`), which matches `en-US` grouping.
     return t('core.usageFormat.hours', { hours: hours.toLocaleString('en-US') });
 }
 

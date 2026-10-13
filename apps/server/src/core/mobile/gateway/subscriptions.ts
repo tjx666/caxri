@@ -24,6 +24,12 @@ interface Subscription {
      * The Session's Project root an Agent Chat subscription names changed files against.
      */
     agentChatProjectRoot?: string;
+    /**
+     * Set while the root is resolved again after a Session's Workbench Project changed (an Agent's worktree was
+     * followed or the user picked another root). Patches published meanwhile ask the phone to re-read instead, because
+     * a read resolves the current root and a patch clipped with the old one would name the same file differently.
+     */
+    agentChatRootRefresh?: symbol;
     closeConversation?: () => void;
     id: string;
     pendingBytes: number;
@@ -120,11 +126,19 @@ export class MobileGatewaySubscriptions {
         };
         this.#subscriptions.set(id, subscription);
         if (resource.kind === 'agentChat' && this.#options.agentChatProjectRoot) {
+            // The first lookup holds the same token a later refresh would replace, so a `workbench.changed` that arrives
+            // while it is pending wins even when this slower lookup returns last.
+            const initial = Symbol('agentChatRootRefresh');
+            subscription.agentChatRootRefresh = initial;
             try {
-                subscription.agentChatProjectRoot = await this.#options.agentChatProjectRoot(
+                const root = await this.#options.agentChatProjectRoot(
                     this.#options.currentPrincipal(),
                     resource.terminalId,
                 );
+                if (subscription.agentChatRootRefresh === initial) {
+                    subscription.agentChatProjectRoot = root;
+                    subscription.agentChatRootRefresh = undefined;
+                }
             } catch (error) {
                 this.unsubscribe(id);
                 throw error;
@@ -276,15 +290,21 @@ export class MobileGatewaySubscriptions {
                 break;
             }
             case 'agentChat': {
+                if (event.event === 'workbench.changed') {
+                    this.#refreshAgentChatProjectRoot(subscription, resource.terminalId);
+                    break;
+                }
                 if (
                     subscription.activated &&
                     event.event === 'agentChat.patch' &&
                     event.payload.terminalId === resource.terminalId
                 ) {
-                    const patch = clipAgentChatPatchForMobile(
-                        event.payload,
-                        subscription.agentChatProjectRoot,
-                    );
+                    const patch = subscription.agentChatRootRefresh
+                        ? undefined
+                        : clipAgentChatPatchForMobile(
+                              event.payload,
+                              subscription.agentChatProjectRoot,
+                          );
                     this.#queue(
                         subscription,
                         event,
@@ -317,6 +337,41 @@ export class MobileGatewaySubscriptions {
         subscription.pendingBytes += bytes;
         this.#pendingBytes += bytes;
         return true;
+    }
+
+    /**
+     * `workbench.changed` names a Session, not a Terminal, so every Chat subscription resolves its root again; the
+     * lookup is one database read per subscription and there are at most a handful per connection.
+     */
+    #refreshAgentChatProjectRoot(subscription: Subscription, terminalId: string): void {
+        const resolveRoot = this.#options.agentChatProjectRoot;
+        if (!resolveRoot || !this.#isActive(subscription)) return;
+        const refresh = Symbol('agentChatRootRefresh');
+        subscription.agentChatRootRefresh = refresh;
+        // eslint-disable-next-line no-void -- the refresh catches its own failures; publish must not wait for it
+        void this.#applyAgentChatProjectRoot(subscription, terminalId, resolveRoot, refresh);
+    }
+
+    /**
+     * Applies the resolved root only while `refresh` is still the latest request, so a slower earlier lookup never
+     * overwrites a newer one.
+     */
+    async #applyAgentChatProjectRoot(
+        subscription: Subscription,
+        terminalId: string,
+        resolveRoot: NonNullable<MobileSubscriptionOptions['agentChatProjectRoot']>,
+        refresh: symbol,
+    ): Promise<void> {
+        try {
+            const root = await resolveRoot(this.#options.currentPrincipal(), terminalId);
+            if (subscription.agentChatRootRefresh === refresh)
+                subscription.agentChatProjectRoot = root;
+        } catch {
+            // Keep the previous root: a lost grant ends the subscription through authorization, not here.
+        } finally {
+            if (subscription.agentChatRootRefresh === refresh)
+                subscription.agentChatRootRefresh = undefined;
+        }
     }
 
     #release(subscription: Subscription, bytes: number): void {

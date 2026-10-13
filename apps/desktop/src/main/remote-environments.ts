@@ -37,7 +37,7 @@ export interface RemoteHostSupervisor extends DesktopServerSupervisor {
     dispose(): Promise<void>;
 }
 
-type RemoteStatePatch = Partial<Omit<SshEnvironmentState, 'destination' | 'kind'>>;
+type RemoteStatePatch = Partial<Omit<SshEnvironmentState, 'destination' | 'hostIdentity' | 'kind'>>;
 
 /**
  * One SSH Host window and everything it is attached through.
@@ -120,11 +120,22 @@ class SshEnvironmentController implements RemoteEnvironment {
     route: RemoteRendererRoute;
     readonly sendEvent: (event: ServerEvent) => void;
 
+    /**
+     * `hostIdentity` is Main's resolved identity of the SSH Host (`keyOf`), carried in the state so the Renderer keys
+     * its device-local composer state by the SSH Host rather than by whichever alias opened the window.
+     */
     constructor(
         readonly destination: string,
+        hostIdentity: string,
         private readonly options: RemoteEnvironmentsOptions,
     ) {
-        this.current = { kind: 'ssh', destination, phase: 'connecting', needsUserAction: false };
+        this.current = {
+            kind: 'ssh',
+            destination,
+            hostIdentity,
+            phase: 'connecting',
+            needsUserAction: false,
+        };
         const parts = options.create(destination, {
             askpass: (request, signal) => this.prompt(request, signal),
             update: (patch) => this.update(patch),
@@ -378,7 +389,7 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
         // Nothing below awaits until the new environment is registered, so concurrent connects cannot both miss.
         const existing = environments.get(key);
         if (existing) return reveal(existing, destination);
-        const environment = new SshEnvironmentController(destination, options);
+        const environment = new SshEnvironmentController(destination, key, options);
         environments.set(key, environment);
         environment.window.once('closed', () => {
             if (environments.get(key) === environment) environments.delete(key);

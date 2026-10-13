@@ -2,6 +2,7 @@ import type { DragEvent } from 'react';
 
 import type { TerminalRecord } from '@caxri/protocol';
 
+import { isRemote } from '../stores/environment';
 import { isAgentProcessRunning } from './terminal-agent-runtime';
 
 /**
@@ -52,7 +53,18 @@ export function terminalDragPaths(
  * out.
  */
 export function osFilePaths(files: Iterable<File>): string[] {
+    if (isOsFileReferenceRefused()) return [];
     return Array.from(files, (file) => globalThis.caxri.pathForFile(file)).filter(Boolean);
+}
+
+/**
+ * Whether this window refuses to cite files from another application or a file picker. The preload resolves them to
+ * this Mac's paths, which an Agent on an SSH Host cannot open (the same file name there, if any, is a different file),
+ * so an SSH Host window cites none of them and the caller says why. Caxri's own Files, Editor tab, and Project drags
+ * carry SSH Host paths and still insert; images still attach because they upload their bytes.
+ */
+export function isOsFileReferenceRefused(): boolean {
+    return isRemote();
 }
 
 export function hasTerminalDraggedPath(event: DragEvent): boolean {

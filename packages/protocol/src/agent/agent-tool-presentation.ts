@@ -291,6 +291,8 @@ export const agentToolOutcomeLabel = (
             return verb ? `Not allowed to ${verb}` : `Not allowed: ${presentation.label}`;
         }
         case 'interrupted': {
+            // `Stopped stopping` reads as a typo; an interrupted stop request says what happened instead.
+            if (presentation.kind === 'stop') return 'Stop request interrupted';
             const active = ACTIVE_LABELS[presentation.kind];
             return active
                 ? `Stopped ${active.charAt(0).toLowerCase()}${active.slice(1)}`

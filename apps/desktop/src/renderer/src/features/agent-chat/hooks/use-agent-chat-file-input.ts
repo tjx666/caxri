@@ -2,7 +2,7 @@ import type { ClipboardEvent, DragEvent } from 'react';
 import { useState } from 'react';
 
 import { hasTerminalDraggedPath, PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
-import { useIsRemote } from '../../../stores/environment';
+import { useIsLocalOnlyAvailable } from '../../../stores/environment';
 import { pushToast } from '../../../stores/toasts';
 import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
 import { pickAgentChatPaths } from '../agent-chat-commands';
@@ -63,7 +63,7 @@ export function useAgentChatFileInput({
     takeLongPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => boolean;
 }) {
     const [isDragOver, setDragOver] = useState(false);
-    const isRemote = useIsRemote();
+    const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     const attach = (files: readonly File[]): void => {
         // eslint-disable-next-line no-void -- add reports unreadable or rejected images through toasts
         if (isImageInputEnabled && files.length > 0) void add(files);
@@ -97,10 +97,12 @@ export function useAgentChatFileInput({
         isDragOver,
         pick: (files: readonly File[]) => routeFiles(undefined, files),
         /**
-         * Opens the native panel for files and folders together, or `undefined` in an SSH Host window, whose Agent
-         * cannot read this Mac's paths; there `+` keeps the file-only picker (`pick`) for images.
+         * Opens the native panel for files and folders together, or `undefined` in an SSH Host window (or before the
+         * window's environment is known), whose Agent cannot read this Mac's paths; there `+` keeps the file-only
+         * picker (`pick`) for images, and any other file it picks, like one dropped from Finder, is refused with a
+         * toast instead of cited (`isOsFileReferenceRefused`).
          */
-        pickPaths: isRemote
+        pickPaths: !isLocalOnlyAvailable
             ? undefined
             : async (): Promise<void> => {
                   const picked = await pickAgentChatPaths(isImageInputEnabled);

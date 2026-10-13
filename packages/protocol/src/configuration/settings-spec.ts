@@ -318,15 +318,15 @@ export const settingsSpec = [
     },
     /**
      * The three suspension rows live under Agents although their keys keep the `terminal.` prefix: they decide when an
-     * Agent is paused, which is where a user looking for "why did my Agent restart" goes. Renaming the keys would
+     * Agent is suspended, which is where a user looking for "why did my Agent restart" goes. Renaming the keys would
      * orphan every value already written to `settings.jsonc`.
      */
     {
         kind: 'boolean',
         key: 'terminal.suspendUntouchedAgents',
-        title: 'Pause Agents you opened but never used',
+        title: 'Suspend Agents you opened but never used',
         description:
-            'Pauses an Agent you never typed into once you switch to another Session, to save memory. It picks up where it left off when you come back.',
+            'Suspends an Agent you never typed into once you switch to another Session, to save memory. It picks up where it left off when you come back.',
         category: 'agents',
         keywords: ['agent', 'suspend', 'untouched', 'idle', 'background', 'memory', 'resume'],
         default: true,
@@ -334,9 +334,9 @@ export const settingsSpec = [
     {
         kind: 'boolean',
         key: 'terminal.idleSuspension.enabled',
-        title: 'Pause idle Agents in the background',
+        title: 'Suspend idle Agents in the background',
         description:
-            'Pauses an Agent that finished its work and waited in a Session you are not viewing, to save memory. It picks up where it left off when you come back.',
+            'Suspends an Agent that finished its work and waited in a Session you are not viewing, to save memory. It picks up where it left off when you come back.',
         category: 'agents',
         keywords: [
             'agent',
@@ -353,9 +353,9 @@ export const settingsSpec = [
     {
         kind: 'integer',
         key: 'terminal.idleSuspension.afterMinutes',
-        title: 'Pause idle Agents after',
+        title: 'Suspend idle Agents after',
         description:
-            'How long an Agent waits, in a Session you are not viewing, before it is paused. Used only while Pause idle Agents in the background is on.',
+            'How long an Agent waits, in a Session you are not viewing, before it is suspended. Used only while Suspend idle Agents in the background is on.',
         category: 'agents',
         keywords: ['agent', 'suspend', 'idle', 'timeout', 'delay', 'hibernate', 'sleep'],
         min: 1,

@@ -75,6 +75,8 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.longPaste.saveFailed':
         '无法保存长文本粘贴。剪贴板内容未改变，请重试或将其保存为文件。',
     'terminal.drop.noPath': '此文件在磁盘上没有可插入的路径。请先保存，再拖入保存后的文件。',
+    'terminal.drop.localFileOnSshHost':
+        '无法在 SSH Host 上引用此 Mac 上的文件。请先将文件复制到 SSH Host，再从“文件”中拖入。',
     // Detected links, the link picker, and reference hover cards.
     'terminal.links.hint.openInEditor': '⌘ 点击以在编辑器中打开',
     'terminal.links.hint.openInBrowser': '⌘ 点击以在浏览器中打开',

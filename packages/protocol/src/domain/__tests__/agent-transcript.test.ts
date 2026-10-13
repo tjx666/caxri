@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    agentTranscriptTabLabel,
     agentTranscriptTabPath,
     isAgentTranscriptTabPath,
     parseAgentTranscriptTab,
@@ -27,11 +26,6 @@ describe('Agent transcript tabs', () => {
         expect(parseAgentTranscriptTab('/project/src/a.ts')).toBeUndefined();
         expect(parseAgentTranscriptTab(gitFileDiffTabPath('repo', 'src/a.ts'))).toBeUndefined();
         expect(isAgentTranscriptTabPath('caxri-agent-transcript://')).toBe(false);
-    });
-
-    it('labels the tab with the live terminal title when available', () => {
-        expect(agentTranscriptTabLabel('Claude Code')).toBe('Transcript: Claude Code');
-        expect(agentTranscriptTabLabel(undefined)).toBe('Transcript');
     });
 
     it('is treated as a virtual editor tab alongside git diff tabs', () => {

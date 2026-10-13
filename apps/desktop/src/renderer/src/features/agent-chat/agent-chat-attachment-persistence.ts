@@ -1,6 +1,8 @@
 import type { AgentChatImageInput, EnvironmentState } from '@caxri/protocol';
 import { agentChatImageInputSchema } from '@caxri/protocol';
 
+import { useEnvironmentStore } from '../../stores/environment';
+
 /**
  * Unsent composer images per Chat, kept across a restart the way the text draft is. They cannot share the text's
  * `localStorage` entry: one Chat may hold 20 MB of images, about 27 MB once base64-encoded, far past that quota. They
@@ -212,27 +214,81 @@ const DATABASE_NAME = 'caxri-agent-chat';
 
 /**
  * The Renderer window a store belongs to. The Agent Commander window shows only its own Chat, which the Workbench
- * snapshot excludes, so it needs a database of its own: otherwise the Workbench would prune the Commander's images as
- * unretained on every launch, and the Commander would hydrate and evict every Workbench Chat's images.
+ * snapshot excludes, so it needs a scope of its own: otherwise the Workbench would prune the Commander's images and
+ * edits as unretained on every launch, and the Commander would hydrate and evict every Workbench Chat's images.
  */
-export type AgentChatAttachmentWindow = 'commander' | 'workbench';
+export type AgentChatComposerWindow = 'commander' | 'workbench';
 
 /**
- * The IndexedDB database for one window kind and environment. Every window (local or SSH Host Workbench, and the
- * Commander) loads the same `file://` origin and so shares IndexedDB, while each Workbench retains only its own
- * environment's Chat Terminals; one shared database would let a window delete every other environment's unsent images
- * as unretained. An SSH Host window is keyed by its destination, which names one window since aliases of one account
- * reuse it. A Workbench whose environment is not known yet uses the local database: Main answers the environment before
- * the Server attaches, so a Workbench window knows it before any Chat composer exists.
+ * Which device-local composer state (unsent images, text drafts, "Edit from here") one window owns: its window kind and
+ * environment. Every window (local or SSH Host Workbench, and the Commander) loads the same `file://` origin and so
+ * shares IndexedDB and `localStorage`, while each Workbench retains only its own environment's Chat Terminals; one
+ * shared store would let a window delete every other environment's state as unretained. An SSH Host is keyed by Main's
+ * resolved host key, so every alias of one account (which Main opens as one window) finds the same state after a
+ * relaunch, whichever alias reconnected. A Workbench whose environment is not known yet uses the local scope: Main
+ * answers the environment before the Server attaches, so a Workbench window knows it before any Chat composer exists.
  */
-export function agentChatAttachmentDatabaseName(
-    window: AgentChatAttachmentWindow,
+export function agentChatComposerScope(
+    window: AgentChatComposerWindow,
     environment: EnvironmentState | undefined,
 ): string {
-    if (window === 'commander') return `${DATABASE_NAME}:commander`;
-    return environment?.kind === 'ssh'
-        ? `${DATABASE_NAME}:ssh:${environment.destination}`
-        : DATABASE_NAME;
+    if (window === 'commander') return 'commander';
+    return environment?.kind === 'ssh' ? `ssh:${environment.hostIdentity}` : 'local';
+}
+
+const composerWindow: { kind: AgentChatComposerWindow } = { kind: 'workbench' };
+
+/**
+ * Marks this Renderer as the Agent Commander window, which keeps its composer state in its own scope (see
+ * `AgentChatComposerWindow`). Called from its entry before the first render, before any composer reads its state.
+ */
+export function configureAgentChatComposerWindowForCommander(): void {
+    composerWindow.kind = 'commander';
+}
+
+/**
+ * This window's composer scope, read at each use so a Workbench that learns its environment after load keys its state
+ * by it. The one derivation the drafts, edits, and images share.
+ */
+export function currentAgentChatComposerScope(): string {
+    const environment = useEnvironmentStore.getState().state;
+    const scope = agentChatComposerScope(composerWindow.kind, environment);
+    removeLegacyAgentChatComposerState(scope, environment);
+    return scope;
+}
+
+/**
+ * Names used before composer state was split per scope: one unscoped `localStorage` entry each for drafts and edits,
+ * and SSH Host image databases keyed by destination rather than host identity.
+ */
+const LEGACY_AGENT_CHAT_STORAGE_KEYS = ['caxri.agent-chat.drafts', 'caxri.agent-chat.edits'];
+const cleanedLegacyScopes = new Set<string>();
+
+/**
+ * Deletes composer state stored under the pre-scope names once per scope and Renderer. Nothing reads those names any
+ * more, and left behind they keep counting against the shared `localStorage` quota and the disk. This is cleanup, not a
+ * migration: unsent drafts from a previous build are not carried over.
+ */
+function removeLegacyAgentChatComposerState(
+    scope: string,
+    environment: EnvironmentState | undefined,
+): void {
+    if (cleanedLegacyScopes.has(scope)) return;
+    cleanedLegacyScopes.add(scope);
+    try {
+        for (const key of LEGACY_AGENT_CHAT_STORAGE_KEYS) localStorage.removeItem(key);
+        if (environment?.kind === 'ssh' && environment.destination !== environment.hostIdentity)
+            indexedDB.deleteDatabase(`${DATABASE_NAME}:ssh:${environment.destination}`);
+    } catch {
+        // Storage can be unavailable (a locked profile, or Vitest's Node environment); the leftovers are harmless.
+    }
+}
+
+/**
+ * The IndexedDB database for one composer scope ({@link agentChatComposerScope}); the local scope keeps the bare name.
+ */
+export function agentChatAttachmentDatabaseName(scope: string): string {
+    return scope === 'local' ? DATABASE_NAME : `${DATABASE_NAME}:${scope}`;
 }
 const STORE_NAME = 'composer-attachments';
 
@@ -245,7 +301,7 @@ function requestResult<Result>(request: IDBRequest<Result>): Promise<Result> {
 
 /**
  * The Renderer's IndexedDB store, opened on first use so loading the module never touches storage; `databaseName` is
- * read at that moment (see `agentChatAttachmentDatabaseName`). A write resolves once its transaction committed.
+ * read at that moment (see `agentChatComposerScope`). A write resolves once its transaction committed.
  */
 export function indexedDatabaseAgentChatAttachmentBackend(
     databaseName: () => string,

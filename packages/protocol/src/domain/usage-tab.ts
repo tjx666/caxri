@@ -11,5 +11,3 @@ export function usageTabPath(): string {
 export function isUsageTabPath(tabPath: string): boolean {
     return tabPath === USAGE_TAB_PATH;
 }
-
-export const USAGE_TAB_LABEL = 'Usage';

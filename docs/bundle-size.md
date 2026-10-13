@@ -13,7 +13,7 @@ legitimately needs more bytes.
 
 | Artifact                  | Size       | Dominant contents                                                         |
 | ------------------------- | ---------- | ------------------------------------------------------------------------- |
-| `Caxri.app` (total)       | ~497.5 MiB | Electron 44 framework + embedded standalone Server                        |
+| `Caxri.app` (total)       | ~497.5 MiB | Electron framework (44 when measured) + embedded Server                   |
 | `Resources/server`        | ~137.6 MiB | Pinned runtime (~121 MiB), native dependencies, bundles, extensions       |
 | `app.asar`                | ~116.8 MiB | Desktop Main, Preload, and Renderer bundles plus their source maps        |
 | `out/renderer`            | ~113.2 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), Mermaid, fonts, vscode-icons, maps |

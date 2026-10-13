@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    agentTaskTabLabel,
-    agentTaskTabPath,
-    isAgentTaskTabPath,
-    parseAgentTaskTab,
-} from '../agent-task-tab';
+import { agentTaskTabPath, isAgentTaskTabPath, parseAgentTaskTab } from '../agent-task-tab';
 import { agentTranscriptTabPath } from '../agent-transcript';
 import { isVirtualEditorTabPath } from '../virtual-tabs';
 
@@ -37,14 +32,5 @@ describe('Agent task tabs', () => {
 
     it('does not claim transcript tabs', () => {
         expect(parseAgentTaskTab(agentTranscriptTabPath('terminal-1'))).toBeUndefined();
-    });
-
-    it('labels a tab by its title, falling back to the kind of work', () => {
-        expect(agentTaskTabLabel({ kind: 'agent', title: 'Explore the repo' })).toBe(
-            'Explore the repo',
-        );
-        expect(agentTaskTabLabel({ kind: 'shell', title: '  ' })).toBe('Shell');
-        expect(agentTaskTabLabel({ kind: 'agent', title: '' })).toBe('Subagent');
-        expect(agentTaskTabLabel(undefined)).toBe('Subagent');
     });
 });

@@ -4,11 +4,11 @@ import { debounce } from 'es-toolkit';
 
 import { translate } from '../../i18n';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
-import { useEnvironmentStore } from '../../stores/environment';
-import type { AgentChatAttachmentWindow } from './agent-chat-attachment-persistence';
 import {
     agentChatAttachmentDatabaseName,
+    configureAgentChatComposerWindowForCommander,
     createAgentChatAttachmentPersistence,
+    currentAgentChatComposerScope,
     indexedDatabaseAgentChatAttachmentBackend,
 } from './agent-chat-attachment-persistence';
 import type { AgentChatEdit } from './agent-chat-edit';
@@ -25,10 +25,22 @@ import { agentChatResizedImageLabel } from './agent-chat-images';
  *
  * Loaded lazily on first use so module load never touches storage, and kept in recency order (a write moves the draft
  * to the end) so trimming drops the drafts left alone longest, typically those of Chats that no longer exist.
+ *
+ * Every window shares one `localStorage`, so the entry is per composer scope (`agentChatComposerScope`), and a write
+ * merges only the Chats this window changed (`dirty`) into what storage holds now: writing the whole map read at load
+ * would erase drafts another window of the same scope saved since.
  */
-const loaded: { drafts?: Map<string, string> } = {};
+const loaded: { scope?: string; drafts?: Map<string, string> } = {};
+const dirty = new Set<string>();
 
-export const AGENT_CHAT_DRAFTS_STORAGE_KEY = 'caxri.agent-chat.drafts';
+const AGENT_CHAT_DRAFTS_STORAGE_KEY_PREFIX = 'caxri.agent-chat.drafts';
+
+/**
+ * The `localStorage` entry holding one composer scope's drafts.
+ */
+export function agentChatDraftsStorageKey(scope: string): string {
+    return `${AGENT_CHAT_DRAFTS_STORAGE_KEY_PREFIX}:${scope}`;
+}
 
 /**
  * Bounds on what is persisted, newest first. A Chat that is deleted never clears its draft, and one draft may be as
@@ -77,20 +89,36 @@ export function persistableAgentChatDrafts(
     return kept.toReversed();
 }
 
+/**
+ * Writes the drafts this window changed into its scope's entry as storage holds it now.
+ */
+function persistDirtyDrafts(): void {
+    const { drafts, scope } = loaded;
+    if (!drafts || scope === undefined || dirty.size === 0) return;
+    const key = agentChatDraftsStorageKey(scope);
+    const stored = parsePersistedAgentChatDrafts(readLocalStorageJson(key));
+    for (const terminalId of dirty) {
+        stored.delete(terminalId);
+        const text = drafts.get(terminalId);
+        if (text) stored.set(terminalId, text);
+    }
+    dirty.clear();
+    writeLocalStorageJson(key, persistableAgentChatDrafts(stored));
+}
+
 function loadedDrafts(): Map<string, string> {
-    loaded.drafts ??= parsePersistedAgentChatDrafts(
-        readLocalStorageJson(AGENT_CHAT_DRAFTS_STORAGE_KEY),
+    const scope = currentAgentChatComposerScope();
+    if (loaded.drafts && loaded.scope === scope) return loaded.drafts;
+    // A Workbench that learned its environment after typing keeps those keystrokes where they were typed.
+    persistDirtyDrafts();
+    loaded.scope = scope;
+    loaded.drafts = parsePersistedAgentChatDrafts(
+        readLocalStorageJson(agentChatDraftsStorageKey(scope)),
     );
     return loaded.drafts;
 }
 
-const persistDrafts = debounce(() => {
-    if (loaded.drafts)
-        writeLocalStorageJson(
-            AGENT_CHAT_DRAFTS_STORAGE_KEY,
-            persistableAgentChatDrafts(loaded.drafts),
-        );
-}, PERSIST_DELAY_MS);
+const persistDrafts = debounce(persistDirtyDrafts, PERSIST_DELAY_MS);
 
 // oxlint-disable-next-line typescript/no-unnecessary-condition -- absent under Vitest's Node environment
 if (typeof window !== 'undefined') {
@@ -126,27 +154,23 @@ export interface AgentChatAttachment {
  * read back once per Renderer, on first use; absent under Vitest's Node environment.
  */
 const attachments = new Map<string, AgentChatAttachment[]>();
-const attachmentWindow: { kind: AgentChatAttachmentWindow } = { kind: 'workbench' };
 const attachmentPersistence =
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- absent under Vitest's Node environment
     typeof indexedDB === 'undefined'
         ? undefined
         : createAgentChatAttachmentPersistence({
               backend: indexedDatabaseAgentChatAttachmentBackend(() =>
-                  agentChatAttachmentDatabaseName(
-                      attachmentWindow.kind,
-                      useEnvironmentStore.getState().state,
-                  ),
+                  agentChatAttachmentDatabaseName(currentAgentChatComposerScope()),
               ),
           });
 const attachmentHydration: { started: boolean } = { started: false };
 
 /**
- * Keeps the Agent Commander window's unsent images in its own store (see `AgentChatAttachmentWindow`). Called from its
- * entry before the first render, before any composer can open the store.
+ * Keeps the Agent Commander window's unsent images, text drafts, and "Edit from here" in its own scope (see
+ * `AgentChatComposerWindow`). Called from its entry before the first render, before any composer reads its state.
  */
 export function configureAgentChatAttachmentsForCommander(): void {
-    attachmentWindow.kind = 'commander';
+    configureAgentChatComposerWindowForCommander();
 }
 
 export function readAgentChatDraft(terminalId: string): string {
@@ -158,6 +182,7 @@ export function writeAgentChatDraft(terminalId: string, text: string): void {
     if (current.get(terminalId) === text || (!text && !current.has(terminalId))) return;
     current.delete(terminalId);
     if (text) current.set(terminalId, text);
+    dirty.add(terminalId);
     persistDrafts();
 }
 
@@ -234,10 +259,11 @@ export function writeAgentChatAttachments(
 }
 
 /**
- * Releases the composer state of every Chat outside `chatTerminalIds`: its unsent images (up to the attachment budget
- * per Chat), in memory and in their persisted copy, and its "Edit from here". Nothing else frees them, so a Chat that
- * was closed, deleted with its Session or Project, or switched to the Terminal surface would hold them until the window
- * reloads. The Workbench calls this whenever the set of Chat Terminals it knows changes.
+ * Releases the composer state of every Chat outside `chatTerminalIds` within this window's composer scope
+ * (`agentChatComposerScope`), never another window's: its unsent images (up to the attachment budget per Chat), in
+ * memory and in their persisted copy, and its "Edit from here". Nothing else frees them, so a Chat that was closed,
+ * deleted with its Session or Project, or switched to the Terminal surface would hold them until the window reloads.
+ * The Workbench calls this whenever the set of Chat Terminals it knows changes.
  *
  * The text draft is deliberately kept: it is bounded and trimmed by recency when persisted (see
  * `MAX_PERSISTED_AGENT_CHAT_DRAFTS`), and dropping it on a transient snapshot gap would lose typed text that should

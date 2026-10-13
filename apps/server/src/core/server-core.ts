@@ -52,7 +52,7 @@ import {
     resolveMobileAgentEndpoint,
 } from './mobile';
 import { MutationAdmission } from './mutation-admission';
-import { assertProjectScope, projectScope } from './principal-project-scope';
+import { assertOwnerHandover, assertProjectScope, projectScope } from './principal-project-scope';
 import { acquireServerProfile } from './profile';
 import { createServerRecoveryJournal, serverRecoverySnapshot } from './recovery-journal';
 import {
@@ -256,6 +256,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 await mobileAccess.validatePairedDeviceRequest(request, context, domainService);
             if (isExtensionControlRequest(request))
                 return invokeExtensionControlRequest(request, extensionService, domainService);
+            assertOwnerHandover(context, request.method);
             switch (request.method) {
                 case 'events.recover':
                     return recoveryJournal.recover(request.params);
@@ -524,7 +525,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         query: request.params,
                     });
                 case 'terminal.preview':
-                    return forwardDomainOperation(request);
                 case 'session.markRead':
                     return forwardDomainOperation(request);
                 default: {

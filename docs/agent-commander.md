@@ -499,8 +499,10 @@ request in place: refused rows stay selected where they were, each with its reas
 repeats it. A full success closes the dialog and the toast counts what was accepted; so does any
 answer that arrives after the user closed the dialog. From the Workbench the request first runs `commander.ensure`, so handing over works
 before the user ever opened the Commander. `caxri commander session hand-over` and `take-back` are
-the human CLI equivalents; the Commander's own Endpoint cannot hand over or take back, because it
-lacks `agents.control`.
+the human CLI equivalents. No Agent can hand over or take back, or list outside conversations:
+Server Core accepts `commander.session.handOver`, `commander.session.takeBack`, and
+`commander.conversations` only from the Desktop and the human CLI, so even an Agent Endpoint holding
+an `agent:control` grant (and with it `agents.control`) is refused.
 
 **What hand-over records.** An accepted entry joins the Commander's ownership set, opens a ledger task
 carrying the user's note, and stores one hand-over record (`app_state` key `commanderHandovers`,
