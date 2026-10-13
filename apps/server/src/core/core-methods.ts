@@ -154,6 +154,7 @@ export const coreForwardedMethods = [
     'settings.update',
     'terminal.agentThroughput',
     'terminal.agentUsage',
+    'terminal.agentTaskUsage',
     'terminal.agentTranscript',
     'terminal.attach',
     'terminal.close',

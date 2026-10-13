@@ -101,11 +101,24 @@ function endBackground(io: FakeClaudeIo, taskId: string, status: 'completed' | '
 /**
  * Writes a subagent transcript the way Claude Code does, beside the session transcript.
  */
+/**
+ * The model a subagent transcript records. A priced model, unlike the `fake-haiku` alias the tool call asks for, so the
+ * task tab shows a cost.
+ */
+const SUBAGENT_MODEL = 'claude-haiku-4-5';
+const SUBAGENT_RESPONSE_USAGE = {
+    input_tokens: 4,
+    output_tokens: 300,
+    cache_read_input_tokens: 20_000,
+    cache_creation_input_tokens: 2_000,
+};
+
 function recordSubagent(io: FakeClaudeIo, agentId: string, meta: Json, messages: Json[]) {
     fs.mkdirSync(io.subagentDirectory, { recursive: true });
     const base = path.join(io.subagentDirectory, `agent-${agentId}`);
     fs.writeFileSync(`${base}.meta.json`, JSON.stringify(meta));
     let parentUuid: string | null = null;
+    const timestamp = new Date().toISOString();
     const lines = messages.map((message) => {
         const uuid = crypto.randomUUID();
         const type = message.role;
@@ -114,8 +127,13 @@ function recordSubagent(io: FakeClaudeIo, agentId: string, meta: Json, messages:
             isSidechain: true,
             agentId,
             uuid,
+            timestamp,
             type,
-            message,
+            // Billed like a real subagent response, so the task tab can price the subagent from this file.
+            message:
+                type === 'assistant'
+                    ? { ...message, model: SUBAGENT_MODEL, usage: SUBAGENT_RESPONSE_USAGE }
+                    : message,
         });
         parentUuid = uuid;
         return line;

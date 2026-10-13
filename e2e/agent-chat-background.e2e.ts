@@ -196,6 +196,8 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
         const subagent = page.getByRole('region', { name: 'Survey the project' });
         await expect(subagent.getByText('Found a README.').first()).toBeVisible();
+        // Priced from the subagent's own transcript, not the provider's latest-request token count.
+        await expect(subagent.getByText(/66\.9k tokens · \$0\.\d\d · 1 tool use/u)).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-subagent-tab.png') });
 
         await message.fill('run in background');
