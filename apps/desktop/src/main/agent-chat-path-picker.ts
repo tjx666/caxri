@@ -1,11 +1,11 @@
 import type { Buffer } from 'node:buffer';
-import { readFile, stat } from 'node:fs/promises';
-import { extname } from 'node:path';
+import { access, readFile, realpath, stat } from 'node:fs/promises';
+import { extname, join } from 'node:path';
 
 import type { AgentChatImageMediaType, MethodResult } from '@caxri/protocol';
-import { MAX_AGENT_CHAT_PICKED_IMAGES_BYTES } from '@caxri/protocol';
+import { CaxriError, MAX_AGENT_CHAT_PICKED_IMAGES_BYTES } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
-import { dialog } from 'electron';
+import { dialog, shell } from 'electron';
 
 import { agentChatPathPickerOptions } from './native-file-dialogs';
 
@@ -36,11 +36,19 @@ async function readPickedImage(path: string, budget: number): Promise<Buffer | u
     }
 }
 
+async function isDirectory(path: string): Promise<boolean> {
+    try {
+        return (await stat(path)).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
 /**
  * `dialog.selectPaths`: the Chat composer's native open panel for files and folders together. It returns only what the
  * user chose and grants nothing, unlike `dialog.selectDirectory`, so a pick never widens a Project's access. With
  * `shouldReadImages`, image files carry their bytes until the pick's image budget runs out; the composer attaches those
- * and cites everything else, folders included, by path.
+ * and cites everything else by path, marking folders so the composer shows them as folders.
  */
 export async function selectAgentChatPaths(
     window: BrowserWindow | undefined,
@@ -63,7 +71,68 @@ export async function selectAgentChatPaths(
         if (mediaType && bytes) {
             budget -= bytes.length;
             picked.push({ path, image: { mediaType, base64: bytes.toString('base64') } });
-        } else picked.push({ path });
+            continue;
+        }
+        // eslint-disable-next-line no-await-in-loop -- one stat per pick, in the order the user chose
+        picked.push((await isDirectory(path)) ? { path, isDirectory: true } : { path });
     }
     return picked;
+}
+
+/**
+ * Folder extensions macOS runs as code when opened: an app, a plug-in, an installer. A click on such a folder chip
+ * shows it in Finder instead of launching it.
+ */
+const EXECUTABLE_BUNDLE_EXTENSIONS = new Set([
+    '.app',
+    '.appex',
+    '.bundle',
+    '.framework',
+    '.kext',
+    '.mpkg',
+    '.pkg',
+    '.plugin',
+    '.prefpane',
+    '.qlgenerator',
+    '.saver',
+    '.xpc',
+]);
+
+/**
+ * Whether the folder at its resolved `target` is a bundle macOS would launch or install rather than browse: a known
+ * bundle extension, or any folder carrying a bundle's `Contents/Info.plist`.
+ */
+async function isBundle(target: string): Promise<boolean> {
+    if (EXECUTABLE_BUNDLE_EXTENSIONS.has(extname(target).toLowerCase())) return true;
+    try {
+        await access(join(target, 'Contents', 'Info.plist'));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * `agentChat.openPathReference`: a file or folder chip in a sent message. A folder opens in Finder, as in the Codex
+ * app; a file is revealed in its folder rather than opened, so a click never runs a script, and neither does an app or
+ * other executable bundle. The bundle check reads the resolved path, since a symlink named `tools` that points at an
+ * `.app` would otherwise pass as a plain folder and launch. The path came from the user's own drop, paste, or pick, so
+ * it is not held to a Project root. `shell.openPath` resolves with an error message rather than rejecting, which is
+ * rethrown so the click reports it.
+ */
+export async function openAgentChatPathReference(path: string): Promise<void> {
+    let target: string;
+    let isFolder: boolean;
+    try {
+        target = await realpath(path);
+        isFolder = (await stat(target)).isDirectory();
+    } catch {
+        throw new CaxriError('NOT_FOUND', `${path} no longer exists`);
+    }
+    if (!isFolder || (await isBundle(target))) {
+        shell.showItemInFolder(path);
+        return;
+    }
+    const failure = await shell.openPath(path);
+    if (failure) throw new Error(failure);
 }

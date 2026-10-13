@@ -18,7 +18,10 @@ import {
 
 const THUMBNAIL = 'data:image/jpeg;base64,AAAA';
 
-function attachment(id: string, data = 'AAAA'): PersistedAgentChatAttachment {
+function attachment(
+    id: string,
+    data = 'AAAA',
+): Extract<PersistedAgentChatAttachment, { image: unknown }> {
     return { id, image: { mediaType: 'image/png', data, thumbnail: THUMBNAIL }, name: `${id}.png` };
 }
 
@@ -133,6 +136,23 @@ describe('parsePersistedAgentChatAttachments', () => {
             ]),
         ).toEqual([valid, { id: 'd', image: attachment('d').image, isResized: true }]);
         expect(parsePersistedAgentChatAttachments({ not: 'a list' })).toEqual([]);
+    });
+
+    it('keeps file and folder cards with an absolute path', () => {
+        expect(
+            parsePersistedAgentChatAttachments([
+                { id: 'f', path: '/work/prettier-config', isDirectory: true },
+                { id: 'g', path: '/work/notes.txt', isDirectory: 'yes' },
+                { id: 'h', path: 'relative/notes.txt', isDirectory: false },
+                { id: '', path: '/work/notes.txt', isDirectory: false },
+            ]),
+        ).toEqual([
+            { id: 'f', path: '/work/prettier-config', isDirectory: true },
+            { id: 'g', path: '/work/notes.txt', isDirectory: false },
+        ]);
+        expect(agentChatAttachmentCharacters([{ id: 'f', path: '/work', isDirectory: true }])).toBe(
+            5,
+        );
     });
 });
 

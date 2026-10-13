@@ -1,6 +1,9 @@
+import { parseAgentChatPathReferences } from '@caxri/protocol';
+
 import { useTranslation } from '../../i18n';
 import { AgentChatAskingQuestions } from './agent-chat-answered-questions';
 import { AgentChatMessageImages } from './agent-chat-message-images';
+import { AgentChatPathReferenceChips } from './agent-chat-path-reference-chips';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatUserMessageBubble } from './agent-chat-user-message';
@@ -18,6 +21,7 @@ function AgentChatPendingUserMessage({
     onOpenFile: (target: string) => void;
 }) {
     const { t } = useTranslation();
+    const { references, text } = parseAgentChatPathReferences(message.text);
     return (
         <div
             aria-busy="true"
@@ -27,12 +31,9 @@ function AgentChatPendingUserMessage({
             {message.images.length > 0 && (
                 <AgentChatMessageImages className="max-w-[85%]" images={message.images} />
             )}
-            {message.text && (
-                <AgentChatUserMessageBubble
-                    isEditing={false}
-                    text={message.text}
-                    onOpenFile={onOpenFile}
-                />
+            {references.length > 0 && <AgentChatPathReferenceChips references={references} />}
+            {text && (
+                <AgentChatUserMessageBubble isEditing={false} text={text} onOpenFile={onOpenFile} />
             )}
             <span className="-mt-0.5 text-[11px] leading-4 text-muted">
                 {t('agentChat.message.sending')}

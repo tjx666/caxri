@@ -175,13 +175,14 @@ export function AgentChatComposer({
 }: AgentChatComposerProperties) {
     const { t } = useTranslation();
     const focusInput = (): void => inputReference.current?.focus();
+    const images = useAgentChatAttachments(terminalId);
     const { clearDraft, draft, restoreQueued, setDraft } = useAgentChatDraft({
+        addPaths: images.addPaths,
         inputReference,
         terminalId,
     });
     const terminal = useTerminal(terminalId);
     const workbenchRoot = usePaneViewSession()?.rootPath;
-    const images = useAgentChatAttachments(terminalId);
     /**
      * The suggestion lists float over the card's top edge, so they show only while the input has focus: otherwise one
      * left open stays over whatever the user moved to, such as the edit bar's controls.

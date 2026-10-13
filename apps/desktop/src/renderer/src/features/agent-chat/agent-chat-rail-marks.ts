@@ -1,3 +1,5 @@
+import { agentChatPathReferencePreview } from '@caxri/protocol';
+
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
@@ -65,7 +67,14 @@ export function agentChatRailMarks(
     for (const entry of timeline) {
         if (entry.kind !== 'item' || entry.item.type !== 'userMessage') continue;
         const { id, text, images } = entry.item;
-        marks.push({ id, preview: agentChatRailPreview(text, images?.length ?? 0, t) });
+        marks.push({
+            id,
+            preview: agentChatRailPreview(
+                agentChatPathReferencePreview(text),
+                images?.length ?? 0,
+                t,
+            ),
+        });
     }
     return marks;
 }

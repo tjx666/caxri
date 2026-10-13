@@ -1,7 +1,13 @@
 import type { ClipboardEvent, DragEvent } from 'react';
 import { useState } from 'react';
 
-import { hasTerminalDraggedPath, PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
+import type { AgentChatPathReference } from '@caxri/protocol';
+
+import {
+    hasTerminalDraggedPath,
+    osFilePaths,
+    PROJECT_PATH_DRAG_TYPE,
+} from '../../../lib/file-drag';
 import { useIsLocalOnlyAvailable } from '../../../stores/environment';
 import { pushToast } from '../../../stores/toasts';
 import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
@@ -32,14 +38,14 @@ export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dr
 
 /**
  * Paste, drag-and-drop, and file picker handlers for the composer. Images go to `add` when the provider accepts them;
- * every other dropped or picked file, Files entry, Editor tab, or Project is cited by path through `didInsertPaths`, as
- * a drop into a Terminal is. A dropped or picked image whose format or size cannot be attached is cited by path too,
- * with an info toast saying so, because it has a path on disk to cite. `didInsertPaths` receives the drop (absent for a
- * pick) and the files it should cite, and returns whether it inserted anything. A pasted image the provider cannot take
- * has no path to cite, so it says why in an info toast instead of silently doing nothing. Pasted text goes to
- * `takeLongPaste` first, which keeps a long paste out of the input. In a local window `+` → Files and folders opens the
- * native panel instead (`pickPaths`), whose folders and files are cited through `didInsertPickedPaths` and whose images
- * take the same route as dropped ones.
+ * every other dropped or picked file, Files entry, Editor tab, or Project is cited by path through `didInsertPaths`
+ * (`useAgentChatComposerInput` decides between a card and text). A dropped or picked image whose format or size cannot
+ * be attached is cited by path too, with an info toast saying so, because it has a path on disk to cite.
+ * `didInsertPaths` receives the drop (absent for a pick) and the files it should cite, and returns whether it inserted
+ * anything. A pasted image the provider cannot take has no path to cite, so it says why in an info toast instead of
+ * silently doing nothing. Pasted text goes to `takeLongPaste` first, which keeps a long paste out of the input. In a
+ * local window `+` → Files and folders opens the native panel instead (`pickPaths`), whose folders and files are cited
+ * through `didInsertPickedPaths` and whose images take the same route as dropped ones.
  */
 export function useAgentChatFileInput({
     add,
@@ -51,7 +57,7 @@ export function useAgentChatFileInput({
 }: {
     add: (files: readonly File[]) => Promise<void>;
     didInsertPaths: (event: DragEvent | undefined, files: readonly File[]) => boolean;
-    didInsertPickedPaths: (paths: readonly string[]) => boolean;
+    didInsertPickedPaths: (references: readonly AgentChatPathReference[]) => boolean;
     isImageInputEnabled: boolean;
     /**
      * The provider catalog's display name, for the toast that says it takes no images.
@@ -115,7 +121,11 @@ export function useAgentChatFileInput({
                   route(images.keys().toArray(), (attached) => {
                       const attachedPaths = new Set([...attached].map((file) => images.get(file)));
                       return didInsertPickedPaths(
-                          picked.map(({ path }) => path).filter((path) => !attachedPaths.has(path)),
+                          picked.flatMap(({ isDirectory, path }) =>
+                              attachedPaths.has(path)
+                                  ? []
+                                  : [{ path, isDirectory: isDirectory === true }],
+                          ),
                       );
                   });
               },
@@ -144,6 +154,16 @@ export function useAgentChatFileInput({
             },
         },
         onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => {
+            const pasted = [...event.clipboardData.files];
+            /**
+             * Files and folders copied in Finder paste as files on disk, which attach like a drop of them; the file
+             * names Finder also puts on the clipboard as text are not pasted.
+             */
+            if (osFilePaths(pasted).length > 0) {
+                event.preventDefault();
+                routeFiles(undefined, pasted);
+                return;
+            }
             takeLongPaste(event);
             const files = agentChatImageFiles(event.clipboardData.files);
             if (files.length === 0) return;

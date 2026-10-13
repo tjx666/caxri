@@ -7,7 +7,6 @@ import {
     hasOsFiles,
     hasTerminalDraggedPath,
     isOsFileReferenceRefused,
-    osFilePaths,
     projectTerminalInput,
     terminalDragPaths,
     terminalReferencePath,
@@ -85,21 +84,9 @@ export function terminalDropInput(
 }
 
 /**
- * The text that cites `files` chosen in a file picker, spelled the way a drop of the same files would be. A file with
- * no path on disk is left out.
- */
-export function terminalFilesInput(
-    files: Iterable<File>,
-    terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd' | 'lastAgentProcessState'>,
-    workbenchRoot?: string,
-): string | undefined {
-    return terminalPathsInput(osFilePaths(files), terminal, workbenchRoot);
-}
-
-/**
  * The text that cites `paths` (files or folders), spelled the way a drop of the same paths would be.
  */
-export function terminalPathsInput(
+function terminalPathsInput(
     paths: readonly string[],
     terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd' | 'lastAgentProcessState'>,
     workbenchRoot: string | undefined,

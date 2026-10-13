@@ -1,4 +1,4 @@
-import type { AgentChatImageInput } from '@caxri/protocol';
+import type { AgentChatImageInput, AgentChatPathReference } from '@caxri/protocol';
 import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
 import { debounce } from 'es-toolkit';
 
@@ -130,7 +130,7 @@ if (typeof window !== 'undefined') {
     });
 }
 
-export interface AgentChatAttachment {
+export interface AgentChatImageAttachment {
     /**
      * Composer-local key, so removing one of two identical images removes the right chip.
      */
@@ -149,9 +149,32 @@ export interface AgentChatAttachment {
 }
 
 /**
- * Unsent images per Chat Terminal. A few encoded images already approach the whole `localStorage` quota, which the text
- * drafts and the layout share, so they are mirrored to IndexedDB instead (`agent-chat-attachment-persistence.ts`) and
- * read back once per Renderer, on first use; absent under Vitest's Node environment.
+ * A file or folder from another application (dropped, pasted, or picked) that the message cites by path
+ * (`agentChatTextWithPathReferences`), shown as a card beside the images rather than as path text in the draft.
+ */
+export interface AgentChatPathAttachment extends AgentChatPathReference {
+    id: string;
+}
+
+export type AgentChatAttachment = AgentChatImageAttachment | AgentChatPathAttachment;
+
+export function isAgentChatImageAttachment(
+    attachment: AgentChatAttachment,
+): attachment is AgentChatImageAttachment {
+    return 'image' in attachment;
+}
+
+export function isAgentChatPathAttachment(
+    attachment: AgentChatAttachment,
+): attachment is AgentChatPathAttachment {
+    return 'path' in attachment;
+}
+
+/**
+ * Unsent images and path cards per Chat Terminal. A few encoded images already approach the whole `localStorage` quota,
+ * which the text drafts and the layout share, so they are mirrored to IndexedDB instead
+ * (`agent-chat-attachment-persistence.ts`) and read back once per Renderer, on first use; absent under Vitest's Node
+ * environment.
  */
 const attachments = new Map<string, AgentChatAttachment[]>();
 const attachmentPersistence =
@@ -339,6 +362,24 @@ export function attachmentsAfterSend(
 }
 
 /**
+ * `current` followed by each of `added` whose path is not attached yet.
+ */
+export function agentChatAttachmentsWithPaths(
+    current: readonly AgentChatAttachment[],
+    added: readonly AgentChatPathAttachment[],
+): AgentChatAttachment[] {
+    const attached = new Set(current.filter(isAgentChatPathAttachment).map(({ path }) => path));
+    return [
+        ...current,
+        ...added.filter(({ path }) => {
+            if (attached.has(path)) return false;
+            attached.add(path);
+            return true;
+        }),
+    ];
+}
+
+/**
  * Images whose message failed to send, back ahead of any attached since; one still attached is not added twice.
  */
 export function attachmentsWithReturned(
@@ -441,7 +482,7 @@ export function draftWithInsertion(
  * name when it has one, otherwise its position.
  */
 export function agentChatAttachmentName(
-    attachment: Pick<AgentChatAttachment, 'name'>,
+    attachment: Pick<AgentChatImageAttachment, 'name'>,
     index: number,
 ): string {
     // A pasted image may carry an empty name, which falls back like a missing one.
@@ -454,7 +495,7 @@ export function agentChatAttachmentName(
  * The chip's alt text: the attachment's name (`agentChatAttachmentName`), noting a resized image.
  */
 export function agentChatAttachmentLabel(
-    attachment: Pick<AgentChatAttachment, 'isResized' | 'name'>,
+    attachment: Pick<AgentChatImageAttachment, 'isResized' | 'name'>,
     index: number,
 ): string {
     const label = agentChatAttachmentName(attachment, index);

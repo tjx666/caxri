@@ -241,13 +241,11 @@ describe('agentChatEmptyHint', () => {
 });
 
 describe('agentChatAttachLabel', () => {
-    it('says a pick inserts paths, and attaches images only when the provider takes them', () => {
-        expect(agentChatAttachLabel(true, false)).toBe('Attach images or insert file paths');
-        expect(agentChatAttachLabel(false, false)).toBe('Insert file paths');
-        expect(agentChatAttachLabel(true, true)).toBe(
-            'Attach images or insert file and folder paths',
-        );
-        expect(agentChatAttachLabel(false, true)).toBe('Insert file and folder paths');
+    it('says a pick attaches files, and images only when the provider takes them', () => {
+        expect(agentChatAttachLabel(true, false)).toBe('Attach images or files');
+        expect(agentChatAttachLabel(false, false)).toBe('Attach files');
+        expect(agentChatAttachLabel(true, true)).toBe('Attach images, files, or folders');
+        expect(agentChatAttachLabel(false, true)).toBe('Attach files or folders');
     });
 });
 

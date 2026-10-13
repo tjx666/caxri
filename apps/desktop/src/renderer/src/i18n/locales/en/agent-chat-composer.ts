@@ -18,17 +18,24 @@ export const agentChatComposer = {
     'agentChat.composer.plainPasteTooLong':
         'This text is too long to paste into the message. Paste it with ⌘V to cite it as a file instead.',
     'agentChat.composer.fileHasNoPath':
-        'This file has no path on disk to insert. Save it, then drop the saved file.',
+        'This file has no path on disk to attach. Save it, then drop the saved file.',
     'agentChat.composer.localFileOnSshHost':
         'Files on this Mac cannot be referenced on the SSH Host. Copy the file to the SSH Host, then drop it from Files. Images still attach.',
 
     'agentChat.attachments.fallbackName': 'Attachment {{number}}',
-    'agentChat.attachments.label': 'Attached images',
+    'agentChat.attachments.label': 'Attachments',
+    'agentChat.attachments.folder': 'Folder',
+    'agentChat.attachments.file': 'File',
     'agentChat.attachments.preparing': 'Preparing image',
     'agentChat.attachments.preview': 'Preview {{name}}',
     'agentChat.attachments.remove': 'Remove {{name}}',
-    'agentChat.attachments.dropImagesOrPaths': 'Drop to attach images or insert paths',
-    'agentChat.attachments.dropPaths': 'Drop to insert paths',
+    'agentChat.attachments.dropImagesOrPaths': 'Drop to add images, files, or folders',
+    'agentChat.attachments.dropPaths': 'Drop to add files or folders',
+
+    'agentChat.pathReference.label': 'Attached files and folders',
+    'agentChat.pathReference.openFolder': 'Open {{name}} in Finder',
+    'agentChat.pathReference.revealFile': 'Show {{name}} in Finder',
+    'agentChat.pathReference.openFailed': 'Could not show it in Finder',
 
     'agentChat.add.tooltip': 'Add files and more',
     'agentChat.add.add': 'Add',

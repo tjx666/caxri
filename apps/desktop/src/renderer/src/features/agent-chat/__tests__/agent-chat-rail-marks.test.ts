@@ -13,6 +13,12 @@ import {
     sampleAgentChatRailMarks,
 } from '../agent-chat-rail-marks';
 
+/**
+ * A message that cites one folder, as the composer sends it.
+ */
+const FOLDER_MESSAGE =
+    '# Files mentioned by the user:\n\n## prettier-config: /work/prettier-config/\n\n## My request for Codex:\n';
+
 describe('agentChatRailMarks', () => {
     it('marks each top-level user message in order', () => {
         expect(
@@ -31,6 +37,21 @@ describe('agentChatRailMarks', () => {
         ).toEqual([
             { id: 'u1', preview: 'first line' },
             { id: 'u2', preview: '2 images' },
+        ]);
+    });
+
+    it('previews a message by its words, or by the folders it cites when it has none', () => {
+        expect(
+            agentChatRailMarks([
+                {
+                    kind: 'item',
+                    item: { id: 'u1', type: 'userMessage', text: `${FOLDER_MESSAGE}tidy it` },
+                },
+                { kind: 'item', item: { id: 'u2', type: 'userMessage', text: FOLDER_MESSAGE } },
+            ]),
+        ).toEqual([
+            { id: 'u1', preview: 'tidy it' },
+            { id: 'u2', preview: 'prettier-config' },
         ]);
     });
 
