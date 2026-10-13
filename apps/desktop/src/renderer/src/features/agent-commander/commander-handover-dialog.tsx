@@ -260,7 +260,7 @@ function HandoverCandidates({ picker }: { picker: ReturnType<typeof useCommander
         );
     if (picker.groups.length === 0)
         return (
-            <div className="grid min-h-40 place-items-center rounded border border-dashed border-border p-6 text-center text-[12px] text-muted">
+            <div className="grid min-h-40 place-items-center rounded-md border border-dashed border-border p-6 text-center text-[12px] text-muted">
                 {t(
                     picker.query.trim()
                         ? 'agentCommander.handover.noMatches'

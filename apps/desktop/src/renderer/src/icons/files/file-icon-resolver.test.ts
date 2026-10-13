@@ -16,6 +16,10 @@ describe('resolveFileIcon', () => {
         ['.env.desktop', 'file_type_dotenv'],
         ['.env.example.development', 'file_type_dotenv'],
         ['Dockerfile.dev', 'file_type_docker'],
+        // Caxri's own supplement: the package keys Mermaid only by an extension-contributed language id.
+        ['flow.mmd', 'file_type_mermaid'],
+        ['Sequence.MERMAID', 'file_type_mermaid'],
+        ['mmd', 'default_file'],
         ['unknown', 'default_file'],
     ])('resolves %s to %s', (name, id) => {
         expect(resolveFileIcon({ kind: 'file', name }).id).toBe(id);

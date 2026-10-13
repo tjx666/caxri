@@ -76,6 +76,7 @@ const LANGUAGE_LABELS: Record<string, string> = {
     'javascriptreact': 'JavaScript React',
     'json': 'JSON',
     'markdown': 'Markdown',
+    'mermaid': 'Mermaid',
     'python': 'Python',
     'rust': 'Rust',
     'sql': 'SQL',

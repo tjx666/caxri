@@ -2,7 +2,7 @@ import type { UsageDay } from '@caxri/protocol';
 import { shiftLocalDate } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import type { ChartCursorLayout } from './usage-chart-cursor';
+import type { ChartCursorLayout } from '../../lib/chart-cursor';
 import type { CumulativePoint, HeatmapWeek, UsageMetric } from './usage-metrics';
 import {
     activityHighlights,

@@ -32,9 +32,14 @@ export function subscribeEnvironment(): () => void {
     const subscription = { hasReceivedEvent: false, isActive: true };
     const unsubscribe = caxri.onEvent((event) => {
         if (event.event === 'environment.connectionReused') {
+            const typed = event.payload.destination;
+            const current = useEnvironmentStore.getState().state;
             pushToast(
                 'info',
-                translate('sshHost.connect.reused', { destination: event.payload.destination }),
+                translate('sshHost.connect.reused', {
+                    destination: current?.kind === 'ssh' ? current.destination : typed,
+                    typed,
+                }),
             );
             return;
         }

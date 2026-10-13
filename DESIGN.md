@@ -50,7 +50,9 @@ reference this file; deviations require updating this spec first.
    not render them as a blank surface, and do not relabel a failed probe as a successful negative
    (a Git error is not "not a repository"). A surface or region waiting for its first data draws
    `LoadingSkeleton` (`components/loading-skeleton.tsx`) shaped like what will arrive (`list`
-   rows, `document` lines, `page` cards) and names the wait in its `label`, instead of a centered
+   rows, `document` lines, `page` cards) and names the wait in its `label`; its blocks fade in on
+   `--motion-overlay-enter` and then pulse on `--motion-skeleton-pulse` (static under reduced
+   motion), so a fast load never flashes hard gray shapes. It replaces a centered
    `Loading…` line that collapses the layout and then jumps. A `Spinner` stays for inline progress
    inside an already-rendered control or row (a button, chip, picker, `Loading more` row) and for
    a wait whose copy explains something the user should know, such as a process starting.
@@ -222,6 +224,10 @@ may use unitless `1.45` or `1.5` line height; compact uppercase headings may use
   cap, and the Switch track/thumb. The Agent Chat composer is the one other sanctioned exception,
   copying the Codex app's composer: its `+`, its Plan chip, its model picker pill, its 28px primary
   action circle, and the effort slider's track and thumb. No other radii.
+- Keyboard focus on a shared control (`Button`, `Input`, `Select`) is one treatment: an `--accent`
+  border plus a 3px `--accent` glow at 50%, shown only for `:focus-visible`, so a pointer click
+  draws nothing. A feature-local icon button uses the shared `Button` (`size="icon"`, `ghost`) to
+  inherit it instead of hand-rolling a borderless `<button>` with no focus state.
 
 `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric
 arbitrary-class allowlist above and rejects feature-local raw text inputs and raw checkboxes.
@@ -388,10 +394,14 @@ Unknown creation times sort last, deterministically. An `Authorize` label distin
 but unapproved roots; selecting one opens the shared in-app confirmation with its full destination
 and `Authorize and switch`. Cancel grants nothing. Approved roots switch directly without Finder.
 While the Session is still on its own root and its conversation worked in a linked worktree, the
-picker's glyph carries an `--accent` dot in its top-right corner (drawn into the glyph, so the chip
-keeps its width) and its tooltip names that worktree. It is a passive hint: clicking opens the same
+picker's glyph carries a `--foreground` dot in its top-right corner (drawn into the glyph, so the
+chip keeps its width; never `--accent`, because a passive hint must not compete with the one durable
+focus of Principle 2) and its tooltip names that worktree. It is a passive hint: clicking opens the same
 picker, whose leading `From this conversation` group already offers the worktree. It never opens a
-prompt or takes focus.
+prompt or takes focus. The pull request chip carries the same `--foreground` dot when the pull
+request's head branch is not the checked-out branch, names that branch in its accessible name, and
+its hover card adds `Switch to <branch> Worktree` (the picker's own switch and authorization) when
+exactly one worktree has that branch checked out.
 
 The Workbench Root and branch pickers both open on a focused search field, because a checkout with
 dozens of worktrees or hundreds of branches cannot be scrolled faster than it can be typed. Typing
@@ -783,7 +793,9 @@ enter `--motion-tab-enter` (140ms, enter curve) and exit `--motion-tab-exit` (11
 shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 `--motion-ease-emphasized`); overlays enter `--motion-overlay-enter` (150ms) and exit
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
-ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
+ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear); loading
+skeleton blocks pulse on `--motion-skeleton-pulse` (2000ms, ease-in-out) after fading in on
+`--motion-overlay-enter`. JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
 literal. The enter curve `--motion-ease-enter` is easeOutQuint `cubic-bezier(0.23, 1, 0.32, 1)`,
 which answers the pointer in the first frames instead of the keyword `ease-out`'s slow start;
@@ -1071,7 +1083,8 @@ noticeably long to read holds a placeholder tile with a spinner, so a disabled S
 cause), a borderless auto-growing textarea, and one action row in `--muted`, split like the Codex
 app's composer. Leading on the left: `+` (a round ghost icon, tooltip `Add files and more`, that
 turns into a spinner while picked images are read, a long paste is saved, or a Session reference is
-written), a Plan chip (a bulb and `Plan` in `--foreground`, pressed to turn plan mode off) while plan
+written), a Plan chip (a bulb and `Plan` in `--foreground` on the `--selection` fill with a `--border`
+outline, a pressed toggle that turns plan mode off) while plan
 mode is on, and the permission picker. `+` opens a menu laid out like the Codex app's: under `Add`,
 Files (the system file picker; its muted description says what a pick does for this provider,
 `Attach images or insert file paths` or `Insert file paths`), Goal (only while the provider reports
@@ -1080,15 +1093,19 @@ trailing check while on); under `Sessions`, the five most recently opened Sessio
 conversation, each cited at the caret the way the `@` list cites it. Folders cannot be picked yet:
 Chromium's file input selects files only. Trailing on the right: the context meter (a
 14px ring that fills with the share of the window in use, its percentage beside it, `--warning`
-from 60% and `--danger` from 85%; a `meter` and a Tab stop whose popover gives the token breakdown
+from 60% and still `--warning` past 85%, matching the compact alert there, because running low on
+context is advice, not a failure; a `meter` and a Tab stop whose popover gives the token breakdown
 and, when the provider has a compact command, a Compact button; hovering opens it as a preview, and
 Enter, Space, or a click opens it with focus inside so Tab reaches Compact; a preview card opened by
-focus would close as soon as focus left the ring), the model picker (a pill holding a filled `--accent` bolt while Fast mode is on and a workflow glyph
-while ultracode is on, then the model's name and the next turn's effort, reading `Choose effort`
-while its effort panel is open; a spinner replaces the chevron until a switch is confirmed), and a
+focus would close as soon as focus left the ring), the model picker (a pill holding a filled `--foreground` bolt while Fast mode is on, not
+`--accent`, so the composer keeps one accent per screen (Principle 2), and a workflow glyph
+while ultracode is on, then the model's name and the next turn's effort, which it keeps reading
+while its panel is open so the pill never resizes under the pointer; a spinner replaces the chevron
+until a switch is confirmed), and a
 single primary action slot. The model picker opens a 288px popover copied from the Codex app's: a
 header with the mode toggles on the left (Fast's bolt, ultracode's glyph; `--muted` while off,
-`--accent` while on, each explained in a tooltip above it), the effort in 15px semibold `--accent`
+`--foreground` on the `--selection` fill with a `--border` outline while on, the Plan chip's pressed
+treatment, never `--accent`; each explained in a tooltip above it), the effort in 15px semibold `--accent`
 over the model name and a chevron in the center, and `Reset to default` (a rotate glyph, disabled
 while the effort is the model's default) on the right; below it, a slider with one stop per effort
 (a 24px `--foreground`/15 track filled in `--accent` up to a 28px `--foreground` thumb, a 4px dot on

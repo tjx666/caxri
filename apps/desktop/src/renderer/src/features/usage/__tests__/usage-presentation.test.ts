@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { translate } from '../../../i18n';
 import { useLocaleStore } from '../../../i18n/locale-store';
 import {
+    canFilterUsageToSession,
     LIMIT_WARNING_PERCENT,
     limitBarTone,
     pullRequestTileDetail,
@@ -11,6 +12,8 @@ import {
     usageSessionTitle,
     usageShare,
     usageShareBasis,
+    usageShareCaption,
+    usageShareLabel,
 } from '../usage-presentation';
 
 describe('plan limit bar tone', () => {
@@ -208,5 +211,24 @@ describe('session filter title', () => {
                 sessionId: 'Untitled',
             }),
         ).toBe('Untitled');
+    });
+});
+
+describe('share basis wording', () => {
+    it('names what the bars measure in the caption and on each bar', () => {
+        expect(usageShareCaption(translate, 'cost')).toBe('Share of cost');
+        expect(usageShareCaption(translate, 'tokens')).toBe('Share of tokens');
+        expect(usageShareLabel(translate, 0.42, 'cost')).toBe('42% of cost');
+        expect(usageShareLabel(translate, 0.05, 'tokens')).toBe('5.0% of tokens');
+    });
+});
+
+describe('session row filter', () => {
+    it('offers a Caxri Session as a filter only on an unfiltered report', () => {
+        expect(canFilterUsageToSession({}, { isOutsideCaxri: false })).toBe(true);
+        expect(canFilterUsageToSession({}, { isOutsideCaxri: true })).toBe(false);
+        expect(canFilterUsageToSession({ sessionId: 'session-1' }, { isOutsideCaxri: false })).toBe(
+            false,
+        );
     });
 });

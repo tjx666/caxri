@@ -21,6 +21,8 @@ import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { useSessionById } from '../../stores/selectors';
+import type { UsageAgentFilter } from './usage-filter-store';
+import { ALL_AGENTS, rememberUsageFilters, useUsageFilterStore } from './usage-filter-store';
 import {
     didUsageRefreshFail,
     formatDate,
@@ -51,8 +53,6 @@ const SCOPES: ReadonlyArray<{
         descriptionKey: 'usage.scope.thisMacDescription',
     },
 ];
-const ALL_AGENTS = 'all';
-type AgentFilter = AgentProvider | typeof ALL_AGENTS;
 
 /**
  * Read once: a report's day boundaries only need to match the zone the user saw when the page loaded.
@@ -170,7 +170,7 @@ function usageReportParameters({
     scope,
     sessionId,
 }: {
-    agent: AgentFilter;
+    agent: UsageAgentFilter;
     range: UsageRange;
     scope: UsageScope;
     sessionId: string | undefined;
@@ -221,9 +221,17 @@ function useUsageSessionFilter() {
     /**
      * A Session filter opens on all time: the status bar chip it comes from totals the whole conversation, so a shorter
      * window would greet the user with smaller figures than the ones they clicked. The initializers read the pending
-     * request so the first report already carries the filter instead of loading the unfiltered page first.
+     * request so the first report already carries the filter instead of loading the unfiltered page first. Without a
+     * Session request the page opens on the range the user last picked; the Session's all-time view is not remembered.
      */
-    const [range, setRange] = useState<UsageRange>(pendingRequest?.sessionId ? 'all' : '30d');
+    const rememberedRange = useUsageFilterStore((state) => state.range);
+    const [range, setPageRange] = useState<UsageRange>(
+        pendingRequest?.sessionId ? 'all' : rememberedRange,
+    );
+    const setRange = (next: UsageRange) => {
+        setPageRange(next);
+        rememberUsageFilters({ range: next });
+    };
     const [sessionId, setSessionId] = useState(pendingRequest?.sessionId);
     // A request arriving while the page is open is applied during render, React's pattern for state derived from a
     // changed input; the effect below only empties the store so a later mount does not apply it again.
@@ -231,7 +239,7 @@ function useUsageSessionFilter() {
     if (pendingRequest && pendingRequest !== appliedRequest) {
         setAppliedRequest(pendingRequest);
         setSessionId(pendingRequest.sessionId);
-        if (pendingRequest.sessionId) setRange('all');
+        if (pendingRequest.sessionId) setPageRange('all');
     }
     useEffect(() => {
         if (pendingRequest) consumeRequest();
@@ -247,9 +255,11 @@ function useUsageSessionFilter() {
  */
 export function UsageWorkbenchPage() {
     const { t } = useTranslation();
-    const [scope, setScope] = useState<UsageScope>('caxri');
+    const scope = useUsageFilterStore((state) => state.scope);
+    const agent = useUsageFilterStore((state) => state.agent);
+    const setScope = (next: UsageScope) => rememberUsageFilters({ scope: next });
+    const setAgent = (next: UsageAgentFilter) => rememberUsageFilters({ agent: next });
     const { range, setRange, sessionId, setSessionId } = useUsageSessionFilter();
-    const [agent, setAgent] = useState<AgentFilter>(ALL_AGENTS);
     const query = useUsageReport(usageReportParameters({ agent, range, scope, sessionId }));
     const report = query.data;
     /**
@@ -325,7 +335,7 @@ export function UsageWorkbenchPage() {
                     <ToggleGroup
                         aria-label={t('usage.filter.agent')}
                         value={[agent]}
-                        onValueChange={(next: AgentFilter[]) => {
+                        onValueChange={(next: UsageAgentFilter[]) => {
                             if (next[0]) setAgent(next[0]);
                         }}
                     >

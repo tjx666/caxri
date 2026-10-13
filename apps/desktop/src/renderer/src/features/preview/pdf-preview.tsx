@@ -2,11 +2,14 @@ import './pdf-preview.css';
 
 import { useEffect, useRef, useState } from 'react';
 
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
 import { FindBar } from '../../components/find-bar';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
+import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { documentLoadRecoveryAction } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
@@ -17,6 +20,7 @@ import { createPdfViewerSession } from './pdf-document';
 import { isPdfFindMiss, isPdfFindShortcut, pdfFindCountLabel } from './pdf-find';
 import { PdfPasswordForm } from './pdf-password-form';
 import {
+    adjacentPdfPage,
     describePdfView,
     parsePdfPageInput,
     PDF_ZOOM_CHOICES,
@@ -64,6 +68,45 @@ function PageField({
                 onGoToPage(target);
             }}
         />
+    );
+}
+
+/**
+ * Previous or next page beside the page field, so paging does not require typing a number or scrolling. It disables at
+ * the document's edge.
+ */
+function PageStepButton({
+    pageCount,
+    pageNumber,
+    step,
+    onGoToPage,
+}: {
+    pageCount: number;
+    pageNumber: number;
+    step: -1 | 1;
+    onGoToPage: (pageNumber: number) => void;
+}) {
+    const { t } = useTranslation();
+    const target = adjacentPdfPage(pageNumber, step, pageCount);
+    const label = t(step === -1 ? 'preview.pdf.previousPage' : 'preview.pdf.nextPage');
+    return (
+        <Tooltip content={label}>
+            <Button
+                aria-label={label}
+                // `aria-disabled`, not `disabled`: stepping onto the last page with Enter must not evict keyboard focus
+                // from the button the reader is pressing (see `Button`); the click handler refuses the edge itself.
+                aria-disabled={target === undefined || undefined}
+                size="icon"
+                variant="ghost"
+                onClick={() => target !== undefined && onGoToPage(target)}
+            >
+                {step === -1 ? (
+                    <ChevronUp aria-hidden="true" size={14} />
+                ) : (
+                    <ChevronDown aria-hidden="true" size={14} />
+                )}
+            </Button>
+        </Tooltip>
     );
 }
 
@@ -162,6 +205,7 @@ function PdfDocumentView({
         isAnnouncementPendingReference.current = true;
         action(session);
     };
+    const goToPage = (pageNumber: number) => act((session) => session.goToPage(pageNumber));
 
     return (
         <div
@@ -173,18 +217,35 @@ function PdfDocumentView({
             }}
         >
             <div className="flex h-8 flex-none items-center gap-1 bg-surface px-2 text-[12px] text-muted tabular-nums">
+                <PageStepButton
+                    pageCount={view.pageCount}
+                    pageNumber={view.pageNumber}
+                    step={-1}
+                    onGoToPage={goToPage}
+                />
                 <PageField
                     key={view.pageNumber}
                     pageCount={view.pageCount}
                     pageNumber={view.pageNumber}
-                    onGoToPage={(pageNumber) => act((session) => session.goToPage(pageNumber))}
+                    onGoToPage={goToPage}
                 />
-                <span className="min-w-0 flex-1 truncate">
+                <span className="flex-none">
                     {t('preview.pdf.pageCount', { count: view.pageCount })}
                 </span>
+                <PageStepButton
+                    pageCount={view.pageCount}
+                    pageNumber={view.pageNumber}
+                    step={1}
+                    onGoToPage={goToPage}
+                />
+                <span aria-hidden="true" className="min-w-0 flex-1" />
                 <span aria-live="polite" className="sr-only">
                     {announcement}
                 </span>
+                {/*
+                 * `Cmd+=`/`Cmd+-`/`Cmd+0` stay window zoom: native menu accelerators consume those chords before the
+                 * Renderer sees them, so the PDF zooms through these buttons rather than a hijacked shortcut.
+                 */}
                 <ZoomControls
                     checked={PDF_ZOOM_CHOICES.find(
                         (choice) =>

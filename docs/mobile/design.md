@@ -192,7 +192,8 @@ added without moving screens. Query keys include the same host identity.
   submitted with the Terminal's Enter path; what the Agent does with input during a turn is the
   Agent's own behavior, so the UI never promises queuing.
 - While the Agent is running and the draft is empty, the Send button becomes **Stop** (square icon,
-  danger color, label `Stop Agent`). Send and Stop are the composer's primary action at `52dp`, and
+  danger color, label `Stop Agent` on the Terminal composer and `Stop <provider>`, such as
+  `Stop Claude Code`, in a Chat). Send and Stop are the composer's primary action at `52dp`, and
   the one-line input matches that height. Stop interrupts only the current Agent endpoint and never sends
   a raw Ctrl-C to a shell.
 - The byte counter appears only past 75% of the limit.
@@ -207,12 +208,13 @@ added without moving screens. Query keys include the same host identity.
   its cell, because Android drops touches outside a view's bounds; a preparing image shows a
   spinner. Past 75% of the combined limit the composer notes `Images use 16.2 of 20 MB.`, and an
   image that would cross it is refused with `Images in one message must add up to 20 MB or less.` For a provider that does not (Grok Build) the attach button stays visible but
-  disabled, and tapping it explains why (`Grok Build can't read images in a Chat.`). A sent image opens full screen; when the provider's record has
+  disabled, and tapping it explains why with Desktop's words (`Grok Build Chat does not accept images`). A sent image opens full screen; when the provider's record has
   no original (always for Codex) the viewer shows the thumbnail and says `Showing a preview. The
 full-size image is not available.` (`MOB-CHAT-07`), and with neither it says `This image is no
 longer available.` without a Retry (`MOB-CHAT-08`). The viewer pages through the message's
   images with a horizontal swipe and a `2 / 3` counter, and a downward swipe closes it. Both apply
-  only to a fitted image: a zoomed image pans instead.
+  only to a fitted image: a zoomed image pans instead. A screen reader pages with the image's adjust
+  actions (increment for the next image, decrement for the previous), and its hint names them.
 - A Chat sends optimistically, as Desktop does (shared rules in `agent-chat-pending.ts` of
   `@caxri/protocol`): the message shows at once, faded with `Sending…`, at the end of the timeline
   or in the queue card where it is going to land, and the composer clears and stays editable. The
@@ -221,8 +223,19 @@ longer available.` without a Retry (`MOB-CHAT-08`). The viewer pages through the
 sent. Try again.` After the user's own send the timeline scrolls to the newest row, even when
   they had scrolled up (`MOB-CHAT-FOLLOW-01`). An answered approval or question leaves at once and
   a question's answers show in the timeline; a failed answer brings the card back with its error.
-- While a turn runs a Chat composer shows a `Steer` button beside Send, which adds the draft to the
-  running turn instead of the queue; long-pressing Send still does the same.
+- While a turn runs a Chat composer shows a compact `Steer` button beside Send (which reads Queue),
+  adding the draft to the running turn instead of the queue; long-pressing Send still does the same,
+  and no hint line repeats it. While a turn runs and the user has typed, the attach button steps
+  aside so the input keeps at least about 60% of the row; it returns once the draft is empty.
+- The Chat's queue card offers Steer (or `Send now`) and Edit on each row. Swiping a row left reveals
+  `Delete`, and only a tap on it deletes; a screen reader reaches Delete as a row action. While the
+  keyboard is up the card collapses to its one-line header (`Queued 3`) with a toggle that shows the
+  rows, and the timeline keeps a minimum height however much is docked above the composer.
+- Typing `/` at the start of a Chat draft lists matching commands in `48dp` rows, in place of the
+  model and permission row. Past six matches a last row says `Keep typing to narrow`. With no match
+  the list stays open on Desktop's `No matching command or skill`; Send then holds the draft once and
+  says `No such command. Tap Send again to send as text.`, and a second tap sends it as text. A
+  command the Server refuses reads Desktop's `/<name> could not run`.
 - Terminal delivery states:
   - `Sending…`: input disabled, draft kept.
   - Delivered to the Terminal: clear the draft.
@@ -232,9 +245,10 @@ Check the Terminal before sending again.` Never resend automatically.
 - When the connection is stale, the composer keeps the draft and names the disabled reason.
 - A Chat's composer carries one row above the input naming the model and reasoning effort of the
   next turn (`Fake Codex · High`), with Desktop's names. The row is `40dp` tall with a hit slop that
-  makes it a `48dp` target. Tapping it opens a sheet with `Model` and
+  makes it a `48dp` target; the permission and model triggers sit `16dp` apart so their slop never
+  overlaps. Tapping it opens a sheet with `Model` and
   `Reasoning effort` lists that apply on tap and a `Done` button; the sheet stays open after a
-  model is chosen so its efforts show right away. While a turn runs the sheet says `Applies from
+  model is chosen so its efforts show right away. While a turn runs the sheet says `Applies to
 the next turn.` Without access or a connection the row is plain text, and an open sheet disables
   its lists and names the reason. A new Chat opens with this row, so the model is chosen before the
   first message. A change the provider refuses keeps the current choice checked and shows Desktop's
@@ -273,7 +287,8 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
 <file>` or `Edited N files` card that expands to every file's diff, and a card for each pull
   request, issue, or acceptance report the Agent filed that opens it in the browser. Its work and
   commentary fold behind a `Worked for X`, `Failed after X` (danger), or `Stopped after X`
-  (warning) row over a hairline, placed where the work began; a tap shows or hides them, and a
+  (warning) row over a hairline, placed where the work began; a tap anywhere on its full-width,
+  `48dp` row shows or hides them, and a
   running turn never folds. The Agent's plan
   is a one-row card above the composer (`Plan`, the current step, a segment per step, `2/5`) that
   expands to its steps. The line above the composer says what the Chat is doing with Desktop's

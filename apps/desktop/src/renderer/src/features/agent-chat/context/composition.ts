@@ -80,6 +80,17 @@ export function segmentShade(
         : SEGMENT_SHADES[index % SEGMENT_SHADES.length];
 }
 
+/**
+ * Where Claude Code compacts this conversation on its own, or `undefined` while its auto-compact is off. A report with
+ * auto-compact on but no threshold (an older Claude Code) compacts against its window, the same figure the composer
+ * meter's card names, so the Context tab never reads `Auto-compact off` beside a card promising a compaction.
+ */
+export function autoCompactAt(composition: AgentChatContextComposition): number | undefined {
+    if (!composition.isAutoCompactEnabled) return undefined;
+    const at = composition.autoCompactThreshold ?? composition.window;
+    return at > 0 ? at : undefined;
+}
+
 export interface ContextSegment extends Category {
     /**
      * Tokens before this row in the request, so `[offset, offset + tokens)` is the span it occupies in the prompt.

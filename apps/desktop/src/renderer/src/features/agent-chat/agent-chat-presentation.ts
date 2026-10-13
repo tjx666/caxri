@@ -306,7 +306,17 @@ export function agentChatSendAction(
     state: { isTurnRunning: boolean; isBusy: boolean; isPlanMode?: boolean },
     providerName: string,
     t: Translate = translate,
-): { kind: 'queue' | 'send'; label: string; tooltip: string; placeholder: string } {
+): {
+    kind: 'queue' | 'send';
+    label: string;
+    tooltip: string;
+    /**
+     * The key the tooltip shows as a keycap through `Tooltip`'s `shortcut`, so the locale string never spells it. The
+     * queue-or-steer tooltip names two keys and keeps them in its text, since a tooltip shows one shortcut.
+     */
+    shortcut?: string;
+    placeholder: string;
+} {
     if (state.isTurnRunning)
         return {
             kind: 'queue',
@@ -319,12 +329,14 @@ export function agentChatSendAction(
             kind: 'queue',
             label: t('agentChat.message.queue'),
             tooltip: t('agentChat.message.queueTooltip'),
+            shortcut: 'enter',
             placeholder: t('agentChat.message.queuePlaceholder'),
         };
     return {
         kind: 'send',
         label: t('agentChat.message.send'),
         tooltip: t('agentChat.message.sendTooltip'),
+        shortcut: 'enter',
         placeholder: state.isPlanMode
             ? t('agentChat.message.planPlaceholder')
             : t('agentChat.message.placeholder', { provider: providerName }),
@@ -378,6 +390,25 @@ export function agentChatSendTooltip(
     },
     t: Translate = translate,
 ): string {
+    return sendBlockedReason(state, t) ?? action.tooltip;
+}
+
+/**
+ * The keycap the Send button's tooltip shows beside {@link agentChatSendTooltip}'s text: the action's shortcut while
+ * Send can act, and none while the tooltip explains why it cannot, where a key would promise a press that does
+ * nothing.
+ */
+export function agentChatSendTooltipShortcut(
+    action: { shortcut?: string; tooltip: string },
+    state: Parameters<typeof agentChatSendTooltip>[1],
+): string | undefined {
+    return sendBlockedReason(state, translate) === undefined ? action.shortcut : undefined;
+}
+
+function sendBlockedReason(
+    state: Parameters<typeof agentChatSendTooltip>[1],
+    t: Translate,
+): string | undefined {
     switch (state.block) {
         case 'loading': {
             return t('agentChat.message.sendBlockedLoading');
@@ -396,7 +427,7 @@ export function agentChatSendTooltip(
     if (state.isAttaching) return t('agentChat.message.attaching');
     if (state.isSending) return t('agentChat.message.sending');
     if (!state.hasContent) return t('agentChat.message.typeToSend');
-    return action.tooltip;
+    return undefined;
 }
 
 /**

@@ -4,9 +4,11 @@ import { formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 import { StatTile } from '../../../components/report-card';
 import { useTranslation } from '../../../i18n';
 import { localizedDuration } from '../../../lib/usage-format';
+import { agentChatContextPercent } from '../agent-chat-context';
 import { useClockTick } from '../hooks/use-clock-tick';
 import type { CacheAnalysis } from './cache-analysis';
 import { cacheClock } from './cache-analysis';
+import { autoCompactAt } from './composition';
 
 /**
  * The tab's headline figures: how full the window is, whether the prompt cache is still warm, how much of the
@@ -24,9 +26,7 @@ export function ContextTiles({
     const { t } = useTranslation();
     const total = composition?.totalTokens ?? usage?.totalTokens;
     const window = composition?.window ?? usage?.compactWindow ?? usage?.contextWindow;
-    const threshold = composition?.isAutoCompactEnabled
-        ? composition.autoCompactThreshold
-        : undefined;
+    const threshold = composition && autoCompactAt(composition);
     return (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-2">
             <StatTile
@@ -41,7 +41,7 @@ export function ContextTiles({
                 detail={
                     total !== undefined && window
                         ? [
-                              formatPercent(total / window),
+                              `${agentChatContextPercent(total, window)}%`,
                               threshold &&
                                   t('agentChat.contextPage.tile.compactsAt', {
                                       tokens: formatTokens(threshold),

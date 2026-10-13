@@ -121,6 +121,19 @@ const STALE_DIAGRAM_CLASS = 'is-stale';
 function showDiagram(element: HTMLElement, svg: string): void {
     element.classList.remove(STALE_DIAGRAM_CLASS);
     element.innerHTML = svg;
+    labelDiagram(element, translate('preview.mermaid.label'));
+}
+
+/**
+ * Names a rendered diagram for assistive technology. Mermaid marks its SVG `role="graphics-document document"` without
+ * a name, so the accessible name was computed from the SVG's contents, which start with its embedded `<style>` text
+ * (`#caxri-mermaid-1{font-family:...}`). An `img` role with an explicit label reads as one named picture instead.
+ */
+export function labelDiagram(element: HTMLElement, label: string): void {
+    const svg = element.querySelector(':scope > svg');
+    if (!svg) return;
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', label);
 }
 
 /**

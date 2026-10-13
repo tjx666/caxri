@@ -2,6 +2,7 @@ import { useId } from 'react';
 
 import { Pencil, X } from 'lucide-react';
 
+import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
@@ -75,14 +76,15 @@ function EditBar({
                 </span>
             </Tooltip>
             <Tooltip content={t('agentChat.edit.cancel')} shortcut={cancelShortcut}>
-                <button
+                <Button
                     aria-label={t('agentChat.edit.cancel')}
-                    className="-mr-1.5 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent"
-                    type="button"
+                    className="-mr-1.5 size-6 shrink-0 rounded-md text-muted enabled:hover:text-foreground"
+                    size="icon"
+                    variant="ghost"
                     onClick={onCancel}
                 >
                     <X className="size-3.5" />
-                </button>
+                </Button>
             </Tooltip>
         </div>
     );

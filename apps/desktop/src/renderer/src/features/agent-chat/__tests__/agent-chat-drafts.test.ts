@@ -13,7 +13,7 @@ import {
     readAgentChatDraft,
     retainAgentChatComposerState,
     returnUnsentAgentChatMessage,
-    subscribeAgentChatDraftAppends,
+    subscribeAgentChatDraftUpdates,
     subscribeAgentChatUnsentReturns,
     writeAgentChatAttachments,
     writeAgentChatDraft,
@@ -36,7 +36,9 @@ describe('Agent Chat drafts', () => {
         expect(readAgentChatDraft('chat-c')).toBe('Please fix:\n\nfirst');
 
         const received: string[] = [];
-        const unsubscribe = subscribeAgentChatDraftAppends('chat-c', (text) => received.push(text));
+        const unsubscribe = subscribeAgentChatDraftUpdates('chat-c', (update) =>
+            received.push(update('')),
+        );
         appendToAgentChatDraft('chat-c', 'second');
         expect(received).toEqual(['second']);
         expect(readAgentChatDraft('chat-c')).toBe('Please fix:\n\nfirst');
@@ -81,7 +83,9 @@ describe('Agent Chat drafts', () => {
         expect(readAgentChatDraft('chat-e')).toBe('edited message\n\nfirst comment');
 
         const received: string[] = [];
-        const unsubscribe = subscribeAgentChatDraftAppends('chat-e', (text) => received.push(text));
+        const unsubscribe = subscribeAgentChatDraftUpdates('chat-e', (update) =>
+            received.push(update('')),
+        );
         appendToAgentChatDraft('chat-e', 'second comment');
         unsubscribe();
         expect(received).toEqual(['second comment']);

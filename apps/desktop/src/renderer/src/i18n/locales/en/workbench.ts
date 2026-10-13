@@ -5,6 +5,8 @@ export const workbench = {
     'workbench.welcome.addProject': 'Add Project',
     'workbench.closeSettings': 'Close Settings',
     'workbench.resizePanel': 'Resize Panel',
+    'workbench.resizePrimarySidebar': 'Resize Primary Side Bar',
+    'workbench.resizeSecondarySidebar': 'Resize Secondary Side Bar',
 
     'workbench.pane.empty': 'No Terminal in this Session.',
     'workbench.pane.tabListLabel': 'Open tabs in pane {{index}} of {{count}}',

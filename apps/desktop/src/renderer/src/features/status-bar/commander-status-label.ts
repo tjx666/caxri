@@ -2,6 +2,7 @@ import type { CommanderRunState } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 
 export interface CommanderStatusChipCopy {
     /**
@@ -38,7 +39,7 @@ export function commanderInboxChipCopy(
     t: Translate = translate,
 ): CommanderStatusChipCopy | undefined {
     if (count <= 0) return undefined;
-    const parameters = { count: count.toLocaleString('en-US') };
+    const parameters = { count: formatCount(count) };
     return count === 1
         ? {
               text: t('statusBar.commanderInbox.textOne', parameters),

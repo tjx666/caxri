@@ -42,3 +42,50 @@ export function agentChatPasteDisposition({
         ? 'file'
         : 'no-room';
 }
+
+/**
+ * Whether a paste saved as a file could have gone into the message as text instead: it fits the message limit in place
+ * of the selection it replaced. Only then does the saved-paste notice offer Paste as Text.
+ */
+export function canAgentChatPasteFitAsText({
+    currentLength,
+    pasted,
+    selectedLength,
+}: {
+    currentLength: number;
+    pasted: string;
+    selectedLength: number;
+}): boolean {
+    return currentLength - selectedLength + pasted.length <= MAX_AGENT_CHAT_MESSAGE_LENGTH;
+}
+
+/**
+ * The draft with a saved paste's `reference` put back as the pasted `text`, or `undefined` when the reference is no
+ * longer in the draft (the user removed or edited it) or the text would push the message past its limit.
+ */
+export function draftWithLongPasteAsText(
+    draft: string,
+    reference: string,
+    text: string,
+): string | undefined {
+    const index = draft.indexOf(reference);
+    if (index === -1) return undefined;
+    const next = `${draft.slice(0, index)}${text}${draft.slice(index + reference.length)}`;
+    return next.length <= MAX_AGENT_CHAT_MESSAGE_LENGTH ? next : undefined;
+}
+
+/**
+ * The draft after a plain-text paste (Cmd+Shift+V) of `text` over the selection `[start, end)`, which skips the long
+ * paste file entirely, with where the caret goes; `undefined` when the result would exceed the message limit, since a
+ * programmatic insert is not cut by the input's `maxLength`.
+ */
+export function draftWithPlainPaste(
+    draft: string,
+    start: number,
+    end: number,
+    text: string,
+): { caret: number; draft: string } | undefined {
+    const next = `${draft.slice(0, start)}${text}${draft.slice(end)}`;
+    if (next.length > MAX_AGENT_CHAT_MESSAGE_LENGTH) return undefined;
+    return { caret: start + text.length, draft: next };
+}

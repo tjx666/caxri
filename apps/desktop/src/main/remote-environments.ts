@@ -16,6 +16,7 @@ import type { BrowserWindow, WebContents } from 'electron';
 import type { MainEnvironmentMethods } from './main-environment-methods';
 import type { DesktopServerSupervisor } from './server-attachment';
 import type { DesktopServerConnection } from './server-connection';
+import { knownHostsNameOf } from './ssh/destination';
 import type { RemoteRendererRoute } from './workbench-ipc';
 
 /**
@@ -31,6 +32,10 @@ export interface RemoteHostSupervisor extends DesktopServerSupervisor {
      * Clears a failure that stopped automatic retries (`isFailed()`), so the next `ensure` tries again.
      */
     reconnect(): void;
+    /**
+     * Stops the attempt in flight at the user's request and reports a terminal `cancelled` failure until `reconnect()`.
+     */
+    cancel(): void;
     /**
      * Closes the ControlMaster and the forward. The remote Server keeps running.
      */
@@ -91,6 +96,10 @@ export interface RemoteEnvironmentsOptions {
      * account) so a second connect focuses its window. Rejects an invalid destination.
      */
     keyOf(destination: string): Promise<string> | string;
+    /**
+     * Shows this Mac's SSH config file in Finder, for the Connect to SSH Host picker's Open SSH Config action.
+     */
+    revealSshConfig(): Promise<void>;
 }
 
 interface PendingPrompt {
@@ -99,12 +108,20 @@ interface PendingPrompt {
 }
 
 /**
- * Failure reasons only the user can resolve; automatic reconnection stops at them.
+ * Failure reasons only the user's answer can resolve; automatic reconnection stops at them. `cancelled` stops it too,
+ * but the user chose that outcome, so nothing is left waiting for them.
  */
-const USER_ACTION_REASONS = new Set<RemoteFailureReason>([
-    'authentication',
-    'hostKey',
-    'cancelled',
+const USER_ACTION_REASONS = new Set<RemoteFailureReason>(['authentication', 'hostKey']);
+
+/**
+ * Phases in which a connection attempt is running and `remote.cancel` can stop it.
+ */
+const CANCELLABLE_PHASES = new Set<SshEnvironmentState['phase']>([
+    'connecting',
+    'probing',
+    'installing',
+    'starting',
+    'reconnecting',
 ]);
 
 class SshEnvironmentController implements RemoteEnvironment {
@@ -121,18 +138,21 @@ class SshEnvironmentController implements RemoteEnvironment {
     readonly sendEvent: (event: ServerEvent) => void;
 
     /**
-     * `hostIdentity` is Main's resolved identity of the SSH Host (`keyOf`), carried in the state so the Renderer keys
-     * its device-local composer state by the SSH Host rather than by whichever alias opened the window.
+     * @param destination The destination as the user typed it.
+     * @param key The window identity `keyOf` resolved (`user@hostname:port`), which also names the SSH Host the way
+     *   `known_hosts` does. It is carried in the state as `hostIdentity` so the Renderer keys its device-local composer
+     *   state by the SSH Host rather than by whichever alias opened the window.
+     * @param options How this window's connection, supervisor, and window are created.
      */
     constructor(
         readonly destination: string,
-        hostIdentity: string,
+        private readonly key: string,
         private readonly options: RemoteEnvironmentsOptions,
     ) {
         this.current = {
             kind: 'ssh',
             destination,
-            hostIdentity,
+            hostIdentity: key,
             phase: 'connecting',
             needsUserAction: false,
         };
@@ -233,6 +253,10 @@ class SshEnvironmentController implements RemoteEnvironment {
         const next: SshEnvironmentState = { ...previous, ...patch };
         for (const key of Object.keys(patch) as Array<keyof RemoteStatePatch>)
             if (patch[key] === undefined) delete next[key];
+        if (next.failure?.reason === 'hostKey' && next.failure.knownHostsName === undefined) {
+            const knownHostsName = knownHostsNameOf(this.key);
+            if (knownHostsName) next.failure = { ...next.failure, knownHostsName };
+        }
         this.current = next;
         if (next.phase !== previous.phase) {
             const now = performance.now();
@@ -286,10 +310,25 @@ class SshEnvironmentController implements RemoteEnvironment {
         });
         try {
             await this.connection.resume();
-            this.markAttached();
+            /**
+             * The reconnect loop also settles when the supervisor stops on a terminal failure (a cancel, a rejected
+             * password) without attaching; the supervisor has already reported that failure.
+             */
+            if (this.supervisor.isFailed()) this.fail(new CaxriError('CANCELLED', 'Not attached'));
+            else this.markAttached();
         } catch (error) {
             this.fail(error);
         }
+    }
+
+    /**
+     * Stops a connect, install, or reconnect the user no longer wants. The window stays open on a `cancelled` failure
+     * so Reconnect can start over.
+     */
+    cancel(): void {
+        if (this.isDisposed || !CANCELLABLE_PHASES.has(this.current.phase)) return;
+        for (const prompt of this.prompts.slice()) this.reply(prompt.request.requestId, null);
+        this.supervisor.cancel();
     }
 
     reply(requestId: string, response: string | null): void {
@@ -425,6 +464,12 @@ export function createRemoteEnvironments(options: RemoteEnvironmentsOptions) {
                     throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
                 await environment.reconnect();
             },
+            cancel: () => {
+                if (!environment)
+                    throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
+                environment.cancel();
+            },
+            revealSshConfig: () => options.revealSshConfig(),
             replyAskpass: (requestId, response) => environment?.reply(requestId, response),
             stopServer: async () => {
                 if (!environment)

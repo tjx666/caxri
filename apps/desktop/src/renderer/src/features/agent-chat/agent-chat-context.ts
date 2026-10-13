@@ -5,17 +5,30 @@ import { translate } from '../../i18n';
 import { localizedDuration } from '../../lib/usage-format';
 
 /**
- * Share of the compaction window past which the context counts as high: the meter turns `--danger` and the composer
- * suggests compacting. Set close to where the provider compacts on its own, so the suggestion arrives while compacting
- * by hand still saves a turn, without reading as a false alarm for most of a long conversation.
+ * Share of the compaction window past which the context counts as high: the composer suggests compacting. Set close to
+ * where the provider compacts on its own, so the suggestion arrives while compacting by hand still saves a turn,
+ * without reading as a false alarm for most of a long conversation.
  */
 const HIGH_CONTEXT_SHARE = 0.85;
 
 /**
- * Share past which the meter turns `--warning`. Answer quality starts to degrade around here, and the step gives the
- * user a calm early signal so the change to `--danger` is not the first one they see.
+ * Share past which the meter turns `--warning`. Answer quality starts to degrade around here. The meter stays
+ * `--warning` past {@link HIGH_CONTEXT_SHARE} too: a full context is advice to compact, not a failure, so it matches the
+ * composer's `--warning` suggestion instead of reading as an error beside it.
  */
 const ELEVATED_CONTEXT_SHARE = 0.6;
+
+/**
+ * The smallest estimated rewrite cost, in US dollars, worth a cache notice. Below it a full re-read costs too little to
+ * interrupt the user about, and a notice shown after every idle pause would train them to ignore it.
+ */
+const CACHE_NOTICE_MIN_USD = 0.25;
+
+/**
+ * The context size a cache notice needs when the model has no price: roughly what {@link CACHE_NOTICE_MIN_USD} buys at a
+ * mid-tier cache-write price, so an unpriced model is held to about the same bar.
+ */
+const CACHE_NOTICE_MIN_TOKENS = 40_000;
 
 /**
  * How long before the prompt cache expires the composer starts counting down, so the user can still reply (or compact)
@@ -41,8 +54,16 @@ export interface AgentChatContextUsage {
      * The model's own window, when the compaction window is smaller than it.
      */
     modelWindow?: number;
-    tone: 'normal' | 'warning' | 'danger';
+    tone: 'normal' | 'warning';
     breakdown: NonNullable<AgentChatUsage['breakdown']>;
+}
+
+/**
+ * The whole-number share of `window` that `tokens` fill, from 0 to 100. The composer meter, its card, and the Context
+ * tab's headline figures all round through here, so the two surfaces never show the same context as `1%` and `1.3%`.
+ */
+export function agentChatContextPercent(tokens: number, window: number): number {
+    return window > 0 ? Math.round(Math.min(tokens / window, 1) * 100) : 0;
 }
 
 export function agentChatContextUsage(
@@ -59,12 +80,7 @@ export function agentChatContextUsage(
         ...(usage.compactWindow &&
             usage.contextWindow &&
             usage.contextWindow > usage.compactWindow && { modelWindow: usage.contextWindow }),
-        tone:
-            share >= HIGH_CONTEXT_SHARE
-                ? 'danger'
-                : share >= ELEVATED_CONTEXT_SHARE
-                  ? 'warning'
-                  : 'normal',
+        tone: share >= ELEVATED_CONTEXT_SHARE ? 'warning' : 'normal',
         breakdown: usage.breakdown ?? [],
     };
 }
@@ -105,7 +121,11 @@ export function agentChatContextAlerts(
     const alerts: AgentChatContextAlerts = {};
     const { cacheTtlMinutes, lastResponseAt } = usage;
     const tokens = formatTokens(usage.totalTokens);
-    if (cacheTtlMinutes && lastResponseAt !== undefined) {
+    if (
+        cacheTtlMinutes &&
+        lastResponseAt !== undefined &&
+        isAgentChatCacheRewriteNoticeable(usage)
+    ) {
         const idleMs = now - lastResponseAt;
         const ttlMs = cacheTtlMinutes * 60_000;
         const cost =
@@ -146,6 +166,38 @@ export function agentChatContextAlerts(
             }),
         };
     return alerts;
+}
+
+/**
+ * Whether an expiring or expired prompt cache is worth a notice: the estimated rewrite costs at least
+ * {@link CACHE_NOTICE_MIN_USD}, or, for a model with no price, the context holds at least {@link CACHE_NOTICE_MIN_TOKENS}
+ * tokens. A small conversation re-reads for cents, and a permanent notice about it is noise.
+ */
+export function isAgentChatCacheRewriteNoticeable(
+    usage: Pick<AgentChatUsage, 'cacheRewriteUsd' | 'totalTokens'>,
+): boolean {
+    return usage.cacheRewriteUsd === undefined
+        ? usage.totalTokens >= CACHE_NOTICE_MIN_TOKENS
+        : usage.cacheRewriteUsd >= CACHE_NOTICE_MIN_USD;
+}
+
+/**
+ * The alerts left to show once the user dismissed the cache notice. A dismissal holds for the reply it was made after
+ * (`dismissedResponseAt` is that reply's `lastResponseAt`), so the next reply, which restarts the cache, can raise the
+ * notice again; the context-pressure notice is never dismissed with it.
+ */
+export function agentChatUndismissedContextAlerts(
+    alerts: AgentChatContextAlerts,
+    lastResponseAt: number | undefined,
+    dismissedResponseAt: number | undefined,
+): AgentChatContextAlerts {
+    if (
+        dismissedResponseAt === undefined ||
+        dismissedResponseAt !== lastResponseAt ||
+        !alerts.cache
+    )
+        return alerts;
+    return alerts.pressure ? { pressure: alerts.pressure } : {};
 }
 
 /**

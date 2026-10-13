@@ -151,3 +151,38 @@ export const agentChatViewerPage = (
  */
 export const agentChatViewerPosition = (index: number, count: number): string | null =>
     count > 1 ? `${index + 1} / ${count}` : null;
+
+/**
+ * What a screen reader gets on the viewer's image. The one-finger swipes that page a fitted picture never reach the
+ * image while VoiceOver or TalkBack is on, so turning to another image is an adjustable control: increment is the next
+ * image and decrement the previous one, offered only toward an image that exists, and the hint names those gestures
+ * instead of the sighted swipes.
+ */
+export const agentChatViewerAccessibility = (neighbors: {
+    next: boolean;
+    previous: boolean;
+}): {
+    actions: Array<{ name: 'increment' | 'decrement'; label: string }>;
+    hint: string;
+    role: 'adjustable' | 'image';
+} => {
+    const actions = [
+        ...(neighbors.next ? [{ name: 'increment' as const, label: 'Next image' }] : []),
+        ...(neighbors.previous ? [{ name: 'decrement' as const, label: 'Previous image' }] : []),
+    ];
+    if (actions.length === 0)
+        return { actions, hint: 'Pinch or double-tap to zoom.', role: 'image' };
+    return {
+        actions,
+        hint: 'Swipe up or down to see the next or previous image. Pinch or double-tap to zoom.',
+        role: 'adjustable',
+    };
+};
+
+/**
+ * The page a screen reader's adjust action turns to, or `null` for any other action.
+ */
+export const agentChatViewerAccessibilitySwipe = (
+    actionName: string,
+): Exclude<AgentChatViewerSwipe, 'dismiss'> | null =>
+    actionName === 'increment' ? 'next' : actionName === 'decrement' ? 'previous' : null;

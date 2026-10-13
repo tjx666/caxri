@@ -8,8 +8,8 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { RemoteStateUpdate } from '../remote-server-supervisor';
 import { RemoteServerSupervisor } from '../remote-server-supervisor';
+import type { RemoteStateUpdate } from '../remote-server-supervisor-options';
 import { RemoteSetupError } from '../remote-setup';
 import { SshConnectionError } from '../ssh-connection';
 import type { LayerFixture } from './support/remote-fixtures';
@@ -223,6 +223,71 @@ describe('remote server supervisor', () => {
             await expect(supervisor.ensure()).rejects.toMatchObject({ reason: 'unreachable' });
             expect(supervisor.isFailed()).toBe(false);
             expect(states.at(-1)).toMatchObject({ needsUserAction: false, phase: 'failed' });
+        });
+
+        it('keeps saying reconnecting, with the cause and attempt, while a reattach fails', async () => {
+            const supervisor = createSupervisor();
+            await supervisor.ensure();
+            transports[0]?.drop();
+            startFailure = new SshConnectionError(
+                'unreachable',
+                'ssh: connect to host lab port 22: Connection refused',
+            );
+            await expect(supervisor.ensure()).rejects.toMatchObject({ reason: 'unreachable' });
+            expect(states.at(-1)).toMatchObject({
+                attempt: 1,
+                failure: { reason: 'unreachable' },
+                phase: 'reconnecting',
+            });
+            await expect(supervisor.ensure()).rejects.toMatchObject({ reason: 'unreachable' });
+            expect(states.at(-1)).toMatchObject({ attempt: 2, phase: 'reconnecting' });
+            expect(supervisor.isFailed()).toBe(false);
+
+            startFailure = undefined;
+            await supervisor.ensure();
+            expect(states.at(-1)).toMatchObject({ attempt: undefined, phase: 'connected' });
+        });
+
+        it('stops an attempt the user cancelled until reconnect', async () => {
+            const supervisor = createSupervisor();
+            const ensured = supervisor.ensure();
+            supervisor.cancel();
+            await expect(ensured).rejects.toMatchObject({ reason: 'cancelled' });
+            expect(supervisor.isFailed()).toBe(true);
+            expect(states.at(-1)).toMatchObject({
+                failure: { reason: 'cancelled' },
+                needsUserAction: false,
+                phase: 'failed',
+            });
+            await expect(supervisor.ensure()).rejects.toMatchObject({ reason: 'cancelled' });
+
+            supervisor.reconnect();
+            await supervisor.ensure();
+            expect(states.at(-1)?.phase).toBe('connected');
+        });
+
+        it('does not report connected when the user cancels during the operator handshake', async () => {
+            const handshake = Promise.withResolvers<ServerClient>();
+            const close = vi.fn();
+            const connectOperator = vi.fn(() => handshake.promise);
+            const supervisor = createSupervisor({ connectOperator });
+            const ensured = supervisor.ensure();
+            // Reaching the handshake runs the real install and launch shims, which can exceed waitFor's 1 s default
+            // on a loaded CI runner; a timeout here would also leave setup running into afterEach's directory removal.
+            await vi.waitFor(() => expect(connectOperator).toHaveBeenCalledTimes(1), {
+                timeout: 10_000,
+            });
+            supervisor.cancel();
+            handshake.resolve({ close } as unknown as ServerClient);
+
+            await expect(ensured).rejects.toMatchObject({ reason: 'cancelled' });
+            expect(close).toHaveBeenCalledWith({ cancelPendingRequests: true });
+            expect(states.map(({ phase }) => phase)).not.toContain('connected');
+            expect(states.at(-1)).toMatchObject({
+                failure: { reason: 'cancelled' },
+                phase: 'failed',
+            });
+            expect(supervisor.isFailed()).toBe(true);
         });
 
         it.each([

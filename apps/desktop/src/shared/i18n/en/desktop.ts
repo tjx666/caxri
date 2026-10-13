@@ -49,9 +49,9 @@ export const desktop = {
     'desktop.trash.detailUnsaved':
         '{{path}}\n\nThis file has unsaved changes in the editor. Only the last saved version can be recovered from the Trash.',
     'desktop.trash.detailRemote':
-        '{{path}}\n\nThe item moves to the Trash on {{host}} (~/.local/share/Trash), where it can be recovered.',
+        "{{path}}\n\nThe item moves to the SSH Host's Trash on {{host}}, where it can be recovered.",
     'desktop.trash.detailRemoteUnsaved':
-        '{{path}}\n\nThe item moves to the Trash on {{host}} (~/.local/share/Trash). This file has unsaved changes in the editor; only the last saved version can be recovered.',
+        "{{path}}\n\nThe item moves to the SSH Host's Trash on {{host}}. This file has unsaved changes in the editor; only the last saved version can be recovered.",
     'desktop.trash.confirm': 'Move to Trash',
 
     'desktop.shellCommand.installTitle': "Install 'caxri' Command",
@@ -147,7 +147,7 @@ export const desktop = {
     'desktop.quit.messageOne': 'Quit Caxri while {{running}} is running?',
     'desktop.quit.messageOther': 'Quit Caxri while {{running}} are running?',
     'desktop.quit.detail':
-        'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent sessions so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.',
+        'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent conversations so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.',
     'desktop.quit.otherClientsOne':
         '1 other client is connected to Caxri Server. Stopping will disconnect it.',
     'desktop.quit.otherClientsOther':
@@ -161,11 +161,15 @@ export const desktop = {
         'Review comments live in memory only and do not survive quitting Caxri. 1 repository has unsent comments.',
     'desktop.quit.reviewDetailOther':
         'Review comments live in memory only and do not survive quitting Caxri. {{count}} repositories have unsent comments.',
+    'desktop.quit.reviewLossOne':
+        'Quitting also loses 1 unsent review comment, because review comments live in memory only.',
+    'desktop.quit.reviewLossOther':
+        'Quitting also loses {{count}} unsent review comments, because review comments live in memory only.',
     'desktop.quit.anyway': 'Quit Anyway',
     'desktop.quit.stopFailureTitle': "Caxri Couldn't Stop All Tasks",
     'desktop.quit.stopFailureMessage': 'Some background tasks may still be running.',
     'desktop.quit.stopFailureDetail':
-        'Caxri will quit now. Reopen Caxri to stop any remaining tasks before resuming their Agent sessions in another tool.',
+        'Caxri will quit now. Reopen Caxri to stop any remaining tasks before resuming their Agent conversations in another tool.',
 
     'desktop.windowClose.title': 'Close this window?',
     'desktop.windowClose.messageOne': 'Close this window while {{running}} is running?',
@@ -203,6 +207,12 @@ export const desktop = {
 
     'desktop.fallback.thisProject': 'this Project',
     'desktop.fallback.thisSession': 'this Session',
+
+    'desktop.notification.agentWaiting': 'Waiting for your input',
+    'desktop.notification.agentTurnFinished': 'Turn finished',
+    'desktop.notification.agentFinishedIn': 'Finished in {{duration}}',
+    'desktop.notification.commanderInbox.title': 'Commander needs your action',
+    'desktop.notification.commanderInbox.bodyOther': '{{count}} new items in the Inbox',
 
     'desktop.reset.title': 'Caxri requires a local reset',
     'desktop.reset.intro':

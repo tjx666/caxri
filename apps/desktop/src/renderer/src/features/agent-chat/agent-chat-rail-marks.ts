@@ -71,18 +71,84 @@ export function agentChatRailMarks(
 }
 
 /**
- * At most {@link MAX_AGENT_CHAT_RAIL_MARKS} of `marks`, spread evenly from the first message to the last, so a long
- * conversation keeps a rail of the same shape whose ticks each stand for a stretch of it.
+ * The indices of at most `limit` of `count` marks, spread evenly from the first to the last, so a long conversation
+ * keeps a rail of the same shape whose ticks each stand for a stretch of it. Every index while `count` fits.
+ */
+export function agentChatRailSampleIndices(count: number, limit: number): number[] {
+    if (count <= limit) return Array.from({ length: count }, (_, index) => index);
+    if (limit <= 1) return count > 0 ? [count - 1] : [];
+    const step = (count - 1) / (limit - 1);
+    return Array.from({ length: limit }, (_, index) => Math.round(index * step));
+}
+
+/**
+ * At most {@link MAX_AGENT_CHAT_RAIL_MARKS} of `marks`, spread evenly from the first message to the last (see
+ * {@link agentChatRailSampleIndices}).
  */
 export function sampleAgentChatRailMarks(
     marks: readonly AgentChatRailMark[],
 ): readonly AgentChatRailMark[] {
     if (marks.length <= MAX_AGENT_CHAT_RAIL_MARKS) return marks;
-    const step = (marks.length - 1) / (MAX_AGENT_CHAT_RAIL_MARKS - 1);
-    return Array.from(
-        { length: MAX_AGENT_CHAT_RAIL_MARKS },
-        (_, index) => marks[Math.round(index * step)],
+    return agentChatRailSampleIndices(marks.length, MAX_AGENT_CHAT_RAIL_MARKS).map(
+        (index) => marks[index],
     );
+}
+
+/**
+ * The smallest height a tick's button keeps, so each stays a target a pointer can hit; ticks that would shrink below it
+ * merge instead ({@link agentChatRailTickCapacity}).
+ */
+const AGENT_CHAT_RAIL_TICK_MIN_PX = 6;
+
+/**
+ * How many ticks fit a rail `height` pixels tall at {@link AGENT_CHAT_RAIL_TICK_MIN_PX} each, never fewer than the two
+ * the rail appears with.
+ */
+export function agentChatRailTickCapacity(height: number): number {
+    return Math.max(2, Math.floor(height / AGENT_CHAT_RAIL_TICK_MIN_PX));
+}
+
+/**
+ * The tick that stands for the mark at `activeIndex` once marks were sampled to `indices`: the last tick at or before
+ * it, so the rail lights the stretch the reader is in. `-1` while no mark is active.
+ */
+export function agentChatRailActiveTick(indices: readonly number[], activeIndex: number): number {
+    if (activeIndex < 0) return -1;
+    let tick = -1;
+    for (const [position, index] of indices.entries()) {
+        if (index > activeIndex) break;
+        tick = position;
+    }
+    return tick;
+}
+
+/**
+ * Where a key moves keyboard focus among `count` ticks from `current`, the rail being one Tab stop with arrow keys
+ * inside it: Up and Down step and stop at either end, Home and End jump there. `undefined` for any other key.
+ */
+export function agentChatRailFocusStep(
+    current: number,
+    count: number,
+    key: string,
+): number | undefined {
+    if (count === 0) return undefined;
+    switch (key) {
+        case 'ArrowUp': {
+            return Math.max(current - 1, 0);
+        }
+        case 'ArrowDown': {
+            return Math.min(current + 1, count - 1);
+        }
+        case 'Home': {
+            return 0;
+        }
+        case 'End': {
+            return count - 1;
+        }
+        default: {
+            return undefined;
+        }
+    }
 }
 
 /**

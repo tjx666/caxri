@@ -8,6 +8,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.status.ariaLabel': '此窗口运行在 SSH Host {{destination}} 上',
     'sshHost.status.tooltip': '此窗口中的项目、终端和 Agent 都运行在 SSH Host {{destination}} 上。',
     'sshHost.status.platform': '{{hostname}} · Linux {{architecture}} · glibc {{glibc}}',
+    'sshHost.status.stopServer': '停止 SSH Host 上的 Server…',
 
     // 连接到 SSH Host 对话框
     'sshHost.connect.title': '连接到 SSH Host',
@@ -17,11 +18,13 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.connect.recent': '最近使用',
     'sshHost.connect.config': 'SSH 配置',
     'sshHost.connect.invalid': 'SSH 目标不能以“-”开头，也不能包含空格。',
-    'sshHost.connect.empty': '输入 user@host，或在 ~/.ssh/config 中添加 Host。',
+    'sshHost.connect.empty': '输入 user@host，或选择“打开 SSH 配置”添加 Host。',
+    'sshHost.connect.openConfig': '打开 SSH 配置',
+    'sshHost.connect.openConfigFailed': '无法显示 SSH 配置文件',
     'sshHost.connect.noMatch': '没有匹配的 SSH Host。输入完整的 user@host 即可连接。',
     'sshHost.connect.loadFailed': '无法读取 ~/.ssh/config。仍可直接输入目标。',
     'sshHost.connect.failed': '无法打开 SSH Host 窗口',
-    'sshHost.connect.reused': '此窗口已连接到同一 SSH Host（{{destination}}）',
+    'sshHost.connect.reused': '此窗口已连接到 {{destination}}（与 {{typed}} 是同一 SSH Host）',
 
     // 连接遮罩
     'sshHost.phase.connecting': '正在连接…',
@@ -30,13 +33,13 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.phase.starting': '正在启动 Caxri Server…',
     'sshHost.phase.connected': '已连接',
     'sshHost.phase.reconnecting': '正在重新连接…',
+    'sshHost.phase.reconnectingAttempt': '正在重新连接（第 {{attempt}} 次尝试）…',
     'sshHost.phase.disconnected': '已断开连接',
-    'sshHost.phase.stopped': 'Server 已停止',
+    'sshHost.phase.stopped': '正在停止 Server…',
     'sshHost.phase.failed': '无法连接',
+    'sshHost.phase.cancelled': '连接已取消',
     'sshHost.progress.label': '正在安装 Caxri Server',
     'sshHost.progress.percent': '{{percent}}%',
-    'sshHost.needsUserAction':
-        'SSH Host 需要你的回应，Caxri 已停止自动重连。请选择“重新连接”再试一次。',
     'sshHost.failure.authentication':
         'SSH Host 未接受你的凭据。请检查密码、密钥或两步验证码，然后重新连接。',
     'sshHost.failure.hostKey':
@@ -54,23 +57,32 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.failure.launchFailed': 'Caxri Server 已安装，但未能在 SSH Host 上启动。',
     'sshHost.failure.profileInUse':
         '另一台与此主机共用 home 目录的机器正在运行使用同一份数据的 Caxri Server。请先停止那个 Server，或在它退出约一分钟后再重新连接。',
+    'sshHost.failure.profileInUseHost':
+        '另一台与此主机共用 home 目录的机器（{{hostname}}）正在运行使用同一份数据的 Caxri Server。请先停止那个 Server，或在它退出约一分钟后再重新连接。',
     'sshHost.failure.takenOver':
-        '另一个 Caxri 窗口连接了这个 SSH Host，并接管了它的 Server。终端和 Agent 仍在那里运行。选择「在此处使用」可在这个窗口继续，另一个窗口随后会断开。',
-    'sshHost.failure.cancelled': '连接已取消。',
+        '另一个窗口或另一台电脑上的 Caxri 接管了这个 SSH Host 的 Server。终端和 Agent 仍在那里运行。',
+    'sshHost.failure.cancelled': '需要时选择“重新连接”即可再次连接。',
     'sshHost.failure.connectionLost':
         '与 SSH Host 的连接已断开。其中的终端和 Agent 会继续运行，重新连接后即可恢复显示。',
     'sshHost.failure.unknown': '连接 SSH Host 时出现问题。',
     'sshHost.reconnect': '重新连接',
     'sshHost.useHere': '在此处使用',
     'sshHost.closeWindow': '关闭窗口',
+    'sshHost.copyDetails': '复制详细信息',
+    'sshHost.copyCommand': '复制命令',
     'sshHost.reconnect.failed': '无法重新连接到 SSH Host',
+    'sshHost.cancel.failed': '无法取消连接',
 
     // OpenSSH 提示（密码、密钥口令、两步验证码、主机密钥）
     'sshHost.askpass.title': '{{destination}} 需要你的回应',
+    'sshHost.askpass.passwordTitle': '输入 {{destination}} 的密码',
+    'sshHost.askpass.passphraseTitle': '输入 {{destination}} 的密钥口令',
     'sshHost.askpass.verifyTitle': '验证 {{destination}}',
+    'sshHost.askpass.trust': '信任并连接',
+    'sshHost.askpass.continue': '继续',
     'sshHost.askpass.inputLabel': '回应',
     'sshHost.askpass.privacy': 'Caxri 只把此回应交给 OpenSSH，不会保存。',
-    'sshHost.askpass.retry': 'OpenSSH 拒绝了上一次的回应，请重试（第 {{count}} 次重试）。',
+    'sshHost.askpass.retry': 'OpenSSH 拒绝了上一次的回应。第 {{count}} 次尝试。',
     'sshHost.askpass.failed': '无法回应 SSH Host',
 
     // 停止 SSH Host 上的 Server
@@ -98,7 +110,13 @@ export const sshHost: TranslatedNamespace<typeof source> = {
         '请输入绝对路径（如 /srv/app），或主文件夹中的路径（如 ~/app）。',
     'sshHost.folderPicker.open': '打开',
     'sshHost.watchLimit.watches':
-        'SSH Host 的文件监听数已用尽（fs.inotify.max_user_watches），文件树和 Git 状态可能要过几秒才会更新。请让管理员调高该上限，Caxri 会自动恢复实时更新。',
+        'SSH Host 的文件监听数已用尽（fs.inotify.max_user_watches），文件树和 Git 状态可能要过几秒才会更新。如需调高上限，请复制命令并在 SSH Host 上以 sudo 权限运行，Caxri 会自动恢复实时更新。',
     'sshHost.watchLimit.instances':
-        'SSH Host 的文件监听器数量已用尽（fs.inotify.max_user_instances），文件树和 Git 状态可能要过几秒才会更新。请让管理员调高该上限，Caxri 会自动恢复实时更新。',
+        'SSH Host 的文件监听器数量已用尽（fs.inotify.max_user_instances），文件树和 Git 状态可能要过几秒才会更新。如需调高上限，请复制命令并在 SSH Host 上以 sudo 权限运行，Caxri 会自动恢复实时更新。',
+
+    // SSH Host 窗口中的“按路径打开文件”
+    'sshHost.pathBrowser.homeUnavailable':
+        '在 SSH Host 上，“按路径打开文件”只能打开此项目中的文件。请输入项目内的路径。',
+    'sshHost.pathBrowser.outsideProject':
+        '该路径不在此项目中。在 SSH Host 上，“按路径打开文件”只能打开此项目中的文件。',
 };

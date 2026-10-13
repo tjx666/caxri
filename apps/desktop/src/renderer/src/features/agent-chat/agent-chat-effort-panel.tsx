@@ -87,7 +87,7 @@ export function AgentChatEffortPanel({
                     {ultracode && (
                         <ModeButton
                             icon={Workflow}
-                            label="Ultracode"
+                            label={t('agentChat.model.ultracode')}
                             toggle={ultracode}
                             onChange={(isOn) => configure({ ultracode: isOn })}
                         />
@@ -152,7 +152,9 @@ export function AgentChatEffortPanel({
 }
 
 /**
- * One mode toggle in the header: muted while off, in the accent color while on, with what it does in its tooltip. The
+ * One mode toggle in the header: a muted glyph while off; while on, the glyph in `--foreground` on a pressed fill with
+ * a `--border` outline, the treatment the composer's Plan chip uses, so the state reads without color alone and the
+ * panel keeps `--accent` for its effort title and slider (DESIGN.md Principle 2). Its tooltip says what it does. The
  * Fast bolt also fills while on, as the Codex app's does; an outline glyph such as ultracode's would fill into blobs.
  */
 function ModeButton({
@@ -181,7 +183,11 @@ function ModeButton({
             <Button
                 aria-label={label}
                 aria-pressed={toggle.isOn}
-                className={toggle.isOn ? 'text-accent' : 'text-muted enabled:hover:text-foreground'}
+                className={
+                    toggle.isOn
+                        ? 'border-border bg-[var(--selection)] text-foreground'
+                        : 'text-muted enabled:hover:text-foreground'
+                }
                 size="icon"
                 variant="ghost"
                 onClick={() => onChange(!toggle.isOn)}

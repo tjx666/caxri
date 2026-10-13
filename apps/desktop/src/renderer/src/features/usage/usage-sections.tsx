@@ -2,11 +2,13 @@ import type { UsageLimit, UsageReport } from '@caxri/protocol';
 import { formatLineCount, formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 
 import { ReportCard, StatTile } from '../../components/report-card';
-import { ShareBar } from '../../components/share-bar';
 import { Progress } from '../../components/ui/progress';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useChartKeyboardCursor } from '../../hooks/use-chart-keyboard-cursor';
 import { useRelativeTime } from '../../hooks/use-relative-time';
 import { useTranslation } from '../../i18n';
+import { CHART_CURSOR_CLASS } from '../../lib/chart-cursor';
+import { formatCount } from '../../lib/locale-format';
 import {
     localizedDuration,
     localizedLimitWindowName,
@@ -15,7 +17,6 @@ import {
 import { cn } from '../../lib/utilities';
 import { ProviderLabel } from './provider-label';
 import { UsageActivityCard } from './usage-activity-card';
-import { CHART_CURSOR_CLASS } from './usage-chart-cursor';
 import { UsageCost } from './usage-cost';
 import { UsageDetailCards } from './usage-detail-cards';
 import {
@@ -40,8 +41,9 @@ import {
     pullRequestTileDetail,
     usageShare,
     usageShareBasis,
+    usageShareCaption,
 } from './usage-presentation';
-import { useChartKeyboardCursor } from './use-chart-keyboard-cursor';
+import { UsageShareBar } from './usage-share-bar';
 
 function KpiTiles({ report }: { report: UsageReport }) {
     const { t } = useTranslation();
@@ -50,9 +52,10 @@ function KpiTiles({ report }: { report: UsageReport }) {
     const cacheRate = totals.tokens.total > 0 ? totals.tokens.cacheRead / totals.tokens.total : 0;
     const isUnpriced = isUsageUnpriced(report);
     return (
-        // Auto-fit against the pane, not the window: the Usage tab often sits in a narrow split while the window is wide,
-        // so viewport breakpoints kept six columns in a 600px pane and clipped every figure.
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-2">
+        // Columns follow the pane (container queries), not the window: the Usage tab often sits in a narrow split while
+        // the window is wide, so viewport breakpoints kept six columns in a 600px pane and clipped every figure. The six
+        // tiles step through 2, 3, and 6 columns, divisors of six, so no width leaves one tile alone on a second row.
+        <div className="grid grid-cols-1 gap-2 @xs:grid-cols-2 @xl:grid-cols-3 @5xl:grid-cols-6">
             <StatTile
                 label={t('usage.kpi.cost')}
                 value={isUnpriced ? t('usage.cost.noPrice') : formatUsd(totals.costUsd)}
@@ -71,16 +74,16 @@ function KpiTiles({ report }: { report: UsageReport }) {
             <StatTile
                 label={t('usage.kpi.sessions')}
                 value={t('usage.kpi.sessionsCreated', {
-                    count: totals.sessionsCreated.toLocaleString('en-US'),
+                    count: formatCount(totals.sessionsCreated),
                 })}
                 detail={t('usage.kpi.sessionsArchived', {
-                    count: totals.sessionsArchived.toLocaleString('en-US'),
+                    count: formatCount(totals.sessionsArchived),
                 })}
             />
             <StatTile
                 label={t('usage.kpi.pullRequests')}
                 value={t('usage.kpi.pullRequestsMerged', {
-                    count: totals.pullRequestsMerged.toLocaleString('en-US'),
+                    count: formatCount(totals.pullRequestsMerged),
                 })}
                 detail={
                     // A comma, not ` · `: when the tile is narrow the second fact wraps, and a comma may end a line
@@ -280,7 +283,7 @@ function AgentsCard({ report }: { report: UsageReport }) {
     const total = { costUsd: report.totals.costUsd, tokens: report.totals.tokens.total };
     const { t } = useTranslation();
     return (
-        <ReportCard title={t('usage.agents.title')}>
+        <ReportCard title={t('usage.agents.title')} caption={usageShareCaption(t, basis)}>
             {report.providers.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">{t('usage.agents.empty')}</p>
             ) : (
@@ -301,7 +304,8 @@ function AgentsCard({ report }: { report: UsageReport }) {
                                     })}
                                 />
                             </div>
-                            <ShareBar
+                            <UsageShareBar
+                                basis={basis}
                                 share={usageShare(
                                     { costUsd: row.costUsd, tokens: row.tokens.total },
                                     total,
@@ -333,8 +337,8 @@ function AgentsCard({ report }: { report: UsageReport }) {
 }
 
 /**
- * Tab reaches the chart's summary; the arrow keys then step through the hours (`usage-chart-cursor.ts`), ringing the
- * bar and showing its Tooltip text in the caption, announced through a polite live region.
+ * Tab reaches the chart's summary; the arrow keys then step through the hours (`lib/chart-cursor.ts`), ringing the bar
+ * and showing its Tooltip text in the caption, announced through a polite live region.
  */
 function HourOfDayCard({ report }: { report: UsageReport }) {
     const peak = Math.max(0, ...report.hourOfDay);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ChartCursorLayout } from '../usage-chart-cursor';
-import { moveChartCursor } from '../usage-chart-cursor';
+import type { ChartCursorLayout } from './chart-cursor';
+import { moveChartCursor } from './chart-cursor';
 
 const bars: ChartCursorLayout = { kind: 'linear', count: 24 };
 /**

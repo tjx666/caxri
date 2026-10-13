@@ -54,10 +54,10 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.review.extendHint': '按住 Shift 点击 + 扩展范围',
     'agentChat.review.commentLabel': '评论',
     'agentChat.review.commentPlaceholder': '让 Agent 修改点什么…',
-    'agentChat.review.addToChat': '添加到对话',
+    'agentChat.review.addToChat': '添加到消息',
     'agentChat.review.commentOnRange': '评论 {{range}}',
     'agentChat.review.noteHeading': '审阅 · {{range}}',
-    'agentChat.review.addedToChat': '已添加到对话',
+    'agentChat.review.addedToChat': '已添加到消息',
     'agentChat.review.side.original': '旧',
     'agentChat.review.side.modified': '新',
 
@@ -83,6 +83,8 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.redo.successOne': '已重做 1 个文件的更改',
     'agentChat.redo.successOther': '已重做 {{count}} 个文件的更改',
     'agentChat.redo.unavailable': '此撤销已无法重做。',
+    'agentChat.redo.button': '重做',
+    'agentChat.redo.tooltip': '恢复此次撤销移除的更改',
 
     // Edit, restore, and fork from a message
     'agentChat.undo.replaceTurnsTitle': '替换 {{count}} 轮？',

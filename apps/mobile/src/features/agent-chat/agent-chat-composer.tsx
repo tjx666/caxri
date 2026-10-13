@@ -22,11 +22,12 @@ import { sessionDetailStyles as styles } from '../sessions/components/session-de
 import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
 import { imageAttachmentBudgetNote } from '../sessions/image-attachment-store';
 import { AgentChatCommandList } from './agent-chat-command-list';
+import { agentChatCommandMenu, shouldHoldAgentChatSendAsText } from './agent-chat-commands';
 import { AgentChatComposerInput } from './agent-chat-composer-input';
 import {
     agentChatComposerAvailability,
     agentChatComposerButton,
-    agentChatComposerHint,
+    agentChatComposerRowControls,
     agentChatComposerSubmission,
     agentChatDisabledReason,
     agentChatImagesUnsupportedReason,
@@ -59,7 +60,8 @@ const CHAT_IMAGE_LIMITS = {
  * send puts its text and images back ahead of anything typed since. Stop stays pending, keyed by the turn it stopped,
  * until that turn ends, like the Desktop composer and the Terminal composer's "Stopping Agent…" state; the interrupt
  * request returning only means the provider was asked. A draft naming a listed slash command runs it instead of sending
- * (`useAgentChatCommandRun`).
+ * (`useAgentChatCommandRun`); a bare `/word` no command matches is held once, as Desktop's first Enter is, and a second
+ * tap on the same draft sends it as text (`shouldHoldAgentChatSendAsText`).
  */
 const useComposerAction = ({
     activeTurnId,
@@ -80,6 +82,12 @@ const useComposerAction = ({
 }) => {
     const [stoppingTurnId, setStoppingTurnId] = useState<string>();
     const [error, setError] = useState<string | null>(null);
+    /**
+     * The draft a first tap was held for because no command matches it. Any edit ends the confirmation; reset during
+     * render, as Desktop's command menu does.
+     */
+    const [confirmedDraft, setConfirmedDraft] = useState<string>();
+    if (confirmedDraft !== undefined && confirmedDraft !== draft) setConfirmedDraft(undefined);
     const isStopping = isAgentChatStopping(stoppingTurnId, activeTurnId);
     /**
      * What the user has typed by the time a send fails, so the returned message goes ahead of it.
@@ -102,7 +110,12 @@ const useComposerAction = ({
             }
             return;
         }
-        const command = parseAgentChatCommand(draft, chat.snapshot?.commands);
+        const chatCommands = chat.snapshot?.commands;
+        if (shouldHoldAgentChatSendAsText({ commands: chatCommands, confirmedDraft, draft })) {
+            setConfirmedDraft(draft);
+            return;
+        }
+        const command = parseAgentChatCommand(draft, chatCommands);
         if (command) {
             await commands.run(command);
             return;
@@ -135,6 +148,7 @@ const useComposerAction = ({
     };
     return {
         chooseCommand: commands.choose,
+        confirmsSendAsText: confirmedDraft === draft,
         error,
         isRunningCommand: commands.isRunning,
         isStopping,
@@ -213,6 +227,10 @@ const AttachButton = ({
     );
 };
 
+/**
+ * A compact outlined pill: with Queue beside it and attach stepped aside (`agentChatComposerRowControls`), the input
+ * keeps at least about 60% of a 360dp phone's composer row.
+ */
 const steerStyles = StyleSheet.create({
     button: {
         alignItems: 'center',
@@ -220,9 +238,10 @@ const steerStyles = StyleSheet.create({
         borderWidth: 1.5,
         height: 52,
         justifyContent: 'center',
-        paddingHorizontal: 14,
+        minWidth: 52,
+        paddingHorizontal: 9,
     },
-    label: { fontSize: 15, fontWeight: '700' },
+    label: { fontSize: 14, fontWeight: '700' },
 });
 
 /**
@@ -323,21 +342,16 @@ const AgentChatComposerButton = ({
 };
 
 /**
- * The lines under the input: why the composer is disabled, a pending Stop, the steer hint, and a failed send or Stop.
+ * The lines under the input: why the composer is disabled, a pending Stop, and a failed send or Stop.
  */
 const AgentChatComposerStatus = ({
     error,
-    hint,
     isStopping,
     provider,
     reason,
     theme,
 }: {
     error: string | null;
-    /**
-     * From `agentChatComposerHint`: how to steer, shown only while no failure or Stop owns the line.
-     */
-    hint: string | undefined;
     isStopping: boolean;
     provider: string;
     reason: string | undefined;
@@ -362,14 +376,6 @@ const AgentChatComposerStatus = ({
                 testID="agent-chat-composer-stopping"
             >
                 {`Stopping ${provider}…`}
-            </Text>
-        ) : null}
-        {hint ? (
-            <Text
-                style={[styles.sendState, { color: theme.muted }]}
-                testID="agent-chat-composer-hint"
-            >
-                {hint}
             </Text>
         ) : null}
         {error ? (
@@ -436,15 +442,16 @@ export const AgentChatComposer = ({
     const hasDraft = draft.trim().length > 0 || images.attachments.length > 0;
     const canStop = isRunning && deviceRole === 'control';
     const isStopAction = canStop && !hasDraft;
-    const { chooseCommand, error, isRunningCommand, isStopping, run } = useComposerAction({
-        activeTurnId,
-        chat,
-        draft,
-        images,
-        isStopAction,
-        onDraftChange,
-        provider,
-    });
+    const { chooseCommand, confirmsSendAsText, error, isRunningCommand, isStopping, run } =
+        useComposerAction({
+            activeTurnId,
+            chat,
+            draft,
+            images,
+            isStopAction,
+            onDraftChange,
+            provider,
+        });
     const isEditable = availability.isEnabled && !isRunningCommand;
     const inputReference = useFocusRequest({
         focusComposer,
@@ -466,7 +473,15 @@ export const AgentChatComposer = ({
     const steer = async (): Promise<void> => {
         if (canSteer) await run('steer');
     };
-    const canAttach = deviceRole === 'reply' || deviceRole === 'control';
+    const { showsAttach } = agentChatComposerRowControls({
+        canAttach: deviceRole === 'reply' || deviceRole === 'control',
+        hasText: draft.trim().length > 0,
+        isRunning,
+    });
+    const commandMenu = agentChatCommandMenu(
+        draft,
+        availability.isEnabled ? chat.snapshot?.commands : undefined,
+    );
     const statusReason =
         availability.reason ??
         images.waitReason ??
@@ -481,29 +496,35 @@ export const AgentChatComposer = ({
             style={[styles.composerBlock, { borderColor: theme.border }]}
             testID="agent-chat-composer"
         >
-            <View style={sheetStyles.choices}>
-                <AgentChatPermissionButton
-                    chat={chat}
-                    disabledReason={agentChatDisabledReason({ ...access, action: 'permission' })}
-                    provider={providerId}
-                    theme={theme}
-                />
-                <AgentChatModelButton
-                    chat={chat}
-                    disabledReason={agentChatDisabledReason({ ...access, action: 'configure' })}
-                    theme={theme}
-                />
-            </View>
+            {/* The command list takes the model and permission row's place, so the keyboard-up screen keeps its room. */}
+            {commandMenu ? null : (
+                <View style={sheetStyles.choices}>
+                    <AgentChatPermissionButton
+                        chat={chat}
+                        disabledReason={agentChatDisabledReason({
+                            ...access,
+                            action: 'permission',
+                        })}
+                        provider={providerId}
+                        theme={theme}
+                    />
+                    <AgentChatModelButton
+                        chat={chat}
+                        disabledReason={agentChatDisabledReason({ ...access, action: 'configure' })}
+                        theme={theme}
+                    />
+                </View>
+            )}
             <SessionComposerAttachments images={images} theme={theme} />
             <AgentChatCommandList
-                commands={availability.isEnabled ? chat.snapshot?.commands : undefined}
-                draft={draft}
+                confirmsSendAsText={confirmsSendAsText}
                 isEnabled={isEditable}
+                menu={commandMenu}
                 onChoose={chooseCommand}
                 theme={theme}
             />
             <View style={styles.composerRow}>
-                {canAttach ? (
+                {showsAttach ? (
                     <AttachButton
                         canAdd={images.canAdd}
                         isEditable={isEditable}
@@ -542,7 +563,6 @@ export const AgentChatComposer = ({
             </View>
             <AgentChatComposerStatus
                 error={error}
-                hint={agentChatComposerHint({ canSteer, hasError: error !== null, isStopping })}
                 isStopping={isStopping}
                 provider={provider}
                 reason={statusReason}

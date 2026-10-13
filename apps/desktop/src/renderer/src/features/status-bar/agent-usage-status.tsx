@@ -21,6 +21,7 @@ import {
     agentUsageLimitTone,
     currentLimitWindows,
 } from './agent-usage-label';
+import { useAgentUsageClock } from './hooks/use-agent-usage-clock';
 import { StatusItem } from './status-item';
 
 /**
@@ -52,15 +53,15 @@ function describeTokens(tokens: AgentUsageReadout['tokens'], t: Translate): stri
  */
 export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const { t } = useTranslation();
-    const { data: readout, dataUpdatedAt } = usePolledQuery(
+    // Reads only `data`: the query tracks which fields render, and `dataUpdatedAt` advances on every 2-second poll.
+    const { data: readout } = usePolledQuery(
         'terminal.agentUsage',
         { terminalId },
         { label: 'terminal.agentUsage', intervalMs: 2_000, staleTime: 1_000, retry: false },
     );
     const limitObservedAgo = useRelativeTime(readout?.limit?.observedAt);
+    const now = useAgentUsageClock(readout?.limit);
     if (!readout) return null;
-    // The poll time, not the render time, decides which limit windows have reset, keeping render pure.
-    const now = dataUpdatedAt;
     const label = agentUsageLabel(readout, now, t);
     const agentName = agentProviderCatalog[readout.provider].displayName;
     const { tokens } = readout;

@@ -142,6 +142,9 @@ describe('usageDayTooltip and usageHourTooltip', () => {
             'Mar 8, 2026 · No usage',
         );
         expect(usageDayTooltip(translate, '2026-03-07', undefined)).toBe('Mar 7, 2026 · No usage');
+        expect(usageDayTooltip(translate, '2026-03-06', day('2026-03-06', 16_300))).toBe(
+            'Mar 6, 2026 · 16.3k tokens · No price · 0m active',
+        );
         expect(usageHourTooltip(translate, 11, 12_300_000)).toBe('11:00–12:00 · 12.3M tokens');
         expect(usageHourTooltip(translate, 23, 0)).toBe('23:00–00:00 · No usage');
     });
@@ -247,14 +250,14 @@ describe('usage page captions', () => {
             coverage: { pendingScans: ledger, outsideCaxri: { agentSessions: 0, pendingScans } },
         });
         expect(usageScanCaption(translate, coverage(1_234))).toBe(
-            'Reading 1,234 more transcripts…',
+            'Reading 1,234 more conversations…',
         );
         expect(usageScanCaption(translate, coverage(1_234, 6))).toBe(
-            'Reading 1,240 more transcripts…',
+            'Reading 1,240 more conversations…',
         );
         expect(usageScanCaption(translate, coverage(0))).toBeUndefined();
         expect(usageScanCaption(translate, { coverage: { pendingScans: 1 } })).toBe(
-            'Reading 1 more transcript…',
+            'Reading 1 more conversation…',
         );
         expect(usageScanCaption(translate, { coverage: { pendingScans: 0 } })).toBeUndefined();
     });
@@ -297,8 +300,8 @@ describe('usage page captions', () => {
                     unpricedModels: [],
                 },
             }).join(' ');
-        expect(coverage(0)).toContain('1 conversation has no transcript on this machine');
-        expect(coverage(2)).not.toContain('no transcript');
+        expect(coverage(0)).toContain('1 conversation is no longer saved on this Mac');
+        expect(coverage(2)).not.toContain('no longer saved');
     });
 });
 

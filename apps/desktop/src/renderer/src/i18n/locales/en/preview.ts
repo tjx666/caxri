@@ -14,6 +14,7 @@ export const preview = {
     // Markdown and Mermaid.
     'preview.markdown.copyCodeBlock': 'Copy code block',
     'preview.mermaid.label': 'Mermaid diagram',
+    'preview.mermaid.fileLabel': 'Mermaid diagram: {{name}}',
     'preview.mermaid.empty': 'This diagram is empty.',
     'preview.mermaid.renderFailed': 'This diagram could not be rendered.',
 
@@ -27,6 +28,8 @@ export const preview = {
     'preview.pdf.label': 'PDF preview',
     'preview.pdf.page': 'Page',
     'preview.pdf.pageCount': 'of {{count}}',
+    'preview.pdf.previousPage': 'Previous Page',
+    'preview.pdf.nextPage': 'Next Page',
     'preview.zoom.fit': 'Fit',
     'preview.zoom.label': 'Zoom: {{percent}}%',
     'preview.zoom.in': 'Zoom In',

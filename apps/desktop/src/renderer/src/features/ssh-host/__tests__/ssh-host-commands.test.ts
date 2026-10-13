@@ -7,7 +7,13 @@ vi.mock('../../../lib/caxri', () => ({
 
 import { useEnvironmentStore } from '../../../stores/environment';
 import { dismissToast } from '../../../stores/toasts';
-import { connectToSshHost, didReplySshHostPrompt, stopSshHostServer } from '../ssh-host-commands';
+import {
+    cancelSshHostConnection,
+    connectToSshHost,
+    didReplySshHostPrompt,
+    revealSshConfig,
+    stopSshHostServer,
+} from '../ssh-host-commands';
 import {
     pickSshHostFolder,
     setConnectSshHostOpen,
@@ -47,6 +53,16 @@ describe('stopSshHostServer', () => {
         useEnvironmentStore.setState({ state: { kind: 'local' } });
         await stopSshHostServer();
         expect(mocks.showConfirm).not.toHaveBeenCalled();
+    });
+});
+
+describe('connection actions', () => {
+    it('cancels the running attempt and reveals the SSH config through Main', async () => {
+        mocks.request.mockResolvedValue(null);
+        await cancelSshHostConnection();
+        expect(mocks.request).toHaveBeenCalledWith('remote.cancel');
+        await revealSshConfig();
+        expect(mocks.request).toHaveBeenCalledWith('remote.sshConfig.reveal');
     });
 });
 

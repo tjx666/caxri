@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
 
 import { readAgentChatDraft, writeAgentChatDraft } from '../agent-chat-drafts';
-import { useAgentChatDraftAppends } from './use-agent-chat-draft-appends';
+import { useAgentChatDraftUpdates } from './use-agent-chat-draft-updates';
 
 /**
  * The composer's draft text, kept per Chat across remounts and restarts, with the edits that write into it from outside
- * the input: a queued message pulled back for editing and text another surface appends (a turn review comment). Dropped
- * and pasted content goes through `useAgentChatComposerInput`.
+ * the input: a queued message pulled back for editing and what another surface writes into it (Add to message, a turn
+ * review comment, Paste as Text). Dropped and pasted content goes through `useAgentChatComposerInput`.
  */
 export function useAgentChatDraft({
     inputReference,
@@ -25,7 +25,7 @@ export function useAgentChatDraft({
             writeAgentChatDraft(terminalId, next);
             return next;
         });
-    useAgentChatDraftAppends(terminalId, setDraftState);
+    useAgentChatDraftUpdates(terminalId, setDraftState);
     /**
      * Empties the draft without `setDraft`'s updater. A handoff's new Chat takes the tab before it resolves, so the
      * composer has usually unmounted by then and an updater, which persists the draft, would never run.

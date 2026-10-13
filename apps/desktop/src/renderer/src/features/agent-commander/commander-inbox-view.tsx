@@ -8,7 +8,6 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { describeFailure } from '../../stores/toasts';
-import { CommanderHandoverEmptyAction } from './commander-handover-empty-action';
 import { commanderInboxSections, inboxReplyTarget } from './commander-inbox';
 import { CommanderInboxCard } from './commander-inbox-card';
 import { CommanderInboxComposer } from './commander-inbox-composer';
@@ -33,11 +32,11 @@ export function CommanderInboxView() {
                 <h2 className="m-0 text-[12px] font-medium">
                     {t('agentCommander.window.needsYou')}
                 </h2>
-                <Tooltip content={t('agentCommander.inbox.hideColumn')}>
+                <Tooltip content={t('agentCommander.window.hideNeedsYou')}>
                     <button
                         type="button"
                         aria-label={t('agentCommander.window.hideNeedsYou')}
-                        className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded text-muted hover:text-foreground"
+                        className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-md text-muted hover:text-foreground"
                         onClick={() => setCommanderInboxVisible(false)}
                     >
                         <X size={13} />
@@ -98,9 +97,10 @@ function CommanderInboxList({
     return (
         <>
             {sections.length === 0 ? (
+                // No Hand Over action here: the title bar's Hand Over… button is always beside this column, and the
+                // board's empty state already offers it where a first-time user looks for work to give the Commander.
                 <div className="commander-inbox-empty flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted">
                     <span>{t('agentCommander.inbox.empty')}</span>
-                    <CommanderHandoverEmptyAction />
                 </div>
             ) : (
                 <div

@@ -80,9 +80,9 @@ export const commandDescriptions = {
         'Type the active file path and cursor line (`@path#L12`) into the most recently opened Terminal',
     'commands.description.editor.addReviewComment': 'Annotate the selected lines in a Git diff',
     'commands.description.editor.openPreview':
-        'Show the active Markdown or SVG file as a rendered preview',
+        'Show the active Markdown, SVG, CSV, Mermaid, or PDF file as a rendered preview',
     'commands.description.editor.openPreviewToSide':
-        'Show the active Markdown or SVG file as a rendered preview beside its source',
+        'Show the active Markdown, SVG, CSV, Mermaid, or PDF file as a rendered preview beside its source',
     'commands.description.editor.openImportLink':
         'Open the file named by the import specifier under the editor cursor',
     'commands.description.workbench.splitLeft': 'Split the active tab into a new pane to the left',

@@ -39,7 +39,11 @@ const checkFolds: readonly CheckFold[] = [
     {
         collapsibleState: TreeItemCollapsibleState.Expanded,
         key: 'in-progress-checks',
-        label: (count) => `${count} checks in progress`,
+        /**
+         * Uses the same `running` and `queued` words as the row's trailing summary (`1 failing · 3 running · 1
+         * queued`), so the fold's count reads as the sum of those two numbers instead of a third vocabulary.
+         */
+        label: (count) => `${count} checks running or queued`,
         state: 'pending',
         states: new Set(['pending', 'queued']),
     },

@@ -58,7 +58,7 @@ export const canAttachAgentChatImages = (
  * Why a Chat composer's attach button is disabled for a provider that takes no images in a Chat (Grok Build).
  */
 export const agentChatImagesUnsupportedReason = (provider: string): string =>
-    `${sentenceStartProvider(provider)} can't read images in a Chat.`;
+    `${sentenceStartProvider(provider)} Chat does not accept images`;
 
 /**
  * Whether Retry can fix a failure from the phone. A missing or outdated provider fails the same way again until someone
@@ -135,19 +135,19 @@ const DISABLED_REASONS = {
     send: {
         access: 'Reply access is required to message this Chat.',
         offline: 'Reconnect to send messages.',
-        handedOff: 'Resume the Agent on your computer to send messages.',
+        handedOff: 'Resume the Chat on your computer to send messages.',
         failed: 'Retry the Chat before sending a message.',
     },
     configure: {
         access: 'Reply access is required to change the model.',
         offline: 'Reconnect to change the model.',
-        handedOff: 'Resume the Agent on your computer to change the model.',
+        handedOff: 'Resume the Chat on your computer to change the model.',
         failed: 'Retry the Chat before changing the model.',
     },
     permission: {
         access: 'Control access is required to change permissions.',
         offline: 'Reconnect to change permissions.',
-        handedOff: 'Resume the Agent on your computer to change permissions.',
+        handedOff: 'Resume the Chat on your computer to change permissions.',
         failed: 'Retry the Chat before changing permissions.',
     },
 } as const;
@@ -315,19 +315,21 @@ export const agentChatSendFailureMessage = (failure: MobileWriteFailure): string
     }
 };
 
-const AGENT_CHAT_STEER_HINT = 'Tap to queue · hold to steer';
-
 /**
- * The composer's quiet line while a turn runs and a draft is ready: Send queues it and holding Send steers, and the
- * hold has no other affordance on a phone. A failure or a pending Stop already owns the line, so the hint yields.
+ * Which optional controls share the composer row with the input. While a turn runs and the user has typed, the row
+ * already holds Steer and Queue, so the attach button steps aside to keep the input at least about 60% of the row on a
+ * phone; it comes back once the draft is empty, so attaching stays one tap away before typing. Images already attached
+ * stay in the strip above, and their own remove buttons still work.
  */
-export const agentChatComposerHint = ({
-    canSteer,
-    hasError,
-    isStopping,
+export const agentChatComposerRowControls = ({
+    canAttach,
+    hasText,
+    isRunning,
 }: {
-    canSteer: boolean;
-    hasError: boolean;
-    isStopping: boolean;
-}): string | undefined =>
-    canSteer && !hasError && !isStopping ? AGENT_CHAT_STEER_HINT : undefined;
+    /**
+     * Whether this device may attach images at all (reply or control access).
+     */
+    canAttach: boolean;
+    hasText: boolean;
+    isRunning: boolean;
+}): { showsAttach: boolean } => ({ showsAttach: canAttach && !(isRunning && hasText) });

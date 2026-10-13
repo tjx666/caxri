@@ -7,6 +7,7 @@ import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { useScrollEdge } from '../../../hooks/use-scroll-edge';
 import { useTranslation } from '../../../i18n';
 import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
+import { measureKeepAliveElement, observeKeepAliveElementRect } from '../virtual-tree-keep-alive';
 import { virtualTreeRenderedIndexes } from '../virtual-tree-range';
 import {
     FileTreeCreateRow,
@@ -154,6 +155,8 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
         estimateSize: () => FILE_TREE_ROW_HEIGHT,
         getItemKey: (index) => rows[index].key,
         getScrollElement: () => scrollElement.current,
+        measureElement: measureKeepAliveElement,
+        observeElementRect: observeKeepAliveElementRect,
         overscan: 10,
         rangeExtractor: (range) =>
             virtualTreeRenderedIndexes(

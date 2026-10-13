@@ -1,8 +1,9 @@
 /**
- * Keyboard inspection of the Usage charts: one cursor model shared by the Activity day grid, week bars, cumulative
- * line, and the Time of day bars, so every chart answers the same keys.
+ * Keyboard inspection of the Renderer's charts: one cursor model shared by the Usage page's Activity day grid, week
+ * bars, cumulative line, and Time of day bars, and the Agent status tab's response bars and daily uptime bars, so every
+ * chart answers the same keys.
  *
- * - `linear`: items in a row (week bars, cumulative points, hours). Left and Right step one item.
+ * - `linear`: items in a row (week bars, cumulative points, hours, responses, days). Left and Right step one item.
  * - `grid`: the GitHub-style day grid, stored column-major with `rows` cells per week column. Left and Right step one
  *   week column, Up and Down one weekday row, matching where the cell sits on screen.
  *

@@ -9,6 +9,8 @@ export const workbench: TranslatedNamespace<typeof source> = {
     'workbench.welcome.addProject': '添加项目',
     'workbench.closeSettings': '关闭设置',
     'workbench.resizePanel': '调整面板大小',
+    'workbench.resizePrimarySidebar': '调整主侧边栏大小',
+    'workbench.resizeSecondarySidebar': '调整辅助侧边栏大小',
 
     'workbench.pane.empty': '此会话中没有终端。',
     'workbench.pane.tabListLabel': '窗格 {{index}}/{{count}} 中打开的标签页',

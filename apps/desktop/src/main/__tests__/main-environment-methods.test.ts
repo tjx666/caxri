@@ -9,11 +9,13 @@ function environmentMethods() {
     const connect = vi.fn<MainEnvironmentMethods['connect']>(() => Promise.resolve());
     const replyAskpass = vi.fn<MainEnvironmentMethods['replyAskpass']>();
     const methods: MainEnvironmentMethods = {
+        cancel: vi.fn(),
         connect,
         get: vi.fn(() => ({ kind: 'local' as const })),
         listHosts: vi.fn(() => Promise.resolve({ hosts: [], recent: ['dev@build-box'] })),
         reconnect: vi.fn(() => Promise.resolve()),
         replyAskpass,
+        revealSshConfig: vi.fn(() => Promise.resolve()),
         stopServer: vi.fn(() => Promise.resolve({ canceled: false })),
     };
     return { connect, methods, replyAskpass };

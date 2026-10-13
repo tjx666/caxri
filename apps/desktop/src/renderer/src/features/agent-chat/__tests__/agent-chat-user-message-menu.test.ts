@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentChatUserMessageMenuInput } from '../agent-chat-user-message-menu';
-import { agentChatUserMessageMenu } from '../agent-chat-user-message-menu';
+import { agentChatReplyMenu, agentChatUserMessageMenu } from '../agent-chat-user-message-menu';
 
 function input(
     overrides: Partial<AgentChatUserMessageMenuInput> = {},
@@ -46,11 +46,15 @@ describe('agentChatUserMessageMenu', () => {
         ]);
     });
 
-    it('copies the selection inside the message instead of the whole text', () => {
+    it('copies the selection inside the message and still offers the whole message', () => {
         const onCopy = vi.fn();
         const menuInput = input({ selectedText: 'the bug', onCopy });
-        const [copy] = agentChatUserMessageMenu(menuInput);
+        const [copy, copyMessage] = agentChatUserMessageMenu(menuInput);
         expect(describeEntry(copy)).toEqual({ label: 'Copy', disabledReason: undefined });
+        expect(describeEntry(copyMessage)).toEqual({
+            label: 'Copy Message',
+            disabledReason: undefined,
+        });
         if (copy && copy.type !== 'separator' && copy.type !== 'submenu') copy.onSelect();
         expect(onCopy).toHaveBeenCalledWith('the bug');
     });
@@ -83,5 +87,47 @@ describe('agentChatUserMessageMenu', () => {
     it('offers no Copy for a message of images alone', () => {
         const menuInput = input({ text: '', edit: undefined, fork: undefined, restore: undefined });
         expect(visible(agentChatUserMessageMenu(menuInput))).toEqual(['---']);
+    });
+});
+
+describe('agentChatReplyMenu', () => {
+    it('offers Copy Message for the Markdown source and Add to Message for the whole reply', () => {
+        const onCopy = vi.fn();
+        const onQuote = vi.fn();
+        const entries = agentChatReplyMenu({ text: '**Done**', selectedText: '', onCopy, onQuote });
+        expect(visible(entries)).toEqual([
+            { label: 'Copy Message', disabledReason: undefined },
+            { label: 'Add to Message', disabledReason: undefined },
+        ]);
+        for (const entry of entries)
+            if (entry && entry.type !== 'separator' && entry.type !== 'submenu') entry.onSelect();
+        expect(onCopy).toHaveBeenCalledWith('**Done**');
+        expect(onQuote).toHaveBeenCalledWith('**Done**');
+    });
+
+    it('copies and quotes the selection inside the reply, keeping Copy Message for the whole reply', () => {
+        const onCopy = vi.fn();
+        const onQuote = vi.fn();
+        const entries = agentChatReplyMenu({
+            text: 'all of it',
+            selectedText: 'of',
+            onCopy,
+            onQuote,
+        });
+        expect(visible(entries)).toEqual([
+            { label: 'Copy', disabledReason: undefined },
+            { label: 'Copy Message', disabledReason: undefined },
+            { label: 'Add to Message', disabledReason: undefined },
+        ]);
+        for (const entry of entries)
+            if (entry && entry.type !== 'separator' && entry.type !== 'submenu') entry.onSelect();
+        expect(onCopy).toHaveBeenCalledWith('of');
+        expect(onCopy).toHaveBeenCalledWith('all of it');
+        expect(onQuote).toHaveBeenCalledWith('of');
+    });
+
+    it('leaves out Add to Message where there is no Chat to write to', () => {
+        const entries = agentChatReplyMenu({ text: 'reply', selectedText: '', onCopy: vi.fn() });
+        expect(visible(entries)).toEqual([{ label: 'Copy Message', disabledReason: undefined }]);
     });
 });

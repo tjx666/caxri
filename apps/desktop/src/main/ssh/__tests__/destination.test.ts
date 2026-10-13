@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    knownHostsNameOf,
     parseSshDestination,
     sshDestinationArguments,
     sshDestinationKey,
@@ -82,5 +83,17 @@ describe('sshHostWindowKey', () => {
         expect(sshHostWindowKey(parseSshDestination('devbox'))).not.toBe(
             sshHostWindowKey(parseSshDestination('dev@devbox')),
         );
+    });
+});
+
+describe('knownHostsNameOf', () => {
+    const nameOf = (destination: string) =>
+        knownHostsNameOf(sshHostWindowKey(parseSshDestination(destination)));
+
+    it('names the SSH Host the way known_hosts records it', () => {
+        expect(nameOf('dev@devbox')).toBe('devbox');
+        expect(nameOf('devbox:2222')).toBe('[devbox]:2222');
+        expect(nameOf('root@[2001:db8::1]:2200')).toBe('[2001:db8::1]:2200');
+        expect(knownHostsNameOf('devbox')).toBeUndefined();
     });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
 import {
+    adjacentPdfPage,
     clampPdfPageNumber,
     describePdfView,
     parsePdfPageInput,
@@ -21,6 +22,19 @@ describe('PDF page field', () => {
         expect(parsePdfPageInput('', 10, 7)).toBe(7);
         expect(parsePdfPageInput('abc', 10, 7)).toBe(7);
         expect(clampPdfPageNumber(NaN, 10, 5)).toBe(5);
+    });
+});
+
+describe('PDF page step buttons', () => {
+    it('steps one page within the document', () => {
+        expect(adjacentPdfPage(3, -1, 10)).toBe(2);
+        expect(adjacentPdfPage(3, 1, 10)).toBe(4);
+    });
+
+    it('has no target at the first or last page, so the button disables', () => {
+        expect(adjacentPdfPage(1, -1, 10)).toBeUndefined();
+        expect(adjacentPdfPage(10, 1, 10)).toBeUndefined();
+        expect(adjacentPdfPage(1, 1, 1)).toBeUndefined();
     });
 });
 

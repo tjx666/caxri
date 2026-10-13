@@ -8,7 +8,7 @@ import { CaxriError, MAX_PATH_BROWSER_ENTRIES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
 import type { PathBrowserDirectories } from './path-browser-directories';
-import { localPathBrowserDirectories } from './path-browser-directories';
+import { localPathBrowserDirectories, outsideProjectRootError } from './path-browser-directories';
 import { listFreeDirectory, readFreeDocument, resolveBrowseInput } from './path-browser-free';
 import type { FileIdentity, RootIdentity } from './path-browser-identity';
 import { authorizeCandidate, directoryIdentity, isSameOrInside } from './path-browser-identity';
@@ -219,8 +219,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         displayDirectory?: string,
     ): Promise<Snapshot> {
         await directories.validate(context.root);
-        if (!isSameOrInside(context.root.path, directory.path))
-            throw new CaxriError('PATH_DENIED', 'Path escapes the Project root');
+        if (!isSameOrInside(context.root.path, directory.path)) throw outsideProjectRootError();
         if (filter.length > MAX_FILTER_LENGTH)
             return snapshot(
                 context,
@@ -386,7 +385,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             !isSameOrInside(context.root.path, directory.path) ||
             !isSameOrInside(context.root.path, displayDirectory)
         )
-            throw new CaxriError('PATH_DENIED', 'Path escapes the Project root');
+            throw outsideProjectRootError();
         return { directory, displayDirectory };
     }
 

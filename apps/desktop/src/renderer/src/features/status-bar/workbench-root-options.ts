@@ -71,3 +71,21 @@ export function conversationWorkbenchRootSuggestion(
     const first = conversationWorkbenchRoots(roots).at(0);
     return first ? workbenchRootLabel(first, roots, t) : undefined;
 }
+
+/**
+ * The worktree a pull request on another branch can be opened in: the one root checked out on `branch`, other than the
+ * Session's current root. `undefined` when no worktree has that branch, or when more than one does, because guessing
+ * between two checkouts of the same branch would switch the Session somewhere the user did not pick.
+ */
+export function workbenchRootForBranch(
+    roots: readonly WorkbenchRootOption[],
+    branch: string,
+    currentProjectId: string | undefined,
+): WorkbenchRootOption | undefined {
+    const matches = roots.filter(
+        (root) =>
+            root.branch === branch &&
+            (currentProjectId === undefined || root.projectId !== currentProjectId),
+    );
+    return matches.length === 1 ? matches[0] : undefined;
+}

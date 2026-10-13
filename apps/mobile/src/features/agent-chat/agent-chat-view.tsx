@@ -41,6 +41,11 @@ import {
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
 import type { AgentChatController } from './use-agent-chat';
 
+/**
+ * About three lines of the timeline, kept visible however much is docked above the composer.
+ */
+const TIMELINE_MIN_HEIGHT = 96;
+
 const noOlderPage = async (): Promise<void> => {};
 
 const AgentChatBody = ({
@@ -416,7 +421,12 @@ export const AgentChatView = ({
 
 const styles = StyleSheet.create({
     root: { flex: 1 },
-    body: { flex: 1 },
+    /**
+     * With the keyboard up, the plan, requests, activity, and queue docked above the composer could otherwise crush the
+     * timeline to nothing; the docks shrink first (the queue also collapses while typing), so a few lines stay
+     * readable.
+     */
+    body: { flex: 1, minHeight: TIMELINE_MIN_HEIGHT },
     bannerButton: {
         alignItems: 'center',
         borderRadius: 10,
@@ -428,7 +438,7 @@ const styles = StyleSheet.create({
     bannerButtonText: { fontSize: 14, fontWeight: '700' },
     status: { alignItems: 'center', flex: 1, gap: 12, justifyContent: 'center', padding: 24 },
     statusText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
-    dock: { borderTopWidth: 1, flexGrow: 0, maxHeight: '55%' },
+    dock: { borderTopWidth: 1, flexGrow: 0, flexShrink: 1, maxHeight: '55%' },
     requests: { gap: 8, padding: 12 },
     hidden: { display: 'none' },
 });

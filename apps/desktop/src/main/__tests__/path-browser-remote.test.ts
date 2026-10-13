@@ -1,3 +1,4 @@
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createPathBrowserAuthority } from '../path-browser-authority';
@@ -35,9 +36,7 @@ function answer(method: string, parameters?: unknown): unknown {
     if (method === 'files.authorizeOpen') {
         const path = input.path!;
         if (path !== ROOT && !path.startsWith(`${ROOT}/`))
-            throw Object.assign(new Error('Path escapes the Project root'), {
-                code: 'PATH_DENIED',
-            });
+            throw new CaxriError('PATH_DENIED', 'Path is outside the Project root');
         return {
             path,
             kind: path in TREE ? 'directory' : 'file',
@@ -126,10 +125,10 @@ describe('path browser in an SSH Host window', () => {
         ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         await expect(
             authority.browse({ browserId, mode: 'project', input: '~/' }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        ).rejects.toMatchObject({ code: 'PATH_DENIED', details: { reason: 'homeUnavailable' } });
         await expect(
             authority.browse({ browserId, mode: 'project', input: '/etc/' }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        ).rejects.toMatchObject({ code: 'PATH_DENIED', details: { reason: 'outsideProjectRoot' } });
         expect(request).not.toHaveBeenCalledWith(
             'files.browse',
             expect.objectContaining({ directory: '/etc' }),

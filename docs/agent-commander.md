@@ -412,6 +412,13 @@ fill, not an accent border, because it is a persistent selection rather than foc
 the Commander ran `commander inbox add`, so the owner can trust that everything there is waiting on
 them, including after they were away from the computer.
 
+**Notification.** When the Commander adds a new open item, Desktop raises one system notification
+("Commander needs your action", the item's title, or a count for a burst) unless the Commander window
+is focused or Agent notifications are off in Settings. Items already open at launch are the baseline
+and never replayed. Clicking it opens the Commander window with the Inbox shown. Main logs each
+decision as `agent_notifications.decided` with `attentionKind: commanderInbox` and an `outcome` of
+`shown`, `commanderFocused`, or `disabled`.
+
 **Kinds.** `merge` names a pull request URL and the head commit (`--head`, the `headRefOid` the
 Commander verified). `decision` is a product or scope choice, optionally with numbered `--option`s.
 `hands` is a step that needs the owner physically, such as a login or a device. A card renders a

@@ -33,6 +33,7 @@ export const agentStatus = {
         'No response has been measured yet. Speed appears after the Agent finishes its first response.',
     'agentStatus.throughput.chartLabel': 'Output speed of the last {{count}} responses',
     'agentStatus.throughput.barDescription': '{{variant}}: {{sample}}, finished {{time}}',
+    'agentStatus.throughput.averageLine': 'Average {{rate}}',
     'agentStatus.throughput.byModel': 'By model',
     'agentStatus.throughput.byModelCaption': 'Every measured response in this Agent Session',
     'agentStatus.throughput.byModel.model': 'Model',

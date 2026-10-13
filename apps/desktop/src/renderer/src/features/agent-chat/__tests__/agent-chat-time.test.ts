@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { useLocaleStore } from '../../../i18n';
 import {
     agentChatDayBreaks,
     agentChatDayLabel,
@@ -24,6 +25,18 @@ describe('agentChatDayLabel', () => {
         expect(agentChatDayLabel(at(10, 10, 17, 59), now)).toBe(`Yesterday ${time}`);
         expect(agentChatDayLabel(at(10, 3, 17, 59), now)).not.toMatch(/2026|Today|Yesterday/u);
         expect(agentChatDayLabel(at(12, 30, 17, 59, 2025), now)).toMatch(/2025/u);
+    });
+});
+
+describe('agent chat time locale', () => {
+    afterEach(() => useLocaleStore.setState({ locale: 'en' }));
+
+    it('formats dates in the interface language rather than the system one', () => {
+        const now = at(10, 11, 18);
+        useLocaleStore.setState({ locale: 'en' });
+        expect(agentChatDayLabel(at(10, 3, 17, 59), now)).toMatch(/^Oct 3 /u);
+        useLocaleStore.setState({ locale: 'zh-CN' });
+        expect(agentChatDayLabel(at(10, 3, 17, 59), now)).toMatch(/^10月3日 /u);
     });
 });
 

@@ -7,6 +7,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/pop
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import type { AgentChatContextUsage } from './agent-chat-context';
+import { agentChatContextPercent } from './agent-chat-context';
+import { contextCategoryLabel } from './context/category-labels';
 import { inRequestOrder, segmentShade } from './context/composition';
 
 const RADIUS = 5.5;
@@ -15,7 +17,6 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const TONE_CLASS_NAMES: Record<AgentChatContextUsage['tone'], string> = {
     normal: 'text-muted',
     warning: 'text-warning',
-    danger: 'text-danger',
 };
 
 /**
@@ -69,7 +70,9 @@ function ContextCard({
                                 aria-hidden
                                 className={cn('size-2 rounded-sm', segmentShade(row, index))}
                             />
-                            <span className="truncate text-muted">{row.label}</span>
+                            <span className="truncate text-muted">
+                                {contextCategoryLabel(t, row.label)}
+                            </span>
                             <span className="text-right tabular-nums">
                                 {formatTokens(row.tokens)}
                             </span>
@@ -142,7 +145,7 @@ export function AgentChatContextMeter({
     usage: AgentChatContextUsage;
 }) {
     const { t } = useTranslation();
-    const percent = Math.round(usage.used * 100);
+    const percent = agentChatContextPercent(usage.totalTokens, usage.window);
     const description = t('agentChat.context.meterLabel', {
         percent,
         tokens: formatTokens(usage.totalTokens),

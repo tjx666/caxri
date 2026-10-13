@@ -116,9 +116,9 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.peerApproval.textOne': '{{count}} 条消息待批准',
     'statusBar.peerApproval.textOther': '{{count}} 条消息待批准',
     'statusBar.peerApproval.descriptionOne':
-        '有 {{count}} 条对等消息正在等待你批准。点击查看最早的一条。',
+        '有 {{count}} 条其他 Agent 发来的消息正在等待你批准。点击查看最早的一条。',
     'statusBar.peerApproval.descriptionOther':
-        '有 {{count}} 条对等消息正在等待你批准。点击查看最早的一条。',
+        '有 {{count}} 条其他 Agent 发来的消息正在等待你批准。点击查看最早的一条。',
     'statusBar.permissionAutoAllow.description':
         '此会话已开启“始终允许”：所有 Agent 权限请求都会被自动允许。点击可关闭。',
     'statusBar.remoteDebugging.wherePipe': '通过启动 Caxri 的程序所打开的管道',
@@ -143,6 +143,9 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.changes.note': '仅统计已跟踪的文件，不包括新的未跟踪文件。',
     'statusBar.changes.hint': '点击在 Git 中显示',
     'statusBar.pullRequest.ariaLabel': '打开 Pull Request #{{number}}',
+    'statusBar.pullRequest.ariaLabelElsewhere':
+        '打开分支 {{branch}} 的 Pull Request #{{number}}（不是当前检出的分支）',
+    'statusBar.pullRequest.switchWorktree': '切换到 {{branch}} 的 Worktree',
     'statusBar.pullRequest.eyebrow': 'Pull Request #{{number}}',
     'statusBar.pullRequest.hint': '点击在 GitHub 上打开',
     'statusBar.pullRequest.branch': '分支',
@@ -165,7 +168,7 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.workbenchRoot.authorizeConfirm': '授权并切换',
     'statusBar.workbenchRoot.authorizeFailed': '无法授权工作台根目录',
     'statusBar.workbenchRoot.switchFailed': '无法切换工作台根目录',
-    'statusBar.workbenchRoot.detached': '游离',
+    'statusBar.workbenchRoot.detached': '分离的 HEAD',
     'statusBar.workbenchRoot.authorize': '授权',
     'statusBar.workbenchRoot.mainWorktree': '主 Worktree',
     'statusBar.workbenchRoot.path': '路径',

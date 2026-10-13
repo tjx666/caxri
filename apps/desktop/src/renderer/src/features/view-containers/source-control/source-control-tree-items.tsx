@@ -15,6 +15,7 @@ import { startFilePathDrag } from '../../../lib/file-drag';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../../lib/repository-file-path';
 import { cn } from '../../../lib/utilities';
 import { openFile } from '../../editor/document-commands';
+import { observeKeepAliveElementRect } from '../virtual-tree-keep-alive';
 import { sourceControlDecorationClassName } from './source-control-decorations';
 import { SourceControlIcon } from './source-control-icon';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
@@ -186,6 +187,7 @@ export function SourceControlTreeItems({
         estimateSize: () => SOURCE_CONTROL_TREE_ROW_HEIGHT,
         getItemKey: (index) => rows[index].rowId,
         getScrollElement: () => sourceControlScroller(listReference.current),
+        observeElementRect: observeKeepAliveElementRect,
         overscan: 10,
         rangeExtractor: (range) =>
             sourceControlRenderedIndexes(defaultRangeExtractor(range), range.count, [activeIndex]),

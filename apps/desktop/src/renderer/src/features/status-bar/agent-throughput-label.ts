@@ -6,6 +6,7 @@ import type {
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 
 /**
  * The shortest duration a rate is computed from. Transcript timestamps are coarse, so a response measured in a few
@@ -26,8 +27,6 @@ export function throughputRate(
     return aggregate.outputTokens / (aggregate.durationMs / 1_000);
 }
 
-const groupedCount = new Intl.NumberFormat('en-US');
-
 /**
  * Joins a number to its unit so a wrapping line or a narrow tile never strands `tok/s` away from its value.
  */
@@ -38,7 +37,7 @@ const NO_BREAK_SPACE = '\u{A0}';
  * between `9.8` and `10`, while the tenth carries no decision a user makes.
  */
 export function formatThroughputRate(rate: number): string {
-    return `${rate < 1 ? '<1' : groupedCount.format(Math.round(rate))}${NO_BREAK_SPACE}tok/s`;
+    return `${rate < 1 ? '<1' : formatCount(Math.round(rate))}${NO_BREAK_SPACE}tok/s`;
 }
 
 /**
@@ -51,7 +50,7 @@ export function spokenThroughputRate(rate: number, t: Translate = translate): st
         rounded === 1
             ? 'statusBar.throughput.spokenRateOne'
             : 'statusBar.throughput.spokenRateOther',
-        { count: groupedCount.format(rounded) },
+        { count: formatCount(rounded) },
     );
 }
 
@@ -100,7 +99,7 @@ export function describeThroughputAggregate(
 ): string {
     const rate = throughputRate(aggregate);
     const parameters = {
-        tokens: groupedCount.format(aggregate.outputTokens),
+        tokens: formatCount(aggregate.outputTokens),
         duration: formatThroughputDuration(aggregate.durationMs),
         count: aggregate.responseCount,
     };

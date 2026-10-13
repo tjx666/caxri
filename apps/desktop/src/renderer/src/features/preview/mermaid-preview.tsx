@@ -3,7 +3,7 @@ import { useDeferredValue, useEffect, useRef } from 'react';
 import type { ThemeTokens } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
-import { renderMermaidDiagram } from './markdown-diagrams';
+import { labelDiagram, renderMermaidDiagram } from './markdown-diagrams';
 import { PreviewEmptyState } from './preview-empty-state';
 import { PreviewZoomView } from './preview-zoom-view';
 
@@ -32,11 +32,16 @@ function sizeDiagramNaturally(element: HTMLElement): void {
  * The diagram zooms and pans (see `PreviewZoomView`), opening at Fit.
  */
 export function MermaidPreview({
+    fileName,
     source,
     sourcePath,
     theme,
     viewStateKey,
 }: {
+    /**
+     * The diagram file's name, which the diagram's accessible name carries (`Mermaid diagram: flow.mmd`).
+     */
+    fileName: string;
     source: string;
     /**
      * The Project file behind the diagram, so an empty diagram offers Open Source; absent for an external document.
@@ -50,16 +55,19 @@ export function MermaidPreview({
     const deferredSource = useDeferredValue(source);
     const isEmpty = deferredSource.trim() === '';
 
+    const label = t('preview.mermaid.fileLabel', { name: fileName });
+
     useEffect(() => {
         const element = diagramReference.current;
         if (!element || isEmpty) return;
         const controller = new AbortController();
         // eslint-disable-next-line no-void -- a failed render paints its own error into the element
-        void renderMermaidDiagram(element, deferredSource, theme, controller.signal).then(() =>
-            sizeDiagramNaturally(element),
-        );
+        void renderMermaidDiagram(element, deferredSource, theme, controller.signal).then(() => {
+            sizeDiagramNaturally(element);
+            labelDiagram(element, label);
+        });
         return () => controller.abort();
-    }, [deferredSource, isEmpty, theme]);
+    }, [deferredSource, isEmpty, label, theme]);
 
     if (isEmpty) return <PreviewEmptyState title={t('preview.mermaid.empty')} path={sourcePath} />;
     return (
@@ -69,7 +77,7 @@ export function MermaidPreview({
                     error rendered inside it has to be readable. */}
                 <figure
                     ref={diagramReference}
-                    aria-label={t('preview.mermaid.label')}
+                    aria-label={label}
                     className="caxri-markdown-diagram caxri-mermaid-file-diagram m-0"
                     data-testid="mermaid-preview"
                 />

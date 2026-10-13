@@ -30,6 +30,12 @@ describe('resolveEditorLanguage', () => {
         },
     );
 
+    it.each(['flow.mmd', 'Sequence.MERMAID'])('uses Mermaid syntax for %s', (filename) => {
+        expect(resolveEditorLanguage(`caxri://session/session-1/project/${filename}`)).toBe(
+            'mermaid',
+        );
+    });
+
     it.each(['source.ts', 'settings.json', 'README', '.yarnrc.yml'])(
         'leaves Monaco inference unchanged for %s',
         (filename) => {

@@ -34,6 +34,22 @@ export async function reconnectSshHost(): Promise<void> {
 }
 
 /**
+ * Stops the connect, install, or reconnect in progress; the window stays open so Reconnect can start over.
+ */
+export async function cancelSshHostConnection(): Promise<void> {
+    await tryCommand(translate('sshHost.cancel.failed'), () => caxri.request('remote.cancel'));
+}
+
+/**
+ * Shows the SSH config the picker lists hosts from, so the user can add a `Host` entry.
+ */
+export async function revealSshConfig(): Promise<void> {
+    await tryCommand(translate('sshHost.connect.openConfigFailed'), () =>
+        caxri.request('remote.sshConfig.reveal'),
+    );
+}
+
+/**
  * Stopping the SSH Host's Server ends every Terminal and Agent it runs, so it is confirmed first. Main closes this
  * window once the Server has stopped.
  */

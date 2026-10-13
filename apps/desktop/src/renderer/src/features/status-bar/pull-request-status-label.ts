@@ -28,6 +28,33 @@ export function pullRequestUnavailableLabel(
 }
 
 /**
+ * The pull request's head branch when it is not the checked-out branch, so the chip can mark the mismatch and name the
+ * branch in its accessible name; `undefined` when they match or the head branch is unknown.
+ */
+export function pullRequestElsewhereBranch(
+    pullRequest: Pick<OverviewPullRequest, 'headBranch'>,
+    checkedOutBranch: string,
+): string | undefined {
+    return pullRequest.headBranch !== undefined && pullRequest.headBranch !== checkedOutBranch
+        ? pullRequest.headBranch
+        : undefined;
+}
+
+/**
+ * The chip's accessible name. A pull request on another branch says which one, because the mismatch dot is visual only.
+ */
+export function pullRequestAriaLabel(
+    pullRequest: Pick<OverviewPullRequest, 'headBranch' | 'number'>,
+    checkedOutBranch: string,
+    t: Translate = translate,
+): string {
+    const branch = pullRequestElsewhereBranch(pullRequest, checkedOutBranch);
+    return branch
+        ? t('statusBar.pullRequest.ariaLabelElsewhere', { number: pullRequest.number, branch })
+        : t('statusBar.pullRequest.ariaLabel', { number: pullRequest.number });
+}
+
+/**
  * The pull request chip's hover card. When the Session's own Agent delivered the pull request from another worktree,
  * the chip sits beside a branch that is not the pull request's, so the card names the pull request's branch and where
  * the link came from instead of letting `main #2018` read as "main's pull request".
@@ -37,8 +64,7 @@ export function pullRequestTooltip(
     checkedOutBranch: string,
     t: Translate = translate,
 ): StructuredTooltipData {
-    const isElsewhere =
-        pullRequest.headBranch !== undefined && pullRequest.headBranch !== checkedOutBranch;
+    const isElsewhere = pullRequestElsewhereBranch(pullRequest, checkedOutBranch) !== undefined;
     return {
         eyebrow: t('statusBar.pullRequest.eyebrow', { number: pullRequest.number }),
         title: pullRequest.title,

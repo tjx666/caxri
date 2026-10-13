@@ -10,6 +10,8 @@ import {
     DOTENV_LANGUAGE_ID,
     IGNORE_LANGUAGE_FILENAMES,
     IGNORE_LANGUAGE_ID,
+    MERMAID_LANGUAGE_EXTENSIONS,
+    MERMAID_LANGUAGE_ID,
     RC_LANGUAGE_ID,
 } from '../features/editor/editor-language';
 import { registerImportLinks } from '../features/editor/import-link-commands';
@@ -154,6 +156,48 @@ function registerMonacoLanguages(): void {
         });
         monaco.languages.setLanguageConfiguration(RC_LANGUAGE_ID, {
             comments: { lineComment: '#' },
+        });
+    }
+
+    if (monaco.languages.getLanguages().every((language) => language.id !== MERMAID_LANGUAGE_ID)) {
+        monaco.languages.register({
+            id: MERMAID_LANGUAGE_ID,
+            aliases: ['Mermaid', 'mermaid'],
+            extensions: [...MERMAID_LANGUAGE_EXTENSIONS],
+        });
+        /**
+         * A light grammar rather than Mermaid's full syntax: diagram keywords, `%%` comments, arrows, labels, and
+         * strings are enough to read a diagram's structure at a glance.
+         */
+        monaco.languages.setMonarchTokensProvider(MERMAID_LANGUAGE_ID, {
+            ignoreCase: true,
+            tokenizer: {
+                root: [
+                    [/%%.*$/, 'comment'],
+                    [
+                        /^\s*(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|sankey-beta|xychart-beta|block-beta|packet-beta|kanban|architecture-beta)\b/,
+                        'keyword',
+                    ],
+                    [
+                        /\b(?:subgraph|end|direction|participant|actor|note|loop|alt|else|opt|par|and|critical|break|rect|activate|deactivate|class|classDef|style|linkStyle|click|section|title|state)\b/,
+                        'keyword',
+                    ],
+                    [/\b(?:TB|TD|BT|RL|LR)\b/, 'keyword'],
+                    [/"(?:\\.|[^"\\])*"/, 'string'],
+                    [/\|[^|]*\|/, 'string'],
+                    [/<-->|-->>|->>|-\.->|-\.-|==>|-->|---|--[ox]|--|-\)/, 'operator'],
+                    [/[[\](){}]/, 'delimiter.bracket'],
+                    [/\d+(?:\.\d+)?/, 'number'],
+                ],
+            },
+        });
+        monaco.languages.setLanguageConfiguration(MERMAID_LANGUAGE_ID, {
+            comments: { lineComment: '%%' },
+            brackets: [
+                ['[', ']'],
+                ['(', ')'],
+                ['{', '}'],
+            ],
         });
     }
 

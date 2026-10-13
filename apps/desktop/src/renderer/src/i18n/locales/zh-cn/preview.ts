@@ -14,6 +14,7 @@ export const preview: TranslatedNamespace<typeof source> = {
 
     'preview.markdown.copyCodeBlock': '复制代码块',
     'preview.mermaid.label': 'Mermaid 图表',
+    'preview.mermaid.fileLabel': 'Mermaid 图表：{{name}}',
     'preview.mermaid.empty': '此图表为空。',
     'preview.mermaid.renderFailed': '无法渲染此图表。',
 
@@ -26,6 +27,8 @@ export const preview: TranslatedNamespace<typeof source> = {
     'preview.pdf.label': 'PDF 预览',
     'preview.pdf.page': '页码',
     'preview.pdf.pageCount': '/ {{count}}',
+    'preview.pdf.previousPage': '上一页',
+    'preview.pdf.nextPage': '下一页',
     'preview.zoom.fit': '适合窗口',
     'preview.zoom.label': '缩放：{{percent}}%',
     'preview.zoom.in': '放大',
