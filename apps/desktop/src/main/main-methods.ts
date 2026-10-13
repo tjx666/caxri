@@ -11,7 +11,12 @@ import type {
     RemoteDebuggingState,
     ServerEvent,
 } from '@caxri/protocol';
-import { agentProviderCatalog, BUG_REPORT_JPEG_DATA_URL_PREFIX, CaxriError } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    BUG_REPORT_JPEG_DATA_URL_PREFIX,
+    CaxriError,
+    isChatTerminal,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { app, clipboard, ClipboardItem, dialog, nativeImage, net, shell } from 'electron';
@@ -454,7 +459,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             case 'contextMenu.show':
                 return showContextMenu(requestWindowOr(mainWindow), request.params);
             case 'bugReport.send': {
-                const { report, screenshot, sessionId, terminalId } = request.params;
+                const { chatImage, report, screenshot, sessionId, terminalId } = request.params;
                 const records = await supervisor.request('app.records', {
                     sessionIds: [],
                     terminalIds: [terminalId],
@@ -473,6 +478,18 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                         'CONFLICT',
                         'Bug reports can only be sent to an Agent Terminal',
                     );
+                /**
+                 * An Agent Chat has no PTY process to check and no clipboard paste path: the Server starts an idle Chat
+                 * on demand and attaches the screenshot to the message itself.
+                 */
+                if (isChatTerminal(terminal))
+                    return supervisor.request('bugReport.deliver', {
+                        images: chatImage && [chatImage],
+                        pasteImage: false,
+                        report,
+                        sessionId,
+                        terminalId,
+                    });
                 if (terminal.lastProcessState !== 'running' || terminal.processId === undefined)
                     throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
                 const imageInput = agentProviderCatalog[terminal.provider].imageInput;

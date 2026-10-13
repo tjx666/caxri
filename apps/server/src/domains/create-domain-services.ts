@@ -460,7 +460,7 @@ export async function createDomainServices(
             observeSelectedSession,
         }),
         'bugReport.context': () => diagnostics.reportContext(),
-        ...createBugReportDeliveryHandler({ database, terminals }),
+        ...createBugReportDeliveryHandler({ agentChat, database, terminals }),
         'project.list': () => ({ view: 'desktop', projects: database.listVisibleProjects() }),
         'project.queryForPrincipal': ({ principal, query }) =>
             introspection.records.project(query, principal),
