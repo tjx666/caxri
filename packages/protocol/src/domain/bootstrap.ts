@@ -3,17 +3,17 @@ import { z } from 'zod';
 import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import {
-    identifierSchema,
     keybindingConflictSchema,
     keybindingSchema,
     projectRecordSchema,
     runtimeStatusSchema,
     sessionRecordSchema,
-    terminalRecordSchema,
     themeTokensSchema,
 } from './domain.js';
+import { identifierSchema } from './identifiers.js';
 import { lowCostSandboxFailureReasonSchema } from './low-cost-generation.js';
 import { sessionStateSchema } from './session.js';
+import { terminalRecordSchema } from './terminal-record.js';
 
 /**
  * One automatic-naming suppression that is still in force.

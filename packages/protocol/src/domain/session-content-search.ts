@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { agentProviderSchema, identifierSchema } from './domain.js';
+import { agentProviderSchema } from '../agent/agents.js';
+import { identifierSchema } from './identifiers.js';
 
 export const sessionContentSearchParametersSchema = z.object({
     query: z.string().trim().min(1).max(200),

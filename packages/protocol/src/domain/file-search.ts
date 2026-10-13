@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { pathSchema } from './domain.js';
+import { pathSchema } from './identifiers.js';
 
 export const fileSearchModeSchema = z.enum(['name', 'content']);
 

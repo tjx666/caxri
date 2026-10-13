@@ -4,14 +4,13 @@ import { agentActionSchema } from '../agent/agent-action-contract.js';
 import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../agent/agent-endpoint-contract.js';
 import {
     canceledResultSchema,
-    identifierSchema,
     permissionAutoAllowStatusSchema,
     scopedProjectSchema,
     sessionRecordSchema,
-    terminalKindSchema,
-    terminalRecordSchema,
 } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import { sessionRenameTitleSchema } from '../domain/session.js';
+import { terminalKindSchema, terminalRecordSchema } from '../domain/terminal-record.js';
 import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';

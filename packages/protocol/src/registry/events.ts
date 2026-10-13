@@ -8,6 +8,7 @@ import {
     agentHeldMessageSchema,
     agentMessageReceiptSchema,
 } from '../agent/agent-inbox-contract.js';
+import { agentProviderSchema } from '../agent/agents.js';
 import { configurationSourceSchema as configSourceSchema } from '../configuration/configuration-contract.js';
 import {
     environmentStateSchema,
@@ -16,15 +17,13 @@ import {
 import { commandIdSchema } from '../domain/commands.js';
 import {
     agentHookHealthMapSchema,
-    agentProviderSchema,
     fileChangeSchema,
-    identifierSchema,
-    pathSchema,
     permissionAutoAllowStatusSchema,
     runtimeStatusSchema,
 } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { fileWatchLimitAlertSchema } from '../domain/file-watch.js';
+import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
 import { settingsTargetSchema } from '../domain/settings-target.js';
 import { terminalResourceAlertSchema } from '../domain/terminal-resources.js';

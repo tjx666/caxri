@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
-import { identifierSchema, terminalRecordSchema } from './domain.js';
+import { identifierSchema } from './identifiers.js';
+import { terminalRecordSchema } from './terminal-record.js';
 import { terminalSurfaceSchema } from './terminal-surface.js';
 
 const serverControl = commandPolicy('server', 'control');

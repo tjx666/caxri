@@ -59,23 +59,19 @@ import {
     agentHookHealthMapSchema,
     agentTranscriptSchema,
     canceledResultSchema,
-    identifierSchema,
     keybindingConflictSchema,
     keybindingSchema,
     MAX_TERMINAL_INPUT_LENGTH,
     MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
-    pathSchema,
     projectRecordSchema,
     sessionRecordSchema,
-    terminalKindSchema,
-    terminalRecordSchema,
-    terminalSnapshotSchema,
     themeImportWarningSchema,
     themeTokensSchema,
 } from '../domain/domain.js';
 import { fileInternalMethods, fileMethods } from '../domain/file-contract.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { gitReviewMethods } from '../domain/git-review-contract.js';
+import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import { projectFolderBrowseMethods } from '../domain/project-folder-browse-contract.js';
 import { projectStatusMethods } from '../domain/project-status-contract.js';
@@ -87,6 +83,11 @@ import {
 } from '../domain/terminal-file-link.js';
 import { terminalLongPasteMethods } from '../domain/terminal-long-paste.js';
 import { terminalReadMethods } from '../domain/terminal-read-contract.js';
+import {
+    terminalKindSchema,
+    terminalRecordSchema,
+    terminalSnapshotSchema,
+} from '../domain/terminal-record.js';
 import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
 import { terminalRelaunchMethods } from '../domain/terminal-relaunch-contract.js';
 import { terminalSurfaceSchema } from '../domain/terminal-surface.js';

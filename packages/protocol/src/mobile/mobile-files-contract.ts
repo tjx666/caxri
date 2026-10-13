@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { fileEntrySchema, identifierSchema, pathSchema } from '../domain/domain.js';
+import { fileEntrySchema } from '../domain/domain.js';
+import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';

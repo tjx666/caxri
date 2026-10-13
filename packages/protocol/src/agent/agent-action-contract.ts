@@ -1,7 +1,7 @@
 import { sortedCopy } from '@caxri/utils';
 import { z } from 'zod';
 
-import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import type { AgentActionsSettings } from './agent-action-settings.js';
@@ -12,7 +12,7 @@ import {
     MAX_AGENT_ACTIONS,
 } from './agent-action-settings.js';
 import type { AgentProvider } from './agents.js';
-import { agentProviderCatalog } from './agents.js';
+import { agentProviderCatalog, agentProviderSchema } from './agents.js';
 
 export * from './agent-action-settings.js';
 

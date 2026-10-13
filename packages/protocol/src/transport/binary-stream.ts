@@ -1,12 +1,9 @@
 import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import {
-    identifierSchema,
-    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
-    pathSchema,
-    terminalSnapshotSchema,
-} from '../domain/domain.js';
+import { MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '../domain/domain.js';
+import { identifierSchema, pathSchema } from '../domain/identifiers.js';
+import { terminalSnapshotSchema } from '../domain/terminal-record.js';
 import { CaxriError, errorCodes } from './errors.js';
 import { protocolVersionSchema } from './version.js';
 

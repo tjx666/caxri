@@ -1,10 +1,14 @@
 import { z } from 'zod';
 
 import { isDesktopServerOperation } from '../desktop/desktop-server-operations.js';
-import { identifierSchema, pathSchema } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
+import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import { protocolEventEnvelopeSchema, transientServerEventSchema } from './event-journal.js';
-import { protocolClientIdentitySchema } from './identity.js';
+import {
+    protocolClientIdentitySchema,
+    serverCredentialTokenSchema,
+    serverProcessIdentitySchema,
+} from './identity.js';
 import { commandReplyEnvelopeSchema, requestEnvelopeSchema } from './transport.js';
 import { protocolHelloSchema, protocolVersionSchema, protocolWelcomeSchema } from './version.js';
 
@@ -15,8 +19,6 @@ export const SERVER_DESKTOP_CREDENTIAL_VERSION = 1 as const;
  * escaping while keeping a malformed peer under a fixed memory cap.
  */
 export const CONTROL_TRANSPORT_MAX_FRAME_BYTES = 256 * 1024 * 1024;
-export const serverCredentialTokenSchema = z.string().regex(/^[0-9a-f]{64}$/u);
-export const serverProcessIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
 
 export const serverControlEndpointSchema = z.object({
     protocol: z.literal('ws'),

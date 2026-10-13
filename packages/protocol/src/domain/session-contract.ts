@@ -5,13 +5,11 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { bootstrapStateSchema } from './bootstrap.js';
 import {
     canceledResultSchema,
-    identifierSchema,
     permissionAutoAllowStatusSchema,
     sessionRecordSchema,
     sessionReorderParametersSchema,
-    terminalKindSchema,
-    terminalRecordSchema,
 } from './domain.js';
+import { identifierSchema } from './identifiers.js';
 import {
     sessionRenameTitleSchema,
     sessionRestorePlacementSchema,
@@ -26,6 +24,7 @@ import {
     sessionConversationReferenceParametersSchema,
     sessionConversationReferenceResultSchema,
 } from './session-conversation-reference.js';
+import { terminalKindSchema, terminalRecordSchema } from './terminal-record.js';
 import { terminalSurfaceSchema } from './terminal-surface.js';
 
 const serverWrite = commandPolicy('server', 'write');

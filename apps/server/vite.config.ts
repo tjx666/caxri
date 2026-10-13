@@ -7,6 +7,8 @@ import { promisify } from 'node:util';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
 
+import { hostStartupBudget } from './scripts/host-startup-budget.ts';
+
 const execFileAsync = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
 const nativeModulePaths: Record<string, string> = {
@@ -158,7 +160,7 @@ export default defineConfig(async () => {
             __CAXRI_COMMIT__: JSON.stringify(await resolveGitCommit()),
             __CAXRI_VERSION__: JSON.stringify(workspaceManifest.version),
         },
-        plugins: [asciiOnlyBundles(), selfContainedBundles()],
+        plugins: [asciiOnlyBundles(), selfContainedBundles(), hostStartupBudget()],
         resolve: { builtins: nodeBuiltins },
         ssr: {
             external: Object.keys(nativeModulePaths),

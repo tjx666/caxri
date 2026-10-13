@@ -12,7 +12,7 @@ import {
     MAX_AGENT_CHAT_IMAGES,
 } from '../agent/agent-chat-contract.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
-import { identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import { projectDisplayPath } from '../domain/project-path.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';

@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
-import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
-import { serverCredentialTokenSchema } from '../transport/local-transport.js';
+import { identifierSchema } from '../domain/identifiers.js';
+import { serverCredentialTokenSchema } from '../transport/identity.js';
 import {
     agentEndpointRefSchema as agentEndpointReferenceSchema,
     agentMessagingCapabilitySchema,
     agentPermissionClassSchema,
 } from './agent-endpoint-contract.js';
+import { agentProviderSchema } from './agents.js';
 
 // eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by apps/server/src/core/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export const agentEndpointBeginParamsSchema = z.object({

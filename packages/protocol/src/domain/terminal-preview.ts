@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { identifierSchema } from './domain.js';
+import { identifierSchema } from './identifiers.js';
 
 export const MAX_TERMINAL_PREVIEW_BYTES = 16 * 1024;
 
