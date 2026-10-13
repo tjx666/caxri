@@ -94,12 +94,12 @@ server/
   runtime/
   bundles/
   native/
-  migrations/
   extensions/
   metadata/
 ```
 
-This is the current emitted layout. It may consume workspace packages while building, but running the
+This is the current emitted layout. Database migrations are compiled into the Server Core bundle, so
+the artifact carries no separate migrations directory. It may consume workspace packages while building, but running the
 artifact never requires installing another Caxri workspace. Desktop embeds this directory unchanged,
 CLI supervises the same layout, and a platform image copies the same layout. A smoke test copies the
 artifact outside the monorepo, starts it with an isolated data directory, verifies readiness and a
@@ -184,6 +184,13 @@ source, so one stray `…` doubled the bundle's in-memory size; the guard fails 
 letting that regress silently. Rarely used dependencies (theme plist/YAML parsing, the diagnostics
 archiver) are loaded on first use. Together these cut Server Core's idle footprint on macOS from
 about 88 MB to 66 MB and its JavaScript from about 7.0 MB to 4.8 MB.
+
+The protocol definitions the Terminal Host and Extension Host use live in leaf modules, so they do
+not pull schema-heavy protocol modules into those hosts, and the Server build fails when either
+host's startup JavaScript exceeds its budget.
+Server Core runs with a capped V8 young generation (`SERVER_CORE_EXEC_ARGV`). The measured SSH Host
+requirements, the footprint baseline, and its benchmark are in
+[server-footprint.md](server-footprint.md).
 
 ## Client architecture
 
