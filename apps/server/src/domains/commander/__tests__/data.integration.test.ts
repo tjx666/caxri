@@ -126,8 +126,8 @@ describe('Clear Commander Data', () => {
         expect(summary.conversation).toEqual({ agent: 'codex', isBound: true });
     });
 
-    it('deletes only the selected tasks', async () => {
-        const { database, service } = await fixture();
+    it('deletes only the selected tasks, and the hand-overs that went with them', async () => {
+        const { database, handovers, service } = await fixture();
         await service.ensure();
         const kept = database.commanderTasks.insert({ title: 'Keep', status: 'pending' }, 1);
         const dropped = database.commanderTasks.insert({ title: 'Drop', status: 'done' }, 2);
@@ -145,6 +145,9 @@ describe('Clear Commander Data', () => {
         expect(database.commanderTasks.list({ includeClosed: true }).map(({ id }) => id)).toEqual([
             kept.id,
         ]);
+        expect(handovers.forgetClearedTasks).toHaveBeenCalledOnce();
+        await service.clearData({ inbox: true });
+        expect(handovers.forgetClearedTasks).toHaveBeenCalledOnce();
     });
 
     it('deletes every closed task, including those too old for the list, and keeps the open ones', async () => {

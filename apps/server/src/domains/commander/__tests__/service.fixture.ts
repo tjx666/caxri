@@ -61,11 +61,13 @@ export async function fixture() {
         clear: vi.fn<() => number>(() => 0),
         counts: vi.fn<() => { open: number; closed: number }>(() => ({ open: 0, closed: 0 })),
     };
+    const handovers = { forgetClearedTasks: vi.fn<() => number>(() => 0) };
     const onStopped = vi.fn<() => void>();
     const service = new AgentCommanderService({
         cancelRestore,
         database,
         createAndStartTerminal,
+        handovers,
         inbox,
         onStopped,
         prepareLaunch,
@@ -86,6 +88,7 @@ export async function fixture() {
         createAndStartTerminal,
         database,
         directory,
+        handovers,
         inbox,
         onStopped,
         prepareLaunch,

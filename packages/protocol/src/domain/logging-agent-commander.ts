@@ -55,7 +55,8 @@ export const agentCommanderLogEvents = {
      * Clear Commander Data finished. On `fields.outcome: 'cleared'` the fields count what went (`tasksDeleted`,
      * `taskFilesDeleted`, `inboxItemsDeleted`) and flag what was reset (`memoryReset`, `instructionsRewritten`,
      * `conversationReset`). On `failed` (a `warn`) `fields.failedStage` is `stores`, `instructions`, or `conversation`,
-     * with the `tasksDeleted` already gone. Both carry `fields.taskScope` (`all`, `closed`, or `selected`) and the
+     * with the `tasksDeleted` already gone. Both carry `fields.handoversForgotten` (hand-overs the Commander had not
+     * continued, dropped with their deleted task), `fields.taskScope` (`all`, `closed`, or `selected`), and the
      * duration; never a task title, file name, or memory text.
      */
     dataCleared: 'agent_commander.data_cleared',
