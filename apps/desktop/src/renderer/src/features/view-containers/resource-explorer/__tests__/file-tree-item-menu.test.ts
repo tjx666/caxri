@@ -78,6 +78,7 @@ describe('fileTreeItemMenu', () => {
             state: {
                 kind: 'ssh',
                 destination: 'devbox',
+                hostIdentity: 'devbox',
                 phase: 'connected',
                 needsUserAction: false,
             },

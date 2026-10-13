@@ -20,7 +20,13 @@ beforeEach(() => {
     mocks.showConfirm.mockReset();
     dismissToast();
     useEnvironmentStore.setState({
-        state: { kind: 'ssh', destination: 'devbox', phase: 'connected', needsUserAction: false },
+        state: {
+            kind: 'ssh',
+            destination: 'devbox',
+            hostIdentity: 'devbox',
+            phase: 'connected',
+            needsUserAction: false,
+        },
     });
 });
 

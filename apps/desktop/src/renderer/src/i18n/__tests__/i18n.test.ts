@@ -1,5 +1,7 @@
+import { desktop as enDesktop } from '@desktop-shared/i18n/en/desktop';
 import { interpolate } from '@desktop-shared/i18n/interpolate';
 import { resolveAppLocale } from '@desktop-shared/i18n/locale';
+import { desktop as zhCNDesktop } from '@desktop-shared/i18n/zh-cn/desktop';
 import { en as lobeEn } from '@lobehub/ui/i18n';
 import { describe, expect, it } from 'vitest';
 
@@ -50,6 +52,30 @@ describe('translate', () => {
 
 const compareText = (left: string, right: string) => left.localeCompare(right);
 
+const placeholders = (text: string) =>
+    text
+        .matchAll(/\{\{\s*(\w+)\s*\}\}/g)
+        .map((match) => String(match[1]))
+        .toArray()
+        .toSorted(compareText);
+
+/**
+ * Asserts that `chinese` translates every `english` key into a non-empty string with the same placeholders, and adds no
+ * key of its own.
+ */
+function expectTranslated(
+    english: Readonly<Record<string, string>>,
+    chinese: Readonly<Partial<Record<string, string>>>,
+): void {
+    for (const [key, text] of Object.entries(english)) {
+        expect(chinese[key], key).toBeTruthy();
+        expect(placeholders(chinese[key] ?? ''), key).toEqual(placeholders(text));
+    }
+    expect(Object.keys(chinese).toSorted(compareText)).toEqual(
+        Object.keys(english).toSorted(compareText),
+    );
+}
+
 describe('locale resources', () => {
     const lobeKeys = new Set(Object.values(lobeEn).flatMap((namespace) => Object.keys(namespace)));
 
@@ -58,19 +84,14 @@ describe('locale resources', () => {
     });
 
     it('translates every English key into a non-empty Chinese string with the same placeholders', () => {
-        const placeholders = (text: string) =>
-            text
-                .matchAll(/\{\{\s*(\w+)\s*\}\}/g)
-                .map((match) => String(match[1]))
-                .toArray()
-                .toSorted(compareText);
-        for (const [key, english] of Object.entries(enResources)) {
-            const chinese = (zhCNResources as Partial<Record<string, string>>)[key];
-            expect(chinese, key).toBeTruthy();
-            expect(placeholders(chinese ?? ''), key).toEqual(placeholders(english));
-        }
-        expect(Object.keys(zhCNResources).toSorted(compareText)).toEqual(
-            Object.keys(enResources).toSorted(compareText),
-        );
+        expectTranslated(enResources, zhCNResources);
+    });
+
+    /**
+     * The Main-only `desktop` namespace (native menus and dialogs, read by `main/locale.ts`) is not part of the
+     * Renderer resources, so it needs its own pass through the same check.
+     */
+    it('translates every Main-only desktop key the same way', () => {
+        expectTranslated(enDesktop, zhCNDesktop);
     });
 });

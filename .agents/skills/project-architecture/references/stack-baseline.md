@@ -105,6 +105,20 @@ workspace that compiles with TypeScript 6, for the Expo reason above.
 - Rationale: this bounded local-desktop cost is acceptable for a mature accessible command-list implementation. Rebuilding filtering and keyboard selection on another primitive would add interaction risk without removing the Base UI modal, which already owns focus and dismiss semantics.
 - Guardrail: re-evaluate this exception if another workbench surface needs cmdk/Radix, if focus or dismissal diverges from the shared Dialog, or if bundle analysis shows material growth. Palette E2E must continue covering autofocus, Escape dismissal, filtering/groups, shortcut hints, and the intentional absence of a close button.
 
+## Accepted runtime exception: `@lobehub/ui` i18n
+
+- Decision: keep `@lobehub/ui` only as the Renderer's i18n runtime (`@lobehub/ui/i18n` and its
+  `ConfigProvider`), owned by `apps/desktop/src/renderer/src/i18n/`. No other Renderer module may
+  import `@lobehub/ui`, `antd`, or `@emotion/*`; components stay on Base UI primitives and the
+  design-token CSS. ESLint `no-restricted-imports` enforces the boundary.
+- Rationale: the library supplies the typed translation context and the built-in `common.*`
+  dictionaries without a second i18n stack. Its component kit would bring a parallel design system
+  (antd and Emotion) that `DESIGN.md` does not use.
+- Guardrail: the wrapper renders `ConfigProvider` with `globalFocusRing: false` instead of the
+  library's `I18nProvider`, which forces a global focus ring (see `docs/i18n.md`). Re-evaluate this
+  exception if a Renderer surface needs a `@lobehub/ui` component, if an upgrade changes that focus
+  behavior, or if bundle analysis attributes material Renderer growth to the package.
+
 ## Local compatibility target
 
 The baseline machine provides Node 24, Bun 1.3, Xcode Command Line Tools, current Claude Code, and current Codex. Native probes must execute through the Server artifact's `runtime/bin/node`, because host Node success does not prove artifact-runtime ABI compatibility.

@@ -689,27 +689,21 @@ describe('direct import test selection', () => {
         const direct = await directImportTestCandidates(process.cwd(), [source]);
         const selected = await selectedTestCandidates(process.cwd(), [source]);
 
-        const expected = [
+        const filesSuites = 'apps/server/src/domains/files/__tests__/';
+        const consumers = [
             'apps/server/src/domains/__tests__/root-services.test.ts',
             'apps/server/src/domains/__tests__/service-handlers.test.ts',
-            'apps/server/src/domains/files/__tests__/external-links.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/files.browse.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/files.imports.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/files.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/files.watching.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/git-ignore.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/mutations-move-replace.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/mutations.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/search.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/workbench-mutations.integration.test.ts',
             'apps/server/src/domains/mobile/__tests__/attention.test.ts',
             'apps/server/src/domains/mobile/__tests__/files.test.ts',
             'apps/server/src/domains/mobile/__tests__/timeline.test.ts',
             'apps/server/src/domains/terminal/__tests__/file-links.test.ts',
         ];
-        expect(direct).toEqual(expected);
-        expect(selected.filter((test) => !test.endsWith('/structure.test.ts'))).toEqual(expected);
+        // Pin the bounded barrel consumers exactly, but assert the FileService suites by shape so
+        // adding a suite to the files domain does not break this contract.
+        expect(direct.filter((test) => !test.startsWith(filesSuites))).toEqual(consumers);
+        expect(direct).toContain(`${filesSuites}files.integration.test.ts`);
+        expect(direct).toContain(`${filesSuites}mutations.integration.test.ts`);
+        expect(selected.filter((test) => !test.endsWith('/structure.test.ts'))).toEqual(direct);
         expect(selected).not.toContain(
             'apps/server/src/domains/__tests__/domain-services.integration.test.ts',
         );

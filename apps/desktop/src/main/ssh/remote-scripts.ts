@@ -320,7 +320,7 @@ caxri_log="$CAXRI_PROFILE/logs/server-stdio.log"
 if [ -f "$caxri_log" ] && [ "$(wc -c < "$caxri_log" | tr -d ' ')" -gt 5242880 ]; then
     mv -f "$caxri_log" "$caxri_log.1"
 fi
-unset SSH_CONNECTION SSH_CLIENT SSH_TTY SSH_AUTH_SOCK SSH_ORIGINAL_COMMAND
+unset SSH_CONNECTION SSH_CLIENT SSH_TTY SSH_AUTH_SOCK SSH_ORIGINAL_COMMAND NODE_OPTIONS NODE_PATH
 CAXRI_USER_DATA_PATH="$CAXRI_PROFILE"
 CAXRI_AGENT_HOOKS_PATH="$CAXRI_ROOT/agent-hooks"
 CAXRI_INSPECT=${input.inspect === true ? '1' : '0'}

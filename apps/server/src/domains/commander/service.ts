@@ -139,19 +139,25 @@ export class AgentCommanderService {
             rows = database.agentCommanderRows()!;
         }
         if (!rows.terminalId) {
-            const { projectId, sessionId, sessionIds } = rows;
+            const launching = rows;
             this.options.onLaunching?.();
             const terminal = await this.options.createAndStartTerminal(
-                sessionId,
+                launching.sessionId,
                 COMMANDER_PROVIDER,
                 workspacePath,
-                (created) =>
+                /**
+                 * Re-reads the rows instead of writing back the ones captured above: Terminal creation awaits, and a
+                 * hand-over or take-back accepted meanwhile must keep its change to `sessionIds`.
+                 */
+                (created) => {
+                    const current = database.agentCommanderRows() ?? launching;
                     database.setAppState('agentCommander', {
-                        projectId,
-                        sessionId,
+                        projectId: current.projectId,
+                        sessionId: current.sessionId,
                         terminalId: created.id,
-                        sessionIds: [...sessionIds],
-                    }),
+                        sessionIds: [...current.sessionIds],
+                    });
+                },
             );
             this.options.probeTerminal(terminal.id);
             this.logEnsured('created', terminal.id, startedAt);

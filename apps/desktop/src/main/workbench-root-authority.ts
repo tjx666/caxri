@@ -67,8 +67,10 @@ async function showMessageBox(
 }
 
 /**
- * Keeps candidate paths and single-use folder grants inside Electron Main. The Renderer sees only opaque candidate IDs
- * and can never nominate a path for automatic authorization.
+ * Keeps candidate paths and single-use folder grants inside Electron Main. In a local window the Renderer sees only
+ * opaque candidate IDs and can never nominate a path for automatic authorization. An SSH Host window is the documented
+ * exception: it has no native picker for the SSH Host's disk, so `project.create` forwards the folder the user chose in
+ * the SSH Host's own folder browser, and that Server canonicalizes it.
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
     const isRemote = options.environment === 'ssh';

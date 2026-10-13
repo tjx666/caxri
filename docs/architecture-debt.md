@@ -11,9 +11,9 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field                    | Value                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last full audit**      | 2026-10-12 @ `d5dbb34f6` (`main`)                                                                      |
+| **Last full audit**      | 2026-10-13 @ `319eab82e` (`main`)                                                                      |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
-| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over `0497d1310..d5dbb34f6` (36 commits) and consumers      |
+| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `319eab82e`               |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
@@ -31,97 +31,223 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 ## OPEN
 
-Full audit 2026-10-12 @ `d5dbb34f6`; the fixable findings were resolved by the
-[issue caxri#1795](https://github.com/tjx666/caxri/issues/1795) batch below. Each remaining entry is
+Full audit 2026-10-13 @ `319eab82e` revalidated every entry below as still present; the new fixable
+findings were resolved by the [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992) batch below. Each remaining entry is
 tracked by its own issue because it needs a product decision or its own design.
 
 ### AD-proc-chat-endpoint-identity: [OPEN · Contract drift · M]
 
 - **Summary:** An Agent running on the Chat surface has no Agent Endpoint identity, so `caxri agent message send` is refused and `caxri agent delegate create` runs as the operator instead of as that Agent.
 - **Evidence:** `apps/server/src/domains/agent-chat/chat-launch.ts` builds the provider environment from `agentCommandEnvironment` only; PTY Agents also get Endpoint and hook variables from `apps/server/src/domains/terminal/lifecycle-environment.ts`. `docs/agent-chat.md` now states the difference.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1675](https://github.com/tjx666/caxri/issues/1675): either issue a per-start Endpoint generation for Chat or refuse the operator fallback for `automation === 'agent'`, covered by an integration test.
 
 ### AD-sec-main-link-fetch-trust: [OPEN · Contract drift · S]
 
 - **Summary:** Rendering or hovering a transcript link makes Main request the origin's favicon or the full URL without excluding loopback or private hosts, and redirects are followed.
 - **Evidence:** `apps/desktop/src/main/link-previews.ts`, `apps/desktop/src/main/link-favicons.ts`; the outbound inventory is now in `.agents/skills/project-architecture/references/security.md`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1676](https://github.com/tjx666/caxri/issues/1676): host and final-URL policy with unit tests; the provider status page read gets a byte cap.
 
 ### AD-sec-delegation-hidden-project: [OPEN · Contract drift · S]
 
 - **Summary:** Delegation bootstrap reuses a hidden Project for its root and creates a Session there that Desktop never shows.
 - **Evidence:** `apps/server/src/domains/db/delegation-context.ts` reuses the row found by root path without unhiding it; the registration-authority list in `security.md` now names the bootstrap.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1677](https://github.com/tjx666/caxri/issues/1677): unhide or refuse, with an integration test.
 
 ### AD-ui-native-title-tooltips: [OPEN · Contract drift · M]
 
 - **Summary:** Native `title` attributes bypass the shared Tooltip (keyboard users cannot read them), and "open this file" has five unshared implementations.
 - **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-context-alerts.tsx` and other Renderer `title` uses; no lint rule guards them.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1678](https://github.com/tjx666/caxri/issues/1678): lint rule plus one file-reference component.
 
 ### AD-test-knip-before-merge: [OPEN · Coverage or observability gap · S]
 
 - **Summary:** An ordinary PR that leaves an unused export merges green and fails only the next nightly.
 - **Evidence:** `scripts/ci-execution-plan.ts` assigns `affected`; `scripts/run-ci-focused-checks.ts` runs no knip. Skills and `docs/ci-performance.md` now state this accurately.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1679](https://github.com/tjx666/caxri/issues/1679): knip in the `affected` scope or `guards`.
 
 ### AD-domain-implementation-barrels: [OPEN · Architecture debt · M]
 
 - **Summary:** Seven `index.ts` files hold 400 to 760 lines of implementation, contradicting the thin-barrel rule and seeding the pattern.
 - **Evidence:** `git`, `config`, `project-status`, `theme`, `providers/{codex,claude}` barrels and `packages/extension-api/src/index.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1680](https://github.com/tjx666/caxri/issues/1680): barrels export only, enforced by a structure test.
 
 ### AD-simplify-shared-single-flight: [OPEN · Modernization opportunity · M]
 
 - **Summary:** `SingleFlight` lives under Server domains, so Desktop Main and other owners hand-roll dedupe and per-key serialization with diverging eviction semantics.
 - **Evidence:** `apps/desktop/src/main/agent-provider-status.ts`, `apps/server/src/domains/agents/discovery.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1681](https://github.com/tjx666/caxri/issues/1681): one primitive in `packages/system`.
 
 ### AD-ext-virtual-tab-descriptors: [OPEN · Architecture debt · M]
 
 - **Summary:** Adding a virtual editor tab scheme still needs coordinated edits in eight or nine files without an exhaustive check.
 - **Evidence:** `packages/protocol/src/domain/virtual-tabs.ts` and its Renderer consumers; the status-bar symptom is resolved below.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1682](https://github.com/tjx666/caxri/issues/1682): one exhaustive descriptor table.
 
 ### AD-domain-line-budget-splits: [OPEN · Architecture debt · M]
 
 - **Summary:** Several Server modules say in their JSDoc that they exist to fit the line budget, and the Server composition root is spread across files.
 - **Evidence:** `apps/server/src/domains/service-handlers.ts`, `apps/server/src/domains/create-domain-services.ts`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1683](https://github.com/tjx666/caxri/issues/1683): composition root in one directory, no line-budget split rationale.
 
 ### AD-lifecycle-chat-idle-providers: [OPEN · Architecture debt · L]
 
 - **Summary:** Reading an old Chat starts its provider process, and nothing stops it again until the Session is archived or the app quits, so browsing Chats accumulates provider processes and keeps Server Core counted as busy.
 - **Evidence:** `apps/server/src/domains/agent-chat/service.ts` `read()` lazily starts the provider; `apps/server/src/domains/terminal/suspension-policy.ts` skips non-PTY Terminals; `apps/server/src/domains/create-domain-services.ts` counts `agentChat.liveCount` as running work.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800): idle Chats stop their provider, reads no longer start one, and a busy Chat is never stopped.
 
 ### AD-dup-chat-revision-sync: [OPEN · Architecture debt · M]
 
 - **Summary:** Desktop and Mobile each implement the Agent Chat revision-chain hold, replay, and re-read logic, so a sync fix lands twice and the two clients can drift.
 - **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-client.ts` and `apps/mobile/src/features/agent-chat/agent-chat-sync.ts`. The shared copy and question answers moved to `packages/protocol` in the fix batch; the sync core did not.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1801](https://github.com/tjx666/caxri/issues/1801): one pure revision-chain core in `packages/protocol/src/agent/` used by both clients.
 
 ### AD-layout-agent-chat-flat-feature: [OPEN · Architecture debt · M]
 
 - **Summary:** `features/agent-chat` keeps 80+ files flat although `turn-*`, `task*`, and `find*` families form cohesive sub-domains, so placing and finding Chat code costs every change a directory scan.
 - **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/`; source-layout's sub-domain guidance. Downgraded from contract drift by its verifier: no rule mechanically requires the split.
-- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-12 @ d5dbb34f6
+- **First seen:** 2026-10-12 @ d5dbb34f6 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1802](https://github.com/tjx666/caxri/issues/1802): pure moves into sub-domain directories with before/after visual parity.
+
+### AD-layout-flat-family-enforcement: [OPEN · Architecture debt · M]
+
+- **Summary:** The source-layout rule that a cluster of three or more cohesive modules owns a directory is enforced only for Renderer features and the root of `apps/server/src/domains`, so Desktop Main (100+ flat files) and Server domains such as `agent-chat` (flat `claude-*`, `codex-*`, `grok-*` families) keep growing flat.
+- **Evidence:** `.agents/skills/source-layout/SKILL.md` cluster rule; `eslint.config.ts` feature-directory-structure; `apps/server/src/domains/__tests__/structure.test.ts` checks only top-level domain files; the sibling agents domain already uses `providers/{claude,codex,grok}`.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 @ 319eab82e
+- **Remediation target / Acceptance:** [issue caxri#1993](https://github.com/tjx666/caxri/issues/1993): a ratcheted guard for nested flat families plus pure moves into provider and family directories.
+
+### AD-naming-ssh-host-identifiers: [OPEN · Contract drift · M]
+
+- **Summary:** The glossary names the feature SSH Host and lists Remote as an alias to avoid in new code, yet the protocol methods are `remote.*`, Main splits the feature between `ssh/remote-*.ts` and flat `remote-*` siblings, and the doc is titled Remote SSH; Environment is used as a concept without a glossary entry.
+- **Evidence:** `GLOSSARY.md` SSH Host entry; `packages/protocol/src/desktop/remote-environment-contract.ts` method names; `apps/desktop/src/main/remote-environments.ts`, `apps/desktop/src/main/ssh/`; `docs/remote-ssh.md`. English UI copy already says SSH Host.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 @ 319eab82e
+- **Remediation target / Acceptance:** [issue caxri#1994](https://github.com/tjx666/caxri/issues/1994): one SSH Host vocabulary across protocol, Main modules, and docs, with Environment defined in the glossary.
 
 ---
 
 ## RESOLVED
+
+### AD-proc-ssh-server-node-env: [RESOLVED · Contract drift · S]
+
+- **Summary:** The SSH Host launch script removed only `SSH_*` variables, so a `NODE_OPTIONS` or `NODE_PATH` from the host's login shell reached the remote Server Core process, unlike the local launch path's environment allowlist.
+- **Evidence:** `apps/desktop/src/main/ssh/remote-scripts.ts` launch script unsets them; `remote-scripts.test.ts` launches with both set. Terminal Host and Extension Host already used the sanitized environment.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** The remote Server Core starts without the host's Node runtime flags.
+
+### AD-sec-server-price-list-fetch: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** The Server's price-list download buffered the whole body before its 16 MiB check, was missing from the outbound-request inventory, and ran for real in E2E and Acceptance.
+- **Evidence:** `apps/server/src/domains/usage/pricing.ts` `readBoundedText` and `offlinePriceListFetch`; `apps/server/src/domains/service-handlers.ts` injects it under `CAXRI_E2E=1`; `security.md` Server outbound requests.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** An oversized body is dropped while streaming, E2E stays offline, and the inventory lists the request.
+
+### AD-ui-local-only-predicate: [RESOLVED · Contract drift · S]
+
+- **Summary:** The Chat composer's Files and folders picker and New Project gated local-only native pickers with `isRemote`, which treats an unknown environment as local, instead of `isLocalOnlyAvailable`.
+- **Evidence:** `features/agent-chat/hooks/use-agent-chat-file-input.ts`; `features/session/session-creation-commands.ts` and its test.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** Every local-only entry point uses `isLocalOnlyAvailable`.
+
+### AD-sec-commander-handover-owner: [RESOLVED · Architecture debt · S]
+
+- **Summary:** An Agent holding an `agent:control` grant could hand any Session to the Agent Commander, take one back, or list external conversations, because those methods only required the `agents.control` capability.
+- **Evidence:** `apps/server/src/core/principal-project-scope.ts` `assertOwnerHandover` runs before dispatch in `apps/server/src/core/server-core.ts`; `server-core-agent-endpoint.integration.test.ts` covers the granted Agent.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** Only Desktop and the human CLI can hand over, take back, or list conversations; a granted Agent gets `FORBIDDEN`.
+
+### AD-ui-ssh-local-file-drop: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Dropping a file from this Mac into a Terminal or the Chat composer of an SSH Host window inserted a local path that does not exist on the host.
+- **Evidence:** `apps/desktop/src/renderer/src/lib/file-drag.ts` `isOsFileReferenceRefused`; `features/terminal/terminal-drop.ts` and `hooks/use-agent-chat-composer-input.ts` show a toast; `docs/remote-ssh.md` lists the limit.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** OS file drops are refused in SSH Host windows with an explanation; local windows are unchanged.
+
+### AD-state-composer-window-scope: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Composer drafts, edits, and attachments were stored under one key and one IndexedDB database shared by every window on the `file://` origin, so retention in one window pruned another window's drafts and SSH Host Terminals could collide with local ones.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-attachment-persistence.ts` scopes storage to `local`, `commander`, or `ssh:<hostIdentity>`; `SshEnvironmentState.hostIdentity` carries Main's host key.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** Each window scope keeps its own drafts and attachments; retention never crosses scopes.
+
+### AD-state-mobile-chat-root-follow: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** After a Session followed a new worktree, the phone's Agent Chat kept naming changed files relative to the old root.
+- **Evidence:** `apps/server/src/core/mobile/gateway/subscriptions.ts` refreshes the Chat root on `workbench.changed` and sends a full `agentChat.changed` while the refresh is pending.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** Changed-file paths follow the Session's current root.
+
+### AD-perf-chat-history-retention: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Loading older Agent Chat history on Desktop retained every evicted item without a bound.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-history.ts` `MAX_AGENT_CHAT_RETAINED_HISTORY_ITEMS`; `docs/agent-chat.md`.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** Retained history stops at 5,000 items and can be loaded again on demand.
+
+### AD-state-commander-handover-races: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Handing the same Session to the Commander twice while conversation discovery was pending recorded two hand-overs and two tasks, a hand-over accepted during the first Commander launch was overwritten, and a conversation reached through a symlinked folder created a nested Project.
+- **Evidence:** `apps/server/src/domains/commander/handover.ts` decides existing Sessions after the last await; `service.ts` re-reads rows in `beforeStart`; `handover-conversation-project.ts` matches the canonical folder.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** One hand-over per Session, launches keep concurrent hand-overs, and symlinked conversations land in their existing Project.
+
+### AD-dup-settings-copy-drift: [RESOLVED · Contract drift · S]
+
+- **Summary:** Settings search indexed protocol English titles that said Pause while the English UI said Suspend, and eleven protocol presentation helpers had no consumer.
+- **Evidence:** `packages/protocol/src/configuration/settings-spec.ts`; `features/settings/__tests__/settings-catalog-parity.test.ts`; orphan helpers removed from `packages/protocol/src/domain/` and `agent/`.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** The settings parity test fails on any title or description drift; no orphan copy helper remains.
+
+### AD-test-desktop-copy-parity: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Main-only `desktop` strings and Desktop English counterparts of protocol helpers had no parity test, so wording or rule changes could drift silently.
+- **Evidence:** `apps/desktop/src/renderer/src/i18n/__tests__/i18n.test.ts` covers the `desktop` namespace; `apps/desktop/src/renderer/src/i18n/__tests__/english-counterpart-parity.test.ts` registers 17 pairs and found two drifts, now aligned: an interrupted stop tool read `Stopped stopping` on the phone, and the `hands` Inbox kind read `Needs your hands` there but `Needs you` on Desktop; `docs/i18n.md`. Acceptance labels in `extensions/status` stay unguarded because application code cannot import an extension.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** Every Desktop English counterpart is registered in the parity test.
+
+### AD-deps-lobehub-ui-boundary: [RESOLVED · Contract drift · S]
+
+- **Summary:** `@lobehub/ui` had no stack-baseline record and no import boundary, so its antd/Emotion component kit could spread through the Renderer.
+- **Evidence:** `.agents/skills/project-architecture/references/stack-baseline.md` accepted runtime exception; `eslint.config.ts` Renderer `no-restricted-imports` with an i18n-only override.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** Only `apps/desktop/src/renderer/src/i18n/` imports the library.
+
+### AD-toolchain-release-age-exclusions: [RESOLVED · Contract drift · S]
+
+- **Summary:** `minimumReleaseAgeExclude` kept six entries for versions no longer in the lockfile, and one entry was unpinned.
+- **Evidence:** `pnpm-workspace.yaml`; `scripts/__tests__/toolchain-contract.test.ts` checks that every exclusion is exact and still resolved.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** Stale or unpinned exclusions fail the toolchain contract.
+
+### AD-docs-authority-and-baseline-drift: [RESOLVED · Contract drift · S]
+
+- **Summary:** Docs omitted the SSH Host folder browser and Commander import as Project-registration authorities, claimed a granted Agent could hand over Sessions, and described the bundle baseline as current Electron 44.
+- **Evidence:** `.agents/skills/project-architecture/references/security.md`; `apps/desktop/src/main/workbench-root-authority.ts` JSDoc; `docs/agent-commander.md`; `docs/bundle-size.md`.
+- **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
+- **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
+- **Remediation target / Acceptance:** Docs match runtime authority and date the measured Electron version.
 
 ### AD-sec-commander-chat-edit-refused: [RESOLVED · Confirmed defect · S]
 
@@ -814,9 +940,9 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ---
 
-## Current priority guide (OPEN at 2026-10-11)
+## Current priority guide (OPEN at 2026-10-13)
 
-**Top priorities:** `AD-proc-chat-endpoint-identity` ([issue caxri#1675](https://github.com/tjx666/caxri/issues/1675)) → `AD-perf-usage-locate-every-poll` → `AD-sec-main-link-fetch-trust` → `AD-ext-virtual-tab-descriptors`.
+**Top priorities:** `AD-proc-chat-endpoint-identity` ([issue caxri#1675](https://github.com/tjx666/caxri/issues/1675)) → `AD-sec-main-link-fetch-trust` → `AD-ext-virtual-tab-descriptors` → `AD-layout-flat-family-enforcement`.
 
 **Quick wins (S):** `AD-test-knip-before-merge` · `AD-sec-delegation-hidden-project` (after its product decision) · `AD-sec-main-link-fetch-trust`.
 

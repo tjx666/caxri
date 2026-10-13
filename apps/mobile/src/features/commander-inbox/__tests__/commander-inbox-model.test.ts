@@ -57,7 +57,7 @@ describe('Commander Inbox mobile model', () => {
             ),
         ).toEqual({
             ageLabel: 'now',
-            kindLabel: 'Needs your hands',
+            kindLabel: 'Needs you',
             replyState: { isRead: false, label: 'Delivered to Commander' },
         });
     });

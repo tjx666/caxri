@@ -37,14 +37,3 @@ export function parseAgentTaskTab(path: string): AgentTaskTab | undefined {
 export function isAgentTaskTabPath(path: string): boolean {
     return Boolean(parseAgentTaskTab(path));
 }
-
-/**
- * The tab's label: the task's title when the Chat still lists it, otherwise what kind of work it is.
- */
-export function agentTaskTabLabel(
-    task: { kind: 'agent' | 'shell'; title: string } | undefined,
-): string {
-    const title = task?.title.trim();
-    if (title) return title;
-    return task?.kind === 'shell' ? 'Shell' : 'Subagent';
-}

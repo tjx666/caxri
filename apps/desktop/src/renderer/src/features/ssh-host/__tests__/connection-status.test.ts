@@ -13,6 +13,7 @@ function state(overrides: Partial<SshEnvironmentState> = {}): SshEnvironmentStat
     return {
         kind: 'ssh',
         destination: 'devbox',
+        hostIdentity: 'devbox',
         phase: 'connecting',
         needsUserAction: false,
         ...overrides,
