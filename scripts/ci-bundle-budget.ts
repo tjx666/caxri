@@ -34,15 +34,15 @@ interface TimeBudget {
 }
 
 /**
- * Byte ceilings for every packaged artifact this repository ships. Baseline (2026-09, with source maps shipped in every
- * build): standalone Server ≈ 137.6 MiB, out/main ≈ 3.0 MiB (4.06 MiB by 2026-10, see below), out/preload ≈ 48 KiB,
+ * Byte ceilings for the default debuggable build. Baseline (2026-09, with Source Maps included in the canonical build):
+ * standalone Server ≈ 137.6 MiB, out/main ≈ 3.0 MiB (4.06 MiB by 2026-10, see below), out/preload ≈ 48 KiB,
  * out/renderer ≈ 113.2 MiB, app.asar ≈ 116.8 MiB, Caxri.app ≈ 497.5 MiB. The Server deliberately includes its pinned
  * Node runtime and bundled ripgrep binary so Desktop and platform deployments consume one identical, self-contained
  * artifact.
  *
- * Source maps are roughly half of the JavaScript in these numbers and are a deliberate, permanent cost, a packaged
- * build has to be debuggable without a rebuild (docs/bundle-size.md, `.agents/skills/debug`). A drop in these figures
- * is therefore as suspicious as a rise: it usually means maps stopped being emitted or stopped being packaged.
+ * Source Maps are roughly half of the JavaScript in these numbers and are a deliberate cost in the default flavor: a
+ * canonical packaged build has to be debuggable without a rebuild (docs/bundle-size.md, `.agents/skills/debug`). A drop
+ * in these figures is therefore as suspicious as a rise: it usually means maps stopped being emitted or packaged.
  *
  * The Renderer, asar, and app ceilings were raised together for Mermaid (≈ 23 MiB of the Renderer with its maps), which
  * the file preview loads on demand. Mermaid ships one lazy chunk per diagram type plus two large layout backends (ELK ≈

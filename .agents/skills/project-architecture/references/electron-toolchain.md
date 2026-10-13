@@ -84,6 +84,13 @@ cutoff.
 
 The Renderer build enables stable React Compiler through the official Vite 8 `@rolldown/plugin-babel` integration and `reactCompilerPreset()`. The Babel stage belongs only to the Renderer pipeline; Main, Host, Preload, and Runtime remain on their existing Node-oriented transforms.
 
+Desktop Main, Preload, Renderer, and the embedded macOS Server share the strict
+`CAXRI_SOURCE_MAPS=include|omit` build flavor. An absent variable defaults to `include`; any other
+explicit value fails the build. Ordinary builds and the canonical macOS DMG include Source Maps.
+The release pipeline rebuilds every product bundle with `omit` for a second DMG rather than deleting
+maps after packaging, because the Server integrity manifest must be generated from the exact files it
+ships. The two app directories and DMGs use isolated output roots under `release.noindex/`.
+
 Electron Forge's official Vite plugin remains explicitly experimental and provides no API-stability guarantee. `electron-vite` documents Electron `utilityProcess`, externalizes production/native dependencies, and fits the required process model.
 
 Vite 8 requires `electron-vite@6`; while that integration is still beta, it explicitly declares Vite 8 support. Caxri accepts the beta integration behind full build, Electron E2E, native-probe, startup-performance, and packaged-application validation rather than forcing an invalid Vite peer combination.
@@ -105,22 +112,25 @@ imports the npm package; Server Core injects the absolute artifact path into the
 release validation must treat `rg` as a nested executable for signing and notarization.
 
 The private GitHub Release path runs on the repository-level Apple Silicon self-hosted runner and
-publishes an unsigned arm64 DMG for personal use. Only a pushed `main` commit whose subject exactly matches
+produces unsigned Source Map and no-map arm64 DMGs. Only a pushed `main` commit whose subject exactly matches
 `release: v<package-version>` may trigger it; normal commits remain CI-only. The release job must
-validate the package version and unused tag, run all release gates, launch the packaged app through
-the startup benchmark, verify the DMG, and upload a SHA-256 checksum. Signing and notarization are a
+validate the package version and unused tag, run all release gates, launch the canonical Source Map app through
+the startup benchmark, verify both DMGs, and upload one SHA-256 checksum per asset. Signing and notarization are a
 separate public-distribution decision and must not be inferred from the presence of this workflow.
 
 [`docs/self-hosted-runner.md`](../../../../docs/self-hosted-runner.md) owns GitHub Actions runner
 routing, source-admission trust, labels, offline behavior, cleanup, and recovery. This toolchain
 decision relies on that contract rather than restating it. Exact trusted release commits still run
-full E2E before downstream packaging uses a non-persisted, short-lived `contents: write` token.
+hosted checks before downstream packaging uses a non-persisted, short-lived `contents: write` token.
+Before the self-hosted runner is removed, the frozen publication candidate must separately pass the
+explicit private `self-hosted-final` full-E2E dispatch.
 
-The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI provisions
-exact Node 24 through `actions/setup-node`, installs pnpm 12 through `pnpm/setup` only on a runner
-tool-cache miss, and pins Bun through `.bun-version`, without changing the user's interactive
-installations. pnpm owns workspace dependency resolution, installation, linking, and the lockfile;
-Bun is the fast script, TypeScript, and repository CLI runner. Node, pnpm, and Bun use versioned
-runner-owned tool locations; the pnpm store, Electron, ESLint, and Prettier reuse runner-local caches
-without `actions/cache`. Dependency trees remain job-local and are rebuilt from `pnpm-lock.yaml` for
-every source job.
+The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI reads exact
+Node and pnpm versions from `mise.toml`, installs them through `actions/setup-node` and `pnpm/setup`,
+and pins Bun through `.bun-version`, without changing the user's interactive installations. Hosted
+jobs install Bun explicitly and keep pnpm, Electron, Playwright, ESLint, and Prettier state below
+`RUNNER_TEMP`; they never require a prewarmed `RUNNER_TOOL_CACHE/caxri/bun`. The transitional
+self-hosted final and publication paths may reuse versioned runner-owned tool and cache locations.
+pnpm owns workspace dependency resolution, installation, linking, and the lockfile; Bun is the fast
+script, TypeScript, and repository CLI runner. Dependency trees remain job-local and are rebuilt
+from `pnpm-lock.yaml` for every source job.

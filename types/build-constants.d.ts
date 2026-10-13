@@ -7,6 +7,7 @@
 declare global {
     const __CAXRI_VERSION__: string;
     const __CAXRI_COMMIT__: string;
+    const __CAXRI_SOURCE_MAP_FLAVOR__: string;
 }
 
 export {};

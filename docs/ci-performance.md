@@ -14,7 +14,7 @@ trust, offline behavior, and recovery are owned by
 
 ## Baseline
 
-[Run 31581073589](https://github.com/tjx666/caxri/actions/runs/31581073589) uses exact head
+Actions run `31581073589` used exact head
 `4ec56415a2c99b91418c6deff1754ddce3a0a2bd` and the pre-optimization workflow. Its E2E manifest is
 94 tests: 91 passed and 3 skipped in the original attempt.
 
@@ -36,8 +36,8 @@ CI; record a new exact-head self-hosted baseline before making further install-t
 
 ### Single-runner concurrent-window baseline
 
-[Run 34601568589](https://github.com/tjx666/caxri/actions/runs/34601568589) is a full optimized
-ready-PR run on `m2-24`. Its `e2e` job took 15m43s end to end, and the concurrent validation window
+Actions run `34601568589` was a full optimized ready-PR run on the historical self-hosted runner.
+Its `e2e` job took 15m43s end to end, and the concurrent validation window
 (`ci-concurrent-validation.ts run`) accounted for 14m51s of that. The `CAXRI_CI_METRIC` lines split
 that window into two branches:
 
@@ -58,7 +58,7 @@ pool is already using the runner, so every core the checks take is one its Elect
 and a stalled Renderer there does not merely run slower: an interaction that races an asynchronous
 re-render starts losing it, which is a flaky test rather than a slow one.
 
-[Run 35553657625](https://github.com/tjx666/caxri/actions/runs/35553657625) is the first run where
+Actions run `35553657625` was the first run where
 that window got large. `desktop-exclusive` ended at 02:26:49 and the checks branch ran until
 02:32:47, so 358s of the 452s three-worker pool (79% of it) ran under full contention. Three
 specs failed that no change in that run had touched: `git-diff-tabs` (Monaco diff never mounted
@@ -111,7 +111,7 @@ exactly why the duration belongs on the receipt instead.
 
 ### Long fixed waits are the first thing to look for
 
-[Run 35542871828](https://github.com/tjx666/caxri/actions/runs/35542871828) measured a 22m20s `e2e`
+Actions run `35542871828` measured a 22m20s `e2e`
 job whose `desktop-exclusive` pool took 892s of the 1235s critical path. Two tests held 203s of it,
 both waiting out a production timer rather than doing work:
 
@@ -177,13 +177,14 @@ the pool on one worker forever. Under three workers it passes alongside `work-ta
 `scheduleConcurrentValidationDeadline` in `scripts/ci-concurrent-validation.ts` aborts the whole
 window 25 minutes after `execute()` starts, so the clock includes the checks worktree install, the
 Electron build, native verification, interruption recovery, and the failure census before either
-pool runs (about 45s on `m2-24`). On the E2E branch the window then holds `desktop-exclusive`, the
+pool runs (about 45s on the historical self-hosted runner). On the E2E branch the window then holds
+`desktop-exclusive`, the
 dispatch-only CI parity cases (about 200s, one worker), `parallel-safe`, and the manifest. The
 target is 85% of the deadline (21m15s), which leaves room for one slow pool without a red run.
 
 The window's floor is set by the checks branch, not by E2E alone. ESLint, oxlint, Vitest, and the
 bundle budget finished about 15 minutes in on
-[run 38197586711](https://github.com/tjx666/caxri/actions/runs/38197586711), and the three-worker
+Actions run `38197586711`, and the three-worker
 pool cannot run at full speed until they do. Once `desktop-exclusive` is shorter than that branch,
 moving more specs out of it saves only about 40% of each moved second, because the moved work lands
 in the contended part of the three-worker pool.
@@ -230,18 +231,18 @@ The historical optimized workflow rebuilt only `better-sqlite3` and `node-pty`;
 `@parcel/watcher` used its Node-API platform package and remained covered by `spike:native`. It kept
 the full Vitest manifest while replacing production-sized waits and buffers with injected test
 seams. At the time, Playwright was split into separate `parallel-safe` and `desktop-exclusive`
-matrix jobs. Those jobs did not run concurrently after CI moved to the single physical `m2-24`;
+matrix jobs. Those jobs did not run concurrently after CI moved to one physical self-hosted runner;
 the runner queued them serially and each job repeated setup and build.
 
-| Evidence                                                                         | Exact head | Result                                                                               |
-| -------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------ |
-| [Control run](https://github.com/tjx666/caxri/actions/runs/31661533997)          | `953c800`  | 99 passed, 5 skipped; one-worker suite 6.5m                                          |
-| [Split experiment](https://github.com/tjx666/caxri/actions/runs/31663039930)     | `31dfe0e`  | 41 parallel-safe tests in 1.8m; 58 passed and 5 skipped exclusive tests in 4.3m      |
-| [Exact-head dispatch](https://github.com/tjx666/caxri/actions/runs/31663792074)  | `544c775`  | all gates green; 41 tests in 2.1m and 58 passed/5 skipped in 5.4m                    |
-| [Ready PR failure](https://github.com/tjx666/caxri/actions/runs/31664514393)     | `544c775`  | exposed a stale path-browser query wait; exclusive pool green                        |
-| [Ready PR failure](https://github.com/tjx666/caxri/actions/runs/31665289454)     | `379ed75`  | exposed an ambiguous Monaco warmup locator; exclusive pool green                     |
-| [Draft focused checks](https://github.com/tjx666/caxri/actions/runs/31667490248) | `7a0a836`  | runner allocation restored; focused source checks green, macOS intentionally skipped |
-| [Final ready PR](https://github.com/tjx666/caxri/actions/runs/31668179503)       | `44e7801`  | all gates green; checks 2.3m, parallel-safe 4.3m, desktop-exclusive 6.9m             |
+| Evidence                           | Exact head | Result                                                                               |
+| ---------------------------------- | ---------- | ------------------------------------------------------------------------------------ |
+| Control run `31661533997`          | `953c800`  | 99 passed, 5 skipped; one-worker suite 6.5m                                          |
+| Split experiment `31663039930`     | `31dfe0e`  | 41 parallel-safe tests in 1.8m; 58 passed and 5 skipped exclusive tests in 4.3m      |
+| Exact-head dispatch `31663792074`  | `544c775`  | all gates green; 41 tests in 2.1m and 58 passed/5 skipped in 5.4m                    |
+| Ready PR failure `31664514393`     | `544c775`  | exposed a stale path-browser query wait; exclusive pool green                        |
+| Ready PR failure `31665289454`     | `379ed75`  | exposed an ambiguous Monaco warmup locator; exclusive pool green                     |
+| Draft focused checks `31667490248` | `7a0a836`  | runner allocation restored; focused source checks green, macOS intentionally skipped |
+| Final ready PR `31668179503`       | `44e7801`  | all gates green; checks 2.3m, parallel-safe 4.3m, desktop-exclusive 6.9m             |
 
 Hosted native rebuild dropped from roughly 30 seconds to 4–10 seconds depending on the runner.
 The original full Vitest suite took 64.95 seconds; optimized exact-head runs measured 57.24 seconds
@@ -265,50 +266,43 @@ Vite's `.vite` directory is not a reusable production-output cache.
   `--repeat-each=3`. A `parallel-safe` failure must also be exercised under its namespaced
   multi-worker pool (CI runs three workers by default; `CAXRI_E2E_PARALLEL_WORKERS` accepts 2 to 4)
   so local validation matches CI scheduling pressure.
-- Finish the complete repair batch and focused local gates before pushing once. Use `e2e-repair`
-  only when the repair delta modifies existing top-level E2E specs and nothing else. Product,
-  workflow, dependency, pool, fixture, shared E2E support, spec-add/delete, and retry-policy changes
-  remain fail-closed and require one final full run.
-- After one ready-PR run has full checks, every E2E pool, and `CI gate` green, a later strict
-  ancestor may reuse that macOS evidence only when its entire delta is documentation or the
-  repository-owned `acceptance`/`go` skill. The current head still runs focused self-hosted checks;
-  product, workflow, dependency, fixture, pool, and other skill changes fail closed to full CI.
+- Finish the complete repair batch and focused local gates before pushing once. Legacy `e2e-only`
+  and `e2e-repair` trailers remain parseable only as compatibility metadata: they run full hosted
+  checks and cannot start Playwright or reuse an ancestor receipt. Do not add them to new PRs.
+- A failed explicit full-E2E candidate must be repaired and dispatched again on the new exact SHA.
+  Ready-PR ancestor reuse is suspended while automatic PR E2E is disabled.
 - Keep test counts, assertions, isolation, error gates, and failure artifacts unchanged. Optimize
   fixture cost and orchestration rather than coverage.
 
 ## Current CI decision matrix
 
-The policy evaluates a retry hint first, derives the initial execution plan, and only searches for
-a reusable ancestor run when an otherwise full ready-PR path needs E2E and has no retry hint or
-parse error. A verified ancestor then recomputes the plan. Missing, malformed, stale, or unverifiable
-evidence fails closed to the event's ordinary row.
-
-`focused-e2e` runs changed-spec lint and type validation only. Playwright owns the behavioral test;
-this path does not invoke Vitest for an E2E-only repair.
+The policy evaluates legacy retry hints first, but every accepted hint resolves to full hosted
+checks with no E2E. Current PR plans never request E2E, so ancestor lookup remains dormant and
+cannot reduce current-head validation. Missing, malformed, stale, or unverifiable metadata fails
+closed to the event's ordinary hosted-check row.
 
 `mode` belongs to `RetryPolicyDecision`; the remaining three values belong to
 `CIExecutionPlan`. The table is a behavior map, not a second implementation of the state machine.
 
-| Input and validated precondition                                                       | `mode`       | `checksScope`               | `e2eProfile`                        | `runE2E`       |
-| -------------------------------------------------------------------------------------- | ------------ | --------------------------- | ----------------------------------- | -------------- |
-| Eligible unchanged-tree PR retry                                                       | `e2e-only`   | `skipped`                   | `control`                           | yes            |
-| Eligible modified-existing-spec-only repair                                            | `e2e-repair` | `focused-e2e`               | `focused`                           | yes            |
-| Product, shared E2E support, protected, unknown, or spec-add/delete repair delta       | `full`       | Continue with the event row | Continue with the event row         | event row      |
-| Missing or rejected retry evidence                                                     | `full`       | Continue with the event row | Continue with the event row         | event row      |
-| `workflow_dispatch`, profile `skip` / `control` / `optimized`                          | `full`       | `full`                      | `control` / `control` / `optimized` | no / yes / yes |
-| PR strict-ancestor full-green reuse; delta is documentation only                       | `full`       | `focused-docs`              | `control`                           | no             |
-| PR strict-ancestor full-green reuse; delta includes only `go` / `acceptance` skills    | `full`       | `focused-skills`            | `control`                           | no             |
-| PR documentation only                                                                  | `full`       | `focused-docs`              | `control`                           | no             |
-| PR repository-skill and documentation only                                             | `full`       | `focused-skills`            | `control`                           | no             |
-| Draft PR with any remaining source change                                              | `full`       | `focused-source`            | `control`                           | no             |
-| Ready PR whose delta touches a full-validation path or has a malformed E2E declaration | `full`       | `full`                      | `optimized`                         | yes            |
-| Ready PR with any remaining source change                                              | `full`       | `affected`                  | `focused`                           | yes            |
-| `schedule` (nightly) whose head differs from the previous completed nightly            | `full`       | `full`                      | `optimized`                         | yes            |
-| `schedule` (nightly) whose head equals the previous completed nightly                  | `full`       | `skipped`                   | `control`                           | no             |
-| Non-release `push` containing only documentation or repository skills                  | `full`       | `full`                      | `optimized`                         | no             |
-| Non-release `push` with product, test, workflow, or unknown delta                      | `full`       | `full`                      | `optimized`                         | yes            |
-| Exact `release:prepare` output; PR CI passed                                           | `full`       | `skipped`                   | `control`                           | no             |
-| Unknown or missing event                                                               | `full`       | `full`                      | `control`                           | yes            |
+| Input and validated precondition                                                       | `mode`       | `checksScope`               | `e2eProfile`                | `runE2E`       |
+| -------------------------------------------------------------------------------------- | ------------ | --------------------------- | --------------------------- | -------------- |
+| Legacy unchanged-tree PR retry metadata                                                | `e2e-only`   | `full`                      | `control`                   | no             |
+| Legacy modified-existing-spec repair metadata                                          | `e2e-repair` | `full`                      | `control`                   | no             |
+| Product, shared E2E support, protected, unknown, or spec-add/delete repair delta       | `full`       | Continue with the event row | Continue with the event row | event row      |
+| Missing or rejected retry evidence                                                     | `full`       | Continue with the event row | Continue with the event row | event row      |
+| `workflow_dispatch`, target `checks-only`                                              | `full`       | `full`                      | `control` / `optimized`     | no             |
+| `workflow_dispatch`, target `hosted-smoke`                                             | `full`       | `full`                      | `control`                   | targeted smoke |
+| `workflow_dispatch`, target `self-hosted-final`, private repository only               | `full`       | `full`                      | `control` / `optimized`     | explicit only  |
+| `workflow_dispatch`, target `hosted-full`, public repository only                      | `full`       | `full`                      | `control` / `optimized`     | explicit only  |
+| PR documentation only                                                                  | `full`       | `focused-docs`              | `control`                   | no             |
+| PR repository-skill and documentation only                                             | `full`       | `focused-skills`            | `control`                   | no             |
+| Draft PR with any remaining source change                                              | `full`       | `focused-source`            | `control`                   | no             |
+| Ready PR whose delta touches a full-validation path or has a malformed E2E declaration | `full`       | `full`                      | `optimized`                 | no             |
+| Ready PR with any remaining source change                                              | `full`       | `affected`                  | `focused`                   | no             |
+| Non-release `push` containing only documentation or repository skills                  | `full`       | `full`                      | `optimized`                 | no             |
+| Non-release `push` with product, test, workflow, or unknown delta                      | `full`       | `full`                      | `optimized`                 | no             |
+| Exact `release:prepare` output; PR CI passed                                           | `full`       | `skipped`                   | `control`                   | no             |
+| Unknown or missing event                                                               | `full`       | `full`                      | `control`                   | no             |
 
 The pure retry, execution-plan, and green-reuse evaluators each have focused tests. The ordered
 GitHub lookup and `main` orchestration glue remain fail-closed but do not have a direct IO-level
@@ -316,73 +310,68 @@ unit test; this is accepted while no concrete glue regression justifies extracti
 boundary. Adding a new decision dimension must update the pure policy tests and this matrix before
 changing workflow wiring.
 
-## Affected pull requests and the nightly full suite
+## Hosted checks and explicit E2E
 
-A ready source PR no longer runs the full suite. `scripts/ci-execution-plan.ts` routes it to the
-`affected` scope:
+A ready source PR runs on a disposable `macos-15` ARM64 runner. `scripts/ci-execution-plan.ts`
+routes it to the `affected` scope:
 
 - **Checks**: changed-file lint and repository typecheck through `bun run check`, then
   `vitest related --run` over the changed sources. `related` walks the whole import graph, so a
   change in a shared package reaches every suite that transitively imports it.
-- **E2E**: the union of specs declared in the PR body with one
+- **E2E selection**: the union of specs declared in the PR body with one
   `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line, ordinary specs the PR changed, and specs that directly
-  import a changed source file, each run once. The policy job has no dependency install, so the E2E
-  job adds the import-derived specs. With nothing selected, the PR runs `e2e/smoke.e2e.ts`.
-  Protected specs (performance, real Agent, failure isolation) never run on this path.
-- **Full-suite fallback**: a delta that touches a retry-protected path (workflows, CI runners,
-  `e2e/support/**`, toolchain files) or any workspace `package.json`, `tsconfig*.json`,
-  `vite`/`vitest`/`electron.vite`/`playwright` config, or `patches/**` keeps the full optimized
-  suite, as does a malformed or protected `CI-E2E-Tests` declaration.
+  import a changed source file. The selection is recorded for an explicit validation dispatch; a PR never starts
+  full E2E automatically. Protected specs (performance, real Agent, failure isolation) remain excluded.
+- **Full hosted-check fallback**: a delta that touches a retry-protected path (workflows, CI
+  runners, `e2e/support/**`, toolchain files) or any workspace `package.json`, `tsconfig*.json`,
+  `vite`/`vitest`/`electron.vite`/`playwright` config, or `patches/**` routes the hosted macOS
+  `checks` job to the `full` checks scope. A malformed or protected `CI-E2E-Tests` declaration does
+  the same. This expands hosted platform checks only; `runE2E` remains false and an explicit
+  dispatch still owns every full E2E run.
 
-Knip, React Doctor, bundle budgets, the Renderer performance gate, and every unselected E2E spec now
-run only in the `full` checks scope: the nightly full suite, or a ready PR that takes the
-full-suite fallback above. The `affected` scope's `check --lint` never passes `--knip`, so an unused
-export a PR introduces fails the next nightly unless the author ran `bun run knip` locally. The `schedule` trigger runs it on `main` at 00:00 UTC (08:00
-Asia/Shanghai) in its own concurrency group, so a release push cannot cancel it. When `main` has
-not moved since the previous completed nightly, the run skips every gate. A failed nightly runs
-`scripts/ci-nightly-report.ts`, which opens or comments on the single open `Nightly 全量 CI 失败`
-issue with the failed jobs and steps plus every PR merged since the previous green nightly. The
-workflow token cannot edit the owner Project, so whoever picks the issue up adds it to the Project
-through `file-issue`.
+Knip, React Doctor, and bundle budgets run in the `full` checks scope on hosted macOS. Ordinary
+pushes to `main` run those checks but do not start full E2E. There is no scheduled full E2E while
+the repository is private.
 
-Ordinary pushes to `main` stay skipped at the workflow level; only `release: v…` commits run CI. A
-skipped run still enters its concurrency group, so each `release: v…` push takes a commit-scoped
-group instead of the shared `main` ref group: otherwise the next merge would cancel the release run
-while it queues for the runner, and Release, which starts only from that commit's successful CI,
-would never run.
+While the repository is private, `hosted-smoke` is the repeatable hosted desktop launch and runs
+only `e2e/smoke.e2e.ts`. Before the pre-public runner is removed, freeze one candidate SHA and
+record one owner-dispatched `self-hosted-final` full-E2E result on the private final runner; do not repeat it for
+performance sampling. After the repository becomes public, `hosted-full` on `macos-15` is the
+explicit complete E2E route, and `self-hosted-final` rejects the event. The self-hosted Renderer
+performance baseline runs only on `self-hosted-final`; hosted E2E must collect a separate
+calibration before it can enforce that historical machine-specific baseline.
 
-## Current single-runner execution contract
+The Release workflow's manual dispatch is a no-publish rehearsal. It keeps the Linux x64/ARM64
+native matrix, then uses `macos-15` ARM64 to install the exact Node, pnpm, Bun, JDK 17, Android
+Platform 36, Build Tools 35/36, NDK, and CMake versions. It signs the Android rehearsal APK with an
+ephemeral one-run key, packages both unsigned DMG flavors, and runs the two targeted packaged-app
+smoke specs against the canonical Source Map flavor. It has read-only repository permission, reads
+no secrets, uploads no DMG, and never creates a GitHub Release.
 
-- A full ready-PR or `main` run installs once in the E2E checkout. Inside the concurrent validation
-  window it also creates and installs an owned disposable checkout for the platform-check revision:
-  GitHub's synthetic merge on a PR, or the exact push on `main`. Checkout preparation and the
-  unchanged full platform gates overlap exact-head E2E. The platform gates keep their original
-  fail-fast order, while E2E still attempts both pools and the manifest even if another validation
-  surface fails.
-- The disposable checkout verifies the synthetic merge's raw parents. When `main` advanced while the
-  run was queued, the merge ref's base parent no longer equals the event-payload base; the checkout
-  accepts that drift only after proving the payload base is an ancestor of the merge-ref base, then
-  continues with the merge-ref base (also as `CAXRI_REACT_DOCTOR_BASE`) and prints one
-  `CAXRI_CHECKS_BASE_DRIFT {json}` line. A merge ref whose head parent is not the run's PR head is
-  stale and fails closed with all SHAs; rerunning the job reuses the same frozen payload, so the
-  only remedy is to rebase and force-push.
-- Exact-head E2E verifies native modules and builds once. It then runs `desktop-exclusive` with one
-  worker, the dispatch-only CI parity cases, and `parallel-safe` with three namespaced workers on the
-  same `m2-24`; a failed first pool does not suppress the second pool. That order is a scheduling decision, not a
-  dependency: the platform-checks branch is the CPU-heavy half and finishes before E2E does, so the
-  one-worker pool is the one that should share the runner with it and the multi-worker pool runs
-  after the checks have released their cores. The `workflow_dispatch` worker input stays bounded
-  to 2–4 for frozen same-head comparisons.
+## Explicit full-E2E dispatch contract
+
+- Automatic pull-request and `main`-push events stop at the hosted `retry-policy` and `checks` jobs.
+  They never enter the `e2e` job, including when `checksScope` is `full` or `e2eProfile` is
+  `optimized`.
+- An explicit `self-hosted-final` or `hosted-full` dispatch checks out the dispatched SHA. With
+  `e2e_profile: optimized`, the E2E job installs once, creates an owned disposable checkout of that
+  same SHA for full platform checks, and overlaps those checks with exact-head E2E on the selected
+  runner. There is no PR synthetic-merge or `main`-push E2E path.
+- Exact-head E2E verifies native modules and builds once, then runs `desktop-exclusive` with one
+  worker, the dispatch-only CI-parity cases, and `parallel-safe` with three namespaced workers. The
+  optimized `self-hosted-final` route shares the private final runner; `hosted-full` runs the same orchestration on
+  `macos-15`. The `workflow_dispatch` worker input remains bounded to 2–4 for frozen same-head
+  comparisons.
 
 ### Four parallel workers, measured and rejected
 
 The obvious next step after the pool stopped competing with the checks branch was a fourth worker,
 and the receipt says it does not pay. Two same-branch runs, identical except for the worker count:
 
-| Workers                                                                     | Serial spec time | Wall   | Workers busy | Cost per test | `parallel-safe` failures |
-| --------------------------------------------------------------------------- | ---------------- | ------ | ------------ | ------------- | ------------------------ |
-| 3 ([35555168511](https://github.com/tjx666/caxri/actions/runs/35555168511)) | 1218.5s          | 416.4s | 2.93 / 3     | None          | 1                        |
-| 4 ([35557167068](https://github.com/tjx666/caxri/actions/runs/35557167068)) | 1444.5s          | 371.2s | 3.89 / 4     | **+18.5%**    | 2                        |
+| Workers           | Serial spec time | Wall   | Workers busy | Cost per test | `parallel-safe` failures |
+| ----------------- | ---------------- | ------ | ------------ | ------------- | ------------------------ |
+| 3 (`35555168511`) | 1218.5s          | 416.4s | 2.93 / 3     | None          | 1                        |
+| 4 (`35557167068`) | 1444.5s          | 371.2s | 3.89 / 4     | **+18.5%**    | 2                        |
 
 Both counts keep their workers busy, so the fourth worker is not idling: **the same tests simply
 take 18.5% longer to run**. That is the runner saturating, and it converts a theoretical 103s saving
@@ -398,13 +387,13 @@ is already near the worker count, the pool is scheduling well and more workers b
 time. Growth in the **serial** total between two runs is the signal that the runner is saturated:
 wall time alone hides it.
 
-- Every successful product-affecting E2E-running path finishes with the fixed Renderer performance
-  scenario. A spec-only `e2e-repair` reuses the failed head's unchanged product tree and skips it.
-  The benchmark step rebuilds a profiling React Renderer after the production-build
-  suites, applies the per-surface budgets in
+- Every successful `self-hosted-final` run finishes with the fixed Renderer performance scenario.
+  Hosted routes do not enforce this historical self-hosted baseline. The benchmark step rebuilds a
+  profiling React Renderer after the production-build suites, applies the per-surface budgets in
   [`docs/renderer-performance.md`](renderer-performance.md), and uploads its machine-readable receipt.
-  `CI gate` requires the step output to be `success`; changing the gate, benchmark command, or
-  performance spec is protected retry configuration and therefore requires a full validation path.
+  The `e2e` job fails when the benchmark step fails; changing the gate, benchmark command, or
+  performance spec routes automatic CI through full hosted checks and requires an explicit
+  `self-hosted-final` dispatch for behavior-level proof.
 - Every spec runs in `parallel-safe` unless `desktopExclusiveSpecs` names it with a reason; tests
   that need the exclusive pool move into a dedicated spec, so each logical pool needs only one
   Playwright invocation. `e2e/support/pools.ts` owns the reasons and admission conditions, and
@@ -430,8 +419,9 @@ wall time alone hides it.
   finish. Independent checks, parallel-safe, desktop-exclusive, and auxiliary verifier steps bind
   that receipt to the Actions run attempt, platform-check revision, exact head, profile, and
   worker count; a missing, stale, malformed, or non-zero component fails closed.
-- Focused checks, one-worker controls, retry-only runs, and non-full profiles keep their standalone
-  paths. Only a full optimized run can replace the standalone checks job with the concurrent path.
+- Focused checks, `checks-only` and `hosted-smoke` dispatches, one-worker controls, and non-optimized
+  profiles keep their standalone paths. Only an explicit optimized `self-hosted-final` or
+  `hosted-full` dispatch can replace the standalone checks job with the concurrent path.
 - Vitest defaults to the audited `optimized` partition and two workers on both the standalone and
   the concurrent full path, so the checks branch finishes early and overlaps as little of
   `parallel-safe` as it can instead of spreading the same work into it. The `legacy` partition and worker caps 1-4 remain

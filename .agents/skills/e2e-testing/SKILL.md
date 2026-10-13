@@ -1,6 +1,6 @@
 ---
 name: e2e-testing
-description: Validate Caxri through focused Playwright Electron workflows, real PTY and IPC boundaries, native window lifecycle, E2E fixtures, production-build parity, error artifacts, and self-hosted full-suite CI. Use after changing user-visible Electron behavior, E2E infrastructure, Agent launch fixtures, desktop leases, or packaging-facing runtime behavior; when diagnosing a CI-only Electron failure; or when an explicit Go run needs its guarded exact-head fallback. Do not use as the default Vitest workflow.
+description: Validate Caxri through focused Playwright Electron workflows, real PTY and IPC boundaries, native window lifecycle, E2E fixtures, production-build parity, error artifacts, and explicit full-suite CI routes. Use after changing user-visible Electron behavior, E2E infrastructure, Agent launch fixtures, desktop leases, or packaging-facing runtime behavior; when diagnosing a CI-only Electron failure; or when an explicit Go run needs its guarded exact-head fallback. Do not use as the default Vitest workflow.
 ---
 
 # E2E Testing
@@ -215,11 +215,11 @@ Two repetitions are the entire local budget, and they cover the related cases on
 cases plus, when they touch the changed behavior, the delivery's focused specs. Repairing CI never
 runs the full unit or E2E suite locally, and never keeps re-dispatching CI, to decide whether a case
 is intermittent. A local full run occupies the machine the user is working on; only the user's own
-explicit request authorizes one. The suite shares one self-hosted runner with every other session, so chasing an
-intermittent failure in place blocks both the delivery it interrupted and every sibling delivery
-queued behind that runner. Intermittent cases are repaired collectively from the #1418 record, where
-one investigation covers every occurrence, instead of once per pull request that happens to hit
-one.
+explicit request authorizes one. Chasing an intermittent failure through repeated
+`self-hosted-final` dispatches would consume the one frozen
+candidate validation window. Hosted runs are also metered while the repository is private. Repair
+from the preserved first failure and the #1418 record instead of redispatching either route until
+the cause is addressed.
 
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
@@ -314,34 +314,18 @@ following controls when collecting a new comparison:
   adoption threshold, and stop condition. Do not extend a declared experiment until it becomes
   green or replace a red sample outside its documented infrastructure-failure rule.
 
-## Controlled PR retries
+## Explicit full-E2E retries
 
-For the same failed SHA, use `gh run rerun <run-id> --failed`; do not create a metadata-only commit.
-When a new commit changes only the contents of existing top-level `e2e/*.e2e.ts` specs, reproduce
-each changed spec against a fresh production build with the focused command above, then add:
+Ordinary PR and main-push CI never starts Playwright E2E. The legacy `CI-Mode: e2e-only` and
+`CI-Mode: e2e-repair` trailers remain parseable only as compatibility metadata: they run full hosted
+checks, cannot start E2E, cannot reuse an ancestor E2E receipt, and must not be added to new PRs.
+`CI-E2E-Tests` records the affected spec set for review but is not an execution receipt.
 
-```text
-CI-Mode: e2e-repair
-CI-Base-Run: <failed-run-id>
-```
-
-The policy derives the required spec set from the failed-head-to-current-head Git diff. Add one
-`CI-E2E-Tests: ["e2e/related.e2e.ts"]` JSON trailer only to include additional related specs; it can
-never remove a changed spec. CI runs focused lint/type checks plus those specs and skips the
-unrelated control suite and Renderer benchmark.
-
-`e2e-repair` is fail-closed: product source, shared `e2e/support/**`, runner, workflow, dependency,
-protected-spec, unknown, or spec-add/delete deltas use the ordinary full ready-PR path. `e2e-only`
-remains available only for an unchanged base-run tree, but prefer the same-SHA rerun above. The
-policy verifies the same PR, base SHA, workflow, ancestor head, successful base checks, one isolated
-failed E2E pool, and the actual diff on the runner; no local full-platform self-attestation is part
-of the contract.
-
-Do not push one repair per observed assertion. Download the original failure artifacts, inspect the
-whole failed spec and its async/locator assumptions, finish the repair batch locally, then create
-one new CI head. When protected workflow, dependency, fixture, pool, or retry-policy files changed,
-the shortcut intentionally falls back to full CI; treat that as a reason to converge locally before
-pushing, never as a reason to iterate through full runs.
+When an explicit `self-hosted-final` or `hosted-full` run fails, preserve its artifacts and
+reproduce the exact failed spec against a fresh production build with the focused command above.
+Do not push one repair per observed assertion. Inspect the whole failed spec and its async/locator
+assumptions, finish the repair batch locally, then create one new exact candidate. Dispatch the
+appropriate explicit full route again only after its focused local evidence passes.
 
 ## Remote full suite
 
@@ -350,14 +334,15 @@ Never run `bun run test:e2e` locally during an ordinary run. The command enforce
 start without authorization, before the desktop build runs. The user grants it by setting
 `CAXRI_FULL_SUITE_AUTHORIZED=1` only when they explicitly ask for a local full run; an agent never
 sets that variable on its own judgement or on a subagent's or another harness's verdict, including
-while repairing CI. GitHub Actions is authorized by its own `CI` variable. When focused coverage is insufficient,
-use an authorized topic branch and PR. A ready PR runs only affected tests: declare specs the import
-graph cannot infer with one `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line in the PR body. The full
-Electron suite runs nightly on `main`, or on a PR whose delta touches toolchain, workflow, or shared
-E2E infrastructure ([docs/ci-performance.md](../../../docs/ci-performance.md)). Both run on the
-repository self-hosted `m2-24` runner. `docs/self-hosted-runner.md` owns its labels, offline
-behavior, and recovery contract. Inspect failures, repair the same branch, and wait for replacement
-checks. Do not merge or close without delivery authorization.
+while repairing CI. GitHub Actions is authorized by its own `CI` variable. When focused coverage is
+insufficient, use an authorized topic branch and PR. A ready PR records affected specs: declare
+cases the import graph cannot infer with one `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line in the PR
+body. Pull requests and main pushes run hosted checks but never start full E2E automatically. While
+the repository is private, the frozen candidate SHA gets one owner-dispatched `self-hosted-final`
+run on the private final runner. After the repository is public, `hosted-full` is the explicit complete hosted route
+([docs/ci-performance.md](../../../docs/ci-performance.md)). `docs/self-hosted-runner.md` owns the
+transitional runner's labels, offline behavior, and recovery contract. Inspect failures, repair the
+same branch, and wait for replacement checks. Do not merge or close without delivery authorization.
 
 Use `bun run --silent test:smoke` for the cheap post-change Electron launch gate when broad desktop
 startup confidence is useful but focused product E2E is unnecessary. Keep implementation subagents
