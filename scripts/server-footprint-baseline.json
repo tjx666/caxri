@@ -1,0 +1,47 @@
+{
+    "schemaVersion": 1,
+    "tolerances": {
+        "disk": {
+            "relative": 0.02,
+            "absoluteKiB": 512
+        },
+        "memory": {
+            "relative": 0.05,
+            "absoluteKiB": 2048
+        },
+        "transfer": {
+            "relative": 0.02,
+            "absoluteKiB": 128
+        }
+    },
+    "targets": {
+        "linux-arm64": {
+            "commit": "afcb3b38",
+            "metrics": {
+                "transfer.appLayerKiB": 4694,
+                "transfer.uploadKiB": 4694,
+                "memory.attached.server-core.rssKiB": 129940,
+                "memory.attached.server-core.pssKiB": 107420,
+                "memory.attached.extension-host.rssKiB": 66140,
+                "memory.attached.extension-host.pssKiB": 43681,
+                "memory.attached.totalRssKiB": 196080,
+                "memory.attached.totalPssKiB": 151101,
+                "memory.working.server-core.rssKiB": 133944,
+                "memory.working.server-core.pssKiB": 101579,
+                "memory.working.terminal-host.rssKiB": 78328,
+                "memory.working.terminal-host.pssKiB": 46037,
+                "memory.working.extension-host.rssKiB": 66156,
+                "memory.working.extension-host.pssKiB": 36617,
+                "memory.working.totalRssKiB": 278428,
+                "memory.working.totalPssKiB": 184233,
+                "disk.runtimesKiB": 119804,
+                "disk.buildsKiB": 13720,
+                "disk.profileKiB": 664,
+                "disk.totalKiB": 134216
+            },
+            "recordedAt": "2026-10-13T04:54:37.406Z",
+            "runtime": "node-v24.20.0-linux-arm64.tar.gz",
+            "runtimeSource": "remote-download"
+        }
+    }
+}

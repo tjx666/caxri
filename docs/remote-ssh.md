@@ -81,6 +81,9 @@ local window's external-file snapshot would read this Mac's disk.
 
 ## Requirements on the SSH Host
 
+- About 131 MiB of disk under `~/.caxri-server` for the first install and about 256 MiB of free
+  memory for the Server; [server-footprint.md](server-footprint.md) has the measured numbers, the
+  long-running bounds, and the benchmark that holds them.
 - Linux x64 or arm64 with glibc 2.28 or newer (Debian 10, Ubuntu 18.10, RHEL 8 and later). An
   older glibc, musl (Alpine), macOS, or Windows host fails with a clear `unsupportedGlibc` or
   `unsupportedPlatform` reason.
@@ -187,6 +190,10 @@ opt-in:
 CAXRI_SSH_INTEGRATION=1 CAXRI_SSH_CONFIG=<lab>/ssh_config \
   bunx vitest run apps/desktop/src/main/ssh/__tests__/
 ```
+
+`bun run scripts/ssh-lab.ts up` starts such a container with a disposable key and prints the
+`ssh_config` to pass; `bun run scripts/ssh-lab.ts down` removes it. Give a second lab its own `--name` and
+`--port`.
 
 `CAXRI_SSH_CONFIG` makes Main pass `-F <file>` to every `ssh` call, so a disposable lab key and
 config never touch the developer's own `~/.ssh`. The same variable works for a dev instance.

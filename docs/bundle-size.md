@@ -78,11 +78,12 @@ transitive tree ~7 MiB), multi-platform native prebuilds and sqlite source (~26 
 1. **The root has no production dependencies.** Desktop pure JavaScript is bundled into `app.asar`;
    Server dependencies are assembled only inside `apps/server/dist/server`.
 2. **The standalone Server owns its runtime.** Desktop and platform deployments copy the same
-   manifest-bound directory, including the pinned runtime, native dependencies, migrations, and
-   extensions. The budget gate verifies both copies and loads all three Server entry points using
+   manifest-bound directory, including the pinned runtime, native dependencies, and extensions.
+   Database migrations are compiled into the Server Core bundle. The budget gate verifies both copies and loads all three Server entry points using
    that runtime.
 3. **Native packages ship selected runtime inputs only.** The artifact builder excludes unrelated
-   platform prebuilds and C/C++ source trees while preserving executable helper modes.
+   platform prebuilds, C/C++ source trees, documentation, type declarations, source maps, and tests
+   while preserving license files and executable helper modes.
 4. **Electron locales are pruned** to `electronLanguages` (en, en_GB, zh_CN, zh_TW).
 5. **Renderer assets match their display size** (the primarySidebar logo is 128px, not the 1024px icon
    source). Monaco and its language workers (`ts.worker` ~11 MiB) are a deliberate product cost
