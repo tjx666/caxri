@@ -198,6 +198,36 @@ describe('task timing and usage', () => {
         ).toBe('4 tool uses');
         expect(agentChatTaskUsageSummary(task({ id: 'a' }), translate)).toBeUndefined();
     });
+
+    it('shows the billed tokens and cost of the subagent transcript in place of the provider count', () => {
+        const billed = {
+            provider: 'claude' as const,
+            tokens: {
+                input: 30,
+                output: 9100,
+                cacheRead: 620_000,
+                cacheWrite: 54_000,
+                reasoning: 0,
+                total: 683_130,
+            },
+            costUsd: 0.214,
+            models: ['claude-haiku-5-5'],
+            unpricedModels: [],
+        };
+        const reported = task({ id: 'a', usage: { totalTokens: 64_900, toolUses: 12 } });
+        expect(agentChatTaskUsageSummary(reported, translate, billed)).toBe(
+            '683k tokens · $0.21 · 12 tool uses',
+        );
+        expect(
+            agentChatTaskUsageSummary(reported, translate, {
+                ...billed,
+                unpricedModels: ['claude-haiku-5-5'],
+            }),
+        ).toBe('683k tokens · 12 tool uses');
+        expect(agentChatTaskUsageSummary(reported, translate, null)).toBe(
+            '64.9k tokens · 12 tool uses',
+        );
+    });
 });
 
 describe('task presentation', () => {

@@ -10,6 +10,7 @@ import {
     locateEarlierCodexRollouts,
     scanTranscriptLines,
 } from '../agents';
+import type { RateLimitObservation } from './accumulator';
 import { UsageAccumulator } from './accumulator';
 import type { ClaudeMessageUsage, UsageLineParser, UsageParserOptions } from './parsers';
 import { usageParserFor } from './parsers';
@@ -246,6 +247,40 @@ interface UsageStream {
     location: AgentTranscriptLocation;
     cursor: TranscriptScanCursor;
     parser: UsageLineParser;
+    /**
+     * A side file's own share of the aggregate, set only for side files.
+     */
+    side?: UsageAccumulator;
+}
+
+/**
+ * Files a side file's usage into the scan's aggregate and into that file's own share at once. Units the side file
+ * repeats from its parent are merged before they get here, so the share holds only what the subagent itself billed.
+ */
+class SideUsageAccumulator extends UsageAccumulator {
+    constructor(private readonly aggregate: UsageAccumulator) {
+        super();
+    }
+
+    override addUsage(...parameters: Parameters<UsageAccumulator['addUsage']>): void {
+        super.addUsage(...parameters);
+        this.aggregate.addUsage(...parameters);
+    }
+
+    override endStream(): void {
+        super.endStream();
+        this.aggregate.endStream();
+    }
+
+    override addPullRequest(url: string): void {
+        super.addPullRequest(url);
+        this.aggregate.addPullRequest(url);
+    }
+
+    override observeRateLimits(observation: RateLimitObservation): void {
+        super.observeRateLimits(observation);
+        this.aggregate.observeRateLimits(observation);
+    }
 }
 
 export type UsageScanOptions = Pick<UsageParserOptions, 'isContinuation' | 'isCountedElsewhere'>;
@@ -262,7 +297,7 @@ export class IncrementalUsageScan {
     private claudeMessages = new Map<string, ClaudeMessageUsage>();
 
     constructor(
-        private readonly provider: AgentProvider,
+        readonly provider: AgentProvider,
         private readonly options: UsageScanOptions = {},
     ) {}
 
@@ -294,13 +329,17 @@ export class IncrementalUsageScan {
         for (const [location, options] of this.parserOptions(files)) {
             let stream = this.streams.get(location.path);
             if (!stream) {
+                const side = options.isSideStream
+                    ? new SideUsageAccumulator(this.accumulator)
+                    : undefined;
                 stream = {
                     location,
                     cursor: { offset: 0 },
-                    parser: usageParserFor(this.provider, this.accumulator, {
+                    parser: usageParserFor(this.provider, side ?? this.accumulator, {
                         ...options,
                         claudeMessages: this.claudeMessages,
                     }),
+                    ...(side && { side }),
                 };
                 this.streams.set(location.path, stream);
             }
@@ -328,6 +367,14 @@ export class IncrementalUsageScan {
 
     toRecord(): UsageRecord {
         return this.accumulator.toRecord();
+    }
+
+    /**
+     * The share of {@link toRecord} one side file (a Claude subagent) billed, or `undefined` when this scan has not read
+     * that file.
+     */
+    sideRecord(path: string): UsageRecord | undefined {
+        return this.streams.get(path)?.side?.toRecord();
     }
 }
 

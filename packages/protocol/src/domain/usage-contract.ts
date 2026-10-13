@@ -291,4 +291,14 @@ export const usageMethods = {
         params: z.object({ terminalId: identifierSchema }),
         result: agentUsageReadoutSchema.nullable(),
     },
+    /**
+     * What one subagent of the Terminal's bound conversation billed, by the Chat task id (the tool call that spawned
+     * it), priced like `terminal.agentUsage` and without `limit`. Null for a provider that keeps no per-subagent
+     * transcript (Codex, Grok Build), a subagent whose transcript is not found yet, or one that recorded no usage yet.
+     */
+    'terminal.agentTaskUsage': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({ terminalId: identifierSchema, taskId: z.string().min(1).max(200) }),
+        result: agentUsageReadoutSchema.nullable(),
+    },
 } as const;

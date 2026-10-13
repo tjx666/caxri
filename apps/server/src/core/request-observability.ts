@@ -11,6 +11,7 @@ const POLLED_READ_METHODS = [
     'session.refreshDeliveryOnFocus',
     'terminal.agentThroughput',
     'terminal.agentUsage',
+    'terminal.agentTaskUsage',
     'terminal.queryForPrincipal',
     'terminal.resources',
 ] satisfies ServerOperation[];

@@ -125,6 +125,68 @@ describe('LiveAgentUsage', () => {
     });
 });
 
+describe('LiveAgentUsage.readTask', () => {
+    async function subagent(directory: string, name: string, toolUseId: string, body: string) {
+        const root = join(directory, FIRST, 'subagents');
+        await mkdir(root, { recursive: true });
+        await writeFile(join(root, `${name}.meta.json`), JSON.stringify({ toolUseId }));
+        await writeFile(join(root, `${name}.jsonl`), body);
+        return join(root, `${name}.jsonl`);
+    }
+
+    it('prices each subagent from its own side file, leaving units it repeats from its parent with the parent', async () => {
+        const { environment, directory } = await claudeProject();
+        await writeFile(join(directory, `${FIRST}.jsonl`), line('m1', 5));
+        // A forked subagent's side file repeats the parent message that spawned it.
+        const forked = await subagent(
+            directory,
+            'agent-a1',
+            'toolu_a',
+            line('m1', 5) + line('s1', 7),
+        );
+        await subagent(directory, 'agent-b2', 'toolu_b', line('s2', 11));
+        const usage = new LiveAgentUsage(
+            boundTerminal({ agentSessionId: FIRST }),
+            environment,
+            () => PRICE,
+            () => T0,
+        );
+
+        const first = await usage.readTask('terminal-1', 'toolu_a');
+        expect(first).toMatchObject({ provider: 'claude', models: ['claude-x'] });
+        expect(first?.tokens).toMatchObject({ input: 10, output: 7 });
+        expect(first?.costUsd).toBeCloseTo(10e-6 + 14e-6);
+        expect((await usage.readTask('terminal-1', 'toolu_b'))?.tokens.output).toBe(11);
+        expect((await usage.read('terminal-1'))?.tokens.output).toBe(5 + 7 + 11);
+
+        await appendFile(forked, line('s3', 2));
+        expect((await usage.readTask('terminal-1', 'toolu_a'))?.tokens.output).toBe(9);
+    });
+
+    it('reports nothing for an unknown task or a provider without subagent transcripts', async () => {
+        const { environment, directory } = await claudeProject();
+        await writeFile(join(directory, `${FIRST}.jsonl`), line('m1', 5));
+        await subagent(directory, 'agent-a1', 'toolu_a', line('s1', 7));
+        const usage = new LiveAgentUsage(
+            boundTerminal({ agentSessionId: FIRST }),
+            environment,
+            () => PRICE,
+            () => T0,
+        );
+        expect(await usage.readTask('terminal-1', 'toolu_missing')).toBeNull();
+
+        const codex = new LiveAgentUsage(
+            {
+                getTerminal: () => ({ provider: 'codex', cwd: '/work/app', agentSessionId: FIRST }),
+            } as unknown as CaxriDatabase,
+            environment,
+            () => PRICE,
+            () => T0,
+        );
+        expect(await codex.readTask('terminal-1', 'toolu_a')).toBeNull();
+    });
+});
+
 describe('newerUsageLimit', () => {
     const limit = (observedAt: number) => ({ provider: 'codex' as const, observedAt, windows: [] });
 
