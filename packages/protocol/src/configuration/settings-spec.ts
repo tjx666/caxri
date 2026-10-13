@@ -296,7 +296,7 @@ export const settingsSpec = [
     {
         kind: 'enum',
         key: 'terminal.gpuAcceleration',
-        title: 'GPU acceleration',
+        title: 'Terminal hardware acceleration',
         /**
          * Scoped to only the Terminal's own WebGL renderer, unlike Hardware acceleration below, and it depends on that
          * broader setting: with Hardware acceleration off, the GPU is unavailable to the whole app, so this setting has
@@ -304,9 +304,9 @@ export const settingsSpec = [
          * `isBootDisabled` case).
          */
         description:
-            "Controls only the Terminal's WebGL rendering; falls back to DOM without restarting the " +
-            'Terminal. Has no effect while Hardware acceleration is off, since that already turns the ' +
-            'GPU off for every Terminal.',
+            'Draws the Terminal with the graphics card; turn off to use software rendering. Takes effect ' +
+            'without restarting the Terminal. Has no effect while Hardware acceleration is off, since that ' +
+            'already draws every Terminal in software.',
         category: 'terminal',
         keywords: ['webgl', 'renderer', 'performance', 'hardware acceleration'],
         options: [
@@ -366,9 +366,10 @@ export const settingsSpec = [
     {
         kind: 'boolean',
         key: 'terminal.osc52ClipboardWrite',
-        title: 'Allow OSC 52 clipboard writes',
+        title: 'Let programs in the Terminal copy to your clipboard',
         description:
-            'Programs in the Terminal may copy text to your clipboard; they can never read it',
+            'Programs such as tmux or a remote shell may copy text to your clipboard through OSC 52; they can never ' +
+            'read it',
         category: 'terminal',
         keywords: ['clipboard', 'escape sequence', 'security'],
         default: true,
