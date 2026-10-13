@@ -17,27 +17,21 @@ import {
     ROOT_HANDLE,
 } from '../extension-tree-client';
 import type { RootLoadProgress } from '../extension-tree-refresh-state';
-import type { ExtensionTreeState } from '../extension-tree-state';
+import type { ExtensionTreeState, TreeSnapshot } from '../extension-tree-state';
 import {
+    completeTreeSnapshot,
     focusTreeItem,
     isTreeSnapshotReady,
+    nextTreeSnapshot,
     reconcileTreeItems,
     replaceTreeChildren,
-    treeSnapshotLoading,
+    visibleTreeLoading,
 } from '../extension-tree-state';
 import { useIsViewContainerActive } from '../view-container-activity';
 
 type UpdateExtensionTreeState = (
     update: (current: ExtensionTreeState) => ExtensionTreeState,
 ) => void;
-
-/**
- * The last tree that was complete enough to show: every expanded branch loaded, nothing mid-refresh.
- */
-interface TreeSnapshot {
-    children: ReadonlyMap<string, readonly TreeItemDto[]>;
-    errors: ReadonlyMap<string, string>;
-}
 
 /**
  * Owns the lazily loaded children/error/loading state for one Extension Tree View: fetches a branch's children on
@@ -79,24 +73,31 @@ export function useExtensionTreeChildren(
     const [loading, setLoading] = useState<ReadonlySet<string>>(() => new Set([ROOT_HANDLE]));
     const [snapshot, setSnapshot] = useState<TreeSnapshot | undefined>(() =>
         restoredChildren.size > 0
-            ? { children: restoredChildren, errors: new Map<string, string>() }
+            ? completeTreeSnapshot(restoredChildren, new Map<string, string>())
             : undefined,
     );
     const snapshotReady = isTreeSnapshotReady(ROOT_HANDLE, children, errors, loading, treeState);
     /**
-     * Keep the last complete tree on screen while opaque handles and expanded descendants are rebuilt. The working tree
-     * remains separate so lazy loading never uses retired display handles.
+     * Keep the last complete tree (or, before the first one, the partial tree already shown) on screen while opaque
+     * handles and expanded descendants are rebuilt. The working tree remains separate so lazy loading never uses
+     * retired display handles.
      *
      * Adjusted during render rather than from an effect
      * (https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes). React restarts
      * this render before painting, so the snapshot agrees with the tree in the same frame. From an effect the user
      * would instead see one frame where the refresh has finished but the screen still shows the pre-refresh tree.
      */
-    if (snapshotReady && (snapshot?.children !== children || snapshot.errors !== errors))
-        setSnapshot({ children, errors });
+    const nextSnapshot = nextTreeSnapshot(
+        snapshot,
+        ROOT_HANDLE,
+        children,
+        errors,
+        loading,
+        snapshotReady,
+    );
+    if (nextSnapshot !== snapshot) setSnapshot(nextSnapshot);
     const visibleLoading = useMemo(
-        () =>
-            snapshot ? treeSnapshotLoading(loading, snapshot.children, snapshot.errors) : loading,
+        () => visibleTreeLoading(loading, snapshot),
         [loading, snapshot],
     );
 

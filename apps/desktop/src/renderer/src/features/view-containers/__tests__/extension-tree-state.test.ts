@@ -8,6 +8,7 @@ import {
     isTreeItemExpanded,
     isTreeSnapshotReady,
     keyboardTreeRowAction,
+    nextTreeSnapshot,
     pointerTreeRowAction,
     reconcileTreeItems,
     replaceTreeChildren,
@@ -15,6 +16,7 @@ import {
     toggleTreeItem,
     toggleTreeItemSubtree,
     treeSnapshotLoading,
+    visibleTreeLoading,
 } from '../extension-tree-state';
 
 function item(options: {
@@ -34,6 +36,58 @@ function item(options: {
         }),
     };
 }
+
+describe('extension tree snapshot', () => {
+    const repo = item({ handle: 'repo', id: 'repo', collapsibleState: 'expanded' });
+
+    it('keeps the partial first-load tree on screen when the provider resets mid-load', () => {
+        const partial = new Map([['root', [repo]]]);
+        const loading = new Set(['repo']);
+        const shown = nextTreeSnapshot(undefined, 'root', partial, new Map(), loading, false);
+        expect(shown).toEqual({ children: partial, errors: new Map(), loading, isComplete: false });
+
+        // The reset clears the working tree and reloads the root.
+        const afterReset = nextTreeSnapshot(
+            shown,
+            'root',
+            new Map(),
+            new Map(),
+            new Set(['root']),
+            false,
+        );
+        expect(afterReset).toBe(shown);
+        // The repository row stays, its branch keeps its placeholder, and the root is not redrawn as a skeleton.
+        expect(visibleTreeLoading(new Set(['root']), afterReset)).toEqual(new Set(['repo']));
+    });
+
+    it('shows the root skeleton only before any of the tree has arrived', () => {
+        expect(
+            nextTreeSnapshot(undefined, 'root', new Map(), new Map(), new Set(['root']), false),
+        ).toBeUndefined();
+        expect(visibleTreeLoading(new Set(['root']), undefined)).toEqual(new Set(['root']));
+    });
+
+    it('never lets a partial tree replace a complete one', () => {
+        const complete = new Map([
+            ['root', [repo]],
+            ['repo', [item({ handle: 'check' })]],
+        ]);
+        const errors = new Map<string, string>();
+        const settled = nextTreeSnapshot(undefined, 'root', complete, errors, new Set(), true);
+        expect(settled?.isComplete).toBe(true);
+        expect(
+            nextTreeSnapshot(
+                settled,
+                'root',
+                new Map([['root', [repo]]]),
+                new Map(),
+                new Set(['repo']),
+                false,
+            ),
+        ).toBe(settled);
+        expect(nextTreeSnapshot(settled, 'root', complete, errors, new Set(), true)).toBe(settled);
+    });
+});
 
 describe('extension tree state', () => {
     it('keeps first-expansion and retry feedback while hiding healthy refresh loading', () => {

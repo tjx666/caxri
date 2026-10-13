@@ -32,6 +32,71 @@ export function treeSnapshotLoading(
 }
 
 /**
+ * The tree a view keeps on screen while its working tree rebuilds.
+ */
+export interface TreeSnapshot {
+    children: ReadonlyMap<string, readonly TreeItemDto[]>;
+    errors: ReadonlyMap<string, string>;
+    /**
+     * Branches still loading when a first-load snapshot was taken, so their placeholders stay drawn; empty once
+     * complete.
+     */
+    loading: ReadonlySet<string>;
+    /**
+     * Whether every visible branch had settled. Until the first complete tree, the snapshot follows the partial tree on
+     * screen instead.
+     */
+    isComplete: boolean;
+}
+
+const NO_LOADING: ReadonlySet<string> = new Set();
+
+export function completeTreeSnapshot(
+    children: ReadonlyMap<string, readonly TreeItemDto[]>,
+    errors: ReadonlyMap<string, string>,
+): TreeSnapshot {
+    return { children, errors, loading: NO_LOADING, isComplete: true };
+}
+
+/**
+ * Advances the on-screen snapshot, returning `current` itself when nothing changed. A settled tree replaces it. Before
+ * the first settled tree, it follows whatever partial tree has its root loaded, so a provider reset mid-load (Status
+ * pushes a whole-tree change as each source answers) keeps the rows already shown instead of falling back to the root
+ * skeleton. A complete snapshot is never replaced by a partial one.
+ */
+export function nextTreeSnapshot(
+    current: TreeSnapshot | undefined,
+    rootHandle: string,
+    children: ReadonlyMap<string, readonly TreeItemDto[]>,
+    errors: ReadonlyMap<string, string>,
+    loading: ReadonlySet<string>,
+    isReady: boolean,
+): TreeSnapshot | undefined {
+    if (isReady)
+        return current?.isComplete && current.children === children && current.errors === errors
+            ? current
+            : completeTreeSnapshot(children, errors);
+    if (current?.isComplete || !children.has(rootHandle)) return current;
+    if (current?.children === children && current.errors === errors && current.loading === loading)
+        return current;
+    return { children, errors, loading, isComplete: false };
+}
+
+/**
+ * The branches that draw a loading placeholder over `snapshot`: the live loads plus those a first-load snapshot was
+ * waiting on, minus any branch the snapshot can already answer.
+ */
+export function visibleTreeLoading(
+    loading: ReadonlySet<string>,
+    snapshot: TreeSnapshot | undefined,
+): ReadonlySet<string> {
+    if (!snapshot) return loading;
+    const pending =
+        snapshot.loading.size === 0 ? loading : new Set([...loading, ...snapshot.loading]);
+    return treeSnapshotLoading(pending, snapshot.children, snapshot.errors);
+}
+
+/**
  * A refresh is publishable only after every visible branch has settled, including lazy descendants.
  */
 export function isTreeSnapshotReady(
