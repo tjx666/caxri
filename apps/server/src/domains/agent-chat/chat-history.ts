@@ -13,7 +13,7 @@ import type { AgentChatServiceOptions } from './service-options';
  * it reads this much. Images are stored inline as base64, so a transcript of a few hundred turns can reach tens of
  * megabytes.
  */
-const MAX_HISTORY_TRANSCRIPT_BYTES = 128 * 1024 * 1024;
+export const MAX_HISTORY_TRANSCRIPT_BYTES = 128 * 1024 * 1024;
 
 /**
  * How long a parsed transcript stays cached after its last page. Scrolling back reads one page after another, and

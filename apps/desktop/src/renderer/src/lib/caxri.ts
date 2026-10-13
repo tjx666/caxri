@@ -1,7 +1,7 @@
 import type { CaxriMethod, ParametersArgument } from '@caxri/protocol';
 import { createCaxriClient } from '@caxri/protocol';
 
-import { showConfirm } from '../stores/confirmations';
+import { showConfirm, showConfirmChoice } from '../stores/confirmations';
 
 /**
  * Renderer-owned UI namespace, deliberately shaped like VS Code's `vscode.window`: a feature asks the user a question
@@ -10,7 +10,7 @@ import { showConfirm } from '../stores/confirmations';
  * call sites read as one API surface (`caxri.request(...)` beside `caxri.window.showConfirm(...)`); the implementation
  * itself stays in `stores/confirmations.ts` and never touches the transport.
  */
-const windowNamespace = { showConfirm };
+const windowNamespace = { showConfirm, showConfirmChoice };
 
 /**
  * Single Renderer entry point for IPC. The preload bridge resolves with reply envelopes because `contextBridge` strips

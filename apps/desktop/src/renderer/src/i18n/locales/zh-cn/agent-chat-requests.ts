@@ -33,6 +33,8 @@ export const agentChatRequests: TranslatedNamespace<typeof source> = {
     'agentChat.request.action.skill': '使用 Skill',
     'agentChat.request.action.stop': '停止',
     'agentChat.request.action.thought': '思考',
+    'agentChat.request.action.wait': '等待 Agent',
+    'agentChat.request.action.manage': '管理 Agent',
     'agentChat.request.action.web': '浏览',
     'agentChat.request.action.write': '写入',
 

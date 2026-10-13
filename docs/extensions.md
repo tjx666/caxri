@@ -391,10 +391,13 @@ opened. A Chat receives it as a message, queued behind a running turn; a Termina
 bracketed paste followed by Enter once its pane has attached. Control characters other than
 newlines and tabs are stripped first. The Agent is revealed and the success toast names it; the
 action's `feedback.failure` prefixes the reason when there is no Agent or the write fails. Project
-Status uses it for the green `Fix` button on the `Unresolved Comments` group, which sends every
+Status uses it for the green `Fix` button on the `Review` group (shown while threads are unresolved), which sends every
 unresolved thread (repository, pull request, location, author, link, and text, with long bodies
 clipped) to the Agent as suggestions to weigh, not instructions: the Agent changes code only for the comments it agrees
-with and says why it leaves the rest. Nothing is resolved on GitHub, so it does not confirm first. A pull request
+with and says why it leaves the rest. Nothing is resolved on GitHub, so it does not confirm first. A failed
+Production or Preview deployment row gets a red `Fix` button that sends the deployment, its commit,
+and its build-log link, asking the Agent to fix a code cause or explain an outside one without
+redeploying by hand. A pull request
 that conflicts with its base gets a red `Resolve` button in place of the merge button GitHub would
 refuse: it asks the Agent to rebase onto the latest base, resolve the conflicts, run the covering
 checks, and push with `--force-with-lease`, leaving the merge itself to the user.

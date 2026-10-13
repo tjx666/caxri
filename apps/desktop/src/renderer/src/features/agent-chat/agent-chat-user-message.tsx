@@ -218,7 +218,8 @@ function UserMessageText({
         if (!summary) return segment.text;
         return (
             <WebLink
-                className="decoration-muted hover:text-accent"
+                // The user's own words keep the text color, so only a dotted underline marks the link.
+                className="underline decoration-muted decoration-dotted hover:text-accent hover:decoration-solid"
                 href={segment.url}
                 key={position}
                 referenceTerminalId={terminalId}

@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 
 import { Button } from '../../components/ui/button';
+import { Checkbox } from '../../components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -12,6 +13,7 @@ import { useTranslation } from '../../i18n';
 import {
     confirmationLabels,
     resolveConfirm,
+    setDontAskAgain,
     useConfirmationStore,
 } from '../../stores/confirmations';
 
@@ -23,6 +25,7 @@ import {
 export function ConfirmationDialog() {
     const { t } = useTranslation();
     const request = useConfirmationStore((state) => state.request);
+    const isDontAskAgainChecked = useConfirmationStore((state) => state.isDontAskAgainChecked);
     const contentReference = useRef<HTMLDivElement>(null);
     const labels = request ? confirmationLabels(request, t) : undefined;
 
@@ -51,7 +54,16 @@ export function ConfirmationDialog() {
                         <DialogTitle>{request.title}</DialogTitle>
                         <DialogDescription>{request.message}</DialogDescription>
                     </DialogHeader>
-                    <div className="flex justify-end gap-2 p-4">
+                    <div className="flex items-center justify-end gap-2 p-4">
+                        {request.dontAskAgainLabel !== undefined && (
+                            <label className="mr-auto flex cursor-pointer items-center gap-2 text-[13px] text-muted">
+                                <Checkbox
+                                    checked={isDontAskAgainChecked === true}
+                                    onCheckedChange={(next) => setDontAskAgain(next === true)}
+                                />
+                                {request.dontAskAgainLabel}
+                            </label>
+                        )}
                         <Button variant="secondary" onClick={() => resolveConfirm(false)}>
                             {labels.cancel}
                         </Button>

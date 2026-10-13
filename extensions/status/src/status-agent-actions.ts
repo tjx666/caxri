@@ -1,4 +1,9 @@
-import type { ProjectStatusRepository, ProjectStatusReviewThread, TreeItemAction } from 'caxri';
+import type {
+    ProjectStatusDeployment,
+    ProjectStatusRepository,
+    ProjectStatusReviewThread,
+    TreeItemAction,
+} from 'caxri';
 import { ThemeIcon } from 'caxri';
 
 import { unresolvedCommentsLabel } from './status-labels';
@@ -137,5 +142,49 @@ export function resolveConflictsAction(
         tone: 'danger',
         tooltip: "Has conflicts. Send to this Session's Agent to rebase and resolve them.",
         feedback: { failure: `Couldn't send #${pullRequest.number} to the Agent` },
+    };
+}
+
+/**
+ * The message for a failed Vercel deployment: where the build logs are, what to fix, and what not to do. A deployment
+ * can fail for reasons the branch's code does not own (a quota, an environment variable, a Vercel outage), so the Agent
+ * reports those instead of changing code, and it never redeploys Production by hand.
+ */
+function fixDeploymentPrompt(
+    repo: Pick<ProjectStatusRepository, 'branch' | 'kind' | 'name'>,
+    deployment: Pick<ProjectStatusDeployment, 'commit' | 'environment' | 'inspectorUrl' | 'url'>,
+): string {
+    const commit = deployment.commit
+        ? ` of commit \`${deployment.commit.sha.slice(0, 7)}\`${deployment.commit.message ? ` "${deployment.commit.message.split('\n', 1)[0]}"` : ''}`
+        : '';
+    return [
+        `The Vercel ${deployment.environment} deployment${commit} in the ${repoLabel(repo)} repository failed: ${deployment.inspectorUrl ?? deployment.url}`,
+        '',
+        // A Production row usually shows the default branch's deployment while the Session sits on a feature branch.
+        `This Session is on branch \`${repo.branch}\`. If the failed commit is not on this branch, do not push the fix here; tell me which branch needs it.`,
+        '',
+        `Read its build logs (for example \`vercel inspect ${deployment.url} --logs\`) and find the cause. If the code is at fault, fix it, run the checks that cover your change, and push. If the cause is outside the code (configuration, environment variables, quota, or a Vercel outage), explain it and what I need to do instead of changing code. Do not redeploy manually.`,
+    ].join('\n');
+}
+
+/**
+ * A failed deployment's `Fix` button, the same next step a review's unresolved comments get: one click hands the
+ * failure to the Session's Agent. Nothing is redeployed from here, so it needs no confirmation.
+ */
+export function fixDeploymentAction(
+    repo: Pick<ProjectStatusRepository, 'branch' | 'kind' | 'name'>,
+    deployment: Pick<ProjectStatusDeployment, 'commit' | 'environment' | 'inspectorUrl' | 'url'>,
+): TreeItemAction {
+    return {
+        command: {
+            command: SEND_TO_AGENT_COMMAND,
+            title: 'Send Deployment Failure to Agent',
+            arguments: [fixDeploymentPrompt(repo, deployment)],
+        },
+        icon: new ThemeIcon('send'),
+        label: 'Fix',
+        tone: 'danger',
+        tooltip: `Deployment failed. Send it to this Session's Agent to investigate and fix.`,
+        feedback: { failure: "Couldn't send the deployment failure" },
     };
 }
