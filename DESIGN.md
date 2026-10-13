@@ -1195,8 +1195,7 @@ carries context notices instead: an expired prompt cache in `--muted` (a cost fa
 and context high enough to read `consider compacting` in `--warning` (a suggestion, since nothing failed) with a Compact button. References: T3 Code's Chat composer, Claude
 Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort
 picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
-`--link` (the accent eased 30% toward the text color, as soft as the Codex app's) with no underline
-until hover; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
+the full `--accent` with no underline until hover; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
 language name such as `TypeScript`, wrap and copy) shares its fill and sets its code in the 11px
 `meta` size every monospace preview uses; a table is set open, with row
 hairlines and no frame or header tint. All follow the Codex app's Dracula transcript. A path the

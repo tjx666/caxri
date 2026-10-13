@@ -8,7 +8,7 @@ import { useMarkdownContext } from './markdown-context';
 import { WebLink } from './web-link';
 
 const LINK_CLASS_NAME =
-    'cursor-pointer border-0 bg-transparent p-0 text-left text-link underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent';
+    'cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent';
 
 export function InlineNodes({ nodes }: { nodes: readonly MarkdownInline[] }) {
     return nodes.map((node, position) => (
@@ -60,7 +60,7 @@ function InlineLink({ node }: { node: Extract<MarkdownInline, { type: 'link' }> 
         return (
             <WebLink
                 // No underline, as in the Codex app: the color and the site icon already mark the link.
-                className="text-link hover:underline"
+                className="text-accent hover:underline"
                 href={href}
                 referenceTerminalId={referenceTerminalId}
                 summary={summary}
