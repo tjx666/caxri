@@ -42,6 +42,39 @@ const projectStatusReviewThreadSchema = z.object({
     line: z.number().int().positive().optional(),
 });
 
+/**
+ * One row of the review summary Codex keeps on a pull request (the `<!-- codex-pull-request-review-summary -->`
+ * comment), which says whether a review ran and which commit it covered even when it left no comment.
+ */
+const projectStatusCodexReviewSchema = z.object({
+    /**
+     * The review's name as the summary table writes it, such as `Code Review` or `Security Review`.
+     */
+    name: z.string().min(1),
+    /**
+     * The status cell's own word, such as `Completed`, kept for display because Codex may add states Caxri does not
+     * classify yet.
+     */
+    status: z.string().min(1),
+    state: z.enum(['completed', 'running', 'failed', 'unknown']),
+    /**
+     * The short SHA the review covered.
+     */
+    commit: z.string().optional(),
+    /**
+     * What started the review, such as `PR opened`, `New commits`, or `Manual request`.
+     */
+    trigger: z.string().optional(),
+    /**
+     * Epoch milliseconds of the status timestamp.
+     */
+    updatedAt: z.number().optional(),
+    /**
+     * Opens the summary comment.
+     */
+    url: z.url(),
+});
+
 export const projectStatusLinearIssueSchema = z.object({
     identifier: z.string(),
     title: z.string().optional(),
@@ -239,6 +272,16 @@ const projectStatusRepoSchema = z.object({
              * consumer never mistakes "unknown" for "nothing left to address".
              */
             unresolvedReviewThreads: z.array(projectStatusReviewThreadSchema).optional(),
+            /**
+             * Every review thread read, resolved and outdated ones included, so a consumer can tell "every comment was
+             * resolved" from "nobody commented". Present exactly when `unresolvedReviewThreads` is.
+             */
+            reviewThreadCount: z.number().int().nonnegative().optional(),
+            /**
+             * Codex's review summary rows; empty when the pull request has no summary comment, absent when it was not
+             * read (the same rule as `unresolvedReviewThreads`).
+             */
+            codexReviews: z.array(projectStatusCodexReviewSchema).optional(),
         })
         .optional(),
     linearIssues: z.array(projectStatusLinearIssueSchema),
@@ -372,6 +415,7 @@ export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
 export type PullRequestMergeState = z.infer<typeof pullRequestMergeStateSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
 export type ProjectStatusReviewThread = z.infer<typeof projectStatusReviewThreadSchema>;
+export type ProjectStatusCodexReview = z.infer<typeof projectStatusCodexReviewSchema>;
 export type LinearIssueSource = z.infer<typeof linearIssueSourceSchema>;
 export type PullRequestSource = z.infer<typeof pullRequestSourceSchema>;
 export type ProjectStatusOverviewLinearIssue = z.infer<

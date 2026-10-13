@@ -206,6 +206,38 @@ export interface ProjectStatusReviewThread {
     line?: number;
 }
 
+/**
+ * One row of the review summary Codex keeps on a pull request, which says whether a review ran and which commit it
+ * covered even when it left no comment.
+ */
+export interface ProjectStatusCodexReview {
+    /**
+     * The review's name as the summary table writes it, such as `Code Review` or `Security Review`.
+     */
+    name: string;
+    /**
+     * The status cell's own word, such as `Completed`.
+     */
+    status: string;
+    state: 'completed' | 'running' | 'failed' | 'unknown';
+    /**
+     * The short SHA the review covered.
+     */
+    commit?: string;
+    /**
+     * What started the review, such as `PR opened`, `New commits`, or `Manual request`.
+     */
+    trigger?: string;
+    /**
+     * Epoch milliseconds of the status timestamp.
+     */
+    updatedAt?: number;
+    /**
+     * Opens the summary comment.
+     */
+    url: string;
+}
+
 export interface ProjectStatusLinearIssue {
     identifier: string;
     title?: string;
@@ -383,6 +415,15 @@ export interface ProjectStatusRepository {
          * Unresolved, non-outdated review threads; absent when they were not read.
          */
         unresolvedReviewThreads?: ProjectStatusReviewThread[];
+        /**
+         * Every review thread read, resolved and outdated ones included; present exactly when `unresolvedReviewThreads`
+         * is.
+         */
+        reviewThreadCount?: number;
+        /**
+         * Codex's review summary rows; empty when the pull request has none, absent when they were not read.
+         */
+        codexReviews?: ProjectStatusCodexReview[];
     };
     linearIssues: ProjectStatusLinearIssue[];
     acceptances: ProjectStatusAcceptance[];
