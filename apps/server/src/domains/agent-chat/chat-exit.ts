@@ -71,6 +71,7 @@ export function handleChatExit(
         states.setStatus(terminalId, 'failed', { reason: 'process_exited' });
         database.updateTerminalExitState(terminalId, 'dead');
         database.updateAgentProcessExitState(terminalId, 'dead');
+        options.onAgentStateChanged?.(terminalId, 'dead');
     }
     states.publish(terminalId);
 }

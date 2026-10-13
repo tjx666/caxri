@@ -6,6 +6,9 @@ import { errorMessage, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+// Server domain composition uses the public dispatch boundary required by the repository architecture.
+// react-doctor-disable-next-line react-doctor/no-barrel-import
+import { AgentDispatchStateRelay } from '../agent-dispatch';
 import type {
     AgentAttentionRequests,
     AgentLifecycleSignal,
@@ -283,6 +286,10 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             await sessionSearchIndex.close();
         },
         coordinator,
+        /**
+         * Routes PTY and Chat Agent process state to dispatch receipts; the domain root binds the dispatch service.
+         */
+        dispatchState: new AgentDispatchStateRelay(),
         /**
          * Entry for lifecycle signals a Chat synthesizes from its provider protocol. It takes the same provenance and
          * downstream path as an authenticated hook signal.

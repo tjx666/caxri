@@ -13,7 +13,7 @@ import { expect, onTestFinished, vi } from 'vitest';
 import type { AgentLifecycleSignal } from '../../agents';
 import { CaxriDatabase } from '../../db';
 import { AgentChatService } from '../service';
-import type { AgentChatEndpoint } from '../service-options';
+import type { AgentChatEndpoint, AgentChatServiceOptions } from '../service-options';
 
 const FAKE_APP_SERVER = join(import.meta.dirname, 'fixtures', 'fake-codex-app-server.ts');
 const FAKE_CLAUDE = join(import.meta.dirname, 'fixtures', 'fake-claude-cli.ts');
@@ -33,6 +33,7 @@ export async function fixture(
         provider?: keyof typeof FAKE_CLIS;
         turnRequestTimeoutMs?: number;
         endpoint?: AgentChatEndpoint;
+        onAgentStateChanged?: AgentChatServiceOptions['onAgentStateChanged'];
     } = {},
 ) {
     const provider = options.provider ?? 'codex';
@@ -96,6 +97,7 @@ export async function fixture(
             turnRequestTimeoutMs: options.turnRequestTimeoutMs,
         }),
         ...(options.endpoint && { endpoint: options.endpoint }),
+        onAgentStateChanged: options.onAgentStateChanged,
     });
     onTestFinished(async () => {
         await service.shutdown();

@@ -3,6 +3,7 @@ import type {
     AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentProvider,
+    ProcessState,
     ServerEvent,
     TerminalRecord,
 } from '@caxri/protocol';
@@ -68,6 +69,7 @@ interface ChatStatesOptions {
      * Appends a dispatched follow-up to the state's send chain; see `AgentChatService.enqueueOn`.
      */
     enqueue(terminalId: string, state: ChatState, deliver: ChatStateDelivery): Promise<void>;
+    onAgentStateChanged?(terminalId: string, state: ProcessState): void;
 }
 
 /**
@@ -239,12 +241,19 @@ export class ChatStates {
      * the Session resumes, and `stopped` otherwise.
      */
     recordRequestedStop(terminalId: string, state: ChatState): void {
-        const { database } = this.options;
         const processState =
             state.retiring === 'detached' ? 'detached' : state.suspending ? 'suspended' : 'stopped';
         if (this.states.get(terminalId) === state) this.setStatus(terminalId, 'stopped');
-        database.updateTerminalState(terminalId, processState);
-        database.updateAgentProcessState(terminalId, processState);
+        this.writeProcessState(terminalId, processState);
+    }
+
+    /**
+     * Durably writes a Chat's Terminal and Agent process state, then reports it through `onAgentStateChanged`.
+     */
+    writeProcessState(terminalId: string, processState: ProcessState): void {
+        this.options.database.updateTerminalState(terminalId, processState);
+        this.options.database.updateAgentProcessState(terminalId, processState);
+        this.options.onAgentStateChanged?.(terminalId, processState);
     }
 
     /**
@@ -255,8 +264,7 @@ export class ChatStates {
         const { database } = this.options;
         const terminal = database.getTerminal(terminalId);
         if (!terminal || terminal.lastProcessState === 'detached') return;
-        database.updateTerminalState(terminalId, 'detached');
-        database.updateAgentProcessState(terminalId, 'detached');
+        this.writeProcessState(terminalId, 'detached');
         this.publish(terminalId);
     }
 

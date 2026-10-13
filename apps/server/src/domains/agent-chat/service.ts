@@ -71,6 +71,8 @@ export class AgentChatService {
             logger: options.logger,
             send: (event) => options.send(event),
             enqueue: (terminalId, state, deliver) => this.enqueueOn(terminalId, state, deliver),
+            onAgentStateChanged: (terminalId, state) =>
+                options.onAgentStateChanged?.(terminalId, state),
         });
         this.permissionSwitches = new ChatPermissionSwitches({
             options,
@@ -294,6 +296,16 @@ export class AgentChatService {
         if (!state) return;
         state.followUps.pause();
         await state.session?.interrupt();
+    }
+
+    /**
+     * Stops the provider process but keeps the Terminal and its projection, the Chat counterpart of a PTY Agent's
+     * SIGHUP (`agent.control.stopInternal`). The requested exit records `stopped`; like any idle Chat, the next read or
+     * message starts the provider again on the same Agent Session.
+     */
+    async stopProvider(terminalId: string): Promise<void> {
+        requireChatTerminal(this.options.database, terminalId);
+        await this.stop(terminalId);
     }
 
     /**
