@@ -3,6 +3,7 @@ import type {
     AgentProvider,
     BenchmarkAttempt,
     BenchmarkEntry,
+    BenchmarkJudgeRun,
     BenchmarkRun,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -150,6 +151,10 @@ function applyOutcome(attempt: BenchmarkAttempt, outcome: HeadlessTurnOutcome): 
     if (outcome.resolvedEffort) attempt.resolvedEffort = outcome.resolvedEffort.slice(0, 40);
     if (outcome.failureReason) attempt.failureReason = outcome.failureReason;
     if (outcome.failureMessage) attempt.failureMessage = outcome.failureMessage.slice(0, 2_000);
+    if (outcome.timeToFirstTokenMs !== undefined)
+        attempt.timeToFirstTokenMs = outcome.timeToFirstTokenMs;
+    if (outcome.context) attempt.context = outcome.context;
+    if (outcome.compactions !== undefined) attempt.compactions = outcome.compactions;
 }
 
 async function measureUsage(
@@ -169,6 +174,7 @@ async function measureUsage(
         if (!usage) return;
         attempt.tokens = usage.tokens;
         attempt.costSource = usage.costSource;
+        if (usage.generation) attempt.generation = usage.generation;
         if (usage.costUsd !== undefined) attempt.costUsd = usage.costUsd;
     } catch {
         // Usage stays unknown; the result shows it as such instead of zero.
@@ -198,6 +204,8 @@ function logAttempt(logger: StructuredLogger, run: BenchmarkRun, attempt: Benchm
             steps: attempt.steps,
             tokens: attempt.tokens?.total ?? null,
             costSource: attempt.costSource ?? null,
+            timeToFirstTokenMs: attempt.timeToFirstTokenMs ?? null,
+            compactions: attempt.compactions ?? null,
         },
     });
 }
@@ -305,7 +313,7 @@ async function judgeCost(
     judge: BenchmarkEntry,
     outcome: HeadlessTurnOutcome,
     cwd: string,
-): Promise<{ costUsd?: number }> {
+): Promise<Pick<BenchmarkJudgeRun, 'costUsd' | 'tokens'>> {
     if (!outcome.agentSessionId) return {};
     try {
         const usage = await measureConversationUsage(
@@ -313,7 +321,11 @@ async function judgeCost(
             (model) => context.pricing.priceOf(model),
             { provider: judge.provider, agentSessionId: outcome.agentSessionId, cwd },
         );
-        return usage?.costUsd === undefined ? {} : { costUsd: usage.costUsd };
+        if (!usage) return {};
+        return {
+            tokens: usage.tokens,
+            ...(usage.costUsd !== undefined && { costUsd: usage.costUsd }),
+        };
     } catch {
         return {};
     }

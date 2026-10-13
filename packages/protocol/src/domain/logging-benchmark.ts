@@ -10,7 +10,7 @@ export const benchmarkLogEvents = {
     runStarted: 'benchmark.run_started',
     /**
      * One Attempt reached a final status, with its provider, model, effort, closed `failureReason`, duration, step
-     * count, token total, and cost source.
+     * count, token total, cost source, time to first token, and compaction count.
      */
     attemptFinished: 'benchmark.attempt_finished',
     /**

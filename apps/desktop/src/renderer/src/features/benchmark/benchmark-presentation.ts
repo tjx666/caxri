@@ -63,6 +63,14 @@ function formatCount(value: number): string {
     return Number.isSafeInteger(value) ? String(value) : value.toFixed(1);
 }
 
+export function formatPercent(share: number): string {
+    return `${Math.round(share * 100)}%`;
+}
+
+export function formatTokensPerSecond(value: number): string {
+    return `${value < 10 && !Number.isSafeInteger(value) ? value.toFixed(1) : Math.round(value)}/s`;
+}
+
 function formatMetric(metric: BenchmarkMetric, value: number): string {
     switch (metric) {
         case 'cost': {
@@ -77,7 +85,25 @@ function formatMetric(metric: BenchmarkMetric, value: number): string {
         case 'steps': {
             return formatCount(value);
         }
+        case 'timeToFirstToken': {
+            return formatLatency(value);
+        }
+        case 'tokensPerSecond': {
+            return formatTokensPerSecond(value);
+        }
+        case 'cacheHitRate': {
+            return `${Math.round(value)}%`;
+        }
     }
+}
+
+/**
+ * A short wait: under a second in milliseconds, otherwise in seconds with one decimal under a minute.
+ */
+export function formatLatency(milliseconds: number): string {
+    if (milliseconds < 1_000) return `${Math.round(milliseconds)}ms`;
+    if (milliseconds < 60_000) return `${(milliseconds / 1_000).toFixed(1)}s`;
+    return formatShortDuration(milliseconds) ?? '';
 }
 
 /**
