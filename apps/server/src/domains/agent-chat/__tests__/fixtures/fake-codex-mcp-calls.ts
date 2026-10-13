@@ -71,3 +71,52 @@ export function completeMcpCalls(io: FakeCodexIo, turn: FakeTurn) {
         },
     );
 }
+
+/**
+ * How long the `browsestep` scenario's second browser step stays running: long enough for a test to see it, or a person
+ * to watch the icon, before its result arrives.
+ */
+export const BROWSER_STEP_RUNNING_MS = 2_000;
+
+/**
+ * A browser step that binds a tab, then one that only drives that tab and stays running for
+ * {@link BROWSER_STEP_RUNNING_MS} before it reports the browser surface, as a real step does only in its result.
+ */
+export async function runBrowserStep(io: FakeCodexIo, turn: FakeTurn) {
+    const page = {
+        content: [{ type: 'text', text: 'Browser tab: 1, Title: "Router"' }],
+        _meta: BROWSER_META,
+    };
+    io.completeItem(turn, {
+        type: 'mcpToolCall',
+        id: crypto.randomUUID(),
+        server: 'cua_repl',
+        tool: 'js',
+        status: 'completed',
+        arguments: {
+            code: `let routerTab = await cua.getTab('1', { browser: '1' });`,
+            title: 'Find the router tab',
+        },
+        result: page,
+        durationMs: 5,
+    });
+    const step = {
+        type: 'mcpToolCall',
+        id: crypto.randomUUID(),
+        server: 'cua_repl',
+        tool: 'js',
+        arguments: {
+            code: 'await routerTab.click(12); await routerTab.getAXState();',
+            title: 'Click Save',
+        },
+    };
+    io.startItem(turn, { ...step, status: 'inProgress' });
+    await new Promise((resolve) => setTimeout(resolve, BROWSER_STEP_RUNNING_MS));
+    io.completeItem(turn, {
+        ...step,
+        status: 'completed',
+        result: page,
+        durationMs: BROWSER_STEP_RUNNING_MS,
+    });
+    await io.streamMessage(turn, 'Saved the router settings.', 0);
+}

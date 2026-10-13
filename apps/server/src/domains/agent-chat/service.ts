@@ -16,35 +16,26 @@ import {
     CaxriError,
     resolveAgentChatModelChange,
 } from '@caxri/protocol';
-import { assertE2EAgentChatInput, logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
+import { assertE2EAgentChatInput, readE2EAgentPolicy } from '@caxri/system';
 
 import { AgentRunAutonomy } from '../agents';
 import { SingleFlight } from '../single-flight';
 import { readChatContext } from './chat-context';
-import { agentChatDrivers } from './chat-drivers';
 import { ChatEndpointLease } from './chat-endpoint-lease';
 import type { ChatExitHost } from './chat-exit';
-import { abandonChatStart, handleChatExit } from './chat-exit';
 import type { CreateForkSession } from './chat-fork';
 import { forkChat } from './chat-fork';
 import { readChatTerminalHistory } from './chat-history';
 import { isAgentChatCommandListed } from './chat-items';
-import {
-    chatLifecycleHost,
-    chatStartFailure,
-    didPersistChatStartFailure,
-    prepareChatLaunch,
-    readChatTranscript,
-    requireChatTerminal,
-} from './chat-launch';
-import { ChatPermissionSwitches, chatReportedStateHost } from './chat-permission-switch';
+import { requireChatTerminal } from './chat-launch';
+import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
-import { AgentChatStartError } from './chat-provider';
 import * as queueActions from './chat-queue-actions';
 import type { ChatRewindRequest } from './chat-rewind';
 import { restoreChatFiles, rewindChat } from './chat-rewind';
-import { chatSessionLogCallbacks } from './chat-session-logs';
-import type { ChatState, ChatStateDelivery, ChatTerminal } from './chat-states';
+import type { ChatStartHost } from './chat-start';
+import { startChat } from './chat-start';
+import type { ChatState, ChatStateDelivery } from './chat-states';
 import { ChatStates } from './chat-states';
 import { readChatTask, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
@@ -106,7 +97,7 @@ export class AgentChatService {
          */
         if (this.starts.has(terminalId) || !state.session?.isOpen)
             await this.starts.run(terminalId, () =>
-                this.start(terminal, state, shouldKeepAgentAutonomy),
+                startChat(this.startHost(), terminal, state, shouldKeepAgentAutonomy),
             );
         // A teardown may have begun while the start was in flight; its session is about to close.
         this.states.admit(terminalId, state);
@@ -135,123 +126,6 @@ export class AgentChatService {
         }
     }
 
-    private async start(
-        terminal: ChatTerminal,
-        state: ChatState,
-        shouldKeepAgentAutonomy: boolean,
-    ): Promise<void> {
-        const { database, logger } = this.options;
-        const terminalId = terminal.id;
-        const { provider } = terminal;
-        const launchId = randomUUID();
-        const startedAt = Date.now();
-        state.launchId = launchId;
-        this.states.setStatus(terminalId, 'starting');
-        database.updateTerminalState(terminalId, 'starting');
-        database.updateAgentProcessState(terminalId, 'starting');
-        this.states.publish(terminalId);
-        this.options.coordinator.beginTerminalLaunch(terminalId, launchId);
-        const isCurrent = () =>
-            state.launchId === launchId && this.states.get(terminalId) === state;
-        let session: AgentChatProviderSession | undefined;
-        try {
-            const driver = agentChatDrivers[provider];
-            if (!driver) throw new AgentChatStartError('spawn_failed');
-            const launch = this.agentRunAutonomy.launch(
-                terminalId,
-                provider,
-                this.options.launchSettings(provider, terminal),
-                shouldKeepAgentAutonomy,
-            );
-            const prepared = await prepareChatLaunch(this.options, provider, launch, terminal.cwd);
-            const { cwd, executable, isRealAgentE2E } = prepared;
-            const environment = await this.endpoint.environment(
-                terminal,
-                launchId,
-                prepared.environment,
-            );
-            // Preparing awaited; the Chat may have been closed, deleted, detached, or archived meanwhile.
-            if (!this.states.isAdmitted(terminalId, state)) {
-                abandonChatStart(this.exitHost(), this.isShuttingDown, {
-                    terminalId,
-                    state,
-                    launchId,
-                    startedAt,
-                });
-                return;
-            }
-            session = driver.create({
-                terminalId,
-                cwd,
-                executable,
-                environment,
-                launch,
-                isRealAgentE2E,
-                permission: database.getChatPermission(terminalId) ?? { planMode: false },
-                agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
-                ...(state.resumeAt !== undefined && { resumeAt: state.resumeAt }),
-                clientVersion: this.options.clientVersion,
-                spawnProcess: this.options.spawnProcess,
-                turnRequestTimeoutMs: this.options.turnRequestTimeoutMs,
-                read: () => state.projection.snapshot,
-                apply: (operations) => {
-                    if (isCurrent()) this.states.apply(terminalId, operations);
-                },
-                applyTask: (taskId, operations) => {
-                    if (isCurrent()) state.projection.applyTask(taskId, operations);
-                },
-                readTask: (taskId) => state.projection.tasks.get(taskId),
-                ...chatLifecycleHost(this.options, {
-                    launchId,
-                    provider,
-                    terminalId,
-                    isCurrent,
-                    onEvent: (event) => {
-                        // The first new turn writes past the resume point, so a later start resumes the newest record again.
-                        if (event.phase === 'turnStarted') state.resumeAt = undefined;
-                    },
-                }),
-                ...chatReportedStateHost(database, {
-                    terminalId,
-                    provider,
-                    isCurrent,
-                    onRebound: () => this.states.publish(terminalId),
-                }),
-                ...chatSessionLogCallbacks(this.options, terminalId),
-                onExit: (exit) =>
-                    handleChatExit(this.exitHost(), terminalId, provider, state, launchId, exit),
-                readTranscript: () => readChatTranscript(this.options, terminalId),
-            });
-            state.session = session;
-            const mode = await session.start();
-            if (!isCurrent()) {
-                await session.close();
-                return;
-            }
-            await this.endpoint.activate(terminalId);
-            this.states.setStatus(terminalId, 'ready');
-            database.updateTerminalState(terminalId, 'running');
-            database.updateAgentProcessState(terminalId, 'running');
-            this.states.publish(terminalId);
-            if (database.getTerminal(terminalId)?.agentSessionId)
-                this.options.coordinator.probeTerminal(terminalId);
-            logger.write('info', logEventCatalog.agentChat.processStarted, {
-                fields: { terminalId, outcome: 'ready', mode, durationMs: Date.now() - startedAt },
-            });
-            this.options.onReady?.(terminalId);
-        } catch (error) {
-            if (state.session === session) state.session = undefined;
-            await session?.close();
-            if (isCurrent()) this.endpoint.retire(terminalId);
-            const failure = chatStartFailure(this.options, terminal, error, startedAt);
-            if (isCurrent() && !this.isShuttingDown) {
-                this.states.setStatus(terminalId, 'failed', failure);
-                if (didPersistChatStartFailure(this.options, terminalId, failure))
-                    this.states.publish(terminalId);
-            }
-        }
-    }
-
     /**
      * Serializes input per Chat, starting the provider first, so messages and commands reach it in the order sent.
      */
@@ -261,6 +135,14 @@ export class AgentChatService {
             states: this.states,
             endpoint: this.endpoint,
             isSettling: (terminalId) => this.isShuttingDown || this.starts.has(terminalId),
+        };
+    }
+
+    private startHost(): ChatStartHost {
+        return {
+            ...this.exitHost(),
+            agentRunAutonomy: this.agentRunAutonomy,
+            isShuttingDown: () => this.isShuttingDown,
         };
     }
 

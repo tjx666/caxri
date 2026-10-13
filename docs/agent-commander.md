@@ -488,9 +488,12 @@ The dialog has two tabs that share one selection and one optional note:
   days, at most 200, excluding any conversation a Caxri Terminal already binds. Discovery reads those
   folders, so it runs only once the tab opens. Each conversation is grouped under the visible Project
   whose root contains its working directory; one in no Project is grouped under its folder, which
-  hand-over adds as a new Project. A conversation whose transcript was written in the last two
-  minutes is marked as possibly still open elsewhere, because resuming it in Caxri would fork it;
-  no provider exposes a cheaper open-conversation signal the discovery uses yet.
+  hand-over adds as a new Project. A conversation that may still be open elsewhere is marked,
+  because resuming it in Caxri would fork it. For Codex the evidence is a machine-wide open-file
+  probe (`apps/server/src/domains/agents/providers/codex/open-sessions.ts`): a Codex process keeps
+  its rollout open for the whole conversation, even while idle, so the mark covers a conversation
+  untouched for hours. When that probe fails, and always for Claude Code and Grok Build, which
+  expose no open-conversation signal, a transcript written in the last two minutes is the mark.
 
 Search narrows what the list shows, never what stays selected. `commander.session.handOver` handles
 every entry on its own, so a refused entry (for example an archived Session, or a conversation that
@@ -564,6 +567,7 @@ they reconstruct a bug report without Terminal output or transcripts:
 | `agent_commander.inbox_replied`                     | The owner replied: item `kind`, reply `sequence`, and `source` (`desktop`, `mobile`); never the text.                                                 |
 | `agent_commander.inbox_stale_changed`               | A `merge` item went stale (`headMoved`) or became current again (`null`).                                                                             |
 | `agent_commander.inbox_pull_request_refresh_failed` | Reading one `merge` item's pull request failed, with the shared CLI failure `kind`.                                                                   |
+| `agent_commander.codex_open_probe_failed`           | The Outside Caxri Codex open-file probe failed and Codex rows fell back to mtime: closed `reason` and `durationMs`.                                   |
 
 The delegation ID links them: the Commander's `agent delegate create` returns it, every transition
 and notice names it, and the `ipc.request` line of each `agent.delegation.*` call carries it as

@@ -2,6 +2,7 @@ import { MAX_AGENT_CHAT_DIFF_LENGTH, MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL } fro
 import { describe, expect, it } from 'vitest';
 
 import { closeDanglingItem } from '../chat-items';
+import { CodexComputerUseBindings } from '../codex-computer-use';
 import { codexRequestKey, mapCodexItem, mapCodexRequest } from '../codex-items';
 
 describe('Codex item mapping', () => {
@@ -115,6 +116,61 @@ describe('Codex item mapping', () => {
                 _meta: { 'codex/toolSurface': { kind: 'computerUse', app: null } },
             }),
         ).toMatchObject({ name: 'computerUse', output: 'Clicked' });
+    });
+
+    it('names a running browser step by the browser API its script calls, before any result', () => {
+        const bindings = new CodexComputerUseBindings();
+        const running = (code: string) =>
+            mapCodexItem(
+                {
+                    type: 'mcpToolCall',
+                    id: 'c',
+                    server: 'cua_repl',
+                    tool: 'js',
+                    status: 'inProgress',
+                    arguments: { code, title: 'Step' },
+                },
+                't',
+                true,
+                bindings,
+            );
+        expect(running(`let routerTab = await cua.getTab('7', { browser: '1' });`)).toMatchObject({
+            name: 'browserUse',
+            status: 'running',
+        });
+        expect(
+            running(`await cua.createBrowserTab('chrome', 'https://example.com/');`),
+        ).toMatchObject({ name: 'browserUse' });
+        // The REPL keeps variables across steps, so a later step that only drives the bound tab stays a browser step.
+        expect(running('await routerTab.click(12); await routerTab.getAXState();')).toMatchObject({
+            name: 'browserUse',
+        });
+        expect(running(`let finder = await cua.getApp('com.apple.finder');`)).toMatchObject({
+            name: 'computerUse',
+        });
+        expect(running('await finder.pressKey("Return");')).toMatchObject({ name: 'computerUse' });
+        // Nothing in the script names a surface: the step keeps the Computer Use default.
+        expect(running('await cua.getState();')).toMatchObject({ name: 'computerUse' });
+        // A settled step still trusts the surface Codex reported over the script.
+        expect(
+            mapCodexItem(
+                {
+                    type: 'mcpToolCall',
+                    id: 'c',
+                    server: 'cua_repl',
+                    tool: 'js',
+                    status: 'completed',
+                    arguments: { code: 'await routerTab.getAXState();', title: 'Step' },
+                    result: {
+                        content: [{ type: 'text', text: 'Clicked' }],
+                        _meta: { 'codex/toolSurface': { kind: 'computerUse' } },
+                    },
+                },
+                't',
+                false,
+                bindings,
+            ),
+        ).toMatchObject({ name: 'computerUse' });
     });
 
     it('summarizes a dynamic tool by a readable field instead of its raw JSON arguments', () => {
