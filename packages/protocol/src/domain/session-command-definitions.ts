@@ -117,11 +117,12 @@ export const sessionCommandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'session', group: 2, order: 1 },
     },
     {
-        id: 'session.searchContent',
-        title: 'Search Session Content',
+        id: 'session.search',
+        title: 'Search Sessions',
         category: 'Session',
-        description: 'Find active and archived Sessions by user and assistant messages',
-        keywords: ['conversation', 'transcript', 'history'],
+        description:
+            'Find Agent conversations in Caxri or only on this machine by title, ID, folder, or message',
+        keywords: ['conversation', 'transcript', 'history', 'claude', 'codex', 'grok', 'resume'],
         nativeMenu: { menu: 'session', group: 4, order: 1 },
     },
     {

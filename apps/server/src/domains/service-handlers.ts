@@ -9,6 +9,7 @@ import type {
     AgentTimelineService,
     AgentTranscriptWatcher,
     LongPasteService,
+    SessionSearchIndex,
 } from './agents';
 import {
     agentSkillHealthReader,
@@ -18,7 +19,6 @@ import {
     readAgentReplySummary,
     readAgentTranscript,
     recordRecentAgentAction,
-    SessionContentSearch,
 } from './agents';
 import type {
     AgentCommanderServiceOptions,
@@ -43,7 +43,11 @@ import type { PullRequestMergeNoticeOptions } from './pull-request-merge-notice'
 import { createPullRequestMergeNotice } from './pull-request-merge-notice';
 import { refreshAfterMerge } from './pull-request-merge-refresh';
 import type { SessionContextService } from './session';
-import { defaultSessionReferenceDirectory, SessionConversationReferenceService } from './session';
+import {
+    defaultSessionReferenceDirectory,
+    SessionConversationReferenceService,
+    SessionSearchService,
+} from './session';
 import { resolveTerminalFileLink } from './terminal';
 import { offlinePriceListFetch, UsageService } from './usage';
 
@@ -133,7 +137,8 @@ type ServiceHandlerMethods =
     | 'commander.inbox.merge'
     | 'mobile.commanderInbox.replyInternal'
     | 'session.refreshDeliveryOnFocus'
-    | 'session.searchContent'
+    | 'session.search'
+    | 'session.importConversation'
     | 'session.conversationReference'
     | 'settings.get'
     | 'settings.inspect'
@@ -164,7 +169,10 @@ export function createServiceHandlers(services: {
     agentChat: PullRequestMergeNoticeOptions['agentChat'];
     agentEnvironment: AgentEnvironment;
     agentHooks: AgentHookManager;
-    awaitAgentSettingsReconcile: () => Promise<void>;
+    agentRuntime: {
+        awaitSettingsReconcile: () => Promise<void>;
+        sessionSearchIndex: Pick<SessionSearchIndex, 'inspect' | 'search'>;
+    };
     commander: Omit<
         AgentCommanderServiceOptions,
         'database' | 'handovers' | 'inbox' | 'onLaunching' | 'pullRequests' | 'userDataPath'
@@ -193,7 +201,7 @@ export function createServiceHandlers(services: {
         acknowledgeFileMutation,
         agentEnvironment,
         agentHooks,
-        awaitAgentSettingsReconcile,
+        agentRuntime,
         commanderHandovers,
         commanderInbox,
         configuration,
@@ -213,7 +221,13 @@ export function createServiceHandlers(services: {
         userDataPath,
         vercel,
     } = services;
-    const sessionContentSearch = new SessionContentSearch(database, agentEnvironment);
+    const sessionSearch = new SessionSearchService({
+        database,
+        index: agentRuntime.sessionSearchIndex,
+        resolveProjectRoot: resolveOwnerProjectRoot,
+        onSessionImported: () =>
+            emit({ event: 'state.changed', payload: { kind: 'full', reason: 'session.create' } }),
+    });
     const sessionConversationReferences = new SessionConversationReferenceService(
         defaultSessionReferenceDirectory(),
         database,
@@ -325,7 +339,9 @@ export function createServiceHandlers(services: {
         'files.readAsset': ({ sessionId, path }, signal) =>
             files.readAsset(sessionId, path, signal),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
-        'session.searchContent': ({ query }, signal) => sessionContentSearch.search(query, signal),
+        'session.search': (parameters, signal) => sessionSearch.search(parameters, signal),
+        'session.importConversation': ({ provider, agentSessionId }) =>
+            sessionSearch.importConversation(provider, agentSessionId),
         'session.conversationReference': ({ sessionId }, signal) =>
             sessionConversationReferences.prepare(sessionId, signal),
         'files.search': (parameters, signal) => files.search(parameters, signal),
@@ -474,7 +490,7 @@ export function createServiceHandlers(services: {
         'terminal.agentUsage': ({ terminalId }) => usage.readTerminal(terminalId),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
-            await awaitAgentSettingsReconcile();
+            await agentRuntime.awaitSettingsReconcile();
             return configuration.getSettings();
         },
         'settings.trustDomain': async ({ domain }) => {

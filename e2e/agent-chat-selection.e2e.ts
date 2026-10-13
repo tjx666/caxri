@@ -48,6 +48,26 @@ test('a Chat selects only message text and offers Copy and Add to message', asyn
         await page.mouse.move(start.x + 14, start.y + start.height / 2);
         await page.mouse.down();
         await page.mouse.move(end.x + end.width - 2, end.y + end.height / 2, { steps: 12 });
+        // Record where the toolbar sits on every frame of its entrance: it fades in where it lands, never gliding
+        // there from the corner it was mounted at.
+        const entrance = page.evaluate(
+            () =>
+                new Promise<number>((resolve) => {
+                    const positions = new Set<string>();
+                    let frames = 0;
+                    const sample = () => {
+                        const toolbar = document.querySelector('[role="toolbar"]');
+                        if (toolbar && getComputedStyle(toolbar).visibility === 'visible') {
+                            const { left, top } = toolbar.getBoundingClientRect();
+                            positions.add(`${Math.round(left)},${Math.round(top)}`);
+                            frames += 1;
+                        }
+                        if (frames < 20) requestAnimationFrame(sample);
+                        else resolve(positions.size);
+                    };
+                    requestAnimationFrame(sample);
+                }),
+        );
         await page.mouse.up();
         const selected = await page.evaluate(() => getSelection()?.toString() ?? '');
         expect(selected).toContain('hi there');
@@ -56,6 +76,7 @@ test('a Chat selects only message text and offers Copy and Add to message', asyn
 
         const toolbar = page.getByRole('toolbar', { name: 'Selection actions' });
         await expect(toolbar).toBeVisible();
+        expect(await entrance).toBe(1);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-selection-toolbar.png') });
 
         // Copy writes through a stubbed clipboard, so the run never overwrites the developer's system clipboard.

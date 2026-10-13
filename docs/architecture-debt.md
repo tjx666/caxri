@@ -206,7 +206,7 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-state-commander-handover-races: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Handing the same Session to the Commander twice while conversation discovery was pending recorded two hand-overs and two tasks, a hand-over accepted during the first Commander launch was overwritten, and a conversation reached through a symlinked folder created a nested Project.
-- **Evidence:** `apps/server/src/domains/commander/handover.ts` decides existing Sessions after the last await; `service.ts` re-reads rows in `beforeStart`; `handover-conversation-project.ts` matches the canonical folder.
+- **Evidence:** `apps/server/src/domains/commander/handover.ts` decides existing Sessions after the last await; `service.ts` re-reads rows in `beforeStart`; `session/import-conversation.ts` matches the canonical folder.
 - **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
 - **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
 - **Remediation target / Acceptance:** One hand-over per Session, launches keep concurrent hand-overs, and symlinked conversations land in their existing Project.

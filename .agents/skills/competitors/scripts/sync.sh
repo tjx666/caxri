@@ -45,6 +45,10 @@ REPOS=(
     open-webui/open-webui
     ChatGPTNextWeb/NextChat
     chatboxai/chatbox
+    # Session history tools; see references/session-history-search.md.
+    iAmCorey/Wake:wake
+    kenn-io/agentsview
+    jazzyalex/agent-sessions
 )
 
 for entry in "${REPOS[@]}"; do

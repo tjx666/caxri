@@ -52,7 +52,7 @@ interface DialogState {
      * dialog shell, and this is the channel an opener reaches it through.
      */
     projectSearchSeedRequest: { id: number; seed: ProjectSearchSeed };
-    sessionContentSearchOpen: boolean;
+    sessionSearchOpen: boolean;
     agentActionsOpen: boolean;
     agentActionsTerminalId?: string;
     pathBrowserOpen: boolean;
@@ -115,7 +115,7 @@ interface DialogState {
     setPaletteOpen(isOpen: boolean): void;
     setProjectSearchOpen(isOpen: boolean): void;
     openProjectSearch(seed?: ProjectSearchSeed): void;
-    setSessionContentSearchOpen(isOpen: boolean): void;
+    setSessionSearchOpen(isOpen: boolean): void;
     openAgentActions(terminalId: string): void;
     setAgentActionsOpen(isOpen: boolean): void;
     setPathBrowserOpen(isOpen: boolean): void;
@@ -152,7 +152,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     paletteOpen: false,
     projectSearchOpen: false,
     projectSearchSeedRequest: { id: 0, seed: {} },
-    sessionContentSearchOpen: false,
+    sessionSearchOpen: false,
     agentActionsOpen: false,
     agentActionsTerminalId: undefined,
     pathBrowserOpen: false,
@@ -179,7 +179,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
             projectSearchOpen: true,
             projectSearchSeedRequest: { id: state.projectSearchSeedRequest.id + 1, seed },
         })),
-    setSessionContentSearchOpen: (sessionContentSearchOpen) => set({ sessionContentSearchOpen }),
+    setSessionSearchOpen: (sessionSearchOpen) => set({ sessionSearchOpen }),
     openAgentActions: (agentActionsTerminalId) =>
         set({ agentActionsOpen: true, agentActionsTerminalId }),
     setAgentActionsOpen: (agentActionsOpen) => set({ agentActionsOpen }),
@@ -255,5 +255,5 @@ export const clearSessionRenameRequest = (): void =>
 export const openStatusBarPicker = (picker: StatusBarPicker): void =>
     useDialogStore.getState().openStatusBarPicker(picker);
 
-export const setSessionContentSearchOpen = (isOpen: boolean): void =>
-    useDialogStore.getState().setSessionContentSearchOpen(isOpen);
+export const setSessionSearchOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setSessionSearchOpen(isOpen);

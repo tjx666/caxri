@@ -105,9 +105,12 @@ const serverCoreOptions: ServerCoreOptions = {
         environment: process.env,
         serverBundleDirectory,
     }),
-    projectSearch: {
-        executablePath: join(serverBundleDirectory, '../runtime/bin/rg'),
-        workerPath: join(serverBundleDirectory, 'project-search-worker.js'),
+    searchWorkers: {
+        project: {
+            executablePath: join(serverBundleDirectory, '../runtime/bin/rg'),
+            workerPath: join(serverBundleDirectory, 'project-search-worker.js'),
+        },
+        session: { workerPath: join(serverBundleDirectory, 'session-search-worker.js') },
     },
     ...(desktopLaunch && {
         launchDesktop: createDesktopLauncher({

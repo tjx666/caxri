@@ -132,6 +132,11 @@ export const defaultKeybindings: Keybinding[] = [
      * fallback then hands that exact stroke to `session.switchMru` for reverse cycling.
      */
     { key: 'cmd+shift+n', command: 'session.focusNextAttention' },
+    /**
+     * `Cmd+Shift+S` reads as "Search Sessions" and is free here: Caxri's editor has no Save As, the chord VS Code
+     * spends it on.
+     */
+    { key: 'cmd+shift+s', command: 'session.search' },
     { key: 'cmd+shift+1', command: 'panel.showLogs' },
     { key: 'cmd+shift+2', command: 'panel.showInfo' },
     { key: 'cmd+[', command: 'primarySidebar.toggle' },
@@ -309,5 +314,9 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+-', command: 'view.zoomOut' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+shift+s', command: 'session.search' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

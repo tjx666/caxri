@@ -37,6 +37,14 @@ export type DomainHandlers = {
 };
 
 /**
+ * Search Workers bundled beside the Server. Without `session`, Session search answers from Caxri's own Sessions only.
+ */
+export interface SearchWorkers {
+    project?: { executablePath: string; workerPath: string };
+    session?: { workerPath: string };
+}
+
+/**
  * Environment-owned seams supplied to the domain-service composition root.
  */
 export interface DomainDependencies {
@@ -46,7 +54,7 @@ export interface DomainDependencies {
     send: (event: ServerEvent) => void;
     startedAt?: number;
     pid?: number;
-    projectSearch?: { executablePath: string; workerPath: string };
+    searchWorkers?: SearchWorkers;
     agentRefreshDelayMs?: number;
     /**
      * Shortened hook-turn unknown-evidence recovery window; only focused Electron coverage supplies it.

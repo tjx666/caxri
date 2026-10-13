@@ -11,12 +11,11 @@ import { agentProviderIds, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { mapWithConcurrency } from '@caxri/system';
 
-import type { AgentEnvironment } from '../agents';
+import type { AgentEnvironment, DiscoveredTranscript } from '../agents';
+import { discoverTranscripts, readTranscriptCwd } from '../agents';
 import type { AgentSessionUsageRow, CaxriDatabase, ExternalAgentUsageRow } from '../db';
 import type { ExternalStatusRunner } from '../external-status';
 import { SingleFlight } from '../single-flight';
-import type { DiscoveredTranscript } from './external';
-import { discoverTranscripts, readTranscriptCwd } from './external';
 import { UsageKeyIndex } from './key-index';
 import { LiveAgentUsage } from './live-usage';
 import { ModelPricing } from './pricing';

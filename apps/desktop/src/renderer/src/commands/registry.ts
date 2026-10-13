@@ -152,7 +152,7 @@ export interface CommandContext {
         openUsage(): void;
         openPathBrowser(): void;
         openProjectSearch(): void;
-        openSessionContentSearch(): void;
+        openSessionSearch(): void;
         openCommanderHandover(): void;
     };
     windows: {

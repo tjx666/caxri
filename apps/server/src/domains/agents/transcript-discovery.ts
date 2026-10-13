@@ -6,15 +6,14 @@ import { basename, join } from 'node:path';
 
 import type { AgentProvider } from '@caxri/protocol';
 
-import type { AgentEnvironment, AgentTranscriptLocation } from '../agents';
-import {
-    agentProviders,
-    grokHome,
-    isOpaqueAgentSessionId,
-    openSafeAgentTranscript,
-    parseCodexRolloutName,
-    resolveCodexHome,
-} from '../agents';
+import type { AgentEnvironment } from './contract';
+import { isOpaqueAgentSessionId } from './contract';
+import { agentProviders } from './providers';
+import { resolveCodexHome } from './providers/codex/paths';
+import { parseCodexRolloutName } from './providers/codex/rollouts';
+import { grokHome } from './providers/grok/paths';
+import type { AgentTranscriptLocation } from './transcript-security';
+import { openSafeAgentTranscript } from './transcript-security';
 
 /**
  * Bounds one discovery pass. A heavy Codex user writes a few hundred rollouts a day, so this covers years of history;

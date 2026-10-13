@@ -36,8 +36,8 @@ ancestry. Linked package targets keep their lexical workspace entry. Dependency 
 `readOnly` through both ordinary results and binary-stream metadata; Renderer restore honors it,
 and Server document writes enforce it independently. See [editor imports](../../../../docs/editor-imports.md).
 
-Session content search is a separate desktop-owner Server read (`session.searchContent`) over
-persisted Agent identities. It shares visible-message extraction with title generation, reads
-through transcript authorization, and keeps only bounded process-memory text. Query cancellation,
-coverage counts and partial outcomes are part of its contract; archived results require explicit
-restore. See [Session content search](../../../../docs/session-content-search.md).
+Session search is a desktop-owner Server read (`session.search`) over every provider transcript
+on the machine, answered by a Worker-owned FTS5 index that shares visible-message extraction with
+title generation. The Session domain classifies each conversation as open, archived, or external
+from Caxri's own Agent identities; `session.importConversation` adopts an external one as a parked
+Session. See [Session search](../../../../docs/session-search.md).

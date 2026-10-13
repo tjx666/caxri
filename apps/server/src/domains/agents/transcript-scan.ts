@@ -37,6 +37,11 @@ export interface TranscriptScanOptions {
      * whatever it delivered is partial, so a caller that passes a signal checks it after the scan.
      */
     signal?: AbortSignal;
+    /**
+     * Withholds a final line that has no trailing newline yet. A caller that persists what it scanned (the Session
+     * search index) would otherwise ingest that line now and again once an append completes it.
+     */
+    completeLinesOnly?: boolean;
 }
 
 /**
@@ -105,7 +110,7 @@ export async function scanTranscriptLines(
                 cursor.skippingOversizedLine = true;
                 return stats.size;
             }
-            scanLine(remainder.toString('utf8'));
+            if (!options.completeLinesOnly) scanLine(remainder.toString('utf8'));
             return stats.size;
         } finally {
             await handle.close();
