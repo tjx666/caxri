@@ -236,6 +236,10 @@ jobs:
           install-dependencies: 'true'
           install-electron: 'true'
       - name: Run targeted Electron smoke
+        env:
+          # This spec never requests clipboard access. The disposable hosted desktop has no user clipboard to preserve,
+          # so do not make its cold Swift/AppKit clipboard helper a prerequisite for the launch smoke.
+          CAXRI_E2E_CLIPBOARD_PROTECTION: skip-hosted
         run: bun run test:smoke
 
   e2e:
