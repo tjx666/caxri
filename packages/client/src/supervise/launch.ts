@@ -8,6 +8,7 @@ import {
     INSPECT_ENVIRONMENT_KEY,
     inspectExecArgv,
     LOG_LEVEL_ENVIRONMENT_KEY,
+    SERVER_CORE_EXEC_ARGV,
 } from '@caxri/protocol';
 
 import { resolveServerArtifact } from './artifact.js';
@@ -65,7 +66,11 @@ export async function launchServer(
     return new Promise<ServerLaunchReceipt>((resolve, reject) => {
         const child = spawn(
             artifact.executablePath,
-            [...inspectExecArgv('server-core', environment), artifact.entryPath],
+            [
+                ...SERVER_CORE_EXEC_ARGV,
+                ...inspectExecArgv('server-core', environment),
+                artifact.entryPath,
+            ],
             { detached: true, env: environment, stdio: 'ignore' },
         );
         child.once('error', () =>
