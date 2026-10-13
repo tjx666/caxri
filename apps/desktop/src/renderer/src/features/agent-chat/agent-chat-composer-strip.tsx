@@ -48,30 +48,36 @@ export function AgentChatComposerStrip({
             className="mx-3 -mb-px overflow-hidden rounded-t-lg border border-b-0 border-solid border-border bg-surface not-has-[[data-agent-chat-composer-strip-row]]:contents"
             data-agent-chat-composer-strip=""
         >
-            <AgentChatGoalBar
-                activeTurnId={activeTurnId}
-                goal={snapshot?.goal}
-                terminalId={terminalId}
-                turns={snapshot?.turns}
-            />
-            <AgentChatTaskStrip
-                latestTurnStartedAt={snapshot?.turns.at(-1)?.startedAt}
-                tasks={snapshot?.tasks}
-                terminalId={terminalId}
-                onOpenTask={onOpenTask}
-            />
-            <AgentChatQueueList
-                isTurnRunning={isTurnRunning}
-                pending={pendingQueue}
-                queue={queue}
-                snapshot={{
-                    queuePaused: isQueuePaused,
-                    queuePauseReason: snapshot?.queuePauseReason,
-                }}
-                terminalId={terminalId}
-                onAction={onQueueAction}
-                onEdit={onQueueEdit}
-            />
+            {/*
+             * The sections above the composer's own rows share one height cap and scroll past it, so a long task list
+             * and queue in a short split pane never squeeze the transcript away.
+             */}
+            <div className="max-h-64 overflow-y-auto">
+                <AgentChatGoalBar
+                    activeTurnId={activeTurnId}
+                    goal={snapshot?.goal}
+                    terminalId={terminalId}
+                    turns={snapshot?.turns}
+                />
+                <AgentChatTaskStrip
+                    latestTurnStartedAt={snapshot?.turns.at(-1)?.startedAt}
+                    tasks={snapshot?.tasks}
+                    terminalId={terminalId}
+                    onOpenTask={onOpenTask}
+                />
+                <AgentChatQueueList
+                    isTurnRunning={isTurnRunning}
+                    pending={pendingQueue}
+                    queue={queue}
+                    snapshot={{
+                        queuePaused: isQueuePaused,
+                        queuePauseReason: snapshot?.queuePauseReason,
+                    }}
+                    terminalId={terminalId}
+                    onAction={onQueueAction}
+                    onEdit={onQueueEdit}
+                />
+            </div>
             {children}
         </div>
     );
