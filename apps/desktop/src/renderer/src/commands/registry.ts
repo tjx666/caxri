@@ -150,7 +150,6 @@ export interface CommandContext {
         openSettings(view?: SettingsView): void;
         openPalette(): void;
         openUsage(): void;
-        openBenchmark(): void;
         openPathBrowser(): void;
         openProjectSearch(): void;
         openSessionContentSearch(): void;
@@ -158,6 +157,7 @@ export interface CommandContext {
     };
     windows: {
         openAgentCommander(): void;
+        openBenchmark(): void;
         stopAgentCommander(): void;
         openProcessExplorer(): void;
         zoom(step: 'in' | 'out' | 'reset'): void;

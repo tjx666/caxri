@@ -121,7 +121,6 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.tab.preview': '预览：{{name}}',
     'editor.tab.settings': '设置',
     'editor.tab.usage': '用量',
-    'editor.tab.benchmark': 'Benchmark',
 
     'editor.pathMenu.openSource': '打开源文件',
     'editor.pathMenu.openPreview': '打开预览',

@@ -49,7 +49,7 @@ import { pathBrowserContractMethods } from '../desktop/path-browser-contract.js'
 import { remoteEnvironmentDesktopMethods } from '../desktop/remote-environment-contract.js';
 import { shellCommandDesktopMethods } from '../desktop/shell-command-contract.js';
 import {
-    windowChromeDesktopMethods,
+    windowDesktopMethods,
     windowStateInternalMethods,
 } from '../desktop/window-state-contract.js';
 import { bootstrapStateSchema } from '../domain/bootstrap.js';
@@ -278,13 +278,12 @@ export const methods = {
     ...linkFaviconDesktopMethods,
     ...agentProviderStatusDesktopMethods,
     ...linkPreviewDesktopMethods,
-    ...windowChromeDesktopMethods,
+    ...windowDesktopMethods,
     'external.open': {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),
         result: externalOpenResult,
     },
-    'processExplorer.open': { ...desktopControl, params: noParameters, result: z.null() },
     'dialog.selectDirectory': {
         ...desktopControl,
         params: noParameters,

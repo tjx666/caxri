@@ -84,10 +84,10 @@ function RunBoard({ runId }: { runId: string }) {
 }
 
 /**
- * Benchmark Workbench tab: run one prompt across several Agents, models, and efforts, each in its own folder, and
- * compare quality, time, tokens, and cost on a chart and a ranked table. See `docs/benchmark.md`.
+ * The Benchmark window's content: run one prompt across several Agents, models, and efforts, each in its own folder,
+ * and compare quality, time, tokens, and cost on a chart and a ranked table. See `docs/benchmark.md`.
  */
-export function BenchmarkWorkbenchPage() {
+export function BenchmarkPage() {
     const { t } = useTranslation();
     useBenchmarkEvents();
     const runs = useBenchmarkRuns();
@@ -112,9 +112,8 @@ export function BenchmarkWorkbenchPage() {
         }
     };
     return (
-        // `p-px` keeps the page fill off the pane's 1px inset focus ring, as the Usage page does.
         <div
-            className="grid h-full grid-cols-[220px_minmax(0,1fr)] overflow-hidden p-px"
+            className="grid h-full grid-cols-[220px_minmax(0,1fr)] overflow-hidden"
             data-benchmark-page
         >
             <BenchmarkHistory

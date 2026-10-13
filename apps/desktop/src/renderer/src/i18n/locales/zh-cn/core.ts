@@ -11,6 +11,10 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.errorBoundary.agentCommander.description':
         '重新加载 Agent Commander 以重新连接到它的终端。在此期间 Commander 会继续运行。',
     'core.errorBoundary.agentCommander.reload': '重新加载 Agent Commander',
+    'core.errorBoundary.benchmark.title': 'Benchmark 已停止渲染',
+    'core.errorBoundary.benchmark.description':
+        '重新加载 Benchmark 以重新显示运行记录。已开始的运行会继续进行。',
+    'core.errorBoundary.benchmark.reload': '重新加载 Benchmark',
     'core.errorBoundary.processExplorer.title': '进程资源管理器已停止渲染',
     'core.errorBoundary.processExplorer.description': '重新加载进程资源管理器以恢复实时诊断。',
     'core.errorBoundary.processExplorer.reload': '重新加载进程资源管理器',
@@ -93,7 +97,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.projectStatusAlert.deploymentFailed': '{{name}} 部署失败',
 
     'core.commands.usageNeedsProject': '添加项目后才能打开用量',
-    'core.commands.benchmarkNeedsProject': '添加项目后才能打开 Benchmark',
+    'core.commands.openBenchmarkFailed': '无法打开 Benchmark',
     'core.commands.openAgentCommanderFailed': '无法打开 Agent Commander',
     'core.commands.diagnosticsExportFailed': '诊断信息导出失败',
     'core.commands.diagnosticsExported': '诊断信息已导出到 {{path}}',

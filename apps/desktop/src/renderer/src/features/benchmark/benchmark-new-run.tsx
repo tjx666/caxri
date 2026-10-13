@@ -21,9 +21,8 @@ import {
     SelectValue,
 } from '../../components/ui/select';
 import { Textarea } from '../../components/ui/textarea';
-import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { useTranslation } from '../../i18n';
-import { useSelectedProject } from '../../stores/selectors';
+import { useProjects } from '../../stores/selectors';
 import { BenchmarkModelPicker } from './benchmark-model-picker';
 import { modelLabel } from './benchmark-presentation';
 import type { BenchmarkDraft } from './benchmark-selection';
@@ -31,6 +30,7 @@ import { attemptCount, defaultJudge, draftProblem, toggleEntry } from './benchma
 
 const JUDGE_DEFAULT = 'default';
 const JUDGE_OFF = 'off';
+const WORKSPACE_EMPTY = 'empty';
 
 function judgeValue(judge: BenchmarkEntry | null | undefined): string {
     if (judge === null) return JUDGE_OFF;
@@ -152,6 +152,65 @@ function JudgeSelect({
 }
 
 /**
+ * Where each Attempt works: a fresh empty folder, or a copy of any Project. The Benchmark window has no selected
+ * Session, so every Project is offered; a remembered Project that was removed reads as the empty folder.
+ */
+function WorkspaceSelect({
+    projectId,
+    onChange,
+}: {
+    projectId: string | undefined;
+    onChange: (projectId: string | undefined) => void;
+}) {
+    const { t } = useTranslation();
+    const projects = useProjects() ?? [];
+    const project = projects.find((candidate) => candidate.id === projectId);
+    const value = project?.id ?? WORKSPACE_EMPTY;
+    return (
+        <>
+            <Select
+                value={value}
+                onValueChange={(next: string | null) =>
+                    onChange(next && next !== WORKSPACE_EMPTY ? next : undefined)
+                }
+            >
+                <SelectTrigger
+                    aria-label={t('benchmark.form.workspace')}
+                    className="h-7 max-w-96 text-[12px]"
+                >
+                    <SelectValue>
+                        {project
+                            ? t('benchmark.form.workspaceProject', {
+                                  project: project.displayTitle,
+                              })
+                            : t('benchmark.form.workspaceEmpty')}
+                    </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value={WORKSPACE_EMPTY}>
+                        {t('benchmark.form.workspaceEmpty')}
+                    </SelectItem>
+                    {projects.map((candidate) => (
+                        <SelectItem key={candidate.id} value={candidate.id}>
+                            {t('benchmark.form.workspaceProject', {
+                                project: candidate.displayTitle,
+                            })}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            <p className="m-0 text-[11px] leading-[1.45] text-muted">
+                {project
+                    ? t('benchmark.form.workspaceProjectCaption', {
+                          project: project.displayTitle,
+                      })
+                    : t('benchmark.form.workspaceEmptyCaption')}
+            </p>
+        </>
+    );
+}
+
+/**
  * The New run form: the prompt, the Entries to compare, where they run, and how the result is scored. Everything but
  * the prompt and the Project is remembered for the next run.
  */
@@ -175,9 +234,7 @@ export function BenchmarkNewRun({
     onStart: () => void;
 }) {
     const { t } = useTranslation();
-    const project = useSelectedProject();
     const problem = draftProblem(draft);
-    const projectId = draft.projectId && draft.projectId === project?.id ? project.id : undefined;
     const update = (patch: Partial<BenchmarkDraft>) =>
         onChange((current) => ({ ...current, ...patch }));
     return (
@@ -222,37 +279,11 @@ export function BenchmarkNewRun({
                     }
                 />
             </FormSection>
-            <FormSection
-                title={t('benchmark.form.workspace')}
-                caption={
-                    projectId && project
-                        ? t('benchmark.form.workspaceProjectCaption', {
-                              project: project.displayTitle,
-                          })
-                        : t('benchmark.form.workspaceEmptyCaption')
-                }
-            >
-                <ToggleGroup
-                    aria-label={t('benchmark.form.workspace')}
-                    value={[projectId ?? 'empty']}
-                    onValueChange={(next: string[]) => {
-                        if (next[0] === 'empty') update({ projectId: undefined });
-                        else if (next[0]) update({ projectId: next[0] });
-                    }}
-                >
-                    <ToggleGroupItem size="dense" value="empty">
-                        {t('benchmark.form.workspaceEmpty')}
-                    </ToggleGroupItem>
-                    {project && (
-                        <ToggleGroupItem className="max-w-80" size="dense" value={project.id}>
-                            <span className="truncate">
-                                {t('benchmark.form.workspaceProject', {
-                                    project: project.displayTitle,
-                                })}
-                            </span>
-                        </ToggleGroupItem>
-                    )}
-                </ToggleGroup>
+            <FormSection title={t('benchmark.form.workspace')}>
+                <WorkspaceSelect
+                    projectId={draft.projectId}
+                    onChange={(projectId) => update({ projectId })}
+                />
             </FormSection>
             <FormSection title={t('benchmark.judge.title')} caption={t('benchmark.judge.caption')}>
                 <JudgeSelect

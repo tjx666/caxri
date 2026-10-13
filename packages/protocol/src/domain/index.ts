@@ -3,7 +3,6 @@ export * from './agent-status-tab.js';
 export * from './agent-task-tab.js';
 export * from './agent-transcript.js';
 export * from './agent-turn-review-tab.js';
-export * from './benchmark-tab.js';
 export * from './bootstrap.js';
 export * from './bug-report-contract.js';
 export * from './business-contract.js';

@@ -168,6 +168,7 @@ export default defineConfig(async ({ command }) => {
                         'agent-commander': resolve(
                             'apps/desktop/src/renderer/agent-commander.html',
                         ),
+                        'benchmark': resolve('apps/desktop/src/renderer/benchmark.html'),
                         'process-explorer': resolve(
                             'apps/desktop/src/renderer/process-explorer.html',
                         ),

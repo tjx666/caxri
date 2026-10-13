@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <!-- The Benchmark window renders no Terminal and no file previews, so it needs neither WebAssembly nor workers;
+             images stay local apart from link favicons, which Main fetches and returns as data URLs. -->
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src __CAXRI_CONNECT_SRC__"
+        />
+        <title>Benchmark — Caxri</title>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/benchmark-main.tsx"></script>
+    </body>
+</html>

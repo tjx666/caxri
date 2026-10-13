@@ -188,6 +188,7 @@ export const effectfulCommandRecovery = {
      */
     'contextMenu.show': 'none',
     'processExplorer.open': 'durable',
+    'benchmark.open': 'durable',
     'agentCommander.open': 'durable',
     'agentCommander.openFileLink': 'memory',
     'agentCommander.openSettings': 'durable',

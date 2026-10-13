@@ -134,7 +134,7 @@ export function createWindowZoomController(options: {
  */
 export function publishFullScreenState(
     window: BrowserWindow,
-    kind: 'workbench' | 'agentCommander',
+    kind: 'workbench' | 'agentCommander' | 'benchmark',
     sendEvent: (event: ServerEvent) => void,
 ): void {
     const send = (): void =>
