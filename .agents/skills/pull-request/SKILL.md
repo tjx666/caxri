@@ -51,6 +51,9 @@ or cancels the delivery, or a concrete blocker requires their input.
    authorization covers the rewrite, using an exact
    `--force-with-lease=refs/heads/<branch>:<observed-oid>` lease. Never use bare `--force`, and
    stop if the lease rejects the update.
+   For an ordinary non-force push from a linked worktree, make the destination auditable with
+   `git push origin HEAD:refs/heads/<branch>` instead of a bare `git push`; the repository's
+   default-branch guard cannot safely infer the target of an abbreviated command.
 5. Create or update the PR with an English title and body that describe observable behavior,
    validation, non-goals, and closing issue links. A ready PR records affected E2E but never starts
    the full suite automatically, and the import graph cannot see which Electron workflows a
