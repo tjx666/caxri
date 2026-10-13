@@ -232,7 +232,7 @@ export function PinnedSessionGroup({
                                 tabIndex={revealRowId === rovingRowId ? 0 : -1}
                                 onClick={onRevealMoreSessions}
                             >
-                                {t('primarySidebar.reveal.showMore', { count: nextRevealCount })}
+                                {t('primarySidebar.reveal.showMore')}
                             </button>
                         )}
                     </div>
