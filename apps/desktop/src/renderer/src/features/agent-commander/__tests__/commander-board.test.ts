@@ -112,6 +112,28 @@ describe('commanderRowPresentation', () => {
         expect(presentation.glyph).toBe('spinner');
     });
 
+    it('draws a turn waiting on background work with the quiet running glyph', () => {
+        const presentation = commanderRowPresentation(
+            row({
+                activityState: 'running',
+                agent: {
+                    kind: 'claude',
+                    operation: 'background',
+                    processState: 'running',
+                    terminalId: 'terminal-1',
+                    title: 'Claude',
+                },
+                group: 'working',
+            }),
+        );
+
+        expect(presentation).toMatchObject({
+            glyph: 'background',
+            statePhrase: 'In background',
+            toneClassName: 'text-muted',
+        });
+    });
+
     it('tints only rows that ask for the user', () => {
         expect(
             commanderRowPresentation(

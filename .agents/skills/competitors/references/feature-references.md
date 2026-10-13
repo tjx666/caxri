@@ -88,6 +88,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 | Activity glyphs                     | State shown as a glyph instead of a word (with T3 Code)                             | `docs/activity-view.md`                                                  |
 | Session search                      | FTS5 index with byte offsets and file identity; title, custom-title, ai-title order | `docs/session-search.md`                                                 |
 | Session creator ("Created by")      | A created workspace remembers its parent (worktree lineage)                         | `docs/agent-delegation.md`                                               |
+| Background wait status              | A quiet monitoring sub-mode of running instead of a separate idle or done state     | `docs/activity-view.md`                                                  |
 
 ## Wake (MIT)
 
@@ -111,6 +112,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 | Turn review, folding, work log                 | Turn review and folding (with the Codex app)                                                      | `packages/protocol/src/agent/agent-chat-turn-fold.ts`; `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-turn-review-tab.tsx` |
 | Mobile foreground recovery                     | Probe or reconnect on return to foreground                                                        | `docs/mobile/design.md`                                                                                                                   |
 | Streaming Markdown tests                       | Prefix-equality tests                                                                             | `chat-markdown-rendering.md`                                                                                                              |
+| Background wait status                         | Background shells never hold a turn's completion                                                  | `docs/activity-view.md`                                                                                                                   |
 
 ## Paseo (Apache-2.0)
 

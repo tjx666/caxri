@@ -64,8 +64,9 @@ export class AgentCoordinator {
     private readonly hookSessionRebinds: CodexHookSessionRebindTracker;
     private readonly attention = new AgentAttentionTracker();
     private readonly idleProof = new AgentIdleProof();
-    private readonly work = new AgentWorkTracker((signal) =>
-        this.applyLifecycle(signal, 'deferredHook'),
+    private readonly work = new AgentWorkTracker(
+        (signal) => this.applyLifecycle(signal, 'deferredHook'),
+        { onWaitingChange: (terminalId) => this.emitAgentMetadataChange(terminalId) },
     );
     /**
      * A `null` provider metadata baseline marks a real transition.
@@ -479,7 +480,7 @@ export class AgentCoordinator {
     }
 
     agentOperation(terminalId: string): AgentOperation | undefined {
-        return this.lifecycleWatchdogs.operation(terminalId);
+        return this.lifecycleWatchdogs.operation(terminalId) ?? this.work.operation(terminalId);
     }
 
     /**
@@ -487,8 +488,7 @@ export class AgentCoordinator {
      */
     observeInterrupt(terminalId: string, launchId?: string): void {
         if (launchId !== undefined && this.launchIdsByTerminal.get(terminalId) !== launchId) return;
-        const wasCompacting = this.lifecycleWatchdogs.operation(terminalId) === 'compacting';
-        this.lifecycleWatchdogs.clearCompaction(terminalId);
+        const wasCompacting = this.lifecycleWatchdogs.clearCompaction(terminalId);
         const released = this.hookLaunches.markTurnInterrupted(
             terminalId,
             launchId === undefined ? 'escape' : 'signal',

@@ -1,7 +1,15 @@
+import type { AgentOperation } from '@caxri/protocol';
+
 import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
 
 interface TerminalAgentWork {
     activeSubagents: Map<string, number>;
+    /**
+     * When the provider last reported background work it does not scope to a tracked child (Claude's `Stop`
+     * `background_tasks`, or a Chat's task list). It holds the parent completion like a running child until the
+     * provider reports it drained or the stale window passes.
+     */
+    backgroundEvidenceAt?: number;
     deferredParentFinish?: AgentLifecycleSignal;
     /**
      * Bounds the wait for the parent turn to resume after its last background subagent stopped.
@@ -28,6 +36,11 @@ export interface AgentWorkObservation {
 }
 
 interface AgentWorkTrackerOptions {
+    /**
+     * Called when a Terminal starts or stops waiting on background work. The Session stays `running` across both, so no
+     * activity write republishes the `background` operation on its own.
+     */
+    onWaitingChange?: (terminalId: string) => void;
     resumeGraceMs?: number;
     staleTimeoutMs?: number;
 }
@@ -59,11 +72,13 @@ export class AgentWorkTracker {
     private readonly workByTerminal = new Map<string, TerminalAgentWork>();
     private readonly resumeGraceMs: number;
     private readonly staleTimeoutMs: number;
+    private readonly onWaitingChange: (terminalId: string) => void;
 
     constructor(
         private readonly onDeferredParentFinished: (signal: AgentLifecycleSignal) => void,
         options: AgentWorkTrackerOptions = {},
     ) {
+        this.onWaitingChange = options.onWaitingChange ?? (() => {});
         this.resumeGraceMs = Math.max(0, options.resumeGraceMs ?? DEFAULT_RESUME_GRACE_MS);
         this.staleTimeoutMs = Math.max(
             1,
@@ -98,6 +113,7 @@ export class AgentWorkTracker {
             const deferredParentFinish = work.deferredParentFinish;
             this.workByTerminal.delete(terminalId);
             this.onDeferredParentFinished(deferredParentFinish);
+            this.onWaitingChange(terminalId);
         }, this.resumeGraceMs);
         timeout.unref();
         work.resumeTimeout = timeout;
@@ -107,24 +123,34 @@ export class AgentWorkTracker {
         const staleBefore = Date.now() - this.staleTimeoutMs;
         for (const [agentId, lastEvidenceAt] of work.activeSubagents)
             if (lastEvidenceAt <= staleBefore) work.activeSubagents.delete(agentId);
+        if (work.backgroundEvidenceAt !== undefined && work.backgroundEvidenceAt <= staleBefore)
+            work.backgroundEvidenceAt = undefined;
+    }
+
+    private hasPendingWork(work: TerminalAgentWork): boolean {
+        return work.activeSubagents.size > 0 || work.backgroundEvidenceAt !== undefined;
     }
 
     private armStaleTimeout(terminalId: string, work: TerminalAgentWork): void {
         this.clearStaleTimeout(work);
-        if (!work.deferredParentFinish || work.activeSubagents.size === 0) return;
-        const oldestEvidenceAt = Math.min(...work.activeSubagents.values());
+        if (!work.deferredParentFinish || !this.hasPendingWork(work)) return;
+        const oldestEvidenceAt = Math.min(
+            ...work.activeSubagents.values(),
+            work.backgroundEvidenceAt ?? Infinity,
+        );
         const delay = Math.max(0, oldestEvidenceAt + this.staleTimeoutMs - Date.now());
         const timeout = setTimeout(() => {
             work.staleTimeout = undefined;
             if (this.workByTerminal.get(terminalId) !== work || !work.deferredParentFinish) return;
             this.pruneStaleSubagents(work);
-            if (work.activeSubagents.size > 0) {
+            if (this.hasPendingWork(work)) {
                 this.armStaleTimeout(terminalId, work);
                 return;
             }
             const deferredParentFinish = work.deferredParentFinish;
             this.workByTerminal.delete(terminalId);
             this.onDeferredParentFinished(deferredParentFinish);
+            this.onWaitingChange(terminalId);
         }, delay);
         timeout.unref();
         work.staleTimeout = timeout;
@@ -159,7 +185,40 @@ export class AgentWorkTracker {
         if (!work) return;
         this.clearTimeouts(work);
         work.deferredParentFinish = undefined;
+        work.backgroundEvidenceAt = undefined;
         if (work.activeSubagents.size === 0) this.workByTerminal.delete(terminalId);
+    }
+
+    /**
+     * Defers a main finish the provider reported with untracked background work still running. A later finish without
+     * that report while nothing tracked remains means the work drained without the Agent resuming yet, so it gets the
+     * same resume window as the last tracked child stopping.
+     */
+    private deferOnBackgroundEvidence(signal: AgentLifecycleSignal): boolean {
+        let work = this.workByTerminal.get(signal.terminalId);
+        if (signal.agentBackgroundWork) {
+            if (!work) {
+                work = { activeSubagents: new Map() };
+                this.workByTerminal.set(signal.terminalId, work);
+            }
+            const finish = { ...signal };
+            delete finish.agentBackgroundWork;
+            work.deferredParentFinish = finish;
+            work.backgroundEvidenceAt = Date.now();
+            this.clearResumeTimeout(work);
+            this.armStaleTimeout(signal.terminalId, work);
+            return true;
+        }
+        if (
+            !work?.deferredParentFinish ||
+            work.backgroundEvidenceAt === undefined ||
+            work.activeSubagents.size > 0
+        )
+            return false;
+        work.backgroundEvidenceAt = undefined;
+        this.clearStaleTimeout(work);
+        this.armResumeTimeout(signal.terminalId, work);
+        return true;
     }
 
     private deferParentFinish(signal: AgentLifecycleSignal): boolean {
@@ -192,7 +251,7 @@ export class AgentWorkTracker {
         return 'subagentPending';
     }
 
-    observe(signal: AgentLifecycleSignal): AgentWorkObservation {
+    private observeSignal(signal: AgentLifecycleSignal): AgentWorkObservation {
         if (signal.phase === 'subagentStarted')
             return { deferCompletion: false, outcome: this.subagentStarted(signal) };
         /**
@@ -210,16 +269,42 @@ export class AgentWorkTracker {
                 ?.agentTurnId;
             this.parentStarted(signal.terminalId);
             return { deferCompletion: false, continuedTurnId };
+        } else if (signal.phase === 'turnFailed') {
+            // A main turn failing after the deferred Stop supersedes it, so a later release cannot overwrite the failure.
+            this.parentStarted(signal.terminalId);
         }
         return {
-            deferCompletion: signal.phase === 'turnFinished' && this.deferParentFinish(signal),
+            deferCompletion:
+                signal.phase === 'turnFinished' &&
+                (this.deferOnBackgroundEvidence(signal) || this.deferParentFinish(signal)),
         };
     }
 
+    observe(signal: AgentLifecycleSignal): AgentWorkObservation {
+        const wasWaiting = this.isWaitingOnBackground(signal.terminalId);
+        const observation = this.observeSignal(signal);
+        if (wasWaiting !== this.isWaitingOnBackground(signal.terminalId))
+            this.onWaitingChange(signal.terminalId);
+        return observation;
+    }
+
+    /**
+     * Whether the main turn ended and its completion is waiting on background work.
+     */
+    isWaitingOnBackground(terminalId: string): boolean {
+        return this.workByTerminal.get(terminalId)?.deferredParentFinish !== undefined;
+    }
+
+    operation(terminalId: string): AgentOperation | undefined {
+        return this.isWaitingOnBackground(terminalId) ? 'background' : undefined;
+    }
+
     forget(terminalId: string): void {
+        const wasWaiting = this.isWaitingOnBackground(terminalId);
         const work = this.workByTerminal.get(terminalId);
         if (work) this.clearTimeouts(work);
         this.workByTerminal.delete(terminalId);
+        if (wasWaiting) this.onWaitingChange(terminalId);
     }
 
     clear(): void {

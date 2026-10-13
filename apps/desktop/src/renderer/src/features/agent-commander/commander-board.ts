@@ -219,7 +219,11 @@ export function commanderRowPresentation(
         };
     const isLive =
         activityState === 'running' || (isAgentAlive && agent.operation === 'compacting');
-    const glyph = isLive ? 'spinner' : GLYPH_BY_STATE[activityState];
+    const glyph = isLive
+        ? agent?.operation === 'background'
+            ? 'background'
+            : 'spinner'
+        : GLYPH_BY_STATE[activityState];
     const tone: SessionActivityPresentation['tone'] = isLive
         ? 'neutral'
         : row.group === 'attention' && row.hasUnread

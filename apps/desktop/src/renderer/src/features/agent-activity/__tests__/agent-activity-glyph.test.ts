@@ -80,6 +80,24 @@ describe('agentActivityGlyph', () => {
         });
     });
 
+    it('draws a turn waiting on background work as the quiet running glyph', () => {
+        const terminal = {
+            agentOperation: 'background',
+            id: 'terminal-background-one',
+            kind: 'claude',
+            lastProcessState: 'running',
+            sessionId: 'background-one',
+        } as TerminalRecord;
+        expect(
+            glyphOf(session('background-one', { lastActivityState: 'running' }), [terminal]),
+        ).toMatchObject({
+            groupId: 'working',
+            id: 'background',
+            label: 'In background',
+            toneClassName: 'text-muted',
+        });
+    });
+
     it('reads an unread row by why it is unread, not by what its Agent is doing now', () => {
         /*
          * The commonest attention row of all: a turn that finished. Its own `statusPresentation` tone is `neutral`,
