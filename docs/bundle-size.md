@@ -17,7 +17,7 @@ legitimately needs more bytes.
 | `Resources/server`        | ~137.6 MiB | Pinned runtime (~121 MiB), native dependencies, bundles, extensions       |
 | `app.asar`                | ~116.8 MiB | Desktop Main, Preload, and Renderer bundles plus their source maps        |
 | `out/renderer`            | ~113.2 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), Mermaid, fonts, vscode-icons, maps |
-| `out/main`                | ~4.06 MiB  | Electron Desktop Main only (measured 2026-10)                             |
+| `out/main`                | ~5.02 MiB  | Electron Desktop Main only (measured 2026-10)                             |
 | `out/preload`             | ~48 KiB    | Sandboxed preload bundles                                                 |
 | `apps/server/dist/server` | ~137.6 MiB | Byte-identical source of the embedded Server artifact                     |
 
@@ -55,12 +55,14 @@ can encounter any file or folder name in a user's project at runtime, so there i
 subset to tree-shake, and shipping the complete set is what makes icons match VS Code's
 vscode-icons extension.
 
-Desktop Main grew from ~3.0 MiB to 4.06 MiB (4,261,667 B, 2026-10) across many features rather
-than through one regression, so its budget was raised from 4 MiB to 5 MiB. About 67% of `out/main`
-is source maps, and their `sourcesContent` alone is ~2 MB; the JavaScript (~1.4 MB) is not minified.
-The largest bundled sources are `zod`, the `ws` transport, and `jsonc-parser`, plus the
-`@caxri/protocol` build output. Minifying Main was considered and deferred: packaged Main stack
-traces would then need source-map support (`process.setSourceMapsEnabled` or
+Desktop Main first grew from ~3.0 MiB to 4.06 MiB across many features, which raised its budget from
+4 MiB to 5 MiB. Later cumulative growth reached 5.02 MiB (5,267,964 B, 2026-10), so the ceiling is
+now 6 MiB, about 19% above the measured baseline. A comparison against the previous main build
+confirmed that Source Map flavoring does not duplicate bundles: one flavor is built at a time.
+About 67% of `out/main` is source maps, and their `sourcesContent` alone is ~2.47 MiB; the JavaScript
+(~1.68 MiB) is not minified. The largest bundled sources are `zod`, the `ws` transport, and
+`jsonc-parser`, plus the `@caxri/protocol` build output. Minifying Main was considered and deferred:
+packaged Main stack traces would then need source-map support (`process.setSourceMapsEnabled` or
 `--enable-source-maps`) to stay readable. Dropping `sourcesContent` would contradict the
 debuggable-without-rebuild goal above.
 
