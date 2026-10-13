@@ -31,6 +31,7 @@ import { archiveSession } from '../session/session-archive-commands';
 import {
     deleteSession,
     openProjectInExternalEditor,
+    openSession,
     openSessionPullRequest,
     setSessionPinned,
 } from '../session/session-commands';
@@ -41,6 +42,7 @@ import {
     terminalSurfaceMenuEntry,
 } from '../terminal/terminal-surface-commands';
 import { getActivePaneTab } from '../workbench/pane-actions';
+import { resolveSessionCreator } from './session-creator';
 import { canSuggestSessionTitle } from './session-rename-draft';
 
 /**
@@ -115,6 +117,7 @@ export function SessionRowMenu({
                      * Session row in the tree.
                      */
                     terminals: getBootstrap()?.terminals ?? [],
+                    sessions: getBootstrap()?.sessions ?? [],
                 })
             }
         >
@@ -178,6 +181,7 @@ async function sessionRowMenu({
     project,
     pullRequest,
     session,
+    sessions,
     terminals,
 }: {
     onBeginRename?: () => void;
@@ -186,6 +190,7 @@ async function sessionRowMenu({
     project: Pick<ProjectRecord, 'id' | 'rootPath'>;
     pullRequest?: SessionPullRequest;
     session: SessionRecord;
+    sessions: SessionRecord[];
     terminals: TerminalRecord[];
 }): Promise<ContextMenuEntries> {
     const pinned = isPinnedSession(session);
@@ -210,6 +215,11 @@ async function sessionRowMenu({
      * the selected one never advertises a chord that would act somewhere else.
      */
     const isPrimaryTerminalActive = isActiveTerminal(primaryTerminal?.id);
+    /**
+     * The keyboard route to the detail card's "Created by" link, offered only for a creating Session the user can open
+     * as it is: navigating must not restore an archived one.
+     */
+    const creator = resolveSessionCreator(session, sessions, undefined);
     const [isAutoAllowGranted, isResumable, isManaged] = await Promise.all([
         isPermissionAutoAllowGranted(session.id),
         isAgentConversationResumable(primaryTerminal),
@@ -308,6 +318,10 @@ async function sessionRowMenu({
             label: translate('primarySidebar.sessionMenu.openProjectInEditor'),
             shortcut: readCommandShortcut('project.openInEditor'),
             onSelect: () => openProjectInExternalEditor(project, session.id),
+        },
+        creator?.kind === 'session' && {
+            label: translate('primarySidebar.sessionMenu.goToCreatingSession'),
+            onSelect: () => openSession(creator.session.id),
         },
         pullRequest && {
             label: translate('primarySidebar.sessionMenu.openPullRequest', {

@@ -8,18 +8,21 @@ import type { CaxriDatabase } from '../db';
  * worktree Project never owns a Session of its own. The caller announces the change.
  *
  * A title names the Session manually: its Agent has not started, so there is no native session to rename, and automatic
- * naming would only replace the caller's subject with a name taken from the task-file pointer.
+ * naming would only replace the caller's subject with a name taken from the task-file pointer. `createdBySessionId`
+ * records the Session whose Agent asked for it, which later lets that Agent manage it.
  */
 export function createBackgroundSession(
     database: Pick<CaxriDatabase, 'createSession' | 'listVisibleProjects' | 'renameSession'>,
     projectId: string,
     title?: string,
+    createdBySessionId?: string,
 ): string {
     const project = database.listVisibleProjects().find((candidate) => candidate.id === projectId);
     if (!project || !isTopLevelProject(project))
         throw new CaxriError('NOT_FOUND', 'Project is unavailable for a new Session');
     const { session } = database.createSession(projectId, null, undefined, {
         selection: 'preserve',
+        ...(createdBySessionId && { createdBySessionId }),
     });
     if (title) database.renameSession(session.id, title);
     return session.id;

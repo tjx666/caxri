@@ -30,7 +30,7 @@ export function createCommanderSession(
             'CAPACITY',
             `Agent Commander already owns ${MAX_COMMANDER_SESSIONS} Sessions; delete finished ones to create more`,
         );
-    const sessionId = createBackgroundSession(database, projectId, title);
+    const sessionId = createBackgroundSession(database, projectId, title, rows.sessionId);
     database.setAppState('agentCommander', {
         projectId: rows.projectId,
         sessionId: rows.sessionId,

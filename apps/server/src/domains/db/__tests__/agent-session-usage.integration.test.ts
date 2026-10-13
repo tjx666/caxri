@@ -126,10 +126,11 @@ describe('Agent Session usage ledger', () => {
             database.close();
             const raw = new Database(path);
             for (const table of [...drop, ...laterTables]) raw.exec(`DROP TABLE ${table}`);
-            // `0006_chat_permission_modes` added these columns later still.
+            // `0006_chat_permission_modes` and `0008_session_creator` added these columns later still.
             raw.exec(
                 'ALTER TABLE projects DROP COLUMN chat_defaults; ALTER TABLE terminals DROP COLUMN chat_permission_mode; ALTER TABLE terminals DROP COLUMN chat_plan_mode',
             );
+            raw.exec('ALTER TABLE sessions DROP COLUMN created_by_session_id');
             raw.pragma(`user_version = ${from}`);
             raw.close();
 

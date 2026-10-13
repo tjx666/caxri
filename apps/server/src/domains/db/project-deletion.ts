@@ -3,6 +3,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabaseConnection } from './database-connection';
 import { moveSelectionOffProjects } from './project-visibility';
+import { clearDeletedSessionCreators } from './session-creator';
 
 /**
  * Every Project id a deletion of `projectId` removes: the Project itself plus the worktree Projects registered on its
@@ -55,5 +56,6 @@ export function deleteProjectMetadata(database: CaxriDatabaseConnection, project
         database.sessions.resetWorkbenchProject(cascadedProjectId);
     if (!database.projects.remove(projectId))
         throw new CaxriError('NOT_FOUND', 'Project not found');
+    clearDeletedSessionCreators(database);
     moveSelectionOffProjects(database, cascadedProjectIds);
 }

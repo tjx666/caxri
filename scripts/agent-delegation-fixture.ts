@@ -12,6 +12,12 @@ const net = require('node:net');
 const { createHash, randomUUID } = require('node:crypto');
 const provider = ${JSON.stringify(provider)};
 if (process.argv.includes('--version')) { console.log(provider === 'claude' ? '2.1.266 (Claude Code)' : provider === 'grok' ? 'grok 1.0.24' : 'codex-cli 0.153.4'); process.exit(0); }
+// Renaming a Session also renames its Claude conversation through a one-shot "--resume <id> ... /rename <title>" call.
+const renameCommand = process.argv.at(-1) ?? '';
+if (provider === 'claude' && process.argv.includes('--resume') && renameCommand.startsWith('/rename ')) {
+  process.stdout.write(JSON.stringify({ is_error: false, result: 'Session renamed to: ' + renameCommand.slice('/rename '.length), session_id: process.argv[process.argv.indexOf('--resume') + 1], subtype: 'success', type: 'result' }));
+  process.exit(0);
+}
 process.stdin.setRawMode?.(true);
 process.stdin.resume();
 const isResume = process.argv.includes(provider !== 'codex' ? '--resume' : 'resume');

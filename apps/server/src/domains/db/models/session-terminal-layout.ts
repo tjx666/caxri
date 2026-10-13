@@ -1,5 +1,11 @@
 import type { PaneLayout } from '@caxri/protocol';
-import { addPaneTerminalSilently, listPaneTerminalIds, removePaneTerminal } from '@caxri/protocol';
+import {
+    addPaneTerminalSilently,
+    createPaneLayout,
+    listPaneTerminalIds,
+    openResource,
+    removePaneTerminal,
+} from '@caxri/protocol';
 
 /**
  * Terminal ownership is authoritative over a Renderer layout assembled earlier. Pruning prevents a stale write from
@@ -50,4 +56,14 @@ export function resolveSessionPaneLayout(
             return reconcileOwnedTerminalTabs(stored, terminalIds);
     }
     return reconcileOwnedTerminalTabs(incoming, terminalIds);
+}
+
+/**
+ * The layout a Session without a stored one opens with: each owned Terminal as a tab in one pane.
+ */
+export function defaultSessionPaneLayout(terminalIds: readonly string[]): PaneLayout {
+    return terminalIds.reduce(
+        (layout, terminalId) => openResource(layout, { kind: 'terminal', terminalId }),
+        createPaneLayout(),
+    );
 }

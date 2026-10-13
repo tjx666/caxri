@@ -161,6 +161,11 @@ export const sessionRecordSchema = z.object({
      */
     pinnedOrder: z.number().int().optional(),
     /**
+     * The Session whose Agent created this one. Absent for a Session the user created, forked, or split off, and
+     * cleared when the creating Session is deleted.
+     */
+    createdBySessionId: identifierSchema.optional(),
+    /**
      * The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty.
      */
     primaryAgentTerminalId: identifierSchema.optional(),

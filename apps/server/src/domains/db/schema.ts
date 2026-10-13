@@ -202,6 +202,14 @@ export const sessions = sqliteTable(
         lastAttentionKind: text('last_attention_kind'),
         displayTitle: text('display_title').notNull(),
         titleMode: text('title_mode').notNull().default('automatic'),
+        /**
+         * The Session whose Agent created this one through `agent delegate create --new-session` or `commander session
+         * create`, written by Server Core in the creating transaction and never by a caller. Agents in that Session may
+         * rename, archive, and restore it; the user sees where it came from. A user's own Session, fork, or moved
+         * Terminal never has one. Deleting the creating Session clears it in the same transaction; it is not a foreign
+         * key because SQLite cannot drop a foreign-key column, which the migration tests' downgrades rely on.
+         */
+        createdBySessionId: text('created_by_session_id'),
         automaticNaming: text('automatic_naming', { mode: 'json' }).$type<{
             agentSessionId: string;
             terminalId: string;

@@ -1,10 +1,13 @@
 import type {
+    AgentSessionOperation,
     CommandExecutionContext,
     ServerOperationRequest,
     ServerRequest,
 } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
 import type { AgentEndpointRegistry } from './agent-endpoints/registry';
+import type { MobileAccessController } from './mobile/access-controller-contract';
 import { assertProjectScope } from './principal-project-scope';
 import { dispatchIdFor } from './request-cancellation';
 
@@ -121,5 +124,68 @@ export function agentCommandRequest(
                 ? 'agent.delegation.statusInternal'
                 : 'agent.delegation.resultInternal',
         params: { ...authority, delegationId: request.params.delegationId },
+    };
+}
+
+type AgentControlRequest = Extract<
+    ServerRequest,
+    { method: 'agent.control.interrupt' | 'agent.control.stop' }
+>;
+
+/**
+ * A paired device may interrupt an Agent it can reach but never stop its process; every caller stays inside the target
+ * Endpoint's Project.
+ */
+export function agentControlRequest(
+    request: AgentControlRequest,
+    context: CommandExecutionContext,
+    endpoints: AgentEndpointRegistry,
+    mobileAccess: Pick<MobileAccessController, 'authorizePairedDeviceMethod'>,
+): ServerOperationRequest {
+    if (context.principal.kind === 'paired-device') {
+        if (request.method !== 'agent.control.interrupt')
+            throw new CaxriError('FORBIDDEN', 'Mobile device cannot stop Agent process');
+        mobileAccess.authorizePairedDeviceMethod(context.principal, request.method);
+    }
+    const endpoint = endpoints.resolve(request.params.endpoint);
+    assertProjectScope(context, endpoint.projectId);
+    return {
+        method:
+            request.method === 'agent.control.interrupt'
+                ? 'agent.control.interruptInternal'
+                : 'agent.control.stopInternal',
+        params: request.params,
+    };
+}
+
+type AgentSessionRequest = Extract<
+    ServerRequest,
+    { method: 'agent.session.rename' | 'agent.session.archive' | 'agent.session.unarchive' }
+>;
+
+/**
+ * Binds a Session management request to the caller's authenticated Terminal. Admission (which Sessions this caller
+ * created) belongs to the session domain, so no Project scope is checked here: the target may sit in any Project the
+ * user added, like the delegation that created it.
+ */
+export function agentSessionRequest(
+    request: AgentSessionRequest,
+    context: CommandExecutionContext,
+    endpoints: AgentEndpointRegistry,
+): ServerOperationRequest {
+    if (context.principal.kind !== 'agent')
+        throw new CaxriError('FORBIDDEN', 'Only an Agent manages the Sessions its Session created');
+    const operation: AgentSessionOperation =
+        request.method === 'agent.session.rename'
+            ? { action: 'rename', title: request.params.title }
+            : { action: request.method === 'agent.session.archive' ? 'archive' : 'unarchive' };
+    return {
+        method: 'agent.session.manageInternal',
+        params: {
+            principal: context.principal,
+            callerTerminalId: endpoints.context(context).endpoint.terminalId,
+            sessionId: request.params.sessionId,
+            operation,
+        },
     };
 }

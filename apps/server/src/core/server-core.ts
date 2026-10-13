@@ -24,7 +24,12 @@ import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri
 
 import { createServerDomainService } from '../core/create-domain-service';
 import { warmServerExecutablePath } from '../domains/executables';
-import { agentCommandRequest, agentCurrentQuery } from './agent-command-request';
+import {
+    agentCommandRequest,
+    agentControlRequest,
+    agentCurrentQuery,
+    agentSessionRequest,
+} from './agent-command-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { retireEndpointsForOperation } from './agent-endpoints/retire-for-operation';
@@ -52,7 +57,7 @@ import {
     resolveMobileAgentEndpoint,
 } from './mobile';
 import { MutationAdmission } from './mutation-admission';
-import { assertOwnerHandover, assertProjectScope, projectScope } from './principal-project-scope';
+import { assertOwnerHandover, projectScope } from './principal-project-scope';
 import { acquireServerProfile } from './profile';
 import { createServerRecoveryJournal, serverRecoverySnapshot } from './recovery-journal';
 import {
@@ -337,25 +342,16 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     }
                 }
                 case 'agent.control.interrupt':
-                case 'agent.control.stop': {
-                    if (context.principal.kind === 'paired-device') {
-                        if (request.method !== 'agent.control.interrupt')
-                            throw new CaxriError(
-                                'FORBIDDEN',
-                                'Mobile device cannot stop Agent process',
-                            );
-                        mobileAccess.authorizePairedDeviceMethod(context.principal, request.method);
-                    }
-                    const endpoint = agentEndpoints.resolve(request.params.endpoint);
-                    assertProjectScope(context, endpoint.projectId);
-                    return forwardDomainOperation({
-                        method:
-                            request.method === 'agent.control.interrupt'
-                                ? 'agent.control.interruptInternal'
-                                : 'agent.control.stopInternal',
-                        params: request.params,
-                    });
-                }
+                case 'agent.control.stop':
+                    return forwardDomainOperation(
+                        agentControlRequest(request, context, agentEndpoints, mobileAccess),
+                    );
+                case 'agent.session.rename':
+                case 'agent.session.archive':
+                case 'agent.session.unarchive':
+                    return forwardDomainOperation(
+                        agentSessionRequest(request, context, agentEndpoints),
+                    );
                 case 'terminal.send': {
                     if (context.principal.kind === 'paired-device')
                         throw new CaxriError(

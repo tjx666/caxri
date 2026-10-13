@@ -56,9 +56,15 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
         /**
          * Creates an empty Session in a visible top-level Project and returns its ID. A title names it manually, so
          * automatic naming never replaces it. The Agent Commander's Session is also recorded as its own, which is what
-         * admits its later delegations there.
+         * admits its later delegations there. `createdBySessionId` is an ordinary Agent caller's own Session, recorded
+         * as the new Session's creator.
          */
-        create(projectId: string, title: string | undefined, isCommander: boolean): string;
+        create(
+            projectId: string,
+            title: string | undefined,
+            isCommander: boolean,
+            createdBySessionId?: string,
+        ): string;
         /**
          * Removes a Session the delegation just created but never used. Metadata only.
          */
