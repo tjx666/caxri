@@ -47,6 +47,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
 
 interface Scenario {
     deselectedAt?: number;
+    isChatSuspendable?: boolean;
     isObservedRemotely?: boolean;
     sample?: TerminalActivitySample;
     selectedSessionId?: string;
@@ -60,6 +61,7 @@ function decide(scenario: Scenario = {}) {
     const sessionRecord = 'session' in scenario ? scenario.session : session();
     return decideTerminalSuspensions({
         deselectedAt: () => scenario.deselectedAt,
+        isChatSuspendable: () => scenario.isChatSuspendable ?? false,
         isObservedRemotely: () => scenario.isObservedRemotely ?? false,
         now: NOW,
         sample: () => scenario.sample,
@@ -228,6 +230,28 @@ describe('decideTerminalSuspensions: idle rule', () => {
                 deselectedAt: NOW - halfHour,
                 sample: idleSample,
                 settings: { ...idleOn, 'terminal.idleSuspension.afterMinutes': 120 },
+            }),
+        ).toEqual([]);
+    });
+
+    it('parks an idle background Chat, on any provider, only when the Chat itself reports nothing pending', () => {
+        const chat = (provider: TerminalRecord['provider']) =>
+            terminal({ kind: provider, provider, surface: 'chat' });
+        const idleChat = { deselectedAt: NOW - halfHour, sample: idleSample, settings: idleOn };
+
+        expect(decide({ ...idleChat, terminal: chat('grok'), isChatSuspendable: true })).toEqual([
+            { reason: 'idle', terminalId: 'terminal-1' },
+        ]);
+        expect(decide({ ...idleChat, terminal: chat('codex'), isChatSuspendable: false })).toEqual(
+            [],
+        );
+        // The untouched rule judges launch and input samples a Chat never records.
+        expect(
+            decide({
+                deselectedAt: NOW - UNTOUCHED_SUSPENSION_DELAY_MS,
+                sample: untouchedSample,
+                terminal: chat('codex'),
+                isChatSuspendable: true,
             }),
         ).toEqual([]);
     });

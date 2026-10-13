@@ -32,12 +32,12 @@ export const editor = {
     'editor.reviewSend.sendToAgentOther': 'Send {{count}} comments to Agent',
     'editor.reviewSend.dialogTitle': 'Send review comments to Agent',
     'editor.reviewSend.dialogDescription':
-        "Review the text before sending it to the current Session's Agent Terminal.",
+        "Review the text before sending it to the current Session's Agent.",
     'editor.reviewSend.promptPreview': 'Review comment prompt preview',
     'editor.reviewSend.sending': 'Sending…',
     'editor.reviewSend.sendOne': 'Send {{count}} comment',
     'editor.reviewSend.sendOther': 'Send {{count}} comments',
-    'editor.reviewSend.noAgentTerminal': 'No running Agent Terminal in this Session',
+    'editor.reviewSend.noAgentTerminal': 'No Agent in this Session',
     'editor.reviewSend.agentNotReady': 'Agent Terminal is not ready for input',
     'editor.reviewSend.failed': 'Unable to send review comments',
 

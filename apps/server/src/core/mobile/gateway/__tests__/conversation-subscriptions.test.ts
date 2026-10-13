@@ -60,4 +60,27 @@ describe('mobile Conversation subscription', () => {
         subscriptions.close();
         expect(close).toHaveBeenCalledOnce();
     });
+
+    it('holds an Agent Chat watch for the subscription and releases it once', async () => {
+        const close = vi.fn();
+        const beginAgentChat = vi.fn(() => Promise.resolve(close));
+        const subscriptions = new MobileGatewaySubscriptions({
+            authorize: () => Promise.resolve(),
+            beginAgentChat,
+            connectionId: 'connection-fixture',
+            currentPrincipal: () => principal,
+            matches: () => Promise.resolve(true),
+            randomId: () => 'subscription-fixture',
+            send: vi.fn(() => Promise.resolve()),
+            terminate: vi.fn(),
+        });
+        const id = await subscriptions.subscribe({
+            kind: 'agentChat',
+            terminalId: 'terminal-fixture',
+        });
+        expect(beginAgentChat).toHaveBeenCalledWith(principal, 'terminal-fixture');
+        subscriptions.unsubscribe(id);
+        subscriptions.close();
+        expect(close).toHaveBeenCalledOnce();
+    });
 });

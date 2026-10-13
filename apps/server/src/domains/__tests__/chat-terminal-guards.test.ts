@@ -202,10 +202,16 @@ describe('Chat Terminal PTY guards', () => {
         );
     });
 
-    it('compaction reports a Chat Terminal as unsupported without typing into it', async () => {
+    it('compaction never types into a Chat Terminal nor wakes a stopped one', async () => {
         const f = await fixture();
         const readTranscript = vi.fn();
+        const agentChat = {
+            compactIdle: vi.fn<(terminalId: string, launchId: string) => Promise<void>>(),
+            idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(),
+            isLive: vi.fn(() => false),
+        };
         const service = new SessionCompaction({
+            agentChat,
             database: f.database,
             readiness: new CompactionReadiness(),
             terminals: f.terminals,
@@ -214,10 +220,11 @@ describe('Chat Terminal PTY guards', () => {
             readTranscript,
         });
         expect(await service.run()).toEqual({
-            items: [{ sessionId: f.session.id, outcome: 'unsupported' }],
+            items: [{ sessionId: f.session.id, outcome: 'not_running' }],
             deferred: 0,
         });
         expect(f.sideEffects.writeAgentExact).not.toHaveBeenCalled();
+        expect(agentChat.compactIdle).not.toHaveBeenCalled();
         expect(readTranscript).not.toHaveBeenCalled();
     });
 

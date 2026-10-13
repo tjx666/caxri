@@ -465,6 +465,20 @@ export const mobileInternalMethods = {
         params: z.strictObject({ terminalId: identifierSchema }),
         result: z.null(),
     },
+    /**
+     * Holds an Agent Chat open for a phone subscription so idle suspension leaves it running. Core authorizes the
+     * Terminal against the device grant before calling it.
+     */
+    'mobile.chatWatch.watchInternal': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({ terminalId: identifierSchema }),
+        result: z.null(),
+    },
+    'mobile.chatWatch.unwatchInternal': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({ terminalId: identifierSchema }),
+        result: z.null(),
+    },
     'mobile.agent.availabilityInternal': {
         ...commandPolicy('server', 'read'),
         params: z.strictObject({ projectId: identifierSchema, principal: principalSchema }),

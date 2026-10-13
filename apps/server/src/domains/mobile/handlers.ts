@@ -9,6 +9,7 @@ import {
     MOBILE_FILES_READ_MAX_BYTES,
 } from '@caxri/protocol';
 
+import type { AgentChatService } from '../agent-chat';
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type {
     AgentTimelineService,
@@ -53,6 +54,8 @@ type MobileDomainMethods = Pick<
     | 'mobile.timeline.readInternal'
     | 'mobile.timeline.watchInternal'
     | 'mobile.timeline.unwatchInternal'
+    | 'mobile.chatWatch.watchInternal'
+    | 'mobile.chatWatch.unwatchInternal'
     | 'mobile.project.browse'
     | 'mobile.project.browseInternal'
     | 'mobile.project.add'
@@ -102,6 +105,10 @@ export function createMobileDomainHandlers(options: {
     terminals: TerminalManager;
     timeline: AgentTimelineService;
     transcripts: AgentTranscriptWatcher;
+    /**
+     * Counts phones watching each Agent Chat. Optional so a fixture that never subscribes to a Chat can omit it.
+     */
+    agentChat?: Pick<AgentChatService, 'unwatchMobile' | 'watchMobile'>;
 }): MobileDomainMethods {
     const attentionRequests = options.attentionRequests ?? new AgentAttentionRequests();
     const noAutoAllowGrant = (): PermissionAutoAllowStatus => ({ granted: false });
@@ -248,6 +255,14 @@ export function createMobileDomainHandlers(options: {
         },
         'mobile.timeline.unwatchInternal': ({ terminalId }) => {
             options.transcripts.unwatchMobile(terminalId);
+            return null;
+        },
+        'mobile.chatWatch.watchInternal': ({ terminalId }) => {
+            options.agentChat?.watchMobile(terminalId);
+            return null;
+        },
+        'mobile.chatWatch.unwatchInternal': ({ terminalId }) => {
+            options.agentChat?.unwatchMobile(terminalId);
             return null;
         },
         'mobile.project.browse': () => {

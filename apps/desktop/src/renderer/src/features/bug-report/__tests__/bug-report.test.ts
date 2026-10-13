@@ -5,10 +5,11 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '../../../i18n';
 import type { BugReportContext, BugReportDraft } from '../bug-report';
 import {
+    bugReportAgentTargets,
     bugReportImageDeliveryNotice,
     buildBugReport,
+    canAttachBugReportScreenshot,
     chooseBugReportTarget,
-    runningAgentTargets,
 } from '../bug-report';
 import type { ScreenshotAnnotation } from '../screenshot-annotations';
 import { ANNOTATION_NOTE_MAX_LENGTH, MAX_ANNOTATIONS } from '../screenshot-annotations';
@@ -195,11 +196,17 @@ describe('bug report target selection', () => {
             terminal('agent-idle', { lastAgentProcessState: 'stopped' }),
             terminal('exited', { processId: undefined, lastProcessState: 'stopped' }),
             terminal('foreign', { sessionId: 'session-2' }),
+            terminal('idle-chat', {
+                processId: undefined,
+                lastProcessState: 'stopped',
+                surface: 'chat',
+            }),
         ];
 
-        expect(runningAgentTargets(candidates, 'session-1').map((item) => item.id)).toEqual([
+        expect(bugReportAgentTargets(candidates, 'session-1').map((item) => item.id)).toEqual([
             'claude',
             'codex',
+            'idle-chat',
         ]);
         expect(
             chooseBugReportTarget(candidates, 'session-1', {
@@ -210,14 +217,14 @@ describe('bug report target selection', () => {
     });
 
     it('reports no live target when the Session has no running Agent Terminal', () => {
-        expect(runningAgentTargets([], 'session-1')).toEqual([]);
+        expect(bugReportAgentTargets([], 'session-1')).toEqual([]);
         expect(
-            runningAgentTargets([terminal('exited', { processId: undefined })], 'session-1'),
+            bugReportAgentTargets([terminal('exited', { processId: undefined })], 'session-1'),
         ).toEqual([]);
     });
 
     it('promises the saved file path for every Agent', () => {
-        const notice = bugReportImageDeliveryNotice(translate, 'claude');
+        const notice = bugReportImageDeliveryNotice(translate, { provider: 'claude' });
 
         expect(notice).toContain('saved to a temporary file');
         expect(notice).toContain('the Agent can open it');
@@ -225,10 +232,22 @@ describe('bug report target selection', () => {
     });
 
     it('discloses Codex clipboard-backed screenshot delivery before capture', () => {
-        const notice = bugReportImageDeliveryNotice(translate, 'codex');
+        const notice = bugReportImageDeliveryNotice(translate, { provider: 'codex' });
 
         expect(notice).toContain('saved to a temporary file');
         expect(notice).toContain('pasted into this Agent directly');
         expect(notice).toContain('replaces the system clipboard');
+    });
+
+    it('attaches the screenshot to a Chat whose provider accepts images, never via the clipboard', () => {
+        const notice = bugReportImageDeliveryNotice(translate, {
+            provider: 'codex',
+            surface: 'chat',
+        });
+
+        expect(notice).toContain('attached to the Chat message');
+        expect(notice).not.toContain('clipboard');
+        expect(canAttachBugReportScreenshot({ provider: 'grok', surface: 'chat' })).toBe(false);
+        expect(canAttachBugReportScreenshot({ provider: 'codex' })).toBe(false);
     });
 });

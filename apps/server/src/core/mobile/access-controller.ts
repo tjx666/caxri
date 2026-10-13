@@ -12,6 +12,7 @@ import { createMobileAccessPersistence } from './access-persistence';
 import { listMobileAgentActions, terminalForPrincipal } from './action-requests';
 import {
     agentChatTerminalProjectRoot,
+    beginMobileAgentChatWatch,
     invokeMobileAgentChatRequest,
     isMobileAgentChatRead,
     isMobileAgentChatRequest,
@@ -178,6 +179,12 @@ export const openMobileAccessController = async (options: {
                     authorizeSubscription(principal, resource, domainService),
                 agentChatProjectRoot: (principal, terminalId) =>
                     agentChatTerminalProjectRoot(
+                        domainService,
+                        currentPairedPrincipal(principal, 'mobile.agentChat.read'),
+                        terminalId,
+                    ),
+                beginAgentChatSubscription: (principal, terminalId) =>
+                    beginMobileAgentChatWatch(
                         domainService,
                         currentPairedPrincipal(principal, 'mobile.agentChat.read'),
                         terminalId,

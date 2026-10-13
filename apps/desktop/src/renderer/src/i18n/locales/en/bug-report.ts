@@ -8,7 +8,7 @@ export const bugReport = {
 
     // Form
     'bugReport.form.noRunningAgent':
-        'No running Agent in this Session — you can still copy the report to paste manually.',
+        'No running Agent or Agent Chat in this Session. You can still copy the report to paste manually.',
     'bugReport.form.actualLabel': 'Actual behavior',
     'bugReport.form.actualPlaceholder': 'What happened?',
     'bugReport.form.expectedLabel': 'Expected behavior',
@@ -37,6 +37,8 @@ export const bugReport = {
     // Image delivery notice
     'bugReport.imageDelivery.savedPath':
         'The screenshot is saved to a temporary file and its path is included in the report so the Agent can open it.',
+    'bugReport.imageDelivery.chatAttached':
+        'The screenshot is saved to a temporary file and its path is included in the report. It is also attached to the Chat message.',
     'bugReport.imageDelivery.pasted':
         'The screenshot is saved to a temporary file and its path is included in the report so the Agent can open it. It is also pasted into this Agent directly; sending replaces the system clipboard with the image.',
 
@@ -44,11 +46,11 @@ export const bugReport = {
     'bugReport.preview.unredactedNotice':
         'This screenshot is unredacted: it captures everything currently visible in the Caxri window, including open files and Terminal output.',
     'bugReport.preview.targetAgent': 'Target Agent',
-    'bugReport.preview.noRunningAgent': 'No running Agent in this Session',
+    'bugReport.preview.noRunningAgent': 'No running Agent or Agent Chat in this Session',
     'bugReport.preview.sessionChanged':
         'The selected Session changed. Copy the report or reopen this flow.',
     'bugReport.preview.noAgentAvailable':
-        'No running Agent is available. You can still copy the report.',
+        'No running Agent or Agent Chat is available. You can still copy the report.',
     'bugReport.preview.copyReport': 'Copy Report',
     'bugReport.preview.sending': 'Sending…',
     'bugReport.preview.sendToAgent': 'Send to Agent',
