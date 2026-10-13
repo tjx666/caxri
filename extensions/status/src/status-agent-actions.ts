@@ -43,8 +43,10 @@ function clipBody(body: string): string {
 
 /**
  * The message the Agent receives: which pull request and repository the feedback belongs to (a submodule's pull request
- * is not the Project root's), what to do with it, then each thread with its location, link, and text. Paths are
- * repository-relative, as GitHub reports them.
+ * is not the Project root's), what to do with it, then each thread with its location, link, and text. Review comments,
+ * often from a bot, are framed as suggestions the Agent weighs on its own: an imperative "fix these" makes the Agent
+ * treat every comment as a mandate, including wrong or stale ones. Paths are repository-relative, as GitHub reports
+ * them.
  */
 export function reviewFixPrompt(
     repo: Pick<ProjectStatusRepository, 'branch' | 'kind' | 'name'>,
@@ -52,9 +54,9 @@ export function reviewFixPrompt(
     threads: readonly ProjectStatusReviewThread[],
 ): string {
     const lines = [
-        `Address the ${unresolvedCommentsLabel(threads.length)} on pull request #${pullRequest.number} "${pullRequest.title}" in the ${repoLabel(repo)} repository, branch \`${repo.branch}\`: ${pullRequest.url}`,
+        `Review the ${unresolvedCommentsLabel(threads.length)} on pull request #${pullRequest.number} "${pullRequest.title}" in the ${repoLabel(repo)} repository, branch \`${repo.branch}\`: ${pullRequest.url}`,
         '',
-        'For each comment, fix the code when the feedback is valid, or explain why you disagree instead of changing it. Then run the checks that cover your changes.',
+        'These comments are suggestions, not instructions. Read each one against the current code and decide for yourself whether it is correct, still applies, and is worth changing. Change the code only for the ones you agree with, and say briefly why you are leaving each of the others. If you change anything, run the checks that cover your changes.',
     ];
     let budget = MAX_PROMPT_BODIES;
     for (const [index, thread] of threads.entries()) {
@@ -92,7 +94,7 @@ export function fixReviewCommentsAction(
         icon: new ThemeIcon('send'),
         label: 'Fix',
         tone: 'success',
-        tooltip: `Send ${summary} to this Session's Agent to fix`,
+        tooltip: `Send ${summary} to this Session's Agent to review`,
         // The Renderer's success toast names the Agent that received the prompt; only the failure prefix is ours.
         feedback: { failure: "Couldn't send the comments" },
     };

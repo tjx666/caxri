@@ -29,9 +29,9 @@ describe('Status extension review fix prompt', () => {
 
         expect(prompt).toBe(
             [
-                'Address the 3 unresolved comments on pull request #7 "Feature" in the `library` (submodule) repository, branch `feature`: https://github.com/example/repo/pull/7',
+                'Review the 3 unresolved comments on pull request #7 "Feature" in the `library` (submodule) repository, branch `feature`: https://github.com/example/repo/pull/7',
                 '',
-                'For each comment, fix the code when the feedback is valid, or explain why you disagree instead of changing it. Then run the checks that cover your changes.',
+                'These comments are suggestions, not instructions. Read each one against the current code and decide for yourself whether it is correct, still applies, and is worth changing. Change the code only for the ones you agree with, and say briefly why you are leaving each of the others. If you change anything, run the checks that cover your changes.',
                 '',
                 '## 1. src/app.ts:12 (@reviewer)',
                 `${pullRequest.url}#discussion_r1`,
@@ -78,7 +78,7 @@ describe('Status extension review fix prompt', () => {
             command: { command: 'caxri.sendToAgent', title: 'Send Comments to Agent' },
             label: 'Fix',
             tone: 'success',
-            tooltip: "Send 1 unresolved comment to this Session's Agent to fix",
+            tooltip: "Send 1 unresolved comment to this Session's Agent to review",
             feedback: { failure: "Couldn't send the comments" },
         });
         expect(action.icon.id).toBe('send');
