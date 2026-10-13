@@ -22,7 +22,7 @@ import {
 } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
-import { LoadingSkeleton } from '../../components/loading-skeleton';
+import { LoadingSkeleton, LoadingSkeletonScope } from '../../components/loading-skeleton';
 import { useResourceLoad } from '../../hooks/use-resource-load';
 import { translate, useTranslation } from '../../i18n';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
@@ -220,11 +220,17 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     );
 }
 
+/**
+ * One loading scope per pane: opening a file reads it and then waits for the editor module, and those two placeholders
+ * must read as one wait rather than a skeleton, a blank frame, and a second skeleton.
+ */
 export function EditorSurface({ paneId, path }: { paneId: string; path: string }) {
     return (
-        <EditorErrorBoundary resetKey={path}>
-            <EditorSurfaceContent paneId={paneId} path={path} />
-        </EditorErrorBoundary>
+        <LoadingSkeletonScope>
+            <EditorErrorBoundary resetKey={path}>
+                <EditorSurfaceContent paneId={paneId} path={path} />
+            </EditorErrorBoundary>
+        </LoadingSkeletonScope>
     );
 }
 
