@@ -433,6 +433,12 @@ export const serverEventPayloads = {
      * Renderer subscribes to events, so a window the request itself opened still receives it.
      */
     'agentCommander.inboxRequested': z.object({}),
+    /**
+     * Main-originated, Commander-window-only request to open the window's own Command Palette. The native menu owns the
+     * `commandPalette.open` accelerator, so the chord never reaches the focused Commander Renderer as a keydown; Main
+     * sends this to that window instead of dropping the shortcut or raising the Workbench.
+     */
+    'agentCommander.commandPaletteRequested': z.object({}),
 } as const;
 
 type ServerEventName = keyof typeof serverEventPayloads;

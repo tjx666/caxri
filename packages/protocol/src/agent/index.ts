@@ -25,6 +25,7 @@ export * from './agent-chat-usage.js';
 export * from './agent-chat-work.js';
 export * from './agent-chat-work-output.js';
 export * from './agent-commander-contract.js';
+export * from './agent-commander-data-contract.js';
 export * from './agent-commander-handover-contract.js';
 export * from './agent-commander-inbox-contract.js';
 export * from './agent-commander-inbox-presentation.js';

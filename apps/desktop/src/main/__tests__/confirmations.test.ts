@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    clearCommanderDataPrompt,
     deleteProjectPrompt,
     deleteSessionPrompt,
     deleteSessionsPrompt,
@@ -270,6 +271,35 @@ describe('bulk delete Sessions prompt', () => {
         expect(options.title).toBe('Delete Sessions');
         expect(options.message).toBe(message);
         expect(options.detail).toContain('Only Caxri metadata and snapshots are deleted.');
+        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.buttons![options.cancelId!]).toBe('Cancel');
+    });
+});
+
+describe('clear Commander data prompt', () => {
+    it.each([
+        [{ tasks: 'closed' as const }, '• Every finished task in the task ledger'],
+        [{ tasks: 'all' as const }, '• Every task in the task ledger'],
+        [{ tasks: ['task-1', 'task-2'] }, '• 2 tasks from the task ledger'],
+        [{ tasks: ['task-1'] }, '• 1 task from the task ledger'],
+        [
+            { memory: true },
+            '• Long-term memory, reset to the starting notes; AGENTS.md is rewritten to match',
+        ],
+    ])('names the tasks %o the confirmation deletes', (request, line) => {
+        expect(clearCommanderDataPrompt(request).detail?.split('\n', 1)[0]).toBe(line);
+    });
+
+    it('lists only what was ticked and keeps Cancel as the default and Escape target', () => {
+        const options = clearCommanderDataPrompt({ inbox: true, conversation: true });
+        expect(options.detail).toBe(
+            [
+                '• Every Needs you item and reply',
+                '• The current conversation; the Commander starts over',
+                '',
+                'This cannot be undone. Projects, Sessions, and the work running in them are not affected.',
+            ].join('\n'),
+        );
         expect(options.buttons![options.defaultId!]).toBe('Cancel');
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });

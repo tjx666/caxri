@@ -162,6 +162,41 @@ describe('application menu', () => {
             expect(dispatchCommand).toHaveBeenCalledWith('settings.open', true);
         });
 
+        it('opens the palette of the focused window that has one instead of the Workbench palette', () => {
+            const dispatchCommand = vi.fn();
+            const openWindowCommandPalette = vi.fn((window: BaseWindow) =>
+                Object.is(window, commander),
+            );
+            const template = buildAppMenuTemplate({
+                keybindings: defaultKeybindings,
+                dispatchCommand,
+                openAgentCommander: vi.fn(),
+                openBenchmark: vi.fn(),
+                openProcessExplorer: vi.fn(),
+                workbenchWindow: () => workbench as BaseWindow,
+                focusWorkbench,
+                isFollowingAppZoom: () => false,
+                openWindowCommandPalette,
+            });
+            const item = submenu(template, 'View').find(
+                (candidate) => candidate.id === 'command.commandPalette.open',
+            );
+            const processExplorer = {};
+
+            item?.click?.({} as MenuItem, commander as unknown as BaseWindow, {
+                triggeredByAccelerator: true,
+            });
+            expect(dispatchCommand).not.toHaveBeenCalled();
+            expect(focusWorkbench).not.toHaveBeenCalled();
+
+            item?.click?.({} as MenuItem, processExplorer as BaseWindow, {
+                triggeredByAccelerator: false,
+            });
+            expect(openWindowCommandPalette).toHaveBeenCalledTimes(2);
+            expect(focusWorkbench).toHaveBeenCalledOnce();
+            expect(dispatchCommand).toHaveBeenCalledExactlyOnceWith('commandPalette.open', false);
+        });
+
         it('brings the Workbench forward before running a menu item picked with the pointer', () => {
             const { dispatchCommand, select } = menuItem('Terminal', 'command.terminal.new');
 

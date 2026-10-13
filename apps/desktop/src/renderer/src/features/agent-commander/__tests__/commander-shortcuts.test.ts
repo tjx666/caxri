@@ -22,8 +22,9 @@ import { commandDefinitions } from '../../../commands/definitions';
 import { useDialogStore } from '../../../stores/dialogs';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import { registerAgentChatComposerCommand } from '../../agent-chat/agent-chat-composer-commands';
+import { setCommanderPaletteOpen, useCommanderDialogsStore } from '../commander-dialogs-store';
 import {
-    COMMANDER_TERMINAL_COMMANDS,
+    COMMANDER_KEYBOARD_COMMANDS,
     createCommanderShortcutState,
     dispatchCommanderKeydown,
 } from '../commander-shortcuts';
@@ -73,9 +74,9 @@ afterEach(() => {
 
 describe('Agent Commander shortcuts', () => {
     it('reaches through an editable target exactly when the Workbench definition does', () => {
-        const commanderIds = Object.keys(COMMANDER_TERMINAL_COMMANDS);
+        const commanderIds = Object.keys(COMMANDER_KEYBOARD_COMMANDS);
         expect(commanderIds.length).toBeGreaterThan(0);
-        for (const [id, { allowInEditable }] of Object.entries(COMMANDER_TERMINAL_COMMANDS)) {
+        for (const [id, { allowInEditable }] of Object.entries(COMMANDER_KEYBOARD_COMMANDS)) {
             const workbench = commandDefinitions.find((definition) => definition.id === id);
             expect(workbench, `${id} has a Workbench definition`).toBeDefined();
             expect({ id, allowInEditable }).toEqual({
@@ -112,6 +113,20 @@ describe('Agent Commander shortcuts', () => {
             'links terminal-1',
             'restart terminal-1',
         ]);
+    });
+
+    it('opens its own Command Palette from a chord the user moved off the native menu', () => {
+        useKeybindings([
+            { key: 'cmd+k cmd+p', command: 'commandPalette.open' },
+            ...defaultKeybindings.filter(({ command }) => command !== 'commandPalette.open'),
+        ]);
+        const state = createCommanderShortcutState();
+
+        dispatchCommanderKeydown(state, keydown('k', { metaKey: true }), 'terminal-1');
+        dispatchCommanderKeydown(state, keydown('p', { metaKey: true }), 'terminal-1');
+
+        expect(useCommanderDialogsStore.getState().isPaletteOpen).toBe(true);
+        setCommanderPaletteOpen(false);
     });
 
     it('switches the Commander between Terminal and Chat, even from the focused Chat composer', () => {

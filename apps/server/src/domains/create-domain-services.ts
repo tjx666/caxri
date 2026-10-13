@@ -46,11 +46,9 @@ import {
     createLifecycleEnvironment,
     createRelaunchHandlers,
     createShellIntegration,
-    createTerminalAgentExactInputHandler,
-    createTerminalBinaryInputHandler,
     createTerminalCreation,
     createTerminalHandlers,
-    createTerminalInputHandler,
+    createTerminalInputHandlers,
     createTerminalMoveHandler,
     terminalDirectoryIdentity,
     TerminalManager,
@@ -424,7 +422,13 @@ export async function createDomainServices(
         readiness: compactionReadiness,
         environment: agentEnvironment,
     });
-    const terminalInput = createTerminalInputHandler({ coordinator, database, send, terminals });
+    const terminalInputs = createTerminalInputHandlers({ coordinator, database, send, terminals });
+    const terminalInput = terminalInputs['terminal.input'];
+    const relaunchHandlers = createRelaunchHandlers({
+        ...restorerOptions,
+        agentChat,
+        mobileTerminalMutations,
+    });
     const handlers: DomainHandlers = {
         ...coreRoutedHandlers,
         'session.compactWarm': (_parameters, signal) => compaction.run(signal),
@@ -525,19 +529,7 @@ export async function createDomainServices(
             sendFullStateChange('terminal.create');
             return terminal;
         },
-        'terminal.input': terminalInput,
-        'terminal.inputBinary': createTerminalBinaryInputHandler({
-            coordinator,
-            database,
-            send,
-            terminals,
-        }),
-        'terminal.inputAgentExact': createTerminalAgentExactInputHandler({
-            coordinator,
-            database,
-            send,
-            terminals,
-        }),
+        ...terminalInputs,
         'terminal.close': ({ terminalId }) =>
             mobileTerminalMutations.run(terminalId, () => {
                 const sessionId = database.getTerminal(terminalId)?.sessionId;
@@ -550,7 +542,7 @@ export async function createDomainServices(
                 sendFullStateChange('terminal.close');
                 return null;
             }),
-        ...createRelaunchHandlers({ ...restorerOptions, agentChat, mobileTerminalMutations }),
+        ...relaunchHandlers,
         ...createTerminalHandlers({
             countLiveChats: (sessionId) => agentChat.liveCount(sessionId),
             database,
@@ -569,10 +561,13 @@ export async function createDomainServices(
             awaitAgentSettingsReconcile: agentRuntime.awaitSettingsReconcile,
             commander: commanderHostOptions({
                 agentChat,
+                agentEnvironment,
                 coordinator,
                 database,
                 createAndStartTerminal,
+                logger,
                 onStopped: () => commanderHooks.notifier?.onStopped(),
+                restartTerminal: relaunchHandlers['terminal.restart'],
                 restores: commanderRestores,
                 restoreTerminals: restoreCommanderTerminals,
                 scopedWorkbench: snapshots.commander,

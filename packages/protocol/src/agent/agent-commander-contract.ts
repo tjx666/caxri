@@ -250,8 +250,9 @@ export type AgentCommanderOpenTarget = z.infer<typeof agentCommanderOpenTargetSc
  */
 export const commanderMethods = {
     /**
-     * Idempotently creates the Commander workspace, system Project, Session, and Codex Terminal, launching the Terminal
-     * only when it was just created. An existing exited Terminal is left for the pane's own Resume action.
+     * Idempotently creates the Commander workspace, system Project, Session, and Agent Terminal (the stored
+     * `CommanderAgent`), launching the Terminal only when it was just created. An existing exited Terminal is left for
+     * the pane's own Resume action.
      */
     'commander.ensure': {
         ...commandPolicy('server', 'control'),
@@ -273,7 +274,7 @@ export const commanderMethods = {
     },
     /**
      * Idempotently stops the Commander Terminal's process and parks the Terminal as `detached`: its row, screen, and
-     * Codex conversation stay, and the next `commander.ensure` resumes that conversation. Sessions the Commander
+     * Agent conversation stay, and the next `commander.ensure` resumes that conversation. Sessions the Commander
      * delegated into keep running; only its watch over them pauses.
      */
     'commander.stop': {

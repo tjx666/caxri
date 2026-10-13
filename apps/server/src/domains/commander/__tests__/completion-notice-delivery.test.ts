@@ -24,10 +24,29 @@ describe('createCommanderCompletionNotifier', () => {
     /**
      * Drives one notice through a real notifier bound to fakes, with the Commander Terminal on the given surface.
      */
-    async function deliver(surface: 'chat' | 'pty', sendResult: Promise<void> = Promise.resolve()) {
+    async function deliver(
+        surface: 'chat' | 'pty',
+        sendResult: Promise<void> = Promise.resolve(),
+        isPasteDelivered = true,
+    ) {
         const send = vi.fn(() => sendResult);
         const failed = vi.fn();
-        const writeAgentExact = vi.fn(() => true);
+        /**
+         * Acknowledges each accepted write on the next microtask, like the Terminal Host, with the paste's outcome
+         * chosen by the test.
+         */
+        const writeAgentExact = vi.fn(
+            (
+                _terminalId: string,
+                data: string,
+                _launchId: string,
+                _origin?: string,
+                onDelivered?: (wasAccepted: boolean) => void,
+            ) => {
+                queueMicrotask(() => onDelivered?.(data === '\r' || isPasteDelivered));
+                return true;
+            },
+        );
         const delivered = vi.fn();
         const notifier = createCommanderCompletionNotifier({
             agentChat: { send },
@@ -69,7 +88,9 @@ describe('createCommanderCompletionNotifier', () => {
         notifier.onLifecycleApplied(commanderSignal('turnFinished'));
         notifier.notifyReceiptChanged(receipt());
         await vi.waitFor(() =>
-            expect(send.mock.calls.length + writeAgentExact.mock.calls.length).toBe(1),
+            expect(
+                send.mock.calls.length + writeAgentExact.mock.calls.length,
+            ).toBeGreaterThanOrEqual(1),
         );
         await Promise.resolve();
         return { delivered, failed, send, writeAgentExact };
@@ -91,16 +112,31 @@ describe('createCommanderCompletionNotifier', () => {
         await vi.waitFor(() => expect(failed).toHaveBeenCalledOnce());
     });
 
-    it('presses Enter after the line for a PTY Commander', async () => {
-        const { send, writeAgentExact } = await deliver('pty');
+    /**
+     * Claude Code reads one chunk carrying both the line and its Enter as a paste and keeps the Enter as a new draft
+     * line, so the notice sat unsent in a Claude Commander's composer.
+     */
+    it('pastes the line, then presses Enter once the paste landed, for a PTY Commander', async () => {
+        const { failed, send, writeAgentExact } = await deliver('pty');
 
+        await vi.waitFor(() => expect(writeAgentExact).toHaveBeenCalledTimes(2));
         expect(send).not.toHaveBeenCalled();
-        expect(writeAgentExact).toHaveBeenCalledWith(
-            'commander-terminal',
-            expect.stringMatching(/completed\.\r$/),
-            'launch-1',
-            'delegation',
-            expect.any(Function),
-        );
+        expect(writeAgentExact.mock.calls.map((call) => call.slice(0, 4))).toEqual([
+            [
+                'commander-terminal',
+                '\u{1B}[200~[Caxri notice] 1 delegation update: delegation delegation-1 in Session session-1 completed.\u{1B}[201~',
+                'launch-1',
+                'delegation',
+            ],
+            ['commander-terminal', '\r', 'launch-1', 'delegation'],
+        ]);
+        expect(failed).not.toHaveBeenCalled();
+    });
+
+    it('presses no Enter after a paste the Terminal Host did not confirm, and reports it unconfirmed', async () => {
+        const { failed, writeAgentExact } = await deliver('pty', Promise.resolve(), false);
+
+        await vi.waitFor(() => expect(failed).toHaveBeenCalledOnce());
+        expect(writeAgentExact).toHaveBeenCalledOnce();
     });
 });

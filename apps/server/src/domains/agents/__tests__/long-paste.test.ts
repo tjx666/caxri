@@ -217,7 +217,7 @@ describe('LongPasteService', () => {
 
     it('saves a Chat paste to the shared directory without needing a PTY Agent', async () => {
         const test = await fixture();
-        test.database.updateTerminalSurface(test.terminal.id, 'chat');
+        test.database.terminalSurfaces.switch(test.terminal.id, 'chat');
         // A Chat decides for itself when text is long, so even a short paste is saved as asked.
         const content = 'first line\nsecond line';
 
@@ -234,7 +234,7 @@ describe('LongPasteService', () => {
         await expect(
             test.service.saveForChat({ terminalId: test.terminal.id, content: 'text' }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
-        test.database.updateTerminalSurface(test.terminal.id, 'chat');
+        test.database.terminalSurfaces.switch(test.terminal.id, 'chat');
         const tooLarge = '界'.repeat(Math.floor(MAX_LONG_PASTE_BYTES / 3) + 1);
         await expect(
             test.service.saveForChat({ terminalId: test.terminal.id, content: tooLarge }),

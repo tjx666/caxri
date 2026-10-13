@@ -1,6 +1,7 @@
 import {
     auxiliaryWindowStateSchema,
     CaxriError,
+    commanderAgentSchema,
     commanderHandoverSchema,
     identifierSchema,
     persistedWindowStateSchema,
@@ -35,6 +36,12 @@ const appStateValueSchemas = {
         terminalId: identifierSchema.optional(),
         sessionIds: z.array(identifierSchema).max(1_000),
     }),
+    /**
+     * The Agent CLI the user chose for the Agent Commander. Its own cell rather than a field of `agentCommander`, whose
+     * writers rebuild that record from its rows: the choice must survive every one of them, and a Commander Terminal
+     * created later (first launch, or after its row was lost) starts with it.
+     */
+    commanderAgent: commanderAgentSchema,
     /**
      * The user's hand-overs of Sessions to the Agent Commander, at most one per managed Session. See
      * `commander/handover.ts`.

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
-import { HandHelping, MessageSquareWarning, PanelLeft, Power } from 'lucide-react';
+import { commanderAgentSchema } from '@caxri/protocol';
+import { HandHelping, MessageSquareWarning, PanelLeft } from 'lucide-react';
 
 import { CaxriLogo } from '../../components/caxri-logo';
 import { Button } from '../../components/ui/button';
@@ -11,20 +12,23 @@ import { cn } from '../../lib/utilities';
 import { useIsFullScreen, useTerminal } from '../../stores/selectors';
 import { AgentSurfaceToggle } from '../terminal/agent-surface-toggle';
 import { canSwitchTerminalSurface } from '../terminal/terminal-surface-commands';
+import { CommanderAgentMenu } from './commander-agent-menu';
 import { setCommanderBoardVisible, useCommanderBoardUiStore } from './commander-board-store';
 import { useAgentCommanderStore } from './commander-client';
-import { stopCommander } from './commander-commands';
 import { openCommanderHandover } from './commander-handover-store';
 import { openCommanderInboxCount } from './commander-inbox';
 import { setCommanderInboxVisible, useCommanderInboxUiStore } from './commander-inbox-store';
+import { CommanderMoreMenu } from './commander-more-menu';
 import { useCommanderInbox } from './hooks/use-commander-inbox';
 
 /**
  * The window's whole title bar, and its drag region. Its left padding clears the macOS `hiddenInset` traffic lights,
  * the same zoom-aware clearance the Workbench's collapsed header uses; in fullscreen the traffic lights are gone, so
  * the clearance gives way to the logo, as it does in the Workbench's sidebar header. The column toggles follow the
- * layout from left to right (Sessions, then Needs you), and the Workbench tab rail's `Terminal | Chat` switch sits
- * beside Stop, so the Commander opens as either surface with the same control and shortcut.
+ * layout from left to right (Sessions, then Needs you), and the Workbench tab rail's `Terminal | Chat` switch follows,
+ * so the Commander opens as either surface with the same control and shortcut. The Agent the Commander runs sits beside
+ * the title it qualifies; Stop and the rarer actions wait in the trailing More menu and the Command Palette, so the bar
+ * keeps only what is used all the time.
  */
 export function AgentCommanderHeader() {
     const { t } = useTranslation();
@@ -33,6 +37,7 @@ export function AgentCommanderHeader() {
     const terminal = useTerminal(terminalId ?? '');
     const isBoardVisible = useCommanderBoardUiStore((state) => state.isVisible);
     const isFullScreen = useIsFullScreen();
+    const agent = commanderAgentSchema.safeParse(terminal?.provider).data;
     return (
         <header
             className={cn(
@@ -57,6 +62,11 @@ export function AgentCommanderHeader() {
                     {t('agentCommander.window.title')}
                 </h1>
             )}
+            {agent && (
+                <div className="flex-none [-webkit-app-region:no-drag]">
+                    <CommanderAgentMenu agent={agent} />
+                </div>
+            )}
             <div className="ml-auto flex flex-none items-center gap-2 [-webkit-app-region:no-drag]">
                 <CommanderColumnToggle
                     className="agent-commander-board-toggle"
@@ -80,17 +90,7 @@ export function AgentCommanderHeader() {
                 {terminal && canSwitchTerminalSurface(terminal) && (
                     <AgentSurfaceToggle terminal={terminal} />
                 )}
-                <Tooltip content={t('agentCommander.window.stopTooltip')}>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="agent-commander-stop text-muted"
-                        onClick={stopCommander}
-                    >
-                        <Power size={13} />
-                        {t('agentCommander.window.stop')}
-                    </Button>
-                </Tooltip>
+                <CommanderMoreMenu />
             </div>
         </header>
     );

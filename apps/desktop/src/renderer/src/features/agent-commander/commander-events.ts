@@ -26,6 +26,11 @@ interface CommanderEventEffect {
      */
     isFullScreen?: boolean;
     /**
+     * Open this window's Command Palette: its shortcut was typed here, and the native menu that owns the chord handed
+     * it to Main.
+     */
+    openPalette: boolean;
+    /**
      * Mounted Terminal panes must re-issue `terminal.attach`: a Server restart or a Desktop↔Server reconnect dropped
      * the attachment and any PTY output sent meanwhile.
      */
@@ -50,6 +55,7 @@ const NO_EFFECT: CommanderEventEffect = {
     board: false,
     ensure: false,
     inbox: false,
+    openPalette: false,
     pullRequestSessionIds: [],
     reattach: false,
     revealInbox: false,
@@ -111,6 +117,8 @@ export function commanderEventEffect(
             return { ...NO_EFFECT, inbox: true };
         case 'agentCommander.inboxRequested':
             return { ...NO_EFFECT, revealInbox: true };
+        case 'agentCommander.commandPaletteRequested':
+            return { ...NO_EFFECT, openPalette: true };
         case 'sessionPullRequests.changed':
             return { ...NO_EFFECT, pullRequestSessionIds: event.payload.sessionIds };
         case 'window.fullScreen':

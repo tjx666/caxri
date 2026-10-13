@@ -28,6 +28,7 @@ describe('isNonExpiringServerOperation', () => {
             expect(isNonExpiringServerOperation(method)).toBe(true);
         expect(isNonExpiringServerOperation('files.write')).toBe(true);
         expect(isNonExpiringServerOperation('git.discard.apply')).toBe(true);
+        expect(isNonExpiringServerOperation('commander.clearData')).toBe(true);
         expect(isNonExpiringServerOperation('terminal.input')).toBe(true);
     });
 
