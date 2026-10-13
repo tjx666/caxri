@@ -15,6 +15,7 @@ export {
     terminalDirectoryIdentity,
 } from './launch';
 export { createLifecycleEnvironment } from './lifecycle-environment';
+export { createTerminalLifecycleHandlers } from './lifecycle-handlers';
 export { TerminalManager } from './manager';
 export type {
     TerminalLifecycleCause,

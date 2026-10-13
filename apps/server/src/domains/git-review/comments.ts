@@ -1,6 +1,7 @@
 import type { GitReviewComment, ServerEvent } from '@caxri/protocol';
 import { CaxriError, reviewSnippet } from '@caxri/protocol';
 
+import type { AgentChatService } from '../agent-chat';
 import type { LongPasteService } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
@@ -198,6 +199,7 @@ export function createGitReviewCommentHandlers(
 }
 
 interface GitReviewHandlersOptions {
+    agentChat: Pick<AgentChatService, 'send'>;
     database: CaxriDatabase;
     git: Pick<GitService, 'repositoryIdentity'>;
     longPastes: LongPasteService;
