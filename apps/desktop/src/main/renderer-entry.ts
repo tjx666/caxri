@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 interface RendererEntryOptions {
     currentDirectory: string;
     isPackaged: boolean;
-    page: 'agent-commander.html' | 'index.html' | 'process-explorer.html';
+    page: 'agent-commander.html' | 'benchmark.html' | 'index.html' | 'process-explorer.html';
     rendererUrl?: string;
 }
 

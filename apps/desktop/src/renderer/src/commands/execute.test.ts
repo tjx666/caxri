@@ -194,7 +194,6 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openSettings: record('dialogs.openSettings'),
                 openPalette: record('dialogs.openPalette'),
                 openUsage: record('dialogs.openUsage'),
-                openBenchmark: record('dialogs.openBenchmark'),
                 openPathBrowser: record('dialogs.openPathBrowser'),
                 openProjectSearch: record('dialogs.openProjectSearch'),
                 openSessionContentSearch: record('dialogs.openSessionContentSearch'),
@@ -202,6 +201,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             windows: {
                 openAgentCommander: record('windows.openAgentCommander'),
+                openBenchmark: record('windows.openBenchmark'),
                 stopAgentCommander: record('windows.stopAgentCommander'),
                 openProcessExplorer: record('windows.openProcessExplorer'),
                 zoom: record('windows.zoom'),

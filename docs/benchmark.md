@@ -5,7 +5,7 @@ status: current
 
 # Benchmark
 
-**Open Benchmark** (View menu, Command Palette, `benchmark.open`) opens a Workbench tab that runs one prompt against
+**Open Benchmark** (View menu, Command Palette, `benchmark.open`) opens a standalone Benchmark window that runs one prompt against
 several Agent, model, and effort combinations and compares what each produced, how long it took, and what it cost. It
 answers "which model should I use for this kind of task" with the user's own prompt and the real installed CLIs
 (Claude Code, Codex, Grok Build), instead of a public leaderboard measured on someone else's tasks.
@@ -15,7 +15,7 @@ answers "which model should I use for this kind of task" with the user's own pro
 1. Write a prompt.
 2. Pick Entries in the model picker. Each Agent lists the models its installed CLI and signed-in account offer, and each
    model offers its efforts as chips; every pressed chip is one Entry. Refresh re-reads the providers.
-3. Choose where the Attempts run: an **empty folder** (a fresh Git repository, for greenfield prompts) or the Session's
+3. Choose where the Attempts run: an **empty folder** (a fresh Git repository, for greenfield prompts) or any added
    **Project** (a clone of its current commit, so uncommitted changes are not included).
 4. Optionally adjust the judge, a check command, repeats, concurrency, and the per-Attempt timeout, then start.
 
@@ -36,9 +36,19 @@ finishes it shows:
 
 **Run again** copies a finished run's settings into the New run form. Past runs stay in the left column until deleted.
 
+## The window
+
+Like the [Agent Commander](agent-commander.md), the Benchmark window is a companion window: it shares the Workbench
+preload and Main's single connection to the Server, and Main admits its requests through its own allowlist
+(`apps/desktop/src/main/benchmark-window-policy.ts`): the `benchmark.*` methods, the Workbench snapshot it reads for
+locale, theme, and Projects, Settings and theme reads, and link handling. Anything else is refused and logged as
+`benchmark_window.request_denied`. It receives durable events plus `benchmark.changed` and connection changes.
+Opening it again focuses the existing window. Its size and position are remembered while the app runs, not across
+restarts, and it is not reopened at startup. It is local-machine only: an SSH Workbench does not offer it.
+
 ## How a run works
 
-The Server owns every run (`apps/server/src/domains/agent-benchmark/`); closing the tab or the window does not stop it.
+The Server owns every run (`apps/server/src/domains/agent-benchmark/`); closing the Benchmark window or the Workbench window does not stop it.
 
 - **Attempts.** Each Entry runs `repeats` times. Every Attempt gets its own folder under the Server's
   `benchmarks/runs/<runId>/` data directory. Project mode clones the Project's repository with its remote removed and

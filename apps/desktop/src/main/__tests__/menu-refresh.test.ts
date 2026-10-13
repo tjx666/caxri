@@ -14,6 +14,7 @@ function terminalCopyLabel(keybindings: Keybinding[]): string | undefined {
         dispatchCommand: vi.fn(),
         keybindings,
         openAgentCommander: vi.fn(),
+        openBenchmark: vi.fn(),
         openProcessExplorer: vi.fn(),
         workbenchWindow: vi.fn(),
         focusWorkbench: vi.fn(),

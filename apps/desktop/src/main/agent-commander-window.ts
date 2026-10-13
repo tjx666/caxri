@@ -184,6 +184,7 @@ export class AgentCommanderWindowController {
      */
     companion(): CompanionRendererPolicy {
         return {
+            rendererWindow: 'commander',
             renderer: () => this.renderer(),
             window: () => this.openWindow(),
             admit: (raw) => this.policy.admit(raw),

@@ -18,6 +18,7 @@ function fakeMenu() {
         keybindings: [],
         dispatchCommand: vi.fn(),
         openAgentCommander: vi.fn(),
+        openBenchmark: vi.fn(),
         openProcessExplorer: vi.fn(),
         workbenchWindow: vi.fn(),
         focusWorkbench: vi.fn(),

@@ -1,7 +1,6 @@
 import type { GitDiffTab } from '@caxri/protocol';
 import {
     gitDiffTabLabel,
-    isBenchmarkTabPath,
     isSettingsTabPath,
     isUsageTabPath,
     parseAgentContextTab,
@@ -126,7 +125,6 @@ export function documentTabPresentation(
     const previewExternal = preview ? parseExternalEditorTab(preview.path) : undefined;
     const isSettings = isSettingsTabPath(path);
     const isUsage = isUsageTabPath(path);
-    const isBenchmark = isBenchmarkTabPath(path);
     const label = diff
         ? diffTabLabel(diff, t)
         : transcript
@@ -145,9 +143,7 @@ export function documentTabPresentation(
                       ? t('editor.tab.settings')
                       : isUsage
                         ? t('editor.tab.usage')
-                        : isBenchmark
-                          ? t('editor.tab.benchmark')
-                          : (external?.name ?? pathBasename(path));
+                        : (external?.name ?? pathBasename(path));
     const isOutsideProject = Boolean(external) || Boolean(previewExternal);
     const detail =
         external && options.displayPath
@@ -172,12 +168,7 @@ export function documentTabPresentation(
                     ? 'transcript.jsonl'
                     : preview
                       ? pathBasename(preview.path)
-                      : isSettings ||
-                          isUsage ||
-                          isBenchmark ||
-                          agentTask ||
-                          agentStatus ||
-                          agentContext
+                      : isSettings || isUsage || agentTask || agentStatus || agentContext
                         ? undefined
                         : (external?.name ?? pathBasename(path)),
         // Settings draws its own glyph, as VS Code's Settings editor tab does, instead of the JSON file it is stored in.
@@ -185,17 +176,15 @@ export function documentTabPresentation(
             ? ('settings' as const)
             : isUsage
               ? ('usage' as const)
-              : isBenchmark
-                ? ('benchmark' as const)
-                : agentTask
-                  ? options.task?.kind === 'shell'
-                      ? ('shell-task' as const)
-                      : ('agent-task' as const)
-                  : agentStatus
-                    ? ('agent-status' as const)
-                    : agentContext
-                      ? ('agent-context' as const)
-                      : ('file' as const),
+              : agentTask
+                ? options.task?.kind === 'shell'
+                    ? ('shell-task' as const)
+                    : ('agent-task' as const)
+                : agentStatus
+                  ? ('agent-status' as const)
+                  : agentContext
+                    ? ('agent-context' as const)
+                    : ('file' as const),
         label,
         // A preview tab shows its source path: the label already says "Preview", so the tooltip's job is locating it.
         labelTooltip: preview
@@ -211,8 +200,7 @@ export function documentTabPresentation(
                   agentContext ||
                   turnReview ||
                   isSettings ||
-                  isUsage ||
-                  isBenchmark
+                  isUsage
                 ? label
                 : (options.displayPath ?? external?.name ?? path),
     };

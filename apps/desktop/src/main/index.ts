@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import type {
     CaxriRequest,
     CommandAdapter,
-    CommandId,
     Keybinding,
     PersistedWindowState,
     ServerEvent,
@@ -32,6 +31,7 @@ import {
     persistAllWindowState,
     reopenAuxiliaryWindowsAtStartup,
 } from './auxiliary-window-lifecycle';
+import type { BenchmarkWindowController } from './benchmark-window';
 import { stampBuildIdentity } from './build-identity';
 import { createDesktopActions } from './desktop-actions';
 import { createDesktopLogger } from './desktop-logger';
@@ -59,7 +59,7 @@ import { setMainLanguage } from './locale';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
 import { createMenuRefreshController, createMenuStateLoader } from './menu-refresh';
-import { createOnDemandWindows } from './on-demand-windows';
+import { companionWindowFor, createOnDemandWindows, isZoomingWithApp } from './on-demand-windows';
 import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import type { RemoteEnvironments } from './remote-environments';
@@ -84,6 +84,7 @@ import { confirmWindowClose, createWindowCloseHandler } from './window-close';
 import { bringWindowForward, resolveE2EWindowMode } from './window-mode';
 import type { WindowPlacement } from './window-placement';
 import { defaultWindowState, readWindowState, showWhenPlaced } from './window-placement';
+import { createWorkbenchHandOffs, workbenchCommandDispatcher } from './workbench-hand-offs';
 import { installWorkbenchIpc } from './workbench-ipc';
 import { installWorkbenchRendererGuards } from './workbench-renderer-guards';
 import { createWorkbenchRootAuthority } from './workbench-root-authority';
@@ -144,6 +145,7 @@ if (ownsProfileInstance) {
     });
     let processExplorer: ProcessExplorerWindowController;
     let agentCommander: AgentCommanderWindowController | undefined;
+    let benchmarkWindow: BenchmarkWindowController | undefined;
     let updateService: UpdateService;
     let notifications: DesktopNotifications | undefined;
     /**
@@ -182,6 +184,7 @@ if (ownsProfileInstance) {
     });
     const eventRelay = createMainEventRelay({
         deliver: (message) => {
+            benchmarkWindow?.relay(message);
             const isForWorkbench = agentCommander?.relay(message) ?? true;
             if (isForWorkbench && mainWindow && !mainWindow.isDestroyed())
                 mainWindow.webContents.send('caxri:event', message);
@@ -197,6 +200,7 @@ if (ownsProfileInstance) {
         windows: () => [
             mainWindow,
             agentCommander?.openWindow(),
+            benchmarkWindow?.openWindow(),
             processExplorer.openWindow(),
             ...(remoteEnvironments?.list().map((environment) => environment.window) ?? []),
         ],
@@ -433,12 +437,7 @@ if (ownsProfileInstance) {
             }),
     );
 
-    function dispatchWorkbenchCommand(command: CommandId, isViaAccelerator: boolean): void {
-        sendEvent({
-            event: 'command.execute',
-            payload: { command, viaAccelerator: isViaAccelerator },
-        });
-    }
+    const dispatchWorkbenchCommand = workbenchCommandDispatcher(sendEvent);
 
     const handleMainMethod = guardEnvironmentMethods(
         'local',
@@ -448,17 +447,14 @@ if (ownsProfileInstance) {
             logger: () => mainLogger,
             getProcessExplorer: () => processExplorer,
             getAgentCommander: () => agentCommander,
+            getBenchmarkWindow: () => benchmarkWindow,
             onUnsavedEditorsReply: (parameters) => unsavedEditors.reply(parameters),
-            revealSessionInWorkbench: async (sessionId) => {
-                await supervisor.request('session.select', { sessionId });
-                await focusMainWindow();
-            },
-            openSettingsInWorkbench: async (target) => {
-                // Unlike a menu pick, wait for the Workbench Renderer: a reopened window must be listening for the event.
-                await focusMainWindow();
-                if (target) sendEvent({ event: 'settings.openRequested', payload: { target } });
-                else dispatchWorkbenchCommand('settings.open', false);
-            },
+            ...createWorkbenchHandOffs({
+                dispatchWorkbenchCommand,
+                focusMainWindow,
+                sendEvent,
+                supervisor: () => supervisor,
+            }),
             getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
             getUserDataPath: () => desktopProfile.userDataPath,
             getSupervisor: () => supervisor,
@@ -525,7 +521,7 @@ if (ownsProfileInstance) {
                 void serverReady.promise.then(completeRendererHandshake);
             },
             renderer: () => mainRenderer,
-            companion: agentCommander?.companion(),
+            companion: (sender) => companionWindowFor(sender, [agentCommander, benchmarkWindow]),
             transport: dispatchCommand,
         });
     }
@@ -539,9 +535,11 @@ if (ownsProfileInstance) {
                     dispatchCommand: dispatchWorkbenchCommand,
                     openProcessExplorer: () => processExplorer.open(),
                     openAgentCommander: () => agentCommander?.open(),
+                    openBenchmark: () => benchmarkWindow?.open(),
                     workbenchWindow: () =>
                         mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
-                    isFollowingAppZoom: (window) => window === agentCommander?.openWindow(),
+                    isFollowingAppZoom: (window) =>
+                        isZoomingWithApp(window, [agentCommander, benchmarkWindow]),
                     dispatchToRemoteWindow: remoteWindowMenu.dispatch,
                     focusWorkbench: () => {
                         // eslint-disable-next-line no-void -- best effort: the command reaches the Workbench whether or not it came forward
@@ -632,7 +630,7 @@ if (ownsProfileInstance) {
                 userDataPath,
                 zoomLevel: () => windowZoom.level(),
             });
-            ({ agentCommander, processExplorer } = createOnDemandWindows({
+            ({ agentCommander, benchmarkWindow, processExplorer } = createOnDemandWindows({
                 currentDirectory,
                 logger: mainLogger,
                 mainWindow: () => mainWindow,

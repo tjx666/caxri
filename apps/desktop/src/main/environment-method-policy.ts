@@ -28,6 +28,10 @@ const environmentMethodScopes = {
     'agentCommander.revealSession': 'local-only',
     'agentCommander.openSettings': 'local-only',
     'agentCommander.openFileLink': 'local-only',
+    /**
+     * Benchmark runs on the local Server; an SSH Host window has no Benchmark window of its own.
+     */
+    'benchmark.open': 'local-only',
     'bugReport.captureScreenshot': 'local-only',
     'bugReport.saveScreenshot': 'local-only',
     /**

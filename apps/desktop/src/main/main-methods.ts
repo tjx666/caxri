@@ -10,7 +10,6 @@ import type {
     MainRequest,
     RemoteDebuggingState,
     ServerEvent,
-    SettingsTarget,
 } from '@caxri/protocol';
 import { agentProviderCatalog, BUG_REPORT_JPEG_DATA_URL_PREFIX, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -21,7 +20,6 @@ import { createAcceptanceExternalOpenFixture } from './acceptance-external-open'
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
 import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
 import { openAgentChatPathReference, selectAgentChatPaths } from './agent-chat-path-picker';
-import type { AgentCommanderWindowController } from './agent-commander-window';
 import { createAgentProviderStatus, createE2EStatusPageFetch } from './agent-provider-status';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
@@ -58,9 +56,10 @@ import {
     isEnvironmentRequest,
     unconfiguredEnvironment,
 } from './main-environment-methods';
+import type { MainWindowMethodOptions } from './main-window-methods';
+import { handleWindowRequest, isWindowRequest } from './main-window-methods';
 import { diagnosticsExportDialogOptions, themeImportDialogOptions } from './native-file-dialogs';
 import { netRequestFetch, netResolveHost } from './net-request-fetch';
-import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { requestWindowOr } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
 import { installShellCommand, uninstallShellCommand } from './shell-command';
@@ -68,7 +67,7 @@ import { createShellCommandEnvironment } from './shell-command-environment';
 import type { UpdateService } from './updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
-export interface MainMethodHandlerOptions {
+export interface MainMethodHandlerOptions extends MainWindowMethodOptions {
     /**
      * Defaults to `unconfiguredEnvironment`: a local environment without SSH Host support, which is what focused
      * handler tests need.
@@ -78,18 +77,6 @@ export interface MainMethodHandlerOptions {
     acceptanceSessionDeleteFixture?: ReturnType<typeof createAcceptanceSessionDeleteFixture>;
     acceptanceThemeImportFixture?: ReturnType<typeof createAcceptanceThemeImportFixture>;
     allowGpuTestInjection?: boolean;
-    getProcessExplorer(): ProcessExplorerWindowController;
-    getAgentCommander(): AgentCommanderWindowController | undefined;
-    /**
-     * Selects a Session in the Workbench and raises the main window; used by the Agent Commander board.
-     */
-    revealSessionInWorkbench(sessionId: string): Promise<void>;
-    /**
-     * Raises the Workbench, reopening it if needed, and opens Settings there; used by the Agent Commander window, which
-     * has no Settings of its own. An optional `target` scrolls Settings to one specific row instead of its default
-     * view.
-     */
-    openSettingsInWorkbench(target?: SettingsTarget): Promise<void>;
     /**
      * What this instance actually exposes, resolved once at boot by `configureDesktopProfile`. It is not derivable from
      * `argv.jsonc`: an unpackaged launch ignores the stored preference, and a window whose switch was just flipped
@@ -200,6 +187,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         if (isExternalDocumentRequest(request))
             return handleExternalDocumentRequest(request, supervisor, externalDocumentWatcher);
         if (isEnvironmentRequest(request)) return handleEnvironmentRequest(request, environment);
+        if (isWindowRequest(request)) return handleWindowRequest(request, options);
         const mainWindow = options.getWindow();
         switch (request.method) {
             case 'argv.get':
@@ -455,21 +443,6 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return null;
             case 'contextMenu.show':
                 return showContextMenu(requestWindowOr(mainWindow), request.params);
-            case 'processExplorer.open':
-                options.getProcessExplorer().open();
-                return null;
-            case 'agentCommander.open':
-                options.getAgentCommander()?.open(request.params.target);
-                return null;
-            case 'agentCommander.stop':
-                await options.getAgentCommander()?.stop();
-                return null;
-            case 'agentCommander.revealSession':
-                await options.revealSessionInWorkbench(request.params.sessionId);
-                return null;
-            case 'agentCommander.openSettings':
-                await options.openSettingsInWorkbench(request.params.target);
-                return null;
             case 'bugReport.send': {
                 const { report, screenshot, sessionId, terminalId } = request.params;
                 const records = await supervisor.request('app.records', {

@@ -6,6 +6,7 @@ import { commandPolicy } from '../transport/method-spec.js';
 const serverRead = commandPolicy('server', 'read');
 const serverWrite = commandPolicy('server', 'write');
 const desktopRead = commandPolicy('desktop', 'read');
+const desktopControl = commandPolicy('desktop', 'control');
 const noParameters = z.object({}).default({});
 
 /**
@@ -38,15 +39,19 @@ export const windowStateInternalMethods = {
 } as const;
 
 /**
- * Live state that Main owns for the window that sent the request, so the Agent Commander reads its own state rather
- * than the Workbench's. A Renderer reads it once it subscribes to events instead of relying on replaying the last
- * `window.fullScreen` push: a Renderer that (re)loads after the event journal has rotated recovers from a snapshot, and
- * that snapshot carries no window state.
+ * Main-owned window methods. `window.fullScreen.get` is live state Main owns for the window that sent the request, so
+ * the Agent Commander reads its own state rather than the Workbench's. A Renderer reads it once it subscribes to events
+ * instead of relying on replaying the last `window.fullScreen` push: a Renderer that (re)loads after the event journal
+ * has rotated recovers from a snapshot, and that snapshot carries no window state. The `*.open` methods open an
+ * optional single-instance window, or raise it when it is already open; `agentCommander.open` lives with its own
+ * contract because it takes a target.
  */
-export const windowChromeDesktopMethods = {
+export const windowDesktopMethods = {
     'window.fullScreen.get': {
         ...desktopRead,
         params: noParameters,
         result: z.object({ isFullScreen: z.boolean() }),
     },
+    'processExplorer.open': { ...desktopControl, params: noParameters, result: z.null() },
+    'benchmark.open': { ...desktopControl, params: noParameters, result: z.null() },
 } as const;

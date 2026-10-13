@@ -12,7 +12,6 @@ import { takeBackFromCommander } from '../features/agent-commander/commander-han
 import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
-import { openBenchmarkPage } from '../features/benchmark/benchmark-open';
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
 import {
     addGitReviewComment,
@@ -415,11 +414,6 @@ const commandContext: CommandContext = {
             if (getSelectedSession()) openUsagePage();
             else pushToast('info', translate('core.commands.usageNeedsProject'));
         },
-        openBenchmark: () => {
-            // Like Usage, the Benchmark board is a Session pane tab.
-            if (getSelectedSession()) openBenchmarkPage();
-            else pushToast('info', translate('core.commands.benchmarkNeedsProject'));
-        },
         openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),
         /**
          * Opens the picker with the selected Session already checked, like its row menu's Hand Over. The picker lists
@@ -442,6 +436,12 @@ const commandContext: CommandContext = {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void tryCommand(translate('core.commands.openAgentCommanderFailed'), () =>
                 caxri.request('agentCommander.open'),
+            );
+        },
+        openBenchmark: () => {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand reports failure
+            void tryCommand(translate('core.commands.openBenchmarkFailed'), () =>
+                caxri.request('benchmark.open'),
             );
         },
         // eslint-disable-next-line no-void -- the stop reports its own failures through toasts

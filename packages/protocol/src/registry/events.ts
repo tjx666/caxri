@@ -344,11 +344,11 @@ export const serverEventPayloads = {
     ]),
     /**
      * One native window entered or left macOS fullscreen. Durable delivery reaches every Renderer, so `window` names
-     * the window whose state this is: each Renderer applies only its own, since the Workbench and the Agent Commander
-     * window go fullscreen independently.
+     * the window whose state this is: each Renderer applies only its own, since the Workbench, the Agent Commander
+     * window, and the Benchmark window go fullscreen independently.
      */
     'window.fullScreen': z.object({
-        window: z.enum(['workbench', 'agentCommander']),
+        window: z.enum(['workbench', 'agentCommander', 'benchmark']),
         isFullScreen: z.boolean(),
     }),
     /**
