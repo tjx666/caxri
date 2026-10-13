@@ -163,7 +163,6 @@ describe('toolchain contract', () => {
         const pnpmSetupStep = setupActionDocument.runs.steps.find((step) =>
             step.uses?.startsWith('pnpm/setup@'),
         );
-        const reuseStep = stepByName('Reuse runner-cached pnpm');
         const verifyStep = stepByName('Verify exact Node.js and pnpm');
 
         expect(versionStep.id).toBe('tool_versions');
@@ -174,15 +173,13 @@ describe('toolchain contract', () => {
             '${{ steps.tool_versions.outputs.node }}',
         );
         expect(pnpmSetupStep?.with?.version).toBe('${{ steps.tool_versions.outputs.pnpm }}');
-        expect(pnpmSetupStep?.with?.dest).toBe(
-            '${{ runner.tool_cache }}/caxri/pnpm/${{ steps.tool_versions.outputs.pnpm }}-node-${{ steps.tool_versions.outputs.node }}',
-        );
+        expect(pnpmSetupStep?.with?.dest).toBe('${{ runner.temp }}/caxri-pnpm');
+        expect(setupAction).not.toContain('runner.tool_cache');
+        expect(setupAction).not.toContain('Reuse runner-cached pnpm');
         const versionEnvironment = {
             CAXRI_NODE_VERSION: '${{ steps.tool_versions.outputs.node }}',
             CAXRI_PNPM_VERSION: '${{ steps.tool_versions.outputs.pnpm }}',
         };
-        expect(reuseStep.env).toEqual(versionEnvironment);
-        expect(reuseStep.run).toContain('${CAXRI_PNPM_VERSION}-node-${CAXRI_NODE_VERSION}');
         expect(verifyStep.env).toEqual(versionEnvironment);
         expect(verifyStep.run).toContain('"v$CAXRI_NODE_VERSION"');
         expect(verifyStep.run).toContain('"$CAXRI_PNPM_VERSION"');

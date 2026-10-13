@@ -164,7 +164,7 @@ export interface PerformanceBaseline {
     /**
      * A baseline only gates a build when `armed` is true. `scripts/performance-baseline-derive.ts` hardcodes this to
      * `source === 'runner'` so a locally sampled baseline (this Mac, shared with sibling agent sessions) can never
-     * silently start failing CI on the self-hosted runner it was never measured on.
+     * silently start failing CI on runner hardware where it was never measured.
      */
     armed: boolean;
     source: 'local' | 'runner';

@@ -215,11 +215,10 @@ Two repetitions are the entire local budget, and they cover the related cases on
 cases plus, when they touch the changed behavior, the delivery's focused specs. Repairing CI never
 runs the full unit or E2E suite locally, and never keeps re-dispatching CI, to decide whether a case
 is intermittent. A local full run occupies the machine the user is working on; only the user's own
-explicit request authorizes one. Chasing an intermittent failure through repeated
-`self-hosted-final` dispatches would consume the one frozen
-candidate validation window. Hosted runs are also metered while the repository is private. Repair
-from the preserved first failure and the #1418 record instead of redispatching either route until
-the cause is addressed.
+explicit request authorizes one. A `hosted-full` dispatch is also never inferred from risk, failure,
+or another agent's verdict: every run or retry requires fresh, explicit maintainer authorization.
+Hosted runs are metered while the repository is private. Repair from the preserved first failure
+and the #1418 record instead of redispatching until the cause is addressed.
 
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
@@ -245,9 +244,9 @@ runner and the harness, not real user data:
   the narrower receipt parser, after a logger change. The pool receipt is narrower still, and
   `assertE2EPoolReceipt` rejects an absolute path in it.
 - `redactLogValue()` replaces both the process `HOME` and the OS account home (`userInfo().homedir`)
-  with `$HOME`. E2E runs Caxri under an isolated fixture `HOME`, while the self-hosted runner's
-  workspace and job temp root sit under the runner account's real home; covering both keeps fixture
-  and workspace paths in the `.jsonl` logs from naming the account.
+  with `$HOME`. E2E runs Caxri under an isolated fixture `HOME`, while a GitHub-hosted runner's
+  workspace and job temp root sit under its account home; covering both keeps fixture and workspace
+  paths in the `.jsonl` logs from naming the account.
 - Playwright's own outputs (`error-context.md`, `trace.zip`) carry absolute workspace and fixture
   paths in stack frames, error text, and DOM snapshots. The `Redact E2E artifacts before upload` CI step
   runs `scripts/redact-e2e-artifacts.ts` over every pool output directory before upload, rewriting
@@ -321,11 +320,12 @@ Ordinary PR and main-push CI never starts Playwright E2E. The legacy `CI-Mode: e
 checks, cannot start E2E, cannot reuse an ancestor E2E receipt, and must not be added to new PRs.
 `CI-E2E-Tests` records the affected spec set for review but is not an execution receipt.
 
-When an explicit `self-hosted-final` or `hosted-full` run fails, preserve its artifacts and
+When an explicitly authorized `hosted-full` run fails, preserve its artifacts and
 reproduce the exact failed spec against a fresh production build with the focused command above.
 Do not push one repair per observed assertion. Inspect the whole failed spec and its async/locator
 assumptions, finish the repair batch locally, then create one new exact candidate. Dispatch the
-appropriate explicit full route again only after its focused local evidence passes.
+explicit full route again only after its focused local evidence passes and the maintainer grants
+fresh authorization for that retry.
 
 ## Remote full suite
 
@@ -338,11 +338,16 @@ while repairing CI. GitHub Actions is authorized by its own `CI` variable. When 
 insufficient, use an authorized topic branch and PR. A ready PR records affected specs: declare
 cases the import graph cannot infer with one `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line in the PR
 body. Pull requests and main pushes run hosted checks but never start full E2E automatically. While
-the repository is private, the frozen candidate SHA gets one owner-dispatched `self-hosted-final`
-run on the private final runner. After the repository is public, `hosted-full` is the explicit complete hosted route
-([docs/ci-performance.md](../../../docs/ci-performance.md)). `docs/self-hosted-runner.md` owns the
-transitional runner's labels, offline behavior, and recovery contract. Inspect failures, repair the
-same branch, and wait for replacement checks. Do not merge or close without delivery authorization.
+preparing the repository for publication, the required evidence is the complete hosted
+unit/integration suite, build and native checks, package validation, targeted Electron smoke, and
+the hosted no-publish Release rehearsal. Full E2E is deliberately not a runner-removal, GO,
+repository-publication, Release, or anonymous-review gate. `hosted-full` remains a future manual
+route on `macos-15`; every dispatch or retry requires fresh, explicit maintainer authorization
+([docs/ci-performance.md](../../../docs/ci-performance.md)). It still runs the fixed Renderer
+performance scenario and uploads a receipt. The historical cross-run baseline stays unarmed and
+non-blocking until enough same-image hosted receipts are reviewed, and the manually dispatched trend
+comparison is not a gate during that calibration. Inspect failures, repair the same branch, and wait
+for the authorized replacement checks. Do not merge or close without delivery authorization.
 
 Use `bun run --silent test:smoke` for the cheap post-change Electron launch gate when broad desktop
 startup confidence is useful but focused product E2E is unnecessary. Keep implementation subagents
@@ -350,10 +355,11 @@ scoped to explicit specs and test names; never delegate the full `bun run test:e
 
 ## Guarded Go fallback
 
-Use a local full-suite substitution only inside an explicit Go run after a current-head self-hosted
-Actions job is verified to have failed before execution for an eligible external GitHub Actions
-infrastructure reason and the user separately authorizes the substitution. The Go ledger must
-record the exact frozen head, failure URL/job/detail, authorization, platform-check commands, and
-one `bun run test:e2e` result. A changed head invalidates the admission. Code/test failures,
-missing authorization, releases, and deployment are never eligible, and the Actions check remains
-externally failed rather than being relabeled green.
+Use a local full-suite substitution only inside an explicit Go run after a current-head Actions job
+is verified to have failed before execution for an eligible external GitHub Actions infrastructure
+reason and the user separately authorizes the substitution. The Go ledger must record the exact
+frozen head, failure URL/job/detail, authorization, platform-check commands, and one `bun run
+test:e2e` result. A changed head invalidates the admission. Code/test failures, missing
+authorization, releases, and deployment are never eligible, and the Actions check remains
+externally failed rather than being relabeled green. This generic fallback does not authorize a
+`hosted-full` dispatch or retry; each of those still needs fresh maintainer authorization.

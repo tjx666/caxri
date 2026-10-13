@@ -1,5 +1,5 @@
 name: Setup Caxri job
-description: Install the exact Caxri toolchain on disposable hosted or trusted self-hosted runners.
+description: Install the exact Caxri toolchain on disposable GitHub-hosted runners.
 
 inputs:
   setup-toolchain:
@@ -27,14 +27,13 @@ inputs:
     required: false
     default: 'false'
 
-outputs:
-  prepared:
-    description: Whether the self-hosted runner boundary was prepared.
-    value: ${{ steps.prepare.outputs.prepared }}
-
 runs:
   using: composite
   steps:
+    - name: Verify GitHub-hosted runner boundary
+      shell: bash
+      run: test "$RUNNER_ENVIRONMENT" = github-hosted
+
     - id: tool_versions
       name: Read mise tool versions
       if: inputs.setup-toolchain == 'true'
@@ -58,34 +57,8 @@ runs:
         node-version: ${{ steps.tool_versions.outputs.node }}
         package-manager-cache: false
 
-    - id: pnpm_toolchain
-      name: Reuse runner-cached pnpm
-      if: inputs.setup-toolchain == 'true' && runner.environment == 'self-hosted'
-      shell: bash
-      env:
-        CAXRI_NODE_VERSION: ${{ steps.tool_versions.outputs.node }}
-        CAXRI_PNPM_VERSION: ${{ steps.tool_versions.outputs.pnpm }}
-      run: |
-        pnpm_directory="$RUNNER_TOOL_CACHE/caxri/pnpm/${CAXRI_PNPM_VERSION}-node-${CAXRI_NODE_VERSION}"
-        if [[ -x "$pnpm_directory/pnpm" ]] && [[ "$("$pnpm_directory/pnpm" --version)" == "$CAXRI_PNPM_VERSION" ]]; then
-          echo "cached=true" >> "$GITHUB_OUTPUT"
-          echo "PNPM_HOME=$pnpm_directory" >> "$GITHUB_ENV"
-          echo "$pnpm_directory" >> "$GITHUB_PATH"
-        else
-          echo "cached=false" >> "$GITHUB_OUTPUT"
-        fi
-
-    - name: Install pnpm on self-hosted cache miss
-      if: inputs.setup-toolchain == 'true' && runner.environment == 'self-hosted' && steps.pnpm_toolchain.outputs.cached != 'true'
-      uses: pnpm/setup@c8e77b72cd6022852162c92aa10e7e72b7209c9b # v2
-      with:
-        version: ${{ steps.tool_versions.outputs.pnpm }}
-        dest: ${{ runner.tool_cache }}/caxri/pnpm/${{ steps.tool_versions.outputs.pnpm }}-node-${{ steps.tool_versions.outputs.node }}
-        install: false
-        cache: false
-
-    - name: Install exact pnpm on hosted runner
-      if: inputs.setup-toolchain == 'true' && runner.environment == 'github-hosted'
+    - name: Install exact pnpm
+      if: inputs.setup-toolchain == 'true'
       uses: pnpm/setup@c8e77b72cd6022852162c92aa10e7e72b7209c9b # v2
       with:
         version: ${{ steps.tool_versions.outputs.pnpm }}
@@ -103,19 +76,7 @@ runs:
         test "$(node --version)" = "v$CAXRI_NODE_VERSION"
         test "$(pnpm --version)" = "$CAXRI_PNPM_VERSION"
 
-    - name: Use runner-pinned Bun
-      if: runner.environment == 'self-hosted'
-      shell: bash
-      run: |
-        bun_version="$(tr -d '\r\n' < .bun-version)"
-        [[ "$bun_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-        bun_directory="$RUNNER_TOOL_CACHE/caxri/bun/$bun_version/bin"
-        test -x "$bun_directory/bun"
-        test "$("$bun_directory/bun" --version)" = "$bun_version"
-        echo "$bun_directory" >> "$GITHUB_PATH"
-
-    - name: Install exact Bun on hosted runner
-      if: runner.environment == 'github-hosted'
+    - name: Install exact Bun
       shell: bash
       run: |
         bun_version="$(tr -d '\r\n' < .bun-version)"
@@ -126,67 +87,8 @@ runs:
       shell: bash
       run: test "$(bun --version)" = "$(tr -d '\r\n' < .bun-version)"
 
-    - id: prepare
-      name: Prepare self-hosted runner boundary
-      if: runner.environment == 'self-hosted'
-      shell: bash
-      run: |
-        bun run scripts/self-hosted-runner.ts prepare
-        echo "prepared=true" >> "$GITHUB_OUTPUT"
-
-    - name: Configure runner-local caches
-      if: inputs.setup-toolchain == 'true' && runner.environment == 'self-hosted'
-      shell: bash
-      run: |
-        cache_root="$RUNNER_TOOL_CACHE/caxri"
-        electron_cache="$cache_root/electron"
-        playwright_cache="$cache_root/playwright"
-        pnpm_store="$cache_root/pnpm-store"
-
-        pnpm_state=cold
-        electron_state=cold
-        quality_state=cold
-        if [[ -d "$pnpm_store" ]] && find "$pnpm_store" -mindepth 1 -print -quit | grep -q .; then
-          pnpm_state=warm
-        fi
-        if [[ -d "$electron_cache" ]] && find "$electron_cache" -mindepth 1 -print -quit | grep -q .; then
-          electron_state=warm
-        fi
-        if [[ -e "$cache_root/eslint/.eslintcache" || -e "$cache_root/prettier" ]]; then
-          quality_state=warm
-        fi
-
-        CAXRI_PNPM_CACHE_STATE="$pnpm_state" \
-          CAXRI_ELECTRON_CACHE_STATE="$electron_state" \
-          CAXRI_QUALITY_CACHE_STATE="$quality_state" \
-          node -e 'console.log(`CAXRI_CACHE_STATE ${JSON.stringify({ electron: process.env.CAXRI_ELECTRON_CACHE_STATE, pnpm: process.env.CAXRI_PNPM_CACHE_STATE, quality: process.env.CAXRI_QUALITY_CACHE_STATE })}`)'
-
-        test ! -e .cache
-        mkdir -p "$electron_cache" "$playwright_cache" "$pnpm_store" "$cache_root/eslint" .cache
-        if [[ ! -s "$cache_root/prettier" ]]; then
-          rm -f "$cache_root/prettier"
-        fi
-        ln -s "$cache_root/eslint" .cache/eslint
-        ln -s "$cache_root/prettier" .cache/prettier
-        echo "ELECTRON_CACHE=$electron_cache" >> "$GITHUB_ENV"
-        echo "PLAYWRIGHT_BROWSERS_PATH=$playwright_cache" >> "$GITHUB_ENV"
-        echo "PNPM_CONFIG_STORE_DIR=$pnpm_store" >> "$GITHUB_ENV"
-        echo "CAXRI_CACHE_ROOT=$cache_root" >> "$GITHUB_ENV"
-
-        {
-          echo "## Runner-local cache state"
-          echo
-          echo "| Cache | State |"
-          echo "| --- | --- |"
-          echo "| pnpm store | $pnpm_state |"
-          echo "| Electron | $electron_state |"
-          echo "| ESLint / Prettier | $quality_state |"
-          echo
-          echo "## Command metrics"
-        } >> "$GITHUB_STEP_SUMMARY"
-
     - name: Configure disposable hosted caches
-      if: inputs.setup-toolchain == 'true' && runner.environment == 'github-hosted'
+      if: inputs.setup-toolchain == 'true'
       shell: bash
       run: |
         cache_root="$RUNNER_TEMP/caxri"
@@ -221,7 +123,7 @@ runs:
         echo "$java_home/bin" >> "$GITHUB_PATH"
 
     - name: Install media tools on hosted runner
-      if: inputs.install-media-tools == 'true' && runner.environment == 'github-hosted'
+      if: inputs.install-media-tools == 'true'
       shell: bash
       env:
         HOMEBREW_NO_AUTO_UPDATE: '1'

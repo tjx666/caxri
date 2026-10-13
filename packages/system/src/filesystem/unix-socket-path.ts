@@ -77,8 +77,7 @@ export async function ensurePrivateUnixSocketDirectory(directory: string): Promi
  * hook bridge failed its `listen` with `EINVAL` and left hooks quietly uninstalled.
  *
  * Falling back here removes that failure mode for every caller instead of requiring each one to budget its own
- * directory depth. See `scripts/self-hosted-runner.ts`, which solves the same limit for CI by pointing `TMPDIR` at a
- * short `/private/tmp` symlink.
+ * directory depth or depend on a particular temporary-directory layout.
  *
  * @param preferredDirectory Absolute directory the caller would rather use
  * @param name Socket file name, including its extension

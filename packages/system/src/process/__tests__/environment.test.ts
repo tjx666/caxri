@@ -18,7 +18,6 @@ describe('safeProcessEnvironment', () => {
             CODEX_HOME: '/tmp/codex',
             CODEX_SQLITE_HOME: '/tmp/codex-sqlite',
             CLAUDE_CONFIG_DIR: '/tmp/claude',
-            CAXRI_RUNNER_OWNER: 'caxri-42-1-e2e',
             DEVELOPER_DIR: '/Applications/Xcode.app/Contents/Developer',
             PATH: '/usr/bin',
         });

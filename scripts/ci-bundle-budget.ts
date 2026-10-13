@@ -79,8 +79,8 @@ export const SIZE_BUDGETS: SizeBudget[] = [
 
 /**
  * Wall-time ceilings guard against toolchain regressions (for example accidentally enabling an analysis plugin on every
- * build) rather than machine noise, so they carry generous headroom over the self-hosted baseline (build ≈ 25 s with
- * source maps, package ≈ 35 s).
+ * build) rather than machine noise, so they carry generous headroom over the historical runner baseline (build ≈ 25 s
+ * with source maps, package ≈ 35 s).
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const TIME_BUDGETS: TimeBudget[] = [
@@ -158,9 +158,9 @@ const COMPONENT_BUDGETS = new Map(
 );
 
 /**
- * Last green `main` measurements. The repository has no public release yet and CI runs on a single self-hosted runner,
- * so a user-level file is the simplest durable baseline: every green main build refreshes it and every run (PRs
- * included) reports deltas against it. Missing baseline degrades to `n/a`, never to a failure.
+ * Last green `main` measurements for repeated runs on the same machine. Local runs can reuse this user-level file;
+ * disposable hosted runners normally report `n/a` because they do not inherit a prior cache. Missing baseline never
+ * becomes a failure; absolute size budgets remain the portable gate.
  */
 interface BundleBaseline {
     commit: string;

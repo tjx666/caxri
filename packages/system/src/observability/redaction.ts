@@ -10,9 +10,9 @@ export { isSecretKey } from '@caxri/utils';
 
 /**
  * The OS account's home from the password database. It differs from `homedir()` when a launcher overrides `HOME`: E2E
- * and Acceptance run Caxri with an isolated fixture HOME while the self-hosted runner's workspace and job temp root
- * still sit under the runner account's real home, so redacting only `homedir()` leaves the account name in every
- * fixture path (issue #1461).
+ * and Acceptance run Caxri with an isolated fixture HOME while a CI runner's workspace and job temp root can still sit
+ * under the runner account's real home, so redacting only `homedir()` leaves the account name in every fixture path
+ * (issue #1461).
  */
 function readAccountHome(): string | undefined {
     try {

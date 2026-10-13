@@ -21,10 +21,8 @@ const created: string[] = [];
 /**
  * Returns a directory under the temp root deep enough that `name` provably cannot fit beside it.
  *
- * How deep that is depends on the machine: the macOS per-user temp root is 49 bytes, while CI points `TMPDIR` at a
- * deliberately short `/private/tmp` symlink (see `scripts/self-hosted-runner.ts`) where one worker directory still
- * fits. Nesting until the limit is actually exceeded keeps these tests about the fallback rather than about one
- * machine's temp path.
+ * How deep that is depends on the machine and its temporary-directory layout. Nesting until the limit is actually
+ * exceeded keeps these tests about the fallback rather than about one machine's temp path.
  */
 function tooDeepDirectory(name: string): string {
     let directory = join(tmpdir(), 'caxri-e2e-parallel-safe-0');

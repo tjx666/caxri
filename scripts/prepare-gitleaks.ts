@@ -1,11 +1,10 @@
 #!/usr/bin/env bun
 
 /**
- * Provisions the pinned `gitleaks` binary for local hooks and both CI surfaces: the self-hosted macOS runner and the
- * GitHub-hosted Linux `guards` job. Neither has a package manager that ships gitleaks (no Homebrew, no mise, no npm
- * package), so this repository owns the download the same way `electron:install` and Playwright's browser install
- * already own their own binaries. A local machine that already has the pinned version on `PATH` (the common case: it is
- * installed there via Homebrew) skips the network round trip entirely.
+ * Provisions the pinned `gitleaks` binary for local hooks and disposable GitHub-hosted workflows. The runner image has
+ * no package manager source for this exact pin, so the repository owns the download the same way `electron:install` and
+ * Playwright's browser install own their binaries. A local machine that already has the pinned version on `PATH` (the
+ * common case: it is installed there via Homebrew) skips the network round trip entirely.
  */
 
 import { execFile } from 'node:child_process';

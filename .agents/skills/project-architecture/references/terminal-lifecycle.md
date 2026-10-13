@@ -6,9 +6,7 @@ the private protocol. Terminal Host exclusively spawns and owns the resulting PT
 bounded launch executable and argument settings; configured initial args precede provider-owned resume
 args. Agent executables use a cached, bounded login-shell PATH shared with version probes, while normal
 Shell Terminals retain their existing login-shell startup. Standard proxy and custom-CA variables are
-retained, while unrelated credentials and Caxri-internal variables are excluded. The content-free
-`CAXRI_RUNNER_OWNER` marker survives detached Server and Host launches so interrupted CI can reclaim
-only its own descendants.
+retained, while unrelated credentials, workflow markers, and Caxri-internal variables are excluded.
 
 Desktop Main forwards a narrow E2E-only Agent policy to Server Core: default launches block every
 provider, fake mode maps declared providers to absolute fixture executables, and real mode permits

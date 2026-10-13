@@ -65,6 +65,8 @@ describe('CI trust policy', () => {
         expect(verifierSource).not.toContain('test "$RUNNER_ENVIRONMENT"');
         expect(verifierSource).not.toContain('test "$RUNNER_OS"');
         expect(verifierSource).not.toContain('test "$RUNNER_ARCH"');
+        expect(verifierSource).not.toContain('schedule_event');
+        expect(JSON.stringify(policy)).not.toContain('scheduleEvent');
         expect(verifierSource).not.toContain(policy.trustedActor);
     });
 

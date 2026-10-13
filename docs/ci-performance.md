@@ -6,11 +6,9 @@ status: current
 # CI and E2E Performance Evidence
 
 This is the single source of truth for CI optimization decisions, execution profiles, and
-performance evidence. It preserves historical GitHub-hosted evidence and records current
-self-hosted samples, non-green attempts, correctness constraints, and resource controls. A failed
-path is useful failure-cost data, but it is never a green performance baseline. Runner labels,
-trust, offline behavior, and recovery are owned by
-[`docs/self-hosted-runner.md`](self-hosted-runner.md).
+performance evidence. It preserves historical GitHub-hosted and self-hosted samples, non-green
+attempts, correctness constraints, and resource controls while defining the current GitHub-hosted
+routes. A failed path is useful failure-cost data, but it is never a green performance baseline.
 
 ## Baseline
 
@@ -32,7 +30,7 @@ remains red.
 
 This table is a historical npm baseline. The pnpm 12 and Node 24 migration changes toolchain setup,
 install, and cache semantics, so it must not be used as a same-environment comparison for current
-CI; record a new exact-head self-hosted baseline before making further install-time claims.
+CI; record a new exact-head GitHub-hosted baseline before making further install-time claims.
 
 ### Single-runner concurrent-window baseline
 
@@ -256,11 +254,10 @@ from about 6 to 17 seconds on hosted runners while the current local build is ab
 checks may build a synthetic PR merge while E2E intentionally verifies the exact pushed head, and
 Vite's `.vite` directory is not a reusable production-output cache.
 
-## Self-hosted diagnosis contract
+## Explicit full-E2E diagnosis contract
 
-- Runner availability, offline queuing, and recovery follow
-  [`docs/self-hosted-runner.md`](self-hosted-runner.md); a queued job is not successful evidence.
-- Preserve the first red self-hosted run and download its artifacts. Do not rerun a known red SHA or push
+- A queued GitHub-hosted job is not successful evidence. Preserve the first red run and download its
+  artifacts. Do not rerun a known red SHA or push
   one assertion fix at a time.
 - Reproduce the exact failed spec against a fresh production build with one worker and
   `--repeat-each=3`. A `parallel-safe` failure must also be exercised under its namespaced
@@ -269,8 +266,9 @@ Vite's `.vite` directory is not a reusable production-output cache.
 - Finish the complete repair batch and focused local gates before pushing once. Legacy `e2e-only`
   and `e2e-repair` trailers remain parseable only as compatibility metadata: they run full hosted
   checks and cannot start Playwright or reuse an ancestor receipt. Do not add them to new PRs.
-- A failed explicit full-E2E candidate must be repaired and dispatched again on the new exact SHA.
-  Ready-PR ancestor reuse is suspended while automatic PR E2E is disabled.
+- A failed explicit full-E2E candidate must be repaired against a new exact SHA. It is dispatched
+  again only when the maintainer gives fresh authorization; ready-PR ancestor reuse is suspended
+  while automatic PR E2E is disabled.
 - Keep test counts, assertions, isolation, error gates, and failure artifacts unchanged. Optimize
   fixture cost and orchestration rather than coverage.
 
@@ -292,8 +290,7 @@ closed to the event's ordinary hosted-check row.
 | Missing or rejected retry evidence                                                     | `full`       | Continue with the event row | Continue with the event row | event row      |
 | `workflow_dispatch`, target `checks-only`                                              | `full`       | `full`                      | `control` / `optimized`     | no             |
 | `workflow_dispatch`, target `hosted-smoke`                                             | `full`       | `full`                      | `control`                   | targeted smoke |
-| `workflow_dispatch`, target `self-hosted-final`, private repository only               | `full`       | `full`                      | `control` / `optimized`     | explicit only  |
-| `workflow_dispatch`, target `hosted-full`, public repository only                      | `full`       | `full`                      | `control` / `optimized`     | explicit only  |
+| `workflow_dispatch`, target `hosted-full`, freshly authorized by the maintainer        | `full`       | `full`                      | `control` / `optimized`     | explicit only  |
 | PR documentation only                                                                  | `full`       | `focused-docs`              | `control`                   | no             |
 | PR repository-skill and documentation only                                             | `full`       | `focused-skills`            | `control`                   | no             |
 | Draft PR with any remaining source change                                              | `full`       | `focused-source`            | `control`                   | no             |
@@ -330,16 +327,16 @@ routes it to the `affected` scope:
   dispatch still owns every full E2E run.
 
 Knip, React Doctor, and bundle budgets run in the `full` checks scope on hosted macOS. Ordinary
-pushes to `main` run those checks but do not start full E2E. There is no scheduled full E2E while
-the repository is private.
+pushes to `main` run those checks but do not start full E2E. There is no scheduled full E2E.
 
-While the repository is private, `hosted-smoke` is the repeatable hosted desktop launch and runs
-only `e2e/smoke.e2e.ts`. Before the pre-public runner is removed, freeze one candidate SHA and
-record one owner-dispatched `self-hosted-final` full-E2E result on the private final runner; do not repeat it for
-performance sampling. After the repository becomes public, `hosted-full` on `macos-15` is the
-explicit complete E2E route, and `self-hosted-final` rejects the event. The self-hosted Renderer
-performance baseline runs only on `self-hosted-final`; hosted E2E must collect a separate
-calibration before it can enforce that historical machine-specific baseline.
+`hosted-smoke` is the repeatable hosted desktop launch and runs only `e2e/smoke.e2e.ts`. Current
+publication-readiness evidence is the complete hosted unit/integration suite, build and native
+checks, package validation, targeted Electron smoke, and the hosted no-publish Release rehearsal.
+Full E2E is deliberately not a runner-removal, GO, repository-publication, Release, or
+anonymous-review gate. `hosted-full` on `macos-15` remains available only as a future manual
+diagnostic route, and every dispatch or retry requires fresh, explicit maintainer authorization.
+Hosted E2E must collect a separate calibration before it can enforce the historical
+machine-specific Renderer performance baseline.
 
 The Release workflow's manual dispatch is a no-publish rehearsal. It keeps the Linux x64/ARM64
 native matrix, then uses `macos-15` ARM64 to install the exact Node, pnpm, Bun, JDK 17, Android
@@ -353,15 +350,14 @@ no secrets, uploads no DMG, and never creates a GitHub Release.
 - Automatic pull-request and `main`-push events stop at the hosted `retry-policy` and `checks` jobs.
   They never enter the `e2e` job, including when `checksScope` is `full` or `e2eProfile` is
   `optimized`.
-- An explicit `self-hosted-final` or `hosted-full` dispatch checks out the dispatched SHA. With
+- An explicitly authorized `hosted-full` dispatch checks out the dispatched SHA. With
   `e2e_profile: optimized`, the E2E job installs once, creates an owned disposable checkout of that
   same SHA for full platform checks, and overlaps those checks with exact-head E2E on the selected
   runner. There is no PR synthetic-merge or `main`-push E2E path.
 - Exact-head E2E verifies native modules and builds once, then runs `desktop-exclusive` with one
   worker, the dispatch-only CI-parity cases, and `parallel-safe` with three namespaced workers. The
-  optimized `self-hosted-final` route shares the private final runner; `hosted-full` runs the same orchestration on
-  `macos-15`. The `workflow_dispatch` worker input remains bounded to 2–4 for frozen same-head
-  comparisons.
+  `hosted-full` route runs the same orchestration on `macos-15`. The `workflow_dispatch` worker input
+  remains bounded to 2–4 for frozen same-head comparisons.
 
 ### Four parallel workers, measured and rejected
 
@@ -387,13 +383,11 @@ is already near the worker count, the pool is scheduling well and more workers b
 time. Growth in the **serial** total between two runs is the signal that the runner is saturated:
 wall time alone hides it.
 
-- Every successful `self-hosted-final` run finishes with the fixed Renderer performance scenario.
-  Hosted routes do not enforce this historical self-hosted baseline. The benchmark step rebuilds a
-  profiling React Renderer after the production-build suites, applies the per-surface budgets in
-  [`docs/renderer-performance.md`](renderer-performance.md), and uploads its machine-readable receipt.
-  The `e2e` job fails when the benchmark step fails; changing the gate, benchmark command, or
-  performance spec routes automatic CI through full hosted checks and requires an explicit
-  `self-hosted-final` dispatch for behavior-level proof.
+- Every authorized `hosted-full` run still executes the fixed Renderer performance scenario and
+  uploads its machine-readable receipt. Those fixed same-run thresholds remain part of that run.
+  The historical self-hosted cross-run baseline is `armed: false` and cannot block hosted E2E;
+  enough same-image GitHub-hosted receipts must establish a replacement before rearming it. The
+  manually dispatched trend comparison is likewise non-blocking until that hosted baseline exists.
 - Every spec runs in `parallel-safe` unless `desktopExclusiveSpecs` names it with a reason; tests
   that need the exclusive pool move into a dedicated spec, so each logical pool needs only one
   Playwright invocation. `e2e/support/pools.ts` owns the reasons and admission conditions, and
@@ -420,8 +414,8 @@ wall time alone hides it.
   that receipt to the Actions run attempt, platform-check revision, exact head, profile, and
   worker count; a missing, stale, malformed, or non-zero component fails closed.
 - Focused checks, `checks-only` and `hosted-smoke` dispatches, one-worker controls, and non-optimized
-  profiles keep their standalone paths. Only an explicit optimized `self-hosted-final` or
-  `hosted-full` dispatch can replace the standalone checks job with the concurrent path.
+  profiles keep their standalone paths. Only an explicitly authorized optimized `hosted-full`
+  dispatch can replace the standalone checks job with the concurrent path.
 - Vitest defaults to the audited `optimized` partition and two workers on both the standalone and
   the concurrent full path, so the checks branch finishes early and overlaps as little of
   `parallel-safe` as it can instead of spreading the same work into it. The `legacy` partition and worker caps 1-4 remain
@@ -433,10 +427,11 @@ wall time alone hides it.
 The fixed thresholds `renderer-performance` asserts catch a large, sudden regression but never a
 steady creep: a change that costs 3% every time never crosses a fixed number. `Run Renderer
 performance baseline gate` runs immediately after that step and additively compares the same
-receipt against a noise-derived, committed baseline, `scripts/performance-baseline.json`. A separate
-scheduled workflow, [Gradual-creep trend check](#gradual-creep-trend-check), watches for the creep the
-per-run gate cannot see by itself. All three checks are independent: a failure in one never
-suppresses another.
+receipt against a noise-derived, committed baseline, `scripts/performance-baseline.json`. During
+the hosted transition that baseline is `armed: false`: the comparison remains visible but cannot
+fail the job. A separately dispatched [Gradual-creep trend check](#gradual-creep-trend-check) is
+also non-blocking until enough same-image hosted receipts support a newly reviewed baseline. The
+fixed threshold, cross-run comparison, and trend report remain independent surfaces.
 
 The design below replaced a flat `median + 5·MAD` threshold ([issue tjx666/caxri#1439][issue-1439])
 after backtesting it against 98 real `renderer-performance-receipt` artifacts from self-hosted CI
@@ -593,6 +588,11 @@ precisely so that vacuous truth is never mistaken for a clean run. `drifted` doe
 `unarmed`, `no-baseline`, `skipped`, or `drifted` ever reports as a `passed` comparison: the job log
 and step summary always show which of these states produced the outcome.
 
+The current file is intentionally `armed: false` because its samples came from the retired
+self-hosted pool. Do not rearm it from local samples or a mixed runner population. Collect enough
+`hosted-full` receipts from the same GitHub-hosted image, review the derived thresholds, and rearm it
+in a separate change.
+
 ### Refreshing the baseline
 
 Refreshing is always this explicit, reviewable command: nothing writes
@@ -611,14 +611,13 @@ The Renderer scenario needs a profiling build first
 local` derive always writes `armed: false`, so this recipe is a way to validate the statistical
 method and preview the resulting thresholds, never a way to arm the runner gate.
 
-### Arming the gate from CI samples, without runner SSH
+### Historical runner-baseline procedure
 
-The self-hosted runner is a single shared machine; no session or contributor runs commands on it
-directly to collect samples. Instead, every `e2e` job that reaches `renderer-performance` already
-uploads its receipt as the `renderer-performance-receipt` artifact. Once enough green `main` runs
-have accumulated (`RECOMMENDED_MINIMUM_RUNNER_SAMPLE_COUNT`, 40, or more for a stable historical
-maximum), a maintainer arms the baseline by downloading those artifacts and deriving from them with
-`--source runner`:
+The retired self-hosted route collected `renderer-performance-receipt` artifacts without direct
+runner access. The commands below preserve how the historical baseline was derived. Reinstating an
+automated GitHub-hosted cross-run gate requires a separately reviewed calibration from enough
+same-image `hosted-full` samples
+(`RECOMMENDED_MINIMUM_RUNNER_SAMPLE_COUNT`, 40, or more for a stable maximum):
 
 ```bash
 mkdir -p /tmp/performance-runs
@@ -644,10 +643,10 @@ was armed this way from 98 receipts; its `provenance` field reads:
 98 renderer-performance-receipt artifacts from self-hosted CI runs 35967460812-36421490139 (2026-09-24T07:13:31Z to 2026-09-28T12:48:30Z)
 ```
 
-Commit the resulting `scripts/performance-baseline.json`. Its `armed: true` and `source: "runner"`
-are then load-bearing: the next CI run compares against a real runner-noise threshold and can fail
-the job. Re-run the same recipe against a fresh window of runs to refresh the baseline as the
-product's genuine performance profile shifts: never hand-edit the JSON file.
+The committed `scripts/performance-baseline.json` records that retired machine's evidence with
+`armed: false`; its `source: "runner"` field does not authorize applying those thresholds to a
+GitHub-hosted run. Never hand-edit the JSON file; a future hosted baseline must be derived from its
+own reviewed same-image sample window.
 
 The receipt artifacts expire after seven days, but the `e2e` job log keeps the same receipt as its
 `CAXRI_RENDERER_BENCHMARK {...}` line (`e2e/renderer.performance.e2e.ts` prints the exact payload it
@@ -693,42 +692,43 @@ has a continuous armed baseline entry), `insufficient-receipts` (fewer than `win
 receipts were found), and `alarm` / `ok`.
 
 `.github/workflows/performance-trend.yml` runs this check on a GitHub-hosted `ubuntu-latest` runner,
-deliberately not `ci.yml`'s self-hosted `caxri-ci` runner, since it needs no Electron launch and no
-build. It triggers on a daily `schedule` (18:00 UTC) and `workflow_dispatch` (with `window` and
-`alarm_ratio` overrides) only (never `pull_request`), so it costs no self-hosted runner time and
-stays out of the required PR guards. With `permissions: actions: read`, it lists the most recent
+separate from `ci.yml`'s Apple Silicon jobs, since it needs no Electron launch and no build. It
+triggers only through an explicit `workflow_dispatch` with optional `window` and `alarm_ratio`
+overrides (never `schedule` or `pull_request`), so it costs no full-E2E runner time and stays out of
+the required PR guards. While the baseline is unarmed, the workflow is a non-blocking diagnostic.
+With `permissions: actions: read`, it lists the most recent
 `renderer-performance-receipt` artifacts via `gh api .../actions/artifacts`, downloads each with
 `gh run download`, and runs `bun run performance:trend:check -- --baseline
 scripts/performance-baseline.json --receipts-dir <dir> --window <N> --alarm-ratio <X>`, which writes
 its table to the job's step summary and exits non-zero on `alarm`.
 
-### Scope: which changes pay for the comparison
+### Per-run comparison scope
 
-`Run Renderer performance baseline gate` only compares when `CI_CHANGED_FILES` (the same
+`Run Renderer performance baseline gate` compares only when `CI_CHANGED_FILES` (the same
 `needs.retry-policy.outputs.changed_files` the `checks` job already reads) intersects
 `isPerformanceRelevantPath`: Desktop main/preload/renderer source, Server source, the shared
 Client/protocol/system packages, a performance E2E spec, or the baseline's own script/JSON files.
 An unrelated change (docs, an extension, a CLI-only fix) never pays for a comparison that cannot
 regress what the baseline measures. Outside CI, or when there is no changed-files signal to reason
 about at all, the gate always compares: an operator running it by hand wants a real answer, not a
-skip. The trend check has no such scoping: it never runs on a pull request in the first place, so
-every scheduled or manually dispatched run always compares.
+skip. The trend check has no such scoping: its explicitly dispatched run always compares.
 
 ### Cost
 
-The gate step itself reads two small JSON files and does no build or Electron launch; its own cost
-is sub-second. It is gated on `renderer-performance` having produced a receipt at all (`if: always()
+The gate step reads two small JSON files and does no build or Electron launch; its own cost is
+sub-second. It is gated on `renderer-performance` having produced a receipt at all (`if: always()
 && steps.renderer-performance.outcome != 'skipped'`), so it adds no new build, no new Electron
 launch, and no new CI minutes beyond that near-instant read-and-compare. The trend check's own
 GitHub-hosted job cost is likewise near-instant (an artifact list, a handful of small downloads, and
-one JSON comparison) and never touches the self-hosted runner's queue.
+one JSON comparison) and never occupies a full-E2E job.
 
 ## Comparison contract
 
 Freeze exact head, manifest, Node/pnpm versions, lockfile hash, runner label, workflow inputs, cache
 state, and counts before comparing profiles. Report median end-to-end wall time, dominant steps,
 peak process-tree RSS, cache state, and every non-green attempt. Adopt a parallelism or concurrency
-change only when correctness and isolation stay green and self-hosted medians improve; otherwise
+change only when correctness and isolation stay green and same-image GitHub-hosted medians improve;
+otherwise
 restore control and record the rejection. `CAXRI_VALIDATION_ENV`, `CAXRI_CACHE_STATE`,
 `CAXRI_CI_METRIC`, `CAXRI_E2E_MANIFEST`, and `CAXRI_RENDERER_BENCHMARK` provide the machine-readable
 inputs for that report;

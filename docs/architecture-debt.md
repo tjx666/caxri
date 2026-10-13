@@ -51,7 +51,8 @@ tracked by its own issue because it needs a product decision or its own design.
 
 ### AD-test-knip-before-merge: [OPEN · Coverage or observability gap · S]
 
-- **Summary:** An ordinary PR that leaves an unused export merges green and fails only the next nightly.
+- **Summary:** An ordinary PR that leaves an unused export can merge green and fail only on the
+  post-merge `main` push.
 - **Evidence:** `scripts/ci-execution-plan.ts` assigns `affected`; `scripts/run-ci-focused-checks.ts` runs no knip. Skills and `docs/ci-performance.md` now state this accurately.
 - **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1679](https://github.com/tjx666/caxri/issues/1679): knip in the `affected` scope or `guards`.
@@ -486,7 +487,7 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-toolchain-agent-doc-drift: [RESOLVED · Contract drift · S]
 
 - **Summary:** Skills and docs disagreed with the toolchain: an 800-line split threshold against the 600-line ratchet, knip claimed on every PR, a fully self-hosted CI, an "LRU" link cache, and Chat claimed to share the PTY Agent environment.
-- **Evidence:** `source-layout`, `quality-check`, and `pull-request` skills; `docs/quality-toolchain.md`, `docs/ci-performance.md`, `docs/self-hosted-runner.md`, `docs/agent-chat.md`; `security.md` lists Main's outbound requests and the delegation bootstrap.
+- **Evidence:** `source-layout`, `quality-check`, and `pull-request` skills; `docs/quality-toolchain.md`, `docs/ci-performance.md`, and `docs/agent-chat.md`; `security.md` lists Main's outbound requests and the delegation bootstrap.
 - **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
 - **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
 - **Remediation target / Acceptance:** Each statement matches the cited script or workflow.
@@ -510,10 +511,10 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-env-inherited-allowlist-split: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Launching Caxri from a shell with proxy or custom CA variables stripped them at the Server Core hop, so Agent Chats, Git, and naming processes lost network access; per-provider state keys also had four drifting copies.
-- **Evidence:** `packages/protocol/src/agent/agent-process-environment.ts:13-25` owns `AGENT_STATE_ENVIRONMENT_KEYS` and `INHERITED_PROCESS_ENVIRONMENT_KEYS`; `packages/client/src/supervise/launch.ts:21` and `packages/system/src/process/environment.ts:12` both read the shared list, and `scripts/self-hosted-runner.ts:44` keeps a dependency-free copy locked by `scripts/__tests__/self-hosted-runner.test.ts`.
+- **Evidence:** `packages/protocol/src/agent/agent-process-environment.ts` owns `AGENT_STATE_ENVIRONMENT_KEYS` and `INHERITED_PROCESS_ENVIRONMENT_KEYS`; `packages/client/src/supervise/launch.ts` and `packages/system/src/process/environment.ts` both read the shared list, with the latter covered by `packages/system/src/process/__tests__/environment.test.ts`.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
-- **Remediation target / Acceptance:** Both hops share one inherited allowlist; a contract test fails when a copy diverges.
+- **Remediation target / Acceptance:** Both hops import one inherited allowlist; the provider-state table remains exhaustive by type.
 
 ### AD-lifecycle-dispatch-archive-race: [RESOLVED · Confirmed defect · S]
 
@@ -931,10 +932,8 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload; only the editor pane nests one, so a failed lazy tab stays in its pane while a Terminal or Agent Chat pane throw reloads the window                              | `error-boundary.tsx`, Renderer entries, `editor-error-boundary.tsx`                                |
 | IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk                                                                                                                                   | `eslint.config.ts`, `BrowserWindow` webPreferences                                                 |
 | IT-go-cooperative-ledger            | Go receipts validate cooperative exact-head state and lineage; they do not execute commands, derive findings, or form an adversarial security boundary                                                                                   | `.agents/skills/go/SKILL.md`                                                                       |
-| IT-single-self-hosted-runner        | One machine owns the CI and Release workflows with queued offline behavior; only the required `guards` check runs on a GitHub-hosted runner. This is an availability/cost tradeoff, not a security boundary                              | `docs/self-hosted-runner.md`                                                                       |
 | IT-ci-workflow-source-contract      | Ordinary workflow contracts use source-shape/order smoke assertions; trust clauses have structured YAML binding, and neither layer evaluates arbitrary GitHub expression equivalence                                                     | `ci-workflow-contract.test.ts`, `ci-trust-policy.test.ts`                                          |
 | IT-skill-shared-redaction-helper    | Repository skill scripts reuse the browser-safe shared redaction helper instead of duplicating secret-shape policy in a skill-only package                                                                                               | `note-safety.ts`, `packages/utils/src/redaction.ts`                                                |
-| IT-runner-cleanup-primary-error     | Runner cleanup attempts every stage, reports all failed stages in the summary, and throws the first causal error rather than changing the CLI contract to `AggregateError`                                                               | `self-hosted-runner.ts`, `self-hosted-runner.test.ts`                                              |
 | IT-e2e-build-input-roots            | E2E build freshness uses audited coarse repository roots rather than parsing the Vite dependency graph; confirmed missing consumed roots are defects                                                                                     | `e2e/support/build-freshness.ts`, [issue caxri#335](https://github.com/tjx666/caxri/issues/335)    |
 | IT-e2e-worker-local-error-gate      | `E2EErrorGate` state is isolated per Playwright worker process; pool orchestration may use more than one worker                                                                                                                          | `e2e/support/error-gate.ts`, `scripts/run-e2e-pools.ts`                                            |
 | IT-e2e-parallel-safe-default        | Specs default to the three-worker `parallel-safe` pool; only `desktopExclusiveSpecs` entries with a closed reason stay on one worker, and mechanical capabilities are enforced by source derivation and at launch                        | `e2e/support/pools.ts`, `docs/ci-performance.md`                                                   |

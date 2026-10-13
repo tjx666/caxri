@@ -3,9 +3,9 @@
  *
  * The structured `.jsonl` logs already redact home paths at the writer, but Playwright's own outputs do not:
  * `error-context.md` and `trace.zip` carry absolute workspace paths in stack frames and fixture paths in error text and
- * DOM snapshots. On the self-hosted runner both the workspace and the job temp root sit under the runner account's
- * home, so every one of those paths names the account. This replaces each home prefix with `$HOME` in text files and in
- * the text entries of nested `.zip` archives; binary entries (screenshots) cannot carry a path and stay untouched.
+ * DOM snapshots. On a hosted runner the workspace and job temp root can still name the runner account. This replaces
+ * each home prefix with `$HOME` in text files and in the text entries of nested `.zip` archives; binary entries
+ * (screenshots) cannot carry a path and stay untouched.
  *
  * Usage: `bun run scripts/redact-e2e-artifacts.ts <directory>...`; missing directories are skipped so CI can name every
  * pool's output directory unconditionally.

@@ -6,9 +6,6 @@ import { agentProviderIds } from './agents.js';
  * Launchers forward them so a launched Agent reads the state the operator's shell would, and test harnesses isolate
  * exactly these keys so a run never reaches a developer's real Agent state. The exhaustive record makes a new provider
  * fail typecheck until its state overrides are named here.
- *
- * `scripts/self-hosted-runner.ts` keeps a dependency-free copy because it runs before workspace install; a contract
- * test holds that copy equal to this table.
  */
 export const AGENT_STATE_ENVIRONMENT_KEYS: Readonly<Record<AgentProvider, readonly string[]>> = {
     claude: ['CLAUDE_CONFIG_DIR'],
@@ -23,10 +20,6 @@ export const AGENT_STATE_ENVIRONMENT_KEYS: Readonly<Record<AgentProvider, readon
  * dropped at the first hop. Credentials and unrelated application settings stay out by construction.
  */
 export const INHERITED_PROCESS_ENVIRONMENT_KEYS: readonly string[] = [
-    /**
-     * Keeps detached descendants attributable to their owning CI run during cleanup.
-     */
-    'CAXRI_RUNNER_OWNER',
     'HOME',
     'USER',
     'LOGNAME',
