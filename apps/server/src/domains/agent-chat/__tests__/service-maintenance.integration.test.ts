@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
 
-describe('Agent Chat idle suspension', () => {
+describe('Agent Chat idle maintenance', () => {
     it('stops an idle bound Chat, keeps its conversation, and resumes the same thread on selection', async () => {
         const { database, service, spawnProcess, terminal, threadOpens, until } = await fixture();
         await until((snapshot) => snapshot.status === 'ready');
@@ -43,5 +43,28 @@ describe('Agent Chat idle suspension', () => {
         await until((snapshot) => snapshot.activeTurnId !== undefined);
 
         expect(service.isSuspendable(terminal.id)).toBe(false);
+    });
+
+    it('compacts only the idle launch batch compaction saw', async () => {
+        const { service, terminal, until } = await fixture();
+        await until((snapshot) => snapshot.status === 'ready');
+        expect(service.idleLaunchId(terminal.id)).toBeUndefined();
+        await service.send(terminal.id, { text: 'hi there' });
+        await until(
+            (snapshot) => snapshot.turns.at(-1)?.status === 'completed' && !snapshot.activeTurnId,
+        );
+        const launchId = service.idleLaunchId(terminal.id)!;
+        expect(launchId).toBeTruthy();
+
+        await expect(service.compactIdle(terminal.id, 'another-launch')).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        await service.compactIdle(terminal.id, launchId);
+        const compacted = await until(
+            (snapshot) =>
+                snapshot.items.some((item) => 'kind' in item && item.kind === 'compacted') &&
+                !snapshot.activeTurnId,
+        );
+        expect(compacted.turns.at(-1)?.status).toBe('completed');
     });
 });

@@ -420,6 +420,7 @@ export async function createDomainServices(
         database.close();
     }
     const compaction = new SessionCompaction({
+        agentChat,
         database,
         coordinator,
         terminals,

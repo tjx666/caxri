@@ -80,8 +80,8 @@ The service, reducer, and pane do not change.
   binding could never be resumed. An unbound Chat simply opens a new conversation on its next
   start. Claude Code is started with a preset `--session-id`, and Grok Build's `session/new` with a
   preset `_meta.sessionId`, so the id is known before the turn.
-- PTY-only operations (Terminal input from other Clients, Agent dispatch, compaction, long
-  pastes, mobile submits, restore) reject or skip a Chat through
+- PTY-only operations (Terminal input from other Clients, Agent dispatch, long pastes, mobile
+  submits, restore) reject or skip a Chat through
   `apps/server/src/domains/pty-guard.ts` before any side effect. A phone drives a Chat through
   the `mobile.agentChat.*` methods instead; see [Mobile](#mobile).
 - Source Control review comments and bug reports reach a Chat as one message through
@@ -91,6 +91,8 @@ The service, reducer, and pane do not change.
   and its temporary file path stays in the report either way.
 - Idle suspension parks a background Chat by stopping its provider and keeping its projection;
   selecting the Session resumes it. See [Agent suspension](agent-suspension.md#agent-chats).
+- Batch Session compaction compacts an idle, live primary Chat through its provider protocol and
+  never starts a stopped one; see [Batch Session compaction](session-compaction.md).
 
 ## Switching surface
 
