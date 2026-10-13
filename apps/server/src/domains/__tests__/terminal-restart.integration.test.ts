@@ -136,6 +136,48 @@ describe('Agent Terminal restart', () => {
         },
     );
 
+    it('starts the Agent on a fresh restart even after it exited on its own', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-agent-fresh-exited-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        await Promise.all([mkdir(projectRoot), mkdir(userDataPath)]);
+        const created = seedStoppedAgentSession(
+            userDataPath,
+            await realpath(projectRoot),
+            'codex',
+            'codex-session-old',
+        );
+        const seeded = new CaxriDatabase(join(userDataPath, 'caxri.db'));
+        seeded.updateAgentProcessState(created.terminal!.id, 'stopped');
+        seeded.close();
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const execution = createTestTerminalExecution(logger, { spawn: () => createFakePty() });
+        const start = vi.spyOn(execution, 'start');
+        const runtime = await createTestDomainServices({
+            userDataPath,
+            logger,
+            send: () => {},
+            terminal: {
+                execution,
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/codex'),
+            },
+            agentAdapters: createPendingAgentAdapters(),
+        });
+
+        try {
+            await runtime.handlers['terminal.restart']({
+                terminalId: created.terminal!.id,
+                mode: 'fresh',
+            });
+
+            expect(start.mock.calls[0]?.[0].agent).toMatchObject({ provider: 'codex' });
+        } finally {
+            await runtime.close();
+        }
+    });
+
     it('starts fresh only when restart explicitly requests it', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-agent-fresh-restart-'));
         temporaryDirectories.push(directory);
