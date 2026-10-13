@@ -31,6 +31,7 @@ import {
     recoveredDelegation,
 } from './lifecycle';
 import { admitDelegationRequest } from './new-session';
+import { isDelegationOwner, listOwnedDelegations } from './ownership';
 import type { DelegationFollowUpRejection } from './rejection';
 import { followUpRejection, reportFollowUpRejection } from './rejection';
 import { restoredDelegationFor } from './restored-task';
@@ -117,10 +118,11 @@ export class AgentDelegationService {
         authority: DelegationAuthority,
         input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId'>,
         access: DelegationAccess,
+        isNewSession = false,
     ): void {
         if (this.deletingSessions.has(input.sessionId))
             throw new CaxriError('CONFLICT', 'Delegation Session is being deleted');
-        authorizeDelegationSession(this.options.database, authority, input, access);
+        authorizeDelegationSession(this.options.database, authority, input, access, isNewSession);
     }
 
     private owned(
@@ -131,18 +133,7 @@ export class AgentDelegationService {
         const record = this.options.database.agentDelegations.get(id);
         if (!record) throw new CaxriError('NOT_FOUND', 'Delegation is unavailable');
         this.authorize(authority, record.input, access);
-        /**
-         * A task belongs to the exact Endpoint generation that created it, so a relaunched Agent cannot settle work its
-         * predecessor started. The Agent Commander is the exception: a Caxri restart or Codex relaunch starts a new
-         * generation of the same system Terminal, and its ledger of earlier tasks must keep resolving.
-         */
-        if (
-            (authority.principal.kind === 'agent' ||
-                authority.principal.kind === 'delegation-client') &&
-            (authority.callerTerminalId !== record.receipt.callerTerminalId ||
-                (JSON.stringify(authority.principal) !== JSON.stringify(record.principal) &&
-                    !isAgentCommanderCaller(this.options.database, authority)))
-        )
+        if (!isDelegationOwner(this.options.database, record, authority))
             throw new CaxriError('FORBIDDEN', 'Delegation belongs to another Agent');
         return record;
     }
@@ -337,8 +328,9 @@ export class AgentDelegationService {
         id: string,
         authority: DelegationAuthority,
         input: AgentDelegationCreate,
+        isNewSession: boolean,
     ): Promise<AgentDelegationReceipt> {
-        this.authorize(authority, input, 'create');
+        this.authorize(authority, input, 'create', isNewSession);
         const fingerprint = createHash('sha256')
             .update(JSON.stringify({ authority, input }))
             .digest('hex');
@@ -519,6 +511,13 @@ export class AgentDelegationService {
         return receipt;
     }
 
+    /**
+     * The caller's own tasks; see `listOwnedDelegations`.
+     */
+    list(authority: DelegationAuthority, options: { active: boolean; limit: number }) {
+        return listOwnedDelegations(this.options.database, authority, options);
+    }
+
     presets(
         authority: DelegationAuthority,
         input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId' | 'callerProvider'>,
@@ -531,15 +530,15 @@ export class AgentDelegationService {
     }
 
     /**
-     * Admits one task, creating its Commander Session first for `newSession`; see `admitDelegationRequest`.
+     * Admits one task, creating its Session first for `newSession`; see `admitDelegationRequest`.
      */
     create(
         id: string,
         authority: DelegationAuthority,
         request: AgentDelegationCreateRequest,
     ): Promise<AgentDelegationReceipt> {
-        return admitDelegationRequest(this.options, id, authority, request, (input) =>
-            this.createInSession(id, authority, input),
+        return admitDelegationRequest(this.options, id, authority, request, (input, isNewSession) =>
+            this.createInSession(id, authority, input, isNewSession),
         );
     }
 

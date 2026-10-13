@@ -235,6 +235,7 @@ export const effectfulCommandRecovery = {
     'remote.askpass.reply': 'none',
     'shellCommand.uninstall': 'memory',
     'project.create': 'durable',
+    'project.add': 'durable',
     'project.cancelCreate': 'durable',
     'project.delete': 'memory',
     'project.hide': 'durable',

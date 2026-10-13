@@ -120,15 +120,17 @@ live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, o
 `grok agent --no-leader stdio`), spawned by Server Core. Its environment
 (`prepareChatLaunch` in `apps/server/src/domains/agent-chat/chat-launch.ts`) is the same
 secret-minimized base environment as other Agent launches (`agentCommandEnvironment`: the Server's
-allowlisted variables, login-shell `PATH`, and the Agent `HOME`), but it omits both per-launch
+allowlisted variables, login-shell `PATH`, and the Agent `HOME`), plus one of the two per-launch
 additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-environment.ts`:
 
 - No lifecycle-hook environment: the Chat synthesizes its own lifecycle signals, so hooks would
   double-report.
-- No Agent Endpoint environment (`CAXRI_MANAGED_AGENT`, `CAXRI_AGENT_ENDPOINT_*`,
-  `CAXRI_USER_DATA_DIR`, `CAXRI_CLI`, `CAXRI_CLI_PATH`): a Chat provider holds no Agent Endpoint credential, so
-  `caxri` commands it runs do not act as a managed Agent identity, and provider hooks cannot use
-  `CAXRI_MANAGED_AGENT` to recognize it as Caxri-owned.
+- The Agent Endpoint environment (`CAXRI_MANAGED_AGENT`, `CAXRI_AGENT_ENDPOINT_*`,
+  `CAXRI_USER_DATA_DIR`, `CAXRI_CLI`, `CAXRI_CLI_PATH`), from `agentChatEndpoint`
+  (`apps/server/src/domains/agent-chat/chat-endpoint.ts`): `caxri` commands a Chat Agent runs act as
+  its own managed Agent identity, with the same capabilities as a PTY Agent, so it can message peers
+  and [start work in a new Session](agent-delegation.md#start-work-in-a-new-session). Without it, the
+  CLI would fall back to the owner's identity, which the bundled skill forbids an Agent to borrow.
 
 - **Lazy start.** The provider starts on the first `agentChat.read` or `agentChat.send` (the one
   eager start is `session.resume` taking a detached Chat back; see Detach). Server

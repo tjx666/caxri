@@ -35,13 +35,6 @@ Full audit 2026-10-13 @ `319eab82e` revalidated every entry below as still prese
 findings were resolved by the [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992) batch below. Each remaining entry is
 tracked by its own issue because it needs a product decision or its own design.
 
-### AD-proc-chat-endpoint-identity: [OPEN · Contract drift · M]
-
-- **Summary:** An Agent running on the Chat surface has no Agent Endpoint identity, so `caxri agent message send` is refused and `caxri agent delegate create` runs as the operator instead of as that Agent.
-- **Evidence:** `apps/server/src/domains/agent-chat/chat-launch.ts` builds the provider environment from `agentCommandEnvironment` only; PTY Agents also get Endpoint and hook variables from `apps/server/src/domains/terminal/lifecycle-environment.ts`. `docs/agent-chat.md` now states the difference.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1675](https://github.com/tjx666/caxri/issues/1675): either issue a per-start Endpoint generation for Chat or refuse the operator fallback for `automation === 'agent'`, covered by an integration test.
-
 ### AD-sec-delegation-hidden-project: [OPEN · Contract drift · S]
 
 - **Summary:** Delegation bootstrap reuses a hidden Project for its root and creates a Session there that Desktop never shows.
@@ -129,6 +122,14 @@ tracked by its own issue because it needs a product decision or its own design.
 ---
 
 ## RESOLVED
+
+### AD-proc-chat-endpoint-identity: [RESOLVED · Contract drift · M]
+
+- **Summary:** An Agent running on the Chat surface had no Agent Endpoint identity, so `caxri agent message send` was refused and `caxri agent delegate create` ran as the operator instead of as that Agent.
+- **Evidence:** `apps/server/src/domains/agent-chat/chat-endpoint.ts` now issues every Chat start its own Endpoint generation, with the Commander role only for the Commander Terminal. Covered by `apps/server/src/domains/agent-chat/__tests__/chat-endpoint.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 with the fix
+- **Resolved:** 2026-10-13 via [issue caxri#1675](https://github.com/tjx666/caxri/issues/1675).
+- **Remediation target / Acceptance:** A Chat Agent's `caxri` commands authenticate as its own Endpoint, never as the operator.
 
 ### AD-sec-main-link-fetch-trust: [RESOLVED · Contract drift · S]
 
@@ -943,7 +944,7 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ## Current priority guide (OPEN at 2026-10-13)
 
-**Top priorities:** `AD-proc-chat-endpoint-identity` ([issue caxri#1675](https://github.com/tjx666/caxri/issues/1675)) → `AD-ext-virtual-tab-descriptors` → `AD-layout-flat-family-enforcement`.
+**Top priorities:** `AD-ext-virtual-tab-descriptors` → `AD-layout-flat-family-enforcement`.
 
 **Quick wins (S):** `AD-test-knip-before-merge` · `AD-sec-delegation-hidden-project` (after its product decision).
 

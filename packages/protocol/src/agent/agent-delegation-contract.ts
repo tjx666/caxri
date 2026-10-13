@@ -228,6 +228,24 @@ const waitParameters = identitySchema.extend({
         .optional(),
     timeoutMs: z.number().int().min(0).max(300_000).default(30_000),
 });
+/**
+ * Upper bound on the tasks one `list` returns, newest first.
+ */
+export const MAX_DELEGATION_LIST_TASKS = 100;
+const listParameters = z.strictObject({
+    /**
+     * Only tasks still running or blocked, the ones a caller can still wait on or stop.
+     */
+    active: z.boolean().default(false),
+    limit: z.number().int().min(1).max(MAX_DELEGATION_LIST_TASKS).default(20),
+});
+const listResultSchema = z.strictObject({
+    delegations: z.array(agentDelegationReceiptSchema).max(MAX_DELEGATION_LIST_TASKS),
+    /**
+     * More tasks matched than `limit` returned.
+     */
+    truncated: z.boolean(),
+});
 const resultSchema = z.strictObject({
     receipt: agentDelegationReceiptSchema,
     answer: agentDelegationAnswerSchema.optional(),
@@ -258,6 +276,14 @@ export const agentDelegationMethods = {
         ...commandPolicy('server', 'read', ['agents.delegate']),
         params: identitySchema,
         result: resultSchema,
+    },
+    /**
+     * Receipts of the caller's own tasks, so an Agent that lost its context can recover the IDs it started.
+     */
+    'agent.delegation.list': {
+        ...commandPolicy('server', 'read', ['agents.delegate']),
+        params: listParameters,
+        result: listResultSchema,
     },
     'agent.delegation.wait': {
         ...commandPolicy('server', 'read', ['agents.delegate']),
@@ -304,6 +330,11 @@ export const agentDelegationInternalMethods = {
         ...commandPolicy('server', 'read'),
         params: authoritySchema.extend({ delegationId: identifierSchema }),
         result: resultSchema,
+    },
+    'agent.delegation.listInternal': {
+        ...commandPolicy('server', 'read'),
+        params: authoritySchema.extend(listParameters.shape),
+        result: listResultSchema,
     },
 } as const satisfies Record<string, MethodSpec>;
 

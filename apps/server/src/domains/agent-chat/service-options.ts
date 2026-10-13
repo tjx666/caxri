@@ -54,11 +54,10 @@ export interface AgentChatServiceOptions {
      */
     turnRequestTimeoutMs?: number;
     /**
-     * The Agent Endpoint a Chat process carries, for a Terminal that gets one; only the Agent Commander's Chat does
-     * today, so its `caxri` commands keep the Commander role on either surface. `environment` prepares the generation
-     * before spawn and returns no variables for a Terminal without an Endpoint, `activate` admits it once the provider
-     * is ready, and `retire` ends it when the process exits or never started. Each is a no-op for a Terminal without a
-     * prepared Endpoint.
+     * The Agent Endpoint a Chat process carries (see `agentChatEndpoint`), so its `caxri` commands authenticate as that
+     * Agent on either surface. `environment` prepares the generation before spawn, `activate` admits it once the
+     * provider is ready, and `retire` ends it when the process exits or never started. Each is a no-op for a Terminal
+     * without a prepared Endpoint.
      */
     endpoint?: AgentChatEndpoint;
 }

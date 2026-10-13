@@ -36,7 +36,7 @@ import type { FileService } from './files';
 import type { GitService } from './git';
 import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
-import { resolveOwnerProjectRoot, resolveProjectRoot } from './project';
+import { addProjectFolder, resolveOwnerProjectRoot, resolveProjectRoot } from './project';
 import type { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { SessionPullRequestService } from './project-status';
 import type { PullRequestMergeNoticeOptions } from './pull-request-merge-notice';
@@ -83,6 +83,7 @@ type ServiceHandlerMethods =
     | 'agentChat.saveLongPaste'
     | 'terminal.referenceContext'
     | 'project.create'
+    | 'project.add'
     | 'project.setIcon'
     | 'project.setChatDefault'
     | 'git.summary'
@@ -363,6 +364,10 @@ export function createServiceHandlers(services: {
             );
             emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.create' } });
             return project;
+        },
+        'project.add': async ({ path }) => {
+            const { id, displayTitle } = await addProjectFolder(database, emit, path);
+            return { project: { id, displayTitle } };
         },
         'project.setIcon': ({ projectId, icon }) => {
             const project = database.setProjectIcon(projectId, icon);
