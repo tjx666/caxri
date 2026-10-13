@@ -1178,8 +1178,9 @@ whole objective below the row. A completed goal stays until cleared. Goal mode, 
 divided from it by a vertical hairline, and changes the placeholder to `Describe your goal, define
 measurable outcomes for best results`; Enter then sets the draft as the goal, and the chip or
 Backspace in an empty input leaves the mode. A working turn's label is one playful phrase chosen per turn from LobeHub's list (`Herding tokens…`),
-so a long turn reads as progress rather than a stall; a waiting one reads `Waiting for your
-approval` or `Waiting for your answer` by its first pending request. On an idle Chat the same row
+so a long turn reads as progress rather than a stall; a waiting one shows no row, since the
+approval or question card right above the composer is the waiting state, and returns as `Waiting
+for your approval` or `Waiting for your answer` only while a draft needs the Enter hint. On an idle Chat the same row
 carries context notices instead: an expired prompt cache in `--muted` (a cost fact, not a fault),
 and context high enough to read `consider compacting` in `--warning` (a suggestion, since nothing failed) with a Compact button. References: T3 Code's Chat composer, Claude
 Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort
