@@ -1,3 +1,6 @@
+import { appendFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import type { AgentChatImageInput } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -91,6 +94,29 @@ describe('Agent Chat images and slash commands with a fake Claude Code CLI', () 
         });
         await expect(readChatImage(records, terminal.id, resumed.id, 2)).resolves.toBeNull();
         await expect(readChatImage(records, terminal.id, 'missing', 0)).resolves.toBeNull();
+    });
+
+    it('reads an image back once later turns push its message past the resume tail', async () => {
+        const { claudeConfigDirectory, database, agentEnvironment, service, terminal, until } =
+            await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'look', images: [image('iVBORw0KGgo=')] });
+        await until((current) => current.turns.at(-1)?.status === 'completed');
+        const { id } = service.read(terminal.id).items[0];
+        // Inline screenshots in later tool results make a transcript grow by megabytes per turn.
+        const files = await readdir(join(claudeConfigDirectory, 'projects'), {
+            recursive: true,
+            withFileTypes: true,
+        });
+        const transcript = files.find((entry) => entry.isFile() && entry.name.endsWith('.jsonl'));
+        if (!transcript) throw new Error('fake Claude wrote no transcript');
+        await appendFile(
+            join(transcript.parentPath, transcript.name),
+            `${JSON.stringify({ type: 'system', padding: 'x'.repeat(5 * 1024 * 1024) })}\n`,
+        );
+
+        await expect(
+            readChatImage({ database, agentEnvironment }, terminal.id, id, 0),
+        ).resolves.toEqual({ mediaType: 'image/png', data: 'iVBORw0KGgo=' });
     });
 
     it("offers Claude Code's commands without its terminal-bound ones, and runs /compact", async () => {
