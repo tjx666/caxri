@@ -19,6 +19,7 @@ import { cn } from '../../lib/utilities';
 import type { QuestionFormPrimaryAction } from './agent-chat-question-flow';
 import {
     agentChatQuestionResponse,
+    questionCardHeadings,
     questionFormPrimaryAction,
     questionOptionIndexForArrow,
     questionOptionIndexForKey,
@@ -426,12 +427,14 @@ export function AgentChatQuestionForm({
             ))}
         </div>
     );
-    const isSeveral = request.questions.length > 1;
+    const headings = questionCardHeadings(title, request.questions.length, question?.header);
     const questionBody = question && (
         <div ref={panelReference} className="space-y-2" onKeyDown={onPanelKeyDown}>
             <div className="space-y-0.5">
-                {isSeveral && question.header && (
-                    <p className="m-0 text-[11px] leading-4 text-muted">{question.header}</p>
+                {headings.questionHeader && (
+                    <p className="m-0 text-[11px] leading-4 text-muted">
+                        {headings.questionHeader}
+                    </p>
                 )}
                 <p className="m-0 text-[13px] leading-5 font-semibold text-foreground">
                     {question.question}
@@ -468,11 +471,8 @@ export function AgentChatQuestionForm({
                 if (isAnswered) advance(selected, typed);
             }}
         >
-            <h3 className="m-0 truncate text-[11px] font-normal text-muted">
-                {/* A lone question's header joins the title line, so the card opens on one muted line, not two. */}
-                {!isSeveral && question?.header ? `${title} · ${question.header}` : title}
-            </h3>
-            {isSeveral ? (
+            <h3 className="m-0 truncate text-[11px] font-normal text-muted">{headings.title}</h3>
+            {request.questions.length > 1 ? (
                 <>
                     <QuestionTabStrip
                         answers={answers}
