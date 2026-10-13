@@ -65,6 +65,7 @@ export class JsonRpcRequestError extends Error {
 interface PendingRequest {
     resolve(result: unknown): void;
     reject(error: Error): void;
+    onResponse?: () => void;
     timer?: NodeJS.Timeout;
 }
 
@@ -201,6 +202,7 @@ export class JsonRpcConnection {
         if (!entry) return;
         this.pending.delete(id);
         if (entry.timer) clearTimeout(entry.timer);
+        entry.onResponse?.();
         if (isRecord(frame.error)) {
             const { code, message } = frame.error;
             entry.reject(
@@ -233,15 +235,22 @@ export class JsonRpcConnection {
 
     /**
      * Sends one request. `timeoutMs` bounds handshake-style calls; a turn's own lifetime is never bounded here.
+     * `onResponse` runs synchronously when the response is read, before any later frame of the same read is handled, so
+     * a caller can tell which notifications arrived after its response; the awaited result settles only later.
      */
-    request(method: string, parameters: unknown, timeoutMs?: number): Promise<unknown> {
+    request(
+        method: string,
+        parameters: unknown,
+        timeoutMs?: number,
+        onResponse?: () => void,
+    ): Promise<unknown> {
         if (this.hasEnded)
             return Promise.reject(
                 new CaxriError('UNAVAILABLE', `${this.options.label} is not running`),
             );
         const id = this.nextId++;
         return new Promise((resolve, reject) => {
-            const entry: PendingRequest = { resolve, reject };
+            const entry: PendingRequest = { resolve, reject, onResponse };
             if (timeoutMs !== undefined) {
                 entry.timer = setTimeout(() => {
                     this.pending.delete(id);

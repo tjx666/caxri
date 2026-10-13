@@ -45,8 +45,7 @@ function mapCodexGoal(raw: unknown, receivedAt = Date.now()): AgentChatGoal | un
  */
 export class CodexGoals {
     /**
-     * Counts goal notifications, so a `set` response does not overwrite a newer goal Codex reported while the response
-     * was still being awaited.
+     * Counts goal notifications, so a `set` response does not overwrite a newer goal Codex reported after it.
      */
     private notificationCount = 0;
 
@@ -60,16 +59,20 @@ export class CodexGoals {
         fields: { objective?: string; status: 'active' | 'paused' },
         timeoutMs = GOAL_REQUEST_TIMEOUT_MS,
     ): Promise<void> {
-        const seen = this.notificationCount;
+        let seen = this.notificationCount;
         const result = await connection.request(
             'thread/goal/set',
             { threadId: this.threadId(), origin: 'user', ...fields },
             timeoutMs,
+            () => {
+                seen = this.notificationCount;
+            },
         );
         /**
          * The response carries the goal before `thread/goal/updated` does, so the row changes as the request settles.
-         * Codex may already have pursued and completed the goal by the time this continuation runs: the notifications
-         * that followed the response in the same read are applied first, and then they are newer.
+         * Codex may already have pursued and completed the goal by the time this continuation runs: notifications that
+         * followed the response in the same read are applied first, and they are newer. One that arrived before the
+         * response (an earlier change's update) is older and must not hide this result.
          */
         const goal = isRecord(result) ? mapCodexGoal(result.goal) : undefined;
         if (goal && this.notificationCount === seen)
