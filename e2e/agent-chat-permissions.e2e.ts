@@ -103,12 +103,18 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
         await page.screenshot({ path: testInfo.outputPath('codex-chat-project-default.png') });
 
         // Clearing the default leaves this Chat's own choice alone; the next new Chat follows the launch settings.
+        // This Chat matches the saved default, so the checked "Project default" row clears it and no separate
+        // "Clear Project default" row repeats it.
         const defaultedPicker = chat
             .getByRole('button', { name: /^Permissions: / })
             .filter({ visible: true });
         await defaultedPicker.click();
-        const clearDefault = menu.getByRole('menuitem', { name: /Clear Project default/ });
-        await expect(clearDefault).toBeVisible();
+        const savedDefault = menu.getByRole('menuitemcheckbox', {
+            name: 'Project default',
+            exact: true,
+        });
+        await expect(savedDefault).toBeChecked();
+        await expect(menu.getByRole('menuitem', { name: /Clear Project default/ })).toHaveCount(0);
         // Let the menu finish opening so the evidence shows it opaque, not mid-fade over the composer.
         await menu.evaluate(async (element) => {
             await Promise.allSettled(
@@ -116,14 +122,11 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
             );
         });
         await page.screenshot({ path: testInfo.outputPath('codex-chat-clear-default-menu.png') });
-        await clearDefault.click();
-        await expect(menu).toBeHidden();
-        await expect(defaultedPicker).toHaveAccessibleName('Permissions: Read only');
-        await defaultedPicker.click();
+        await savedDefault.click();
         await expect(
             menu.getByRole('menuitemcheckbox', { name: 'Use as Project default' }),
         ).not.toBeChecked();
-        await expect(menu.getByRole('menuitem', { name: /Clear Project default/ })).toHaveCount(0);
+        await expect(defaultedPicker).toHaveAccessibleName('Permissions: Read only');
         await page.screenshot({ path: testInfo.outputPath('codex-chat-default-cleared.png') });
         await page.keyboard.press('Escape');
         await expect(menu).toBeHidden();
