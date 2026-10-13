@@ -30,7 +30,6 @@ export const registeredColorRoles = [
     'git-modified',
     'git-untracked',
     'indicator',
-    'link',
     'list-active-selection-background',
     'list-active-selection-foreground',
     'list-focus-background',

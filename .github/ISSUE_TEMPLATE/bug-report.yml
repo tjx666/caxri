@@ -1,0 +1,76 @@
+name: Bug report
+description: Report a reproducible problem in a verified Caxri workflow.
+title: ''
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not include credentials, private project data, source contents, Terminal output, Agent transcripts, or sensitive security details. Report vulnerabilities through the private process in SECURITY.md.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing Issues for the same problem.
+          required: true
+        - label: This report does not contain sensitive or private information.
+          required: true
+        - label: This is not a security vulnerability that requires private reporting.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the user-visible failure and what you expected instead.
+      placeholder: When I..., Caxri..., but I expected...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest repeatable sequence using non-sensitive example data.
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. Observe...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Caxri version or commit
+      placeholder: v0.0.0 or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the Mac model, Apple Silicon or Intel, and macOS version.
+      placeholder: Apple M-series, macOS 15.x
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation
+      options:
+        - Source Map DMG
+        - No-Source-Map DMG
+        - Development from source
+        - Other or unverified platform
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Add screenshots or short logs only when they contain no source, Terminal output, Agent transcript, credentials, private paths, or personal data.
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other non-sensitive details that materially affect reproduction.

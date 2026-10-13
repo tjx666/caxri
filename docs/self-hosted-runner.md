@@ -11,13 +11,13 @@ owns release steps and refers here for runner operations.
 
 ## Scope and trust boundary
 
-Caxri uses the repository-level `m2-24` runner for every `CI` and `Release` workflow job: retry
-policy, platform checks, Electron E2E, the final gate, and unsigned arm64 GitHub Releases. Its
-labels are `self-hosted`, `macOS`, `ARM64`, `caxri-ci`, `caxri-e2e`, and `caxri-release`. Those
-jobs have no GitHub-hosted fallback. Two workflows deliberately run on GitHub-hosted
-`ubuntu-latest` instead: the required `guards` check (`.github/workflows/guards.yml`), which reads
-only the diff and a pinned public binary, and the scheduled Renderer performance trend
-(`.github/workflows/performance-trend.yml`).
+Caxri retains one repository-level private final runner for two transitional routes: the owner-dispatched
+`self-hosted-final` full E2E run while the repository is private, and the release-commit publication
+job. Its labels remain `self-hosted`, `macOS`, `ARM64`, `caxri-ci`, `caxri-e2e`, and
+`caxri-release` until phase-two runner removal. Pull-request and main checks, targeted smoke, and
+the no-publish package rehearsal run on GitHub-hosted runners. The required `guards` check and the
+scheduled Renderer performance trend run on `ubuntu-latest`; Linux release natives retain their
+`ubuntu-24.04` x64/ARM64 matrix.
 
 Superseded PR runs must release the same-ref concurrency slot. The E2E job and final gate use
 `!cancelled()` at job scope: dependency failures still reach the gate, while cancellation stops
@@ -30,21 +30,19 @@ boundary: workflow code can access anything that user can access, including Home
 material. Temporary profiles, blocked Agent discovery, owner-scoped cleanup, and a clean checkout
 prevent accidental inheritance; they do not contain malicious workflow code.
 
-Only a same-repository PR authored, triggered, and retriggered by `tjx666`, a trusted
-`release: v<package-version>` push to `main`, the nightly schedule, or an explicit owner-run
-validation can execute
-repository source on this machine. Untrusted PRs run only the fixed final gate from the trusted base
-workflow: it performs no checkout and fails closed. A trusted release push whose exact commit is
-the verified release commit skips the CI checks and E2E (`scripts/ci-execution-plan.ts` reuses the
-merged PR's CI) and runs Release.
+Only an explicit owner `workflow_dispatch` with target `self-hosted-final` may execute CI source on
+this machine, and that route fails unless the repository is private. Pull requests, including
+external forks, use read-only hosted CI with no secrets or write permission. Ordinary merges to
+`main` run hosted checks and never start full E2E automatically. After the repository becomes
+public, `hosted-full` is the explicit complete E2E route and `self-hosted-final` rejects the event.
 
-An ordinary merge to `main` skips every job, including the final gate. The one runner is strictly
-serial, and the merged head has already passed the same gate on its PR, so re-running it would only
-delay the next PR without adding evidence. The `push` trigger stays because Release starts from a
-successful CI run on `main`.
+Repository visibility must not become public while any repository-level self-hosted runner remains
+registered. The Public transition requires a REST readback of zero runners first. Workflow event
+guards reduce accidental routing but are not a security boundary against a fork that changes its
+own workflow; runner removal is the boundary.
 
-The downstream Release job runs only after the same release commit passes self-hosted checks and
-the full Electron E2E suite. That job receives a short-lived `GITHUB_TOKEN` with `contents: write`
+The downstream Release job runs only after the trusted release commit passes hosted CI. That job
+receives a short-lived `GITHUB_TOKEN` with `contents: write`
 only for tag and Release publication. Checkout credentials are not persisted. No Apple signing,
 notarization, personal, or production credentials belong in the workflow.
 
@@ -97,9 +95,13 @@ PR traffic.
 ## Toolchain and caches
 
 `.github/actions/setup-caxri-job/action.yml` owns the common job setup. `actions/setup-node` provides
-the exact Node 24 LTS version, while `pnpm/setup` installs pnpm 12 only when its versioned runner tool
-cache is missing. The action reads the Bun version from `.bun-version`. These runner-owned paths do
-not replace the user's interactive Node, pnpm, or Bun installations.
+the exact Node version from `mise.toml`, while `pnpm/setup` installs the exact pnpm version. The
+action reads the Bun version from `.bun-version`. On GitHub-hosted jobs, pnpm, Bun, Electron, and
+Playwright use disposable `RUNNER_TEMP` paths and do not assume a prewarmed runner cache. On the
+remaining self-hosted final path, runner-owned paths do not replace the user's interactive Node,
+pnpm, or Bun installations. Jobs that exercise capture or media-analysis contracts install FFmpeg
+on disposable hosted runners and verify `ffmpeg`, `ffprobe`, and `libx264` on both hosted and
+self-hosted routes.
 
 Node uses the standard Actions tool cache. pnpm and the Bun binary use versioned directories beneath
 `RUNNER_TOOL_CACHE/caxri`; the Bun binary must match `.bun-version`, remains separate from `~/.bun`,
@@ -167,11 +169,12 @@ Every self-hosted job that checks out and executes repository source:
 Cleanup failures are job failures. Do not replace owner checks with `pkill`, process-name matching,
 or a broad temporary-directory deletion.
 
-## Offline behavior
+## Transitional offline behavior
 
-If `m2-24` is offline, unhealthy, busy, or under maintenance, every matching CI or Release job
-remains queued until the machine returns. There is no hosted fallback label, runner input, billing
-probe, or temporary workflow override. Do not treat a queued job as successful.
+If the private final self-hosted E2E route or the legacy Release route selects the private final runner while it is
+offline, unhealthy, busy, or under maintenance, that matching job remains queued until the machine
+returns. Ordinary pull-request checks, main checks, and targeted smoke run on GitHub-hosted runners
+and do not wait for this machine. Do not treat a queued self-hosted job as successful.
 
 Because one physical runner owns all capability labels, jobs execute serially. The full E2E path is
 one job that runs its two logical pools in sequence after one setup/build; checks, E2E, and Release
@@ -186,11 +189,11 @@ caches differ from a contributor's machine. Diagnose those on the runner itself 
 rerunning CI until the failure happens not to recur.
 
 The operator reaches the runner over a private network such as Tailscale, with macOS Remote Login
-and key-only SSH. The connection details exist only in the operator's own `~/.ssh/config`, under a
-`Host` alias identical to the runner name GitHub reports:
+and key-only SSH. The connection details exist only in the operator's own `~/.ssh/config`. Replace
+the placeholder below locally with the runner name reported by GitHub; never commit the real alias:
 
 ```sshconfig
-Host m2-24
+Host <runner-name-from-GitHub>
   HostName <private network address>
   User <runner macOS account>
   IdentityFile <operator private key>
@@ -201,8 +204,8 @@ Never commit the address, account, key path, or the runner's home path. CI logs 
 home path, so redact it when quoting a log in an issue or pull request. A replacement runner gets
 an alias under its own name.
 
-An agent resolves the host from the failing job instead of hardcoding it, and never waits on an
-interactive prompt:
+An agent resolves the runner name from the failing job, maps it through the operator's untracked
+SSH configuration, and never waits on an interactive prompt:
 
 ```bash
 runner=$(gh api repos/tjx666/caxri/actions/jobs/<job-id> --jq .runner_name)
@@ -225,16 +228,14 @@ address or account. On the runner:
 
 ## Validation and recovery
 
-Before making the runner the normal PR target, freeze one exact head and record:
-
-- three consecutive self-hosted full E2E runs with the same Node/pnpm/lockfile, profile, manifest
-  hash, test count, and skip count;
-- one complete self-hosted platform-check run and final `CI gate` on the same frozen head;
-- one interrupted-worker run that fails while the following run starts with a free lease and clean
-  profile;
-- one offline run that remains queued and resumes only after `m2-24` reconnects;
-- one dry release-path validation proving the `caxri-release` label, trusted workflow-run identity,
-  clean packaged probe, and teardown without creating a tag or Release.
+Before removing the runner in phase two, freeze one exact private-repository head and record one
+owner-dispatched `self-hosted-final` full E2E result with the expected Node/pnpm/lockfile, profile,
+manifest hash, test count, skip count, free lease, clean profile, and successful teardown. Do not
+repeat it for performance sampling. The frozen cleanup ledger and owner-only dispatch are the
+single-execution gate; the workflow does not treat concurrency cancellation as durable proof that a
+previous successful dispatch exists. The hosted no-publish rehearsal separately proves cold package
+setup, both DMG flavors, Linux natives, the ephemeral Android signing path, and targeted packaged
+smoke without creating a tag or Release.
 
 If unauthorized code ran, credentials may have been accessed, cleanup ownership cannot be proved,
 or the machine shows unexpected credential access:
@@ -267,11 +268,12 @@ When the machine is permanently unavailable or cannot be trusted for reuse:
 6. restore normal repository traffic and retrigger cancelled work only after the complete matrix
    passes. A failed matrix returns the runner to its stopped, non-routing state.
 
-During replacement, keep normal CI and Release traffic held rather than leaving matching jobs
-queued for an unvalidated listener. Local lint, typecheck, unit, build, or focused E2E results are
-provisional local evidence; they are not GitHub checks, exact-head CI, or a reason to add a temporary
-hosted fallback. If the capability labels must change permanently, review the workflow and its
-contract tests as a separate repository change after the replacement is available.
+During replacement, hold only the explicit self-hosted final and publication routes rather than
+leaving them queued for an unvalidated listener. Hosted checks, targeted smoke, and the no-publish
+rehearsal keep their fixed hosted routes. Local lint, typecheck, unit, build, or focused E2E results
+remain provisional local evidence; they are not exact-head GitHub checks. If the capability labels
+must change permanently, review the workflow and its contract tests as a separate repository
+change after the replacement is available.
 
 To remove a healthy runner intentionally:
 

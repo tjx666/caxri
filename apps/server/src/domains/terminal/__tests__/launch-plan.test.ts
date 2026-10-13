@@ -1,8 +1,9 @@
+import { constants } from 'node:fs';
 import process from 'node:process';
 
 import type { TerminalRecord } from '@caxri/protocol';
 import { CaxriError, defaultAgentProviderSettings } from '@caxri/protocol';
-import { StructuredLogger } from '@caxri/system';
+import { accountShell, isAccessible, StructuredLogger, systemShellCandidates } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
 import { resolveTerminalExecutable } from '../launch';
@@ -24,12 +25,12 @@ const record: TerminalRecord = {
 };
 
 describe('default shell resolution', () => {
-    it('falls back to the system shell when SHELL names an uninstalled shell', async () => {
+    it('falls back to the account or system shell when SHELL names an uninstalled shell', async () => {
         vi.stubEnv('SHELL', '/nonexistent/caxri-test/fish');
         try {
-            await expect(resolveTerminalExecutable('shell', undefined, undefined)).resolves.toBe(
-                '/bin/zsh',
-            );
+            const resolved = await resolveTerminalExecutable('shell', undefined, undefined);
+            expect([accountShell(), ...systemShellCandidates()]).toContain(resolved);
+            await expect(isAccessible(resolved, constants.X_OK)).resolves.toBe(true);
         } finally {
             vi.unstubAllEnvs();
         }

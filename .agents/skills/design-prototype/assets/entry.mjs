@@ -45,6 +45,7 @@ import * as Toasts from '@/stores/toasts';
 import * as Toggle from '@/components/ui/toggle';
 import * as ToggleGroup from '@/components/ui/toggle-group';
 import * as Tooltip from '@/components/ui/tooltip';
+import * as useChartKeyboardCursor from '@/hooks/use-chart-keyboard-cursor';
 import * as useContainerWidth from '@/hooks/use-container-width';
 import * as useContextMenu from '@/hooks/use-context-menu';
 import * as useDebouncedValue from '@/hooks/use-debounced-value';
@@ -106,6 +107,7 @@ export default {
     '@/components/ui/toggle': Toggle,
     '@/components/ui/toggle-group': ToggleGroup,
     '@/components/ui/tooltip': Tooltip,
+    '@/hooks/use-chart-keyboard-cursor': useChartKeyboardCursor,
     '@/hooks/use-container-width': useContainerWidth,
     '@/hooks/use-context-menu': useContextMenu,
     '@/hooks/use-debounced-value': useDebouncedValue,

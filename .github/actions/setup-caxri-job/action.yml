@@ -1,5 +1,5 @@
 name: Setup Caxri job
-description: Prepare the trusted self-hosted runner and install the requested Caxri toolchain.
+description: Install the exact Caxri toolchain on disposable hosted or trusted self-hosted runners.
 
 inputs:
   setup-toolchain:
@@ -16,6 +16,14 @@ inputs:
     default: 'false'
   install-playwright-shell:
     description: Install the Playwright Chromium headless shell for browser-backed Vitest contracts.
+    required: false
+    default: 'false'
+  install-media-tools:
+    description: Install or verify FFmpeg and FFprobe for capture and media-analysis contracts.
+    required: false
+    default: 'false'
+  install-android-toolchain:
+    description: Install and verify the exact Android JDK, SDK, NDK, and CMake toolchain.
     required: false
     default: 'false'
 
@@ -52,7 +60,7 @@ runs:
 
     - id: pnpm_toolchain
       name: Reuse runner-cached pnpm
-      if: inputs.setup-toolchain == 'true'
+      if: inputs.setup-toolchain == 'true' && runner.environment == 'self-hosted'
       shell: bash
       env:
         CAXRI_NODE_VERSION: ${{ steps.tool_versions.outputs.node }}
@@ -67,12 +75,21 @@ runs:
           echo "cached=false" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Install pnpm on cache miss
-      if: inputs.setup-toolchain == 'true' && steps.pnpm_toolchain.outputs.cached != 'true'
+    - name: Install pnpm on self-hosted cache miss
+      if: inputs.setup-toolchain == 'true' && runner.environment == 'self-hosted' && steps.pnpm_toolchain.outputs.cached != 'true'
       uses: pnpm/setup@c8e77b72cd6022852162c92aa10e7e72b7209c9b # v2
       with:
         version: ${{ steps.tool_versions.outputs.pnpm }}
         dest: ${{ runner.tool_cache }}/caxri/pnpm/${{ steps.tool_versions.outputs.pnpm }}-node-${{ steps.tool_versions.outputs.node }}
+        install: false
+        cache: false
+
+    - name: Install exact pnpm on hosted runner
+      if: inputs.setup-toolchain == 'true' && runner.environment == 'github-hosted'
+      uses: pnpm/setup@c8e77b72cd6022852162c92aa10e7e72b7209c9b # v2
+      with:
+        version: ${{ steps.tool_versions.outputs.pnpm }}
+        dest: ${{ runner.temp }}/caxri-pnpm
         install: false
         cache: false
 
@@ -87,6 +104,7 @@ runs:
         test "$(pnpm --version)" = "$CAXRI_PNPM_VERSION"
 
     - name: Use runner-pinned Bun
+      if: runner.environment == 'self-hosted'
       shell: bash
       run: |
         bun_version="$(tr -d '\r\n' < .bun-version)"
@@ -96,15 +114,28 @@ runs:
         test "$("$bun_directory/bun" --version)" = "$bun_version"
         echo "$bun_directory" >> "$GITHUB_PATH"
 
+    - name: Install exact Bun on hosted runner
+      if: runner.environment == 'github-hosted'
+      shell: bash
+      run: |
+        bun_version="$(tr -d '\r\n' < .bun-version)"
+        [[ "$bun_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        npm install --global --no-audit --no-fund "bun@$bun_version"
+
+    - name: Verify exact Bun
+      shell: bash
+      run: test "$(bun --version)" = "$(tr -d '\r\n' < .bun-version)"
+
     - id: prepare
       name: Prepare self-hosted runner boundary
+      if: runner.environment == 'self-hosted'
       shell: bash
       run: |
         bun run scripts/self-hosted-runner.ts prepare
         echo "prepared=true" >> "$GITHUB_OUTPUT"
 
     - name: Configure runner-local caches
-      if: inputs.setup-toolchain == 'true'
+      if: inputs.setup-toolchain == 'true' && runner.environment == 'self-hosted'
       shell: bash
       run: |
         cache_root="$RUNNER_TOOL_CACHE/caxri"
@@ -140,6 +171,7 @@ runs:
         echo "ELECTRON_CACHE=$electron_cache" >> "$GITHUB_ENV"
         echo "PLAYWRIGHT_BROWSERS_PATH=$playwright_cache" >> "$GITHUB_ENV"
         echo "PNPM_CONFIG_STORE_DIR=$pnpm_store" >> "$GITHUB_ENV"
+        echo "CAXRI_CACHE_ROOT=$cache_root" >> "$GITHUB_ENV"
 
         {
           echo "## Runner-local cache state"
@@ -152,6 +184,58 @@ runs:
           echo
           echo "## Command metrics"
         } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Configure disposable hosted caches
+      if: inputs.setup-toolchain == 'true' && runner.environment == 'github-hosted'
+      shell: bash
+      run: |
+        cache_root="$RUNNER_TEMP/caxri"
+        mkdir -p "$cache_root/electron" "$cache_root/playwright" "$cache_root/pnpm-store" .cache/eslint
+        echo "ELECTRON_CACHE=$cache_root/electron" >> "$GITHUB_ENV"
+        echo "PLAYWRIGHT_BROWSERS_PATH=$cache_root/playwright" >> "$GITHUB_ENV"
+        echo "PNPM_CONFIG_STORE_DIR=$cache_root/pnpm-store" >> "$GITHUB_ENV"
+        echo "CAXRI_CACHE_ROOT=$cache_root" >> "$GITHUB_ENV"
+
+    - name: Install exact Android toolchain
+      if: inputs.install-android-toolchain == 'true'
+      shell: bash
+      run: |
+        test "$RUNNER_OS" = macOS
+        java_home="${JAVA_HOME_17_arm64:-}"
+        test -n "$java_home"
+        "$java_home/bin/java" -version 2>&1 | grep -q 'version "17\.'
+        sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+        test -n "$sdk_root"
+        sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+        test -x "$sdkmanager"
+        JAVA_HOME="$java_home" "$sdkmanager" \
+          "build-tools;35.0.0" \
+          "build-tools;36.0.0" \
+          "cmake;3.22.1" \
+          "ndk;27.1.12297006" \
+          "platforms;android-36"
+        test -x "$sdk_root/cmake/3.22.1/bin/cmake"
+        test -x "$sdk_root/cmake/3.22.1/bin/ninja"
+        test -d "$sdk_root/ndk/27.1.12297006"
+        echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
+        echo "$java_home/bin" >> "$GITHUB_PATH"
+
+    - name: Install media tools on hosted runner
+      if: inputs.install-media-tools == 'true' && runner.environment == 'github-hosted'
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: '1'
+      run: >-
+        bun run scripts/ci-metrics.ts --label "FFmpeg install" --
+        brew install ffmpeg
+
+    - name: Verify media tools
+      if: inputs.install-media-tools == 'true'
+      shell: bash
+      run: |
+        command -v ffmpeg
+        command -v ffprobe
+        ffmpeg -hide_banner -encoders 2>/dev/null | grep -q '[[:space:]]libx264[[:space:]]'
 
     - name: Install dependency tree without lifecycle scripts
       if: inputs.install-dependencies == 'true'

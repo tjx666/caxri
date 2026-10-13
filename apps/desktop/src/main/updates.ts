@@ -9,6 +9,12 @@ import { compareStableVersions, errorMessage } from '@caxri/protocol';
 import { z } from 'zod';
 
 import { readCappedBody } from './read-capped-body';
+import { releaseDmgFileName } from './source-map-flavor';
+import type {
+    AcceptanceUpdateDiscovery,
+    UpdateFetch,
+    UpdateServiceOptions,
+} from './update-service-contract';
 
 const LATEST_RELEASE_URL = 'https://api.github.com/repos/tjx666/caxri/releases/latest';
 const MAX_RELEASE_RESPONSE_BYTES = 1024 * 1024;
@@ -29,8 +35,6 @@ const releaseSchema = z.object({
     prerelease: z.boolean(),
     assets: z.array(releaseAssetSchema),
 });
-
-type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 type UpdateFailureKind = Extract<UpdateState, { status: 'error' }>['failureKind'];
 
@@ -65,33 +69,6 @@ interface AvailableRelease {
     dmgUrl: string;
     checksumUrl: string;
     expectedBytes?: number;
-}
-
-/**
- * Supplies a fixed release in place of the GitHub request for one declared Acceptance case. It never exposes a download
- * URL, so a service built with it can announce an update but can never download or install one.
- */
-export interface AcceptanceUpdateDiscovery {
-    discover(): Promise<{ fileName: string; version: string }>;
-}
-
-export interface UpdateServiceOptions {
-    /**
-     * Present only when `createAcceptanceUpdateFixture` admitted (or visibly rejected) an Acceptance request. It
-     * replaces the network discovery and lets an unpackaged Acceptance build check for updates without ever enabling
-     * the real release service.
-     */
-    acceptanceDiscovery?: AcceptanceUpdateDiscovery;
-    currentVersion: string;
-    downloadDirectory: string;
-    /**
-     * The packaged-build gate for real release checks.
-     */
-    enabled: boolean;
-    fetch?: FetchLike;
-    now?: () => number;
-    onState?(state: UpdateState): void;
-    openPath(path: string): Promise<string>;
 }
 
 interface AutomaticUpdateCheckOptions {
@@ -250,7 +227,7 @@ export function updateStateLogFields(state: UpdateState): Record<string, string 
 const RATE_LIMITED_REASON = 'Update checks are rate limited by GitHub right now.';
 
 export class UpdateService {
-    private readonly fetch: FetchLike;
+    private readonly fetch: UpdateFetch;
     private readonly now: () => number;
     private state: UpdateState;
     private release: AvailableRelease | undefined;
@@ -366,7 +343,7 @@ export class UpdateService {
                 });
             }
 
-            const fileName = `Caxri-${version}-arm64.dmg`;
+            const fileName = releaseDmgFileName(version, this.options.sourceMapFlavor ?? 'include');
             const checksumName = `${fileName}.sha256`;
             const dmg = release.assets.find((asset) => asset.name === fileName);
             const checksum = release.assets.find((asset) => asset.name === checksumName);

@@ -1,0 +1,32 @@
+# Support
+
+Caxri is a personal-maintainer project in active development. Issues and pull requests are open for
+community use, but there is no guaranteed response, resolution, compatibility, or support SLA.
+
+## Where to ask
+
+- **Bug:** use the
+  [bug report form](https://github.com/tjx666/caxri/issues/new?template=bug-report.yml).
+- **Feature request:** use the
+  [feature request form](https://github.com/tjx666/caxri/issues/new?template=feature-request.yml).
+- **Security vulnerability:** follow [SECURITY.md](SECURITY.md). Never put sensitive vulnerability
+  information in a public Issue.
+- **Contribution:** read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+Search existing Issues before opening a new one. Include the smallest reproducible example and
+sanitize logs or screenshots. Do not include source contents, Terminal output, Agent transcripts,
+credentials, private repository details, or personal data unless the selected private reporting
+channel explicitly requires the minimum necessary evidence.
+
+## Distribution scope
+
+The currently verified packaged target is macOS on Apple Silicon. Intel Macs may run from source,
+but Windows and Linux desktop builds have not been validated. Reports for unverified platforms are
+welcome as information, but they may be closed without investigation.
+
+## Commercial licensing
+
+The project license and commercial authorization terms are still being finalized. A public
+commercial licensing contact has not been published. An Issue, pull request, or lack of response
+does not grant commercial authorization; rely only on the published `LICENSE` and an explicit
+authorization channel once they are available.

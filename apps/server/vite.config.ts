@@ -7,6 +7,10 @@ import { promisify } from 'node:util';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
 
+import {
+    resolveSourceMapFlavor,
+    shouldIncludeSourceMaps,
+} from '../../scripts/source-map-flavor.ts';
 import { hostStartupBudget } from './scripts/host-startup-budget.ts';
 
 const execFileAsync = promisify(execFile);
@@ -94,6 +98,7 @@ function asciiOnlyBundles(): Plugin {
 }
 
 export default defineConfig(async () => {
+    const sourceMapFlavor = resolveSourceMapFlavor();
     const workspaceManifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')) as {
         version: string;
     };
@@ -155,8 +160,8 @@ export default defineConfig(async () => {
                     paths: nativeModulePaths,
                 },
             },
-            // Source maps ship in every build for the same reason the Desktop's do; see electron.vite.config.ts.
-            sourcemap: true,
+            // The release pipeline builds both flavors from scratch so the Server manifest records the exact file set.
+            sourcemap: shouldIncludeSourceMaps(sourceMapFlavor),
             ssr: true,
             target: 'node24',
         },

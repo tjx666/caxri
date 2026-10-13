@@ -73,7 +73,15 @@ async function repoVersionLocations(): Promise<string[]> {
     const { stdout } = await execFileAsync('git', ['ls-files', '-z'], { cwd: repoRoot });
     const executableSource =
         /(?:^|\/)(?:[^/]+\.(?:cjs|js|json|mjs|sh|toml|ts|yaml|yml)|Dockerfile)$/u;
-    const excluded = new Set(['mise.toml', 'pnpm-lock.yaml']);
+    /**
+     * The footprint baseline is a measured artifact receipt, not a toolchain configuration source. Its archive names
+     * deliberately preserve the runtime version that produced each measurement.
+     */
+    const excluded = new Set([
+        'mise.toml',
+        'pnpm-lock.yaml',
+        'scripts/server-footprint-baseline.json',
+    ]);
     const versions = [miseVersion('node'), miseVersion('pnpm')];
 
     const candidates = stdout

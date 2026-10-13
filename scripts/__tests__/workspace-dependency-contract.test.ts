@@ -23,9 +23,11 @@ interface RootPackageManifest {
 
 interface PnpmWorkspace {
     allowBuilds?: Record<string, boolean>;
+    auditConfig?: { ignoreGhsas?: string[] };
     catalog?: Record<string, string>;
     overrides?: Record<string, string>;
     packages?: string[];
+    patchedDependencies?: Record<string, string>;
 }
 
 function lockfiles(directory: string, scanRoot = directory): string[] {
@@ -140,10 +142,25 @@ describe('pnpm dependency contract', () => {
             'lodash-es',
             '@esbuild-kit/core-utils>esbuild',
             'xcode>uuid',
+            'react-devtools-core>shell-quote',
         ]);
         const overrideEntries = Object.entries(workspace.overrides ?? {});
         for (const [selector, version] of overrideEntries)
             expect(`${selector}: ${version}`).toMatch(/: \d+\.\d+\.\d+$/);
+        expect(workspace.auditConfig?.ignoreGhsas).toEqual([
+            'GHSA-vcc3-ghjq-m6fr',
+            'GHSA-86w9-cpqp-85rv',
+            'GHSA-vfj7-8cjw-p6xm',
+        ]);
+        expect(workspace.patchedDependencies).toEqual({
+            'app-builder-lib': 'patches/app-builder-lib.patch',
+            'braces@3.0.3': 'patches/braces@3.0.3.patch',
+            'node-forge@1.4.0': 'patches/node-forge@1.4.0.patch',
+            'react-native-webview@13.16.1': 'patches/react-native-webview.patch',
+            'sonner@2.0.8': 'patches/sonner.patch',
+            '@xterm/addon-serialize@0.15.0-beta.301': 'patches/xterm-addon-serialize.patch',
+            'node-pty@1.1.0': 'patches/node-pty@1.1.0.patch',
+        });
         expect(rootManifest.devDependencies?.['@oxlint/plugins']).toBe(workspace.catalog?.oxlint);
         // `--max-warnings=0` mirrors the `lint` script: ESLint exits 0 on a warning, so without it the hook lets
         // through exactly what CI rejects.

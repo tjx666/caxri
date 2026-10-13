@@ -30,7 +30,7 @@ Keep these compatibility exceptions:
 - `@base-ui/react`: exact 1.7.0. Version 1.8.0 triggers a `PopoverStore` / `syncTriggerCount`
   update loop when opening the multi-trigger Editor breadcrumb picker (React error 185).
   `e2e/editor-breadcrumbs.e2e.ts` reproduces it locally and in
-  [CI run 34299568185](https://github.com/tjx666/caxri/actions/runs/34299568185).
+  CI run `34299568185`.
   Re-checked 2026-09-21 against 1.8.0 and 2026-10-13 against 1.9.0, then the newest release: the
   spec fails the same way (the Editor tab falls through to its error boundary) while the same
   dependency set with 1.7.0 passes, so the pin stays.

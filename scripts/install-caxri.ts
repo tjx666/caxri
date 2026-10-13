@@ -8,7 +8,7 @@
  * the requested release (latest by default), verifies the SHA-256 checksum, mounts the DMG, replaces
  * /Applications/Caxri.app, and defensively strips any quarantine attribute afterwards.
  *
- * Usage: `bun run install:caxri [-- --tag v0.0.7 --skip-checksum]`
+ * Usage: `bun run install:caxri [-- --tag v0.0.7 --no-sourcemap --skip-checksum]`
  */
 
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
@@ -16,6 +16,8 @@ import { homedir, tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
+
+import { valid as validSemver } from 'semver';
 
 import { execFileAsync } from './exec';
 
@@ -29,10 +31,11 @@ interface InstallOptions {
      * check on this unsigned distribution path, so its absence aborts the install instead of being skipped silently.
      */
     skipChecksum?: boolean;
+    shouldOmitSourceMaps?: boolean;
     tag?: string;
 }
 
-const USAGE = 'Usage: install-caxri [--tag vX.Y.Z] [--skip-checksum]';
+const USAGE = 'Usage: install-caxri [--tag vX.Y.Z] [--no-sourcemap] [--skip-checksum]';
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
 export function parseArguments(argv: string[]): InstallOptions {
@@ -49,20 +52,69 @@ export function parseArguments(argv: string[]): InstallOptions {
             options.skipChecksum = true;
             continue;
         }
+        if (argument === '--no-sourcemap') {
+            options.shouldOmitSourceMaps = true;
+            continue;
+        }
         throw new Error(`Unknown argument: ${argument}. ${USAGE}`);
     }
     return options;
 }
 
 /**
- * Picks the DMG artifact and its checksum companion out of a downloaded release directory.
+ * Converts the canonical GitHub Release tag into the version embedded in Caxri artifacts.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
-export function findDmgPair(names: string[]): { checksum?: string; dmg: string } | undefined {
-    const dmg = names.find((name) => name.endsWith('.dmg'));
-    if (!dmg) return undefined;
+export function releaseVersionFromTag(tag: string): string {
+    const version = tag.startsWith('v') ? tag.slice(1) : '';
+    if (!/^\d/u.test(version) || version.trim() !== version || validSemver(version) === null) {
+        throw new Error(
+            `Expected a canonical vX.Y.Z Release tag, received ${JSON.stringify(tag)}.`,
+        );
+    }
+    return version;
+}
+
+function releaseDmgName(tag: string, shouldOmitSourceMaps: boolean): string {
+    const suffix = shouldOmitSourceMaps ? '-arm64-nosourcemap.dmg' : '-arm64.dmg';
+    return `Caxri-${releaseVersionFromTag(tag)}${suffix}`;
+}
+
+/**
+ * Picks the exact versioned DMG artifact and its checksum companion out of a downloaded Release directory.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function findDmgPair(
+    names: string[],
+    releaseTag: string,
+    shouldOmitSourceMaps = false,
+): { checksum?: string; dmg: string } {
+    const expected = releaseDmgName(releaseTag, shouldOmitSourceMaps);
+    const candidates = names.filter((name) => name === expected);
+    if (candidates.length !== 1) {
+        throw new Error(
+            `Expected exactly one ${expected} asset for ${releaseTag}, found ${candidates.length}.`,
+        );
+    }
+    const dmg = candidates.at(0);
+    if (!dmg) throw new Error('The selected Apple Silicon DMG disappeared unexpectedly.');
     const checksum = names.find((name) => name === `${dmg}.sha256`);
     return { checksum, dmg };
+}
+
+/**
+ * Prevents a correctly named Release asset from replacing the installed app with a differently versioned bundle.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function assertReleaseBundleVersion(releaseTag: string, bundleVersion: string): string {
+    const expected = releaseVersionFromTag(releaseTag);
+    const actual = bundleVersion.trim();
+    if (actual !== expected) {
+        throw new Error(
+            `${releaseTag} must contain Caxri ${expected}, but the downloaded bundle reports ${actual || 'an empty version'}.`,
+        );
+    }
+    return actual;
 }
 
 type ChecksumStep = { checksum: string; kind: 'verify' } | { kind: 'skip'; warning: string };
@@ -306,25 +358,44 @@ async function main(): Promise<void> {
     const downloadDirectory = await mkdtemp(join(tmpdir(), 'caxri-install-'));
     let mountPoint: string | undefined;
     try {
-        const downloadArguments = [
+        const releaseViewArguments = [
             'release',
-            'download',
+            'view',
             ...(options.tag ? [options.tag] : []),
             '--repo',
             REPOSITORY,
+            '--json',
+            'tagName',
+            '--jq',
+            '.tagName',
+        ];
+        const { stdout: releaseTagOutput } = await execFileAsync('gh', releaseViewArguments, {
+            timeout: 60_000,
+        });
+        const releaseTag = releaseTagOutput.trim();
+        const assetName = releaseDmgName(releaseTag, options.shouldOmitSourceMaps ?? false);
+        const downloadArguments = [
+            'release',
+            'download',
+            releaseTag,
+            '--repo',
+            REPOSITORY,
             '--pattern',
-            '*.dmg',
+            assetName,
             '--pattern',
-            '*.dmg.sha256',
+            `${assetName}.sha256`,
             '--dir',
             downloadDirectory,
         ];
-        console.log(`Downloading ${options.tag ?? 'the latest release'} from ${REPOSITORY}…`);
+        console.log(`Downloading ${releaseTag} from ${REPOSITORY}…`);
         await execFileAsync('gh', downloadArguments, { timeout: 600_000 });
 
-        const pair = findDmgPair(await readdir(downloadDirectory));
-        if (!pair) throw new Error('The release download produced no DMG.');
-        const checksumStep = resolveChecksumStep(pair, options);
+        const pair = findDmgPair(
+            await readdir(downloadDirectory),
+            releaseTag,
+            options.shouldOmitSourceMaps,
+        );
+        const checksumStep = resolveChecksumStep(pair, { ...options, tag: releaseTag });
         if (checksumStep.kind === 'verify') {
             await execFileAsync('shasum', ['-a', '256', '-c', checksumStep.checksum], {
                 cwd: downloadDirectory,
@@ -345,6 +416,13 @@ async function main(): Promise<void> {
         mountPoint = attachOut.match(/\/\S*\/dmg\.\S+/u)?.[0];
         if (!mountPoint) throw new Error(`Could not determine the DMG mount point: ${attachOut}`);
 
+        const { stdout: mountedVersion } = await execFileAsync('defaults', [
+            'read',
+            `${join(mountPoint, 'Caxri.app')}/Contents/Info`,
+            'CFBundleShortVersionString',
+        ]);
+        assertReleaseBundleVersion(releaseTag, mountedVersion);
+
         await quitRunningCaxri();
         await rm(INSTALL_PATH, { force: true, recursive: true });
         await execFileAsync('ditto', [join(mountPoint, 'Caxri.app'), INSTALL_PATH]);
@@ -360,7 +438,9 @@ async function main(): Promise<void> {
             `${INSTALL_PATH}/Contents/Info`,
             'CFBundleShortVersionString',
         ]);
-        console.log(`Installed Caxri ${version.trim()} at ${INSTALL_PATH}.`);
+        console.log(
+            `Installed Caxri ${assertReleaseBundleVersion(releaseTag, version)} at ${INSTALL_PATH}.`,
+        );
     } finally {
         try {
             if (mountPoint) await execFileAsync('hdiutil', ['detach', mountPoint]);
