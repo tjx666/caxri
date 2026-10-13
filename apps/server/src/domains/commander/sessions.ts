@@ -1,7 +1,8 @@
-import { CaxriError, isTopLevelProject, logEventCatalog } from '@caxri/protocol';
+import { CaxriError, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
+import { createBackgroundSession, discardEmptySession } from '../session';
 import { commanderHandovers } from './handover-records';
 
 /**
@@ -22,9 +23,6 @@ export function createCommanderSession(
     logger?: StructuredLogger,
     title?: string,
 ): string {
-    const project = database.listVisibleProjects().find((candidate) => candidate.id === projectId);
-    if (!project || !isTopLevelProject(project))
-        throw new CaxriError('NOT_FOUND', 'Project is unavailable to the Agent Commander');
     const rows = database.agentCommanderRows();
     if (!rows) throw new CaxriError('UNAVAILABLE', 'Agent Commander is not running');
     if (rows.sessionIds.length >= MAX_COMMANDER_SESSIONS)
@@ -32,24 +30,17 @@ export function createCommanderSession(
             'CAPACITY',
             `Agent Commander already owns ${MAX_COMMANDER_SESSIONS} Sessions; delete finished ones to create more`,
         );
-    const { session } = database.createSession(projectId, null, undefined, {
-        selection: 'preserve',
-    });
-    /**
-     * A manual title: the Agent has not started, so there is no native session to rename, and automatic naming would
-     * only replace the Commander's subject with a name taken from the task-file pointer.
-     */
-    if (title) database.renameSession(session.id, title);
+    const sessionId = createBackgroundSession(database, projectId, title);
     database.setAppState('agentCommander', {
         projectId: rows.projectId,
         sessionId: rows.sessionId,
         ...(rows.terminalId && { terminalId: rows.terminalId }),
-        sessionIds: [...rows.sessionIds, session.id],
+        sessionIds: [...rows.sessionIds, sessionId],
     });
     logger?.write('info', logEventCatalog.agentCommander.sessionCreated, {
-        fields: { projectId, sessionId: session.id, ownedCount: rows.sessionIds.length + 1 },
+        fields: { projectId, sessionId, ownedCount: rows.sessionIds.length + 1 },
     });
-    return session.id;
+    return sessionId;
 }
 
 /**
@@ -81,10 +72,10 @@ export function discardCommanderSession(
     onDiscarded?: () => void,
 ): void {
     if (!database.agentCommanderRows()?.sessionIds.includes(sessionId)) return;
-    if (database.listTerminals(sessionId).length > 0) return;
-    database.deleteSession(sessionId);
-    logger?.write('info', logEventCatalog.agentCommander.sessionDiscarded, {
-        fields: { sessionId },
+    discardEmptySession(database, sessionId, () => {
+        logger?.write('info', logEventCatalog.agentCommander.sessionDiscarded, {
+            fields: { sessionId },
+        });
+        onDiscarded?.();
     });
-    onDiscarded?.();
 }

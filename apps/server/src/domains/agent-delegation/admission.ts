@@ -70,13 +70,18 @@ export type DelegationAccess = 'create' | 'existing';
  * Admits a caller to a delegation Session. For the Agent Commander, `existing` access skips the create-only limits
  * below, which decide where new work may go: the task's owner was proven when it was created and `owned` re-checks the
  * caller Terminal, so archiving the Session or hiding its Project must not cut the Commander off from a result it is
- * still waiting for.
+ * still waiting for. Any other Agent is held to its own tasks the same way, so `existing` access admits it to a task in
+ * any Session.
+ *
+ * `isNewSession` marks the Session `admitDelegationRequest` just created for this request, before any task records that
+ * the caller owns work there.
  */
 export function authorizeDelegationSession(
     database: CaxriDatabase,
     authority: DelegationAuthority,
     input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId'>,
     access: DelegationAccess = 'create',
+    isNewSession = false,
 ): void {
     const session = database.getSession(input.sessionId);
     if (!session || session.projectId !== input.projectId)
@@ -114,14 +119,34 @@ export function authorizeDelegationSession(
             );
         return;
     }
-    if (
-        authority.principal.kind !== 'agent' ||
-        !authority.principal.projectIds.includes(input.projectId)
-    )
+    if (authority.principal.kind !== 'agent')
         throw new CaxriError('FORBIDDEN', 'Delegation requires an authorized Agent or owner');
     const caller = authority.callerTerminalId && database.getTerminal(authority.callerTerminalId);
-    if (!caller || caller.sessionId !== input.sessionId)
-        throw new CaxriError('FORBIDDEN', 'Delegation must remain in the caller Session');
+    if (!caller) throw new CaxriError('FORBIDDEN', 'Delegation requires an authorized Agent');
+    if (access === 'existing' || caller.sessionId === input.sessionId) return;
+    /**
+     * Outside its own Session, an Agent may start work only in a Session it created for a task: the one this request
+     * just created, or one where it already delegated. Delegating into a user's busy Session would fill its pane, so
+     * every other Session is refused, and only in a Project the user can still see.
+     */
+    const project = database
+        .listVisibleProjects()
+        .find((candidate) => candidate.id === input.projectId);
+    const isCallerSession =
+        isNewSession ||
+        database.agentDelegations
+            .receiptsForSessions([input.sessionId])
+            .some((receipt) => receipt.callerTerminalId === caller.id);
+    if (
+        !isCallerSession ||
+        !project ||
+        session.archivedAt !== undefined ||
+        !isTopLevelProject(project)
+    )
+        throw new CaxriError(
+            'FORBIDDEN',
+            'An Agent may delegate only into its own Session or a Session it created',
+        );
 }
 
 /**

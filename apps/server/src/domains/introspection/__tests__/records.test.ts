@@ -228,7 +228,7 @@ describe('Runtime record queries', () => {
     it('filters Agent scope before selector resolution and strips private metadata', () => {
         const service = new RecordQueryService(source, '/Users/test');
 
-        expect(service.project({ mode: 'show', selector: 'Shared' }, agent)).toEqual({
+        expect(service.project({ mode: 'show', selector: 'project-1' }, agent)).toEqual({
             view: 'agent',
             projects: [{ id: 'project-1', displayTitle: 'Shared' }],
         });
@@ -253,8 +253,26 @@ describe('Runtime record queries', () => {
         expect(() =>
             service.terminal({ mode: 'show', selector: 'dynamic PTY title' }, agent),
         ).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }) as Error);
-        expect(() => service.session({ mode: 'show', selector: 'session-2' }, agent)).toThrow(
+        expect(() => service.terminal({ mode: 'show', selector: 'Shell' }, agent)).toThrow(
             expect.objectContaining({ code: 'NOT_FOUND' }) as Error,
+        );
+    });
+
+    it('lists every top-level Project and its Sessions to an Agent, without paths', () => {
+        const service = new RecordQueryService(source, '/Users/test');
+
+        expect(service.project({ mode: 'list' }, agent)).toEqual({
+            view: 'agent',
+            projects: [
+                { id: 'project-1', displayTitle: 'Shared' },
+                { id: 'project-2', displayTitle: 'Shared' },
+            ],
+        });
+        expect(
+            service.session({ mode: 'list', projectId: 'project-2' }, agent).sessions,
+        ).toMatchObject([{ id: 'session-2', projectId: 'project-2' }]);
+        expect(JSON.stringify(service.session({ mode: 'list' }, agent))).not.toContain(
+            '/Users/test',
         );
     });
 

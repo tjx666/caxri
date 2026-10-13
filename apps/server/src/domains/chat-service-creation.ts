@@ -3,10 +3,9 @@ import process from 'node:process';
 import type { ServerEvent } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-import { AgentChatService } from './agent-chat';
+import { agentChatEndpoint, AgentChatService } from './agent-chat';
 import type { createAgentRuntime } from './agent-runtime';
 import type { CommanderTerminalHooks } from './commander';
-import { commanderChatEndpoint } from './commander';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
@@ -61,7 +60,7 @@ export function createAgentChatService({
         observeLifecycleSignal: agentRuntime.observeChatLifecycleSignal,
         clientVersion: process.env.CAXRI_APP_VERSION ?? '0.0.0',
         ...(dependencies.agentEndpoints && {
-            endpoint: commanderChatEndpoint({
+            endpoint: agentChatEndpoint({
                 database,
                 endpoints: dependencies.agentEndpoints,
                 providerSettings: (provider) =>

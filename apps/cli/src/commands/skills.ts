@@ -6,16 +6,11 @@
 import { agentSkillProviderUsage, parseAgentSkillProvider } from '@caxri/agent-skills';
 import { CaxriError } from '@caxri/protocol';
 
+import { rejectOptions } from './reject-options';
 import type { LocalCommandDefinition } from './types';
 
 const SKILL_NAME = 'caxri-cli';
 const providerUsage = `<${agentSkillProviderUsage}>`;
-
-function rejectOptions(tokens: readonly string[]): Record<string, never> {
-    if (tokens.length > 0)
-        throw new CaxriError('VALIDATION', `Unexpected argument: ${tokens[0].split('=', 1)[0]}`);
-    return {};
-}
 
 function skillName(source: string | undefined): typeof SKILL_NAME {
     if (source !== SKILL_NAME)

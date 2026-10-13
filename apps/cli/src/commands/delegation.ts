@@ -94,6 +94,23 @@ function waitIdentities(tokens: readonly string[]) {
     return otherDelegationIds.length > 0 ? { delegationId, otherDelegationIds } : { delegationId };
 }
 
+function listParameters(tokens: readonly string[]) {
+    let isActive = false;
+    let limit: number | undefined;
+    for (let index = 0; index < tokens.length; index += 1) {
+        const token = tokens[index];
+        if (token === '--active') isActive = true;
+        else if (token === '--limit') {
+            const value = tokens[index + 1];
+            if (!value || !/^\d+$/u.test(value))
+                throw new CaxriError('VALIDATION', '--limit requires a positive integer');
+            limit = Number(value);
+            index += 1;
+        } else throw new CaxriError('VALIDATION', `Unexpected argument: ${token.split('=', 1)[0]}`);
+    }
+    return limit === undefined ? { active: isActive } : { active: isActive, limit };
+}
+
 export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
     {
         kind: 'remote',
@@ -166,5 +183,15 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         summary: 'Retrieve the private answer for one exact delegated task.',
         usage: '<delegation-id>',
         parseParams: identity,
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'delegate', 'list'],
+        method: 'agent.delegation.list',
+        quietKey: 'delegations',
+        quietIdKey: 'delegationId',
+        summary: 'List your own delegated tasks, newest first.',
+        usage: '[--active] [--limit <count>]',
+        parseParams: listParameters,
     },
 ];

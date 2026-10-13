@@ -10,6 +10,8 @@ type DelegationMethod =
     | 'agent.delegation.create'
     | 'agent.delegation.status'
     | 'agent.delegation.result'
+    | 'agent.delegation.list'
+    | 'agent.delegation.listInternal'
     | 'agent.delegation.wait'
     | 'agent.delegation.waitInternal'
     | 'agent.delegation.createInternal'
@@ -33,6 +35,9 @@ export function createDelegationHandlers(
         'agent.delegation.create': () => coreRouted('agent.delegation.create'),
         'agent.delegation.status': () => coreRouted('agent.delegation.status'),
         'agent.delegation.result': () => coreRouted('agent.delegation.result'),
+        'agent.delegation.list': () => coreRouted('agent.delegation.list'),
+        'agent.delegation.listInternal': ({ active, limit, ...authority }) =>
+            service.list(authority, { active, limit }),
         'agent.delegation.wait': () => coreRouted('agent.delegation.wait'),
         'agent.delegation.waitInternal': (
             { delegationId, otherDelegationIds = [], timeoutMs, ...authority },

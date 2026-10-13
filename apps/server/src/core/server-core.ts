@@ -24,7 +24,7 @@ import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri
 
 import { createServerDomainService } from '../core/create-domain-service';
 import { warmServerExecutablePath } from '../domains/executables';
-import { agentCommandRequest } from './agent-command-request';
+import { agentCommandRequest, agentCurrentQuery } from './agent-command-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { retireEndpointsForOperation } from './agent-endpoints/retire-for-operation';
@@ -296,6 +296,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.delegation.stop':
                 case 'agent.delegation.status':
                 case 'agent.delegation.result':
+                case 'agent.delegation.list':
                     return forwardDomainOperation(
                         agentCommandRequest(request, context, invocation.requestId, agentEndpoints),
                     );
@@ -493,32 +494,26 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         if (!isAccepted) mutationAdmission.reopen();
                     }
                 }
-                case 'project.query': {
-                    const endpoint =
-                        context.principal.kind === 'agent'
-                            ? agentEndpoints.context(context).endpoint
-                            : undefined;
+                case 'project.query':
                     return domainService.request('project.queryForPrincipal', {
                         principal: context.principal,
-                        query:
-                            endpoint && request.params.mode === 'current'
-                                ? { mode: 'show', selector: endpoint.projectId }
-                                : request.params,
+                        query: agentCurrentQuery(
+                            request.params,
+                            context,
+                            agentEndpoints,
+                            'projectId',
+                        ),
                     });
-                }
-                case 'session.query': {
-                    const endpoint =
-                        context.principal.kind === 'agent'
-                            ? agentEndpoints.context(context).endpoint
-                            : undefined;
+                case 'session.query':
                     return domainService.request('session.queryForPrincipal', {
                         principal: context.principal,
-                        query:
-                            endpoint && request.params.mode === 'current'
-                                ? { mode: 'show', selector: endpoint.sessionId }
-                                : request.params,
+                        query: agentCurrentQuery(
+                            request.params,
+                            context,
+                            agentEndpoints,
+                            'sessionId',
+                        ),
                     });
-                }
                 case 'terminal.query':
                     return domainService.request('terminal.queryForPrincipal', {
                         principal: context.principal,

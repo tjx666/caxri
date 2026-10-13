@@ -14,7 +14,7 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { protocolVersionSchema } from '../transport/version.js';
 import { humanProjectSchema, scopedProjectSchema, sessionRecordSchema } from './domain.js';
-import { identifierSchema } from './identifiers.js';
+import { identifierSchema, pathSchema } from './identifiers.js';
 import { logLevelSchema } from './log-level.js';
 import { logEventNameSchema } from './logging.js';
 import { terminalRecordSchema } from './terminal-record.js';
@@ -57,7 +57,7 @@ export const projectQueryResultSchema = z.union([
     }),
     z.object({
         view: z.enum(['agent', 'delegation-client', 'extension', 'paired-device']),
-        projects: z.array(scopedProjectSchema).max(128),
+        projects: z.array(scopedProjectSchema).max(1_024),
     }),
 ]);
 
@@ -352,6 +352,16 @@ export const businessMethods = {
         ...commandPolicy('server', 'read', ['projects.read']),
         params: projectQuerySchema,
         result: projectQueryResultSchema,
+    },
+    /**
+     * Adds a folder as a Project, as the Desktop's Open Folder does, so an Agent can start Sessions in a repository the
+     * user has not opened yet. Idempotent by canonical root: re-adding an existing or hidden folder returns that
+     * Project.
+     */
+    'project.add': {
+        ...commandPolicy('server', 'write', ['projects.write']),
+        params: z.strictObject({ path: pathSchema }),
+        result: z.strictObject({ project: scopedProjectSchema }),
     },
     'session.query': {
         ...commandPolicy('server', 'read', ['sessions.read']),

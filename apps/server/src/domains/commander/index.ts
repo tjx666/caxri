@@ -1,4 +1,3 @@
-export { commanderChatEndpoint } from './chat-endpoint';
 export { createCommanderServices } from './creation';
 export { commanderDiagnostics } from './diagnostics';
 export { CommanderHandoverService } from './handover';
