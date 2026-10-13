@@ -14,10 +14,19 @@ import { createFakePty } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
 
+/**
+ * Each case closes its domain services before teardown, but APFS on GitHub-hosted macOS can briefly retain a directory
+ * entry and report `ENOTEMPTY`. Node's bounded recursive-rm retry covers that transient window while a persistent
+ * writer still exhausts the retries and fails the test.
+ */
 afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
-    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
+    await Promise.all(
+        pendingDirectories.map((path) =>
+            rm(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }),
+        ),
+    );
 });
 
 /**

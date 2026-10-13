@@ -99,7 +99,9 @@ the exact Node version from `mise.toml`, while `pnpm/setup` installs the exact p
 action reads the Bun version from `.bun-version`. On GitHub-hosted jobs, pnpm, Bun, Electron, and
 Playwright use disposable `RUNNER_TEMP` paths and do not assume a prewarmed runner cache. On the
 remaining self-hosted final path, runner-owned paths do not replace the user's interactive Node,
-pnpm, or Bun installations.
+pnpm, or Bun installations. Jobs that exercise capture or media-analysis contracts install FFmpeg
+on disposable hosted runners and verify `ffmpeg`, `ffprobe`, and `libx264` on both hosted and
+self-hosted routes.
 
 Node uses the standard Actions tool cache. pnpm and the Bun binary use versioned directories beneath
 `RUNNER_TOOL_CACHE/caxri`; the Bun binary must match `.bun-version`, remains separate from `~/.bun`,

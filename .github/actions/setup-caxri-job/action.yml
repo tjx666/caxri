@@ -18,6 +18,10 @@ inputs:
     description: Install the Playwright Chromium headless shell for browser-backed Vitest contracts.
     required: false
     default: 'false'
+  install-media-tools:
+    description: Install or verify FFmpeg and FFprobe for capture and media-analysis contracts.
+    required: false
+    default: 'false'
   install-android-toolchain:
     description: Install and verify the exact Android JDK, SDK, NDK, and CMake toolchain.
     required: false
@@ -215,6 +219,23 @@ runs:
         test -d "$sdk_root/ndk/27.1.12297006"
         echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
         echo "$java_home/bin" >> "$GITHUB_PATH"
+
+    - name: Install media tools on hosted runner
+      if: inputs.install-media-tools == 'true' && runner.environment == 'github-hosted'
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: '1'
+      run: >-
+        bun run scripts/ci-metrics.ts --label "FFmpeg install" --
+        brew install ffmpeg
+
+    - name: Verify media tools
+      if: inputs.install-media-tools == 'true'
+      shell: bash
+      run: |
+        command -v ffmpeg
+        command -v ffprobe
+        ffmpeg -hide_banner -encoders 2>/dev/null | grep -q '[[:space:]]libx264[[:space:]]'
 
     - name: Install dependency tree without lifecycle scripts
       if: inputs.install-dependencies == 'true'

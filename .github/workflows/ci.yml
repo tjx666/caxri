@@ -181,6 +181,7 @@ jobs:
           install-dependencies: 'true'
           install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
           install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
+          install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
       - name: Run gitleaks
         # Scoped to the commits this push or pull request actually introduced. The full-history scan runs instead,
         # inside "Run full platform checks", whenever this job handles the 'full' scope.
@@ -342,6 +343,7 @@ jobs:
           install-dependencies: 'true'
           install-electron: 'true'
           install-playwright-shell: ${{ needs.retry-policy.outputs.mode == 'full' && needs.retry-policy.outputs.checks_scope == 'full' && needs.retry-policy.outputs.e2e_profile == 'optimized' }}
+          install-media-tools: 'true'
       - name: Report E2E runner route
         run: |
           {
