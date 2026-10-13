@@ -1,12 +1,21 @@
 import type { AgentChatUsage } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
-import { Gauge, MessageSquarePlus, Timer, TimerOff } from 'lucide-react';
+import { Gauge, MessageSquarePlus, Timer, TimerOff, X } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { agentChatContextAlerts, agentChatContextAnnouncement } from './agent-chat-context';
+import {
+    agentChatContextAlerts,
+    agentChatContextAnnouncement,
+    agentChatUndismissedContextAlerts,
+} from './agent-chat-context';
+import {
+    dismissAgentChatCacheNotice,
+    useAgentChatCacheNoticeDismissals,
+} from './agent-chat-context-dismissals';
 import { useClockTick } from './hooks/use-clock-tick';
 
 /**
@@ -39,7 +48,7 @@ function ContextNotice({
             <Icon aria-hidden className="size-3.5 shrink-0" />
             <Tooltip content={alert.detail}>
                 <span
-                    className="truncate rounded focus-visible:outline focus-visible:outline-accent"
+                    className="truncate rounded-md focus-visible:outline focus-visible:outline-accent"
                     tabIndex={0}
                 >
                     {alert.text}
@@ -50,19 +59,22 @@ function ContextNotice({
 }
 
 /**
- * The row's trailing actions: continue in a new Chat once the cache expired, and Compact while the context is high and
- * the provider reports a compact command (`onCompact` is omitted otherwise).
+ * The row's trailing actions: continue in a new Chat once the cache expired (a spinner replaces its glyph while the new
+ * Chat opens), Compact while the context is high and the provider reports a compact command (`onCompact` is omitted
+ * otherwise), and a dismiss button while a cache notice shows (`onDismissCache`).
  */
 function ContextActions({
     isContinuing,
     isExpired,
     onCompact,
     onContinueInNewChat,
+    onDismissCache,
 }: {
     isContinuing: boolean;
     isExpired: boolean;
     onCompact: (() => void) | undefined;
     onContinueInNewChat: () => void;
+    onDismissCache: (() => void) | undefined;
 }) {
     const { t } = useTranslation();
     return (
@@ -76,7 +88,11 @@ function ContextActions({
                         variant="secondary"
                         onClick={onContinueInNewChat}
                     >
-                        <MessageSquarePlus aria-hidden className="size-3.5" />
+                        {isContinuing ? (
+                            <Spinner className="size-3.5" role="presentation" />
+                        ) : (
+                            <MessageSquarePlus aria-hidden className="size-3.5" />
+                        )}
                         {t('agentChat.context.continueInNewChat')}
                     </Button>
                 </Tooltip>
@@ -85,6 +101,19 @@ function ContextActions({
                 <Button className={ACTION_CLASS} size="sm" variant="secondary" onClick={onCompact}>
                     {t('agentChat.context.compact')}
                 </Button>
+            )}
+            {onDismissCache && (
+                <Tooltip content={t('agentChat.context.dismissCache')}>
+                    <Button
+                        aria-label={t('agentChat.context.dismissCache')}
+                        className="size-6 rounded-md text-muted enabled:hover:text-foreground"
+                        size="icon"
+                        variant="ghost"
+                        onClick={onDismissCache}
+                    >
+                        <X aria-hidden className="size-3.5" />
+                    </Button>
+                </Tooltip>
             )}
         </span>
     );
@@ -97,7 +126,9 @@ function ContextActions({
  * since nothing failed, with a Compact button when the provider reports a compact command). It takes the activity bar's
  * place and shape, so it is hidden while a turn runs, when neither notice is actionable. Expiry is judged on a minute
  * clock, which runs while the composer is mounted so the live region below can follow the state. An expired cache also
- * offers to continue in a new Chat, which reads the old transcript through a cheap subagent instead of rewriting it.
+ * offers to continue in a new Chat, which reads the old transcript through a cheap subagent instead of rewriting it. A
+ * cache notice shows only when the rewrite is worth mentioning (`isAgentChatCacheRewriteNoticeable`), and its dismiss
+ * button hides it for this Chat until the next reply restarts the cache.
  *
  * The row itself is not a live region, because its countdown and idle time change every minute; a separate polite
  * region stays mounted and announces only a change of state (`agentChatContextAnnouncement`). Each notice's text is a
@@ -108,6 +139,7 @@ export function AgentChatContextAlerts({
     isShown,
     onCompact,
     onContinueInNewChat,
+    terminalId,
     usage,
 }: {
     /**
@@ -124,11 +156,20 @@ export function AgentChatContextAlerts({
      */
     onCompact: (() => void) | undefined;
     onContinueInNewChat: () => void;
+    terminalId: string;
     usage: AgentChatUsage | undefined;
 }) {
     // The alert text comes from the global `translate`; subscribing here re-renders it when the language changes.
     useTranslation();
-    const alerts = agentChatContextAlerts(usage, useClockTick('minute'));
+    const dismissedResponseAt = useAgentChatCacheNoticeDismissals(
+        (state) => state.dismissedResponseAt[terminalId],
+    );
+    const lastResponseAt = usage?.lastResponseAt;
+    const alerts = agentChatUndismissedContextAlerts(
+        agentChatContextAlerts(usage, useClockTick('minute')),
+        lastResponseAt,
+        dismissedResponseAt,
+    );
     const isVisible = isShown && (alerts.cache !== undefined || alerts.pressure !== undefined);
     const canCompact = alerts.pressure !== undefined && onCompact !== undefined;
     const isExpired = alerts.cache?.state === 'expired';
@@ -160,14 +201,17 @@ export function AgentChatContextAlerts({
                             icon={Gauge}
                         />
                     )}
-                    {(isExpired || canCompact) && (
-                        <ContextActions
-                            isContinuing={isContinuing}
-                            isExpired={isExpired}
-                            onCompact={canCompact ? onCompact : undefined}
-                            onContinueInNewChat={onContinueInNewChat}
-                        />
-                    )}
+                    <ContextActions
+                        isContinuing={isContinuing}
+                        isExpired={isExpired}
+                        onCompact={canCompact ? onCompact : undefined}
+                        onContinueInNewChat={onContinueInNewChat}
+                        onDismissCache={
+                            lastResponseAt !== undefined && alerts.cache
+                                ? () => dismissAgentChatCacheNotice(terminalId, lastResponseAt)
+                                : undefined
+                        }
+                    />
                 </div>
             )}
         </>

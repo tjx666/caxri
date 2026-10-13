@@ -27,7 +27,7 @@ const action = {
     confirmLabel: 'Turn On',
     message: 'Terminals start drawing with the GPU immediately.',
     preference: 'on' as const,
-    title: 'Turn on GPU acceleration for Terminals?',
+    title: 'Turn on Terminal hardware acceleration?',
 };
 
 beforeEach(() => {
@@ -81,7 +81,7 @@ describe('confirmTerminalRendererSwitch', () => {
         expect(mocks.showConfirm).toHaveBeenCalledWith({
             confirmLabel: 'Turn On',
             message: 'Terminals start drawing with the GPU immediately.',
-            title: 'Turn on GPU acceleration for Terminals?',
+            title: 'Turn on Terminal hardware acceleration?',
         });
     });
 
@@ -109,7 +109,7 @@ describe('confirmTerminalRendererSwitch', () => {
 
         await expect(confirmTerminalRendererSwitch(action)).resolves.toBeUndefined();
         expect(mocks.tryCommand).toHaveBeenCalledWith(
-            'Unable to change GPU acceleration',
+            'Unable to change Terminal hardware acceleration',
             expect.any(Function),
         );
     });

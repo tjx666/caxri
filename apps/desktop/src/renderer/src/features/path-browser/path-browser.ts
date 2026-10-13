@@ -1,8 +1,11 @@
 import { isPathAtOrBelow } from '@caxri/protocol';
+import type { PathBrowserDenialReason } from '@desktop-shared/path-browser-denial';
+import { pathBrowserDenialReason } from '@desktop-shared/path-browser-denial';
 
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { isDirectoryEntry } from '../../lib/file-entry';
+import { describeFailure } from '../../stores/toasts';
 
 export type PathBrowserMode = 'free' | 'project';
 
@@ -28,6 +31,33 @@ export class PathBrowserInputError extends Error {
         super(translate(messageKey));
         this.name = 'PathBrowserInputError';
     }
+}
+
+const sshHostDenialKeys = {
+    homeUnavailable: 'sshHost.pathBrowser.homeUnavailable',
+    outsideProjectRoot: 'sshHost.pathBrowser.outsideProject',
+} as const satisfies Record<PathBrowserDenialReason, TranslationKey>;
+
+/**
+ * Plain copy for a path Main refused because an SSH Host window's browser covers its Project only, in place of Main's
+ * English message. A local window can browse outside its Project, so its refusals keep the generic failure text.
+ */
+export function pathBrowserDenialMessageKey(
+    error: unknown,
+    isSshHost: boolean,
+): TranslationKey | undefined {
+    if (!isSshHost) return undefined;
+    const reason = pathBrowserDenialReason(error);
+    return reason && sshHostDenialKeys[reason];
+}
+
+/**
+ * The error the browser shows for a failed request: the plain {@link pathBrowserDenialMessageKey} copy for a refusal
+ * that has one, otherwise the failure's own message or `fallback`.
+ */
+export function pathBrowserError(error: unknown, fallback: string, isSshHost: boolean): Error {
+    const key = pathBrowserDenialMessageKey(error, isSshHost);
+    return new Error(key ? translate(key) : describeFailure(error, fallback));
 }
 
 /**

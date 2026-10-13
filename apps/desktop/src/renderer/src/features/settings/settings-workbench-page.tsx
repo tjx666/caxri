@@ -47,157 +47,164 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
         // `data-settings-page`: the former `role="dialog"` gave E2E a stable scope to query within; a Workbench tab
         // has no such role, so this attribute is the replacement scoping hook (`openSettingsTab` in
         // `e2e/support/helpers.ts`).
-        <div
-            data-settings-page
-            className="grid h-full grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden"
-        >
-            <div className="bg-surface pt-3 pr-4 pb-2 pl-4">
-                {/* The workbench tab and the section strip below both say "Settings"; a third visible copy only
-                 * repeated them, so the heading stays for assistive tech alone. */}
-                <h1 className="sr-only">{t('settings.page.heading')}</h1>
-                <p className="m-0 text-[11px] leading-[1.45] text-muted">
-                    {t('settings.page.intro')}
-                </p>
-            </div>
-            {/*
-             * The title and tab strip form one `bg-surface` header band over the `bg-background` content: a
-             * background step, not a hairline (see `renderer-design-contract.test.ts`). The shared tab fill used to
-             * stop at the last tab and read as a stray block. `pl-1` plus each tab's `px-3` lines the first label up
-             * with the `pl-4` title.
-             */}
-            <div className="flex items-center bg-surface pl-1">
-                <ChromeTabs
-                    ariaLabel={t('settings.page.sections')}
-                    className="flex flex-1 self-stretch"
+        //
+        // The page keeps a minimum width and scrolls sideways below it. Squeezed into a narrow split group, the 168px
+        // table of contents left the rows a sliver and zh-CN labels wrapped one character per line.
+        <div className="h-full overflow-x-auto overflow-y-hidden">
+            <div
+                data-settings-page
+                className="grid h-full min-w-[30rem] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden"
+            >
+                <div className="bg-surface pt-3 pr-4 pb-2 pl-4">
+                    {/* The workbench tab and the section strip below both say "Settings"; a third visible copy only
+                     * repeated them, so the heading stays for assistive tech alone. */}
+                    <h1 className="sr-only">{t('settings.page.heading')}</h1>
+                    <p className="m-0 text-[11px] leading-[1.45] text-muted">
+                        {t('settings.page.intro')}
+                    </p>
+                </div>
+                {/*
+                 * The title and tab strip form one `bg-surface` header band over the `bg-background` content: a
+                 * background step, not a hairline (see `renderer-design-contract.test.ts`). The shared tab fill used to
+                 * stop at the last tab and read as a stray block. `pl-1` plus each tab's `px-3` lines the first label up
+                 * with the `pl-4` title.
+                 */}
+                <div className="flex items-center bg-surface pl-1">
+                    <ChromeTabs
+                        ariaLabel={t('settings.page.sections')}
+                        className="flex flex-1 self-stretch"
+                        idPrefix="settings"
+                        items={CONFIG_KINDS.map((value) => ({
+                            value,
+                            label: t(TAB_LABELS[value]),
+                            content: t(TAB_LABELS[value]),
+                        }))}
+                        tabClassName="min-h-9 px-3"
+                        value={tab}
+                        onValueChange={controller.changeTab}
+                    />
+                    <ToggleGroup
+                        aria-label={t('settings.page.viewToggle')}
+                        className="mr-2"
+                        value={[view]}
+                        onValueChange={(next: Array<'ui' | 'source'>) => {
+                            // Base UI reports re-activating the selected segment as an empty
+                            // selection; the view toggle must stay on the current view instead of
+                            // snapping back to UI.
+                            if (next.length === 0) return;
+                            const nextView = next[0];
+                            if (nextView === 'source') controller.showSource();
+                            else controller.showUi();
+                        }}
+                    >
+                        <Tooltip content={t('settings.page.view.ui')}>
+                            <ToggleGroupItem
+                                aria-label={t('settings.page.view.ui')}
+                                size="dense"
+                                value="ui"
+                            >
+                                <SlidersHorizontal size={14} />
+                            </ToggleGroupItem>
+                        </Tooltip>
+                        <Tooltip content={t('settings.page.view.source')}>
+                            <ToggleGroupItem
+                                aria-label={t('settings.page.view.source')}
+                                size="dense"
+                                value="source"
+                            >
+                                <Braces size={14} />
+                            </ToggleGroupItem>
+                        </Tooltip>
+                    </ToggleGroup>
+                </div>
+
+                <ChromeTabPanel
+                    active={tab === 'settings'}
+                    className="grid min-h-0 overflow-hidden"
                     idPrefix="settings"
-                    items={CONFIG_KINDS.map((value) => ({
-                        value,
-                        label: t(TAB_LABELS[value]),
-                        content: t(TAB_LABELS[value]),
-                    }))}
-                    tabClassName="min-h-9 px-3"
-                    value={tab}
-                    onValueChange={controller.changeTab}
-                />
-                <ToggleGroup
-                    aria-label={t('settings.page.viewToggle')}
-                    className="mr-2"
-                    value={[view]}
-                    onValueChange={(next: Array<'ui' | 'source'>) => {
-                        // Base UI reports re-activating the selected segment as an empty
-                        // selection; the view toggle must stay on the current view instead of
-                        // snapping back to UI.
-                        if (next.length === 0) return;
-                        const nextView = next[0];
-                        if (nextView === 'source') controller.showSource();
-                        else controller.showUi();
-                    }}
+                    value="settings"
                 >
-                    <Tooltip content={t('settings.page.view.ui')}>
-                        <ToggleGroupItem
-                            aria-label={t('settings.page.view.ui')}
-                            size="dense"
-                            value="ui"
-                        >
-                            <SlidersHorizontal size={14} />
-                        </ToggleGroupItem>
-                    </Tooltip>
-                    <Tooltip content={t('settings.page.view.source')}>
-                        <ToggleGroupItem
-                            aria-label={t('settings.page.view.source')}
-                            size="dense"
-                            value="source"
-                        >
-                            <Braces size={14} />
-                        </ToggleGroupItem>
-                    </Tooltip>
-                </ToggleGroup>
+                    {tab === 'settings' &&
+                        state.settings.value &&
+                        (view === 'source' ? (
+                            sourceView
+                        ) : (
+                            <SettingsPage
+                                key={
+                                    controller.notificationsFocusRequestId ??
+                                    controller.agentActionsFocusRequest?.id ??
+                                    controller.agentExecutableFocusRequest?.id ??
+                                    'settings'
+                                }
+                                agentActionsFocusRequest={controller.agentActionsFocusRequest}
+                                agentExecutableFocusRequest={controller.agentExecutableFocusRequest}
+                                notificationsFocusRequestId={controller.notificationsFocusRequestId}
+                                agentHookHealth={controller.agentHookHealth}
+                                agentSkillHealth={controller.agentSkillHealth}
+                                argvConfig={controller.argvConfig}
+                                gitExclusionsFocusRequestId={controller.gitExclusionsFocusRequestId}
+                                rowFocusRequest={controller.rowFocusRequest}
+                                searchFocusRequestId={controller.searchFocusRequestId}
+                                settings={state.settings.value}
+                                trustedDomainsFocusRequestId={
+                                    controller.trustedDomainsFocusRequestId
+                                }
+                                onArgvConfigChange={controller.updateArgvConfig}
+                                onFieldChange={controller.updateSettingsField}
+                            />
+                        ))}
+                </ChromeTabPanel>
+
+                <ChromeTabPanel
+                    active={tab === 'keybindings'}
+                    className="grid min-h-0 overflow-hidden"
+                    idPrefix="settings"
+                    value="keybindings"
+                >
+                    {tab === 'keybindings' &&
+                        (view === 'source' ? (
+                            sourceView
+                        ) : (
+                            <KeybindingsForm
+                                focusRequestId={controller.keybindingsFocusRequestId}
+                                keybindings={state.keybindings.value}
+                                onAdd={controller.addBinding}
+                                onChange={controller.updateBinding}
+                                onRemove={controller.removeBinding}
+                            />
+                        ))}
+                </ChromeTabPanel>
+
+                <ChromeTabPanel
+                    active={tab === 'theme'}
+                    className="grid min-h-0 overflow-hidden"
+                    idPrefix="settings"
+                    value="theme"
+                >
+                    {tab === 'theme' &&
+                        state.theme.value &&
+                        (view === 'source' ? (
+                            sourceView
+                        ) : (
+                            <ThemeForm
+                                importResult={controller.themeImportResult}
+                                theme={state.theme.value}
+                                warnings={state.theme.warnings}
+                                onColorChange={controller.updateThemeColor}
+                                onDismissImportResult={controller.dismissThemeImportResult}
+                                onImport={
+                                    canImportTheme
+                                        ? () => {
+                                              // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors
+                                              void controller.importTheme();
+                                          }
+                                        : undefined
+                                }
+                                onSelectBuiltin={controller.selectBuiltinTheme}
+                            />
+                        ))}
+                </ChromeTabPanel>
             </div>
-
-            <ChromeTabPanel
-                active={tab === 'settings'}
-                className="grid min-h-0 overflow-hidden"
-                idPrefix="settings"
-                value="settings"
-            >
-                {tab === 'settings' &&
-                    state.settings.value &&
-                    (view === 'source' ? (
-                        sourceView
-                    ) : (
-                        <SettingsPage
-                            key={
-                                controller.notificationsFocusRequestId ??
-                                controller.agentActionsFocusRequest?.id ??
-                                controller.agentExecutableFocusRequest?.id ??
-                                'settings'
-                            }
-                            agentActionsFocusRequest={controller.agentActionsFocusRequest}
-                            agentExecutableFocusRequest={controller.agentExecutableFocusRequest}
-                            notificationsFocusRequestId={controller.notificationsFocusRequestId}
-                            agentHookHealth={controller.agentHookHealth}
-                            agentSkillHealth={controller.agentSkillHealth}
-                            argvConfig={controller.argvConfig}
-                            gitExclusionsFocusRequestId={controller.gitExclusionsFocusRequestId}
-                            rowFocusRequest={controller.rowFocusRequest}
-                            searchFocusRequestId={controller.searchFocusRequestId}
-                            settings={state.settings.value}
-                            trustedDomainsFocusRequestId={controller.trustedDomainsFocusRequestId}
-                            onArgvConfigChange={controller.updateArgvConfig}
-                            onFieldChange={controller.updateSettingsField}
-                        />
-                    ))}
-            </ChromeTabPanel>
-
-            <ChromeTabPanel
-                active={tab === 'keybindings'}
-                className="grid min-h-0 overflow-hidden"
-                idPrefix="settings"
-                value="keybindings"
-            >
-                {tab === 'keybindings' &&
-                    (view === 'source' ? (
-                        sourceView
-                    ) : (
-                        <KeybindingsForm
-                            focusRequestId={controller.keybindingsFocusRequestId}
-                            keybindings={state.keybindings.value}
-                            onAdd={controller.addBinding}
-                            onChange={controller.updateBinding}
-                            onRemove={controller.removeBinding}
-                        />
-                    ))}
-            </ChromeTabPanel>
-
-            <ChromeTabPanel
-                active={tab === 'theme'}
-                className="grid min-h-0 overflow-hidden"
-                idPrefix="settings"
-                value="theme"
-            >
-                {tab === 'theme' &&
-                    state.theme.value &&
-                    (view === 'source' ? (
-                        sourceView
-                    ) : (
-                        <ThemeForm
-                            importResult={controller.themeImportResult}
-                            theme={state.theme.value}
-                            warnings={state.theme.warnings}
-                            onColorChange={controller.updateThemeColor}
-                            onDismissImportResult={controller.dismissThemeImportResult}
-                            onImport={
-                                canImportTheme
-                                    ? () => {
-                                          // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors
-                                          void controller.importTheme();
-                                      }
-                                    : undefined
-                            }
-                            onSelectBuiltin={controller.selectBuiltinTheme}
-                        />
-                    ))}
-            </ChromeTabPanel>
         </div>
     );
 }

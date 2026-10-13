@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import {
     ActivityIndicator,
@@ -11,9 +11,12 @@ import {
     Text,
     View,
 } from 'react-native';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import {
+    ChevronDown,
+    ChevronUp,
     CornerDownLeft,
     Image as ImageIcon,
     Pause,
@@ -25,29 +28,42 @@ import {
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatQueueHeader, AgentChatQueueRow } from './agent-chat-queue';
-import { agentChatQueueRowHints } from './agent-chat-queue';
+import { agentChatQueueCardLayout, agentChatQueueRowHints } from './agent-chat-queue';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatQueueActions } from './use-agent-chat-queue-actions';
+import { useIsKeyboardShown } from './use-keyboard-shown';
 
 const MONOSPACE = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 const STEER_HIT_SLOP = { bottom: 8, left: 8, right: 4, top: 8 } as const;
+const DELETE_ACTION_WIDTH = 84;
+const DELETE_LABEL = 'Delete queued message';
 
 /**
  * About four rows; a longer queue scrolls inside the card so the Chat above keeps its room.
  */
 const QUEUE_MAX_HEIGHT = 216;
 
+/**
+ * The card's one-line summary (`Queued 3`), with Resume after a Stop and, while the user types, the toggle that shows
+ * or hides the rows (`agentChatQueueCardLayout`).
+ */
 const QueueHeader = ({
     canAct,
     header,
+    isExpanded,
     isResuming,
     onResume,
+    onToggle,
+    showsToggle,
     theme,
 }: {
     canAct: boolean;
     header: AgentChatQueueHeader;
+    isExpanded: boolean;
     isResuming: boolean;
     onResume: () => void;
+    onToggle: () => void;
+    showsToggle: boolean;
     theme: MobileTheme;
 }) => (
     <View style={styles.header}>
@@ -85,6 +101,18 @@ const QueueHeader = ({
                 <Text style={[styles.resumeText, { color: theme.primary }]}>Resume</Text>
             </Pressable>
         ) : null}
+        {showsToggle ? (
+            <IconButton
+                accessibilityLabel={isExpanded ? 'Hide queued messages' : 'Show queued messages'}
+                color={theme.muted}
+                expanded={isExpanded}
+                icon={isExpanded ? ChevronDown : ChevronUp}
+                onPress={onToggle}
+                size={18}
+                testID="agent-chat-queue-toggle"
+                theme={theme}
+            />
+        ) : null}
     </View>
 );
 
@@ -94,14 +122,14 @@ const QueueHeader = ({
 const IMAGES_UNSUPPORTED = 'Messages with images cannot be edited';
 
 /**
- * A queued row's Send now (or Steer), Edit, and Delete buttons, for a device that may act on the queue.
+ * A queued row's Send now (or Steer) and Edit buttons, for a device that may act on the queue. Delete lives in the
+ * row's swipe and its screen reader action, leaving the preview room to read.
  */
 const QueueRowActions = ({
     canSendNow,
     entry,
     isPending,
     onEdit,
-    onRemove,
     onSendNow,
     theme,
 }: {
@@ -109,7 +137,6 @@ const QueueRowActions = ({
     entry: AgentChatQueueRow;
     isPending: boolean;
     onEdit: (id: string) => Promise<boolean>;
-    onRemove: () => void;
     onSendNow: (id: string) => Promise<boolean>;
     theme: MobileTheme;
 }) => {
@@ -163,24 +190,14 @@ const QueueRowActions = ({
                 testID="agent-chat-queue-edit"
                 theme={theme}
             />
-            <IconButton
-                accessibilityLabel="Delete queued message"
-                color={theme.muted}
-                disabled={isPending}
-                icon={Trash2}
-                onPress={onRemove}
-                size={18}
-                testID="agent-chat-queue-delete"
-                theme={theme}
-            />
         </>
     );
 };
 
 /**
- * One queued follow-up: up to two lines of preview, its command and image count, then Steer (or Send now), Edit, and
- * Delete. Swiping the row left deletes it too, like dismissing a message in a chat list; the Delete button stays for
- * readers who do not swipe and for the screen reader.
+ * One queued follow-up: up to two lines of preview, its command and image count, then Steer (or Send now) and Edit.
+ * Swiping the row left reveals Delete, like a chat list's row action, and only a tap on it deletes, so a stray swipe
+ * never loses a message. The screen reader reaches the same Delete as an action on the row.
  */
 const QueueRow = ({
     canAct: canActOnQueue,
@@ -197,17 +214,30 @@ const QueueRow = ({
     onSendNow: (id: string) => Promise<boolean>;
     theme: MobileTheme;
 }) => {
-    const remove = useCallback((): void => {
-        // eslint-disable-next-line no-void -- The queue card reports a failed delete itself.
-        void onRemove(entry.id);
+    const swipeableReference = useRef<SwipeableMethods>(null);
+    const remove = useCallback(async (): Promise<void> => {
+        // A failed delete brings the row back with the card's error; close it so the row reads normally again.
+        if (!(await onRemove(entry.id))) swipeableReference.current?.close();
     }, [entry.id, onRemove]);
     const renderRightActions = useCallback(
         () => (
-            <View style={[styles.swipeAction, { backgroundColor: theme.danger }]}>
+            <Pressable
+                accessibilityLabel={DELETE_LABEL}
+                accessibilityRole="button"
+                onPress={remove}
+                style={({ pressed }) => [
+                    styles.swipeAction,
+                    { backgroundColor: theme.danger, opacity: pressed ? 0.8 : 1 },
+                ]}
+                testID="agent-chat-queue-delete"
+            >
                 <Trash2 color={theme.primaryForeground} size={20} strokeWidth={2.25} />
-            </View>
+                <Text style={[styles.swipeActionText, { color: theme.primaryForeground }]}>
+                    Delete
+                </Text>
+            </Pressable>
         ),
-        [theme],
+        [remove, theme],
     );
     const isPending = entry.isPending === true;
     // A message still on its way holds every action until Server Core lists it, as on Desktop.
@@ -218,17 +248,25 @@ const QueueRow = ({
             childrenContainerStyle={{ backgroundColor: theme.surface }}
             enabled={canAct}
             friction={1.5}
-            onSwipeableWillOpen={remove}
             overshootRight={false}
+            ref={swipeableReference}
             renderRightActions={renderRightActions}
-            rightThreshold={64}
+            rightThreshold={DELETE_ACTION_WIDTH / 2}
         >
             <View
                 accessibilityState={{ busy: isPending }}
                 style={[styles.row, isPending && styles.pending]}
                 testID={isPending ? 'agent-chat-queue-item-pending' : 'agent-chat-queue-item'}
             >
-                <View style={styles.rowText}>
+                <View
+                    accessibilityActions={canAct ? [{ name: 'delete', label: DELETE_LABEL }] : []}
+                    accessible
+                    onAccessibilityAction={({ nativeEvent }) => {
+                        // eslint-disable-next-line no-void -- The queue card reports a failed delete itself.
+                        if (nativeEvent.actionName === 'delete') void remove();
+                    }}
+                    style={styles.rowText}
+                >
                     <Text numberOfLines={2} style={[styles.preview, { color: theme.text }]}>
                         {entry.commandLabel ? (
                             <Text
@@ -261,7 +299,6 @@ const QueueRow = ({
                         entry={entry}
                         isPending={isPending}
                         onEdit={onEdit}
-                        onRemove={remove}
                         onSendNow={onSendNow}
                         theme={theme}
                     />
@@ -293,6 +330,12 @@ export const AgentChatQueueList = ({
 }) => {
     const { edit, entries, error, header, isResuming, remove, resume, sendNow } =
         useAgentChatQueueActions(chat, onEdit);
+    const isComposing = useIsKeyboardShown();
+    const [isExpanded, setExpanded] = useState(false);
+    // Each time the keyboard goes down the card is whole again, so the next time the user types it starts collapsed.
+    // Reset during render: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+    if (!isComposing && isExpanded) setExpanded(false);
+    const layout = agentChatQueueCardLayout({ isComposing, isExpanded });
     const renderRow = useCallback(
         ({ item }: ListRenderItemInfo<AgentChatQueueRow>) => (
             <QueueRow
@@ -317,11 +360,14 @@ export const AgentChatQueueList = ({
             <QueueHeader
                 canAct={canAct}
                 header={header}
+                isExpanded={isExpanded}
                 isResuming={isResuming}
                 onResume={() => {
                     // eslint-disable-next-line no-void -- The queue card reports a failed resume itself.
                     void resume();
                 }}
+                onToggle={() => setExpanded((current) => !current)}
+                showsToggle={layout.showsToggle}
                 theme={theme}
             />
             {/*
@@ -329,7 +375,7 @@ export const AgentChatQueueList = ({
              * first batch renders them all; it is a list for the row contract, not for virtualization.
              */}
             <FlatList
-                data={entries}
+                data={layout.showsRows ? entries : []}
                 keyboardShouldPersistTaps="handled"
                 keyExtractor={(entry) => entry.id}
                 nestedScrollEnabled
@@ -350,9 +396,11 @@ export const AgentChatQueueList = ({
 };
 
 const styles = StyleSheet.create({
+    // Shrinks before the timeline does when the keyboard leaves little room (`AgentChatView`'s body keeps a minimum).
     card: {
         borderRadius: 14,
         borderWidth: 1,
+        flexShrink: 1,
         marginBottom: 8,
         marginHorizontal: 12,
         overflow: 'hidden',
@@ -378,7 +426,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
     },
     resumeText: { fontSize: 13, fontWeight: '700' },
-    list: { flexGrow: 0, maxHeight: QUEUE_MAX_HEIGHT },
+    list: { flexGrow: 0, flexShrink: 1, maxHeight: QUEUE_MAX_HEIGHT },
     row: {
         alignItems: 'center',
         flexDirection: 'row',
@@ -403,7 +451,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     steerText: { fontSize: 13, fontWeight: '700' },
-    swipeAction: { alignItems: 'center', justifyContent: 'center', width: 72 },
+    swipeAction: {
+        alignItems: 'center',
+        gap: 4,
+        justifyContent: 'center',
+        width: DELETE_ACTION_WIDTH,
+    },
+    swipeActionText: { fontSize: 13, fontWeight: '700' },
     error: { fontSize: 13, paddingBottom: 8, paddingHorizontal: 12 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

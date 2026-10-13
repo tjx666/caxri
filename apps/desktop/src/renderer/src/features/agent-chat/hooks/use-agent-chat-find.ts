@@ -2,8 +2,10 @@ import type { RefObject } from 'react';
 import {
     useCallback,
     useEffect,
+    useEffectEvent,
     useId,
     useLayoutEffect,
+    useRef,
     useState,
     useSyncExternalStore,
 } from 'react';
@@ -14,6 +16,7 @@ import { registerTerminalSearchHandler } from '../../terminal/terminal-search';
 import {
     collectAgentChatFindRanges,
     createAgentChatFindRepaintScheduler,
+    hasAgentChatFindEarlierLoadSettled,
     stepAgentChatFindIndex,
 } from '../agent-chat-find';
 import {
@@ -46,6 +49,13 @@ interface FindSession {
     pendingReveal: 'start' | 'active' | undefined;
     result: FindResult;
     listeners: Set<() => void>;
+    /**
+     * Set by Search earlier messages: older history is loading, and the first paint that finds a match reveals it. A
+     * plain pending reveal would be spent by the repaint the loading indicator itself causes, before any match exists.
+     * Cleared once that page stops loading (`hasAgentChatFindEarlierLoadSettled`), so a match a later streamed reply
+     * adds does not scroll the view.
+     */
+    isAwaitingEarlier: boolean;
 }
 
 function createFindSession(): FindSession {
@@ -55,6 +65,7 @@ function createFindSession(): FindSession {
         pendingReveal: undefined,
         result: { count: 0, activeIndex: 0 },
         listeners: new Set(),
+        isAwaitingEarlier: false,
     };
 }
 
@@ -71,6 +82,10 @@ function publish(session: FindSession, result: FindResult): void {
 
 function requestReveal(session: FindSession, reveal: 'start' | 'active'): void {
     session.pendingReveal = reveal;
+}
+
+function setAwaitingEarlier(session: FindSession, isAwaiting: boolean): void {
+    session.isAwaitingEarlier = isAwaiting;
 }
 
 /**
@@ -121,12 +136,18 @@ function paintFind({
     stopFollowing: () => void;
 }): void {
     if (!content || !view || !query) {
+        session.isAwaitingEarlier = false;
         session.ranges = [];
         clearAgentChatFindHighlights(owner);
         publish(session, { count: 0, activeIndex: 0 });
         return;
     }
     const ranges = collectAgentChatFindRanges(content, query);
+    if (session.isAwaitingEarlier && ranges.length > 0) {
+        // Loaded history sits above the view, so the first match at or below its top is the nearest earlier one.
+        session.isAwaitingEarlier = false;
+        requestReveal(session, 'start');
+    }
     const index =
         session.pendingReveal === 'start'
             ? Math.max(firstVisibleMatch(ranges, view), 0)
@@ -156,12 +177,22 @@ export function useAgentChatFind({
     contentReference,
     stopFollowing,
     focusComposer,
+    isLoadingEarlier,
+    loadEarlier,
 }: {
     terminalId: string;
     scrollReference: RefObject<HTMLDivElement | null>;
     contentReference: RefObject<HTMLDivElement | null>;
     stopFollowing: () => void;
     focusComposer: () => void;
+    /**
+     * A page of older history is being read.
+     */
+    isLoadingEarlier: boolean;
+    /**
+     * Loads the next page of older history, or `undefined` when there is none to load.
+     */
+    loadEarlier?: () => void;
 }) {
     const owner = useId();
     const [isOpen, setOpen] = useState(false);
@@ -217,6 +248,25 @@ export function useAgentChatFind({
         };
     }, [contentReference, owner, scrollReference, searched, session, stopFollowing]);
     useEffect(() => () => clearAgentChatFindHighlights(owner), [owner]);
+    const wasLoadingEarlier = useRef(isLoadingEarlier);
+    const settleEarlierLoad = useEffectEvent((wasLoading: boolean): void => {
+        if (
+            !hasAgentChatFindEarlierLoadSettled(
+                wasLoading,
+                isLoadingEarlier,
+                session.isAwaitingEarlier,
+            )
+        )
+            return;
+        // Paint the loaded page now, so a match it holds is still revealed, then stop waiting either way.
+        paint();
+        setAwaitingEarlier(session, false);
+    });
+    useLayoutEffect(() => {
+        const wasLoading = wasLoadingEarlier.current;
+        wasLoadingEarlier.current = isLoadingEarlier;
+        settleEarlierLoad(wasLoading);
+    }, [isLoadingEarlier]);
 
     const open = useCallback(() => {
         setOpen(true);
@@ -225,6 +275,7 @@ export function useAgentChatFind({
     useEffect(() => registerTerminalSearchHandler(terminalId, open), [open, terminalId]);
 
     const changeQuery = (next: string): void => {
+        setAwaitingEarlier(session, false);
         requestReveal(session, 'start');
         setQuery(next);
     };
@@ -250,6 +301,12 @@ export function useAgentChatFind({
                   onNext: () => step(1),
                   onPrevious: () => step(-1),
                   onQueryChange: changeQuery,
+                  onSearchEarlier: loadEarlier
+                      ? () => {
+                            setAwaitingEarlier(session, true);
+                            loadEarlier();
+                        }
+                      : undefined,
               }
             : undefined,
     };

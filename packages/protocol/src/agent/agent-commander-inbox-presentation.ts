@@ -6,7 +6,7 @@ import type { CommanderInboxKind } from './agent-commander-inbox-contract.js';
  */
 const KIND_LABELS: Record<CommanderInboxKind, string> = {
     decision: 'Decision',
-    hands: 'Needs you',
+    hands: 'Your action',
     merge: 'Pull request',
 };
 

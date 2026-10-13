@@ -21,9 +21,19 @@ export interface ToastActionParameters {
      */
     'agentChat.redoUndo': { sessionId: string; turnId: string };
     /**
+     * Puts a long paste the composer saved as a file back into the draft as text. Carries only identity: the pasted
+     * text stays in the composer's own bounded memory (`agent-chat-long-paste-commands.ts`).
+     */
+    'agentChat.pasteAsText': { pasteId: string };
+    /**
      * Raises the Agent Commander window, for a notice about work just handed to it.
      */
     'agentCommander.open': undefined;
+    /**
+     * Reopens the Hand Over dialog with one Session selected, for the notice that typing into a handed-over Session
+     * took it back: the take-back is immediate, and this is its way back.
+     */
+    'agentCommander.handBack': { sessionId: string };
     /**
      * Copies a shell command the notice asks the user to run elsewhere, such as raising a limit on an SSH Host.
      */
@@ -115,7 +125,9 @@ export type ToastAction = {
  */
 export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'agentChat.redoUndo': 'toasts.action.redo',
+    'agentChat.pasteAsText': 'agentChat.composer.pasteAsText',
     'agentCommander.open': 'toasts.action.openAgentCommander',
+    'agentCommander.handBack': 'agentCommander.handover.handBack',
     'clipboard.copyCommand': 'toasts.action.copyCommand',
     'diagnostics.copyFailure': 'toasts.action.copyDetails',
     'editor.restoreDiscardedChanges': 'toasts.action.restoreDiscardedChanges',

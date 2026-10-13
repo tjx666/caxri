@@ -6,7 +6,7 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     // Window chrome
     'agentCommander.window.title': 'Agent Commander',
     'agentCommander.window.sessionsLabel': '会话',
-    'agentCommander.window.stop': '停止',
+    'agentCommander.window.stop': '停止 Commander',
     'agentCommander.window.stopTooltip':
         '停止 Commander 并关闭此窗口。它委派的任务会继续运行，再次打开时会恢复同一段对话。',
     'agentCommander.window.needsYou': '需要你处理',
@@ -14,9 +14,13 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.window.showColumn': '显示“{{column}}”',
     'agentCommander.window.hideColumn': '隐藏“{{column}}”',
     'agentCommander.window.resizeNeedsYou': '调整“需要你处理”宽度',
+    'agentCommander.window.resizeSessions': '调整“会话”宽度',
 
     // Commander Terminal
     'agentCommander.terminal.couldNotStart': 'Agent Commander 无法启动。',
+    'agentCommander.terminal.couldNotStartHint':
+        '请重试。如果仍然失败，下方的详细信息说明了出错原因。',
+    'agentCommander.terminal.failureDetail': '详细信息：{{message}}',
     'agentCommander.terminal.starting': '正在启动 Agent Commander…',
     'agentCommander.terminal.ariaLabel': 'Agent Commander：{{title}}',
     'agentCommander.terminal.startFailed': '无法启动 Agent Commander',
@@ -31,9 +35,9 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.board.emptyAll': '暂无会话。所有项目的会话会在其 Agent 工作时显示在这里。',
     'agentCommander.board.scopeLabel': '看板范围',
     'agentCommander.board.scopeCommander': 'Commander',
-    'agentCommander.board.scopeCommanderLabel': 'Commander 管理的会话',
+    'agentCommander.board.scopeCommanderLabel': 'Commander（{{count}}）：Commander 管理的会话',
     'agentCommander.board.scopeAll': '全部',
-    'agentCommander.board.scopeAllLabel': '所有会话',
+    'agentCommander.board.scopeAllLabel': '全部（{{count}}）：所有会话',
     'agentCommander.board.group.attention': '待处理',
     'agentCommander.board.group.failed': '失败',
     'agentCommander.board.group.finished': '最近完成',
@@ -76,12 +80,11 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.task.description.running': 'Agent 正在处理该任务。',
     'agentCommander.task.description.submitting': 'Commander 正在把任务交给 Agent。',
     'agentCommander.task.waitingAtStartupTitle':
-        '启动时等待。Agent 已运行但尚未开始，通常停在首次运行的提示上，例如文件夹信任或登录。打开该会话进行回应，任务随后会自行继续。任务 {{delegationId}}。',
+        '启动时等待。Agent 已运行但尚未开始，通常停在首次运行的提示上，例如文件夹信任或登录。打开该会话进行回应，任务随后会自行继续。',
     'agentCommander.task.reason': '原因：{{reason}}。',
-    'agentCommander.task.title': '{{label}}。{{description}}{{reason}}任务 {{delegationId}}。',
+    'agentCommander.task.title': '{{label}}。{{description}}{{reason}}',
 
     // Inbox
-    'agentCommander.inbox.hideColumn': '隐藏此栏',
     'agentCommander.inbox.loadFailed': '无法加载收件箱',
     'agentCommander.inbox.loading': '正在加载收件箱…',
     'agentCommander.inbox.empty':
@@ -97,7 +100,7 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.inbox.mergeTooltip': '合并 Commander 已验证的提交',
     'agentCommander.inbox.reply': '回复',
     'agentCommander.inbox.kind.decision': '决策',
-    'agentCommander.inbox.kind.hands': '需要你',
+    'agentCommander.inbox.kind.hands': '待你操作',
     'agentCommander.inbox.kind.merge': 'Pull Request',
     'agentCommander.inbox.replyState.read': 'Commander 已读',
     'agentCommander.inbox.replyState.delivered': '已送达 Commander',
@@ -127,6 +130,8 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.composer.placeholderWithTarget': '你的回答',
     'agentCommander.composer.placeholder': '@ 一个事项，然后输入你的回答',
     'agentCommander.composer.sendTooltip': '发送（Enter）',
+    'agentCommander.composer.sendNeedsTarget': '请先用 @ 选择一个事项',
+    'agentCommander.composer.sendNeedsText': '请输入回复',
     'agentCommander.composer.sendLabel': '发送回复',
 
     // Inbox commands
@@ -154,7 +159,6 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.commands.stopTurnMessage':
         'Agent Commander 仍在工作。停止它会结束当前这一轮并关闭其窗口。它委派的任务会继续运行。',
     // Hand-over
-    'agentCommander.handover.open': '转交',
     'agentCommander.handover.openEllipsis': '转交…',
     'agentCommander.handover.openTooltip':
         '把你自己的会话，或在 Caxri 之外开始的 Agent 对话，转交给 Commander',
@@ -199,6 +203,7 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.handover.takenBack': '已从 Agent Commander 收回该会话',
     'agentCommander.handover.takenBackByInput': '已从 Agent Commander 收回“{{title}}”',
     'agentCommander.handover.takenBackByInputUntitled': '已从 Agent Commander 收回一个会话',
+    'agentCommander.handover.handBack': '交还',
     'agentCommander.handover.rejection.alreadyManaged': 'Commander 已在管理它',
     'agentCommander.handover.rejection.commanderSession': '它就是 Commander 自己',
     'agentCommander.handover.rejection.commanderUnavailable': 'Agent Commander 尚未设置',

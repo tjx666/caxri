@@ -212,7 +212,13 @@ function StatusBarContext({
                     showTrigger={!isWorktree}
                 />
             )}
-            {repo && <RepoStatusChips chipVisibility={chipVisibility} repo={repo} />}
+            {repo && (
+                <RepoStatusChips
+                    chipVisibility={chipVisibility}
+                    repo={repo}
+                    sessionId={sessionId}
+                />
+            )}
         </div>
     );
 }

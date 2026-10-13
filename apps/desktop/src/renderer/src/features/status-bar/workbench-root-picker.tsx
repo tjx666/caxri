@@ -18,6 +18,7 @@ import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { useWorkbenchRootPicker } from './hooks/use-workbench-root-picker';
+import { MismatchDot } from './mismatch-dot';
 import { PickerQueryStatus } from './picker-query-status';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
@@ -182,10 +183,8 @@ function WorktreeList({
 }
 
 /**
- * `FolderGit2` with an accent dot in its top-right corner while the conversation points at another worktree. The dot is
- * drawn into the glyph, as the throughput chip's provider dot is, so the chip keeps its width as it comes and goes.
- * Lucide drops its default `aria-hidden` once an icon has children, so it is restored here: the accessible name says
- * the same thing in words.
+ * `FolderGit2` with a {@link MismatchDot} while the conversation points at another worktree. Lucide drops its default
+ * `aria-hidden` once an icon has children, so it is restored here: the accessible name says the same thing in words.
  */
 function RootGlyph({ hasSuggestion }: { hasSuggestion: boolean }) {
     if (!hasSuggestion) return <FolderGit2 size={13} className="flex-none" />;
@@ -196,14 +195,7 @@ function RootGlyph({ hasSuggestion }: { hasSuggestion: boolean }) {
             aria-hidden="true"
             data-conversation-worktree="true"
         >
-            <circle
-                key="conversation-worktree"
-                className="fill-accent stroke-surface [.statusbar-item:hover_&]:stroke-[color-mix(in_srgb,var(--foreground)_10%,var(--surface))]"
-                cx={19}
-                cy={5}
-                r={4.5}
-                strokeWidth={2}
-            />
+            <MismatchDot key="conversation-worktree" />
         </FolderGit2>
     );
 }

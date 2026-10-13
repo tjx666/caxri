@@ -4,22 +4,19 @@ import { Readable } from 'node:stream';
 import { ServerClient } from '@caxri/client/supervise';
 import type {
     RemoteConnectionPhase,
-    RemoteFailureReason,
     ServerDesktopCredential,
     ServerManifest,
-    SshEnvironmentState,
 } from '@caxri/protocol';
-import { CaxriError, serverDesktopCredentialSchema, serverManifestSchema } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
+import { CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 import type { DesktopServerSupervisor } from '../server-attachment';
-import type { AskpassHandler } from './askpass';
 import { AskpassBridge } from './askpass';
 import type { SshDestination } from './destination';
 import { parseSshDestination } from './destination';
 import { validateRemoteProbe } from './remote-host-requirements';
 import { installRemoteBuild } from './remote-install';
+import { parseLaunchOutput } from './remote-launch-output';
 import type { RemoteArchitecture, RemoteLayer } from './remote-layers';
 import { readRemoteLayer } from './remote-layers';
 import type { RemoteProbe, SeedableConfigFile } from './remote-scripts';
@@ -30,14 +27,21 @@ import {
     seedConfigScript,
     stopWaitScript,
 } from './remote-scripts';
-import type { RemoteTransport } from './remote-setup';
+import type {
+    RemoteSeedConfig,
+    RemoteServerSupervisorOptions,
+    RemoteStateUpdate,
+} from './remote-server-supervisor-options';
+import type { RemoteFailure, RemoteTransport } from './remote-setup';
 import {
     bestEffort,
+    CANCELLED_FAILURE,
     lastLine,
-    launchFailureDetail,
     RemoteSetupError,
     runRemoteScript,
+    TERMINAL_REASONS,
     toFailure,
+    USER_ACTION_REASONS,
 } from './remote-setup';
 import type { SshConnectionCloseInfo, SshConnectionOptions } from './ssh-connection';
 import { SshConnection } from './ssh-connection';
@@ -45,78 +49,6 @@ import { SshConnection } from './ssh-connection';
 const PROBE_TIMEOUT_MS = 30_000;
 const LAUNCH_TIMEOUT_MS = 45_000;
 const SMALL_SCRIPT_TIMEOUT_MS = 30_000;
-/**
- * Failures that retrying cannot fix: they stop `DesktopServerConnection`'s reconnect loop (via `isFailed`) until the
- * user chooses Reconnect. Only `authentication` and `hostKey` also report `needsUserAction`, because only those are
- * resolved by answering a prompt.
- */
-const TERMINAL_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
-    'authentication',
-    'hostKey',
-    'unsupportedPlatform',
-    'unsupportedGlibc',
-    'missingTool',
-    'installFailed',
-    'profileInUse',
-    'cancelled',
-]);
-const USER_ACTION_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
-    'authentication',
-    'hostKey',
-]);
-
-/**
- * The SSH-specific part of the window's environment state; Main adds `kind` and `destination`.
- */
-export type RemoteStateUpdate = Omit<SshEnvironmentState, 'kind' | 'destination' | 'hostIdentity'>;
-
-export interface RemoteSeedConfig {
-    keybindings?: string;
-    settings?: string;
-    theme?: string;
-}
-
-export interface RemoteServerSupervisorOptions {
-    askpass: AskpassHandler;
-    /**
-     * `ssh -F` override; Main sets it from `CAXRI_SSH_CONFIG` for tests and acceptance.
-     */
-    configFile?: string;
-    destination: string;
-    electronExecutable: string;
-    /**
-     * Opt-in inspector for the remote Server.
-     */
-    inspect?: boolean;
-    logger: Pick<StructuredLogger, 'write'>;
-    onState: (update: RemoteStateUpdate) => void;
-    /**
-     * Private (0700, current-user, short) directory for ControlMaster sockets and the askpass bridge.
-     */
-    privateDirectory: string;
-    /**
-     * Directory holding `linux-x64/` and `linux-arm64/` application layers with their `descriptor.json`.
-     */
-    remoteLayersRoot: string;
-    runtimeCacheDirectory: string;
-    /**
-     * Desktop config to copy into a fresh remote profile; files that already exist remotely are never overwritten.
-     */
-    seedConfig?: () => Promise<RemoteSeedConfig>;
-    sshExecutable?: string;
-    /**
-     * Test seam for the operator handshake.
-     */
-    connectOperator?: (manifest: ServerManifest, timeoutMs: number) => Promise<ServerClient>;
-    /**
-     * Test seam for the SSH transport.
-     */
-    createTransport?: (options: SshConnectionOptions) => RemoteTransport;
-    /**
-     * Test seam for the askpass bridge; production uses `AskpassBridge.create`.
-     */
-    createAskpass?: () => Promise<Pick<AskpassBridge, 'beginAttempt' | 'close' | 'environment'>>;
-}
 
 interface AttachTarget {
     credential: ServerDesktopCredential;
@@ -125,11 +57,6 @@ interface AttachTarget {
      */
     manifest: ServerManifest;
     remotePid: number;
-}
-
-function decodeBase64Json(value: string | undefined): unknown {
-    const text = Buffer.from(value ?? '', 'base64').toString('utf8');
-    return JSON.parse(text);
 }
 
 /**
@@ -144,6 +71,19 @@ function decodeBase64Json(value: string | undefined): unknown {
 export class RemoteServerSupervisor implements DesktopServerSupervisor {
     private askpass?: Pick<AskpassBridge, 'beginAttempt' | 'close' | 'environment'>;
     private connection?: RemoteTransport;
+    /**
+     * The master whose `start()` is still waiting for OpenSSH, so `cancel()` can stop it before it is ready.
+     */
+    private pendingConnection?: RemoteTransport;
+    /**
+     * Automatic attempts since an attached connection dropped, reported as `attempt` while `reconnecting`.
+     */
+    private reconnectAttempt = 0;
+    /**
+     * Set by `cancel()` until the next `reconnect()`, so the failure an interrupted step raises is reported as the
+     * user's cancellation rather than as whatever stopping the master made that step see.
+     */
+    private isCancelled = false;
     private connectionOpenedAt = 0;
     private current?: AttachTarget;
     private forward?: { localPort: number; remotePort: number };
@@ -166,6 +106,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         // Every key is present so a patch-merging consumer clears a previous phase's failure or progress.
         this.options.onState({
             phase,
+            attempt: undefined,
             failure: undefined,
             progress: undefined,
             needsUserAction: false,
@@ -188,7 +129,10 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
     private async runSetup(): Promise<AttachTarget> {
         let phase: RemoteConnectionPhase = this.hasAttached ? 'reconnecting' : 'connecting';
         try {
-            this.emit(phase);
+            if (this.hasAttached) {
+                this.reconnectAttempt += 1;
+                this.emit(phase, { attempt: this.reconnectAttempt });
+            } else this.emit(phase);
             const connection = await this.ensureConnection();
             phase = 'probing';
             this.emit(phase);
@@ -225,16 +169,28 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
     }
 
     private fail(error: unknown, phase: RemoteConnectionPhase): RemoteSetupError {
-        const failure = toFailure(error);
+        const failure: RemoteFailure = this.isCancelled ? CANCELLED_FAILURE : toFailure(error);
         this.options.logger.write('warn', logEventCatalog.remoteSsh.attachFailed, {
             fields: { phase, reason: failure.reason },
         });
         const setupError =
-            error instanceof RemoteSetupError
+            error instanceof RemoteSetupError && error.reason === failure.reason
                 ? error
-                : new RemoteSetupError(failure.reason, failure.message);
-        if (TERMINAL_REASONS.has(failure.reason)) this.terminalFailure = setupError;
-        if (!this.isDisposed)
+                : new RemoteSetupError(failure.reason, failure.message, failure.holder);
+        const isTerminal = TERMINAL_REASONS.has(failure.reason);
+        if (isTerminal) this.terminalFailure = setupError;
+        if (this.isDisposed) return setupError;
+        /**
+         * After the window has been attached once, `DesktopServerConnection`'s reconnect loop retries a failure that is
+         * not terminal on its own, so the window keeps saying it is reconnecting (with the cause) instead of claiming
+         * the connection gave up between two attempts.
+         */
+        if (!isTerminal && this.hasAttached)
+            this.emit('reconnecting', {
+                attempt: this.reconnectAttempt,
+                failure,
+            });
+        else
             this.emit('failed', {
                 failure,
                 needsUserAction: USER_ACTION_REASONS.has(failure.reason),
@@ -246,6 +202,16 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         this.probe = undefined;
         this.forward = undefined;
         this.current = undefined;
+    }
+
+    /**
+     * The error an `ensure()` must raise when `cancel()` or `dispose()` ran while it awaited the handshake. A method
+     * rather than an inline check because the flags change across that `await`, which control-flow narrowing misses.
+     */
+    private stoppedDuringHandshake(): Error | undefined {
+        if (this.isDisposed) return new CaxriError('CANCELLED', 'SSH Host connection was closed');
+        if (this.isCancelled) return new RemoteSetupError('cancelled', CANCELLED_FAILURE.message);
+        return undefined;
     }
 
     private async ensureAskpass(): Promise<Record<string, string>> {
@@ -286,8 +252,13 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
             this.options.createTransport?.(transportOptions) ?? new SshConnection(transportOptions);
         const startedAt = Date.now();
         this.askpass?.beginAttempt();
-        await connection.start();
-        if (this.isDisposed) {
+        this.pendingConnection = connection;
+        try {
+            await connection.start();
+        } finally {
+            if (this.pendingConnection === connection) this.pendingConnection = undefined;
+        }
+        if (this.isDisposed || this.isCancelled) {
             await connection.stop();
             throw new CaxriError('CANCELLED', 'SSH Host connection was closed');
         }
@@ -440,39 +411,7 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
             }),
             { timeoutMs: LAUNCH_TIMEOUT_MS },
         );
-        const outcome = result?.get('outcome');
-        if (outcome === 'profile-in-use')
-            throw new RemoteSetupError(
-                'profileInUse',
-                `In use by ${result?.get('holder') ?? 'another host'}`,
-            );
-        if (outcome !== 'adopted' && outcome !== 'started')
-            throw new RemoteSetupError(
-                'launchFailed',
-                launchFailureDetail(stderr) ||
-                    `The remote Server did not start (${outcome ?? 'no result'})`,
-            );
-        let manifest: ServerManifest;
-        let credential: ServerDesktopCredential;
-        try {
-            manifest = serverManifestSchema.parse(decodeBase64Json(result?.get('manifest')));
-            credential = serverDesktopCredentialSchema.parse(
-                decodeBase64Json(result?.get('credential')),
-            );
-        } catch {
-            throw new RemoteSetupError(
-                'launchFailed',
-                'The remote Server discovery files are invalid',
-            );
-        }
-        if (
-            credential.profileId !== manifest.profileId ||
-            credential.processIdentity !== manifest.processIdentity
-        )
-            throw new RemoteSetupError(
-                'launchFailed',
-                'The remote Server discovery files disagree',
-            );
+        const { credential, manifest, outcome } = parseLaunchOutput(result, stderr);
         this.options.logger.write('info', logEventCatalog.remoteSsh.launched, {
             fields: { durationMs: Date.now() - startedAt, outcome },
         });
@@ -521,6 +460,28 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
      */
     reconnect(): void {
         this.terminalFailure = undefined;
+        this.isCancelled = false;
+        this.reconnectAttempt = 0;
+    }
+
+    /**
+     * Stops the attempt in flight at the user's request. Stopping the ControlMaster (or the one still starting) ends
+     * every probe, upload, and launch running through it, so the step in progress fails at once; the failure stays
+     * terminal until `reconnect()`, which also ends `DesktopServerConnection`'s reconnect loop at its next check.
+     */
+    cancel(): void {
+        if (this.isDisposed) return;
+        this.isCancelled = true;
+        this.terminalFailure = new RemoteSetupError('cancelled', CANCELLED_FAILURE.message);
+        const connections = [this.connection, this.pendingConnection];
+        this.connection = undefined;
+        this.pendingConnection = undefined;
+        this.forgetRemoteState();
+        for (const connection of connections)
+            // eslint-disable-next-line no-void -- best effort; the step using the master fails as cancelled either way
+            if (connection) void bestEffort(() => connection.stop());
+        // The window logs the phase change with its `cancelled` reason; a step this interrupted logs `attachFailed`.
+        this.emit('failed', { failure: CANCELLED_FAILURE });
     }
 
     async ensure(timeoutMs = 15_000): Promise<ServerClient> {
@@ -528,12 +489,25 @@ export class RemoteServerSupervisor implements DesktopServerSupervisor {
         if (this.terminalFailure) throw this.terminalFailure;
         this.setup ??= this.sharedSetup();
         const target = await this.setup;
+        // A cancel that lands after setup finished but before the handshake still wins over attaching.
+        if (this.isCancelled) throw new RemoteSetupError('cancelled', CANCELLED_FAILURE.message);
         const connect =
             this.options.connectOperator ??
             ((manifest: ServerManifest, timeout: number) =>
                 ServerClient.connect(manifest, timeout, { kind: 'operator' }));
         try {
             const client = await connect(target.manifest, timeoutMs);
+            /**
+             * `cancel()` (or `dispose()`) can land while the operator handshake is in flight. It already reported the
+             * attempt as failed, so attaching now would flip the window back to `connected` over a terminal
+             * cancellation. Close the client the handshake produced instead of handing it out.
+             */
+            const stopped = this.stoppedDuringHandshake();
+            if (stopped) {
+                client.close({ cancelPendingRequests: true });
+                throw stopped;
+            }
+            this.reconnectAttempt = 0;
             this.emit('connected');
             return client;
         } catch (error) {

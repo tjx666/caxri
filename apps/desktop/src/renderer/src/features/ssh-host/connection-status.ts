@@ -3,8 +3,19 @@ import type {
     RemoteFailureReason,
     SshEnvironmentState,
 } from '@caxri/protocol';
+import type { TranslationParameters } from '@desktop-shared/i18n/interpolate';
 
 import type { TranslationKey } from '../../i18n';
+
+/**
+ * A translation key with the values it interpolates, for copy whose wording depends on state.
+ */
+export interface ConnectionCopy {
+    key: TranslationKey;
+    values?: TranslationParameters;
+}
+
+type SshFailure = NonNullable<SshEnvironmentState['failure']>;
 
 const phaseLabelKeys = {
     connecting: 'sshHost.phase.connecting',
@@ -35,9 +46,9 @@ const failureExplanationKeys = {
 } as const satisfies Record<RemoteFailureReason, TranslationKey>;
 
 /**
- * Phases that are still working toward a connection, which the overlay marks with a spinner.
+ * Phases in which a connection attempt is running, so the overlay offers Cancel.
  */
-const BUSY_PHASES: ReadonlySet<RemoteConnectionPhase> = new Set([
+const CANCELLABLE_PHASES: ReadonlySet<RemoteConnectionPhase> = new Set([
     'connecting',
     'probing',
     'installing',
@@ -45,16 +56,85 @@ const BUSY_PHASES: ReadonlySet<RemoteConnectionPhase> = new Set([
     'reconnecting',
 ]);
 
-export function connectionPhaseLabelKey(phase: RemoteConnectionPhase): TranslationKey {
-    return phaseLabelKeys[phase];
+/**
+ * Phases that are still working, which the overlay marks with a spinner. `stopped` is set when Stop Server begins and
+ * the window closes once the Server has stopped, so while it shows, the stop is still in progress.
+ */
+const BUSY_PHASES: ReadonlySet<RemoteConnectionPhase> = new Set([...CANCELLABLE_PHASES, 'stopped']);
+
+/**
+ * Failures that reconnecting cannot fix because the SSH Host itself has to change first, so Close Window is the only
+ * action left.
+ */
+const HOST_REQUIREMENT_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
+    'unsupportedPlatform',
+    'unsupportedGlibc',
+    'missingTool',
+]);
+
+/**
+ * The overlay's status line: the phase, except that a cancelled attempt says so rather than "Unable to connect", and a
+ * reconnect names which automatic attempt is running.
+ */
+export function connectionPhaseLabel(state: SshEnvironmentState): ConnectionCopy {
+    if (state.phase === 'failed' && state.failure?.reason === 'cancelled')
+        return { key: 'sshHost.phase.cancelled' };
+    if (state.phase === 'reconnecting' && state.attempt !== undefined)
+        return { key: 'sshHost.phase.reconnectingAttempt', values: { attempt: state.attempt } };
+    return { key: phaseLabelKeys[state.phase] };
 }
 
-export function connectionFailureKey(reason: RemoteFailureReason): TranslationKey {
-    return failureExplanationKeys[reason];
+export function connectionFailureCopy(failure: SshFailure): ConnectionCopy {
+    if (failure.reason === 'profileInUse' && failure.holder)
+        return { key: 'sshHost.failure.profileInUseHost', values: { hostname: failure.holder } };
+    return { key: failureExplanationKeys[failure.reason] };
+}
+
+/**
+ * OpenSSH's or the SSH Host's own words for a failure, shown under the explanation and copied by Copy Details. A cancel
+ * has none worth showing: the user just did it.
+ */
+export function connectionFailureDetail(failure: SshFailure | undefined): string | undefined {
+    if (!failure || failure.reason === 'cancelled') return undefined;
+    return failure.message || undefined;
+}
+
+/**
+ * The semantic tone of the failure explanation. A cancel is the user's own choice and a takeover is another window
+ * doing its job, so neither reads as an error; a cause shown while automatic reconnection keeps trying is a warning.
+ */
+export function connectionFailureTone(state: SshEnvironmentState): 'danger' | 'muted' | 'warning' {
+    const reason = state.failure?.reason;
+    if (reason === 'cancelled') return 'muted';
+    if (reason === 'takenOver' || state.phase === 'reconnecting') return 'warning';
+    return 'danger';
+}
+
+/**
+ * The command that removes the SSH Host's stale `known_hosts` entry after a host-key failure, quoted for a POSIX shell
+ * so a bracketed `[host]:port` is not read as a glob. Main supplies the name only for `hostKey` failures.
+ */
+export function hostKeyResetCommand(failure: SshFailure | undefined): string | undefined {
+    if (failure?.reason !== 'hostKey' || !failure.knownHostsName) return undefined;
+    return `ssh-keygen -R '${failure.knownHostsName.replaceAll("'", String.raw`'\''`)}'`;
 }
 
 export function isConnectionBusy(phase: RemoteConnectionPhase): boolean {
     return BUSY_PHASES.has(phase);
+}
+
+/**
+ * Cancel is offered while an attempt runs; it stops that attempt and leaves the window on a `cancelled` failure.
+ */
+export function canCancelConnection(state: SshEnvironmentState): boolean {
+    return CANCELLABLE_PHASES.has(state.phase);
+}
+
+/**
+ * The phases in which the connection gave up, where focus moves to the overlay's primary action.
+ */
+export function isConnectionSettled(phase: RemoteConnectionPhase): boolean {
+    return phase === 'failed' || phase === 'disconnected';
 }
 
 /**
@@ -66,10 +146,12 @@ export function isConnectionOverlayVisible(state: SshEnvironmentState | undefine
 }
 
 /**
- * Reconnect is offered only once the connection gave up; while a phase is still running Main is already trying.
+ * Reconnect is offered only once the connection gave up; while a phase is still running Main is already trying. A host
+ * that does not meet Caxri Server's requirements fails the same way on every try, so it gets no Reconnect.
  */
 export function canReconnect(state: SshEnvironmentState): boolean {
-    return state.phase === 'failed' || state.phase === 'disconnected';
+    if (!isConnectionSettled(state.phase)) return false;
+    return !(state.failure && HOST_REQUIREMENT_REASONS.has(state.failure.reason));
 }
 
 /**

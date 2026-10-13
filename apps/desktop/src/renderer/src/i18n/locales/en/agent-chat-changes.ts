@@ -55,10 +55,10 @@ export const agentChatChanges = {
     'agentChat.review.extendHint': 'Shift-click + to extend',
     'agentChat.review.commentLabel': 'Comment',
     'agentChat.review.commentPlaceholder': 'Ask the Agent to change something…',
-    'agentChat.review.addToChat': 'Add to Chat',
+    'agentChat.review.addToChat': 'Add to message',
     'agentChat.review.commentOnRange': 'Comment on {{range}}',
     'agentChat.review.noteHeading': 'Review · {{range}}',
-    'agentChat.review.addedToChat': 'Added to Chat',
+    'agentChat.review.addedToChat': 'Added to message',
     'agentChat.review.side.original': 'Old',
     'agentChat.review.side.modified': 'New',
 
@@ -86,6 +86,8 @@ export const agentChatChanges = {
     'agentChat.redo.successOne': 'Redid the changes to 1 file',
     'agentChat.redo.successOther': 'Redid the changes to {{count}} files',
     'agentChat.redo.unavailable': 'This Undo can no longer be redone.',
+    'agentChat.redo.button': 'Redo',
+    'agentChat.redo.tooltip': 'Put back the changes this Undo removed',
 
     // Edit, restore, and fork from a message
     'agentChat.undo.replaceTurnsTitle': 'Replace {{count}} turns?',

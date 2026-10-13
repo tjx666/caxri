@@ -6,6 +6,7 @@ import type {
 
 import type { Translate } from '../../i18n';
 import { isTranslationKey, translate } from '../../i18n';
+import { localeDateTimeFormat } from '../../lib/locale-format';
 
 type ProviderStatusTone = 'danger' | 'success' | 'warning';
 
@@ -53,8 +54,6 @@ export function providerUptimeBarClassName(status: AgentProviderServiceStatus | 
     return status === 'noData' ? 'bg-border' : providerStatusDotClassName(status);
 }
 
-const uptimeDayFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
-
 /**
  * `Mar 9, 2026: Partial outage`, the day's tooltip and accessible name.
  */
@@ -63,7 +62,7 @@ export function describeUptimeDay(
     t: Translate = translate,
 ): string {
     return t('agentStatus.provider.uptimeDay', {
-        date: uptimeDayFormat.format(day.start),
+        date: localeDateTimeFormat({ dateStyle: 'medium' }).format(day.start),
         status:
             day.status === 'noData'
                 ? t('agentStatus.provider.uptimeNoData')

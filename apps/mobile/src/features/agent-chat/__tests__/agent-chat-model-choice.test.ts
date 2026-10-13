@@ -69,7 +69,7 @@ describe('Agent Chat model choice', () => {
 
     it('says a running turn keeps its model', () => {
         expect(agentChatModelSheetNote({ activeTurnId: 'turn-1' })).toBe(
-            'Applies from the next turn.',
+            'Applies to the next turn.',
         );
         expect(agentChatModelSheetNote({})).toBeUndefined();
     });

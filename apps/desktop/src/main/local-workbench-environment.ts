@@ -26,6 +26,11 @@ export function createLocalWorkbenchEnvironment(
         listHosts: () =>
             remoteEnvironments()?.methodsFor(undefined).listHosts() ??
             Promise.resolve({ hosts: [], recent: [] }),
+        revealSshConfig: async () => {
+            const environments = remoteEnvironments();
+            if (!environments) throw new CaxriError('UNAVAILABLE', 'Caxri is still starting');
+            await environments.methodsFor(undefined).revealSshConfig();
+        },
     };
 }
 

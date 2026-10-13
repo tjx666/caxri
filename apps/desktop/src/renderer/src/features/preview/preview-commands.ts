@@ -1,5 +1,6 @@
 import {
     filePreviewTabPath,
+    findResourceTabs,
     isExternalEditorTabPath,
     isVirtualEditorTabPath,
     parseFilePreviewTab,
@@ -10,6 +11,8 @@ import {
     findPaneTabId,
     getActivePaneId,
     getActivePaneTab,
+    getPaneLayout,
+    selectPaneTab,
     splitPaneTab,
 } from '../workbench/pane-actions';
 import { canPreviewPath, previewerForPath, shouldOpenAsPreview } from './preview-registry';
@@ -85,10 +88,24 @@ export function openFilePreview(path: string): void {
  * The preview tab is created in the active pane first and then split off it, which is exactly what dragging the tab to
  * the pane's right edge does, so side-by-side preview needs no placement rules of its own. A pane holding nothing but
  * that new tab cannot be split (splitting its only tab would just move the pane), and the preview stays where it is.
+ *
+ * A preview of the same file already open in another pane is revealed there instead. Running the command again used to
+ * open a second copy in the active pane and split it off too, stacking duplicate `Preview: name` tabs in new groups.
  */
 export function openFilePreviewToSide(path: string): void {
     if (!canPreviewPath(path)) return;
     const tabPath = filePreviewTabPath(path);
+    const layout = getPaneLayout();
+    const activePaneId = getActivePaneId();
+    const elsewhere = layout
+        ? findResourceTabs(layout, { kind: 'file', path: tabPath }).find(
+              ({ pane }) => pane.id !== activePaneId,
+          )
+        : undefined;
+    if (elsewhere) {
+        selectPaneTab(elsewhere.tab.id);
+        return;
+    }
     openEditorTab(tabPath);
     const paneId = getActivePaneId();
     const tabId = findPaneTabId({ kind: 'file', path: tabPath });

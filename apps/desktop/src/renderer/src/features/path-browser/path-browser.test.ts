@@ -1,4 +1,6 @@
 import type { FileEntry } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+import { pathBrowserDenialDetails } from '@desktop-shared/path-browser-denial';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -7,6 +9,7 @@ import {
     parentDirectoryWithinRoot,
     parsePathBrowserInput,
     pathBrowserCreateCandidate,
+    pathBrowserDenialMessageKey,
     pathBrowserInputTransition,
     pathBrowserKeyIntent,
     projectDirectoryPath,
@@ -241,5 +244,31 @@ describe('path browser anchor transitions', () => {
             input: '/etc/hosts',
             mode: 'free',
         });
+    });
+});
+
+describe('pathBrowserDenialMessageKey', () => {
+    const denied = (reason: 'homeUnavailable' | 'outsideProjectRoot') =>
+        new CaxriError(
+            'PATH_DENIED',
+            'Path escapes the Project root',
+            pathBrowserDenialDetails(reason),
+        );
+
+    it('explains an SSH Host window refusal in plain copy', () => {
+        expect(pathBrowserDenialMessageKey(denied('homeUnavailable'), true)).toBe(
+            'sshHost.pathBrowser.homeUnavailable',
+        );
+        expect(pathBrowserDenialMessageKey(denied('outsideProjectRoot'), true)).toBe(
+            'sshHost.pathBrowser.outsideProject',
+        );
+    });
+
+    it('keeps the generic text for a local window and for other failures', () => {
+        expect(pathBrowserDenialMessageKey(denied('outsideProjectRoot'), false)).toBeUndefined();
+        expect(
+            pathBrowserDenialMessageKey(new CaxriError('PATH_DENIED', 'Denied'), true),
+        ).toBeUndefined();
+        expect(pathBrowserDenialMessageKey(new Error('boom'), true)).toBeUndefined();
     });
 });

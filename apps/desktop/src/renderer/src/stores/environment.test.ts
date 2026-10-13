@@ -101,9 +101,10 @@ describe('subscribeEnvironment', () => {
         expect(getSshEnvironment()?.phase).toBe('connected');
     });
 
-    it('explains a connect that Main answered by focusing this window', () => {
+    it('explains a connect that Main answered by focusing this window', async () => {
         mocks.request.mockResolvedValue(connected);
         const unsubscribe = subscribeEnvironment();
+        await vi.waitFor(() => expect(getSshEnvironment()?.destination).toBe('build-box'));
         for (const listener of mocks.listeners)
             listener({
                 event: 'environment.connectionReused',
@@ -112,7 +113,7 @@ describe('subscribeEnvironment', () => {
 
         expect(mocks.pushToast).toHaveBeenCalledWith(
             'info',
-            'Already connected to the same SSH Host (build-box-direct) in this window',
+            'This window is already connected to build-box (same SSH Host as build-box-direct)',
         );
         unsubscribe();
     });

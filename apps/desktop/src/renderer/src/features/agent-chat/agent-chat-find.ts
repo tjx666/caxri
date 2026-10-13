@@ -65,6 +65,32 @@ export function agentChatFindCountLabel(
 }
 
 /**
+ * Whether the find bar offers Search earlier messages: a query found nothing in the loaded messages and older history
+ * can still be loaded, so the empty result is not a dead end. History that cannot be shown in Chat at all (`truncated`)
+ * offers nothing to load.
+ */
+export function canAgentChatFindSearchEarlier(
+    query: string,
+    count: number,
+    canLoadEarlier: boolean,
+): boolean {
+    return query !== '' && count === 0 && canLoadEarlier;
+}
+
+/**
+ * Whether a Search earlier messages request has run its course: the page of older history it asked for stopped loading
+ * (loaded or failed) while the request still waited for a match. The request is then settled whether or not the page
+ * held one; left waiting, the next match a streamed reply adds would scroll the reader away from where they are.
+ */
+export function hasAgentChatFindEarlierLoadSettled(
+    wasLoading: boolean,
+    isLoading: boolean,
+    isAwaiting: boolean,
+): boolean {
+    return isAwaiting && wasLoading && !isLoading;
+}
+
+/**
  * The match after (`delta` 1) or before (`delta` -1) `index`, wrapping around at either end.
  */
 export function stepAgentChatFindIndex(index: number, count: number, delta: 1 | -1): number {

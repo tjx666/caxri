@@ -5,7 +5,9 @@ import { ReportCard } from '../../../components/report-card';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import { contextWindowSegments, segmentShade } from './composition';
+import { agentChatContextPercent } from '../agent-chat-context';
+import { contextCategoryLabel } from './category-labels';
+import { autoCompactAt, contextWindowSegments, segmentShade } from './composition';
 
 function percentOf(tokens: number, window: number): string {
     return `${(window > 0 ? Math.min(1, tokens / window) * 100 : 0).toFixed(2)}%`;
@@ -31,9 +33,7 @@ export function ContextWindowCard({
     const deferred = composition.categories
         .filter((row) => row.kind === 'deferred')
         .reduce((sum, row) => sum + row.tokens, 0);
-    const threshold = composition.isAutoCompactEnabled
-        ? composition.autoCompactThreshold
-        : undefined;
+    const threshold = autoCompactAt(composition);
     const share = (tokens: number) => formatPercent(window > 0 ? tokens / window : 0);
     return (
         <ReportCard
@@ -51,7 +51,8 @@ export function ContextWindowCard({
                     {formatTokens(composition.totalTokens)}
                 </span>
                 <span className="text-[12px] text-muted tabular-nums">
-                    / {formatTokens(window)} · {share(composition.totalTokens)}
+                    / {formatTokens(window)} ·{' '}
+                    {agentChatContextPercent(composition.totalTokens, window)}%
                 </span>
             </div>
             <div className="relative mt-3">
@@ -60,7 +61,7 @@ export function ContextWindowCard({
                         <Tooltip
                             key={segment.label}
                             anchorMode="cursor"
-                            content={`${segment.label} · ${formatTokens(segment.tokens)} · ${share(segment.tokens)}`}
+                            content={`${contextCategoryLabel(t, segment.label)} · ${formatTokens(segment.tokens)} · ${share(segment.tokens)}`}
                         >
                             <span
                                 className={cn(
@@ -87,7 +88,7 @@ export function ContextWindowCard({
                 {shaded.map((segment, index) => (
                     <LegendRow
                         key={segment.label}
-                        label={segment.label}
+                        label={contextCategoryLabel(t, segment.label)}
                         shade={segmentShade(segment, index)}
                         share={share(segment.tokens)}
                         tokens={segment.tokens}
@@ -96,7 +97,7 @@ export function ContextWindowCard({
                 {free && (
                     <LegendRow
                         isMuted
-                        label={free.label}
+                        label={contextCategoryLabel(t, free.label)}
                         shade="bg-chart/10"
                         share={share(free.tokens)}
                         tokens={free.tokens}

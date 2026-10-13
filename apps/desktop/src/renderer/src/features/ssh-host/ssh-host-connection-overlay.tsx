@@ -9,17 +9,30 @@ import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import { useSshEnvironment } from '../../stores/environment';
 import {
+    canCancelConnection,
     canReconnect,
-    connectionFailureKey,
-    connectionPhaseLabelKey,
+    connectionFailureCopy,
+    connectionFailureDetail,
+    connectionFailureTone,
+    connectionPhaseLabel,
+    hostKeyResetCommand,
     installProgressPercent,
     isConnectionBusy,
     isConnectionOverlayVisible,
+    isConnectionSettled,
     reconnectLabelKey,
 } from './connection-status';
-import { reconnectSshHost } from './ssh-host-commands';
+import { cancelSshHostConnection, reconnectSshHost } from './ssh-host-commands';
+import { SshHostCopyButton } from './ssh-host-copy-button';
+
+const failureToneClassNames = {
+    danger: 'text-danger',
+    muted: 'text-muted',
+    warning: 'text-warning',
+} as const;
 
 /**
  * Covers an SSH Host window whenever its Server is not usable: before the first attach (in place of the otherwise empty
@@ -39,13 +52,25 @@ function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) 
     const panelReference = useRef<HTMLDivElement>(null);
     const percent = installProgressPercent(environment);
     const isBusy = isConnectionBusy(environment.phase);
+    const isSettled = isConnectionSettled(environment.phase);
+    const isReconnectable = canReconnect(environment);
+    const phaseLabel = connectionPhaseLabel(environment);
+    const { failure } = environment;
+    const resetCommand = hostKeyResetCommand(failure);
+    const detail = connectionFailureDetail(failure);
     /**
      * Pulls focus off the Workbench underneath, where a focused Terminal would otherwise keep taking keystrokes for a
-     * Server that cannot receive them.
+     * Server that cannot receive them. Once the connection gives up, focus moves to the action that resolves it, so a
+     * keyboard user can press Enter on Reconnect (or Close Window when reconnecting cannot help).
      */
     useEffect(() => {
-        panelReference.current?.focus();
-    }, []);
+        const panel = panelReference.current;
+        if (!panel) return;
+        const primary = isSettled
+            ? panel.querySelector<HTMLElement>('[data-ssh-host-primary]')
+            : null;
+        (primary ?? panel).focus();
+    }, [isSettled]);
     return (
         <div
             ref={panelReference}
@@ -73,7 +98,7 @@ function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) 
                     role="status"
                 >
                     {isBusy && <Spinner className="text-muted" />}
-                    {t(connectionPhaseLabelKey(environment.phase))}
+                    {t(phaseLabel.key, phaseLabel.values)}
                 </p>
                 {environment.phase === 'installing' && (
                     <div className="flex items-center gap-2">
@@ -88,27 +113,41 @@ function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) 
                         )}
                     </div>
                 )}
-                {environment.failure && (
-                    <div className="flex flex-col gap-1">
-                        <p className="m-0 text-[13px] text-danger">
-                            {t(connectionFailureKey(environment.failure.reason))}
-                        </p>
-                        {environment.failure.message && (
-                            <p className="m-0 font-mono text-[11px] break-words whitespace-pre-wrap text-muted">
-                                {environment.failure.message}
-                            </p>
-                        )}
-                    </div>
+                {failure && (
+                    <ConnectionFailure
+                        detail={detail}
+                        failure={failure}
+                        isAlert={isSettled}
+                        tone={failureToneClassNames[connectionFailureTone(environment)]}
+                    />
                 )}
-                {environment.needsUserAction && !environment.askpass && (
-                    <p className="m-0 text-[11px] text-muted">{t('sshHost.needsUserAction')}</p>
-                )}
-                <div className="flex justify-end gap-2 pt-1">
-                    <Button variant="secondary" onClick={() => window.close()}>
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                    {detail && isSettled && (
+                        <SshHostCopyButton label={t('sshHost.copyDetails')} text={detail} />
+                    )}
+                    {resetCommand && (
+                        <SshHostCopyButton label={t('sshHost.copyCommand')} text={resetCommand} />
+                    )}
+                    <span className="flex-1" />
+                    <Button
+                        data-ssh-host-primary={isReconnectable ? undefined : true}
+                        variant={isReconnectable || isBusy ? 'secondary' : 'default'}
+                        onClick={() => window.close()}
+                    >
                         {t('sshHost.closeWindow')}
                     </Button>
-                    {canReconnect(environment) && (
+                    {canCancelConnection(environment) && (
                         <Button
+                            variant="secondary"
+                            // eslint-disable-next-line no-void -- cancelSshHostConnection reports its own failure through a toast
+                            onClick={() => void cancelSshHostConnection()}
+                        >
+                            {t('common.cancel')}
+                        </Button>
+                    )}
+                    {isReconnectable && (
+                        <Button
+                            data-ssh-host-primary
                             // eslint-disable-next-line no-void -- reconnectSshHost reports its own failure through a toast
                             onClick={() => void reconnectSshHost()}
                         >
@@ -117,6 +156,35 @@ function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) 
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+/**
+ * Why the connection stopped, and OpenSSH's or the SSH Host's own words for it. Announced as an alert once the
+ * connection gives up; while a reconnect keeps trying, the cause is shown without interrupting.
+ */
+function ConnectionFailure({
+    detail,
+    failure,
+    isAlert,
+    tone,
+}: {
+    detail: string | undefined;
+    failure: NonNullable<SshEnvironmentState['failure']>;
+    isAlert: boolean;
+    tone: string;
+}) {
+    const { t } = useTranslation();
+    const copy = connectionFailureCopy(failure);
+    return (
+        <div className="flex flex-col gap-1" role={isAlert ? 'alert' : undefined}>
+            <p className={cn('m-0 text-[13px]', tone)}>{t(copy.key, copy.values)}</p>
+            {detail && (
+                <p className="m-0 font-mono text-[11px] break-words whitespace-pre-wrap text-muted">
+                    {detail}
+                </p>
+            )}
         </div>
     );
 }

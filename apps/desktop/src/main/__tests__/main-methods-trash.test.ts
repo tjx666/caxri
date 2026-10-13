@@ -101,7 +101,7 @@ describe('files.trash', () => {
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
-                detail: expect.stringContaining('the Trash on devbox') as unknown,
+                detail: expect.stringContaining("the SSH Host's Trash on devbox") as unknown,
             }),
         );
         expect(request).toHaveBeenLastCalledWith('files.trashOnHost', {

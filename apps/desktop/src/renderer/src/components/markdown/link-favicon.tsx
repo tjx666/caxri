@@ -1,30 +1,11 @@
-import type { LucideIcon } from 'lucide-react';
-import {
-    GitMerge,
-    GitPullRequest,
-    GitPullRequestArrow,
-    GitPullRequestClosed,
-    Globe,
-} from 'lucide-react';
+import { GitPullRequest, Globe } from 'lucide-react';
 
 import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
 import type { LinkSummary } from '../../lib/link-summary';
 import { isGitHubHost, pullRequestLinkState } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
-
-type PullRequestLinkState = NonNullable<ReturnType<typeof pullRequestLinkState>>;
-
-/**
- * The same glyphs and tones the Session row's pull request indicator uses, so a linked pull request reads the same in a
- * transcript as in the PrimarySidebar.
- */
-const PULL_REQUEST_ICONS: Record<PullRequestLinkState, { icon: LucideIcon; tone: string }> = {
-    closed: { icon: GitPullRequestClosed, tone: 'text-danger' },
-    draft: { icon: GitPullRequest, tone: 'text-muted' },
-    merged: { icon: GitMerge, tone: 'text-merged' },
-    open: { icon: GitPullRequestArrow, tone: 'text-success' },
-};
+import { PULL_REQUEST_ICONS } from './pull-request-icons';
 
 /**
  * A pull request link's icon, tinted by its state. The state comes from the Terminal reference preview, which reads

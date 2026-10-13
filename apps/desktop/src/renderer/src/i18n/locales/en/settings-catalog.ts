@@ -100,9 +100,9 @@ export const settingsCatalog = {
     'settings.terminal.copyOnSelect.description':
         'Automatically copy Terminal selections to the clipboard',
 
-    'settings.terminal.gpuAcceleration.title': 'GPU acceleration',
+    'settings.terminal.gpuAcceleration.title': 'Terminal hardware acceleration',
     'settings.terminal.gpuAcceleration.description':
-        "Controls only the Terminal's WebGL rendering; falls back to DOM without restarting the Terminal. Has no effect while Hardware acceleration is off, since that already turns the GPU off for every Terminal.",
+        'Draws the Terminal with the graphics card; turn off to use software rendering. Takes effect without restarting the Terminal. Has no effect while Hardware acceleration is off, since that already draws every Terminal in software.',
     'settings.terminal.gpuAcceleration.option.auto': 'Auto',
     'settings.terminal.gpuAcceleration.option.on': 'On',
     'settings.terminal.gpuAcceleration.option.off': 'Off',
@@ -119,9 +119,10 @@ export const settingsCatalog = {
     'settings.terminal.idleSuspension.afterMinutes.description':
         'How long an Agent waits, in a Session you are not viewing, before it is suspended. Used only while Suspend idle Agents in the background is on.',
 
-    'settings.terminal.osc52ClipboardWrite.title': 'Allow OSC 52 clipboard writes',
+    'settings.terminal.osc52ClipboardWrite.title':
+        'Let programs in the Terminal copy to your clipboard',
     'settings.terminal.osc52ClipboardWrite.description':
-        'Programs in the Terminal may copy text to your clipboard; they can never read it',
+        'Programs such as tmux or a remote shell may copy text to your clipboard through OSC 52; they can never read it',
 
     'settings.terminal.wordSeparators.title': 'Word separators',
     'settings.terminal.wordSeparators.description':

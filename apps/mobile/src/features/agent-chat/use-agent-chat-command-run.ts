@@ -28,7 +28,7 @@ export const useAgentChatCommandRun = ({
             await chat.runCommand(command);
             onDraftChange('');
         } catch {
-            reportError(`/${command.name} did not run. Try again.`);
+            reportError(`/${command.name} could not run`);
         } finally {
             setRunning(false);
         }

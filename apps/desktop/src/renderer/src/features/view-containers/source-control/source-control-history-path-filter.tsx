@@ -3,6 +3,7 @@ import { useRef } from 'react';
 
 import { X } from 'lucide-react';
 
+import { Button } from '../../../components/ui/button';
 import { Input, InputGroup } from '../../../components/ui/input';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { treeRowTabIndex, useSourceControlTreeFocus } from './source-control-tree-focus';
@@ -67,15 +68,16 @@ export function SourceControlHistoryPathFilter({
                 />
                 {path.length > 0 && (
                     <Tooltip content={clearPathLabel}>
-                        <button
-                            type="button"
-                            className="grid size-5 shrink-0 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground"
+                        <Button
+                            className="size-5 shrink-0 rounded-md text-muted enabled:hover:text-foreground"
+                            size="icon"
+                            variant="ghost"
                             aria-label={clearPathLabel}
                             tabIndex={-1}
                             onClick={() => setPath('')}
                         >
-                            <X size={12} />
-                        </button>
+                            <X aria-hidden="true" size={12} />
+                        </Button>
                     </Tooltip>
                 )}
             </InputGroup>

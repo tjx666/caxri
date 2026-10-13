@@ -6,10 +6,17 @@ export const agentChatComposer = {
     'agentChat.composer.message': 'Message',
     'agentChat.composer.stop': 'Stop',
     'agentChat.composer.stopping': 'Stopping',
-    'agentChat.composer.stopTooltip': 'Stop (Esc)',
+    'agentChat.composer.stopTooltip': 'Stop',
     'agentChat.composer.stoppingTooltip': 'Stopping…',
     'agentChat.composer.pasteNoRoom':
         'This message is too long to cite pasted text. Your clipboard is unchanged; shorten the message and paste again.',
+    'agentChat.composer.longPasteSaved': 'Saved long paste as a file',
+    'agentChat.composer.pasteAsText': 'Paste as Text',
+    'agentChat.composer.pasteAsTextGone': 'The saved paste is no longer in the message',
+    'agentChat.composer.pasteAsTextTooLong': 'The pasted text no longer fits in the message',
+    'agentChat.composer.plainPasteFailed': 'Unable to read the clipboard',
+    'agentChat.composer.plainPasteTooLong':
+        'This text is too long to paste into the message. Paste it with ⌘V to cite it as a file instead.',
     'agentChat.composer.fileHasNoPath':
         'This file has no path on disk to insert. Save it, then drop the saved file.',
     'agentChat.composer.localFileOnSshHost':
@@ -97,15 +104,16 @@ export const agentChatComposer = {
     'agentChat.edit.cancel': 'Cancel edit',
 
     'agentChat.model.default': 'Default',
-    'agentChat.model.chooseEffort': 'Choose effort',
     'agentChat.model.chooseModel': 'Choose model',
     'agentChat.model.chooseModelFor': '{{model}}, choose model',
+    'agentChat.model.backToEffort': 'Back to effort',
     'agentChat.model.resetEffort': 'Reset to default',
     'agentChat.model.reasoningEffort': 'Reasoning effort',
     'agentChat.model.switching': 'Switching',
     'agentChat.model.triggerLabel': 'Model: {{model}}',
     'agentChat.model.triggerEffort': ', {{effort}} effort',
     'agentChat.model.triggerUltracode': ', ultracode on',
+    'agentChat.model.ultracode': 'Ultracode',
     'agentChat.model.ultracodeDescription': 'Multi-agent workflows at any effort',
     'agentChat.model.triggerFast': ', Fast mode on',
     'agentChat.model.fast': 'Fast',
@@ -166,6 +174,7 @@ export const agentChatComposer = {
         "Open a new Chat that reads this conversation's transcript and continues the work. Your draft goes with it.",
     'agentChat.context.continueInNewChat': 'Continue in new Chat',
     'agentChat.context.compact': 'Compact',
+    'agentChat.context.dismissCache': 'Dismiss until the next reply',
     'agentChat.context.cacheCost': ' (est. ~{{cost}})',
     'agentChat.context.cacheText':
         'Idle {{duration}} · next reply re-reads the whole conversation{{cost}}',

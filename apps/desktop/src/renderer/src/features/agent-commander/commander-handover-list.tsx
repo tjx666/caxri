@@ -65,7 +65,7 @@ export function CommanderHandoverList({
                     <section
                         key={group.key}
                         aria-labelledby={headingId}
-                        className="overflow-hidden rounded border border-border bg-background"
+                        className="overflow-hidden rounded-md border border-border bg-background"
                         data-handover-group={group.key}
                     >
                         <header className="flex h-9 items-center gap-2 border-b border-border bg-surface px-3">

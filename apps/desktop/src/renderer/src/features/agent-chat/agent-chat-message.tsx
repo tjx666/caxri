@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useRef, useState } from 'react';
 
 import type { MarkdownBlockOptions } from '@caxri/markdown';
 import { createStreamingMarkdownParser, createStreamingMarkdownRepair } from '@caxri/markdown';
@@ -15,6 +15,7 @@ import { AgentChatMessageTime } from './agent-chat-message-time';
 import { agentChatNoticeMessage } from './agent-chat-presentation';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
+import { useAgentChatReplyMenu } from './hooks/use-agent-chat-reply-menu';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
@@ -69,8 +70,10 @@ export function AgentChatMessage({
  * pastes back into an issue, a document, or another Agent intact. The reply text is selectable in an otherwise
  * `select-none` transcript, as are the user's messages, notice text, reasoning, and code and diff bodies; a native
  * Cmd+C copies silently, as macOS apps do, and releasing a selection floats Copy and Add to message over it
- * (`AgentChatSelectionToolbar`). A reply that ends a turn which changed files or filed an issue or pull request carries
- * those cards between its text and the action row, as the Codex app does.
+ * (`AgentChatSelectionToolbar`). A right-click offers the same native menu a user message leads with (Copy for a
+ * selection inside the reply, Copy Message for its Markdown source, and Add to Message), on every reply including
+ * commentary that carries no action row. A reply that ends a turn which changed files or filed an issue or pull request
+ * carries those cards between its text and the action row, as the Codex app does.
  */
 export function AgentChatReply({
     artifacts,
@@ -84,6 +87,8 @@ export function AgentChatReply({
     onOpenFile?: (target: string) => void;
 }) {
     const { t } = useTranslation();
+    const container = useRef<HTMLDivElement>(null);
+    const onContextMenu = useAgentChatReplyMenu({ container, text: item.text });
     const actions = canCopy
         ? !item.streaming && (
               <>
@@ -99,7 +104,12 @@ export function AgentChatReply({
           )
         : null;
     return (
-        <AgentChatReplyFrame actions={actions}>
+        <AgentChatReplyFrame
+            actions={actions}
+            data-agent-chat-reply=""
+            ref={container}
+            onContextMenu={onContextMenu}
+        >
             <AgentChatMessage
                 className="text-foreground select-text"
                 isStreaming={item.streaming}

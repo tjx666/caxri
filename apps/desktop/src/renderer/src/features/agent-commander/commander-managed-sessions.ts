@@ -4,10 +4,12 @@ import type {
     ServerEvent,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { fetchCaxriQuery } from '../../queries/client';
 import { getBootstrap } from '../../stores/selectors';
+import type { ToastAction } from '../../stores/toast-actions';
 import { pushToast } from '../../stores/toasts';
 import { sessionTitleForDisplay } from '../session/session-title';
 
@@ -63,18 +65,31 @@ const feed: {
     unsubscribe?: () => void;
 } = { holders: 0 };
 
+/**
+ * The notice for one take-back: which Session the user's typing took back, and a Hand Back follow-up, because the
+ * take-back happens the moment the user types, with no confirmation, and this is its way back.
+ */
+export function inputTakeBackNotice(
+    takeBack: Pick<CommanderInputTakeBack, 'sessionId'>,
+    displayTitle: string | undefined,
+    t: Translate = translate,
+): { message: string; action: ToastAction } {
+    return {
+        message: displayTitle
+            ? t('agentCommander.handover.takenBackByInput', {
+                  title: sessionTitleForDisplay(displayTitle, t),
+              })
+            : t('agentCommander.handover.takenBackByInputUntitled'),
+        action: { id: 'agentCommander.handBack', params: { sessionId: takeBack.sessionId } },
+    };
+}
+
 function announce(takeBack: CommanderInputTakeBack): void {
     const title = getBootstrap()?.sessions.find(
         (session) => session.id === takeBack.sessionId,
     )?.displayTitle;
-    pushToast(
-        'info',
-        title
-            ? translate('agentCommander.handover.takenBackByInput', {
-                  title: sessionTitleForDisplay(title, translate),
-              })
-            : translate('agentCommander.handover.takenBackByInputUntitled'),
-    );
+    const { action, message } = inputTakeBackNotice(takeBack, title);
+    pushToast('info', message, { action });
 }
 
 async function refreshManagedSessions(): Promise<void> {

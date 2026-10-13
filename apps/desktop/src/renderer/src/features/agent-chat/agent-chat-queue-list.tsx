@@ -98,7 +98,7 @@ function QueueCard({
         <li
             aria-busy={isPending}
             className={cn(
-                'flex min-w-0 items-center gap-1 rounded py-0.5 pr-0.5 pl-2 text-[12px] leading-5 hover:bg-[var(--selection)]',
+                'flex min-w-0 items-center gap-1 rounded-md py-0.5 pr-0.5 pl-2 text-[12px] leading-5 hover:bg-list-hover-background',
                 isPending && 'opacity-60',
             )}
         >

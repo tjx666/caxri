@@ -11,6 +11,8 @@ import { X } from 'lucide-react-native';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatImageTarget, AgentChatViewerSwipe } from './agent-chat-images';
 import {
+    agentChatViewerAccessibility,
+    agentChatViewerAccessibilitySwipe,
     agentChatViewerContent,
     agentChatViewerPage,
     agentChatViewerPosition,
@@ -127,6 +129,7 @@ const ZoomableImage = ({
         });
     // As in Paseo's viewport, a drag or pinch wins over the double tap instead of all three racing for one touch.
     const gesture = Gesture.Exclusive(Gesture.Simultaneous(pan, pinch), doubleTap);
+    const a11y = agentChatViewerAccessibility(canTurnTo);
     const style = useAnimatedStyle(() => ({
         transform: [
             { translateX: translateX.value },
@@ -145,13 +148,15 @@ const ZoomableImage = ({
                 style={[styles.fill, style]}
             >
                 <Image
-                    accessibilityHint={
-                        canTurnTo.next || canTurnTo.previous
-                            ? 'Pinch or double-tap to zoom. Swipe sideways for the other images, or down to close.'
-                            : 'Pinch or double-tap to zoom. Swipe down to close.'
-                    }
+                    accessibilityActions={a11y.actions}
+                    accessibilityHint={a11y.hint}
                     accessibilityIgnoresInvertColors
                     accessibilityLabel={accessibilityLabel}
+                    accessibilityRole={a11y.role}
+                    onAccessibilityAction={({ nativeEvent }) => {
+                        const swipe = agentChatViewerAccessibilitySwipe(nativeEvent.actionName);
+                        if (swipe !== null && canTurnTo[swipe]) onSwipe(swipe);
+                    }}
                     resizeMode="contain"
                     source={{ uri }}
                     style={styles.fill}

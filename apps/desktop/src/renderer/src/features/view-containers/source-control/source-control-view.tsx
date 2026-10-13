@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import type { SourceControlViewState } from '@caxri/protocol';
 
 import { useSessionViewScope, useSourceControlViewState } from '../../../stores/selectors';
 import { useControlledView } from '../controlled-view-context';
-import { useIsViewContainerActive } from '../view-container-activity';
+import { useHeldWhileHidden } from '../view-container-activity';
 import { useSourceControlController } from './hooks/use-source-control-controller';
 import type { SourceControlNavigationScope } from './hooks/use-source-control-navigation';
 import { SourceControlContent } from './source-control-content';
@@ -19,15 +19,10 @@ import { SourceControlContent } from './source-control-content';
  */
 export function SourceControlView() {
     const { viewId } = useControlledView();
-    const isActive = useIsViewContainerActive();
-    const live = useSessionViewScope();
-    const [shown, setShown] = useState(live);
-    if (
-        isActive &&
-        (shown.sessionId !== live.sessionId || shown.workbenchProjectId !== live.workbenchProjectId)
-    )
-        setShown(live);
-    const { sessionId, workbenchProjectId } = shown;
+    const { sessionId, workbenchProjectId } = useHeldWhileHidden(
+        useSessionViewScope(),
+        isSameSessionViewScope,
+    );
     const persisted = useSourceControlViewState(viewId);
     const scope = useMemo<SourceControlNavigationScope | undefined>(
         () =>
@@ -44,6 +39,15 @@ export function SourceControlView() {
         ? `${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.viewId}`
         : `empty\0${viewId}`;
     return <ScopedSourceControlView key={scopeKey} persisted={persisted} scope={scope} />;
+}
+
+function isSameSessionViewScope(
+    left: { sessionId?: string; workbenchProjectId?: string },
+    right: { sessionId?: string; workbenchProjectId?: string },
+): boolean {
+    return (
+        left.sessionId === right.sessionId && left.workbenchProjectId === right.workbenchProjectId
+    );
 }
 
 function ScopedSourceControlView({

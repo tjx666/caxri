@@ -2,7 +2,7 @@ export const agentCommander = {
     // Window chrome
     'agentCommander.window.title': 'Agent Commander',
     'agentCommander.window.sessionsLabel': 'Sessions',
-    'agentCommander.window.stop': 'Stop',
+    'agentCommander.window.stop': 'Stop Commander',
     'agentCommander.window.stopTooltip':
         'Stop the Commander and close this window. Tasks it delegated keep running, and opening it again resumes the same conversation.',
     'agentCommander.window.needsYou': 'Needs you',
@@ -10,9 +10,13 @@ export const agentCommander = {
     'agentCommander.window.showColumn': 'Show {{column}}',
     'agentCommander.window.hideColumn': 'Hide {{column}}',
     'agentCommander.window.resizeNeedsYou': 'Resize Needs you',
+    'agentCommander.window.resizeSessions': 'Resize Sessions',
 
     // Commander Terminal
     'agentCommander.terminal.couldNotStart': 'Agent Commander could not start.',
+    'agentCommander.terminal.couldNotStartHint':
+        'Try again. If it keeps failing, the details below say what went wrong.',
+    'agentCommander.terminal.failureDetail': 'Details: {{message}}',
     'agentCommander.terminal.starting': 'Starting Agent Commander…',
     'agentCommander.terminal.ariaLabel': 'Agent Commander: {{title}}',
     'agentCommander.terminal.startFailed': 'Unable to start Agent Commander',
@@ -28,9 +32,10 @@ export const agentCommander = {
         'No Sessions yet. Sessions from every Project appear here as their Agents work.',
     'agentCommander.board.scopeLabel': 'Board scope',
     'agentCommander.board.scopeCommander': 'Commander',
-    'agentCommander.board.scopeCommanderLabel': 'Sessions the Commander manages',
+    'agentCommander.board.scopeCommanderLabel':
+        'Commander ({{count}}): Sessions the Commander manages',
     'agentCommander.board.scopeAll': 'All',
-    'agentCommander.board.scopeAllLabel': 'Every Session',
+    'agentCommander.board.scopeAllLabel': 'All ({{count}}): every Session',
     'agentCommander.board.group.attention': 'Needs attention',
     'agentCommander.board.group.failed': 'Failed',
     'agentCommander.board.group.finished': 'Recently finished',
@@ -79,12 +84,11 @@ export const agentCommander = {
     'agentCommander.task.description.running': 'The Agent is working on the task.',
     'agentCommander.task.description.submitting': 'The Commander is handing the task to the Agent.',
     'agentCommander.task.waitingAtStartupTitle':
-        'Waiting at startup. The Agent is running but has not started, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own. Task {{delegationId}}.',
+        'Waiting at startup. The Agent is running but has not started, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own.',
     'agentCommander.task.reason': ' Reason: {{reason}}.',
-    'agentCommander.task.title': '{{label}}. {{description}}{{reason}} Task {{delegationId}}.',
+    'agentCommander.task.title': '{{label}}. {{description}}{{reason}}',
 
     // Inbox
-    'agentCommander.inbox.hideColumn': 'Hide this column',
     'agentCommander.inbox.loadFailed': 'Unable to load the Inbox',
     'agentCommander.inbox.loading': 'Loading Inbox…',
     'agentCommander.inbox.empty':
@@ -100,7 +104,7 @@ export const agentCommander = {
     'agentCommander.inbox.mergeTooltip': 'Merge the commit the Commander verified',
     'agentCommander.inbox.reply': 'Reply',
     'agentCommander.inbox.kind.decision': 'Decision',
-    'agentCommander.inbox.kind.hands': 'Needs you',
+    'agentCommander.inbox.kind.hands': 'Your action',
     'agentCommander.inbox.kind.merge': 'Pull request',
     'agentCommander.inbox.replyState.read': 'Read by Commander',
     'agentCommander.inbox.replyState.delivered': 'Delivered to Commander',
@@ -130,6 +134,8 @@ export const agentCommander = {
     'agentCommander.composer.placeholderWithTarget': 'Your answer',
     'agentCommander.composer.placeholder': '@ an item, then your answer',
     'agentCommander.composer.sendTooltip': 'Send (Enter)',
+    'agentCommander.composer.sendNeedsTarget': 'Choose an item with @ first',
+    'agentCommander.composer.sendNeedsText': 'Type a reply',
     'agentCommander.composer.sendLabel': 'Send reply',
 
     // Inbox commands
@@ -157,7 +163,6 @@ export const agentCommander = {
     'agentCommander.commands.stopTurnMessage':
         'Agent Commander is still working. Stopping it ends the current turn and closes its window. Tasks it delegated keep running.',
     // Hand-over
-    'agentCommander.handover.open': 'Hand Over',
     'agentCommander.handover.openEllipsis': 'Hand Over…',
     'agentCommander.handover.openTooltip':
         'Hand your own Sessions, or Agent conversations started outside Caxri, to the Commander',
@@ -204,6 +209,7 @@ export const agentCommander = {
     'agentCommander.handover.takenBack': 'Took the Session back from Agent Commander',
     'agentCommander.handover.takenBackByInput': 'Took {{title}} back from Agent Commander',
     'agentCommander.handover.takenBackByInputUntitled': 'Took a Session back from Agent Commander',
+    'agentCommander.handover.handBack': 'Hand Back',
     'agentCommander.handover.rejection.alreadyManaged': 'the Commander already manages it',
     'agentCommander.handover.rejection.commanderSession': 'it is the Commander itself',
     'agentCommander.handover.rejection.commanderUnavailable': 'Agent Commander is not set up',

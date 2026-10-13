@@ -146,6 +146,9 @@ export const statusBar = {
     'statusBar.changes.note': 'Counts tracked files only; new untracked files are not included.',
     'statusBar.changes.hint': 'Click to show in Git',
     'statusBar.pullRequest.ariaLabel': 'Open pull request #{{number}}',
+    'statusBar.pullRequest.ariaLabelElsewhere':
+        'Open pull request #{{number}} for branch {{branch}}, not the checked-out branch',
+    'statusBar.pullRequest.switchWorktree': 'Switch to {{branch}} Worktree',
     'statusBar.pullRequest.eyebrow': 'Pull request #{{number}}',
     'statusBar.pullRequest.hint': 'Click to open on GitHub',
     'statusBar.pullRequest.branch': 'Branch',

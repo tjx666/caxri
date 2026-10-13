@@ -18,6 +18,7 @@ import {
     agentChatSendBlock,
     agentChatSendRefusal,
     agentChatSendTooltip,
+    agentChatSendTooltipShortcut,
     agentChatSubmitDelivery,
     canSendAgentChatMessage,
     isAgentChatBusy,
@@ -162,13 +163,15 @@ describe('agentChatSendAction', () => {
         expect(agentChatSendAction({ isTurnRunning: false, isBusy: false }, 'Codex')).toEqual({
             kind: 'send',
             label: 'Send',
-            tooltip: 'Send (Enter)',
+            tooltip: 'Send',
+            shortcut: 'enter',
             placeholder: 'Message Codex',
         });
         expect(agentChatSendAction({ isTurnRunning: false, isBusy: true }, 'Codex')).toMatchObject({
             kind: 'queue',
             label: 'Queue message',
-            tooltip: 'Queue (Enter)',
+            tooltip: 'Queue',
+            shortcut: 'enter',
         });
         expect(agentChatSendAction({ isTurnRunning: true, isBusy: true }, 'Codex')).toMatchObject({
             label: 'Queue message',
@@ -215,6 +218,14 @@ describe('agentChatSendTooltip', () => {
             'Type a message to send',
         );
         expect(agentChatSendTooltip(action, ready)).toBe('Send (Enter)');
+    });
+
+    it('shows the action’s keycap only while Send can act', () => {
+        const send = { tooltip: 'Send', shortcut: 'enter' };
+        expect(agentChatSendTooltipShortcut(send, ready)).toBe('enter');
+        expect(agentChatSendTooltipShortcut(send, { ...ready, hasContent: false })).toBeUndefined();
+        expect(agentChatSendTooltipShortcut(send, { ...ready, block: 'loading' })).toBeUndefined();
+        expect(agentChatSendTooltipShortcut({ tooltip: 'Queue · Steer' }, ready)).toBeUndefined();
     });
 });
 

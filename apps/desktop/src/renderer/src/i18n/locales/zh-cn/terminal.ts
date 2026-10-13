@@ -142,7 +142,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.renderer.enable.confirmLabel': '开启',
     'terminal.renderer.enable.message':
         '终端会立即开始使用 GPU 绘制，无需重启 Caxri 或终端。你可以随时在设置中再次关闭。',
-    'terminal.renderer.enable.title': '要为终端开启 GPU 加速吗？',
+    'terminal.renderer.enable.title': '要开启终端硬件加速吗？',
     'terminal.renderer.retry.confirmLabel': '重试 GPU',
     'terminal.renderer.retry.message':
         '为此终端重试 GPU 渲染，并重置此窗口的图形故障上限。终端和 Agent 会继续运行，设置保持不变。如果重试失败，终端将继续使用软件渲染。',
@@ -150,7 +150,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.renderer.summary': '终端正在使用软件渲染。{{detail}}',
     'terminal.renderer.withAction': '{{action}}：{{summary}}',
     'terminal.renderer.label': '软件渲染',
-    'terminal.renderer.detail.disabled': 'GPU 加速已在设置中关闭。',
+    'terminal.renderer.detail.disabled': '终端硬件加速已在设置中关闭。',
     'terminal.renderer.detail.hardwareOff': '硬件加速已关闭，任何窗口中的终端都无法使用 GPU。',
     'terminal.renderer.detail.unsupported': '此窗口当前无法使用 GPU。',
     'terminal.renderer.detail.contextLossLimit':
@@ -162,7 +162,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.renderer.restoreFailed': '无法恢复 GPU 渲染',
     'terminal.renderer.unavailable':
         'GPU 渲染不可用。此终端仍在使用软件渲染；如果硬件加速已关闭，请在设置中重新开启。',
-    'terminal.renderer.changeFailed': '无法更改 GPU 加速设置',
+    'terminal.renderer.changeFailed': '无法更改终端硬件加速设置',
     // Terminal commands, menus, confirmations, and toasts.
     'terminal.defaultTitle': '终端',
     'terminal.resourceAlert.message':
@@ -228,4 +228,6 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.surface.openingAsTerminal': '正在以终端打开…',
     'terminal.surface.openingAsChat': '正在以对话打开…',
     'terminal.surface.toggleLabel': '以终端或对话打开',
+    'terminal.a11y.promptLabel': '终端输入',
+    'terminal.a11y.tooMuchOutput': '输出过多，无法逐条朗读，请手动浏览各行查看',
 };

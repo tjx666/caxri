@@ -152,34 +152,31 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             chat.locator('[data-agent-chat-reply]').filter({ hasText: text });
         await expect(reply('Looking around the project.')).toBeVisible();
         await reply('Looking around the project.').hover();
-        await expect(
-            reply('Looking around the project.').getByRole('button', { name: 'Copy message' }),
-        ).toHaveCount(0);
-        await expect(
-            reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
-        ).toHaveCount(0);
+        const copyOf = (text: string) => reply(text).getByRole('button', { name: 'Copy message' });
+        await expect(copyOf('Looking around the project.')).toHaveCount(0);
+        await expect(copyOf('Explored the project.')).toHaveCount(0);
         await reply('Explored the project.').hover();
-        await expect(
-            reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
-        ).toHaveCount(1);
+        await expect(copyOf('Explored the project.')).toHaveCount(1);
         /**
-         * The keyboard reaches any reply's Copy without a Tab stop per reply: Option+ArrowUp in the transcript focuses
-         * the latest reply, which mounts its action row, the next one steps to an earlier reply, and Tab continues to
-         * its Copy.
+         * The keyboard reaches any message's Copy without a Tab stop per message: Option+ArrowUp in the transcript
+         * focuses the latest reply, which mounts its action row, and each further press steps to the message before it,
+         * the user's own messages included (commentary without Copy is skipped), and Tab continues to its Copy.
          */
         await message.hover();
         await chat.getByRole('log', { name: 'Conversation' }).focus();
         await page.keyboard.press('Alt+ArrowUp');
         await expect(reply('Explored the project.')).toBeFocused();
-        await expect(
-            reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
-        ).toBeVisible();
+        await expect(copyOf('Explored the project.')).toBeVisible();
+        await page.keyboard.press('Alt+ArrowUp');
+        const prompt = chat
+            .locator('[data-agent-chat-user-message]')
+            .filter({ hasText: 'explore the project' });
+        await expect(prompt).toBeFocused();
+        await expect(prompt.getByRole('button', { name: 'Copy message' })).toBeVisible();
         await page.keyboard.press('Alt+ArrowUp');
         const earlierReply = reply('You chose Blue.');
         await expect(earlierReply).toBeFocused();
-        await expect(
-            reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
-        ).toHaveCount(0);
+        await expect(copyOf('Explored the project.')).toHaveCount(0);
         await page.keyboard.press('Tab');
         await expect(earlierReply.getByRole('button', { name: 'Copy message' })).toBeFocused();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-reply-keyboard-copy.png') });
@@ -372,8 +369,11 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(truncatedNote).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-truncated-end.png') });
 
-        // An applied file's path opens it in the Editor.
-        await chat.getByRole('button', { name: 'Open src/greeting.ts in Editor' }).click();
+        // An applied file's path opens it in the Editor; the changes card's icon button shares the link's name.
+        await chat
+            .getByRole('button', { name: 'Open src/greeting.ts in Editor' })
+            .filter({ hasText: 'src/greeting.ts' })
+            .click();
         await expect(page.getByRole('tab', { name: 'greeting.ts' })).toHaveAttribute(
             'aria-selected',
             'true',

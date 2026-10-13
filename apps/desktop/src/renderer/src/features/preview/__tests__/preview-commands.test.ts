@@ -1,4 +1,4 @@
-import type { PaneTab } from '@caxri/protocol';
+import type { PaneLayout, PaneTab } from '@caxri/protocol';
 import { externalEditorTabPath, filePreviewTabPath, gitFileDiffTabPath } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
     splitPaneTab: vi.fn(),
     findPaneTabId: vi.fn(() => 'tab-preview'),
     getActivePaneId: vi.fn(() => 'pane-1'),
+    getPaneLayout: vi.fn((): PaneLayout | undefined => undefined),
+    selectPaneTab: vi.fn(),
 }));
 
 vi.mock('../../editor/document-commands', () => ({ openEditorTab: mocks.openEditorTab }));
@@ -15,6 +17,8 @@ vi.mock('../../workbench/pane-actions', () => ({
     findPaneTabId: mocks.findPaneTabId,
     getActivePaneId: mocks.getActivePaneId,
     getActivePaneTab: () => mocks.activeTab,
+    getPaneLayout: mocks.getPaneLayout,
+    selectPaneTab: mocks.selectPaneTab,
     splitPaneTab: mocks.splitPaneTab,
 }));
 
@@ -138,6 +142,38 @@ describe('openFilePreview', () => {
 
         expect(mocks.openEditorTab).toHaveBeenCalledWith(filePreviewTabPath('/p/README.md'));
         expect(mocks.splitPaneTab).toHaveBeenCalledWith('tab-preview', 'pane-1', 'right');
+    });
+
+    it('reveals a preview of the same file already open in another pane instead of opening a duplicate', () => {
+        const previewPath = filePreviewTabPath('/p/README.md');
+        const layout: PaneLayout = {
+            root: {
+                type: 'split',
+                id: 'split-1',
+                direction: 'horizontal',
+                ratio: 0.5,
+                first: {
+                    type: 'pane',
+                    id: 'pane-1',
+                    tabs: [fileTab('/p/README.md')],
+                    activeTabId: 'tab-1',
+                },
+                second: {
+                    type: 'pane',
+                    id: 'pane-2',
+                    tabs: [{ id: 'tab-side', resource: { kind: 'file', path: previewPath } }],
+                    activeTabId: 'tab-side',
+                },
+            },
+            activePaneId: 'pane-1',
+        };
+        mocks.getPaneLayout.mockReturnValueOnce(layout);
+
+        openFilePreviewToSide('/p/README.md');
+
+        expect(mocks.selectPaneTab).toHaveBeenCalledWith('tab-side');
+        expect(mocks.openEditorTab).not.toHaveBeenCalled();
+        expect(mocks.splitPaneTab).not.toHaveBeenCalled();
     });
 
     it('leaves the preview in place when the layout did not produce a tab to split', () => {

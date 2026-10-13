@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     commanderSessionMarker,
+    inputTakeBackNotice,
     isCommanderManagedSessionsEvent,
     unseenInputTakeBacks,
 } from '../commander-managed-sessions';
@@ -53,5 +54,18 @@ describe('isCommanderManagedSessionsEvent', () => {
         ];
         for (const [event, expected] of events)
             expect(isCommanderManagedSessionsEvent(event)).toBe(expected);
+    });
+});
+
+describe('inputTakeBackNotice', () => {
+    it('names the Session typing took back and offers to hand it back', () => {
+        expect(inputTakeBackNotice({ sessionId: 'session-1' }, 'Fix login')).toEqual({
+            message: 'Took Fix login back from Agent Commander',
+            action: { id: 'agentCommander.handBack', params: { sessionId: 'session-1' } },
+        });
+        expect(inputTakeBackNotice({ sessionId: 'session-2' }, undefined)).toMatchObject({
+            message: 'Took a Session back from Agent Commander',
+            action: { params: { sessionId: 'session-2' } },
+        });
     });
 });

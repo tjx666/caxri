@@ -32,6 +32,8 @@ export function AgentChatStopButton({
                     ? 'agentChat.composer.stoppingTooltip'
                     : 'agentChat.composer.stopTooltip',
             )}
+            // Escape interrupts a running turn from the composer; it is not a remappable command, so the key is fixed.
+            shortcut={isStopping ? undefined : 'escape'}
         >
             <Button
                 aria-label={t(

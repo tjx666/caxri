@@ -31,9 +31,10 @@ export const sheetStyles = StyleSheet.create({
     hint: { fontSize: 13, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 6 },
     /**
      * The row above the composer input holding the permission and model triggers, as Desktop keeps them beside its
-     * input. It wraps on a narrow phone rather than truncating both.
+     * input. It wraps on a narrow phone rather than truncating both. The 16dp gap keeps the two triggers' horizontal
+     * hit slop (`TRIGGER_HIT_SLOP`, 8dp each side) from overlapping, so a tap between them lands on exactly one.
      */
-    choices: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', columnGap: 4 },
+    choices: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', columnGap: 16 },
     /**
      * The composer's model and permission triggers: 40dp rows above the input, grown to a 48dp target by hit slop.
      */

@@ -105,7 +105,12 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
     const session = usePaneViewSession();
     const project = useProjectById(session?.workbenchProjectId);
     const theme = useTheme();
-    if (!session || !project || !theme) return null;
+    /**
+     * The Session, its Project, and the theme arrive with the Workbench bootstrap. Until then the tab draws the same
+     * document skeleton its content loads behind, so the pane never flashes empty before the preview.
+     */
+    if (!session || !project || !theme)
+        return <LoadingSkeleton variant="document" label={t(PREVIEW_LOADING_LABEL_KEY)} />;
     const previewer = previewerForPath(tab.path);
     /**
      * A Project file reaches its source and Finder; an external or virtual document has no file either action can open.
@@ -113,13 +118,14 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
     const projectFilePath = isVirtualEditorTabPath(tab.path) ? undefined : tab.path;
     /**
      * Opening a file reaches a preview tab with no previewer only after its read found binary content (issue #1921), so
-     * there is no editable source to offer; Finder is the way forward.
+     * there is no editable source to offer; the default app is the way forward, with Finder beside it.
      */
     if (!previewer)
         return (
             <PreviewEmptyState
                 title={t('preview.unavailable')}
                 path={projectFilePath}
+                showOpenWithDefaultApp
                 showReveal
                 showSource={false}
             />
@@ -181,6 +187,7 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
         case 'mermaid': {
             return textSurface((document) => (
                 <MermaidPreview
+                    fileName={(document.displayPath ?? tab.path).split('/').at(-1) ?? tab.path}
                     source={document.content}
                     sourcePath={projectFilePath}
                     theme={theme}

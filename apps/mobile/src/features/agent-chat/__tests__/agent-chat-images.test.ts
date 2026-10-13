@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatImageDataUri,
+    agentChatViewerAccessibility,
+    agentChatViewerAccessibilitySwipe,
     agentChatViewerContent,
     agentChatViewerPage,
     agentChatViewerPosition,
@@ -126,5 +128,31 @@ describe('Agent Chat image viewer gestures', () => {
         expect(agentChatViewerPage(2, 3, 'next')).toBeNull();
         expect(agentChatViewerPosition(1, 3)).toBe('2 / 3');
         expect(agentChatViewerPosition(0, 1)).toBeNull();
+    });
+});
+
+describe('Agent Chat image viewer accessibility', () => {
+    it('offers adjust actions only toward an image that exists, with a hint naming them', () => {
+        const middle = agentChatViewerAccessibility({ next: true, previous: true });
+        expect(middle.role).toBe('adjustable');
+        expect(middle.actions.map(({ name }) => name)).toEqual(['increment', 'decrement']);
+        expect(middle.hint).toContain('Swipe up or down');
+        expect(
+            agentChatViewerAccessibility({ next: false, previous: true }).actions.map(
+                ({ name }) => name,
+            ),
+        ).toEqual(['decrement']);
+        const single = agentChatViewerAccessibility({ next: false, previous: false });
+        expect(single).toEqual({
+            actions: [],
+            hint: 'Pinch or double-tap to zoom.',
+            role: 'image',
+        });
+    });
+
+    it('turns increment to the next image and decrement to the previous one', () => {
+        expect(agentChatViewerAccessibilitySwipe('increment')).toBe('next');
+        expect(agentChatViewerAccessibilitySwipe('decrement')).toBe('previous');
+        expect(agentChatViewerAccessibilitySwipe('activate')).toBeNull();
     });
 });

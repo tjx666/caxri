@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatComposerKey } from '../agent-chat-composer-keys';
-import { agentChatComposerKeyAction } from '../agent-chat-composer-keys';
+import { agentChatComposerKeyAction, isAgentChatPlainPasteKey } from '../agent-chat-composer-keys';
 
 const press = (
     key: string,
@@ -91,5 +91,20 @@ describe('agentChatComposerKeyAction', () => {
             kind: 'submit',
             delivery: undefined,
         });
+    });
+});
+
+describe('isAgentChatPlainPasteKey', () => {
+    it('matches Cmd+Shift+V and Ctrl+Shift+V whatever case Shift gives the key', () => {
+        expect(isAgentChatPlainPasteKey(press('V', { metaKey: true, shiftKey: true }))).toBe(true);
+        expect(isAgentChatPlainPasteKey(press('v', { ctrlKey: true, shiftKey: true }))).toBe(true);
+    });
+
+    it('leaves an ordinary paste and other chords alone', () => {
+        expect(isAgentChatPlainPasteKey(press('v', { metaKey: true }))).toBe(false);
+        expect(
+            isAgentChatPlainPasteKey(press('V', { metaKey: true, shiftKey: true, altKey: true })),
+        ).toBe(false);
+        expect(isAgentChatPlainPasteKey(press('V', { shiftKey: true }))).toBe(false);
     });
 });

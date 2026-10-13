@@ -19,6 +19,10 @@ page matches the chip. The report still attributes each conversation to the Sess
 resumed conversation appears under its owner's row in Most expensive Sessions, and unfiltered totals never count it
 twice. A Terminal outside any Session, and **Open Usage** itself, show every Session.
 
+The scope, Agent, and range filters are remembered on this device and restored the next time the page opens; a
+Session-narrowed open still forces all time without overwriting the remembered range. Each row in Most expensive
+Sessions has a filter button that narrows the page to that Session.
+
 ## What it shows
 
 - Range totals (7 days to all time): estimated cost, tokens, active Agent time, Sessions created and archived, pull

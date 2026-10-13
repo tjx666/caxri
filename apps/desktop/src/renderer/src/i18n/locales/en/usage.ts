@@ -22,6 +22,10 @@ export const usage = {
     'usage.filter.session': 'Session: {{title}}',
     'usage.filter.sessionClear': 'Session: {{title}}. Show all Sessions',
     'usage.filter.showAllSessions': 'Show all Sessions',
+    'usage.share.cost': 'Share of cost',
+    'usage.share.tokens': 'Share of tokens',
+    'usage.share.percentCost': '{{percent}} of cost',
+    'usage.share.percentTokens': '{{percent}} of tokens',
     'usage.rangeShort.7d': '7D',
     'usage.rangeShort.30d': '30D',
     'usage.rangeShort.90d': '90D',
@@ -42,11 +46,11 @@ export const usage = {
     'usage.loadFailed': 'Usage could not be loaded',
     'usage.loadFailedReason.unavailable':
         "Caxri's Server didn't answer in time. It may still be starting.",
-    'usage.loadFailedReason.unreadable': "Caxri couldn't read the Agent transcripts on this Mac.",
+    'usage.loadFailedReason.unreadable': "Caxri couldn't read the Agent conversations on this Mac.",
     'usage.loadFailedReason.unknown': 'Something went wrong while building the usage report.',
     'usage.loading': 'Reading Agent conversations…',
-    'usage.scan.readingOne': 'Reading {{count}} more transcript…',
-    'usage.scan.readingOther': 'Reading {{count}} more transcripts…',
+    'usage.scan.readingOne': 'Reading {{count}} more conversation…',
+    'usage.scan.readingOther': 'Reading {{count}} more conversations…',
 
     // Shared figures and wording
     'usage.date.format': '{{month}} {{day}}, {{year}}',
@@ -178,9 +182,9 @@ export const usage = {
     'usage.coverage.countsWithOutside':
         'Counts {{counted}}, plus {{outside}} run outside Caxri on this Mac.',
     'usage.coverage.unavailableOne':
-        '{{count}} conversation has no transcript on this machine, so its usage is missing.',
+        '{{count}} conversation is no longer saved on this Mac, so its usage is missing.',
     'usage.coverage.unavailableOther':
-        '{{count}} conversations have no transcript on this machine, so their usage is missing.',
+        '{{count}} conversations are no longer saved on this Mac, so their usage is missing.',
     'usage.coverage.checkingPullRequests': 'Checking {{pullRequests}} on GitHub.',
     'usage.coverage.unpricedModels':
         'No price for {{models}}; their usage is left out of every cost figure.',
@@ -204,4 +208,6 @@ export const usage = {
     'usage.sessions.deletedTitle': 'Deleted Session',
     'usage.sessions.archived': 'Archived',
     'usage.sessions.open': 'Open Session {{title}}',
+    'usage.sessions.filter': 'Show usage for this Session',
+    'usage.sessions.filterLabel': 'Show usage for {{title}}',
 } as const;

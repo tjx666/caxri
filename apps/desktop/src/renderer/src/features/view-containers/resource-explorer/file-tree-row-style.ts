@@ -15,11 +15,17 @@ export const MAX_STICKY_ANCESTORS = 5;
 
 const ROW_INDENT = 12;
 /**
- * A directory row starts at its disclosure chevron; a file row starts where the chevron would end, so both icon columns
- * line up.
+ * A directory row starts at its disclosure chevron; a file row starts where the chevron and the row's gap after it
+ * would end, so both icon columns line up. The leaf padding is derived from the row's parts rather than a hand-picked
+ * number: `23` left out the `gap-2` after the 13px chevron and set every file icon 6px left of its sibling folders'.
  */
 const DIRECTORY_ROW_PADDING = 8;
-const LEAF_ROW_PADDING = 23;
+/**
+ * The `size={13}` chevron and the row's `gap-2` in `file-tree-item.tsx`.
+ */
+const CHEVRON_WIDTH = 13;
+const ROW_GAP = 8;
+const LEAF_ROW_PADDING = DIRECTORY_ROW_PADDING + CHEVRON_WIDTH + ROW_GAP;
 
 export interface FileTreeRowStyleInput {
     depth: number;

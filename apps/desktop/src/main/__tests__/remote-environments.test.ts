@@ -32,6 +32,7 @@ interface Harness {
     events: ServerEvent[];
     hooks: RemoteEnvironmentHooks;
     supervisor: {
+        cancel: ReturnType<typeof vi.fn>;
         dispose: ReturnType<typeof vi.fn>;
         isFailed: ReturnType<typeof vi.fn>;
         reconnect: ReturnType<typeof vi.fn>;
@@ -58,6 +59,7 @@ function setup(
                 request: vi.fn(() => Promise.resolve(null)),
             };
             const supervisor = {
+                cancel: vi.fn(),
                 dispose: vi.fn(() => Promise.resolve()),
                 isFailed: vi.fn(() => false),
                 reconnect: vi.fn(),
@@ -82,6 +84,7 @@ function setup(
             list: () => Promise.resolve(['dev@build-box']),
             remember: () => Promise.resolve(),
         },
+        revealSshConfig: () => Promise.resolve(),
     };
     return { environments: createRemoteEnvironments(options), harnesses, logger };
 }
@@ -265,6 +268,58 @@ describe('SSH Host environments', () => {
             needsUserAction: false,
             failure: { reason: 'profileInUse', message: 'In use by login-1' },
         });
+    });
+
+    it('names the known_hosts entry of a host-key failure', async () => {
+        const { environments, harnesses } = setup(
+            (started) => {
+                started.supervisor.isFailed.mockReturnValue(true);
+                started.hooks.update({
+                    failure: { reason: 'hostKey', message: 'Host key verification failed.' },
+                });
+                return Promise.reject(
+                    new CaxriError('UNAVAILABLE', 'Host key verification failed.'),
+                );
+            },
+            () => Promise.resolve('dev@build-box:2222'),
+        );
+        await environments.connect('build-box');
+        const harness = harnesses[0];
+
+        await vi.waitFor(() => expect(lastState(harness).phase).toBe('failed'));
+        expect(lastState(harness)).toMatchObject({
+            needsUserAction: true,
+            failure: { reason: 'hostKey', knownHostsName: '[build-box]:2222' },
+        });
+    });
+
+    it('cancels a running attempt, answering its open prompt, and does not ask for an answer after', async () => {
+        const { environments, harnesses } = setup(() => new Promise(() => {}));
+        await environments.connect('dev@build-box');
+        const harness = harnesses[0];
+        const methods = environments.methodsFor(harness.window.webContents as never);
+        const pending = harness.hooks.askpass(
+            { requestId: 'r1', kind: 'secret', prompt: 'Password:' },
+            new AbortController().signal,
+        );
+
+        methods.cancel();
+
+        await expect(pending).resolves.toBeNull();
+        expect(harness.supervisor.cancel).toHaveBeenCalledOnce();
+        harness.hooks.update({
+            phase: 'failed',
+            failure: { reason: 'cancelled', message: 'Connection cancelled' },
+        });
+        expect(lastState(harness)).toMatchObject({
+            phase: 'failed',
+            needsUserAction: false,
+            failure: { reason: 'cancelled' },
+        });
+        // Nothing is running any more, so a second Cancel does nothing.
+        methods.cancel();
+        expect(harness.supervisor.cancel).toHaveBeenCalledOnce();
+        expect(() => environments.methodsFor({} as never).cancel()).toThrow();
     });
 
     it('detaches without stopping the remote Server when the window closes', async () => {

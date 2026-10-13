@@ -1,7 +1,12 @@
 import {
+    agentChatPasteAsTextUnavailableReason,
+    pasteAgentChatSavedPasteAsText,
+} from '../features/agent-chat/agent-chat-long-paste-commands';
+import {
     agentChatRedoUnavailableReason,
     redoAgentChatTurn,
 } from '../features/agent-chat/agent-chat-undo-commands';
+import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import {
     discardedChangesUnavailableReason,
     restoreDiscardedChanges,
@@ -52,7 +57,18 @@ export const toastActionHandlers: ToastActionHandlers = {
             void redoAgentChatTurn(parameters);
         },
     },
+    'agentChat.pasteAsText': {
+        unavailable: agentChatPasteAsTextUnavailableReason,
+        run: pasteAgentChatSavedPasteAsText,
+    },
     'agentCommander.open': { run: () => executeCommand('agentCommander.open') },
+    'agentCommander.handBack': {
+        unavailable: ({ sessionId }) =>
+            hasSession(sessionId)
+                ? undefined
+                : translate('toasts.actionUnavailable.missingSession'),
+        run: ({ sessionId }) => openCommanderHandover([sessionId]),
+    },
     'clipboard.copyCommand': {
         run: ({ text }) => {
             // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast

@@ -36,3 +36,32 @@ export function agentChatQuestionResponse(
         ? { kind: 'decision', decision: 'cancel' }
         : { kind: 'answers', answers: { ...answers } };
 }
+
+/**
+ * What the question card's primary button does. `next` moves to a question the user has neither answered nor opened
+ * yet; `submit` sends the answers. Submitting from the first tab used to record every unopened question as skipped
+ * although the user never saw it, so Submit waits until each unanswered question has been opened at least once. An
+ * unanswered question the user opened and left is a deliberate skip, and Skip (Esc) still dismisses the whole form at
+ * any point.
+ */
+export type QuestionFormPrimaryAction = { kind: 'next'; index: number } | { kind: 'submit' };
+
+/**
+ * Picks the primary action for the question at `index`: the next unanswered, unseen question after it (wrapping), or
+ * Submit when no such question remains.
+ */
+export function questionFormPrimaryAction(
+    questionIds: readonly string[],
+    answers: Readonly<Record<string, readonly string[]>>,
+    index: number,
+    seen: ReadonlySet<number>,
+): QuestionFormPrimaryAction {
+    const count = questionIds.length;
+    for (let step = 1; step < count; step += 1) {
+        const candidate = (index + step) % count;
+        if (!Object.hasOwn(answers, questionIds[candidate]) && !seen.has(candidate)) {
+            return { kind: 'next', index: candidate };
+        }
+    }
+    return { kind: 'submit' };
+}

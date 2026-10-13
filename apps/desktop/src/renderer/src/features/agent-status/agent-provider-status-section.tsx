@@ -9,8 +9,10 @@ import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { ReportCard } from '../../components/report-card';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useChartKeyboardCursor } from '../../hooks/use-chart-keyboard-cursor';
 import { useRelativeTime } from '../../hooks/use-relative-time';
 import { useTranslation } from '../../i18n';
+import { CHART_CURSOR_CLASS } from '../../lib/chart-cursor';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
@@ -68,14 +70,18 @@ function IncidentItem({ incident }: { incident: AgentProviderStatusIncident }) {
 
 /**
  * One watched component: its current status and, when the page publishes history, the 90-day uptime figure over one bar
- * per local day, as status.openai.com draws it. Bars are not focus stops (90 would bury the page's other controls);
- * each carries its day and status as an accessible name, and the list's name says which component and window it
- * covers.
+ * per local day, as status.openai.com draws it. The strip is one focus stop, as the Usage page's charts are (90 stops
+ * would bury the page's other controls): its name says which component and window it covers, and the arrow keys step
+ * through the days (`lib/chart-cursor.ts`), ringing the bar and showing its Tooltip text under the strip, announced
+ * through a polite live region.
  */
 function ComponentRow({ component }: { component: AgentProviderStatusComponent }) {
     const { t } = useTranslation();
     const { uptime } = component;
     const days = uptime ? providerUptimeDays(uptime) : [];
+    const keyboard = useChartKeyboardCursor({ kind: 'linear', count: days.length }, 'days');
+    const cursor = keyboard.cursor;
+    const cursorText = cursor === undefined ? undefined : describeUptimeDay(days[cursor], t);
     const percent =
         uptime?.percent === undefined
             ? undefined
@@ -94,35 +100,44 @@ function ComponentRow({ component }: { component: AgentProviderStatusComponent }
             </div>
             {days.length > 0 && (
                 <>
-                    <ul
-                        className="m-0 mt-2 flex h-7 list-none items-stretch gap-px p-0"
+                    <div
                         aria-label={t('agentStatus.provider.uptimeChartLabel', {
                             component: component.name,
                             count: days.length,
                         })}
+                        className="mt-2 flex h-7 items-stretch gap-px rounded-sm focus-visible:outline focus-visible:outline-accent"
+                        role="img"
+                        tabIndex={0}
+                        onBlur={keyboard.onBlur}
+                        onKeyDown={keyboard.onKeyDown}
                     >
-                        {days.map((day) => {
-                            const description = describeUptimeDay(day, t);
-                            return (
-                                <Tooltip key={day.start} content={description} hoverOnly>
-                                    <li
-                                        aria-label={description}
-                                        className={cn(
-                                            'min-w-0 flex-1 rounded-xs hover:opacity-70',
-                                            providerUptimeBarClassName(day.status),
-                                        )}
-                                    />
-                                </Tooltip>
-                            );
-                        })}
-                    </ul>
+                        {days.map((day, index) => (
+                            <Tooltip key={day.start} content={describeUptimeDay(day, t)}>
+                                <div
+                                    className={cn(
+                                        'min-w-0 flex-1 rounded-sm hover:opacity-70',
+                                        providerUptimeBarClassName(day.status),
+                                        index === cursor && CHART_CURSOR_CLASS,
+                                    )}
+                                />
+                            </Tooltip>
+                        ))}
+                    </div>
                     <div
                         aria-hidden="true"
-                        className="mt-1 flex justify-between text-[11px] text-muted"
+                        className="mt-1 flex justify-between gap-3 text-[11px] text-muted"
                     >
-                        <span>{t('agentStatus.provider.uptimeStart', { count: days.length })}</span>
-                        <span>{t('agentStatus.provider.uptimeEnd')}</span>
+                        <span className="flex-none">
+                            {t('agentStatus.provider.uptimeStart', { count: days.length })}
+                        </span>
+                        {cursorText && (
+                            <span className="min-w-0 truncate text-foreground">{cursorText}</span>
+                        )}
+                        <span className="flex-none">{t('agentStatus.provider.uptimeEnd')}</span>
                     </div>
+                    <span className="sr-only" aria-live="polite">
+                        {cursorText}
+                    </span>
                 </>
             )}
         </li>

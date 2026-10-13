@@ -47,9 +47,10 @@ export type RemoteConnectionPhase = z.infer<typeof remoteConnectionPhaseSchema>;
 
 /**
  * Closed causes for a failed or interrupted SSH Host connection. `authentication` and `hostKey` stop automatic
- * reconnects because only the user can resolve them. `takenOver` means another Caxri Desktop attached to the same
- * Server and replaced this window's lease; nothing retries it, because reconnecting would take the Server back from
- * that window.
+ * reconnects because only the user can resolve them. `cancelled` means the user cancelled a prompt or the connection
+ * itself; it stops retries too, but it is the user's own choice rather than something left for them to answer.
+ * `takenOver` means another Caxri Desktop attached to the same Server and replaced this window's lease; nothing retries
+ * it, because reconnecting would take the Server back from that window.
  */
 export const remoteFailureReasons = [
     'authentication',
@@ -108,6 +109,15 @@ const remoteFailureSchema = z.object({
      * not logged or echoed.
      */
     message: z.string().max(2000),
+    /**
+     * For `profileInUse`: the hostname of the other machine whose Server holds the shared profile.
+     */
+    holder: z.string().max(255).optional(),
+    /**
+     * For `hostKey`: the name `known_hosts` stores for this SSH Host (`host`, or `[host]:port` off port 22), resolved
+     * through `ssh -G` so a `~/.ssh/config` alias names its real `HostName`.
+     */
+    knownHostsName: z.string().max(300).optional(),
 });
 
 const remotePlatformSchema = z.object({
@@ -136,6 +146,10 @@ export const environmentStateSchema = z.discriminatedUnion('kind', [
          * Bytes of the application layer (and, when the SSH Host cannot download it, the runtime) uploaded so far.
          */
         progress: remoteProgressSchema.optional(),
+        /**
+         * While `reconnecting`: which automatic attempt is running since the connection dropped, starting at 1.
+         */
+        attempt: z.number().int().positive().optional(),
         failure: remoteFailureSchema.optional(),
         /**
          * True when automatic reconnection stopped because the user must act (a password, 2FA code, or host key).
@@ -192,6 +206,24 @@ export const remoteEnvironmentDesktopMethods = {
         result: z.null(),
     },
     'remote.reconnect': {
+        ...desktopControl,
+        params: noParameters,
+        result: z.null(),
+    },
+    /**
+     * Stops the calling window's in-flight connect, install, or reconnect. The window stays open in the `failed` phase
+     * with a `cancelled` failure, and `remote.reconnect` starts again.
+     */
+    'remote.cancel': {
+        ...desktopControl,
+        params: noParameters,
+        result: z.null(),
+    },
+    /**
+     * Shows this Mac's SSH config file (the one every `ssh` call reads) in Finder, or its folder when the file does not
+     * exist yet.
+     */
+    'remote.sshConfig.reveal': {
         ...desktopControl,
         params: noParameters,
         result: z.null(),

@@ -14,21 +14,29 @@ behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) rec
 
 - **Connect**: Project > Connect to SSH Host… (or the command palette). The dialog lists `Host`
   aliases from `~/.ssh/config` (wildcard patterns are skipped), recently connected destinations, and
-  accepts a typed `user@host[:port]`. A destination starting with `-` is refused.
+  accepts a typed `user@host[:port]`. A destination starting with `-` is refused. Its Open SSH
+  Config action shows that file in Finder (its folder when the file does not exist yet).
 - **Window**: each SSH Host gets one window titled `SSH: <destination>`. Connecting to a destination
   that already has a window focuses it. Destinations are compared by the `user@hostname:port` that
   `ssh -G` resolves, so two `~/.ssh/config` aliases for the same account share one window, and the
   focused window says so in a notification; when `ssh -G` fails, the typed spelling decides. The
-  status bar shows the SSH Host; while connecting, an overlay names the current phase (connecting,
-  probing, installing, starting, forwarding).
+  status bar shows the SSH Host, and clicking it opens Stop Server on SSH Host…, Connect to SSH
+  Host…, and Close Window. While connecting, an overlay names the current phase (connecting,
+  checking the SSH Host, installing, starting, or reconnecting with its attempt number) and offers
+  Cancel, which stops the attempt and keeps the window open on a cancelled state.
 - **Prompts**: passwords, key passphrases, 2FA codes, and new host-key confirmations appear as a
   dialog inside that window. Answers go straight to OpenSSH and are never logged. When OpenSSH asks
   the same password or passphrase again within one attempt, it rejected the previous answer, so the
-  dialog says so and numbers the retry. Cancel ends the attempt at once: OpenSSH would otherwise
-  treat each refused prompt as one failed try and keep asking.
-- **Reconnect**: a dropped connection retries with backoff. A failure that needs the user
-  (authentication, a changed host key, a cancelled prompt) stops retrying and shows a Reconnect
-  button; the same action is the `Reconnect to SSH Host` command.
+  dialog says so and numbers the attempt. Cancel or Escape ends the attempt at once (a click outside
+  the dialog does not): OpenSSH would otherwise treat each refused prompt as one failed try and keep
+  asking.
+- **Reconnect**: a dropped connection retries with backoff, and the overlay keeps showing the cause
+  while it does. A failure only the user can resolve (authentication, a changed host key) or a
+  cancel stops retrying and shows a Reconnect button; the same action is the `Reconnect to SSH Host`
+  command. A host that fails Caxri Server's requirements (platform, glibc, a missing tool) offers
+  only Close Window, because reconnecting would fail the same way. Copy Details copies OpenSSH's or
+  the SSH Host's own message, and a changed host key adds Copy Command for the `ssh-keygen -R`
+  command that removes the stale `known_hosts` entry.
 - **Close and quit only detach.** The SSH Host keeps its Terminals and Agents. The Server there
   exits through the normal idle exit ([ADR 0010](adr/0010-server-core-idle-exit.md)), which waits
   while any PTY is live, or when the user runs **Stop Server on SSH Host**, which ends every

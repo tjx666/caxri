@@ -1,6 +1,8 @@
 import type { AgentProviderServiceStatus, AgentProviderStatusUptime } from '@caxri/protocol';
 import { agentProviderServiceStatuses } from '@caxri/protocol';
 
+import { localeNumberFormat } from '../../lib/locale-format';
+
 /**
  * Days drawn in a component's uptime strip, the same window status.openai.com draws.
  */
@@ -51,11 +53,9 @@ export function providerUptimeDays(
     });
 }
 
-const percentFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
-
 /**
- * `99.95`, or `100` rather than `100.00`, as the status page itself prints it.
+ * `99.95`, or `100` rather than `100.00`, as the status page itself prints it, in the interface language.
  */
 export function formatUptimePercent(percent: number): string {
-    return percentFormat.format(percent);
+    return localeNumberFormat({ maximumFractionDigits: 2 }).format(percent);
 }

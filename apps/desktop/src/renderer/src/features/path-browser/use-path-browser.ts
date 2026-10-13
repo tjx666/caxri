@@ -11,7 +11,6 @@ import { isDirectoryEntry } from '../../lib/file-entry';
 import { isImeComposing } from '../../lib/ime';
 import { setPathBrowserOpen } from '../../stores/dialogs';
 import { isRemote } from '../../stores/environment';
-import { describeFailure } from '../../stores/toasts';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import { createItem } from '../view-containers/resource-explorer/file-actions';
 import { activeResourceExplorerClient } from '../view-containers/resource-explorer-catalog-client';
@@ -25,6 +24,7 @@ import {
     completePathQuery,
     parsePathBrowserInput,
     pathBrowserCreateCandidate,
+    pathBrowserError,
     PathBrowserInputError,
     pathBrowserInputTransition,
     pathBrowserKeyIntent,
@@ -76,7 +76,7 @@ function isSnapshot(result: PathBrowserNavigationResult): result is PathBrowserS
 }
 
 function toBrowserError(value: unknown, fallback: string): Error {
-    return new Error(describeFailure(value, fallback));
+    return pathBrowserError(value, fallback, isRemote());
 }
 
 /**

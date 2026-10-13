@@ -1,8 +1,8 @@
 import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 
-import type { ChartCursorLayout } from './usage-chart-cursor';
-import { moveChartCursor } from './usage-chart-cursor';
+import type { ChartCursorLayout } from '../lib/chart-cursor';
+import { moveChartCursor } from '../lib/chart-cursor';
 
 interface CursorState {
     resetKey: string;
@@ -10,7 +10,7 @@ interface CursorState {
 }
 
 /**
- * The keyboard cursor of one focusable Usage chart (see `usage-chart-cursor.ts` for the keys). The cursor belongs to
+ * The keyboard cursor of one focusable chart (see `lib/chart-cursor.ts` for the keys). The cursor belongs to
  * `resetKey`: switching the Activity view changes what an index means, so a new key starts over at the summary rather
  * than landing on an item that does not exist. Leaving the chart also returns to the summary.
  *

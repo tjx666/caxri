@@ -4,7 +4,10 @@ import {
     agentChatCompactCommand,
     agentChatContextAlerts,
     agentChatContextAnnouncement,
+    agentChatContextPercent,
     agentChatContextUsage,
+    agentChatUndismissedContextAlerts,
+    isAgentChatCacheRewriteNoticeable,
 } from '../agent-chat-context';
 
 const MINUTE = 60_000;
@@ -45,13 +48,13 @@ describe('agentChatContextUsage', () => {
         });
     });
 
-    it('warns from 60% of the window and turns to danger from 85%', () => {
+    it('warns from 60% of the window and stays a warning past 85%, since a full context is advice', () => {
         const tone = (totalTokens: number) =>
             agentChatContextUsage({ usage: { totalTokens, contextWindow: 100_000 } })?.tone;
         expect(tone(59_999)).toBe('normal');
         expect(tone(60_000)).toBe('warning');
-        expect(tone(84_999)).toBe('warning');
-        expect(tone(85_000)).toBe('danger');
+        expect(tone(85_000)).toBe('warning');
+        expect(tone(100_000)).toBe('warning');
     });
 });
 
@@ -104,6 +107,16 @@ describe('agentChatContextAlerts', () => {
         });
     });
 
+    it('stays quiet about a cache whose rewrite costs too little to mention', () => {
+        expect(agentChatContextAlerts({ ...usage, cacheRewriteUsd: 0.24 }, 75 * MINUTE)).toEqual(
+            {},
+        );
+        expect(
+            agentChatContextAlerts({ ...usage, cacheRewriteUsd: 0.25 }, 75 * MINUTE).cache?.state,
+        ).toBe('expired');
+        expect(agentChatContextAlerts({ ...usage, cacheRewriteUsd: 0.1 }, 50 * MINUTE)).toEqual({});
+    });
+
     it('suggests compacting from 85% of the compaction window', () => {
         expect(
             agentChatContextAlerts({ ...usage, totalTokens: 237_000, compactWindow: 280_000 }, 0)
@@ -117,6 +130,36 @@ describe('agentChatContextAlerts', () => {
                 detail: 'The conversation fills 86% of the window the Agent compacts at. Compacting now keeps answers sharp.',
             },
         });
+    });
+});
+
+describe('isAgentChatCacheRewriteNoticeable', () => {
+    it('needs a $0.25 rewrite, or 40k tokens when the model has no price', () => {
+        expect(isAgentChatCacheRewriteNoticeable({ totalTokens: 1, cacheRewriteUsd: 0.25 })).toBe(
+            true,
+        );
+        expect(
+            isAgentChatCacheRewriteNoticeable({ totalTokens: 500_000, cacheRewriteUsd: 0.2 }),
+        ).toBe(false);
+        expect(isAgentChatCacheRewriteNoticeable({ totalTokens: 39_999 })).toBe(false);
+        expect(isAgentChatCacheRewriteNoticeable({ totalTokens: 40_000 })).toBe(true);
+    });
+});
+
+describe('agentChatUndismissedContextAlerts', () => {
+    const cache = { state: 'expired' as const, text: 'cache', detail: 'cache detail' };
+    const pressure = { text: 'pressure', detail: 'pressure detail' };
+
+    it('hides the cache notice dismissed after the current reply, keeping the pressure notice', () => {
+        expect(agentChatUndismissedContextAlerts({ cache, pressure }, 100, 100)).toEqual({
+            pressure,
+        });
+        expect(agentChatUndismissedContextAlerts({ cache }, 100, 100)).toEqual({});
+    });
+
+    it('shows the cache notice again once a newer reply arrives, or when nothing was dismissed', () => {
+        expect(agentChatUndismissedContextAlerts({ cache }, 200, 100)).toEqual({ cache });
+        expect(agentChatUndismissedContextAlerts({ cache }, 100, undefined)).toEqual({ cache });
     });
 });
 
@@ -151,5 +194,14 @@ describe('agentChatContextAnnouncement', () => {
         expect(at(75, 900_000)).toBe(
             'Prompt cache expired. Context nearly full, consider compacting',
         );
+    });
+});
+
+describe('agentChatContextPercent', () => {
+    it('rounds the share to a whole percent, clamped to the window', () => {
+        expect(agentChatContextPercent(2040, 160_000)).toBe(1);
+        expect(agentChatContextPercent(150_000, 160_000)).toBe(94);
+        expect(agentChatContextPercent(200_000, 160_000)).toBe(100);
+        expect(agentChatContextPercent(10, 0)).toBe(0);
     });
 });

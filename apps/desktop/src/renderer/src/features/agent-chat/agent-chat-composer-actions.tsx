@@ -27,15 +27,17 @@ function AgentChatSendButton({
     isQueueing,
     isSendable,
     sendAction,
+    shortcut,
     tooltip,
 }: {
     isQueueing: boolean;
     isSendable: boolean;
     sendAction: { label: string; tooltip: string };
+    shortcut: string | undefined;
     tooltip: string;
 }) {
     return (
-        <Tooltip content={tooltip}>
+        <Tooltip content={tooltip} shortcut={shortcut}>
             <Button
                 aria-disabled={!isSendable || undefined}
                 aria-label={sendAction.label}
@@ -77,6 +79,7 @@ export function AgentChatComposerActions({
     onStop,
     recentSessions,
     sendAction,
+    sendShortcut,
     sendTooltip,
     showsStop,
     snapshot,
@@ -130,6 +133,10 @@ export function AgentChatComposerActions({
      */
     recentSessions: readonly SessionReferenceCandidate[];
     sendAction: { label: string; tooltip: string };
+    /**
+     * The keycap beside {@link sendTooltip}, absent while the tooltip says why Send cannot act.
+     */
+    sendShortcut: string | undefined;
     sendTooltip: string;
     showsStop: boolean;
     snapshot:
@@ -208,6 +215,7 @@ export function AgentChatComposerActions({
                     isQueueing={isQueueing}
                     isSendable={isSendable}
                     sendAction={sendAction}
+                    shortcut={sendShortcut}
                     tooltip={sendTooltip}
                 />
             )}

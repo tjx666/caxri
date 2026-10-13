@@ -32,7 +32,7 @@ export function ContextDetailCards({ composition }: { composition: AgentChatCont
     const memory = memoryRows(composition);
     const agents = agentRows(t, composition);
     return (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(22rem,1fr))] items-start gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(22rem,100%),1fr))] items-start gap-3">
             {messages && (
                 <TokenListCard
                     caption={formatTokens(messageTokens(messages))}

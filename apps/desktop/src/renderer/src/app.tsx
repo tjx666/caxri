@@ -53,6 +53,7 @@ import { activeWorkbenchFocusElement } from './features/workbench/workbench-focu
 import { WorkbenchRootPrompt } from './features/workbench/workbench-root-prompt';
 import { useStartupLoaderRemoval } from './hooks/use-startup-loader-removal';
 import { useWorkbenchAppearance } from './hooks/use-workbench-appearance';
+import { useTranslation } from './i18n';
 import { registerPickerFallbackFocus } from './lib/picker-final-focus';
 import { cn } from './lib/utilities';
 import { queryClient } from './queries/client';
@@ -139,6 +140,7 @@ function useRuntimeAttachment(): void {
 }
 
 export function App() {
+    const { t } = useTranslation();
     const isAttached = useWorkbenchStore((state) => state.bootstrap !== undefined);
     const primarySidebarWidth = useChromeLayoutStore((state) => state.primarySidebarWidth);
     const secondarySidebarWidth = useChromeLayoutStore((state) => state.secondarySidebarWidth);
@@ -238,7 +240,7 @@ export function App() {
                     )}
                     {isPrimarySidebarVisible && (
                         <PanelDivider
-                            ariaLabel="Resize Primary Side Bar"
+                            ariaLabel={t('workbench.resizePrimarySidebar')}
                             size={primarySidebarWidth}
                             min={PRIMARY_SIDEBAR_MIN_WIDTH}
                             max={PRIMARY_SIDEBAR_MAX_WIDTH}
@@ -256,7 +258,7 @@ export function App() {
                     </RendererPerformanceProfiler>
                     {isSecondarySidebarVisible && (
                         <PanelDivider
-                            ariaLabel="Resize Secondary Side Bar"
+                            ariaLabel={t('workbench.resizeSecondarySidebar')}
                             size={secondarySidebarWidth}
                             min={SECONDARY_SIDEBAR_MIN_WIDTH}
                             max={SECONDARY_SIDEBAR_MAX_WIDTH}

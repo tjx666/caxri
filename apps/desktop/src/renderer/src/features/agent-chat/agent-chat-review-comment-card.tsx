@@ -26,7 +26,7 @@ const CARD_CLASS_NAME =
  * Writing a comment on a turn's diff, with the Git diff review card's keys: Cmd+Enter adds it to the Chat's message and
  * Escape cancels. Escape in a card that holds text clears the text first, so one stray key cannot throw away a written
  * comment; a second Escape cancels. Nothing is sent; the comment waits in the composer with the rest of the message.
- * Add to Chat stays focusable while there is nothing to add (`aria-disabled`), so its tooltip still names the
+ * Add to message stays focusable while there is nothing to add (`aria-disabled`), so its tooltip still names the
  * shortcut.
  */
 export function AgentChatReviewCommentCard({
