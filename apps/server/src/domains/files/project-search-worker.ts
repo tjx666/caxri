@@ -1,11 +1,16 @@
 import { Buffer } from 'node:buffer';
 import { constants } from 'node:fs';
-import type { FileHandle } from 'node:fs/promises';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
 
 import type { FileSearchMatch, FileSearchMode, FileSearchTerminationReason } from '@caxri/protocol';
+
+/*
+ * The `.ts` extension is deliberate: the Worker's tests run this source directly as a Worker under Node's type
+ * stripping, which resolves relative imports only by their full file name. The imported module uses Node builtins only.
+ */
+import { readFileHandleUpTo } from '../read-file-handle-up-to.ts';
 
 const MAX_PREVIEW_LENGTH = 300;
 const MAX_IN_FLIGHT_CONTENT_BYTES = 64 * 1024 * 1024;
@@ -175,8 +180,12 @@ async function readCandidate(
                 opened.size > maxFileBytes
             )
                 return;
-            const buffer = await readBoundedFile(file, opened.size, maxFileBytes);
-            if (!buffer) return;
+            /*
+             * Reads at most one byte beyond the configured limit: a repository process may grow a file after `fstat`,
+             * and `readFile` would let that race allocate beyond the search budget before the Worker could reject it.
+             */
+            const buffer = await readFileHandleUpTo(file, opened.size, maxFileBytes);
+            if (buffer.length > maxFileBytes) return;
             if (buffer.subarray(0, 8_192).includes(0)) return;
             return { content: buffer.toString('utf8'), path };
         } finally {
@@ -185,35 +194,6 @@ async function readCandidate(
     } catch {
         return;
     }
-}
-
-/**
- * Reads at most one byte beyond the configured limit. A repository process may grow a file after `fstat`; using
- * `readFile` here would let that race allocate beyond the search budget before the Worker could reject it. The buffer
- * starts at the `fstat` size rather than the cap: a cap-sized Buffer per file kept this Worker in back-to-back full
- * GCs. Same loop as `readFileHandleUpTo` in `../bounded-file-reader.ts`; this Worker imports only Node builtins at
- * runtime because its tests run this source directly as a Worker.
- */
-async function readBoundedFile(
-    file: FileHandle,
-    sizeHint: number,
-    maxFileBytes: number,
-): Promise<Buffer | undefined> {
-    let buffer = Buffer.allocUnsafe(Math.min(sizeHint, maxFileBytes) + 1);
-    let offset = 0;
-    for (;;) {
-        if (offset === buffer.length) {
-            if (buffer.length > maxFileBytes) return;
-            const grown = Buffer.allocUnsafe(maxFileBytes + 1);
-            buffer.copy(grown, 0, 0, offset);
-            buffer = grown;
-        }
-        // eslint-disable-next-line no-await-in-loop -- partial reads must fill one bounded buffer before decoding
-        const { bytesRead } = await file.read(buffer, offset, buffer.length - offset, offset);
-        if (bytesRead === 0) break;
-        offset += bytesRead;
-    }
-    return buffer.subarray(0, offset);
 }
 
 function previewLine(
