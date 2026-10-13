@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { createContext, useContext, useLayoutEffect, useState } from 'react';
 
 import { cn } from '@/lib/utilities';
 
-import { scheduleLoadingSkeletonReveal } from './loading-skeleton-delay';
+import type { LoadingSkeletonClock } from './loading-skeleton-delay';
+import {
+    claimLoadingSkeletonClock,
+    createLoadingSkeletonClock,
+    releaseLoadingSkeletonClock,
+    remainingLoadingSkeletonDelay,
+    scheduleLoadingSkeletonReveal,
+} from './loading-skeleton-delay';
 import { Skeleton } from './ui/skeleton';
 
 /**
@@ -29,6 +37,23 @@ const DOCUMENT_LINES: ReadonlyArray<{ indent: number; width?: string }> = [
     { indent: 1, width: '60%' },
 ];
 const DOCUMENT_INDENT_REM = 1.25;
+
+const LoadingSkeletonClockContext = createContext<LoadingSkeletonClock | undefined>(undefined);
+
+/**
+ * Makes the placeholders inside one surface (an editor pane, a tree view) share one wait. A placeholder that takes over
+ * from another, such as the editor module load after the file read, continues that wait's delay instead of restarting
+ * it, so the surface never draws a skeleton, goes blank, and draws it again. Outside a scope every placeholder times
+ * its own wait.
+ */
+export function LoadingSkeletonScope({ children }: { children: ReactNode }) {
+    const [clock] = useState(createLoadingSkeletonClock);
+    return (
+        <LoadingSkeletonClockContext.Provider value={clock}>
+            {children}
+        </LoadingSkeletonClockContext.Provider>
+    );
+}
 
 type LoadingSkeletonProperties = {
     /**
@@ -70,12 +95,30 @@ type LoadingSkeletonProperties = {
  * named by `label`, so assistive tech still hears what is loading.
  *
  * The region mounts at once (still `aria-busy`, still named), but its shapes wait `LOADING_SKELETON_DELAY_MS`: a local
- * load that finishes first never flashes a skeleton.
+ * load that finishes first never flashes a skeleton. Inside a `LoadingSkeletonScope` the delay counts from when the
+ * scope's wait began, not from this mount.
  */
 export function LoadingSkeleton(properties: LoadingSkeletonProperties) {
     const { label, className } = properties;
+    const clock = useContext(LoadingSkeletonClockContext);
     const [isRevealed, setRevealed] = useState(false);
-    useEffect(() => scheduleLoadingSkeletonReveal(() => setRevealed(true)), []);
+    // A layout effect, so a placeholder continuing a wait already past the delay draws its shapes before the first
+    // paint instead of showing one blank frame.
+    useLayoutEffect(() => {
+        const now = performance.now();
+        const startedAt = clock ? claimLoadingSkeletonClock(clock, now) : now;
+        const remaining = remainingLoadingSkeletonDelay(startedAt, now);
+        const cancel =
+            remaining === 0
+                ? undefined
+                : scheduleLoadingSkeletonReveal(() => setRevealed(true), undefined, remaining);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- must land before paint, see above
+        if (remaining === 0) setRevealed(true);
+        return () => {
+            cancel?.();
+            if (clock) releaseLoadingSkeletonClock(clock, performance.now());
+        };
+    }, [clock]);
     const region = {
         'role': 'status',
         'aria-label': label,
