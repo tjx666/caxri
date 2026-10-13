@@ -385,10 +385,21 @@ test('Process Explorer follows the language setting, including while it is open'
 
         await expect(processPage.getByRole('treegrid', { name: 'Caxri 进程' })).toBeVisible();
         await expect(processPage.getByRole('region', { name: '资源概览' })).toBeVisible();
+        /**
+         * The native title is what the Window menu, Mission Control, and the Dock list; the hidden-inset title bar
+         * never shows it, so only `BrowserWindow.getTitle()` can prove it follows the language.
+         */
+        const nativeTitles = () =>
+            running.app.evaluate(({ BrowserWindow }) =>
+                BrowserWindow.getAllWindows().map((window) => window.getTitle()),
+            );
+        await expect.poll(nativeTitles).toContain('进程资源管理器 — Caxri');
 
         await setLanguage('en');
         await expect(processPage.getByRole('treegrid', { name: 'Caxri processes' })).toBeVisible();
         await expect(processPage.getByRole('region', { name: 'Resource summary' })).toBeVisible();
+        await expect.poll(nativeTitles).toContain('Process Explorer — Caxri');
+        expect(await nativeTitles()).not.toContain('进程资源管理器 — Caxri');
     } finally {
         try {
             await running.app.close();

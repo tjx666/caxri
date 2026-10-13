@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -16,9 +17,17 @@ import { logEventCatalog } from '@caxri/system';
 import { maxBy } from 'es-toolkit';
 import { z } from 'zod';
 
+import type { CappedBodyEnd } from './read-capped-body';
+import { readCappedBody } from './read-capped-body';
+
 type Fetch = (url: string, init: { signal: AbortSignal }) => Promise<Response>;
 
 const FETCH_TIMEOUT_MS = 10_000;
+/**
+ * The largest status response read. The Statuspage summary is about 6 KiB and the 90-day incident.io impact history
+ * about 100 KiB, so this leaves an order of magnitude of headroom while a runaway body never buffers whole in Main.
+ */
+const MAX_STATUS_PAGE_BYTES = 2 * 1024 * 1024;
 /**
  * Both pages publish a component change within a minute or two of an incident being declared, so a minute of caching
  * loses nothing a user acts on while every hover card and open status page share one request per provider.
@@ -347,9 +356,24 @@ async function fetchJson(fetch: Fetch, url: string): Promise<unknown> {
     } catch {
         throw new StatusReadError('network');
     }
-    if (!response.ok) throw new StatusReadError('http');
+    if (!response.ok) {
+        // eslint-disable-next-line no-void -- an error page's body is never read
+        void response.body?.cancel().catch(() => {});
+        throw new StatusReadError('http');
+    }
+    const chunks: Uint8Array[] = [];
+    let end: CappedBodyEnd;
     try {
-        return await response.json();
+        end = await readCappedBody(response, MAX_STATUS_PAGE_BYTES, (chunk) => {
+            chunks.push(chunk);
+        });
+    } catch {
+        throw new StatusReadError('network');
+    }
+    // A page past the cap is not a status summary any more; it is reported like any other unexpected shape.
+    if (end !== 'end') throw new StatusReadError('invalidResponse');
+    try {
+        return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
     } catch {
         throw new StatusReadError('invalidResponse');
     }

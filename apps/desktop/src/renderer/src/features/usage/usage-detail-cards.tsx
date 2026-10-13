@@ -9,6 +9,7 @@ import {
     numericHeadClass,
     tableHeadClass,
 } from '../../components/report-table-classes';
+import { HorizontalScrollArea } from '../../components/scroll-fade';
 import { ShareBar } from '../../components/share-bar';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
@@ -73,9 +74,10 @@ function ModelsCard({ report }: { report: UsageReport }) {
             ) : (
                 /*
                  * The model column keeps at least 10rem beside the four figures, so a narrow pane scrolls the table
-                 * sideways instead of clipping every model name to the same couple of characters.
+                 * sideways instead of clipping every model name to the same couple of characters. The scroll area fades the edge
+                 * that hides columns, since a resting overlay scrollbar gives no sign of them.
                  */
-                <div className="overflow-x-auto">
+                <HorizontalScrollArea>
                     <table className="w-full min-w-[30rem] table-fixed border-collapse">
                         <thead>
                             <tr>
@@ -118,7 +120,7 @@ function ModelsCard({ report }: { report: UsageReport }) {
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </HorizontalScrollArea>
             )}
         </ReportCard>
     );
@@ -200,7 +202,7 @@ function SessionsCard({ report }: { report: UsageReport }) {
                  * Like the Models table: the title column keeps at least 10rem beside the fixed columns, and a narrow pane
                  * scrolls the table sideways instead of folding the header and pushing the last column past the card.
                  */
-                <div className="overflow-x-auto">
+                <HorizontalScrollArea>
                     <table className="w-full min-w-[36rem] table-fixed border-collapse">
                         <thead>
                             <tr>
@@ -284,7 +286,7 @@ function SessionsCard({ report }: { report: UsageReport }) {
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </HorizontalScrollArea>
             )}
         </ReportCard>
     );

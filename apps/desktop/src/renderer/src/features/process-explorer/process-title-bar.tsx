@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 import { RefreshCw } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
@@ -12,10 +14,19 @@ export function ProcessTitleBar({
     onRefresh: () => void;
 }) {
     const { t } = useTranslation();
+    const title = t('processExplorer.title');
+    /**
+     * The hidden-inset title bar never shows the native title, but the Window menu, Mission Control, and the Dock list
+     * the window by it. Electron mirrors `document.title` onto the `BrowserWindow`, so this keeps the native title in
+     * the current language, including after a language change while the window is open.
+     */
+    useEffect(() => {
+        document.title = title;
+    }, [title]);
     return (
         <header className="process-titlebar relative flex items-center justify-center bg-title-bar-active-background px-12 pl-[84px] text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground">
             <strong className="overflow-hidden text-[12px] text-ellipsis whitespace-nowrap">
-                {t('processExplorer.title')}
+                {title}
             </strong>
             <Tooltip content={t('processExplorer.refresh')}>
                 <button
