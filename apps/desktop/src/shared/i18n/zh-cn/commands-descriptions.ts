@@ -55,9 +55,10 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.editor.sendReferenceToTerminal':
         '将当前文件路径和光标所在行（`@path#L12`）输入到最近打开的终端',
     'commands.description.editor.addReviewComment': '为 Git 差异中的所选行添加批注',
-    'commands.description.editor.openPreview': '以渲染预览显示当前 Markdown 或 SVG 文件',
+    'commands.description.editor.openPreview':
+        '以渲染预览显示当前 Markdown、SVG、CSV、Mermaid 或 PDF 文件',
     'commands.description.editor.openPreviewToSide':
-        '在源文件旁以渲染预览显示当前 Markdown 或 SVG 文件',
+        '在源文件旁以渲染预览显示当前 Markdown、SVG、CSV、Mermaid 或 PDF 文件',
     'commands.description.editor.openImportLink': '打开编辑器光标处导入路径所指向的文件',
     'commands.description.workbench.splitLeft': '将当前标签页拆分到左侧的新窗格',
     'commands.description.workbench.splitRight': '将当前标签页拆分到右侧的新窗格',
