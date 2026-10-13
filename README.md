@@ -5,6 +5,9 @@ agents. It groups durable Agent and Shell Sessions beneath local Projects: Agent
 focused editor, Files and Source Control views, and reliable agent attention signals, in one
 Electron app.
 
+Caxri is in active development and has not made its first public release. Repository visibility
+does not establish a support or compatibility commitment.
+
 ## Highlights
 
 - **Projects and Sessions.** A Project is a user-authorized folder. Sessions are durable
@@ -35,8 +38,17 @@ Electron app.
 - Xcode Command Line Tools
 - [`ni`](https://github.com/antfu-collective/ni)
 
-Tagged releases publish an unsigned Apple Silicon DMG only. Intel Macs can run from source; they
-do not receive a published disk image.
+The verified packaged distribution target is macOS on Apple Silicon. A release publishes two
+unsigned disk images from the same commit and version:
+
+- `Caxri-<version>-arm64.dmg` includes production Source Maps and is the default install and update
+  asset.
+- `Caxri-<version>-arm64-nosourcemap.dmg` excludes product Source Maps and must be selected
+  explicitly.
+
+Each disk image has a matching `.sha256` file. Intel Macs can run from source but do not receive a
+published disk image. Windows and Linux desktop builds have not been validated and are not part of
+the current distribution scope.
 
 ## Quick start
 
@@ -51,14 +63,16 @@ worktrees start through `$switch-worktree` so each checkout gets its own profile
 
 Desktop, Server Core, Terminal Host, and Extension Host logs are written beneath the active
 profile's `<userData>/logs/` directory. Unsigned development packages are written beneath
-`release.noindex/`. Tagged releases publish an unsigned Apple Silicon DMG. Install or upgrade the
-released app with `bun run install:caxri`: terminal downloads skip the Gatekeeper quarantine that
-makes browser-downloaded unsigned apps report as "damaged" (see [RELEASING.md](RELEASING.md)).
+`release.noindex/`. Install or upgrade the default Source Map release with
+`bun run install:caxri`: terminal downloads skip the Gatekeeper quarantine that makes
+browser-downloaded unsigned apps report as "damaged" (see [RELEASING.md](RELEASING.md)).
 
 Caxri's Server Core-owned native ESM extension model and ViewContainer contribution contract are
 described in [docs/extensions.md](docs/extensions.md).
 
-Caxri does not upload telemetry, terminal output, file content, or agent transcripts.
+Caxri's own diagnostics and reporting paths do not collect or upload source contents, Terminal
+output, or Agent transcripts. Caxri runs separately installed third-party Agent CLIs; their network
+behavior and data handling are governed by their respective vendors' terms and privacy policies.
 
 ## Command line
 
@@ -72,6 +86,21 @@ never directly to Caxri's database, settings, or logs. It covers Projects, Sessi
 settings, logs, diagnostics, events, desktop window control, and Agent automation, and embeds the
 version-matched `caxri-cli` Agent skill. The full manual, including output modes, mutation safety,
 and command authority boundaries, is in [docs/cli.md](docs/cli.md).
+
+## Community and support
+
+- [Open an Issue](https://github.com/tjx666/caxri/issues/new/choose) for a bug or feature request.
+  Issues are open for community use, but there is no response or resolution SLA.
+- Pull requests are welcome for review. The maintainer decides whether to merge each contribution,
+  and submission does not guarantee review or acceptance. See
+  [CONTRIBUTING.md](CONTRIBUTING.md).
+- Read [SECURITY.md](SECURITY.md) before reporting a vulnerability. Never post credentials,
+  sensitive exploit details, or private data in a public Issue.
+- See [SUPPORT.md](SUPPORT.md) for the boundary between bug reports, feature requests, security
+  reports, and general support.
+
+The project license and contribution authorization process are still being finalized. Do not infer
+license permissions from repository visibility; rely on the project `LICENSE` once it is published.
 
 ## Development
 
@@ -103,6 +132,9 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 | [GLOSSARY.md](GLOSSARY.md)                                                             | Product language: Projects, Sessions, Attention            |
 | [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                      |
 | [AGENTS.md](AGENTS.md)                                                                 | Contributor standing orders for coding agents              |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                                     | Issue and pull request contribution workflow               |
+| [SECURITY.md](SECURITY.md)                                                             | Private vulnerability reporting policy                     |
+| [SUPPORT.md](SUPPORT.md)                                                               | Community support scope and request routing                |
 | [docs/README.md](docs/README.md)                                                       | Full index of every living doc, ADR, and historical record |
 | [docs/cli.md](docs/cli.md)                                                             | The `caxri` CLI manual                                     |
 | [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                      |
