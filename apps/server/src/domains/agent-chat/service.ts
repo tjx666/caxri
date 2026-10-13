@@ -369,8 +369,8 @@ export class AgentChatService {
         return queueActions.sendQueuedNow(this.queueHost(), terminalId, id);
     }
 
-    resumeQueue(terminalId: string): void {
-        queueActions.resumeQueue(this.queueHost(), terminalId);
+    resumeQueue(terminalId: string): boolean {
+        return queueActions.didResumeQueue(this.queueHost(), terminalId);
     }
 
     respond(terminalId: string, requestId: string, response: AgentChatResponse): void {

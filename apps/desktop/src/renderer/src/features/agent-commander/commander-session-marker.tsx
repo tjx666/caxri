@@ -6,19 +6,15 @@ import { useCommanderSessionMarker } from './hooks/use-commander-session-marker'
 
 /**
  * The Workbench Session row's sign that the Agent Commander manages the Session: the same hand the Commander board and
- * its Hand Over button use. For a handed-over Agent conversation the label also warns that typing into it takes the
- * Session back, which otherwise happens silently on the first keystroke. Its own component, so a hand-over re-renders
- * this glyph rather than the whole row.
+ * its Hand Over button use. For a handed-over Agent conversation the label also warns what takes the Session back
+ * (typing into a PTY Agent, sending or stopping in a Chat), which otherwise happens silently. Its own component, so a
+ * hand-over re-renders this glyph rather than the whole row.
  */
 export function CommanderSessionMarker({ sessionId }: { sessionId: string }) {
     const { t } = useTranslation();
     const marker = useCommanderSessionMarker(sessionId);
     if (marker === 'none') return null;
-    const label = t(
-        marker === 'inputTakesBack'
-            ? 'agentCommander.sessionMarker.inputTakesBack'
-            : 'agentCommander.sessionMarker.managed',
-    );
+    const label = t(`agentCommander.sessionMarker.${marker}`);
     return (
         <Tooltip content={label}>
             <span

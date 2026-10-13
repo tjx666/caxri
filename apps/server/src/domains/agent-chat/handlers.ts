@@ -8,9 +8,9 @@ import type { AgentChatServiceOptions } from './service-options';
  * Core methods a Client uses to read and drive a Chat Terminal. `records` locates the provider's on-disk record, which
  * `agentChat.readImage` reads without the service or a provider process; `createSessionForProject` opens a fork.
  *
- * Every message, command, rewind, and interrupt a Client sends is human input: it takes a delegated Chat over from its
- * task, like typing into a PTY Agent. `AgentChatService.send` records that for a message itself; the other handlers
- * record it here. Answering an approval request is not human input.
+ * Every message, command, rewind, interrupt, and released queue a Client sends is human input: it takes a delegated
+ * Chat over from its task, like typing into a PTY Agent. `AgentChatService.send` records that for a message itself; the
+ * other handlers record it here. Answering an approval request is not human input.
  */
 export function createAgentChatHandlers(
     agentChat: AgentChatService,
@@ -136,8 +136,13 @@ export function createAgentChatHandlers(
             await agentChat.sendQueuedNow(terminalId, id);
             return null;
         },
+        /**
+         * Releasing paused queued messages sends them, so it takes the Chat over like `sendQueuedNow`. Delivery runs on
+         * the send chain, so recording it after the synchronous resume still precedes the messages.
+         */
         'agentChat.resumeQueue': ({ terminalId }) => {
-            agentChat.resumeQueue(terminalId);
+            if (agentChat.resumeQueue(terminalId))
+                agentChat.delegation.observeHumanInput(terminalId);
             return null;
         },
     };

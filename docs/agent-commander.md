@@ -547,31 +547,38 @@ carrying the user's note, and stores one hand-over record (`app_state` key `comm
 `apps/server/src/domains/commander/handover-records.ts`). An outside conversation first becomes a
 new Session holding a parked Agent Terminal bound to that conversation; nothing launches until the
 Session is opened or the Commander continues it. The record is `continuable` when the Session's
-Agent has a provider conversation the Commander can resume, otherwise `ownership_only` with a closed
-reason (`agent_missing`, `chat_surface`, `provider_session_missing`, `provider_unsupported`); the
-Commander may still start new work there. The board marks the row with a hand icon until the first
+Agent has a provider conversation the Commander can resume, whether that Agent runs in a PTY or as an
+[Agent Chat](agent-chat.md), otherwise `ownership_only` with a closed reason (`agent_missing`,
+`provider_session_missing`, `provider_unsupported`, or `chat_surface` for a Chat whose provider
+cannot correlate a Commander task, today Grok Build); the Commander may still start new work there.
+Records stored before Chats became continuable also carry `chat_surface`. The board marks the row with a hand icon until the first
 task continues it.
 
 **First continuation.** The Commander learns about a hand-over through the same content-free notice
 queue as delegation completions (see [Completion notices](#completion-notices)), with the hand-over
 ID. Its first task there is
 `agent delegate create --session <id> --prompt-file <path> --continue-handover <handover-id>`, which
-resumes that exact conversation instead of starting a fresh Agent, and consumes the record (see
+continues that exact conversation instead of starting a fresh Agent, and consumes the record (see
 [Agent delegation](agent-delegation.md#follow-up-stop-and-recovery)). While the Agent is in a turn
 the request is refused; a hand-over of a busy Agent is announced as `ready` once that turn ends.
 Notices the Commander lost to a restart are queued again on its next launch.
 
-**Take-back.** Typing into a handed-over Agent Terminal takes the Session back at once: the user is
-working there again, and the Commander must not take the conversation over afterwards. The
+**Take-back.** Typing into a handed-over Agent Terminal, or sending its Chat a message, command,
+rewind, interrupt, Send Now, or a queue Resume that releases queued messages from any Client, takes
+the Session back at once (a Chat draft does not): the user is working there
+again, and the Commander must not take the conversation over afterwards. Input the Chat receives
+from delegation, dispatch, or Commander notices does not. The
 Session's menu and `commander session take-back` do the same explicitly. Taking back never stops an
 Agent; tasks the Commander already started keep their receipts.
 
 Because a single keystroke ends the hand-over, the Workbench says so before and after. Every Session
 the Commander manages shows a small hand marker in the sidebar row
 (`agent-commander/commander-session-marker.tsx`); for a hand-over that continues an Agent
-conversation its label adds that typing there takes it back. When typing does take one back, the
+conversation its label adds that typing there takes it back, or for a Chat that sending a message or
+stopping there does. When typing does take one back, the
 main window shows an info toast naming the Session. Both read `commander.managedSessions`, which
-returns the managed IDs, the subset where input takes the Session back, and the most recent
+returns the managed IDs, the subset where input takes the Session back (and which of those are
+Chats), and the most recent
 input-caused take-backs (in Server Core memory, at most 16). The notice rides on that read instead
 of a dedicated event: every take-back already announces a full `state.changed`, after which the
 marker must re-read the set anyway, so one read serves both without adding an event to the

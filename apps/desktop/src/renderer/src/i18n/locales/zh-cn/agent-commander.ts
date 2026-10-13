@@ -282,7 +282,8 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.handover.noteLabel': '给 Commander 的备注',
     'agentCommander.handover.notePlaceholder':
         '可选：Commander 要做什么，例如“完成迁移并提交 pull request”',
-    'agentCommander.handover.takeBackHint': '在已转交的会话里输入内容会将其收回。',
+    'agentCommander.handover.takeBackHint':
+        '在已转交的会话里输入内容，或在其 Chat 中发送消息或停止，会将其收回。',
     'agentCommander.handover.selectedCount': '已选 {{count}} 项',
     'agentCommander.handover.submit': '转交',
     'agentCommander.handover.submitting': '正在转交…',
@@ -316,4 +317,6 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     // Workbench Session row marker
     'agentCommander.sessionMarker.managed': '由 Agent Commander 管理',
     'agentCommander.sessionMarker.inputTakesBack': '由 Agent Commander 管理 · 在这里输入会将其收回',
+    'agentCommander.sessionMarker.chatInputTakesBack':
+        '由 Agent Commander 管理 · 在这里发送消息或停止会将其收回',
 };

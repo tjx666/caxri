@@ -123,5 +123,21 @@ export function commanderHandoverAccess(
                 },
             });
         },
+        /**
+         * Clears the consumption only while this delegation still holds it; the task stays linked until the Commander's
+         * retry links its new delegation.
+         */
+        release: (handoverId: string, delegationId: string) => {
+            const handovers = commanderHandovers(database);
+            if (handovers.every((entry) => entry.firstDelegationId !== delegationId)) return;
+            writeCommanderHandovers(
+                database,
+                handovers.map((entry) =>
+                    entry.id === handoverId && entry.firstDelegationId === delegationId
+                        ? { ...entry, firstDelegationId: undefined }
+                        : entry,
+                ),
+            );
+        },
     };
 }

@@ -10,12 +10,14 @@ import {
 
 describe('commanderSessionMarker', () => {
     const managed = {
-        sessionIds: ['created', 'handed-over'],
-        inputTakeBackSessionIds: ['handed-over'],
+        sessionIds: ['created', 'handed-over', 'handed-over-chat'],
+        inputTakeBackSessionIds: ['handed-over', 'handed-over-chat'],
+        chatTakeBackSessionIds: ['handed-over-chat'],
     };
 
-    it('warns only where typing takes the Session back', () => {
+    it('warns only where input takes the Session back, with Chat wording for a Chat', () => {
         expect(commanderSessionMarker(managed, 'handed-over')).toBe('inputTakesBack');
+        expect(commanderSessionMarker(managed, 'handed-over-chat')).toBe('chatInputTakesBack');
         expect(commanderSessionMarker(managed, 'created')).toBe('managed');
         expect(commanderSessionMarker(managed, 'own')).toBe('none');
     });
