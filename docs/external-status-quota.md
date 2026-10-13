@@ -165,7 +165,7 @@ rollup, and paying for a rollup on hover is the cost this store exists to avoid.
 
 ### Review threads for the Status panel
 
-The Status panel's `Unresolved Comments` group needs `isResolved`, which only GitHub's GraphQL
+The Status panel's `Review` group needs `isResolved`, which only GitHub's GraphQL
 `reviewThreads` connection exposes; `gh pr view --json` cannot return it. `ReviewThreadStore`
 (`apps/server/src/domains/project-status/review-threads.ts`) therefore issues its own quota-governed
 `gh api graphql` query instead of widening the shared field union above, which would make the status
@@ -174,7 +174,12 @@ bar, the sidebar sweep, and Source Control pay for a field only the Status panel
 - Only an open or draft pull request is queried; a merged or closed one has no feedback left to act
   on.
 - One query reads the first 50 threads and each thread's opening comment. Resolved and outdated
-  threads are dropped on the Server.
+  threads are dropped on the Server, but still counted (`reviewThreadCount`), so the panel can say
+  `All resolved` rather than `No comments`.
+- The same query reads the first 30 conversation comments to find the review summary Codex keeps
+  (marked `<!-- codex-pull-request-review-summary -->`). Its table rows become `codexReviews`: the
+  review's status, the commit it covered, and its trigger, which is the only record of a Codex review
+  that left no comment. The `Review` group is therefore shown on every open or draft pull request.
 - Records are cached per pull request for 90s (the pull-request record's TTL) so an automatic
   refresh that reuses the PR record also reuses its threads. A manual refresh always asks again.
 - A failed read is never cached and never becomes a GitHub error row: the pull request goes out
