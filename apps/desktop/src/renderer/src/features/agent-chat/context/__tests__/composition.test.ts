@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    autoCompactAt,
     contextWindowSegments,
     inRequestOrder,
     mcpServerUsage,
@@ -82,5 +83,13 @@ describe('context composition', () => {
             'Read',
             'Bash',
         ]);
+    });
+});
+
+describe('autoCompactAt', () => {
+    it('names the threshold, falls back to the window, and is absent while auto-compact is off', () => {
+        expect(autoCompactAt(composition())).toBe(167_000);
+        expect(autoCompactAt(composition({ autoCompactThreshold: undefined }))).toBe(200_000);
+        expect(autoCompactAt(composition({ isAutoCompactEnabled: false }))).toBeUndefined();
     });
 });

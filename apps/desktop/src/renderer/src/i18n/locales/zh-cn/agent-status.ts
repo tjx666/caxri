@@ -35,6 +35,7 @@ export const agentStatus: TranslatedNamespace<typeof source> = {
     'agentStatus.throughput.notMeasured': '尚未测得任何响应。Agent 完成首次响应后将显示速度。',
     'agentStatus.throughput.chartLabel': '最近 {{count}} 次响应的输出速度',
     'agentStatus.throughput.barDescription': '{{variant}}：{{sample}}，完成于 {{time}}',
+    'agentStatus.throughput.averageLine': '平均 {{rate}}',
     'agentStatus.throughput.byModel': '按模型',
     'agentStatus.throughput.byModelCaption': '本 Agent Session 中所有已测量的响应',
     'agentStatus.throughput.byModel.model': '模型',

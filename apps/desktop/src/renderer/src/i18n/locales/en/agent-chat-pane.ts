@@ -36,6 +36,9 @@ export const agentChatPane = {
     'agentChat.userMenu.copyFailed': 'Unable to copy the message',
     'agentChat.userMenu.selectionCopied': 'Selection copied',
     'agentChat.userMenu.messageCopied': 'Message copied',
+    'agentChat.userMenu.addToMessage': 'Add to Message',
+    'agentChat.userMenu.historyUnavailable':
+        'Not available for earlier messages loaded from history',
     'agentChat.history.loadFailed': 'Earlier messages could not be loaded.',
     'agentChat.history.loading': 'Loading earlier messages…',
     'agentChat.history.unavailable':

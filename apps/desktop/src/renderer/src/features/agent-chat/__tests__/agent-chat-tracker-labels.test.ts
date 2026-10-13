@@ -1,7 +1,7 @@
 import type { AgentChatTrackerArtifact, TerminalReferencePreview } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { trackerPreviewTitle, trackerTitlePreviewRequest } from '../agent-chat-tracker-labels';
+import { trackerPreviewRequest, trackerPreviewTitle } from '../agent-chat-tracker-labels';
 
 function artifact(overrides: Partial<AgentChatTrackerArtifact> = {}): AgentChatTrackerArtifact {
     return {
@@ -29,29 +29,38 @@ function githubPreview(title: string): TerminalReferencePreview {
     };
 }
 
-describe('trackerTitlePreviewRequest', () => {
+describe('trackerPreviewRequest', () => {
     it('asks for an untitled GitHub pull request or issue by its reference', () => {
-        expect(trackerTitlePreviewRequest(artifact())).toEqual({
+        expect(trackerPreviewRequest(artifact())).toEqual({
             kind: 'github',
             owner: 'acme',
             repo: 'widgets',
             number: 7,
         });
         expect(
-            trackerTitlePreviewRequest(
-                artifact({ kind: 'issue', reference: 'acme/widgets.js#12' }),
-            ),
+            trackerPreviewRequest(artifact({ kind: 'issue', reference: 'acme/widgets.js#12' })),
         ).toEqual({ kind: 'github', owner: 'acme', repo: 'widgets.js', number: 12 });
     });
 
-    it('asks nothing for a titled card, another tracker, or an unparsable reference', () => {
-        expect(trackerTitlePreviewRequest(artifact({ title: 'Fix login' }))).toBeUndefined();
+    it('still asks about a titled pull request, whose glyph shows its live state', () => {
+        expect(trackerPreviewRequest(artifact({ title: 'Fix login' }))).toEqual({
+            kind: 'github',
+            owner: 'acme',
+            repo: 'widgets',
+            number: 7,
+        });
+    });
+
+    it('asks nothing for a titled issue, another tracker, or an unparsable reference', () => {
         expect(
-            trackerTitlePreviewRequest(
+            trackerPreviewRequest(artifact({ kind: 'issue', title: 'Fix login' })),
+        ).toBeUndefined();
+        expect(
+            trackerPreviewRequest(
                 artifact({ provider: 'linear', kind: 'issue', reference: 'ENG-123' }),
             ),
         ).toBeUndefined();
-        expect(trackerTitlePreviewRequest(artifact({ reference: 'widgets#7' }))).toBeUndefined();
+        expect(trackerPreviewRequest(artifact({ reference: 'widgets#7' }))).toBeUndefined();
     });
 });
 

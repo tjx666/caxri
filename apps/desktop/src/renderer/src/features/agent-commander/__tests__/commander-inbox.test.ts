@@ -7,6 +7,7 @@ import {
     inboxMentionCandidates,
     inboxMentionSuggestion,
     inboxReplyTarget,
+    inboxSendTooltip,
     insertInboxMentionTrigger,
     removeInboxMention,
 } from '../commander-inbox';
@@ -110,7 +111,7 @@ describe('Inbox mentions', () => {
             item({ id: 'c', title: 'Table', status: 'closed' }),
         ];
         expect(inboxMentionCandidates(items, 'TABLE').map(({ id }) => id)).toEqual(['a']);
-        expect(inboxMentionCandidates(items, 'needs you').map(({ id }) => id)).toEqual(['b']);
+        expect(inboxMentionCandidates(items, 'your action').map(({ id }) => id)).toEqual(['b']);
         expect(removeInboxMention('Use @tab two tables', { start: 4, end: 8 })).toEqual({
             text: 'Use  two tables',
             caret: 4,
@@ -126,7 +127,7 @@ describe('Inbox mentions', () => {
             key: 'b',
             label: 'Log in to the registry',
             isLabelLiteral: false,
-            description: 'Needs you',
+            description: 'Your action',
         });
     });
 
@@ -146,5 +147,15 @@ describe('insertInboxMentionTrigger', () => {
         expect(insertInboxMentionTrigger('Ship it', 7)).toEqual({ text: 'Ship it @', caret: 9 });
         expect(insertInboxMentionTrigger('Ship it ', 8)).toEqual({ text: 'Ship it @', caret: 9 });
         expect(insertInboxMentionTrigger('Ship it', 4)).toEqual({ text: 'Ship @ it', caret: 6 });
+    });
+});
+
+describe('inboxSendTooltip', () => {
+    it('says why Send cannot send before naming its shortcut', () => {
+        expect(inboxSendTooltip({ draft: 'Yes', hasTarget: false })).toBe(
+            'Choose an item with @ first',
+        );
+        expect(inboxSendTooltip({ draft: '  ', hasTarget: true })).toBe('Type a reply');
+        expect(inboxSendTooltip({ draft: 'Yes', hasTarget: true })).toBe('Send (Enter)');
     });
 });

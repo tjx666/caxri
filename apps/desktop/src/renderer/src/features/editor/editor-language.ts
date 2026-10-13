@@ -4,6 +4,12 @@
 export const DOTENV_LANGUAGE_ID = 'caxri-dotenv';
 export const IGNORE_LANGUAGE_ID = 'ignore';
 export const RC_LANGUAGE_ID = 'rc';
+/**
+ * Monaco ships no Mermaid grammar, so a `.mmd` file read as Plain Text. The id matches the one the Mermaid extensions
+ * and the file-icon theme use.
+ */
+export const MERMAID_LANGUAGE_ID = 'mermaid';
+export const MERMAID_LANGUAGE_EXTENSIONS = ['.mmd', '.mermaid'] as const;
 
 export const IGNORE_LANGUAGE_FILENAMES = [
     '.dockerignore',
@@ -43,6 +49,8 @@ export function resolveEditorLanguage(path: string): string | undefined {
         return DOTENV_LANGUAGE_ID;
     if (ignoreFilenames.has(filename) || filename.endsWith('.ignore')) return IGNORE_LANGUAGE_ID;
     if (/^\.[^.]+rc$/.test(filename)) return RC_LANGUAGE_ID;
+    if (MERMAID_LANGUAGE_EXTENSIONS.some((extension) => filename.endsWith(extension)))
+        return MERMAID_LANGUAGE_ID;
     return undefined;
 }
 

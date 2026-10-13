@@ -2,6 +2,7 @@ import type { UsageReport } from '@caxri/protocol';
 import { formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 import { localizedDuration } from '../../lib/usage-format';
 import {
     activityHighlights,
@@ -40,7 +41,7 @@ export function usageCoverageNotes(
         report.scope === 'all'
             ? t('usage.coverage.countsWithOutside', {
                   counted,
-                  outside: outside.toLocaleString('en-US'),
+                  outside: formatCount(outside),
               })
             : t('usage.coverage.counts', { counted }),
     ];
@@ -51,7 +52,7 @@ export function usageCoverageNotes(
                 coverage.unavailable === 1
                     ? 'usage.coverage.unavailableOne'
                     : 'usage.coverage.unavailableOther',
-                { count: coverage.unavailable.toLocaleString('en-US') },
+                { count: formatCount(coverage.unavailable) },
             ),
         );
     if (coverage.pendingPullRequests > 0)

@@ -8,7 +8,7 @@ import { Toggle } from '../../components/ui/toggle';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { useIsFullScreen, useProjectById, useTerminal } from '../../stores/selectors';
+import { useIsFullScreen, useTerminal } from '../../stores/selectors';
 import { AgentSurfaceToggle } from '../terminal/agent-surface-toggle';
 import { canSwitchTerminalSurface } from '../terminal/terminal-surface-commands';
 import { setCommanderBoardVisible, useCommanderBoardUiStore } from './commander-board-store';
@@ -30,8 +30,6 @@ export function AgentCommanderHeader() {
     const { t } = useTranslation();
     const workspacePath = useAgentCommanderStore((state) => state.workspacePath);
     const terminalId = useAgentCommanderStore((state) => state.identity?.terminalId);
-    const projectId = useAgentCommanderStore((state) => state.identity?.projectId);
-    const projectTitle = useProjectById(projectId)?.displayTitle;
     const terminal = useTerminal(terminalId ?? '');
     const isBoardVisible = useCommanderBoardUiStore((state) => state.isVisible);
     const isFullScreen = useIsFullScreen();
@@ -43,19 +41,21 @@ export function AgentCommanderHeader() {
             )}
         >
             {isFullScreen && <CaxriLogo />}
-            <h1 className="m-0 flex-none text-[13px] font-medium">
-                {t('agentCommander.window.title')}
-            </h1>
-            {workspacePath && (
-                /*
-                 * The workspace is a long generated folder, so the bar names its Project and the full path waits in
-                 * the tooltip. The label opts out of the drag region: a drag region swallows the hover a tooltip needs.
-                 */
+            {/*
+             * The Commander's folder is a generated one whose name (`agent-commander`) read as a raw slug beside the
+             * title, so the bar shows only the title and the folder's path waits in its tooltip. The title opts out of
+             * the drag region when it has a tooltip: a drag region swallows the hover a tooltip needs.
+             */}
+            {workspacePath ? (
                 <Tooltip content={workspacePath}>
-                    <span className="agent-commander-workspace min-w-0 truncate text-[12px] text-muted [-webkit-app-region:no-drag]">
-                        {projectTitle ?? workspacePath.split('/').at(-1)}
-                    </span>
+                    <h1 className="agent-commander-title m-0 flex-none text-[13px] font-medium [-webkit-app-region:no-drag]">
+                        {t('agentCommander.window.title')}
+                    </h1>
                 </Tooltip>
+            ) : (
+                <h1 className="agent-commander-title m-0 flex-none text-[13px] font-medium">
+                    {t('agentCommander.window.title')}
+                </h1>
             )}
             <div className="ml-auto flex flex-none items-center gap-2 [-webkit-app-region:no-drag]">
                 <CommanderColumnToggle
@@ -74,7 +74,7 @@ export function AgentCommanderHeader() {
                         onClick={() => openCommanderHandover()}
                     >
                         <HandHelping size={13} />
-                        {t('agentCommander.handover.open')}
+                        {t('agentCommander.handover.openEllipsis')}
                     </Button>
                 </Tooltip>
                 {terminal && canSwitchTerminalSurface(terminal) && (

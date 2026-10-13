@@ -56,6 +56,15 @@ describe('claudeContextDetails', () => {
         );
         expect(claudeContextDetails('not a response', 200_000)).toEqual({});
     });
+
+    it('names no compaction window while auto-compact is off', () => {
+        expect(
+            claudeContextDetails(
+                { categories: [], rawMaxTokens: 280_000, isAutoCompactEnabled: false },
+                1_000_000,
+            ),
+        ).toEqual({});
+    });
 });
 
 describe('ClaudeContextRefresh', () => {

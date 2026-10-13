@@ -6,10 +6,17 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.composer.message': '消息',
     'agentChat.composer.stop': '停止',
     'agentChat.composer.stopping': '正在停止',
-    'agentChat.composer.stopTooltip': '停止（Esc）',
+    'agentChat.composer.stopTooltip': '停止',
     'agentChat.composer.stoppingTooltip': '正在停止…',
     'agentChat.composer.pasteNoRoom':
         '消息过长，无法引用粘贴的文本。剪贴板内容未改变；请缩短消息后重新粘贴。',
+    'agentChat.composer.longPasteSaved': '长文本已保存为文件',
+    'agentChat.composer.pasteAsText': '作为文本粘贴',
+    'agentChat.composer.pasteAsTextGone': '消息中已没有这段保存的粘贴内容',
+    'agentChat.composer.pasteAsTextTooLong': '粘贴的文本已无法放入这条消息',
+    'agentChat.composer.plainPasteFailed': '无法读取剪贴板',
+    'agentChat.composer.plainPasteTooLong':
+        '文本过长，无法直接粘贴到消息中。请用 ⌘V 粘贴，改为以文件引用。',
     'agentChat.composer.fileHasNoPath':
         '该文件在磁盘上没有可插入的路径。请先保存，再拖入保存后的文件。',
     'agentChat.composer.localFileOnSshHost':
@@ -95,18 +102,19 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.edit.cancel': '取消编辑',
 
     'agentChat.model.default': '默认',
-    'agentChat.model.chooseEffort': '选择强度',
     'agentChat.model.chooseModel': '选择模型',
     'agentChat.model.chooseModelFor': '{{model}}，选择模型',
+    'agentChat.model.backToEffort': '返回推理强度',
     'agentChat.model.resetEffort': '重置为默认',
     'agentChat.model.reasoningEffort': '推理强度',
     'agentChat.model.switching': '正在切换',
     'agentChat.model.triggerLabel': '模型：{{model}}',
     'agentChat.model.triggerEffort': '，{{effort}}推理强度',
     'agentChat.model.triggerUltracode': '，Ultracode 已开启',
+    'agentChat.model.ultracode': 'Ultracode',
     'agentChat.model.ultracodeDescription': '任意推理强度下均可使用多 Agent 工作流',
     'agentChat.model.triggerFast': '，Fast 模式已开启',
-    'agentChat.model.fast': 'Fast',
+    'agentChat.model.fast': '快速模式',
     'agentChat.model.fastDescription': '响应更快，用量更高',
     'agentChat.model.effort.none': '无',
     'agentChat.model.effort.minimal': '最低',
@@ -162,6 +170,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
         '打开一个新对话，读取当前对话的记录并继续工作。你的草稿会一并带过去。',
     'agentChat.context.continueInNewChat': '在新对话中继续',
     'agentChat.context.compact': '压缩',
+    'agentChat.context.dismissCache': '下次回复前不再提示',
     'agentChat.context.cacheCost': '（预计约 {{cost}}）',
     'agentChat.context.cacheText': '已闲置 {{duration}} · 下次回复将重新读取整个对话{{cost}}',
     'agentChat.context.cacheDetail':

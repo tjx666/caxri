@@ -23,10 +23,26 @@ function toResolvedIcon(filename: string): ResolvedFileIcon {
 }
 
 /**
+ * Extensions the icon package cannot map on its own. Its theme keys Mermaid by the `mermaid` language id, which only a
+ * third-party VS Code extension contributes, so `.mmd` and `.mermaid` fell through to the blank default icon while
+ * Caxri itself previews and highlights them as Mermaid.
+ */
+const LOCAL_EXTENSION_ICONS: Readonly<Record<string, string>> = {
+    mermaid: 'file_type_mermaid.svg',
+    mmd: 'file_type_mermaid.svg',
+};
+
+/**
  * `@yutengjing/vscode-icons`'s lookup tables are already case-insensitive, so a single call is enough.
  */
 function resolveFileIconFilename(name: string): string {
-    return getIconForFile(name) ?? DEFAULT_FILE;
+    const packaged = getIconForFile(name);
+    if (packaged) return packaged;
+    const dot = name.lastIndexOf('.');
+    return (
+        (dot === -1 ? undefined : LOCAL_EXTENSION_ICONS[name.slice(dot + 1).toLowerCase()]) ??
+        DEFAULT_FILE
+    );
 }
 
 /**

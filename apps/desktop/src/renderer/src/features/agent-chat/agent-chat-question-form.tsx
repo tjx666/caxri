@@ -16,8 +16,10 @@ import { Input, InputGroup } from '../../components/ui/input';
 import { Kbd } from '../../components/ui/kbd';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import type { QuestionFormPrimaryAction } from './agent-chat-question-flow';
 import {
     agentChatQuestionResponse,
+    questionFormPrimaryAction,
     questionOptionIndexForArrow,
     questionOptionIndexForKey,
 } from './agent-chat-question-flow';
@@ -224,21 +226,26 @@ function TypedAnswerRow({
 }
 
 /**
- * Skip dismisses the whole request; Submit sends whatever is answered and shows the Enter hint only when Enter would
- * send rather than move to the next question.
+ * Skip dismisses the whole request. The primary button reads Next while a question the user has not opened is still
+ * unanswered, and Submit once there is none; Submit sends whatever is answered and shows the Enter hint only when Enter
+ * would send rather than move to the next question.
  */
 function QuestionFormFooter({
     canSubmit,
     isAnswering,
     isEnterSends,
+    onNext,
     onSkip,
     onSubmit,
+    primaryAction,
 }: {
     canSubmit: boolean;
     isAnswering: boolean;
     isEnterSends: boolean;
+    onNext: (index: number) => void;
     onSkip: () => void;
     onSubmit: () => void;
+    primaryAction: QuestionFormPrimaryAction;
 }) {
     const { t } = useTranslation();
     return (
@@ -255,19 +262,29 @@ function QuestionFormFooter({
                     Esc
                 </Kbd>
             </Button>
-            <Button
-                aria-keyshortcuts={isEnterSends ? 'Enter' : undefined}
-                disabled={!canSubmit || isAnswering}
-                size="sm"
-                onClick={onSubmit}
-            >
-                {t('agentChat.request.submit')}
-                {isEnterSends && (
-                    <Kbd aria-hidden className="border-current bg-transparent" size="compact">
-                        ↵
-                    </Kbd>
-                )}
-            </Button>
+            {primaryAction.kind === 'next' ? (
+                <Button
+                    disabled={isAnswering}
+                    size="sm"
+                    onClick={() => onNext(primaryAction.index)}
+                >
+                    {t('agentChat.request.next')}
+                </Button>
+            ) : (
+                <Button
+                    aria-keyshortcuts={isEnterSends ? 'Enter' : undefined}
+                    disabled={!canSubmit || isAnswering}
+                    size="sm"
+                    onClick={onSubmit}
+                >
+                    {t('agentChat.request.submit')}
+                    {isEnterSends && (
+                        <Kbd aria-hidden className="border-current bg-transparent" size="compact">
+                            ↵
+                        </Kbd>
+                    )}
+                </Button>
+            )}
         </div>
     );
 }
@@ -277,8 +294,10 @@ function QuestionFormFooter({
  * height of one question however many are asked and every question stays one click away: a tab carries a check once its
  * question has an answer. Options are numbered rows and a free-text answer, when allowed, is the last numbered row.
  * Answering a question (a click, Enter, or its digit) moves to the next question still unanswered, and answering the
- * last one sends them all; Submit sends whatever is answered at any point. The recommended option starts selected, so
- * Submit alone accepts every recommendation. Skip (or Esc) dismisses the whole request.
+ * last one sends them all. While a question the user has not opened is still unanswered the primary button reads Next
+ * and opens it, so a submission never records an unseen question as skipped; after that, Submit sends whatever is
+ * answered. The recommended option starts selected, so Next through to Submit accepts every recommendation. Skip (or
+ * Esc) dismisses the whole request.
  */
 export function AgentChatQuestionForm({
     isAnswering,
@@ -295,6 +314,15 @@ export function AgentChatQuestionForm({
 }) {
     const idPrefix = useId();
     const [index, setIndex] = useState(0);
+    /**
+     * Questions the user has opened. An unanswered question in this set was left blank on purpose; one outside it was
+     * never seen, so the primary button offers Next to it instead of Submit.
+     */
+    const [seen, setSeen] = useState<ReadonlySet<number>>(() => new Set([0]));
+    const openQuestion = (nextIndex: number): void => {
+        setIndex(nextIndex);
+        setSeen((current) => (current.has(nextIndex) ? current : new Set([...current, nextIndex])));
+    };
     const [selected, setSelected] = useState(() => agentChatQuestionDefaults(request));
     const [typed, setTyped] = useState<Partial<Record<string, string>>>({});
     const optionReferences = useRef<Array<HTMLButtonElement | null>>([]);
@@ -342,7 +370,7 @@ export function AgentChatQuestionForm({
             panelReference.current?.contains(document.activeElement) ?? false;
         setSelected(nextSelected);
         setTyped(nextTyped);
-        setIndex(nextIndex);
+        openQuestion(nextIndex);
     };
     const withoutTyped = (): Partial<Record<string, string>> => {
         const rest = { ...typed };
@@ -446,7 +474,7 @@ export function AgentChatQuestionForm({
                         idPrefix={idPrefix}
                         index={index}
                         request={request}
-                        onIndexChange={setIndex}
+                        onIndexChange={openQuestion}
                     />
                     <ChromeTabPanel active idPrefix={idPrefix} value={String(index)}>
                         {questionBody}
@@ -459,6 +487,16 @@ export function AgentChatQuestionForm({
                 canSubmit={Object.keys(answers).length > 0}
                 isAnswering={isAnswering}
                 isEnterSends={isEnterSends}
+                primaryAction={questionFormPrimaryAction(
+                    request.questions.map((item) => item.id),
+                    answers,
+                    index,
+                    seen,
+                )}
+                onNext={(nextIndex) => {
+                    shouldFocusQuestion.current = true;
+                    openQuestion(nextIndex);
+                }}
                 onSkip={() => respond({ kind: 'decision', decision: 'cancel' })}
                 onSubmit={() => respond(agentChatQuestionResponse(answers))}
             />

@@ -195,7 +195,7 @@
     background: var(--elevated);
     color: var(--muted);
     opacity: 0;
-    transition: opacity var(--motion-tab-enter) var(--motion-ease-enter);
+    transition: opacity var(--motion-feedback) var(--motion-ease-enter);
     cursor: pointer;
 }
 

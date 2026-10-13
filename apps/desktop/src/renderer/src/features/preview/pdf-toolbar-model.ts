@@ -38,6 +38,19 @@ export function clampPdfPageNumber(value: number, pageCount: number, current: nu
 }
 
 /**
+ * The page the toolbar's previous (`-1`) or next (`1`) button goes to, or `undefined` at the document's edge so the
+ * button can disable instead of re-announcing the page the reader is already on.
+ */
+export function adjacentPdfPage(
+    current: number,
+    step: -1 | 1,
+    pageCount: number,
+): number | undefined {
+    const target = clampPdfPageNumber(current + step, pageCount, current);
+    return target === current ? undefined : target;
+}
+
+/**
  * Reads what the user typed into the page field. An empty or non-numeric entry keeps the current page.
  */
 export function parsePdfPageInput(text: string, pageCount: number, current: number): number {

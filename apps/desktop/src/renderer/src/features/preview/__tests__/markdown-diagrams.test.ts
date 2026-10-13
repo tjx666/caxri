@@ -6,11 +6,15 @@ const initialize = vi.fn<(config: { themeVariables?: Record<string, string> }) =
 vi.mock('mermaid', () => ({ default: { initialize, render } }));
 
 /**
- * The slice of a diagram element the renderer touches: the SVG markup, the error paragraph appended after it, and the
- * stale class. There is no DOM in this suite, so the element models only those three.
+ * The slice of a diagram element the renderer touches: the SVG markup and its accessibility attributes, the error
+ * paragraph appended after it, and the stale class. There is no DOM in this suite, so the element models only those.
  */
 class DiagramElement {
     html = '';
+    readonly svgAttributes = new Map<string, string>();
+    readonly svg = {
+        setAttribute: (name: string, value: string) => this.svgAttributes.set(name, value),
+    };
     error: string | undefined;
     readonly classes = new Set<string>();
     readonly classList = {
@@ -25,6 +29,7 @@ class DiagramElement {
     set innerHTML(value: string) {
         this.html = value;
         this.error = undefined;
+        this.svgAttributes.clear();
     }
 
     getHTML(): string {
@@ -32,7 +37,7 @@ class DiagramElement {
     }
 
     querySelector(selector: string) {
-        if (selector === ':scope > svg') return this.html.startsWith('<svg') ? {} : null;
+        if (selector === ':scope > svg') return this.html.startsWith('<svg') ? this.svg : null;
         return this.error === undefined ? null : { remove: () => (this.error = undefined) };
     }
 
@@ -101,6 +106,16 @@ describe('Markdown diagram scheduling', () => {
         expect(peak).toBe(1);
         expect(render).toHaveBeenCalledTimes(12);
     });
+    it('names a rendered diagram as one picture instead of reading its embedded style text', async () => {
+        render.mockResolvedValue({ svg: '<svg><style>#caxri-mermaid-1{}</style></svg>' });
+        const { container, diagrams, elements, renderDiagrams } = await fixture(1);
+        await renderDiagrams(container, diagrams, draculaTheme, new AbortController().signal);
+        expect(Object.fromEntries(elements[0]?.svgAttributes ?? [])).toEqual({
+            'role': 'img',
+            'aria-label': 'Mermaid diagram',
+        });
+    });
+
     it('skips queued layouts and stale DOM writes after leaving the preview', async () => {
         const release = Promise.withResolvers<{ svg: string }>();
         render.mockImplementation(() => release.promise);

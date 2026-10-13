@@ -3,7 +3,7 @@ import { formatTokens, formatUsd } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
-import { remainingLimitPercent } from '../../lib/usage-format';
+import { localizedLimitReset, remainingLimitPercent } from '../../lib/usage-format';
 import { LIMIT_WARNING_PERCENT } from '../usage/usage-presentation';
 
 type LimitWindow = UsageLimit['windows'][number];
@@ -83,4 +83,23 @@ export function agentUsageLimitTone(
     if (!window) return undefined;
     const used = Math.round(window.usedPercent);
     return used >= LIMIT_WARNING_PERCENT ? 'warning' : undefined;
+}
+
+/**
+ * Everything the usage chip and its Tooltip derive from the clock: which limit windows are still current and how each
+ * one's reset reads. Two instants with the same signature render the same chip, so the chip's clock only advances when
+ * this changes instead of on every poll or tick.
+ */
+export function agentUsageClockSignature(
+    limit: UsageLimit | undefined,
+    now: number,
+    t: Translate = translate,
+): string {
+    return currentLimitWindows(limit, now)
+        .map((window) =>
+            window.resetsAt === undefined
+                ? `${window.windowMinutes}`
+                : `${window.windowMinutes}:${localizedLimitReset(window.resetsAt, now, t)}`,
+        )
+        .join('|');
 }

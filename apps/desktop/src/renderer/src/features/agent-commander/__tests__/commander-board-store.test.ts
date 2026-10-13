@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { isCommanderBoardVisible } from '../commander-board-store';
+import {
+    COMMANDER_BOARD_DEFAULT_WIDTH,
+    COMMANDER_BOARD_MAX_WIDTH,
+    COMMANDER_BOARD_MIN_WIDTH,
+    commanderBoardWidth,
+    isCommanderBoardVisible,
+} from '../commander-board-store';
 
 const STORAGE_KEY = 'caxri.agent-commander.board-visible';
 
@@ -63,5 +69,26 @@ describe('useCommanderBoardUiStore', () => {
         const { setCommanderBoardVisible, useCommanderBoardUiStore } = await openWindow();
         setCommanderBoardVisible(false);
         expect(useCommanderBoardUiStore.getState().isVisible).toBe(false);
+    });
+});
+
+describe('commanderBoardWidth', () => {
+    it('keeps a stored width inside the column bounds', () => {
+        expect(commanderBoardWidth(undefined)).toBe(COMMANDER_BOARD_DEFAULT_WIDTH);
+        expect(commanderBoardWidth('400')).toBe(COMMANDER_BOARD_DEFAULT_WIDTH);
+        expect(commanderBoardWidth(NaN)).toBe(COMMANDER_BOARD_DEFAULT_WIDTH);
+        expect(commanderBoardWidth(412.4)).toBe(412);
+        expect(commanderBoardWidth(10)).toBe(COMMANDER_BOARD_MIN_WIDTH);
+        expect(commanderBoardWidth(9_999)).toBe(COMMANDER_BOARD_MAX_WIDTH);
+    });
+
+    it('remembers a dragged width when the window opens again', async () => {
+        const entries = new Map<string, string>();
+        stubStorage(entries);
+        const first = await openWindow();
+        first.setCommanderBoardWidth(420);
+        expect(entries.get('caxri.agent-commander.board-width')).toBe('420');
+        const reopened = await openWindow();
+        expect(reopened.useCommanderBoardUiStore.getState().width).toBe(420);
     });
 });

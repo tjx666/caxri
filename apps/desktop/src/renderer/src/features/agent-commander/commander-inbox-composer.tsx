@@ -9,7 +9,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { inboxMentionSuggestion } from './commander-inbox';
+import { inboxMentionSuggestion, inboxSendTooltip } from './commander-inbox';
 import { useCommanderInboxComposer } from './hooks/use-commander-inbox-composer';
 
 /**
@@ -45,7 +45,7 @@ export function CommanderInboxComposer({ items }: { items: readonly CommanderInb
                             <button
                                 type="button"
                                 aria-label={t('agentCommander.composer.clearTarget')}
-                                className="flex size-4 flex-none cursor-pointer items-center justify-center rounded hover:text-foreground"
+                                className="flex size-4 flex-none cursor-pointer items-center justify-center rounded-md hover:text-foreground"
                                 onClick={composer.clearTarget}
                             >
                                 <X size={12} />
@@ -82,13 +82,25 @@ export function CommanderInboxComposer({ items }: { items: readonly CommanderInb
                     onKeyDown={composer.onKeyDown}
                     onSelect={composer.onSelect}
                 />
-                <Tooltip content={t('agentCommander.composer.sendTooltip')}>
+                <Tooltip
+                    content={inboxSendTooltip(
+                        { draft: composer.draft, hasTarget: target !== undefined },
+                        t,
+                    )}
+                >
                     <Button
                         aria-label={t('agentCommander.composer.sendLabel')}
                         size="sm"
                         variant="secondary"
                         className="commander-inbox-send flex-none"
-                        disabled={!target || composer.draft.trim() === '' || composer.isSending}
+                        // `aria-disabled` rather than `disabled`: Chromium sends no hover to a disabled button, so its
+                        // Tooltip could never say why Send is unavailable. `send()` refuses the same states itself.
+                        aria-disabled={
+                            !target ||
+                            composer.draft.trim() === '' ||
+                            composer.isSending ||
+                            undefined
+                        }
                         onClick={() => {
                             // Fire-and-forget: the reply command reports its own failure through a toast.
                             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

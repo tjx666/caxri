@@ -1,5 +1,6 @@
 import type { Translate } from '../i18n';
 import { translate } from '../i18n';
+import { formatCount } from './locale-format';
 
 /**
  * Worded usage formatters (durations, rate-limit window names, reset times) whose unit words follow the interface
@@ -23,8 +24,8 @@ export function localizedDuration(ms: number, t: Translate = translate): string 
         return rest > 0
             ? t('core.usageFormat.hoursMinutes', { hours, minutes: rest })
             : t('core.usageFormat.hours', { hours });
-    // Grouped like the protocol's hand-rolled `groupThousands` (used by `formatUsd`), which matches `en-US` grouping.
-    return t('core.usageFormat.hours', { hours: hours.toLocaleString('en-US') });
+    // Grouped in the app locale, like every other count on the usage surfaces.
+    return t('core.usageFormat.hours', { hours: formatCount(hours) });
 }
 
 /**

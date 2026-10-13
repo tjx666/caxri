@@ -69,11 +69,12 @@ const FULL_ACCESS_TRIGGER_CLASS_NAME =
  * and reverts with a toast when it fails; picking a level closes the menu. A provider that applies a switch only with
  * the next turn (Codex) says so while a turn runs: the menu notes it, and the trigger adds `from next turn` until that
  * turn ends. Launch settings no level matches read as a checked "Custom" row. "Use as Project default" saves the
- * current choice for the Project's new Chats of this provider, shows as a checked "Project default" once saved, and
- * stays visible but disabled, with the reason, while the level is Custom; see `docs/agent-chat.md`. While the Project
- * has a saved default for the provider, "Clear Project default" removes it so new Chats follow the launch settings
- * again. The Agent Commander window omits both rows, because Main's Commander policy refuses Project writes.
- * `agentChat.changePermissionMode` opens it from the keyboard, and its tooltip names that shortcut.
+ * current choice for the Project's new Chats of this provider, shows as a checked "Project default" once saved (and
+ * unchecking it clears the default), and stays visible but disabled, with the reason, while the level is Custom; see
+ * `docs/agent-chat.md`. While the Project has a saved default the Chat's choice differs from, "Clear Project default"
+ * removes it so new Chats follow the launch settings again. The Agent Commander window omits both rows, because Main's
+ * Commander policy refuses Project writes. `agentChat.changePermissionMode` opens it from the keyboard, and its tooltip
+ * names that shortcut.
  */
 export function AgentChatPermissionMenu({
     canSaveProjectDefault,
@@ -159,6 +160,7 @@ export function AgentChatPermissionMenu({
                         <MenuSeparator />
                         <ProjectDefaultItem
                             item={view.projectDefaultItem}
+                            onClear={() => setAgentChatProjectDefault(project.id, provider, null)}
                             onSave={() => {
                                 if (projectDefault)
                                     setAgentChatProjectDefault(
@@ -168,7 +170,7 @@ export function AgentChatPermissionMenu({
                                     );
                             }}
                         />
-                        {view.hasProjectDefault && (
+                        {view.showsClearProjectDefault && (
                             <MenuItem
                                 className="h-auto min-h-7 py-1"
                                 onClick={() =>
@@ -195,14 +197,16 @@ export function AgentChatPermissionMenu({
 }
 
 /**
- * "Use as Project default", a checked "Project default" once the Chat matches the saved default, or the disabled row
- * with its reason while the level is Custom.
+ * "Use as Project default", a checked "Project default" once the Chat matches the saved default (unchecking it clears
+ * that default), or the disabled row with its reason while the level is Custom.
  */
 function ProjectDefaultItem({
     item,
+    onClear,
     onSave,
 }: {
     item: AgentChatProjectDefaultItem;
+    onClear: () => void;
     onSave: () => void;
 }) {
     return (
@@ -210,10 +214,7 @@ function ProjectDefaultItem({
             checked={item.isChecked}
             className="h-auto min-h-7 py-1"
             disabled={item.disabledReason !== undefined}
-            onCheckedChange={(isChecked: boolean) => {
-                // Already the default: there is nothing to save, and the row keeps its check.
-                if (isChecked) onSave();
-            }}
+            onCheckedChange={(isChecked: boolean) => (isChecked ? onSave() : onClear())}
         >
             <span className="flex min-w-0 flex-col">
                 <span className="truncate">{item.label}</span>

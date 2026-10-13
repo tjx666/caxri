@@ -148,7 +148,7 @@ export const terminal = {
     'terminal.renderer.enable.confirmLabel': 'Turn On',
     'terminal.renderer.enable.message':
         'Terminals start drawing with the GPU immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
-    'terminal.renderer.enable.title': 'Turn on GPU acceleration for Terminals?',
+    'terminal.renderer.enable.title': 'Turn on Terminal hardware acceleration?',
     'terminal.renderer.retry.confirmLabel': 'Retry GPU',
     'terminal.renderer.retry.message':
         'Retry GPU rendering for this Terminal and reset the graphics failure limit for this window. Your Terminal and Agent keep running, and settings stay unchanged. If the attempt fails, the Terminal keeps using software rendering.',
@@ -156,7 +156,8 @@ export const terminal = {
     'terminal.renderer.summary': 'Terminal is using software rendering. {{detail}}',
     'terminal.renderer.withAction': '{{action}} — {{summary}}',
     'terminal.renderer.label': 'Software',
-    'terminal.renderer.detail.disabled': 'GPU acceleration is turned off in Settings.',
+    'terminal.renderer.detail.disabled':
+        'Terminal hardware acceleration is turned off in Settings.',
     'terminal.renderer.detail.hardwareOff':
         'Hardware acceleration is turned off, so no Terminal in any window can use the GPU.',
     'terminal.renderer.detail.unsupported': 'The GPU is unavailable in this window right now.',
@@ -170,7 +171,7 @@ export const terminal = {
     'terminal.renderer.restoreFailed': 'Unable to restore GPU rendering',
     'terminal.renderer.unavailable':
         'GPU rendering is unavailable. This Terminal is still using software rendering; if hardware acceleration is turned off, turn it back on in Settings.',
-    'terminal.renderer.changeFailed': 'Unable to change GPU acceleration',
+    'terminal.renderer.changeFailed': 'Unable to change Terminal hardware acceleration',
     // Terminal commands, menus, confirmations, and toasts.
     'terminal.defaultTitle': 'Terminal',
     'terminal.resourceAlert.message':
@@ -243,4 +244,7 @@ export const terminal = {
     'terminal.surface.openingAsTerminal': 'Opening as Terminal…',
     'terminal.surface.openingAsChat': 'Opening as Chat…',
     'terminal.surface.toggleLabel': 'Open as Terminal or Chat',
+    // xterm's own screen-reader strings: the input field's name and the notice when output is too fast to read.
+    'terminal.a11y.promptLabel': 'Terminal input',
+    'terminal.a11y.tooMuchOutput': 'Too much output to announce, navigate to rows manually to read',
 } as const;

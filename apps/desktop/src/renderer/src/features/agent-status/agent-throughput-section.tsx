@@ -10,15 +10,17 @@ import {
 } from '../../components/report-table-classes';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useChartKeyboardCursor } from '../../hooks/use-chart-keyboard-cursor';
 import { useRelativeTime } from '../../hooks/use-relative-time';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { CHART_CURSOR_CLASS } from '../../lib/chart-cursor';
+import { formatCount } from '../../lib/locale-format';
 import { cn } from '../../lib/utilities';
 import {
     agentThroughputMethodNote,
     describeThroughputAggregate,
     describeThroughputSample,
-    describeThroughputVariant,
     formatThroughputDuration,
     formatThroughputRate,
     recentAverageLabel,
@@ -26,21 +28,22 @@ import {
     throughputSpeedLabel,
 } from '../status-bar/agent-throughput-label';
 import type { AgentThroughputViewState } from './agent-throughput-state';
-import { AGENT_THROUGHPUT_STATE_MESSAGE_KEYS } from './agent-throughput-state';
+import {
+    AGENT_THROUGHPUT_STATE_MESSAGE_KEYS,
+    throughputBarDescription,
+} from './agent-throughput-state';
 
 const CHART_HEIGHT = 128;
-const clockTime = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' });
-const groupedCount = new Intl.NumberFormat();
 
 function rateValue(rate: number | undefined): string | undefined {
     return rate === undefined ? undefined : formatThroughputRate(rate);
 }
 
 /**
- * Per-response rates, oldest to newest, on a zero-based scale with the recent average drawn across it. Each bar spreads
- * over an equal share of the chart's width and is a focus stop whose tooltip carries the response's tokens, time, and
- * when it finished, so the chart can be read value by value from the keyboard too (at most
- * `AGENT_THROUGHPUT_SAMPLE_LIMIT` stops). The average line sits outside the list so the list holds only its items.
+ * Per-response rates, oldest to newest, on a zero-based scale with the recent average drawn across it and labeled with
+ * its value. The chart is one focus stop, as the Usage page's charts are: Tab reaches its summary, and the arrow keys
+ * step through the responses (`lib/chart-cursor.ts`), ringing the bar and showing its Tooltip text in the caption,
+ * announced through a polite live region. Bars paint `--chart`, the newest at full strength.
  */
 function ThroughputChart({
     average,
@@ -50,46 +53,62 @@ function ThroughputChart({
     samples: AgentThroughput['samples'];
 }) {
     const { t } = useTranslation();
+    const keyboard = useChartKeyboardCursor({ kind: 'linear', count: samples.length }, 'responses');
     const rates = samples.map((sample) => throughputRate(sample) ?? 0);
     const max = Math.max(...rates, average ?? 0);
     if (max <= 0) return null;
+    const cursor = keyboard.cursor;
+    const cursorText =
+        cursor === undefined ? undefined : throughputBarDescription(t, samples[cursor]);
+    const averageLabel =
+        average === undefined
+            ? undefined
+            : t('agentStatus.throughput.averageLine', { rate: formatThroughputRate(average) });
     return (
-        <div className="flex gap-2">
-            <div
-                aria-hidden="true"
-                className="flex flex-none flex-col justify-between text-right text-[11px] text-muted tabular-nums"
-                style={{ height: CHART_HEIGHT }}
-            >
-                <span>{formatThroughputRate(max)}</span>
-                <span>0</span>
-            </div>
-            <div className="relative min-w-0 flex-1" style={{ height: CHART_HEIGHT }}>
-                <ul
-                    className="m-0 flex h-full list-none items-end gap-1 border-b border-border p-0"
-                    aria-label={t('agentStatus.throughput.chartLabel', { count: samples.length })}
+        <>
+            <div className="flex gap-2">
+                <div
+                    aria-hidden="true"
+                    className="flex flex-none flex-col justify-between text-right text-[11px] text-muted tabular-nums"
+                    style={{ height: CHART_HEIGHT }}
                 >
-                    {samples.map((sample, index) => {
-                        const description = t('agentStatus.throughput.barDescription', {
-                            variant: describeThroughputVariant(sample, t),
-                            sample: describeThroughputSample(sample, t),
-                            time: clockTime.format(sample.completedAt),
-                        });
-                        return (
+                    <span>{formatThroughputRate(max)}</span>
+                    <span>0</span>
+                </div>
+                <div
+                    aria-label={[
+                        t('agentStatus.throughput.chartLabel', { count: samples.length }),
+                        averageLabel,
+                    ]
+                        .filter(Boolean)
+                        .join('. ')}
+                    className="relative min-w-0 flex-1 rounded-sm focus-visible:outline focus-visible:outline-accent"
+                    role="img"
+                    style={{ height: CHART_HEIGHT }}
+                    tabIndex={0}
+                    onBlur={keyboard.onBlur}
+                    onKeyDown={keyboard.onKeyDown}
+                >
+                    <div className="flex h-full items-end gap-1 border-b border-border">
+                        {/* The full-height column is the trigger, so a slow response is as easy to hover as the fastest. */}
+                        {samples.map((sample, index) => (
                             <Tooltip
                                 key={`${sample.completedAt}:${sample.outputTokens}:${sample.durationMs}`}
-                                content={description}
+                                content={throughputBarDescription(t, sample)}
                             >
-                                <li
-                                    aria-label={description}
-                                    className="flex h-full min-w-0 flex-1 items-end justify-center rounded-sm hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] focus-visible:outline focus-visible:outline-accent"
-                                    tabIndex={0}
+                                <div
+                                    className={cn(
+                                        'flex h-full min-w-0 flex-1 items-end justify-center rounded-sm hover:bg-list-hover-background',
+                                        index === cursor && CHART_CURSOR_CLASS,
+                                    )}
                                 >
                                     <div
-                                        className={
+                                        className={cn(
+                                            'w-full max-w-8 rounded-sm',
                                             index === samples.length - 1
-                                                ? 'w-full max-w-8 rounded-sm bg-foreground'
-                                                : 'w-full max-w-8 rounded-sm bg-muted'
-                                        }
+                                                ? 'bg-chart'
+                                                : 'bg-chart/50',
+                                        )}
                                         style={{
                                             height: Math.max(
                                                 2,
@@ -97,20 +116,31 @@ function ThroughputChart({
                                             ),
                                         }}
                                     />
-                                </li>
+                                </div>
                             </Tooltip>
-                        );
-                    })}
-                </ul>
-                {average !== undefined && (
-                    <div
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted"
-                        style={{ bottom: (average / max) * CHART_HEIGHT }}
-                    />
-                )}
+                        ))}
+                    </div>
+                    {average !== undefined && (
+                        <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted"
+                            style={{ bottom: (average / max) * CHART_HEIGHT }}
+                        >
+                            <span className="absolute right-0 bottom-0.5 rounded-sm bg-surface px-1 text-[11px] leading-none text-muted tabular-nums">
+                                {averageLabel}
+                            </span>
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+            {/* Reserved even when empty, so stepping into the chart does not push the method note down. */}
+            <p className="mt-2 mb-0 min-h-4 text-[11px] text-muted" aria-hidden="true">
+                {cursorText}
+            </p>
+            <span className="sr-only" aria-live="polite">
+                {cursorText}
+            </span>
+        </>
     );
 }
 
@@ -149,14 +179,14 @@ const BY_MODEL_COLUMNS: readonly ByModelColumn[] = [
         isNumeric: true,
         width: 'w-24',
         cellClassName: () => numericCellClass,
-        value: (variant) => groupedCount.format(variant.responseCount),
+        value: (variant) => formatCount(variant.responseCount),
     },
     {
         key: 'tokens',
         isNumeric: true,
         width: 'w-28',
         cellClassName: () => numericCellClass,
-        value: (variant) => groupedCount.format(variant.outputTokens),
+        value: (variant) => formatCount(variant.outputTokens),
     },
 ];
 

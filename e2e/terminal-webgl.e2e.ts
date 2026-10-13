@@ -104,7 +104,7 @@ async function isHardwareAccelerationPersisted(page: Page): Promise<boolean> {
 async function applyGpuPreference(page: Page, preference: GpuPreference): Promise<void> {
     const settingsTab = await openSettingsTab(page);
     await revealSettingsSection(settingsTab, 'Terminal');
-    await settingsTab.getByRole('combobox', { name: 'GPU acceleration' }).click();
+    await settingsTab.getByRole('combobox', { name: 'Terminal hardware acceleration' }).click();
     await page.getByRole('option', { name: preference, exact: true }).click();
     /**
      * Settings apply immediately (there is no Apply button); the observable invariant is the Runtime actually
@@ -224,11 +224,11 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         const rendererChip = running.page.locator('button.statusbar-terminal-renderer');
         await expect(rendererChip).toHaveAttribute(
             'aria-label',
-            'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
+            'Turn on Terminal hardware acceleration? — Terminal is using software rendering. Terminal hardware acceleration is turned off in Settings.',
         );
         await rendererChip.click();
         const confirmation = running.page.locator('.confirmation-dialog');
-        await expect(confirmation).toContainText('Turn on GPU acceleration for Terminals?');
+        await expect(confirmation).toContainText('Turn on Terminal hardware acceleration?');
         await running.page.keyboard.press('Escape');
         await expect(confirmation).toHaveCount(0);
         expect(
@@ -564,9 +564,9 @@ test('repeated context losses preserve user choice and a confirmed opt-out persi
         expect(persistedSettings.value['terminal.gpuAcceleration']).toBe('on');
 
         const settingsTab = await openSettingsTab(running.page);
-        // Hardware acceleration moved from General to Terminal, next to GPU acceleration (issue
-        // caxri#1289): the two are kept as separate settings but placed adjacently since GPU
-        // acceleration only controls Terminal's own WebGL rendering and has no effect once Hardware
+        // Hardware acceleration moved from General to Terminal, next to Terminal hardware acceleration
+        // (issue caxri#1289): the two are kept as separate settings but placed adjacently since Terminal
+        // hardware acceleration only controls Terminal's own WebGL rendering and has no effect once Hardware
         // acceleration is off.
         await revealSettingsSection(settingsTab, 'Terminal');
         const acceleration = settingsTab.getByRole('switch', { name: 'Hardware acceleration' });

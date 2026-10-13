@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { createContext, createElement, useContext, useEffect } from 'react';
+import { createContext, createElement, useContext, useEffect, useState } from 'react';
 
 import type { QueryClient } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
@@ -24,6 +24,35 @@ export function ViewContainerActivityProvider({
 
 export function useIsViewContainerActive(): boolean {
     return useContext(ViewContainerActivityContext);
+}
+
+/**
+ * Which input a keep-alive view renders from: the live value while its container is visible, otherwise the value it
+ * last showed. A hidden view that followed every Session or work-tab switch re-keyed its queries for nothing on screen,
+ * and a disabled query under a fresh key drops to `loading`, which remounted the whole hidden tree.
+ */
+export function resolveHeldWhileHidden<T>(
+    isActive: boolean,
+    held: T,
+    live: T,
+    isSame: (left: T, right: T) => boolean = Object.is,
+): T {
+    return isActive && !isSame(held, live) ? live : held;
+}
+
+/**
+ * Holds `live` frozen while the surrounding view container is hidden and adopts it during render on reveal, so the
+ * stale value never paints. See {@link resolveHeldWhileHidden}.
+ */
+export function useHeldWhileHidden<T>(
+    live: T,
+    isSame: (left: T, right: T) => boolean = Object.is,
+): T {
+    const isActive = useIsViewContainerActive();
+    const [held, setHeld] = useState(() => live);
+    const shown = resolveHeldWhileHidden(isActive, held, live, isSame);
+    if (shown !== held) setHeld(() => shown);
+    return shown;
 }
 
 /**

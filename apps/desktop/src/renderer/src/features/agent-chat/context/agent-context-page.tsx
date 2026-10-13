@@ -115,6 +115,13 @@ function ContextReportView({ terminalId }: { terminalId: string }) {
                         <EmptyTitle className="text-danger">
                             {t('agentChat.contextPage.loadFailed')}
                         </EmptyTitle>
+                        {/* The Server's own sentence says why (the Chat is gone, the provider has no report), so the
+                            failure is not a dead end with only Retry to try. */}
+                        {report.error.message && (
+                            <p className="m-0 max-w-md text-center text-[12px] leading-[1.5] text-muted">
+                                {report.error.message}
+                            </p>
+                        )}
                         <Button size="sm" variant="secondary" onClick={refresh}>
                             {t('common.retry')}
                         </Button>

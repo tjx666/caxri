@@ -168,7 +168,6 @@ function TaskTimeline({
                 contentReference={contentReference}
                 scrollReference={scrollReference}
                 terminalId={terminalId}
-                onQuoted={() => revealAgentChat(terminalId)}
             />
             <AgentChatJumpToLatest
                 focusTarget={scrollReference}

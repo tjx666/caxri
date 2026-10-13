@@ -389,7 +389,7 @@ test('shares settings across an app-managed Server and Desktop', async () => {
         const settingsTab = await openSettingsTab(running.page);
         await revealSettingsSection(settingsTab, 'Terminal');
         const clipboardSetting = settingsTab.getByRole('switch', {
-            name: 'Allow OSC 52 clipboard writes',
+            name: 'Let programs in the Terminal copy to your clipboard',
         });
         await expect(clipboardSetting).not.toBeChecked();
         await clipboardSetting.check();

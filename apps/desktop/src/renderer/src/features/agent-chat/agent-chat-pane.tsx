@@ -56,6 +56,7 @@ import { useAgentChatHistory } from './hooks/use-agent-chat-history';
 import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
+import { AgentChatReadBackHistoryContext } from './hooks/use-agent-chat-read-back-history';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
@@ -165,6 +166,7 @@ export function AgentChatPane({
         },
         [jumpTo, stopFollowing],
     );
+    const readBackHistory = useMemo(() => ({ canFork }), [canFork]);
     const pending = useAgentChatPending(terminalId, snapshot);
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId, canOpenBesideChat);
     /**
@@ -211,6 +213,8 @@ export function AgentChatPane({
                     contentReference={contentReference}
                     focusComposer={focusComposer}
                     hasUnsearchedHistory={history.hasMore || history.history.truncated}
+                    isLoadingEarlier={history.history.status === 'loading'}
+                    loadEarlier={history.hasMore ? history.loadOlder : undefined}
                     scrollReference={scrollReference}
                     stopFollowing={stopFollowing}
                     terminalId={terminalId}
@@ -222,7 +226,13 @@ export function AgentChatPane({
                         aria-keyshortcuts={AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS}
                         aria-label={t('agentChat.timeline.transcriptLabel')}
                         aria-live="off"
-                        className="h-full overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                        className={cn(
+                            'absolute inset-x-0 top-0 overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent',
+                            // While Jump to latest shows, the transcript ends above it instead of scrolling under it,
+                            // so the button never covers a line of text in a narrow pane. The top stays anchored, so
+                            // nothing the user is reading moves.
+                            isFollowing ? 'bottom-0' : 'bottom-10',
+                        )}
                         ref={scrollReference}
                         role="log"
                         tabIndex={0}
@@ -254,12 +264,14 @@ export function AgentChatPane({
                                         {/*
                                          * History read back is not in the projection, so it never offers Edit, Fork,
                                          * or Restore; keeping it outside the actions, which change with every patch,
-                                         * lets a patch skip it.
+                                         * lets a patch skip it. Its menus list Edit and Fork disabled with why.
                                          */}
-                                        <AgentChatSettledTimeline
-                                            chunks={settledChunks}
-                                            onOpenFile={openFile}
-                                        />
+                                        <AgentChatReadBackHistoryContext value={readBackHistory}>
+                                            <AgentChatSettledTimeline
+                                                chunks={settledChunks}
+                                                onOpenFile={openFile}
+                                            />
+                                        </AgentChatReadBackHistoryContext>
                                         <AgentChatEditContext value={editActions}>
                                             <LiveTimelineEntries
                                                 dayBreaks={dayBreaks}

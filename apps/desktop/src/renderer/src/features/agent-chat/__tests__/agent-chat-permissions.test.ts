@@ -68,7 +68,8 @@ describe('Agent Chat permission picker', () => {
             projectDefault: { permissionMode: 'fullAccess', planMode: true },
             isSavedDefault: true,
             projectDefaultItem: { label: 'Project default', isChecked: true },
-            hasProjectDefault: true,
+            // Unchecking the checked row clears it, so no second row repeats that.
+            showsClearProjectDefault: false,
             pendingCaption: undefined,
         });
         expect(agentChatPermissionView({ planMode: false }, 'codex', undefined)).toEqual({
@@ -83,7 +84,7 @@ describe('Agent Chat permission picker', () => {
                 isChecked: false,
                 disabledReason: 'Choose a level to save it as the default',
             },
-            hasProjectDefault: false,
+            showsClearProjectDefault: false,
             pendingCaption: undefined,
         });
         expect(
@@ -98,12 +99,12 @@ describe('Agent Chat permission picker', () => {
             claude: { permissionMode: 'auto' },
         });
         expect(view.isSavedDefault).toBe(false);
-        expect(view.hasProjectDefault).toBe(true);
+        expect(view.showsClearProjectDefault).toBe(true);
         // Another provider's default does not count.
         expect(
             agentChatPermissionView({ permissionMode: 'auto' }, 'grok', {
                 claude: { permissionMode: 'auto' },
-            }).hasProjectDefault,
+            }).showsClearProjectDefault,
         ).toBe(false);
     });
 

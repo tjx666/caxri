@@ -1,6 +1,8 @@
 import type { UsageReport, UsageSessionRow } from '@caxri/protocol';
+import { formatPercent } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
+import { formatCount } from '../../lib/locale-format';
 import { sessionTitleForDisplay } from '../session/session-title';
 
 /**
@@ -50,6 +52,35 @@ export function usageShare(
 }
 
 /**
+ * The caption of a card whose share bars follow {@link usageShareBasis}, so a switch from cost to tokens (when a model
+ * in the range has no price) is said rather than silently changing what every bar measures.
+ */
+export function usageShareCaption(t: Translate, basis: UsageShareBasis): string {
+    return t(basis === 'cost' ? 'usage.share.cost' : 'usage.share.tokens');
+}
+
+/**
+ * A share bar's text twin, `42% of cost`, for its Tooltip and accessible name.
+ */
+export function usageShareLabel(t: Translate, share: number, basis: UsageShareBasis): string {
+    return t(basis === 'cost' ? 'usage.share.percentCost' : 'usage.share.percentTokens', {
+        percent: formatPercent(share),
+    });
+}
+
+/**
+ * Whether a Most expensive Sessions row offers to narrow the page to its Session: only a Caxri Session can be a filter
+ * (the report's Session filter takes a Caxri Session ID), and a report already narrowed to one Session has nothing left
+ * to narrow.
+ */
+export function canFilterUsageToSession(
+    report: Pick<UsageReport, 'sessionId'>,
+    row: Pick<UsageSessionRow, 'isOutsideCaxri'>,
+): boolean {
+    return report.sessionId === undefined && !row.isOutsideCaxri;
+}
+
+/**
  * The Pull requests tile's detail facts, each kept whole on one line by the caller. The line count is left out while no
  * merged pull request changed a line, since `+0 -0 lines` says nothing and wrapped awkwardly beside the opened count.
  */
@@ -59,7 +90,7 @@ export function pullRequestTileDetail(
     formatLines: (count: number) => string,
 ): string[] {
     const opened = t('usage.pullRequests.opened', {
-        count: totals.pullRequestsCreated.toLocaleString('en-US'),
+        count: formatCount(totals.pullRequestsCreated),
     });
     if (totals.linesAdded === 0 && totals.linesDeleted === 0) return [opened];
     return [

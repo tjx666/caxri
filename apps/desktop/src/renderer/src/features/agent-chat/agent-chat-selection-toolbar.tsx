@@ -12,8 +12,7 @@ import {
 } from '../../components/copy-feedback';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { appendToAgentChatDraft } from './agent-chat-drafts';
-import { agentChatSelectionQuote } from './agent-chat-selection';
+import { quoteAgentChatMessageFromMenu } from './agent-chat-message-menu-actions';
 import { useAgentChatSelectionToolbar } from './hooks/use-agent-chat-selection-toolbar';
 
 const BUTTON_CLASS_NAME =
@@ -21,10 +20,11 @@ const BUTTON_CLASS_NAME =
 
 /**
  * Copy and Add to message for text selected in a Chat transcript, floating over the selection instead of confirming a
- * copy in a corner toast. Copy writes the selected text, and confirms with a check in place. Add to message quotes the
- * selection as a Markdown block at the end of `terminalId`'s draft (the parent Chat's for a subagent tab), clears the
- * selection, and calls `onQuoted` so the Chat can bring its composer forward. The toolbar keeps the selection alive by
- * refusing the press that would collapse it.
+ * copy in a corner toast. Copy writes the selected text, and confirms with a check in place. Add to message runs the
+ * same quote a message's right-click menu does (`quoteAgentChatMessageFromMenu`): a Markdown block at the end of
+ * `terminalId`'s draft (the parent Chat's for a subagent tab), the selection cleared, and that Chat's tab brought
+ * forward; `onQuoted` then lets the Chat place the composer's caret. The toolbar keeps the selection alive by refusing
+ * the press that would collapse it.
  */
 export function AgentChatSelectionToolbar({
     contentReference,
@@ -53,17 +53,16 @@ export function AgentChatSelectionToolbar({
     if (!selection) return null;
     const copyLabel = copyButtonLabel(copyStatus, t('agentChat.timeline.copySelection'), t);
     const quote = (): void => {
-        // The blank line after the quote starts the user's own paragraph, so what they type next is not quoted.
-        appendToAgentChatDraft(terminalId, `${agentChatSelectionQuote(selection.text)}\n\n`);
-        getSelection()?.removeAllRanges();
+        quoteAgentChatMessageFromMenu(terminalId, selection.text);
         dismiss();
         onQuoted?.();
     };
     return createPortal(
         <div
             aria-label={t('agentChat.timeline.selectionActions')}
-            // Hidden until `useAgentChatSelectionToolbar` measures and places it.
-            className="invisible fixed top-0 left-0 z-[80] flex items-center gap-0.5 rounded-md bg-elevated p-0.5 shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]"
+            // Hidden until `useAgentChatSelectionToolbar` measures and places it; it then fades in on the overlay enter
+            // timing, as a popover does, and leaves instantly so it never lingers over the text the user moves on to.
+            className="motion-safe:animate-in motion-safe:fade-in-0 invisible fixed top-0 left-0 z-[80] flex items-center gap-0.5 rounded-md bg-elevated p-0.5 shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] duration-(--motion-overlay-enter) ease-(--motion-ease-enter)"
             ref={toolbarReference}
             role="toolbar"
             onPointerDown={(event) => event.preventDefault()}

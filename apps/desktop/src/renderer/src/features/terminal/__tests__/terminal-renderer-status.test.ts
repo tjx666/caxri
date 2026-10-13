@@ -39,12 +39,12 @@ describe('terminalRendererIndicator', () => {
                 message:
                     'Terminals start drawing with the GPU immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
                 preference: 'on',
-                title: 'Turn on GPU acceleration for Terminals?',
+                title: 'Turn on Terminal hardware acceleration?',
             },
             ariaLabel:
-                'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
+                'Turn on Terminal hardware acceleration? — Terminal is using software rendering. Terminal hardware acceleration is turned off in Settings.',
             label: 'Software',
-            title: 'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
+            title: 'Turn on Terminal hardware acceleration? — Terminal is using software rendering. Terminal hardware acceleration is turned off in Settings.',
         });
         expect(
             terminalRendererIndicator(

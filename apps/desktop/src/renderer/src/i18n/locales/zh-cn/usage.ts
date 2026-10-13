@@ -22,6 +22,10 @@ export const usage: TranslatedNamespace<typeof source> = {
     'usage.filter.session': '会话：{{title}}',
     'usage.filter.sessionClear': '会话：{{title}}。显示所有会话',
     'usage.filter.showAllSessions': '显示所有会话',
+    'usage.share.cost': '费用占比',
+    'usage.share.tokens': 'Token 占比',
+    'usage.share.percentCost': '占费用的 {{percent}}',
+    'usage.share.percentTokens': '占 Token 的 {{percent}}',
     'usage.rangeShort.7d': '7 天',
     'usage.rangeShort.30d': '30 天',
     'usage.rangeShort.90d': '90 天',
@@ -41,11 +45,11 @@ export const usage: TranslatedNamespace<typeof source> = {
     'usage.empty.showThisMac': '显示本机',
     'usage.loadFailed': '无法加载用量',
     'usage.loadFailedReason.unavailable': 'Caxri 的 Server 没有及时响应，可能仍在启动。',
-    'usage.loadFailedReason.unreadable': 'Caxri 无法读取本机的 Agent 记录。',
+    'usage.loadFailedReason.unreadable': 'Caxri 无法读取本机的 Agent 对话。',
     'usage.loadFailedReason.unknown': '生成用量报告时出错。',
     'usage.loading': '正在读取 Agent 对话…',
-    'usage.scan.readingOne': '还在读取 {{count}} 份记录…',
-    'usage.scan.readingOther': '还在读取 {{count}} 份记录…',
+    'usage.scan.readingOne': '还在读取 {{count}} 个对话…',
+    'usage.scan.readingOther': '还在读取 {{count}} 个对话…',
 
     // Shared figures and wording
     'usage.date.format': '{{year}}年{{month}}{{day}}日',
@@ -176,8 +180,8 @@ export const usage: TranslatedNamespace<typeof source> = {
     'usage.coverage.counts': '统计了{{counted}}。',
     'usage.coverage.countsWithOutside':
         '统计了{{counted}}，以及本机上在 Caxri 之外运行的 {{outside}} 个。',
-    'usage.coverage.unavailableOne': '{{count}} 个对话在本机上没有记录，其用量缺失。',
-    'usage.coverage.unavailableOther': '{{count}} 个对话在本机上没有记录，其用量缺失。',
+    'usage.coverage.unavailableOne': '{{count}} 个对话已不在本机保存，其用量缺失。',
+    'usage.coverage.unavailableOther': '{{count}} 个对话已不在本机保存，其用量缺失。',
     'usage.coverage.checkingPullRequests': '正在 GitHub 上检查 {{pullRequests}}。',
     'usage.coverage.unpricedModels': '{{models}} 没有价格，其用量未计入任何费用数字。',
 
@@ -200,4 +204,6 @@ export const usage: TranslatedNamespace<typeof source> = {
     'usage.sessions.deletedTitle': '已删除的会话',
     'usage.sessions.archived': '已归档',
     'usage.sessions.open': '打开会话 {{title}}',
+    'usage.sessions.filter': '查看此会话的用量',
+    'usage.sessions.filterLabel': '查看 {{title}} 的用量',
 };

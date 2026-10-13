@@ -2,6 +2,7 @@ import { useRef } from 'react';
 
 import { Goal, Lightbulb, MessageCircle, Paperclip, Plus } from 'lucide-react';
 
+import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Button } from '../../components/ui/button';
 import {
     Menu,
@@ -15,11 +16,25 @@ import {
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { useCommandShortcut } from '../../lib/keybindings';
 import type { SessionReferenceCandidate } from '../session/session-reference';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { agentChatAttachLabel } from './agent-chat-presentation';
 
 const ROW_CLASS_NAME = 'h-auto min-h-8 gap-2.5 py-1.5 text-[13px]';
+
+/**
+ * A row's name over its description in the `meta` size, as the permission menu sets its rows, so a long description
+ * gets its own line instead of being cut off beside the name.
+ */
+function RowText({ description, label }: { description: string; label: string }) {
+    return (
+        <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate">{label}</span>
+            <span className="truncate text-[11px] leading-4 text-muted">{description}</span>
+        </span>
+    );
+}
 
 /**
  * The composer's leading `+`, after the Codex app's: one menu of what the next message can carry. Under Add, Files and
@@ -68,6 +83,7 @@ export function AgentChatAddMenu({
 }) {
     const { t } = useTranslation();
     const inputReference = useRef<HTMLInputElement>(null);
+    const planModeShortcut = useCommandShortcut('agentChat.togglePlanMode');
     return (
         <>
             <input
@@ -100,24 +116,26 @@ export function AgentChatAddMenu({
                             onClick={onPickPaths ?? (() => inputReference.current?.click())}
                         >
                             <Paperclip className="size-4 shrink-0 text-muted" />
-                            <span className="shrink-0">
-                                {t(
+                            <RowText
+                                description={agentChatAttachLabel(
+                                    canAttachImages,
+                                    Boolean(onPickPaths),
+                                    t,
+                                )}
+                                label={t(
                                     onPickPaths
                                         ? 'agentChat.add.filesAndFolders'
                                         : 'agentChat.add.files',
                                 )}
-                            </span>
-                            <span className="truncate text-muted">
-                                {agentChatAttachLabel(canAttachImages, Boolean(onPickPaths), t)}
-                            </span>
+                            />
                         </MenuItem>
                         {onGoal && (
                             <MenuItem className={ROW_CLASS_NAME} onClick={onGoal}>
                                 <Goal className="size-4 shrink-0 text-muted" />
-                                <span className="shrink-0">{t('agentChat.add.goal')}</span>
-                                <span className="truncate text-muted">
-                                    {t('agentChat.add.goalDescription')}
-                                </span>
+                                <RowText
+                                    description={t('agentChat.add.goalDescription')}
+                                    label={t('agentChat.add.goal')}
+                                />
                             </MenuItem>
                         )}
                         {planMode && (
@@ -128,12 +146,13 @@ export function AgentChatAddMenu({
                                 onCheckedChange={planMode.onChange}
                             >
                                 <Lightbulb className="size-4 shrink-0 text-muted" />
-                                <span className="shrink-0">
-                                    {t('agentChat.permission.planMode')}
-                                </span>
-                                <span className="truncate text-muted">
-                                    {t('agentChat.permission.planModeDescription')}
-                                </span>
+                                <RowText
+                                    description={t('agentChat.permission.planModeDescription')}
+                                    label={t('agentChat.permission.planMode')}
+                                />
+                                {planModeShortcut && (
+                                    <ShortcutBadge compact shortcut={planModeShortcut} />
+                                )}
                             </MenuCheckboxItem>
                         )}
                     </MenuGroup>
@@ -169,15 +188,20 @@ export function AgentChatAddMenu({
 
 /**
  * Plan mode while it is on, beside `+`: the word in the foreground color, as Synara and Superset show the mode in the
- * composer's footer, and a press turns it off.
+ * composer's footer, and a press turns it off. It is a pressed toggle named "Plan mode", so a screen reader hears the
+ * mode and its state rather than a command, and its tooltip names `agentChat.togglePlanMode`'s shortcut. It draws the
+ * same pressed fill and `--border` outline as the model picker's mode toggles, never `--accent` (DESIGN.md Principle
+ * 2), so it reads as a mode that is on rather than as a plain word in the footer.
  */
 export function AgentChatPlanChip({ onTurnOff }: { onTurnOff: () => void }) {
     const { t } = useTranslation();
+    const shortcut = useCommandShortcut('agentChat.togglePlanMode');
     return (
-        <Tooltip content={t('agentChat.add.turnOffPlanMode')}>
+        <Tooltip content={t('agentChat.add.turnOffPlanMode')} shortcut={shortcut}>
             <Button
-                aria-label={t('agentChat.add.turnOffPlanMode')}
-                className="h-7 gap-1 rounded-full px-2 text-[12px] text-foreground"
+                aria-label={t('agentChat.permission.planMode')}
+                aria-pressed
+                className="h-7 gap-1 rounded-full border-border bg-[var(--selection)] px-2 text-[12px] text-foreground"
                 size="sm"
                 variant="ghost"
                 onClick={onTurnOff}

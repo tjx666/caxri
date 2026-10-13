@@ -1,18 +1,21 @@
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { localeDateTimeFormat } from '../../lib/locale-format';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 
 /**
- * Clock time in the user's locale (`17:59`, or `5:59 PM` where the locale uses a 12-hour clock).
+ * Clock time (`17:59`, or `5:59 PM` where the locale uses a 12-hour clock). These options are formatted through
+ * `localeDateTimeFormat`, in the interface language (`workbench.language`) rather than the system's, so a Chat shown in
+ * Chinese does not label its days in English.
  */
-const TIME_FORMAT = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
-const MONTH_DAY_FORMAT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
-const FULL_DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
+const TIME_OPTIONS: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
+const MONTH_DAY_OPTIONS: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+const FULL_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-});
-const FULL_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'medium' });
+};
+const FULL_OPTIONS: Intl.DateTimeFormatOptions = { dateStyle: 'full', timeStyle: 'medium' };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -25,14 +28,14 @@ function startOfDay(timestamp: number): number {
  * When a message was sent, as the clock time beside it: `17:59`.
  */
 export function agentChatMessageTime(timestamp: number): string {
-    return TIME_FORMAT.format(timestamp);
+    return localeDateTimeFormat(TIME_OPTIONS).format(timestamp);
 }
 
 /**
  * The full date and time a message's clock time stands for, for its tooltip.
  */
 export function agentChatMessageFullTime(timestamp: number): string {
-    return FULL_FORMAT.format(timestamp);
+    return localeDateTimeFormat(FULL_OPTIONS).format(timestamp);
 }
 
 /**
@@ -49,7 +52,8 @@ export function agentChatDayLabel(
     if (days === 0) return t('agentChat.time.today', { time });
     if (days === 1) return t('agentChat.time.yesterday', { time });
     const isSameYear = new Date(timestamp).getFullYear() === new Date(now).getFullYear();
-    return `${(isSameYear ? MONTH_DAY_FORMAT : FULL_DATE_FORMAT).format(timestamp)} ${time}`;
+    const date = localeDateTimeFormat(isSameYear ? MONTH_DAY_OPTIONS : FULL_DATE_OPTIONS);
+    return `${date.format(timestamp)} ${time}`;
 }
 
 /**

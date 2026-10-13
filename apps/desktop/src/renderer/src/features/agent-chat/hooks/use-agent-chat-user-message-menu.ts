@@ -3,44 +3,16 @@ import { useState } from 'react';
 
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import { translate } from '../../../i18n';
-import { pushToast, tryCommand } from '../../../stores/toasts';
 import { agentChatRestoreKey, useAgentChatRestoreStore } from '../agent-chat-commands';
+import {
+    agentChatSelectionInside,
+    copyAgentChatMessageFromMenu,
+    quoteAgentChatMessageFromMenu,
+} from '../agent-chat-message-menu-actions';
 import { agentChatUserMessageMenu } from '../agent-chat-user-message-menu';
 import { useAgentChatEdit } from './use-agent-chat-edit';
+import { useAgentChatReadBackHistory } from './use-agent-chat-read-back-history';
 import { useAgentChatTerminal } from './use-agent-chat-terminal';
-
-/**
- * The selected text when the document selection lies inside `container`, so a right-click on a highlighted phrase
- * copies that phrase and a right-click elsewhere in the message copies all of it.
- */
-function selectionInside(container: HTMLElement | null): string {
-    const selection = getSelection();
-    if (!container || !selection || selection.isCollapsed) return '';
-    const { anchorNode, focusNode } = selection;
-    if (!anchorNode || !focusNode) return '';
-    return container.contains(anchorNode) && container.contains(focusNode)
-        ? selection.toString()
-        : '';
-}
-
-/**
- * Copies from the menu with the same confirmation a keyboard copy out of the transcript raises, since a native menu
- * entry, unlike the hover row's Copy button, has no check mark to turn into.
- */
-function copyFromMenu(value: string, isSelection: boolean): void {
-    // eslint-disable-next-line no-void -- tryCommand reports a failed copy through the toast
-    void tryCommand(translate('agentChat.userMenu.copyFailed'), async () => {
-        await navigator.clipboard.writeText(value);
-        pushToast(
-            'success',
-            translate(
-                isSelection
-                    ? 'agentChat.userMenu.selectionCopied'
-                    : 'agentChat.userMenu.messageCopied',
-            ),
-        );
-    });
-}
 
 /**
  * A user message's Fork and Restore Code to Here in-flight states, shared by its hover-row buttons and its right-click
@@ -62,6 +34,7 @@ export function useAgentChatUserMessageMenu({
     onContextMenu: (event: MouseEvent) => void;
 } {
     const edit = useAgentChatEdit();
+    const readBackHistory = useAgentChatReadBackHistory();
     const terminalId = useAgentChatTerminal();
     const [isForking, setIsForking] = useState(false);
     const isRestoring = useAgentChatRestoreStore(
@@ -76,16 +49,32 @@ export function useAgentChatUserMessageMenu({
         void run(id, text).finally(() => setIsForking(false));
     };
     const onContextMenu = useContextMenu(() => {
-        const selectedText = selectionInside(container.current);
+        const selectedText = agentChatSelectionInside(container.current);
+        /**
+         * A message read back from history is outside the projection the rewind actions work on: list Edit and Fork
+         * disabled with why, rather than leave the menu looking as if they never existed.
+         */
+        const historyReason =
+            !edit && readBackHistory
+                ? translate('agentChat.userMenu.historyUnavailable')
+                : undefined;
         return agentChatUserMessageMenu({
             text,
             selectedText,
-            edit: edit?.availability(id),
-            fork: edit?.fork?.availability(id),
+            edit: edit ? edit.availability(id) : historyReason,
+            fork: edit
+                ? edit.fork?.availability(id)
+                : readBackHistory?.canFork === true
+                  ? historyReason
+                  : undefined,
             restore: edit?.restore?.availability(id),
             isForking,
             isRestoring,
-            onCopy: (value) => copyFromMenu(value, value !== text),
+            onCopy: (value) => copyAgentChatMessageFromMenu(value, value !== text),
+            onQuote:
+                terminalId === undefined
+                    ? undefined
+                    : (value) => quoteAgentChatMessageFromMenu(terminalId, value),
             onEdit: () => edit?.startEdit(id, text),
             onFork: fork,
             onRestore: () => {

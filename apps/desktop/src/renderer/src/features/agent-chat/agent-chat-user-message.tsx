@@ -12,6 +12,7 @@ import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { agentChatDeliveryCaption } from './agent-chat-presentation';
+import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { agentChatLeadingInvocation } from './agent-chat-slash-commands';
 import { AgentChatUserMessageActions } from './agent-chat-user-message-actions';
 import { agentChatUserMessageSegments } from './agent-chat-user-message-text';
@@ -22,16 +23,18 @@ import { useIsAgentChatClamped } from './hooks/use-is-agent-chat-clamped';
 
 /**
  * The user's message, right-aligned. A message steered into a running turn says so in a quiet caption under the bubble
- * (see `agentChatDeliveryCaption`). Under it, a row with the time it was sent and a Copy action appears while the
- * pointer is over the message or keyboard focus reaches it, as under an earlier reply; the row keeps its height, so
- * revealing it never shifts the transcript. A long message (a pasted log, a spec) clamps to twelve lines with Show
- * more, so one prompt does not push the reply it asked for off screen; Copy still takes the whole text. A message that
- * started a turn also offers "Edit from here", which puts its text back into the composer to send in its place (the
- * message being edited keeps a quiet `--muted` outline until then), "Fork from here", which opens the conversation
- * before it in a new Session with its text in the composer, and, when the provider restores files, "Restore code to
- * here", which reverts the files changed since and keeps the conversation, as Claude Code's `/rewind` "Restore code"
- * does. A right-click offers the same actions in a native menu (`agentChatUserMessageMenu`), so they are reachable
- * without finding the hover row.
+ * (see `agentChatDeliveryCaption`). Under it, a row with the time it was sent and a Copy action mounts while the
+ * pointer is over the message or keyboard focus is inside it, exactly as under a reply (`AgentChatReplyFrame`): the row
+ * keeps its height, so revealing it never shifts the transcript, and a hidden row is no Tab stop. `Option+ArrowUp` and
+ * `Option+ArrowDown` step through user messages and replies alike to reach it from the keyboard. A long message (a
+ * pasted log, a spec) clamps to twelve lines with Show more, so one prompt does not push the reply it asked for off
+ * screen; Copy still takes the whole text. A message that started a turn also offers "Edit from here", which puts its
+ * text back into the composer to send in its place (the message being edited keeps a quiet `--muted` outline until
+ * then), "Fork from here", which opens the conversation before it in a new Session with its text in the composer, and,
+ * when the provider restores files, "Restore code to here", which reverts the files changed since and keeps the
+ * conversation, as Claude Code's `/rewind` "Restore code" does. A right-click offers the same actions in a native menu
+ * (`agentChatUserMessageMenu`), so they are reachable without finding the hover row; a message read back from history
+ * lists Edit and Fork there disabled with why.
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -64,10 +67,32 @@ export function AgentChatUserMessage({
         createdAt !== undefined ||
         edit?.availability(id) !== undefined ||
         edit?.restore?.availability(id) !== undefined;
+    const actions = hasActions ? (
+        <>
+            {createdAt !== undefined && <AgentChatMessageTime timestamp={createdAt} />}
+            <AgentChatUserMessageActions
+                id={id}
+                isForking={menu.isForking}
+                isRestoring={menu.isRestoring}
+                text={text}
+                onFork={menu.fork}
+            />
+            {text && (
+                <CopyIconButton
+                    className="-mr-1"
+                    copy={() => writeToClipboardWithFeedback(navigator.clipboard, text)}
+                    label={t('agentChat.message.copy')}
+                />
+            )}
+        </>
+    ) : null;
     return (
-        <div
-            className="group/user-message flex flex-col items-end gap-1.5"
+        <AgentChatReplyFrame
+            actions={actions}
+            actionsClassName="-mt-1"
+            className="flex flex-col items-end gap-1.5"
             data-agent-chat-user-message={id}
+            isPinned={menu.isForking || menu.isRestoring}
             ref={container}
             onContextMenu={menu.onContextMenu}
         >
@@ -86,29 +111,7 @@ export function AgentChatUserMessage({
                 />
             )}
             {caption && <span className="-mt-0.5 text-[11px] leading-4 text-muted">{caption}</span>}
-            {hasActions && (
-                <div
-                    className="-mt-1 flex h-6 items-center gap-1 opacity-0 group-hover/user-message:opacity-100 focus-within:opacity-100 has-[[aria-busy]]:opacity-100"
-                    data-agent-chat-find-ignore=""
-                >
-                    {createdAt !== undefined && <AgentChatMessageTime timestamp={createdAt} />}
-                    <AgentChatUserMessageActions
-                        id={id}
-                        isForking={menu.isForking}
-                        isRestoring={menu.isRestoring}
-                        text={text}
-                        onFork={menu.fork}
-                    />
-                    {text && (
-                        <CopyIconButton
-                            className="-mr-1"
-                            copy={() => writeToClipboardWithFeedback(navigator.clipboard, text)}
-                            label={t('agentChat.message.copy')}
-                        />
-                    )}
-                </div>
-            )}
-        </div>
+        </AgentChatReplyFrame>
     );
 }
 
@@ -212,6 +215,8 @@ function UserMessageText({
                 href={segment.url}
                 key={position}
                 referenceTerminalId={terminalId}
+                // The message's hover action row sits right under the bubble; a card opening below would cover it.
+                side="top"
                 summary={summary}
                 onOpen={openAgentChatLink}
             >

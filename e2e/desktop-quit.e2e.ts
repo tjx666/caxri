@@ -20,7 +20,7 @@ import { runningWork } from './support/running-work.ts';
 const QUIT_DIALOG_PROBE_KEY = '__caxriE2EQuitDialogProbe';
 const QUIT_BUTTONS = ['Quit and Stop Tasks', 'Quit and Keep Tasks Running', 'Cancel'];
 const QUIT_DETAIL =
-    'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent sessions so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.';
+    'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent conversations so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.';
 
 interface QuitDialogSnapshot {
     buttons: string[];

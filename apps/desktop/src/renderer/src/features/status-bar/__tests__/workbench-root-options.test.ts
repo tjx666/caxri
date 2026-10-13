@@ -5,6 +5,7 @@ import {
     conversationWorkbenchRoots,
     conversationWorkbenchRootSuggestion,
     visibleWorkbenchRoots,
+    workbenchRootForBranch,
 } from '../workbench-root-options';
 
 function option(
@@ -74,5 +75,21 @@ describe('Workbench Root picker options', () => {
                 (root) => root.rootPath,
             ),
         ).toEqual(['/repo', '/worktrees/alpha', '/worktrees/beta', '/worktrees/gamma']);
+    });
+});
+
+describe('workbenchRootForBranch', () => {
+    it('finds the one worktree checked out on the pull request branch', () => {
+        expect(workbenchRootForBranch([main, alpha, beta], 'feat/alpha', 'repo')).toBe(alpha);
+    });
+
+    it('never offers the current root or a branch no worktree has', () => {
+        expect(workbenchRootForBranch([main, alpha], 'main', 'repo')).toBeUndefined();
+        expect(workbenchRootForBranch([main, alpha], 'feat/missing', 'repo')).toBeUndefined();
+    });
+
+    it('does not guess between two checkouts of the same branch', () => {
+        const twin = option({ branch: 'feat/alpha', rootPath: '/worktrees/alpha-2' });
+        expect(workbenchRootForBranch([main, alpha, twin], 'feat/alpha', 'repo')).toBeUndefined();
     });
 });

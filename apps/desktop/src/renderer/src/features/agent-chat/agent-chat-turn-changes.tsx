@@ -7,7 +7,7 @@ import {
     projectDisplayPath,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import { ChevronDown, FileDiff, MessageSquareDiff } from 'lucide-react';
+import { ChevronDown, FileDiff, FileSymlink, MessageSquareDiff } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
@@ -18,6 +18,7 @@ import { useTranslation } from '../../i18n';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { parentDirectoryPath } from '../../lib/file-path';
 import { cn } from '../../lib/utilities';
+import { openFileForSession } from '../editor/document-commands';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { agentChatLocalizedEditedFilesTitle } from './agent-chat-diff-labels';
 import { AgentChatDiff } from './agent-chat-file-changes';
@@ -48,43 +49,66 @@ function EditedFileDiff({ file, label }: { file: AgentChatEditedFile; label?: st
 
 /**
  * One changed file in a multi-file card: its directory in `--muted` and its name in the text color, the Codex app's
- * row, with its counts at the end. Clicking it discloses the file's diff.
+ * row, with its counts at the end. Clicking it discloses the file's diff. A file the turn did not delete also offers
+ * Open in Editor at the row's end, revealed while the pointer is over the row or keyboard focus is in it.
  */
 function EditedFileRow({
     displayPath,
     file,
     isExpanded,
+    onOpen,
     onToggle,
 }: {
     displayPath: string;
     file: AgentChatEditedFile;
     isExpanded: boolean;
+    /**
+     * Opens the file in the editor, or `undefined` when the file is gone or the card has no Session to open it in.
+     */
+    onOpen?: () => void;
     onToggle: () => void;
 }) {
     const { t } = useTranslation();
     const detailId = useId();
     const directory = parentDirectoryPath(displayPath);
     return (
-        <li className="border-t border-border">
-            <button
-                aria-controls={detailId}
-                aria-expanded={isExpanded}
-                aria-label={t(
-                    isExpanded
-                        ? 'agentChat.changes.hideFileChanges'
-                        : 'agentChat.changes.showFileChanges',
-                    { path: displayPath, stat: diffStatLabel(file, t) },
+        <li className="group/file-row border-t border-border">
+            <div className="flex min-w-0 items-center hover:bg-elevated">
+                <button
+                    aria-controls={detailId}
+                    aria-expanded={isExpanded}
+                    aria-label={t(
+                        isExpanded
+                            ? 'agentChat.changes.hideFileChanges'
+                            : 'agentChat.changes.showFileChanges',
+                        { path: displayPath, stat: diffStatLabel(file, t) },
+                    )}
+                    className="flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-3 border-0 bg-transparent px-3 text-left text-[12px] focus-visible:outline focus-visible:-outline-offset-1 focus-visible:outline-accent"
+                    type="button"
+                    onClick={onToggle}
+                >
+                    <span className="min-w-0 flex-1 truncate">
+                        {directory && <span className="text-muted">{directory}/</span>}
+                        <span className="text-foreground">{pathBasename(displayPath)}</span>
+                    </span>
+                    <DiffStat additions={file.additions} deletions={file.deletions} />
+                </button>
+                {onOpen && (
+                    <Tooltip content={t('agentChat.changes.openInEditor')}>
+                        <Button
+                            aria-label={t('agentChat.changes.openPathInEditor', {
+                                path: displayPath,
+                            })}
+                            className="mr-2 -ml-1 size-6 shrink-0 rounded-md text-muted opacity-0 transition-opacity group-focus-within/file-row:opacity-100 group-hover/file-row:opacity-100 enabled:hover:text-foreground"
+                            size="icon"
+                            variant="ghost"
+                            onClick={onOpen}
+                        >
+                            <FileSymlink aria-hidden="true" className="size-3.5" />
+                        </Button>
+                    </Tooltip>
                 )}
-                className="flex h-9 w-full min-w-0 cursor-pointer items-center gap-3 border-0 bg-transparent px-3 text-left text-[12px] hover:bg-elevated focus-visible:outline focus-visible:-outline-offset-1 focus-visible:outline-accent"
-                type="button"
-                onClick={onToggle}
-            >
-                <span className="min-w-0 flex-1 truncate">
-                    {directory && <span className="text-muted">{directory}/</span>}
-                    <span className="text-foreground">{pathBasename(displayPath)}</span>
-                </span>
-                <DiffStat additions={file.additions} deletions={file.deletions} />
-            </button>
+            </div>
             <DisclosureMotion
                 animate
                 expanded={isExpanded}
@@ -243,6 +267,14 @@ export function AgentChatTurnChanges({
                             file={file}
                             isExpanded={expanded.has(file.path)}
                             key={file.path}
+                            onOpen={
+                                sessionId !== undefined && file.kind !== 'delete'
+                                    ? () => {
+                                          // eslint-disable-next-line no-void -- openFileForSession reports failures through tryCommand
+                                          void openFileForSession(sessionId, file.path);
+                                      }
+                                    : undefined
+                            }
                             onToggle={() => toggle(file.path)}
                         />
                     ))}

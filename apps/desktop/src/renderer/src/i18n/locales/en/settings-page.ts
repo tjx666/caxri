@@ -73,7 +73,7 @@ export const settingsPage = {
         'Pair phones and tablets on this local network to review scoped Agent Sessions and send short replies',
     'settings.row.hardwareAcceleration.title': 'Hardware acceleration',
     'settings.row.hardwareAcceleration.description':
-        "Controls whether the whole app draws with your graphics hardware, including every Terminal's GPU acceleration below. Off, Caxri uses software rendering, which is slower but keeps working when graphics fail. Caxri only changes this after you confirm it, and a change takes effect after a restart.",
+        'Controls whether the whole app draws with your graphics hardware, including Terminal hardware acceleration below. Off, Caxri uses software rendering, which is slower but keeps working when graphics fail. Caxri only changes this after you confirm it, and a change takes effect after a restart.',
     'settings.row.hardwareAcceleration.offStatus':
         'Caxri starts with software rendering until this is turned back on.',
     'settings.row.remoteDebugging.title': 'Debugging port',

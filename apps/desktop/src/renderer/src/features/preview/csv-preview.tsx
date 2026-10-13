@@ -259,6 +259,7 @@ export function CsvPreview({
                             inputRef={filterReference}
                             value={filter}
                             onChange={(value) => changeView({ tableFilter: value })}
+                            onExit={() => scrollReference.current?.focus()}
                         />
                     </div>
                     {/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- rows are absolutely positioned by the virtualizer, which a native <table> layout cannot host. */}
@@ -390,8 +391,21 @@ export function CsvPreview({
                             )}
                         </div>
                         {rowOrder.length === 0 && table.rows.length > 0 && (
-                            <div className="empty-work absolute inset-x-0 top-12 text-center text-muted">
+                            <div className="empty-work absolute inset-x-0 top-12 flex flex-col items-center gap-2 text-center text-muted">
                                 {t('preview.table.noMatches')}
+                                {/* A miss is one step from the full table again (DESIGN.md principle 9). */}
+                                {filter && (
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => {
+                                            changeView({ tableFilter: '' });
+                                            filterReference.current?.focus();
+                                        }}
+                                    >
+                                        {t('preview.table.clearFilter')}
+                                    </Button>
+                                )}
                             </div>
                         )}
                     </div>

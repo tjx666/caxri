@@ -8,7 +8,10 @@ import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
 import type { LinkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
+import { writeToClipboardWithFeedback } from '../copy-feedback';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../ui/hover-card';
+import { CopyIconButton } from './copy-icon-button';
+import { useLinkContextMenu } from './link-context-menu';
 import { LinkFavicon } from './link-favicon';
 
 const GITHUB_KIND_ICONS = {
@@ -20,15 +23,16 @@ const GITHUB_KIND_ICONS = {
 
 /**
  * A web link in a transcript or a user's message: the site's icon ahead of the text, a dotted underline, and a hover
- * card naming the site with an Open action, modeled on the Codex app. The card previews the page (its share image,
- * title, and description) once Main has read them; until then, or when the page declares none, it names where on the
- * site the link leads.
+ * card showing the full address (cut to one line) with Copy Link and Open actions, modeled on the Codex app. The card
+ * previews the page (its share image, title, and description) once Main has read them; until then, or when the page
+ * declares none, it names where on the site the link leads. A right-click offers Open Link and Copy Link.
  */
 export function WebLink({
     children,
     className,
     href,
     referenceTerminalId,
+    side = 'bottom',
     summary,
     onOpen,
 }: {
@@ -42,11 +46,17 @@ export function WebLink({
      * The Terminal whose Session scopes a pull request link's state lookup.
      */
     referenceTerminalId?: string;
+    /**
+     * Where the card opens. Below the link by default; a caller whose own controls sit right below the text (a user
+     * message's hover action row) opens it above, so the card never covers them.
+     */
+    side?: 'top' | 'bottom';
     summary: LinkSummary;
     onOpen: (url: string) => void;
 }) {
     const { t } = useTranslation();
     const origin = new URL(href).origin;
+    const onContextMenu = useLinkContextMenu(href, onOpen);
     return (
         <HoverCard>
             <HoverCardTrigger
@@ -60,6 +70,7 @@ export function WebLink({
                         )}
                         type="button"
                         onClick={() => onOpen(href)}
+                        onContextMenu={onContextMenu}
                     />
                 }
             >
@@ -74,7 +85,7 @@ export function WebLink({
             <HoverCardContent
                 align="start"
                 className="w-90 overflow-hidden p-0 whitespace-normal"
-                side="bottom"
+                side={side}
             >
                 <div className="flex items-center gap-2 px-3 py-2">
                     <LinkFavicon
@@ -83,9 +94,14 @@ export function WebLink({
                         referenceTerminalId={referenceTerminalId}
                         summary={summary}
                     />
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-muted">
-                        {summary.host}
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-muted select-text">
+                        {href}
                     </span>
+                    <CopyIconButton
+                        className="shrink-0"
+                        copy={() => writeToClipboardWithFeedback(navigator.clipboard, href)}
+                        label={t('agentChat.link.copy')}
+                    />
                     <button
                         className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[12px] text-foreground transition-colors hover:bg-surface focus-visible:outline focus-visible:outline-accent"
                         type="button"

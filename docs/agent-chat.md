@@ -444,8 +444,8 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
 ## Edit from here
 
 Hovering a user message that started a turn shows "Edit from here" beside Copy; right-clicking any
-user message opens a native menu with the same actions (Copy, or Copy Message without a selection,
-then Edit from Here, Fork from Here, and Restore Code to Here), each disabled with the hover row's
+user message opens a native menu with the same actions (Copy Message, preceded by Copy and followed
+by Add to Message when text is selected, then Edit from Here, Fork from Here, and Restore Code to Here), each disabled with the hover row's
 reason when it cannot run and left out when the message does not offer it
 (`agent-chat-user-message-menu.ts`). It puts the
 message's text into the composer (any draft is set aside) and opens the edit bar above the input:
@@ -589,6 +589,10 @@ several callbacks can share one item, so the transport id is never the key.
   file-change approval would touch (read from the file-change item the request gates), and Codex's
   stated reason. Only the decisions Codex lists in
   `availableDecisions` are offered. Controls stay disabled while an answer is in flight.
+- A question form with several questions shows one tab per question. Its primary button reads Next
+  while a later question is neither answered nor opened yet, and moves to it; once every question
+  has been answered or seen it reads Submit (`questionFormPrimaryAction` in
+  `agent-chat-question-flow.ts`).
 - An answered question leaves an `answered` notice in the timeline, so the transcript records what
   the user chose after the card disappears.
 - Requests Caxri cannot render are answered immediately (MCP elicitation is declined, anything
@@ -602,7 +606,8 @@ several callbacks can share one item, so the transport id is never the key.
   plan, and the failure banner sit in a dock above the composer, outside the scroller, so reading
   history never hides them. The plan stays one collapsed row (the current step and `done/total`)
   until the user expands it, so a long plan never pushes the transcript out of view. The timeline follows new output until the user scrolls up; Jump to
-  latest returns to the end.
+  latest returns to the end. While it shows, the transcript ends above it, so the button never
+  covers the last line of text.
 - The composer keeps an unsent draft per Chat across tab and Session switches and across a full
   restart, clears only the text that was actually sent, and treats Escape as Stop while a turn
   runs. The draft text is device-local Renderer state in `localStorage` (bounded to the 50 most
@@ -625,6 +630,8 @@ several callbacks can share one item, so the transport id is never the key.
   A status row at the top of the composer card says whether the Chat is starting, working, or waiting on an
   answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and `Esc to
 stop`, which is also a pointer shortcut for Stop. Only the label is the polite live region, so the ticking time is never announced.
+  Send's tooltip reads `Send` (or `Queue` during a turn) with an Enter keycap; Cmd+Enter's Steer
+  keeps its own text.
 - Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),
   each with the tool kind's glyph from the provider tool table shared with mobile
   (`packages/protocol/src/agent/agent-tool-presentation.ts`). Codex's login-shell wrapper
@@ -660,10 +667,15 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   fence closes. Under a finished reply, Copy message and the time the reply began mount only while
   the pointer is over the reply or focus is inside it, the latest reply included
   (`agent-chat-reply-frame.tsx`); the row keeps its height, so revealing it never shifts the
-  transcript.
+  transcript. Option+ArrowUp and Option+ArrowDown step focus between replies and user messages,
+  which reveals each one's row. Right-clicking a reply opens a native menu with Copy Message; with
+  text selected inside it, Copy comes first and Add to Message follows, which quotes the selection
+  into the composer as the selection toolbar's quote does.
 - Message times follow the Codex app. A centered day break (`Today 17:59`, `Yesterday 09:12`,
   `Oct 3 17:59`) heads the first user message of each day. Under a user message, a hover row shows
-  its time and Copy message; the row keeps its height, so revealing it never shifts the transcript.
+  its time and Copy message, mounted only while the pointer or focus is on the message; the row keeps
+  its height, so revealing it never shifts the transcript. A link preview card in a user message
+  opens above the link, so it never covers that row.
   Every time carries a tooltip with the full date. Formatting and day grouping live in
   `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-time.ts`.
 - Scrolling back reads the whole conversation, not only the projection. Near the top, the pane
@@ -680,8 +692,9 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   no Edit, Fork, or Restore, because those act on the projection.
 - From the second user message, a message rail sits at the pane's left edge: one tick per user
   message, the one being read longer and brighter. Hovering a tick previews its message, and
-  clicking it stops following new output and jumps there. Ticks shrink together rather than scroll
-  when a long conversation would overflow the view; past 120 messages each tick stands for an even
+  clicking it stops following new output and jumps there. The rail is a single tab stop: ArrowUp,
+  ArrowDown, Home, and End move among its ticks and Enter jumps. Ticks shrink together, down to a
+  6px target each, rather than scroll when a long conversation would overflow the view; past 120 messages each tick stands for an even
   stretch of the conversation, so ticks stay apart
   (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-rail-marks.ts`).
 - Cmd+F in a Chat opens a find bar at the conversation's top right, clear of the message rail and
@@ -755,7 +768,9 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   longer holds what the turn left (edited since, missing, recreated, or a diff Server Core
   truncated) nothing is written and a toast names the file; for a file changed since, it also
   suggests undoing the later turn first or Restore Code to Here. A complete Undo confirms with a
-  success toast (`Undid the changes to N files`) and the card stops offering Undo.
+  success toast (`Undid the changes to N files`) and the card reads `Undone` with a Redo beside it
+  for as long as this window still holds what the Undo replaced, so taking it back does not depend
+  on catching the toast.
   Created files go to the Trash behind its usual confirmation; edits and deletions are reversed
   through `files.write`/`files.create`, so Session path authorization applies and a file outside
   the Project cannot be undone. Pull requests and issues the turn created or edited follow as
@@ -771,7 +786,7 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   the turn made to it in order; the projection is read from the shared `agentChat.read` cache, so
   nothing new crosses IPC. Hovering a line of code shows `+`, which opens a comment on it;
   Shift-clicking `+` on another line of the same hunk extends the range; a line in another hunk
-  starts the range over there, since the hunks' line numbers need not be contiguous. Cmd+Enter or Add to Chat
+  starts the range over there, since the hunks' line numbers need not be contiguous. Cmd+Enter or Add to message
   appends the comment to the Chat's message as a new paragraph without sending it, in the same
   form a Git diff review sends a Terminal Agent (`formatReviewComment` in
   `packages/protocol/src/domain/git-review-contract.ts`): `@path#Lx-Ly (Agent turn diff, <side>
@@ -842,8 +857,7 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   Chat's choice or the connection changes (`agentChatConfigureScope`). While the snapshot reports
   `ultracode`, the sheet adds the Desktop menu's `Ultracode` switch below the efforts, and the
   trigger reads `Ultracode` after the effort while it is on. A new Chat can be
-  configured before its first message. During a turn the sheet says the change applies from the
-  next turn. A Claude Code Chat that has not named
+  configured before its first message. During a turn the sheet says `Applies to the next turn.` A Claude Code Chat that has not named
   its model yet asks for a model before it lists efforts. A provider without a model list, a
   `view` device, or a stale connection shows the model as plain text; an open sheet stays open with
   its lists disabled and the composer's reason.
@@ -885,8 +899,8 @@ planMode }`. A Codex switch during a turn says it applies to the next turn. "Use
   argument cut to 200 characters behind `…`) plus `queuePaused` and `queueLength`, the real count
   the header shows when the queue outgrows the preview; each entry keeps its real id. The phone shows it as a card docked above its composer with Desktop's header words (`Queued · sends
 after this turn`, or `Queue paused · sends nothing until you resume` with Resume). Each row offers
-  Steer (`Send now` on an idle Chat; disabled for a command during a turn), Edit, and Delete, and a
-  swipe left deletes too; these call `mobile.agentChat.sendQueuedNow`, `mobile.agentChat.takeQueued`,
+  Steer (`Send now` on an idle Chat; disabled for a command during a turn) and Edit; swiping the row
+  left reveals Delete, which only a tap removes, and a screen reader reaches it as a row action; these call `mobile.agentChat.sendQueuedNow`, `mobile.agentChat.takeQueued`,
   `mobile.agentChat.removeQueued`, and `mobile.agentChat.resumeQueue`, which forward the matching
   `agentChat.*` method after the
   same Terminal and grant checks as `send`. The row hides at once and returns with an inline error
@@ -951,7 +965,9 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   owner-only, pruned file store as [Terminal long paste](low-cost-generation.md#terminal-long-paste),
   and the composer inserts that reference where the paste landed. Send waits while a save is in
   flight. A paste past the 16 MiB file limit is refused with the Terminal's message, and one whose
-  reference would no longer fit in the message is refused with a prompt to shorten it.
+  reference would no longer fit in the message is refused with a prompt to shorten it. A toast
+  names the saved paste and offers Paste as Text, which replaces the reference with the text when
+  it fits; Cmd+Shift+V pastes as text from the start, skipping the save.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
   `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
   queue.
@@ -994,7 +1010,10 @@ as of the latest model response. Besides the total and the model window it can c
   none.
 - `compactWindow`: the window Claude Code compacts against (`rawMaxTokens`) when it is smaller
   than the model's, as with `CLAUDE_CODE_AUTO_COMPACT_WINDOW` or the 200K boundary on a 1M model.
-  The meter's percentage and color measure against it: `--warning` from 60%, `--danger` from 85%.
+  The meter's percentage and color measure against it: `--warning` from 60%, and it stays
+  `--warning` past 85%, because a full context is advice to compact, not a failure.
+  The composer meter and the Context tab round the same whole percentage, and name a compaction
+  point only while Claude Code reports auto-compact on (`isAutoCompactEnabled`).
 - `cacheTtlMinutes` and `lastResponseAt`: how long the prompt cache survives an idle Chat, counted
   from the latest response. Claude Code's lifetime comes from the response's cache-write split (any
   one-hour write means 60 minutes, otherwise five-minute writes mean 5) and defaults to 60. Codex
@@ -1005,12 +1024,14 @@ as of the latest model response. Besides the total and the model window it can c
   subscription spends allowance instead, so this is an estimate of weight, not an invoice.
 
 While no turn runs, the composer shows these as one row in the activity bar's place, judged on a
-minute clock. In the last 10 minutes of the cache lifetime (the second half of a lifetime shorter
+minute clock, once the context is worth warning about: a rewrite priced at $0.25 or more, or at
+least 40,000 tokens for a model with no price. In the last 10 minutes of the cache lifetime (the second half of a lifetime shorter
 than 20 minutes, so a five-minute cache does not warn the moment a reply lands), a `--warning`
 countdown says when the cache expires and that replying now avoids rewriting the context. Once the
 Chat has idled past the lifetime, a `--muted` notice says the next message rewrites the context and
-what that costs. From 85% of the compaction window, a `--danger` notice suggests `/compact`. A cache
-notice and the compaction notice can show at once, cache first.
+what that costs. From 85% of the compaction window, a `--warning` notice suggests `/compact`. A cache
+notice and the compaction notice can show at once, cache first. Dismissing a cache notice hides it
+until the next reply arrives; the dismissal lives in memory only.
 
 The expired-cache notice also offers **Continue in new Chat**, the cheaper way out of a large cold
 context. It opens a new Chat of the same Agent in the same Session and sends it a handoff prompt
@@ -1062,7 +1083,9 @@ prefix breaks, a dominant tool result, a heavy MCP server, a large memory file);
 the latest request's cached prefix on the same scale; a per-request cache timeline with break and
 compaction markers and a break table; and heaviest-first lists of the conversation, MCP servers,
 skills, memory files, and custom agents. Window rows share their shade with the composer meter;
-the autocompact reserve stays neutral because it is not content.
+the autocompact reserve stays neutral because it is not content. Category names Claude Code reports
+(System tools, MCP tools, Messages, and so on) are translated through a closed map
+(`context/category-labels.ts`); a category the map does not know shows as reported.
 
 ## Model and effort
 
@@ -1081,7 +1104,8 @@ model offers it when its `models` entry carries `fast` (with the provider's desc
 and the snapshot's `fast` reports whether it is on; it is present only when the provider reports
 the state. `agentChat.configure { fast }` switches it, Server Core rejects turning it on for a model
 without it, and switching to such a model turns it off. The trigger then reads "Fast" beside the
-model.
+model. The trigger keeps its model and effort label while the menu is open. Fast and Ultracode
+while on, like the Plan chip, show the pressed `--selection` fill, never the accent.
 
 - **Codex**: a model offers Fast when `model/list` lists a `priority` (or `fast`) service tier,
   falling back to the deprecated `additionalSpeedTiers`. The toggle rides on the next `turn/start`

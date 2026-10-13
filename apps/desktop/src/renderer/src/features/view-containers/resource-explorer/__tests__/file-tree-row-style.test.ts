@@ -64,6 +64,8 @@ describe('fileTreeRowStyle', () => {
         expect(fileTreeRowStyle({ depth: 2, isDirectory: false })).toEqual({
             paddingLeft: fileTreeLeafIndent(2),
         });
+        // A root file's icon sits where a root folder's icon does: 8px padding, 13px chevron, 8px gap.
+        expect(fileTreeRowStyle({ depth: 0, isDirectory: false })).toEqual({ paddingLeft: 29 });
     });
 });
 

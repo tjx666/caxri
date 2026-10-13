@@ -49,3 +49,15 @@ export function agentChatComposerKeyAction(
         return { kind: 'sendQueued', id: state.nextQueuedId };
     return { kind: 'submit', delivery: delivery === 'steer' ? 'steer' : undefined };
 }
+
+/**
+ * Whether a composer key is Cmd+Shift+V (Ctrl+Shift+V off macOS), "paste as plain text": the clipboard's text goes in
+ * as typed rather than through the long-paste file. Shift changes `key` to `V` on most layouts, so case is ignored.
+ */
+export function isAgentChatPlainPasteKey(
+    key: Pick<AgentChatComposerKey, 'altKey' | 'ctrlKey' | 'key' | 'metaKey' | 'shiftKey'>,
+): boolean {
+    return (
+        (key.metaKey || key.ctrlKey) && key.shiftKey && !key.altKey && key.key.toLowerCase() === 'v'
+    );
+}

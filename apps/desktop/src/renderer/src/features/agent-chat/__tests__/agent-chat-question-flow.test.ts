@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatQuestionResponse,
+    questionFormPrimaryAction,
     questionOptionIndexForArrow,
     questionOptionIndexForKey,
 } from '../agent-chat-question-flow';
@@ -34,5 +35,43 @@ describe('agentChatQuestionResponse', () => {
             answers: { scope: ['Narrow'] },
         });
         expect(agentChatQuestionResponse({})).toEqual({ kind: 'decision', decision: 'cancel' });
+    });
+});
+
+describe('questionFormPrimaryAction', () => {
+    const ids = ['scope', 'tests', 'docs'];
+
+    it('moves to the next unanswered question the user has not opened yet', () => {
+        expect(questionFormPrimaryAction(ids, { scope: ['Narrow'] }, 0, new Set([0]))).toEqual({
+            kind: 'next',
+            index: 1,
+        });
+        expect(
+            questionFormPrimaryAction(ids, { scope: ['Narrow'], tests: ['Yes'] }, 0, new Set([0])),
+        ).toEqual({ kind: 'next', index: 2 });
+    });
+
+    it('wraps to an earlier unseen question', () => {
+        expect(questionFormPrimaryAction(ids, {}, 2, new Set([2]))).toEqual({
+            kind: 'next',
+            index: 0,
+        });
+    });
+
+    it('submits once every unanswered question has been opened or answered', () => {
+        expect(
+            questionFormPrimaryAction(ids, { scope: ['Narrow'] }, 2, new Set([0, 1, 2])),
+        ).toEqual({ kind: 'submit' });
+        expect(
+            questionFormPrimaryAction(
+                ids,
+                { scope: ['Narrow'], tests: ['Yes'], docs: ['No'] },
+                0,
+                new Set([0]),
+            ),
+        ).toEqual({ kind: 'submit' });
+        expect(questionFormPrimaryAction(['only'], {}, 0, new Set([0]))).toEqual({
+            kind: 'submit',
+        });
     });
 });

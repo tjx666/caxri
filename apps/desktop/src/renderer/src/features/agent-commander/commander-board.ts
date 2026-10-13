@@ -429,9 +429,7 @@ export function commanderTaskBadge(
             // Not "Needs you": that names the Commander Inbox column, and this task need not have an Inbox item.
             label: t('agentCommander.task.label.waitingAtStartup'),
             labelKey: 'agentCommander.task.label.waitingAtStartup',
-            title: t('agentCommander.task.waitingAtStartupTitle', {
-                delegationId: task.delegationId,
-            }),
+            title: t('agentCommander.task.waitingAtStartupTitle'),
             toneClassName: TONE_TEXT_CLASSNAME.warning,
         };
     const { descriptionKey, icon, labelKey, tone } = TASK_PRESENTATION[task.status];
@@ -446,7 +444,6 @@ export function commanderTaskBadge(
         label,
         labelKey,
         title: t('agentCommander.task.title', {
-            delegationId: task.delegationId,
             description: t(descriptionKey),
             label,
             reason,
