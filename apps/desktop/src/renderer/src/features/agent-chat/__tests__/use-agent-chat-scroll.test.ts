@@ -5,6 +5,7 @@ import {
     agentChatAnchoredScrollTop,
     agentChatFollowScrollTop,
     agentChatTurnSpacerHeight,
+    isLatestInView,
     isScrolledToEnd,
 } from '../hooks/use-agent-chat-scroll';
 
@@ -26,6 +27,27 @@ describe('isScrolledToEnd', () => {
         expect(isScrolledToEnd({ scrollHeight: 1000, scrollTop: 500, clientHeight: 400 })).toBe(
             false,
         );
+    });
+});
+
+describe('isLatestInView', () => {
+    it('counts the latest entry in view while its end is on screen, whatever space is kept below it', () => {
+        expect(isLatestInView({ contentBottom: 400, viewHeight: 800 })).toBe(true);
+        expect(
+            isLatestInView({
+                contentBottom: 800 + AGENT_CHAT_FOLLOW_THRESHOLD_PX,
+                viewHeight: 800,
+            }),
+        ).toBe(true);
+    });
+
+    it('reports the latest entry out of view once its end is below the view', () => {
+        expect(
+            isLatestInView({
+                contentBottom: 801 + AGENT_CHAT_FOLLOW_THRESHOLD_PX,
+                viewHeight: 800,
+            }),
+        ).toBe(false);
     });
 });
 
@@ -59,12 +81,12 @@ describe('agentChatAnchoredScrollTop', () => {
 
 describe('agentChatTurnSpacerHeight', () => {
     it('leaves room for the latest turn to rest at the top of the view', () => {
-        expect(agentChatTurnSpacerHeight(800, 120)).toBe(664);
+        expect(agentChatTurnSpacerHeight(800, 120)).toBe(568);
         expect(agentChatTurnSpacerHeight(800, 120, 0)).toBe(680);
     });
 
     it('needs no room once the turn fills the view', () => {
-        expect(agentChatTurnSpacerHeight(800, 784)).toBe(0);
+        expect(agentChatTurnSpacerHeight(800, 688)).toBe(0);
         expect(agentChatTurnSpacerHeight(800, 2000)).toBe(0);
     });
 });

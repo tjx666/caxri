@@ -99,7 +99,11 @@ function openAiStatusPages(now: number) {
                     status: 'partial_outage',
                 },
             ],
-            component_uptimes: [{ component_id: 'cx-api', uptime: '99.95' }],
+            // The live feed also lists a per-group figure keyed by group id, without a `component_id`.
+            component_uptimes: [
+                { component_id: 'cx-api', uptime: '99.95' },
+                { status_page_component_group_id: 'cx-group', uptime: '99.90' },
+            ],
         },
     };
 }
@@ -176,13 +180,20 @@ test('the Codex Agent status page shows Codex API uptime, speed by model and mod
         await expect(provider).not.toContainText('Codex Web');
         await expect(provider).not.toContainText('CLI');
         await expect(provider).toContainText('99.95% uptime');
-        const days = provider.getByRole('list', {
+        // One focus stop for the whole strip: the arrow keys step through the days and announce each.
+        const chart = provider.getByRole('img', {
             name: 'Codex API status for each of the last 90 days',
         });
-        await expect(days.getByRole('listitem')).toHaveCount(90);
-        await expect(days.getByRole('listitem').nth(87)).toHaveAccessibleName(/Partial outage$/);
-        await expect(days.getByRole('listitem').nth(89)).toHaveAccessibleName(/Operational$/);
-        await days.getByRole('listitem').nth(87).hover();
+        const bars = chart.locator(':scope > div');
+        await expect(bars).toHaveCount(90);
+        const announced = provider.locator('[aria-live="polite"]');
+        await chart.focus();
+        await chart.press('End');
+        await expect(announced).toHaveText(/Operational$/);
+        await chart.press('ArrowLeft');
+        await chart.press('ArrowLeft');
+        await expect(announced).toHaveText(/Partial outage$/);
+        await bars.nth(87).hover();
         await expect(running.page.locator('.tooltip-popup')).toContainText('Partial outage');
         await testInfo.attach('codex-agent-status-page', {
             body: await running.page.screenshot(),
