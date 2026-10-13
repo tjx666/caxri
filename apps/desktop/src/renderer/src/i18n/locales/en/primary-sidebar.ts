@@ -13,7 +13,7 @@ export const primarySidebar = {
     // Project tree
     'primarySidebar.tree.ariaLabel': 'Primary Side Bar',
     'primarySidebar.tree.addFirstProject': 'Add your first Project',
-    'primarySidebar.reveal.showMore': 'Show {{count}} more',
+    'primarySidebar.reveal.showMore': 'Show more',
     'primarySidebar.project.collapse': 'Collapse {{title}}',
     'primarySidebar.project.expand': 'Expand {{title}}',
     'primarySidebar.project.actionsHint': 'Press Shift+F10 for Project actions',
