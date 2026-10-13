@@ -68,7 +68,7 @@ const USER_ACTION_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
 /**
  * The SSH-specific part of the window's environment state; Main adds `kind` and `destination`.
  */
-export type RemoteStateUpdate = Omit<SshEnvironmentState, 'kind' | 'destination'>;
+export type RemoteStateUpdate = Omit<SshEnvironmentState, 'kind' | 'destination' | 'hostIdentity'>;
 
 export interface RemoteSeedConfig {
     keybindings?: string;

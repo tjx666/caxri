@@ -44,14 +44,15 @@ because a remote path that happens to exist locally is a different file. The Mai
 with one exhaustive per-method table (`apps/desktop/src/main/environment-method-policy.ts`); the
 Renderer hides the matching commands through the `localMachine` command condition.
 
-| Refused or hidden                                         | Remote replacement                    |
-| --------------------------------------------------------- | ------------------------------------- |
-| Native folder picker when adding a Project                | Folder browser served by the SSH Host |
-| Move to Trash                                             | The SSH Host's freedesktop.org Trash  |
-| Open File by Path outside the Project, or `~`             | Paths inside the remote Project only  |
-| Reveal in Finder, open with default app                   | None yet                              |
-| Open in external editor                                   | None yet                              |
-| Theme import, diagnostics export, bug report, OS settings | Use the local window                  |
+| Refused or hidden                                         | Remote replacement                      |
+| --------------------------------------------------------- | --------------------------------------- |
+| Native folder picker when adding a Project                | Folder browser served by the SSH Host   |
+| Move to Trash                                             | The SSH Host's freedesktop.org Trash    |
+| Open File by Path outside the Project, or `~`             | Paths inside the remote Project only    |
+| Reveal in Finder, open with default app                   | None yet                                |
+| Open in external editor                                   | None yet                                |
+| Theme import, diagnostics export, bug report, OS settings | Use the local window                    |
+| Cite a file dropped from Finder or picked with `+`        | Drop it from Files; images still attach |
 
 Move to Trash, including Agent Chat undo of a file the Agent created, keeps the same native
 confirmation. After it, the remote Server moves the entry into the SSH Host's home Trash

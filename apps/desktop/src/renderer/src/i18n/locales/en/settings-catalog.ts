@@ -1,9 +1,9 @@
 /**
  * Display text for the protocol settings catalog (`@caxri/protocol` `settingsSpec`), keyed by setting key. The catalog
- * keeps its English text as the source for search, the CLI, and validation messages; these entries mirror it so the
- * Renderer can show the active locale. `settings.<key>.title` must exist for every setting key and
- * `settings.<key>.description` for every described one: the Settings registry looks them up through template literals
- * that fail type checking when an entry is missing.
+ * keeps its English text as the source Settings search indexes; these entries mirror it word for word (enforced by
+ * `settings-catalog-parity.test.ts`) so the Renderer can show the active locale. `settings.<key>.title` must exist for
+ * every setting key and `settings.<key>.description` for every described one: the Settings registry looks them up
+ * through template literals that fail type checking when an entry is missing.
  */
 export const settingsCatalog = {
     'settings.category.general': 'General',

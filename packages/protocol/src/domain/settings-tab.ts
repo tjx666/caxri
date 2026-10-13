@@ -13,5 +13,3 @@ export function settingsTabPath(): string {
 export function isSettingsTabPath(tabPath: string): boolean {
     return tabPath === SETTINGS_TAB_PATH;
 }
-
-export const SETTINGS_TAB_LABEL = 'Settings';

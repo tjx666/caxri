@@ -4,6 +4,7 @@ import type {
     AgentChatSnapshot,
     AgentChatTurn,
 } from '@caxri/protocol';
+import { MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS } from '@caxri/protocol';
 
 /**
  * Marks one entry of the history read back, rendered with `content-visibility: auto`.
@@ -111,6 +112,29 @@ export function prependAgentChatHistoryPage(
 }
 
 /**
+ * How many evicted items a pane keeps before it lets the oldest go. A pane left open after one scroll-back would
+ * otherwise mirror everything the Agent streams for as long as it stays mounted, while Server Core keeps its own
+ * archive bounded. Dropped items stay readable: the cursor moves to the oldest kept item and the next scroll-back reads
+ * them again from Server Core.
+ */
+export const MAX_AGENT_CHAT_RETAINED_HISTORY_ITEMS = 25 * MAX_AGENT_CHAT_HISTORY_PAGE_ITEMS;
+
+function trimRetainedHistory(history: AgentChatOlderHistory): AgentChatOlderHistory {
+    const excess = history.items.length - MAX_AGENT_CHAT_RETAINED_HISTORY_ITEMS;
+    // A page on its way reads before the current oldest item, so trimming now would open a gap above it.
+    if (excess <= 0 || history.status !== 'idle') return history;
+    const items = history.items.slice(excess);
+    const turnIds = new Set(items.map((item) => item.turnId));
+    return {
+        ...history,
+        items,
+        turns: history.turns.filter((turn) => turnIds.has(turn.id)),
+        isLoaded: true,
+        hasMore: true,
+    };
+}
+
+/**
  * Keeps what the live projection just evicted once the pane starts reading history, so the items between the pages read
  * and the projection never go missing while the user reads back. Before the first request there is nothing to keep: it
  * starts right before the projection. From the request on, an item evicted while the page is on its way sits between
@@ -129,14 +153,14 @@ export function retainEvictedAgentChatItems(
     const evicted = previous.items.slice(0, kept === -1 ? previous.items.length : kept);
     if (evicted.length === 0) return history;
     const turnIds = new Set(evicted.map((item) => item.turnId));
-    return {
+    return trimRetainedHistory({
         ...history,
         items: [...history.items, ...evicted],
         turns: mergeTurns(
             history.turns,
             previous.turns.filter((turn) => turnIds.has(turn.id)),
         ),
-    };
+    });
 }
 
 /**

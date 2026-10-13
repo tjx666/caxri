@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    agentStatusTabLabel,
-    agentStatusTabPath,
-    isAgentStatusTabPath,
-    parseAgentStatusTab,
-} from '../agent-status-tab';
+import { agentStatusTabPath, isAgentStatusTabPath, parseAgentStatusTab } from '../agent-status-tab';
 import { isVirtualEditorTabPath } from '../virtual-tabs';
 
 describe('Agent status tabs', () => {
@@ -26,10 +21,5 @@ describe('Agent status tabs', () => {
     ])('rejects a malformed path: %s', (path) => {
         expect(parseAgentStatusTab(path)).toBeUndefined();
         expect(isAgentStatusTabPath(path)).toBe(false);
-    });
-
-    it('names the tab after the Agent once known', () => {
-        expect(agentStatusTabLabel('Codex')).toBe('Codex Status');
-        expect(agentStatusTabLabel(undefined)).toBe('Agent Status');
     });
 });

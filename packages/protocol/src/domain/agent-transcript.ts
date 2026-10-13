@@ -32,7 +32,3 @@ export function parseAgentTranscriptTab(path: string): AgentTranscriptTab | unde
 export function isAgentTranscriptTabPath(path: string): boolean {
     return Boolean(parseAgentTranscriptTab(path));
 }
-
-export function agentTranscriptTabLabel(terminalTitle: string | undefined): string {
-    return terminalTitle ? `Transcript: ${terminalTitle}` : 'Transcript';
-}

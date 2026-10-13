@@ -63,6 +63,7 @@ describe('terminal resource alerts', () => {
             state: {
                 kind: 'ssh',
                 destination: 'devbox',
+                hostIdentity: 'devbox',
                 phase: 'connected',
                 needsUserAction: false,
             },

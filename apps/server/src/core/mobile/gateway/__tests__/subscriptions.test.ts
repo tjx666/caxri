@@ -1,6 +1,6 @@
 import type { MobileServerPayload } from '@caxri/mobile-transport';
 // oxlint-disable typescript/require-await -- Async Host and authorization fakes preserve the production Promise boundary.
-import type { Principal } from '@caxri/protocol';
+import type { Principal, ServerEvent } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort } from '../../../../domains/terminal';
@@ -156,6 +156,128 @@ describe('MobileGatewaySubscriptions', () => {
         expect(forwarded.operations[0]).toMatchObject({
             item: { changes: [{ path: 'src/greeting.ts' }] },
         });
+        subscriptions.close();
+    });
+
+    it('names changed files against the root the Session moved to', async () => {
+        const sent: MobileServerPayload[] = [];
+        let root = '/work/demo';
+        const subscriptions = new MobileGatewaySubscriptions({
+            authorize: async () => {},
+            currentPrincipal: () => principal,
+            matches: async () => true,
+            randomId: () => 'chat-subscription',
+            send: async (payload) => {
+                sent.push(payload);
+            },
+            terminate: vi.fn(),
+            connectionId: 'connection-1',
+            agentChatProjectRoot: async () => root,
+        });
+        const id = await subscriptions.subscribe({ kind: 'agentChat', terminalId: 'terminal-1' });
+        subscriptions.activate(id);
+        const fileChange = (revision: number, path: string): ServerEvent => ({
+            event: 'agentChat.patch',
+            payload: {
+                terminalId: 'terminal-1',
+                baseRevision: revision - 1,
+                revision,
+                operations: [
+                    {
+                        op: 'upsertItem',
+                        item: {
+                            id: `change-${revision}`,
+                            type: 'fileChange',
+                            status: 'completed',
+                            changes: [{ path, kind: 'update', diff: '' }],
+                        },
+                    },
+                ],
+            },
+        });
+        root = '/work/demo-worktree';
+        subscriptions.publish({
+            event: 'workbench.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-2',
+                reason: 'followed',
+            },
+        });
+        subscriptions.publish(fileChange(1, '/work/demo-worktree/src/a.ts'));
+        await vi.waitFor(() => expect(sent).toHaveLength(1));
+        expect(sent[0]).toMatchObject({ kind: 'agentChat.changed' });
+        await vi.waitFor(() => {
+            subscriptions.publish(fileChange(2, '/work/demo-worktree/src/b.ts'));
+            expect(sent.at(-1)).toMatchObject({ kind: 'agentChat.patch' });
+        });
+        const patch = sent.at(-1) as Extract<MobileServerPayload, { kind: 'agentChat.patch' }>;
+        expect((patch.patch as { operations: unknown[] }).operations[0]).toMatchObject({
+            item: { changes: [{ path: 'src/b.ts' }] },
+        });
+        subscriptions.close();
+    });
+
+    it('keeps a root the Session moved to while the first lookup was still pending', async () => {
+        const sent: MobileServerPayload[] = [];
+        const first = Promise.withResolvers<string>();
+        const lookups = [first.promise, Promise.resolve('/work/demo-worktree')];
+        const subscriptions = new MobileGatewaySubscriptions({
+            authorize: async () => {},
+            currentPrincipal: () => principal,
+            matches: async () => true,
+            randomId: () => 'chat-subscription',
+            send: async (payload) => {
+                sent.push(payload);
+            },
+            terminate: vi.fn(),
+            connectionId: 'connection-1',
+            agentChatProjectRoot: () => lookups.shift() ?? Promise.resolve('/unexpected'),
+        });
+        const subscribed = subscriptions.subscribe({ kind: 'agentChat', terminalId: 'terminal-1' });
+        await vi.waitFor(() => expect(lookups).toHaveLength(1));
+        subscriptions.publish({
+            event: 'workbench.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-2',
+                reason: 'followed',
+            },
+        });
+        await vi.waitFor(() => expect(lookups).toHaveLength(0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        first.resolve('/work/demo');
+        subscriptions.activate(await subscribed);
+        subscriptions.publish({
+            event: 'agentChat.patch',
+            payload: {
+                terminalId: 'terminal-1',
+                baseRevision: 0,
+                revision: 1,
+                operations: [
+                    {
+                        op: 'upsertItem',
+                        item: {
+                            id: 'change-1',
+                            type: 'fileChange',
+                            status: 'completed',
+                            changes: [
+                                { path: '/work/demo-worktree/src/a.ts', kind: 'update', diff: '' },
+                            ],
+                        },
+                    },
+                ],
+            },
+        });
+        await vi.waitFor(() => expect(sent).toHaveLength(1));
+        expect(sent[0]).toMatchObject({ kind: 'agentChat.patch' });
+        expect(
+            (
+                (sent[0] as Extract<MobileServerPayload, { kind: 'agentChat.patch' }>).patch as {
+                    operations: unknown[];
+                }
+            ).operations[0],
+        ).toMatchObject({ item: { changes: [{ path: 'src/a.ts' }] } });
         subscriptions.close();
     });
 

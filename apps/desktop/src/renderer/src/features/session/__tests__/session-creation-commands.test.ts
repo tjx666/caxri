@@ -110,8 +110,10 @@ vi.mock('../../../stores/workbench', () => ({
 }));
 
 import type { CreateSessionAnchor } from '../../../stores/dialogs';
+import { useEnvironmentStore } from '../../../stores/environment';
 import {
     beginSessionCreation,
+    chooseProjectFolder,
     chooseSessionTerminalKind,
     confirmPendingSession,
 } from '../session-creation-commands';
@@ -145,6 +147,17 @@ describe('Session creation commands', () => {
 
     afterEach(() => {
         vi.unstubAllGlobals();
+    });
+
+    it("opens this Mac's folder picker only once the window is known to be local", async () => {
+        useEnvironmentStore.setState({ state: undefined });
+        await chooseProjectFolder();
+        expect(mocks.caxriRequest).not.toHaveBeenCalledWith('dialog.selectDirectory');
+
+        useEnvironmentStore.setState({ state: { kind: 'local' } });
+        await chooseProjectFolder();
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('dialog.selectDirectory');
+        useEnvironmentStore.setState({ state: undefined });
     });
 
     it('skips the Terminal choice entirely when a default Agent is configured', async () => {

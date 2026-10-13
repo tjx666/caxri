@@ -74,13 +74,6 @@ export function isGitReviewPromptInline(prompt: string): boolean {
     return prompt.length <= REVIEW_PROMPT_INLINE_CHARACTER_LIMIT;
 }
 
-/**
- * Maps Monaco's diff side vocabulary to the words a reviewer would say out loud, for the review card heading.
- */
-export function reviewSideLabel(side: GitReviewComment['side']): 'New' | 'Old' {
-    return side === 'original' ? 'Old' : 'New';
-}
-
 export function reviewSnippet(content: string, startLine: number, endLine: number): string {
     return content
         .split('\n')

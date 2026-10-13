@@ -19,13 +19,13 @@ interrupted-restore path relaunches it with the provider's resume arguments (`cl
 
 Settings › Agents has three rows. Their keys keep the `terminal.` prefix so values already written
 to `settings.jsonc` still apply, but the rows sit with the Agents because they decide when an Agent
-is paused:
+is suspended:
 
-| Setting                                                                   | Default    | Range     |
-| ------------------------------------------------------------------------- | ---------- | --------- |
-| `terminal.suspendUntouchedAgents`: Pause Agents you opened but never used | on         | on / off  |
-| `terminal.idleSuspension.enabled`: Pause idle Agents in the background    | off        | on / off  |
-| `terminal.idleSuspension.afterMinutes`: Pause idle Agents after           | 30 minutes | 1 to 1440 |
+| Setting                                                                     | Default    | Range     |
+| --------------------------------------------------------------------------- | ---------- | --------- |
+| `terminal.suspendUntouchedAgents`: Suspend Agents you opened but never used | on         | on / off  |
+| `terminal.idleSuspension.enabled`: Suspend idle Agents in the background    | off        | on / off  |
+| `terminal.idleSuspension.afterMinutes`: Suspend idle Agents after           | 30 minutes | 1 to 1440 |
 
 The idle window applies only while idle suspension is on. Both rules are evaluated by one Server
 Core sweep every 15 seconds, so a park lands at most one sweep after its window elapses.

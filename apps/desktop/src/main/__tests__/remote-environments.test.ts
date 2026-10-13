@@ -124,6 +124,21 @@ describe('SSH Host environments', () => {
         ]);
     });
 
+    it('tells the window the resolved SSH Host key, not only the alias that opened it', async () => {
+        const { environments, harnesses } = setup(undefined, () =>
+            Promise.resolve('dev@203.0.113.7:22'),
+        );
+        await environments.connect('work');
+        const { webContents } = harnesses[0].window;
+
+        expect(environments.methodsFor(webContents as never).get()).toMatchObject({
+            destination: 'work',
+            hostIdentity: 'dev@203.0.113.7:22',
+        });
+        await vi.waitFor(() => expect(lastState(harnesses[0]).phase).toBe('connected'));
+        expect(lastState(harnesses[0]).hostIdentity).toBe('dev@203.0.113.7:22');
+    });
+
     it('focuses the window opened for the same spelling without resolving the destination again', async () => {
         const keyOf = vi.fn((destination: string) => Promise.resolve(destination));
         const { environments, harnesses } = setup(undefined, keyOf);

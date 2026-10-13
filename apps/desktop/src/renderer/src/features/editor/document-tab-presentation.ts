@@ -19,10 +19,9 @@ import { translate } from '../../i18n';
 import { shouldOpenAsPreview } from '../preview/preview-registry';
 
 /**
- * Localized counterparts of `@caxri/protocol`'s English tab label helpers (`gitDiffTabLabel`,
- * `agentTranscriptTabLabel`, `agentTaskTabLabel`, `agentStatusTabLabel`, `filePreviewTabLabel`, and the Settings and
- * Usage labels). The protocol versions stay English because Main and the CLI share them; the Renderer's tab rail
- * translates the same shapes here.
+ * Localized document tab labels for the Renderer's tab rail. Only `gitDiffTabLabel` remains in `@caxri/protocol`, and
+ * it is reused as is for the language-neutral file and commit labels; every worded label (diff changes, transcript,
+ * Agent task, Agent status, file preview, Settings, Usage) is translated here and has no protocol counterpart.
  */
 function diffTabLabel(tab: GitDiffTab, t: Translate): string {
     if (tab.kind !== 'changes') return gitDiffTabLabel(tab);

@@ -8,8 +8,8 @@ import { useTranslation } from '../../i18n';
 import { isImeComposing } from '../../lib/ime';
 
 /**
- * `Old L4` or `New L2–5`, the Git diff review card's heading for the lines a comment cites. The side word is translated
- * here rather than through `reviewSideLabel`, whose English text is also part of the comment sent to the Agent.
+ * `Old L4` or `New L2–5`, the Git diff review card's heading for the lines a comment cites. The side word is display
+ * text only: the prompt sent to the Agent (`formatReviewComment`) cites the raw `original`/`modified` side instead.
  */
 function rangeLabel(
     comment: Pick<ReviewCommentText, 'endLine' | 'side' | 'startLine'>,

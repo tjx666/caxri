@@ -5,6 +5,7 @@ import {
     agentChatHistoryCursor,
     emptyAgentChatOlderHistory,
     hasOlderAgentChatHistory,
+    MAX_AGENT_CHAT_RETAINED_HISTORY_ITEMS,
     prependAgentChatHistoryPage,
     retainEvictedAgentChatItems,
     splitAgentChatHistory,
@@ -83,6 +84,31 @@ describe('Agent Chat older history', () => {
         // The page read before the old first item lands in front of what was kept meanwhile.
         const read = prependAgentChatHistoryPage(retained, page(['m0']), next.items);
         expect(read.items.map((entry) => entry.id)).toEqual(['m0', 'm1']);
+    });
+
+    it('lets the oldest kept items go past the bound and reads them again on scroll-back', () => {
+        const kept = Array.from({ length: MAX_AGENT_CHAT_RETAINED_HISTORY_ITEMS }, (_, index) =>
+            item(`k${index}`, `t-k${index}`),
+        );
+        const full = {
+            ...emptyAgentChatOlderHistory('h1'),
+            isLoaded: true,
+            hasMore: false,
+            items: kept,
+            turns: kept.map((entry) => ({ id: entry.turnId!, status: 'completed' as const })),
+        };
+        const previous = { items: [item('m1', 't1'), item('m2', 't2')], turns: [] };
+        const next = { items: [item('m2', 't2'), item('m3', 't3')] };
+        const retained = retainEvictedAgentChatItems(full, previous, next);
+        expect(retained.items).toHaveLength(MAX_AGENT_CHAT_RETAINED_HISTORY_ITEMS);
+        expect(retained.items.at(-1)?.id).toBe('m1');
+        expect(retained.items[0]?.id).toBe('k1');
+        expect(retained.turns.some((turn) => turn.id === 't-k0')).toBe(false);
+        expect(hasOlderAgentChatHistory(retained, undefined)).toBe(true);
+        expect(agentChatHistoryCursor(retained, undefined)).toBe('k1');
+        // A page already on its way reads before `k0`, so nothing is dropped until it lands.
+        const loading = retainEvictedAgentChatItems({ ...full, status: 'loading' }, previous, next);
+        expect(loading.items).toHaveLength(MAX_AGENT_CHAT_RETAINED_HISTORY_ITEMS + 1);
     });
 
     it('renders the start of the turn the projection begins inside with the live part', () => {

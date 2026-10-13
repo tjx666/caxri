@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-    AGENT_CHAT_DRAFTS_STORAGE_KEY,
+    agentChatDraftsStorageKey,
     MAX_PERSISTED_AGENT_CHAT_DRAFT_CHARACTERS,
     MAX_PERSISTED_AGENT_CHAT_DRAFTS,
     parsePersistedAgentChatDrafts,
@@ -44,7 +44,7 @@ describe('Agent Chat draft persistence', () => {
         first.writeAgentChatDraft('chat-a', 'half written');
         first.writeAgentChatDraft('chat-b', 'other');
         // Nothing is written while the user is still typing.
-        expect(storage.has(AGENT_CHAT_DRAFTS_STORAGE_KEY)).toBe(false);
+        expect(storage.has(agentChatDraftsStorageKey('local'))).toBe(false);
         vi.advanceTimersByTime(300);
 
         const restarted = await loadDrafts();
@@ -67,9 +67,27 @@ describe('Agent Chat draft persistence', () => {
         const pagehide = listeners.get('pagehide');
         expect(pagehide).toBeDefined();
         pagehide?.();
-        expect(JSON.parse(storage.get(AGENT_CHAT_DRAFTS_STORAGE_KEY) ?? 'null')).toEqual([
-            ['chat-a', 'typed right before quitting'],
-        ]);
+        const stored = storage.get(agentChatDraftsStorageKey('local'));
+        expect(JSON.parse(stored ?? 'null')).toEqual([['chat-a', 'typed right before quitting']]);
+    });
+
+    it('keeps the drafts two windows of one scope save for different Chats', async () => {
+        vi.useFakeTimers();
+        const storage = new Map<string, string>();
+        stubRenderer(storage);
+        // Two Renderers over one `localStorage`, each having read it before the other wrote.
+        const first = await loadDrafts();
+        first.readAgentChatDraft('chat-a');
+        const second = await loadDrafts();
+        second.readAgentChatDraft('chat-b');
+
+        first.writeAgentChatDraft('chat-a', 'typed in the first window');
+        second.writeAgentChatDraft('chat-b', 'typed in the second window');
+        vi.advanceTimersByTime(300);
+
+        const restarted = await loadDrafts();
+        expect(restarted.readAgentChatDraft('chat-a')).toBe('typed in the first window');
+        expect(restarted.readAgentChatDraft('chat-b')).toBe('typed in the second window');
     });
 
     it('ignores a malformed entry instead of failing', () => {

@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
@@ -43,7 +45,7 @@ import { refreshAfterMerge } from './pull-request-merge-refresh';
 import type { SessionContextService } from './session';
 import { defaultSessionReferenceDirectory, SessionConversationReferenceService } from './session';
 import { resolveTerminalFileLink } from './terminal';
-import { UsageService } from './usage';
+import { offlinePriceListFetch, UsageService } from './usage';
 
 type ServiceHandlerMethods =
     | 'agent.replySummary'
@@ -251,6 +253,7 @@ export function createServiceHandlers(services: {
     const usage = new UsageService({
         database,
         environment: agentEnvironment,
+        ...(process.env.CAXRI_E2E === '1' && { fetch: offlinePriceListFetch }),
         logger,
         runner: externalStatus.run,
         userDataPath,

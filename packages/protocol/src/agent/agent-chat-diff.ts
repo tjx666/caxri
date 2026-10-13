@@ -199,10 +199,6 @@ export function agentChatFileChangesStat(
     );
 }
 
-export function agentChatFilesChangedLabel(count: number): string {
-    return `${count} ${count === 1 ? 'file' : 'files'} changed`;
-}
-
 /**
  * The Git status a change kind reads as: the `GitFileStatus` kind and its single status letter. Desktop paints it with
  * the same letter and `--git-*` color as that file's row in Files and Source Control; it is structurally a Desktop

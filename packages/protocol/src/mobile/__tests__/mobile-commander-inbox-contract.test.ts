@@ -41,7 +41,7 @@ const byteLength = (value: unknown) => new TextEncoder().encode(JSON.stringify(v
 describe('Commander Inbox presentation', () => {
     it('labels kinds with the Desktop names', () => {
         expect(commanderInboxKindLabel('decision')).toBe('Decision');
-        expect(commanderInboxKindLabel('hands')).toBe('Needs your hands');
+        expect(commanderInboxKindLabel('hands')).toBe('Needs you');
         expect(commanderInboxKindLabel('merge')).toBe('Pull request');
     });
 

@@ -212,6 +212,7 @@ describe('remote scripts', () => {
             expect(launchEnvironment).toContain('CAXRI_LOG_LEVEL=debug');
             expect(launchEnvironment).toContain(`CAXRI_CLI_PATH=${join(build, 'cli/caxri.cjs')}`);
             expect(launchEnvironment).not.toContain('SSH_CONNECTION');
+            expect(launchEnvironment).not.toMatch(/^NODE_(?:OPTIONS|PATH)=/mu);
             expect((await stat(host.serverRoot())).mode & 0o777).toBe(0o700);
 
             const adopted = await host.run(launchScript({ buildId: fixture.descriptor.buildId }));
@@ -246,7 +247,7 @@ describe('remote scripts', () => {
                     "  code: 'CONFLICT'",
                     '}',
                     '',
-                    'Node.js v24.20.0',
+                    'Node.js v24.0.0',
                 ];
                 fixture = await buildLayerFixture(layers, {
                     extraFiles: {
@@ -282,7 +283,7 @@ describe('remote scripts', () => {
                 await mkdir(logs, { recursive: true });
                 await writeFile(
                     join(logs, 'server-stdio.log'),
-                    'CaxriError: A Host already owns this profile\n\nNode.js v24.20.0\n',
+                    'CaxriError: A Host already owns this profile\n\nNode.js v24.0.0\n',
                 );
                 const launched = await host.run(
                     launchScript({ buildId: fixture.descriptor.buildId }),

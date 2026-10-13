@@ -319,6 +319,10 @@ record is the source of truth.
   Client receives only the items the projection keeps, never the evicted ones. The snapshot's
   `historyId` changes on every replaced history (a resume, a rewind, a reset), so a page read for
   an earlier history is discarded rather than stitched onto the new one.
+- Once a Desktop pane has scrolled back, it keeps the items the projection evicts so no gap opens
+  between the pages read and the live view. That copy is bounded at 5,000 items
+  (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-history.ts`): past it the oldest
+  kept items are dropped, never while a page is on its way, and the next scroll-back reads them again.
 - A Client that receives a patch while its own read is still in flight holds the patch (up to 200)
   and replays it once the read lands, instead of dropping it and re-reading again.
 - The stdio connection frames Codex output by bytes, rejects an oversized frame before parsing
