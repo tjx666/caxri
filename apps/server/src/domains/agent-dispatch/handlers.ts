@@ -1,14 +1,15 @@
 import { Buffer } from 'node:buffer';
 
 import type { ServerEvent } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, isChatTerminal } from '@caxri/protocol';
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
-import { assertPtyTerminal } from '../pty-guard';
 import type { TerminalManager } from '../terminal';
+import type { DispatchChats } from './chat-target';
+import { sendToChat, signalChat } from './chat-target';
 import type { AgentDispatchService } from './service';
 
 type AgentCommandMethod =
@@ -30,6 +31,7 @@ type AgentCommandMethod =
     | 'terminal.sendInternal';
 
 export interface AgentCommandHandlerOptions {
+    agentChat?: DispatchChats;
     coordinator: AgentCoordinator;
     database: CaxriDatabase;
     dispatch: AgentDispatchService;
@@ -61,6 +63,11 @@ export function createAgentCommandHandlers(
         if (!options.endpoints)
             throw new CaxriError('UNAVAILABLE', 'Agent Endpoint control is unavailable');
         const target = options.endpoints.controlTarget(endpoint);
+        const terminal = options.database.getTerminal(target.terminalId);
+        if (terminal && isChatTerminal(terminal) && options.endpoints.isCurrent(target))
+            return signalChat(options.agentChat, terminal, signal, endpoint, () =>
+                options.coordinator.observeInterrupt(target.terminalId, target.launchId),
+            );
         if (
             !options.endpoints.isCurrent(target) ||
             !options.terminals.signalAgentExact(target.terminalId, target.launchId, signal)
@@ -101,8 +108,10 @@ export function createAgentCommandHandlers(
         'agent.control.stopInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGHUP'),
         'terminal.sendInternal': async ({ attentionEpoch, enter, terminalId, text }, signal) => {
             if (signal?.aborted) throw new CaxriError('CANCELLED', 'Terminal input was canceled');
-            // Reject before an attention reply is consumed: a Chat answers through `agentChat.respond`.
-            assertPtyTerminal(options.database.getTerminal(terminalId));
+            // Before an attention reply is consumed: a Chat takes a message and answers through `agentChat.respond`.
+            const target = options.database.getTerminal(terminalId);
+            if (target && isChatTerminal(target))
+                return sendToChat(options.agentChat, target, { attentionEpoch, enter, text });
             let claimedSessionId: string | undefined;
             let claimedActivityAt: number | undefined;
             if (attentionEpoch !== undefined) {

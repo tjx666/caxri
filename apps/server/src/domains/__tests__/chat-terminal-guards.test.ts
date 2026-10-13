@@ -105,7 +105,7 @@ const rejections: Array<[string, (f: Fixture) => unknown]> = [
             })({ terminalId: f.terminal.id, data: 'x', expectedAgentLaunchId: 'launch-1' }),
     ],
     [
-        'terminal.sendInternal',
+        'terminal.sendInternal without Agent Chat',
         async (f) => {
             const handlers = createAgentCommandHandlers({
                 coordinator: f.coordinator,
@@ -118,15 +118,14 @@ const rejections: Array<[string, (f: Fixture) => unknown]> = [
                 terminals: f.terminals,
             });
             return handlers['terminal.sendInternal']({
-                attentionEpoch: 0,
                 enter: true,
                 terminalId: f.terminal.id,
-                text: 'reply',
+                text: 'message',
             });
         },
     ],
     [
-        'dispatch resume',
+        'dispatch resume without Agent Chat',
         (f) => {
             const service = new AgentDispatchService({
                 logger: { write: vi.fn() } as never,
@@ -183,6 +182,40 @@ function managerFor(f: Fixture): TerminalManager {
 }
 
 describe('Chat Terminal PTY guards', () => {
+    it('terminal.sendInternal refuses an attention reply to a Chat before consuming it', async () => {
+        const f = await fixture();
+        const send = vi.fn<() => Promise<void>>(() => Promise.resolve());
+        const handlers = createAgentCommandHandlers({
+            agentChat: {
+                interrupt: vi.fn(),
+                isLive: () => false,
+                restart: vi.fn(),
+                send,
+                stopProvider: vi.fn(),
+            },
+            coordinator: f.coordinator,
+            database: f.database,
+            dispatch: {} as AgentDispatchService,
+            emit: vi.fn(),
+            mainOwned: () => {
+                throw new Error('Unexpected public handler call');
+            },
+            terminals: f.terminals,
+        });
+        const before = f.database.getSession(f.session.id);
+        await expect(
+            handlers['terminal.sendInternal']({
+                attentionEpoch: 0,
+                enter: true,
+                terminalId: f.terminal.id,
+                text: 'reply',
+            }),
+        ).rejects.toSatisfy((error) => error instanceof CaxriError && error.code === 'CONFLICT');
+        expect(send).not.toHaveBeenCalled();
+        for (const effect of Object.values(f.sideEffects)) expect(effect).not.toHaveBeenCalled();
+        expect(f.database.getSession(f.session.id)).toEqual(before);
+    });
+
     it.each(rejections)('%s rejects a Chat Terminal before any side effect', async (_, run) => {
         const f = await fixture();
         const filesBefore = await readdir(f.directory);

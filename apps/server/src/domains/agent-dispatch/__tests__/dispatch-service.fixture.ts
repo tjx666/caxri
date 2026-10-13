@@ -11,6 +11,7 @@ import type { AgentCoordinator } from '../../agents';
 import { CaxriDatabase } from '../../db';
 import type { TerminalManager, TerminalWorkingDirectoryIdentity } from '../../terminal';
 import { InFlightLaunches } from '../../terminal/in-flight-launches';
+import type { DispatchChats } from '../chat-target';
 import { AgentDispatchService } from '../service';
 
 export const PRINCIPAL: Principal = { kind: 'human-cli', id: 'human-cli:test' };
@@ -70,6 +71,38 @@ export function fakeTerminals(database: CaxriDatabase) {
     } as unknown as TerminalManager;
 }
 
+/**
+ * A stub Agent Chat service: `restart` brings the Chat up as running and live, and `stopProvider` records the stop the
+ * way a requested provider exit does, reporting it through `onStopped` like `onAgentStateChanged`.
+ */
+export function fakeChats(
+    database: CaxriDatabase,
+    onStopped: (terminalId: string) => void = () => {},
+) {
+    const live = new Set<string>();
+    const setState = (terminalId: string, state: 'running' | 'stopped') => {
+        database.updateTerminalState(terminalId, state);
+        database.updateAgentProcessState(terminalId, state);
+    };
+    return {
+        live,
+        isLive: vi.fn<DispatchChats['isLive']>((terminalId) => live.has(terminalId)),
+        restart: vi.fn<DispatchChats['restart']>((terminalId) => {
+            live.add(terminalId);
+            setState(terminalId, 'running');
+            return Promise.resolve(database.getTerminal(terminalId)!);
+        }),
+        send: vi.fn<DispatchChats['send']>(() => Promise.resolve()),
+        interrupt: vi.fn<DispatchChats['interrupt']>(() => Promise.resolve()),
+        stopProvider: vi.fn<DispatchChats['stopProvider']>((terminalId) => {
+            live.delete(terminalId);
+            setState(terminalId, 'stopped');
+            onStopped(terminalId);
+            return Promise.resolve();
+        }),
+    };
+}
+
 export function createService(
     database: CaxriDatabase,
     terminals: TerminalManager = fakeTerminals(database),
@@ -89,6 +122,7 @@ export function createService(
         path,
     ) => Promise.resolve({ device: '1', inode: '1', path }),
     emit: (event: ServerEvent) => void = vi.fn(),
+    agentChat?: DispatchChats,
 ) {
     // Every TerminalManager owns this registry; an inline fake only lists the calls its test observes.
     if (!('launches' in terminals)) Object.assign(terminals, { launches: new InFlightLaunches() });
@@ -106,6 +140,7 @@ export function createService(
         terminalDirectoryIdentity,
         terminalWorkingDirectory: ({ defaultRoot }) => Promise.resolve(defaultRoot),
         emit,
+        agentChat,
     });
     services.push(service);
     return service;

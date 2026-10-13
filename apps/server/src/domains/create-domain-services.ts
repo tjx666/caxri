@@ -6,7 +6,6 @@ import type { FullStateChangeReason, TerminalRecord } from '@caxri/protocol';
 import { readActiveContext } from './active-context';
 import { createAgentChatHandlers } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
-import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
 import { createBackgroundTasks } from './background-tasks';
@@ -118,10 +117,10 @@ export async function createDomainServices(
         agentLaunchSettings,
         agentOutputRecoverySettings,
         coordinator,
+        dispatchState,
         sessionRenames,
     } = agentRuntime;
     const shellIntegration = await createShellIntegration(userDataPath, logger);
-    const agentDispatchState: { service?: AgentDispatchService } = {};
     const mobileTerminalMutations = new MobileTerminalMutationQueue();
     const terminals = new TerminalManager(database, send, logger, {
         ...dependencies.terminal,
@@ -172,8 +171,7 @@ export async function createDomainServices(
             if (origin === 'human') commanderHooks.input(terminalId, data);
             delegationState.service?.interruptTerminal(terminalId, true);
         },
-        onAgentStateChanged: (terminalId, state, cause) =>
-            agentDispatchState.service?.observeTerminalState(terminalId, state, cause),
+        onAgentStateChanged: dispatchState.observe,
         shellIntegration: (executable, environment) =>
             shellIntegration?.resolve(executable, environment),
         terminalColors:
@@ -359,6 +357,7 @@ export async function createDomainServices(
         terminals,
     });
     const agentCommands = createAgentCommandRuntime({
+        agentChat,
         logger,
         delegationSettings: () => configuration.getSettings().value['agents.delegation'],
         database,
@@ -373,7 +372,7 @@ export async function createDomainServices(
         agentEnvironment,
         onDelegationReceiptChanged: commanderHooks.receiptChanged,
     });
-    agentDispatchState.service = agentCommands.dispatchService;
+    dispatchState.service = agentCommands.dispatchService;
     delegationState.service = agentCommands.delegationService;
     const { inbox: commanderInbox, handovers: commanderHandovers } = createCommanderServices({
         agentChat,
