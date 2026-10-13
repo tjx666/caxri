@@ -327,7 +327,6 @@ export class GitService {
                 this.commitDetails({ sessionId, repositoryId: repoId, sha }),
             githubReferences: this.externalStatus.githubReferences,
             logger: this.logger,
-            referenceContext: () => this.referenceContext(sessionId),
             resolveCommit: (reference) =>
                 this.resolveCommitReference(sessionId, reference, terminalCwd),
             schedule: (work) => this.commands.run(work),

@@ -3,6 +3,7 @@ import type {
     TerminalReferencePreview,
     TerminalReferencePreviewRequest,
 } from '@caxri/protocol';
+import { isGitHubName } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 
@@ -48,13 +49,13 @@ export function trackerPreviewRequest(
     const match = GITHUB_REFERENCE.exec(artifact.reference);
     if (!match) return undefined;
     const [, owner, repo, number] = match;
-    if (!owner || !repo || !number) return undefined;
+    if (!owner || !repo || !number || !isGitHubName(owner) || !isGitHubName(repo)) return undefined;
     return { kind: 'github', owner, repo, number: Number(number) };
 }
 
 /**
- * The title a reference preview found, or `undefined` while it loads, when it failed, or when the repository is not one
- * of the Session's, so the card keeps showing its reference.
+ * The title a reference preview found, or `undefined` while it loads or when it failed, so the card keeps showing its
+ * reference.
  */
 export function trackerPreviewTitle(
     preview: TerminalReferencePreview | undefined,

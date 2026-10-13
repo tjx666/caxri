@@ -78,9 +78,10 @@ reference rule already carries everything its card shows, and a file path would 
 suffix search on an involuntary gesture. The Renderer coalesces concurrent hovers onto one read,
 cancels it through `requests.cancel` when the last waiter leaves, and caches bounded results; remote
 strings render as text, never markup. Server Core resolves the Project from the Terminal, so
-Renderer cannot submit a repository or cwd, and reads a GitHub reference only for a repository the
-Session already has: untrusted program output must not be able to steer an outbound request at a
-repository of its choosing, while `⌘ click` still opens anywhere. Nothing rejects: every miss returns
+Renderer cannot submit a local repository or cwd. A GitHub reference is read for any github.com
+repository, because Agent Chat links pull requests in sibling repositories through the same method;
+the protocol holds `owner` and `repo` to GitHub name characters (`isGitHubName`) so untrusted text
+cannot reshape the REST path, and `gh api --hostname github.com` pins the host. Nothing rejects: every miss returns
 an `unavailable` card with a closed, separately actionable reason, logged as that enum rather than
 the CLI's message. See `docs/terminal-reference-preview.md`.
 
