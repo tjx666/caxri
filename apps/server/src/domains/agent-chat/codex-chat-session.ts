@@ -26,6 +26,7 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import type { CodexThreadSettings } from './codex-chat-types';
+import { CodexComputerUseBindings } from './codex-computer-use';
 import { CodexDeliveryCheck, TURN_REQUEST_TIMEOUT_MS } from './codex-delivery-check';
 import {
     CODEX_COMMANDS,
@@ -71,6 +72,8 @@ class CodexChatSession implements AgentChatProviderSession {
     private turnCount = 0;
 
     private readonly thumbnails = new CodexThumbnails();
+
+    private readonly computerUse = new CodexComputerUseBindings();
 
     private readonly deliveries: CodexDeliveryCheck;
 
@@ -250,7 +253,7 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     private onItem(raw: unknown, turnId: string | undefined, isStarted: boolean): void {
-        const mapped = mapCodexItem(raw, turnId, isStarted);
+        const mapped = mapCodexItem(raw, turnId, isStarted, this.computerUse);
         const item = mapped && this.thumbnails.apply(mapped, raw);
         const operations: AgentChatPatchOperation[] = item ? [{ op: 'upsertItem', item }] : [];
         const type = isRecord(raw) ? raw.type : undefined;

@@ -367,7 +367,7 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-lifecycle-chat-closed-queue-respawn: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Closing a Chat while messages were still queued behind its startup could launch a new, invisible provider for the deleted Terminal, inflating the live count and keeping Server Core from its idle exit.
-- **Evidence:** `apps/server/src/domains/agent-chat/chat-states.ts:172` admits a send against the current state and Terminal row at entry and again at the queue head (`apps/server/src/domains/agent-chat/service.ts:331-340`), so a retired state or a deleted row rejects instead of starting; `apps/server/src/domains/agent-chat/__tests__/service-admission.integration.test.ts` covers queued sends across close and row deletion.
+- **Evidence:** `apps/server/src/domains/agent-chat/chat-states.ts:172` admits a send against the current state and Terminal row at entry and again at the queue head (`apps/server/src/domains/agent-chat/service.ts` `enqueueOn()`), so a retired state or a deleted row rejects instead of starting; `apps/server/src/domains/agent-chat/__tests__/service-admission.integration.test.ts` covers queued sends across close and row deletion.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
 - **Remediation target / Acceptance:** Three or more queued sends followed by close and row deletion spawn the provider at most once and leave `liveCount()` at zero.
