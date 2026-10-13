@@ -17,7 +17,6 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
-import { isAgentChatPlainPasteKey } from './agent-chat-composer-keys';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
@@ -269,6 +268,7 @@ export function AgentChatComposer({
         isSendable,
         isTurnRunning,
         nextQueuedId,
+        pastePlainText,
         sendAction,
         sendState,
         stop,
@@ -389,12 +389,6 @@ export function AgentChatComposer({
                         onKeyUp={sessionMenu.trackCaretKey}
                         onSelect={(event) => sessionMenu.followSelection(event.currentTarget)}
                         onKeyDown={(event) => {
-                            if (isAgentChatPlainPasteKey(event)) {
-                                event.preventDefault();
-                                // eslint-disable-next-line no-void -- pastePlainText reports its own failures
-                                void pastePlainText();
-                                return;
-                            }
                             sessionMenu.notePressedKey(event);
                             if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen))
                                 return;

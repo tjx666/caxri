@@ -3,7 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { sendAgentChatQueuedNow } from '../agent-chat-commands';
-import { agentChatComposerKeyAction } from '../agent-chat-composer-keys';
+import { agentChatComposerKeyAction, isAgentChatPlainPasteKey } from '../agent-chat-composer-keys';
 import type { agentChatSendTooltip } from '../agent-chat-presentation';
 import { agentChatSendRefusal } from '../agent-chat-presentation';
 import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
@@ -12,7 +12,8 @@ import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
  * The composer's Enter and Escape once no suggestion list or prompt history claimed the key
  * (`agentChatComposerKeyAction`): Escape stops the turn or cancels an edit, Enter in an empty input sends the next
  * queued message, and Enter on a draft submits it. A draft the composer cannot send yet says why in the strip
- * (`agentChatSendRefusal`) instead of doing nothing; `notice` carries that line.
+ * (`agentChatSendRefusal`) instead of doing nothing; `notice` carries that line. Cmd+Shift+V pastes the clipboard as
+ * plain text (`pastePlainText`), skipping the long-paste conversion; no suggestion list or history claims it.
  */
 export function useAgentChatComposerEnter({
     cancelEdit,
@@ -22,6 +23,7 @@ export function useAgentChatComposerEnter({
     isSendable,
     isTurnRunning,
     nextQueuedId,
+    pastePlainText,
     sendAction,
     sendState,
     stop,
@@ -41,6 +43,7 @@ export function useAgentChatComposerEnter({
      * The queued message an empty composer's Enter sends now (`agentChatNextQueuedId`).
      */
     nextQueuedId: string | undefined;
+    pastePlainText: () => Promise<void>;
     sendAction: Parameters<typeof agentChatSendTooltip>[0];
     sendState: Parameters<typeof agentChatSendTooltip>[1];
     stop: () => void;
@@ -56,6 +59,12 @@ export function useAgentChatComposerEnter({
         else void submit(delivery);
     };
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+        if (isAgentChatPlainPasteKey(event)) {
+            event.preventDefault();
+            // eslint-disable-next-line no-void -- pastePlainText reports its own failures
+            void pastePlainText();
+            return;
+        }
         const action = agentChatComposerKeyAction(
             {
                 key: event.key,
