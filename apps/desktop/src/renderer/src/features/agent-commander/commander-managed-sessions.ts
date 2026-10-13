@@ -14,15 +14,20 @@ import { pushToast } from '../../stores/toasts';
 import { sessionTitleForDisplay } from '../session/session-title';
 
 /**
- * What a Workbench Session row says about Commander ownership: nothing, managed, or managed through a hand-over that
- * typing into its Agent ends.
+ * What a Workbench Session row says about Commander ownership: nothing, managed, managed through a hand-over that
+ * typing into its PTY Agent ends, or one that sending or stopping in its Agent Chat ends (a Chat draft takes nothing
+ * back).
  */
-export type CommanderSessionMarker = 'none' | 'managed' | 'inputTakesBack';
+export type CommanderSessionMarker = 'none' | 'managed' | 'inputTakesBack' | 'chatInputTakesBack';
 
 export function commanderSessionMarker(
-    managed: Pick<CommanderManagedSessions, 'inputTakeBackSessionIds' | 'sessionIds'>,
+    managed: Pick<
+        CommanderManagedSessions,
+        'chatTakeBackSessionIds' | 'inputTakeBackSessionIds' | 'sessionIds'
+    >,
     sessionId: string,
 ): CommanderSessionMarker {
+    if (managed.chatTakeBackSessionIds.includes(sessionId)) return 'chatInputTakesBack';
     if (managed.inputTakeBackSessionIds.includes(sessionId)) return 'inputTakesBack';
     return managed.sessionIds.includes(sessionId) ? 'managed' : 'none';
 }

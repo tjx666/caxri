@@ -369,8 +369,19 @@ both continuation operations. Each task retains its own answer and correlation e
 [handed over](agent-commander.md#hand-over). Like `--resume` it relaunches the Session's existing
 Agent on its exact native conversation, replacing the user's launch, but it creates the root task
 of a new chain: it takes no provider or preset, refuses a human caller, refuses while the Agent is
-in a turn, and fails as `launch_failed` if human input arrives during the relaunch. It consumes the
-hand-over, so a second call is refused; later tasks continue the chain with `--follow-up`.
+in a turn, and fails as `launch_failed` if human input arrives during the relaunch. An Agent Chat
+whose provider is still live is not relaunched: the task pointer becomes its next message through
+the same launch-checked send a follow-up uses (`continueLiveChat` in
+`apps/server/src/domains/agent-delegation/resume.ts`), and a message the user sent meanwhile fails
+it as `human_input`. A stopped Chat resumes through dispatch like a PTY. A Chat that is starting or
+being suspended (live, but with no live launch) is refused with a retryable `CONFLICT`; a Grok Build
+Chat target, which an older record may still name, is refused outright because its Chat cannot
+correlate a task. The hand-over is checked again, and the input epoch
+the continuation is fenced against is read, in one synchronous step after the last await before the
+task exists, so a message or keystroke during launch verification refuses the request instead of
+being overtaken. It consumes the hand-over, so a second call is refused; later tasks continue the
+chain with `--follow-up`. When dispatch refuses the resume before recording it, the hand-over is
+released again so the Commander can retry.
 
 After a Caxri restart, selecting a delegated Session restores it the way it was. While one of its
 tasks is still active, only the outer Shell comes back, and that task continues only through the

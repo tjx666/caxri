@@ -14,6 +14,7 @@ import type { StoredAgentDelegation } from '../../db';
 import type { ChatDelegationHooks } from '../chat-delegation';
 import { ChatDelegationLinks } from '../chat-delegation';
 import type { ChatState } from '../chat-states';
+import { createAgentChatHandlers } from '../handlers';
 import { fixture } from './chat-service-fixture';
 
 /**
@@ -242,6 +243,38 @@ describe('AgentChatService as a delegated child', () => {
 
         // What a Git review send, a pull request merge notice, or a bug report delivers.
         await service.send(terminal.id, { text: 'Review comments for the child' });
+        expect(delegation.humanInput).toHaveBeenCalledExactlyOnceWith(terminal.id);
+        expect(service.delegation.inputEpoch(terminal.id)).toBe(1);
+    });
+
+    it('takes the child over when Resume releases paused queued messages, and only then', async () => {
+        const delegation = hooks();
+        const { service, terminal, until, database, agentEnvironment } = await fixture({
+            delegation,
+        });
+        const handlers = createAgentChatHandlers(service, {
+            database,
+            agentEnvironment,
+            createSessionForProject: vi.fn(),
+        });
+        await service.send(terminal.id, { text: 'slow please' }, 'queue', 'delegation');
+        await until((current) => current.activeTurnId !== undefined);
+        await service.interrupt(terminal.id);
+        await until((current) => !current.activeTurnId);
+
+        // Resuming a queue that is not paused with entries delivers nothing, so it is not a takeover.
+        await handlers['agentChat.resumeQueue']({ terminalId: terminal.id });
+        expect(delegation.humanInput).not.toHaveBeenCalled();
+
+        await service.send(terminal.id, { text: 'slow again' }, 'queue', 'delegation');
+        await until((current) => current.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello queued' }, 'queue', 'delegation');
+        await until((current) => current.queue?.length === 1);
+        await service.interrupt(terminal.id);
+        await until((current) => !current.activeTurnId && current.queuePaused === true);
+        expect(delegation.humanInput).not.toHaveBeenCalled();
+
+        await handlers['agentChat.resumeQueue']({ terminalId: terminal.id });
         expect(delegation.humanInput).toHaveBeenCalledExactlyOnceWith(terminal.id);
         expect(service.delegation.inputEpoch(terminal.id)).toBe(1);
     });

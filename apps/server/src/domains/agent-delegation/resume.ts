@@ -3,11 +3,12 @@ import type {
     AgentDelegationReceipt,
     CommanderHandoverTarget,
 } from '@caxri/protocol';
-import { CaxriError, isDelegationActive } from '@caxri/protocol';
+import { CaxriError, isChatTerminal, isDelegationActive } from '@caxri/protocol';
 
 import type { StoredAgentDelegation } from '../db';
 import type { DelegationAuthority } from './admission';
 import { isAgentCommanderCaller } from './admission';
+import { canChatCorrelateTask } from './chat-child';
 import { delegationResumeLaunch, prepareDelegationFollowUp } from './launch';
 import type { DelegationResumeRejection } from './rejection';
 import { reportResumeRejection, resumeRejection } from './rejection';
@@ -26,6 +27,10 @@ export interface ExactResumeHost {
      * True while another task is active on the Terminal.
      */
     hasActiveTask(terminalId: string): boolean;
+    /**
+     * `DelegationSubmissions.submit`: writes a `submitting` task's pointer into one exact live launch.
+     */
+    submit(id: string, terminalId: string, launchId: string, pointer: string): boolean;
 }
 
 /**
@@ -146,9 +151,21 @@ export async function resumeTask(
 }
 
 /**
+ * A hand-over admitted for continuation: its target, and the input epoch read in the same synchronous step that
+ * validated it, so human input after that step fences the continuation.
+ */
+export interface HandoverAdmission {
+    target: CommanderHandoverTarget;
+    inputEpoch: number | undefined;
+}
+
+type HandoverRequest = Parameters<typeof handoverTarget>;
+
+/**
  * The conversation a Commander hand-over lets this task continue, refused unless it can be continued right now: the
- * caller is the Commander, the hand-over is unconsumed, and its Agent still holds the conversation and is between
- * turns. Refused before any record exists, so the Commander simply retries once its `ready` notice arrives.
+ * caller is the Commander, the hand-over is unconsumed, and its Agent still holds the conversation, is between turns,
+ * and (for a Chat) can correlate the task and is not starting or stopping. Refused before any record exists, so the
+ * Commander simply retries once its `ready` notice arrives.
  */
 export function handoverTarget(
     options: AgentDelegationServiceOptions,
@@ -170,34 +187,88 @@ export function handoverTarget(
             'CONFLICT',
             'Handed-over Agent moved to another conversation; start a new task in the Session instead',
         );
+    const isChat = isChatTerminal(terminal);
+    // Hand-overs recorded before Grok Build Chats became ownership-only can still name one as a target.
+    if (isChat && !canChatCorrelateTask(target.provider))
+        throw new CaxriError(
+            'CONFLICT',
+            "Handed-over Agent Chat's provider cannot carry a Commander task; start a new task in the Session instead",
+        );
     if (hasActiveTask(target.terminalId) || handovers.isBusy(input.sessionId, target.terminalId))
         throw new CaxriError(
             'CONFLICT',
             'Handed-over Agent is still in a turn; wait for its ready notice',
         );
+    /**
+     * A Chat that is live with no live launch is starting or being suspended: neither a message nor an exact resume
+     * (which may not replace a live Agent without its launch id) can reach it yet.
+     */
+    if (
+        isChat &&
+        options.isChatLive?.(target.terminalId) &&
+        !options.currentLaunchId?.(target.terminalId)
+    )
+        throw new CaxriError(
+            'CONFLICT',
+            'Handed-over Agent Chat is starting or stopping; retry shortly',
+        );
     return target;
 }
 
 /**
- * `--continue-handover`: the Commander's first task in a handed-over Session, an exact resume of the Session's own
- * conversation that carries the delegation's launch environment, so lifecycle correlation, waits, results, and later
- * follow-ups work as for any Commander task. The task file lives in this delegation's own private directory, which
- * becomes the root of the chain.
+ * `handoverTarget` again, with the input epoch read in the same synchronous step. `create` calls it after its last
+ * await before the record exists: a message or keystroke during `verifyLaunch` took the Session back, and any later one
+ * must trip the continuation's fence.
+ */
+export function handoverAdmission(...request: HandoverRequest): HandoverAdmission {
+    const target = handoverTarget(...request);
+    return { target, inputEpoch: request[0].inputEpoch?.(target.terminalId) };
+}
+
+/**
+ * Delivers a hand-over's pointer to its live, idle Chat as the next message instead of restarting the provider. The
+ * Chat's send chain admits it only against `launchId`, and the input-epoch check here (synchronous with the write)
+ * fences human input that arrived since the hand-over was admitted, as the relaunch fence does for a PTY.
+ */
+function continueLiveChat(
+    host: ExactResumeHost,
+    record: StoredAgentDelegation,
+    launch: { terminalId: string; launchId: string; inputEpoch: number | undefined },
+    pointer: string,
+): AgentDelegationReceipt {
+    const { options } = host;
+    const id = record.receipt.delegationId;
+    const { terminalId, launchId, inputEpoch } = launch;
+    if (options.inputEpoch?.(terminalId) !== inputEpoch) host.fail(id, 'human_input');
+    else if (host.isDeleting(record.input.sessionId)) host.fail(id, 'target_changed');
+    else {
+        host.save({
+            ...record,
+            launchId,
+            receipt: { ...record.receipt, status: 'submitting' },
+        });
+        if (!host.submit(id, terminalId, launchId, pointer)) host.fail(id, 'target_changed');
+    }
+    return host.owned(id).receipt;
+}
+
+/**
+ * `--continue-handover`: the Commander's first task in a handed-over Session, continuing the Session's own conversation
+ * with the delegation's launch environment, so lifecycle correlation, waits, results, and later follow-ups work as for
+ * any Commander task. A PTY Agent, or a Chat whose provider is not live, is resumed exactly; a live Chat takes the
+ * pointer as its next message. The task file lives in this delegation's own private directory, which becomes the root
+ * of the chain.
  */
 export async function continueHandover(
     host: ExactResumeHost,
     record: StoredAgentDelegation,
     authority: DelegationAuthority,
-    target: CommanderHandoverTarget,
+    admission: HandoverAdmission & { handoverId: string },
 ): Promise<AgentDelegationReceipt> {
     const { options } = host;
     const id = record.receipt.delegationId;
+    const { target, inputEpoch } = admission;
     const { terminalId } = target;
-    /**
-     * Captured before the first await: a keystroke while the task file is written takes the Session back, and the
-     * launch fence must see it.
-     */
-    const inputEpoch = options.inputEpoch?.(terminalId);
     const prepared = await prepareDelegationFollowUp(
         options.userDataPath,
         id,
@@ -212,11 +283,35 @@ export async function continueHandover(
         inputEpoch,
         receipt: { ...current.receipt, terminalId, status: 'launching' },
     });
-    return launchExactResume(host, saved, authority, {
-        terminalId,
-        providerSessionId: target.providerSessionId,
-        inputEpoch,
-        pointer: prepared.pointer,
-        expectedLaunchId: options.currentLaunchId?.(terminalId),
-    });
+    const launchId = options.currentLaunchId?.(terminalId);
+    if (launchId && options.isChatTerminal?.(terminalId))
+        return continueLiveChat(
+            host,
+            saved,
+            { terminalId, launchId, inputEpoch },
+            prepared.pointer,
+        );
+    try {
+        return await launchExactResume(host, saved, authority, {
+            terminalId,
+            providerSessionId: target.providerSessionId,
+            inputEpoch,
+            pointer: prepared.pointer,
+            expectedLaunchId: launchId,
+        });
+    } catch (error) {
+        /**
+         * Dispatch refused the resume before it recorded a receipt (for example a Chat that began starting or stopping
+         * meanwhile), so nothing reached the conversation: hand the hand-over back so the Commander can retry. Human
+         * input since admission took the Session back instead, so it stays consumed.
+         */
+        if (
+            !options.database.getAgentDispatch(id) &&
+            options.inputEpoch?.(terminalId) === inputEpoch
+        ) {
+            host.save({ ...host.owned(id), hasLostTarget: true });
+            options.commanderHandovers?.release(admission.handoverId, id);
+        }
+        throw error;
+    }
 }

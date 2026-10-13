@@ -287,7 +287,8 @@ export const agentCommander = {
     'agentCommander.handover.noteLabel': 'Note for the Commander',
     'agentCommander.handover.notePlaceholder':
         'Optional: what the Commander should do, for example "finish the migration and open a pull request"',
-    'agentCommander.handover.takeBackHint': 'Typing into a handed-over Session takes it back.',
+    'agentCommander.handover.takeBackHint':
+        'Typing into a handed-over Session, or sending a message or stopping in its Chat, takes it back.',
     'agentCommander.handover.selectedCount': '{{count}} selected',
     'agentCommander.handover.submit': 'Hand Over',
     'agentCommander.handover.submitting': 'Handing over…',
@@ -325,4 +326,6 @@ export const agentCommander = {
     'agentCommander.sessionMarker.managed': 'Managed by Agent Commander',
     'agentCommander.sessionMarker.inputTakesBack':
         'Managed by Agent Commander · typing here takes it back',
+    'agentCommander.sessionMarker.chatInputTakesBack':
+        'Managed by Agent Commander · sending a message or stopping here takes it back',
 } as const;
