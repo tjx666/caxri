@@ -87,6 +87,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 | Mobile shared Terminal; tablet rule | Desktop and phone observe one Terminal; width plus short-side tablet threshold      | `mobile-companions.md`; `apps/mobile/src/features/layout/layout-mode.ts` |
 | Activity glyphs                     | State shown as a glyph instead of a word (with T3 Code)                             | `docs/activity-view.md`                                                  |
 | Session search                      | FTS5 index with byte offsets and file identity; title, custom-title, ai-title order | `docs/session-search.md`                                                 |
+| Session creator ("Created by")      | A created workspace remembers its parent (worktree lineage)                         | `docs/agent-delegation.md`                                               |
 
 ## Wake (MIT)
 
