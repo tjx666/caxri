@@ -702,7 +702,9 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
 - A web link in a reply or pasted into a user message shows the site's favicon and opens a hover
   card naming the host with an Open action. For HTTPS links, the card previews the page's share
   image, title, and description. Main reads them through the `links.preview` desktop method
-  (`apps/desktop/src/main/link-previews.ts`): the HTML head only, at most 256 KiB, a 5 s timeout,
+  (`apps/desktop/src/main/link-previews.ts`): public hosts only (a loopback, private, or
+  link-local URL, or a redirect to one or to plain HTTP, is never requested and keeps the globe and
+  a card without a preview), the HTML head only, at most 256 KiB, a 5 s timeout,
   Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images only, and a per-app-lifetime
   cache of 256 URLs that evicts the oldest inserted entry (a repeat hover does not refresh it; an
   outright network failure is not cached). A page that declares nothing keeps the card's link summary.
