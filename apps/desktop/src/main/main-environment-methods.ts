@@ -11,6 +11,11 @@ export interface MainEnvironmentMethods {
     get(): EnvironmentState;
     listHosts(): Promise<{ hosts: SshHostEntry[]; recent: string[] }>;
     reconnect(): Promise<void>;
+    /**
+     * Stops the calling SSH Host window's in-flight connection attempt; see `remote.cancel`.
+     */
+    cancel(): void;
+    revealSshConfig(): Promise<void>;
     replyAskpass(requestId: string, response: string | null): void;
     stopServer(): Promise<{ canceled: boolean }>;
 }
@@ -24,6 +29,11 @@ export const unconfiguredEnvironment: MainEnvironmentMethods = {
     listHosts: () => Promise.resolve({ hosts: [], recent: [] }),
     reconnect: () =>
         Promise.reject(new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window')),
+    cancel: () => {
+        throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
+    },
+    revealSshConfig: () =>
+        Promise.reject(new CaxriError('UNAVAILABLE', 'SSH Hosts are not available')),
     replyAskpass: () => {},
     stopServer: () =>
         Promise.reject(new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window')),
@@ -52,6 +62,12 @@ export async function handleEnvironmentRequest(
             return null;
         case 'remote.reconnect':
             await environment.reconnect();
+            return null;
+        case 'remote.cancel':
+            environment.cancel();
+            return null;
+        case 'remote.sshConfig.reveal':
+            await environment.revealSshConfig();
             return null;
         case 'remote.stopServer':
             return environment.stopServer();

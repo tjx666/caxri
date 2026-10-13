@@ -20,6 +20,27 @@ export interface RemoteTransport {
 }
 
 /**
+ * Failures that retrying cannot fix: they stop `DesktopServerConnection`'s reconnect loop (via `isFailed`) until the
+ * user chooses Reconnect. Only `authentication` and `hostKey` also report `needsUserAction`, because only those are
+ * resolved by answering a prompt.
+ */
+export const TERMINAL_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
+    'authentication',
+    'hostKey',
+    'unsupportedPlatform',
+    'unsupportedGlibc',
+    'missingTool',
+    'installFailed',
+    'profileInUse',
+    'cancelled',
+]);
+export const USER_ACTION_REASONS: ReadonlySet<RemoteFailureReason> = new Set([
+    'authentication',
+    'hostKey',
+]);
+export const CANCELLED_FAILURE = { reason: 'cancelled', message: 'Connection cancelled' } as const;
+
+/**
  * A failure classified into the protocol's closed reason. Thrown to `DesktopServerConnection` as a `CaxriError` so its
  * logging and retry paths stay unchanged.
  */
@@ -27,9 +48,19 @@ export class RemoteSetupError extends CaxriError {
     constructor(
         readonly reason: RemoteFailureReason,
         message: string,
+        /**
+         * For `profileInUse`: the hostname of the machine whose Server holds the shared profile.
+         */
+        readonly holder?: string,
     ) {
         super('UNAVAILABLE', message, { reason });
     }
+}
+
+export interface RemoteFailure {
+    message: string;
+    reason: RemoteFailureReason;
+    holder?: string;
 }
 
 export type ScriptOutput = SshExecResult & { result?: Map<string, string> };
@@ -46,8 +77,14 @@ export async function runRemoteScript(
     return { ...output, result: parseRemoteResult(output.stdout, script.marker) };
 }
 
-export function toFailure(error: unknown): { message: string; reason: RemoteFailureReason } {
-    if (error instanceof RemoteSetupError || error instanceof SshConnectionError)
+export function toFailure(error: unknown): RemoteFailure {
+    if (error instanceof RemoteSetupError)
+        return {
+            message: error.message.slice(0, 2000),
+            reason: error.reason,
+            ...(error.holder !== undefined && { holder: error.holder.slice(0, 255) }),
+        };
+    if (error instanceof SshConnectionError)
         return { message: error.message.slice(0, 2000), reason: error.reason };
     return { message: errorMessage(error, 'Unknown error').slice(0, 2000), reason: 'unknown' };
 }

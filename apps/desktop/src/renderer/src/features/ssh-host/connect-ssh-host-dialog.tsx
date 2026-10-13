@@ -1,7 +1,8 @@
 import { useState } from 'react';
 
-import { Server } from 'lucide-react';
+import { FileCog, Server } from 'lucide-react';
 
+import { Button } from '../../components/ui/button';
 import {
     Command,
     CommandEmpty,
@@ -16,7 +17,7 @@ import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import type { SshHostPickerRow } from './ssh-destination';
 import { buildSshHostPickerRows } from './ssh-destination';
-import { connectToSshHost } from './ssh-host-commands';
+import { connectToSshHost, revealSshConfig } from './ssh-host-commands';
 import { setConnectSshHostOpen, useSshHostDialogsStore } from './ssh-host-dialogs-store';
 
 const NO_HOSTS: never[] = [];
@@ -101,6 +102,18 @@ function ConnectSshHostBody() {
                     )}
                 </CommandList>
             </Command>
+            {/* Adding a Host happens in the SSH config this picker lists, so the way there sits under the list. */}
+            <div className="flex h-9 items-center justify-end border-t border-border px-2">
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    // eslint-disable-next-line no-void -- revealSshConfig reports its own failure through a toast
+                    onClick={() => void revealSshConfig()}
+                >
+                    <FileCog aria-hidden="true" size={13} />
+                    {t('sshHost.connect.openConfig')}
+                </Button>
+            </div>
         </>
     );
 }

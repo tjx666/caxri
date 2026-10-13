@@ -125,3 +125,18 @@ export function sshDestinationKey(destination: SshDestination, configFile?: stri
 export function sshHostWindowKey(destination: SshDestination): string {
     return `${destination.user ?? ''}@${destination.host}:${destination.port ?? 22}`;
 }
+
+/**
+ * The name `known_hosts` records for the SSH Host a window key (`user@host:port`, see {@link sshHostWindowKey})
+ * identifies: the bare host on port 22 and `[host]:port` otherwise, which is the form `ssh-keygen -R` expects. Returns
+ * `undefined` for a key that does not have that shape.
+ */
+export function knownHostsNameOf(windowKey: string): string | undefined {
+    const target = windowKey.slice(windowKey.lastIndexOf('@') + 1);
+    const separator = target.lastIndexOf(':');
+    if (separator <= 0) return undefined;
+    const host = target.slice(0, separator);
+    const port = target.slice(separator + 1);
+    if (!/^\d{1,5}$/u.test(port)) return undefined;
+    return Number(port) === 22 ? host : `[${host}]:${Number(port)}`;
+}

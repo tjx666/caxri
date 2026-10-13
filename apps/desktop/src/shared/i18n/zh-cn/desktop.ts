@@ -48,9 +48,9 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.trash.detailUnsaved':
         '{{path}}\n\n此文件在编辑器中有未保存的更改。从废纸篓只能恢复最后一次保存的版本。',
     'desktop.trash.detailRemote':
-        '{{path}}\n\n此项目会移到 {{host}} 上的废纸篓（~/.local/share/Trash），之后可以从那里恢复。',
+        '{{path}}\n\n此项目会移到 SSH Host {{host}} 的废纸篓，之后可以从那里恢复。',
     'desktop.trash.detailRemoteUnsaved':
-        '{{path}}\n\n此项目会移到 {{host}} 上的废纸篓（~/.local/share/Trash）。此文件在编辑器中有未保存的更改，只能恢复最后一次保存的版本。',
+        '{{path}}\n\n此项目会移到 SSH Host {{host}} 的废纸篓。此文件在编辑器中有未保存的更改，只能恢复最后一次保存的版本。',
     'desktop.trash.confirm': '移到废纸篓',
 
     'desktop.shellCommand.installTitle': '安装“caxri”命令',
@@ -138,7 +138,7 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.quit.messageOne': '有 {{running}}正在运行，要退出 Caxri 吗？',
     'desktop.quit.messageOther': '有 {{running}}正在运行，要退出 Caxri 吗？',
     'desktop.quit.detail':
-        '“退出并停止任务”会结束所有正在运行的终端和 Agent 进程，释放 Agent 会话以便在其他工具中恢复，并停止 Caxri Server。“退出但保持任务运行”会让它们在后台继续挂接在 Caxri 上。',
+        '“退出并停止任务”会结束所有正在运行的终端和 Agent 进程，释放 Agent 对话以便在其他工具中恢复，并停止 Caxri Server。“退出但保持任务运行”会让它们在后台继续挂接在 Caxri 上。',
     'desktop.quit.otherClientsOne': '另有 1 个客户端连接着 Caxri Server，停止后它将断开连接。',
     'desktop.quit.otherClientsOther':
         '另有 {{count}} 个客户端连接着 Caxri Server，停止后它们将断开连接。',
@@ -151,11 +151,14 @@ export const desktop: TranslatedNamespace<typeof source> = {
         '评审评论只保存在内存中，退出 Caxri 后不会保留。有 1 个仓库存在未发送的评论。',
     'desktop.quit.reviewDetailOther':
         '评审评论只保存在内存中，退出 Caxri 后不会保留。有 {{count}} 个仓库存在未发送的评论。',
+    'desktop.quit.reviewLossOne': '退出还会丢失 1 条未发送的评审评论，因为评审评论只保存在内存中。',
+    'desktop.quit.reviewLossOther':
+        '退出还会丢失 {{count}} 条未发送的评审评论，因为评审评论只保存在内存中。',
     'desktop.quit.anyway': '仍要退出',
     'desktop.quit.stopFailureTitle': 'Caxri 未能停止所有任务',
     'desktop.quit.stopFailureMessage': '部分后台任务可能仍在运行。',
     'desktop.quit.stopFailureDetail':
-        'Caxri 即将退出。请重新打开 Caxri 停止剩余任务，再在其他工具中恢复它们的 Agent 会话。',
+        'Caxri 即将退出。请重新打开 Caxri 停止剩余任务，再在其他工具中恢复它们的 Agent 对话。',
 
     'desktop.windowClose.title': '关闭此窗口？',
     'desktop.windowClose.messageOne': '有 {{running}}正在运行，要关闭此窗口吗？',
@@ -191,6 +194,12 @@ export const desktop: TranslatedNamespace<typeof source> = {
 
     'desktop.fallback.thisProject': '此项目',
     'desktop.fallback.thisSession': '此会话',
+
+    'desktop.notification.agentWaiting': '正在等待你的输入',
+    'desktop.notification.agentTurnFinished': '本轮已完成',
+    'desktop.notification.agentFinishedIn': '已完成，用时 {{duration}}',
+    'desktop.notification.commanderInbox.title': 'Commander 需要你处理',
+    'desktop.notification.commanderInbox.bodyOther': '收件箱中有 {{count}} 项新事项',
 
     'desktop.reset.title': 'Caxri 需要本地重置',
     'desktop.reset.intro':

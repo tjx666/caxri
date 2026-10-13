@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, resolve } from 'node:path';
 
 import { CaxriError, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 
+import { pathBrowserDenialDetails } from '../shared/path-browser-denial';
 import { readExternalFile } from './external-file-snapshot';
 import type { RootIdentity } from './path-browser-identity';
 import { pathFailure, validateDirectory } from './path-browser-identity';
@@ -47,7 +48,11 @@ export function resolveBrowseInput(
     if (value === '~' || value.startsWith('~/')) {
         if (userHome === undefined)
             // PATH_DENIED, not UNAVAILABLE: the Renderer reads UNAVAILABLE as "Caxri is not ready yet".
-            throw new CaxriError('PATH_DENIED', 'Home paths are not available in this window');
+            throw new CaxriError(
+                'PATH_DENIED',
+                'Home paths are not available in this window',
+                pathBrowserDenialDetails('homeUnavailable'),
+            );
         if (value === '~' || value === '~/') return { directory: userHome, filter: '' };
     }
 

@@ -1,9 +1,11 @@
-import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { access, readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { shell } from 'electron';
 
 import type { MainMethodHandlerOptions } from './main-methods';
 import { createMainMethodHandler } from './main-methods';
@@ -17,7 +19,7 @@ import {
     createRemoteHostSupervisor,
     SSH_CONFIG_ENVIRONMENT_KEY,
 } from './ssh/remote-host-supervisor';
-import type { RemoteSeedConfig } from './ssh/remote-server-supervisor';
+import type { RemoteSeedConfig } from './ssh/remote-server-supervisor-options';
 import { resolveSshHostWindowKey } from './ssh/resolve-destination';
 import { listSshConfigHosts, RecentSshDestinations } from './ssh/ssh-config';
 import { mainWindowChromeOptions, zoomFactorForLevel } from './window-chrome';
@@ -83,12 +85,14 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions): 
                 return createMainMethodHandler({
                     ...options.shared,
                     environment: {
+                        cancel: () => methods().cancel(),
                         connect: (destination) => environments.connect(destination),
                         get: () => methods().get(),
                         listHosts: () => methods().listHosts(),
                         reconnect: () => methods().reconnect(),
                         replyAskpass: (requestId, response) =>
                             methods().replyAskpass(requestId, response),
+                        revealSshConfig: () => methods().revealSshConfig(),
                         stopServer: () => methods().stopServer(),
                     },
                     logger: options.logger,
@@ -161,6 +165,7 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions): 
             return listSshConfigHosts(configPath ? { configPath } : {});
         },
         logger: options.logger,
+        revealSshConfig,
         recent: {
             list: () => recentDestinations.list(),
             remember: async (destination) => {
@@ -169,6 +174,35 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions): 
         },
     });
     return environments;
+}
+
+async function isExistingPath(path: string): Promise<boolean> {
+    try {
+        await access(path);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Shows the SSH config every `ssh` call reads (the `CAXRI_SSH_CONFIG` override, else `~/.ssh/config`) in Finder. A
+ * config that does not exist yet opens its folder instead, where the user creates it.
+ */
+async function revealSshConfig(): Promise<void> {
+    const override = process.env[SSH_CONFIG_ENVIRONMENT_KEY];
+    // An empty override means unset, as it does for `keyOf` and `listHosts` above.
+    const configPath =
+        override === undefined || override === '' ? join(homedir(), '.ssh', 'config') : override;
+    if (await isExistingPath(configPath)) {
+        shell.showItemInFolder(configPath);
+        return;
+    }
+    const directory = dirname(configPath);
+    if (!(await isExistingPath(directory)))
+        throw new CaxriError('NOT_FOUND', 'The SSH config folder does not exist');
+    const failure = await shell.openPath(directory);
+    if (failure) throw new CaxriError('IO', failure);
 }
 
 async function readOptionalFile(path: string): Promise<string | undefined> {

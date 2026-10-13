@@ -2,6 +2,7 @@ import type { KeyboardEventHandler, RefObject } from 'react';
 
 import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react';
 
+import { Button } from '../../components/ui/button';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { Input, InputGroup } from '../../components/ui/input';
 import { useTranslation } from '../../i18n';
@@ -159,15 +160,16 @@ function PathBrowserQueryField({
     const isRemote = useIsRemote();
     return (
         <InputGroup appearance="toolbar" size="palette">
-            <button
+            <Button
                 aria-label={t('pathBrowser.query.parentDirectory')}
-                className="mr-1 grid size-7 flex-none place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground disabled:opacity-40"
+                className="mr-1 flex-none text-muted enabled:hover:text-foreground"
                 disabled={isParentDisabled}
-                type="button"
+                size="icon"
+                variant="ghost"
                 onClick={onGoToParent}
             >
                 <ChevronLeft aria-hidden="true" size={16} />
-            </button>
+            </Button>
             {isProject ? (
                 <>
                     <span className="flex-none text-[12px] text-muted">{rootLabel}/</span>

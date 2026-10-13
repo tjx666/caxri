@@ -219,6 +219,8 @@ export const effectfulCommandRecovery = {
      */
     'remote.connect': 'memory',
     'remote.reconnect': 'none',
+    'remote.cancel': 'none',
+    'remote.sshConfig.reveal': 'none',
     'remote.stopServer': 'memory',
     /**
      * Answers one live OpenSSH prompt whose helper process waits with its own timeout; a replay would answer nobody.
