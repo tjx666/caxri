@@ -88,8 +88,7 @@ export const SessionHomeStatus = ({
         {sections.truncated ? (
             <View style={[styles.limit, { borderColor: theme.border }]}>
                 <Text style={[styles.limitText, { color: theme.muted }]}>
-                    Showing {allMobileSessions(sections).length} of {sections.total} prioritized
-                    Sessions
+                    Showing {allMobileSessions(sections).length} of {sections.total} Sessions
                 </Text>
             </View>
         ) : null}

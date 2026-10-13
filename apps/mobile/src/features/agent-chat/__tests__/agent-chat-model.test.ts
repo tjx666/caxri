@@ -10,7 +10,7 @@ import {
     agentChatApprovalRows,
     agentChatComposerAvailability,
     agentChatComposerButton,
-    agentChatComposerHint,
+    agentChatComposerRowControls,
     agentChatComposerSubmission,
     agentChatDisabledReason,
     agentChatEmptyMessage,
@@ -163,10 +163,10 @@ describe('Agent Chat model', () => {
 
     it('starts the unsupported-images reason with a capital for the providerless fallback', () => {
         expect(agentChatImagesUnsupportedReason('Grok Build')).toBe(
-            "Grok Build can't read images in a Chat.",
+            'Grok Build Chat does not accept images',
         );
         expect(agentChatImagesUnsupportedReason('the Agent')).toBe(
-            "The Agent can't read images in a Chat.",
+            'The Agent Chat does not accept images',
         );
     });
 
@@ -383,19 +383,19 @@ describe('agentChatSendFailureMessage', () => {
     });
 });
 
-describe('agentChatComposerHint', () => {
-    it('teaches hold-to-steer only while a running turn can be steered and nothing else owns the line', () => {
-        expect(agentChatComposerHint({ canSteer: true, hasError: false, isStopping: false })).toBe(
-            'Tap to queue · hold to steer',
-        );
+describe('agentChatComposerRowControls', () => {
+    it('hides attach only while a running turn has typed text, so the input keeps its room', () => {
         expect(
-            agentChatComposerHint({ canSteer: false, hasError: false, isStopping: false }),
-        ).toBeUndefined();
+            agentChatComposerRowControls({ canAttach: true, hasText: true, isRunning: true }),
+        ).toEqual({ showsAttach: false });
         expect(
-            agentChatComposerHint({ canSteer: true, hasError: true, isStopping: false }),
-        ).toBeUndefined();
+            agentChatComposerRowControls({ canAttach: true, hasText: false, isRunning: true }),
+        ).toEqual({ showsAttach: true });
         expect(
-            agentChatComposerHint({ canSteer: true, hasError: false, isStopping: true }),
-        ).toBeUndefined();
+            agentChatComposerRowControls({ canAttach: true, hasText: true, isRunning: false }),
+        ).toEqual({ showsAttach: true });
+        expect(
+            agentChatComposerRowControls({ canAttach: false, hasText: false, isRunning: false }),
+        ).toEqual({ showsAttach: false });
     });
 });

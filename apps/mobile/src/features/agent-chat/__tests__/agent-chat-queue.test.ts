@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     AGENT_CHAT_QUEUE_ERRORS,
+    agentChatQueueCardLayout,
     agentChatQueueEntries,
     agentChatQueueFailure,
     agentChatQueueHeader,
@@ -203,6 +204,23 @@ describe('agentChatQueueRowHints', () => {
         expect(agentChatQueueRowHints(pending, 'no images')).toEqual({
             sendNow: 'Available once the message is queued.',
             edit: 'Available once the message is queued.',
+        });
+    });
+});
+
+describe('agentChatQueueCardLayout', () => {
+    it('collapses to the header while composing until expanded, and always shows rows otherwise', () => {
+        expect(agentChatQueueCardLayout({ isComposing: true, isExpanded: false })).toEqual({
+            showsRows: false,
+            showsToggle: true,
+        });
+        expect(agentChatQueueCardLayout({ isComposing: true, isExpanded: true })).toEqual({
+            showsRows: true,
+            showsToggle: true,
+        });
+        expect(agentChatQueueCardLayout({ isComposing: false, isExpanded: false })).toEqual({
+            showsRows: true,
+            showsToggle: false,
         });
     });
 });
