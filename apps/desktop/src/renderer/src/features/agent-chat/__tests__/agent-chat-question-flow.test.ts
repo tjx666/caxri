@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatQuestionResponse,
+    questionCardHeadings,
     questionFormPrimaryAction,
     questionOptionIndexForArrow,
     questionOptionIndexForKey,
@@ -72,6 +73,29 @@ describe('questionFormPrimaryAction', () => {
         ).toEqual({ kind: 'submit' });
         expect(questionFormPrimaryAction(['only'], {}, 0, new Set([0]))).toEqual({
             kind: 'submit',
+        });
+    });
+});
+
+describe('questionCardHeadings', () => {
+    it("joins a lone question's header onto the title line", () => {
+        expect(questionCardHeadings('Codex has a question', 1, 'Color')).toEqual({
+            title: 'Codex has a question · Color',
+            questionHeader: undefined,
+        });
+    });
+
+    it('keeps each header with its own question when there are several', () => {
+        expect(questionCardHeadings('Codex has 3 questions', 3, 'Split')).toEqual({
+            title: 'Codex has 3 questions',
+            questionHeader: 'Split',
+        });
+    });
+
+    it('leaves the title alone for a question without a header', () => {
+        expect(questionCardHeadings('Codex has a question', 1, undefined)).toEqual({
+            title: 'Codex has a question',
+            questionHeader: undefined,
         });
     });
 });

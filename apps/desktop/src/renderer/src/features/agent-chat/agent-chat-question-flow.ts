@@ -65,3 +65,19 @@ export function questionFormPrimaryAction(
     }
     return { kind: 'submit' };
 }
+
+/**
+ * The card's muted title line and the header shown above the question itself. Several questions keep each header with
+ * its own question behind the tabs; a lone question's header joins the title line, so the card opens on one muted line
+ * rather than two, as the Codex app sets a question.
+ */
+export function questionCardHeadings(
+    title: string,
+    questionCount: number,
+    header: string | undefined,
+): { title: string; questionHeader: string | undefined } {
+    if (!header) return { title, questionHeader: undefined };
+    return questionCount > 1
+        ? { title, questionHeader: header }
+        : { title: `${title} · ${header}`, questionHeader: undefined };
+}
