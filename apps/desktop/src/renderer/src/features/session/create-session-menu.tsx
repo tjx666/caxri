@@ -1,10 +1,9 @@
 import type { MouseEventHandler, ReactElement } from 'react';
 import { cloneElement, useEffect } from 'react';
 
-import type { CommandId, ProjectRecord } from '@caxri/protocol';
+import type { ProjectRecord } from '@caxri/protocol';
 import { SquareDashed, SquarePen } from 'lucide-react';
 
-import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -36,14 +35,14 @@ import {
  * a different picker would be the "two ways to do one thing" this repository forbids. That store entry names the
  * trigger as well as the Project, because one Project can render more than one of these at a time.
  *
- * With a configured default Agent the Project heading's button splits the way the tab strip's `+` does: a press creates
- * the default, hovering opens the list to pick a different Agent, and the tooltip names what the press creates.
+ * The Project heading's button opens the list on hover, so picking an Agent needs no extra click. With a configured
+ * default Agent it splits the way the tab strip's `+` does: a press creates the default and the tooltip names it;
+ * without one a press opens the same list.
  */
 function SessionCreationMenu({
     anchor,
     project,
     trigger,
-    tooltipCommandId,
 }: {
     anchor: CreateSessionAnchor;
     project: ProjectRecord;
@@ -55,12 +54,6 @@ function SessionCreationMenu({
         'aria-label'?: string;
         'onClick'?: MouseEventHandler<HTMLButtonElement>;
     }>;
-    /**
-     * Renders the trigger inside a `CommandTooltip`. It has to be resolved here rather than by the caller wrapping this
-     * component, because Base UI's tooltip trigger reaches its child through `render` and a plain function component
-     * drops the props it injects; the tooltip then has nothing to attach to and never opens.
-     */
-    tooltipCommandId?: CommandId;
 }) {
     const open = useDialogStore(
         (state) =>
@@ -128,7 +121,8 @@ function SessionCreationMenu({
                       }
                     : undefined
             }
-            openOnHover={splitTarget !== undefined}
+            // The empty-Project row is a keyboard-reached tree row, not a hover target (see the early return above).
+            openOnHover={anchor === 'heading'}
             delay={100}
             closeDelay={150}
             render={
@@ -143,17 +137,19 @@ function SessionCreationMenu({
             }
         />
     );
-    let triggerWithTooltip = menuTrigger;
-    if (splitLabel)
-        triggerWithTooltip = (
-            <Tooltip content={splitLabel} shortcut={sessionCreateShortcut}>
-                {menuTrigger}
-            </Tooltip>
-        );
-    else if (tooltipCommandId)
-        triggerWithTooltip = (
-            <CommandTooltip commandId={tooltipCommandId}>{menuTrigger}</CommandTooltip>
-        );
+    /**
+     * Only the split names its press in a tooltip. Without a default Agent, hover already opens the list the press
+     * would open, so a tooltip would only cover its first row, the same reason the tab strip's `+` shows none in that
+     * case. The Tooltip wraps the trigger element here rather than this component, because Base UI's tooltip trigger
+     * reaches its child through `render` and a plain function component drops the props it injects.
+     */
+    const triggerWithTooltip = splitLabel ? (
+        <Tooltip content={splitLabel} shortcut={sessionCreateShortcut}>
+            {menuTrigger}
+        </Tooltip>
+    ) : (
+        menuTrigger
+    );
     return (
         <Menu
             open={open}
@@ -163,6 +159,15 @@ function SessionCreationMenu({
              * list.
              */
             onOpenChange={(nextOpen, details) => {
+                /**
+                 * Hover already opened the heading's list, so a press that follows is the user reaching for it, not
+                 * asking to dismiss it. Base UI would toggle the menu closed under the pointer; Escape, an outside
+                 * press, or leaving the trigger still close it.
+                 */
+                if (!nextOpen && anchor === 'heading' && details.reason === 'trigger-press') {
+                    details.cancel();
+                    return;
+                }
                 if (!nextOpen) {
                     closeCreateSessionMenu();
                     return;
@@ -221,7 +226,6 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
         <SessionCreationMenu
             anchor="heading"
             project={project}
-            tooltipCommandId="session.create"
             trigger={
                 <Button
                     /**

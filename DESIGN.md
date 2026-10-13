@@ -477,9 +477,9 @@ and Project names clip with a right-edge fade instead of an ellipsis: the ellips
 row width on punctuation. The fade is about one character at the 13px UI size, matching Codex.
 A Project heading's Customize Icon and New Session buttons follow the same hover-cluster rule: at
 rest they reserve no width, so the name runs to the row's edge; on hover, keyboard focus, or while
-the New Session menu is open the name makes room and fades before them. With a configured default
-Agent, New Session splits like the tab strip's +: a press creates the default Agent (the tooltip
-names it, `New Codex Chat Session`) and hovering lists the Agents.
+the New Session menu is open the name makes room and fades before them. Hovering New Session lists
+the Agents. With a configured default Agent it splits like the tab strip's +: a press creates the
+default Agent (the tooltip names it, `New Codex Chat Session`); without one a press opens the list.
 Clipped Session names reveal their tail after a 600ms title hover or keyboard-focus pause, moving
 at a steady reading speed and holding at the end. Leaving restores the fade; short names remain
 still.
