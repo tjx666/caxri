@@ -15,6 +15,7 @@ import {
     prepareChatLaunch,
     readChatTranscript,
 } from './chat-launch';
+import { createChatMcpServerWatch } from './chat-mcp-servers';
 import { chatReportedStateHost } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
@@ -55,6 +56,16 @@ export async function startChat(
     options.coordinator.beginTerminalLaunch(terminalId, launchId);
     const isCurrent = () => state.launchId === launchId && states.get(terminalId) === state;
     let session: AgentChatProviderSession | undefined;
+    const mcpServers = createChatMcpServerWatch({
+        read: () => state.projection.snapshot,
+        apply: (operations) => {
+            if (isCurrent()) states.apply(terminalId, operations);
+        },
+        lookup: () =>
+            session?.readMcpServer && isCurrent()
+                ? (name) => session?.readMcpServer?.(name) ?? Promise.resolve(undefined)
+                : undefined,
+    });
     const delegated = delegation.takeStart(terminalId);
     try {
         const driver = agentChatDrivers[provider];
@@ -100,7 +111,9 @@ export async function startChat(
             turnRequestTimeoutMs: options.turnRequestTimeoutMs,
             read: () => state.projection.snapshot,
             apply: (operations) => {
-                if (isCurrent()) states.apply(terminalId, operations);
+                if (!isCurrent()) return;
+                states.apply(terminalId, operations);
+                mcpServers.observe(operations);
             },
             applyTask: (taskId, operations) => {
                 if (isCurrent()) state.projection.applyTask(taskId, operations);

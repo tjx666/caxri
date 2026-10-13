@@ -179,15 +179,17 @@ export function applyAgentChatOperation(
     switch (operation.op) {
         case 'reset': {
             /**
-             * Commands and models describe the running provider, and the follow-up queue belongs to Server Core; none
-             * is part of the conversation being replaced. A resumed Claude Code reports its models before its history
-             * replay resets the Chat, so dropping them here hid the model picker on every resumed Chat.
+             * Commands, models, and MCP servers describe the running provider, and the follow-up queue belongs to
+             * Server Core; none is part of the conversation being replaced. A resumed Claude Code reports its models
+             * before its history replay resets the Chat, so dropping them here hid the model picker on every resumed
+             * Chat.
              */
             return {
                 ...emptyAgentChatSnapshot(snapshot.terminalId),
                 revision: snapshot.revision,
                 ...(snapshot.commands && { commands: snapshot.commands }),
                 ...(snapshot.models && { models: snapshot.models }),
+                ...(snapshot.mcpServers && { mcpServers: snapshot.mcpServers }),
                 ...(snapshot.queue && { queue: snapshot.queue }),
                 ...(snapshot.queueLength !== undefined && { queueLength: snapshot.queueLength }),
                 ...(snapshot.queuePaused !== undefined && { queuePaused: snapshot.queuePaused }),
@@ -232,6 +234,7 @@ export function applyAgentChatOperation(
             if (state.models !== undefined) next.models = state.models;
             if (state.usage !== undefined) next.usage = state.usage ?? undefined;
             if (state.commands !== undefined) next.commands = state.commands;
+            if (state.mcpServers !== undefined) next.mcpServers = state.mcpServers;
             if (state.operation !== undefined) next.operation = state.operation ?? undefined;
             if (state.tasks !== undefined) next.tasks = state.tasks;
             if (state.queue !== undefined) next.queue = state.queue;

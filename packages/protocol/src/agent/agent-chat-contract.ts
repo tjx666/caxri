@@ -2,7 +2,9 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/identifiers.js';
+import { agentChatCommandSchema, MAX_AGENT_CHAT_COMMANDS } from './agent-chat-commands.js';
 import { agentChatGoalSchema } from './agent-chat-goal-contract.js';
+import { agentChatMcpServerSchema, MAX_AGENT_CHAT_MCP_SERVERS } from './agent-chat-mcp.js';
 import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-requests.js';
 import { agentChatUsageSchema } from './agent-chat-usage.js';
@@ -66,7 +68,6 @@ export const AGENT_CHAT_LONG_PASTE_THRESHOLD = 32 * 1024;
  * A sent image's preview is a small Renderer-made thumbnail, not the image itself, so the projection stays bounded.
  */
 export const MAX_AGENT_CHAT_THUMBNAIL_LENGTH = 48 * 1024;
-export const MAX_AGENT_CHAT_COMMANDS = 200;
 export const MAX_AGENT_CHAT_MODELS = 50;
 /**
  * Background work a Chat lists at once (subagents and background shells). Older ended tasks drop first.
@@ -109,28 +110,6 @@ export const agentChatThumbnailSchema = z
  */
 export const agentChatImageReferenceSchema = z.strictObject({
     thumbnail: agentChatThumbnailSchema.optional(),
-});
-
-/**
- * A slash command the provider runs. The list is the provider's own (Claude Code reports its commands, Codex has a
- * fixed set Caxri maps to app-server methods), so a command that is not listed is never offered.
- */
-export const agentChatCommandSchema = z.strictObject({
-    name: z
-        .string()
-        .min(1)
-        .max(100)
-        .regex(/^[\w:.-]+$/u),
-    description: z.string().max(500).optional(),
-    /**
-     * Placeholder for the command's arguments, such as `<file>`. A command without one runs as soon as it is chosen.
-     */
-    argumentHint: z.string().max(200).optional(),
-    /**
-     * Marks the provider's native goal command (Codex's `/goal`), which the composer's Goal mode drives. A same-named
-     * custom command, such as a Claude Code `/goal` skill, carries no mark and runs like any other command.
-     */
-    goal: z.literal(true).optional(),
 });
 
 /**
@@ -483,6 +462,11 @@ export const agentChatSnapshotSchema = z.strictObject({
      * Slash commands the provider currently offers. Absent until the provider has started.
      */
     commands: z.array(agentChatCommandSchema).max(MAX_AGENT_CHAT_COMMANDS).optional(),
+    /**
+     * MCP servers the Chat's tool calls named, as the provider describes them (display name and icon). Server Core
+     * looks a server up the first time a tool call names it, so a server the Chat never called is never listed.
+     */
+    mcpServers: z.array(agentChatMcpServerSchema).max(MAX_AGENT_CHAT_MCP_SERVERS).optional(),
     usage: agentChatUsageSchema.optional(),
     /**
      * Provider-wide work in progress that is not a turn, such as compacting the context.
@@ -541,6 +525,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 planMode: agentChatSnapshotSchema.shape.planMode.unwrap().nullable(),
                 models: agentChatSnapshotSchema.shape.models.unwrap(),
                 commands: agentChatSnapshotSchema.shape.commands.unwrap(),
+                mcpServers: agentChatSnapshotSchema.shape.mcpServers.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),
                 truncated: agentChatSnapshotSchema.shape.truncated,
                 historyId: agentChatSnapshotSchema.shape.historyId.unwrap(),
@@ -590,7 +575,6 @@ export type AgentChatSnapshot = z.infer<typeof agentChatSnapshotSchema>;
 export type AgentChatPatchOperation = z.infer<typeof agentChatPatchOperationSchema>;
 export type AgentChatPatch = z.infer<typeof agentChatPatchSchema>;
 export type AgentChatHistoryPage = z.infer<typeof agentChatHistoryPageSchema>;
-export type AgentChatCommand = z.infer<typeof agentChatCommandSchema>;
 export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;
 /* eslint-enable unicorn/max-nested-calls */

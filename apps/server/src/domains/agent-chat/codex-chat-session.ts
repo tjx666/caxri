@@ -45,6 +45,7 @@ import {
 } from './codex-input';
 import { loadCodexItemTimes } from './codex-item-times';
 import { mapCodexErrorNotice, mapCodexItem, mapCodexPlan, mapCodexUsage } from './codex-items';
+import { readCodexMcpServer } from './codex-mcp-servers';
 import { CodexModelSettings } from './codex-models';
 import { codexOpeningSettings, CodexPermissions } from './codex-permissions';
 import { CodexRequestBroker } from './codex-requests';
@@ -572,6 +573,12 @@ class CodexChatSession implements AgentChatProviderSession {
     async readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined> {
         if (!this.connection?.isOpen || !this.threadId) return undefined;
         return this.tasks.readTaskHistory(taskId);
+    }
+
+    readMcpServer(name: string) {
+        return this.connection?.isOpen && this.threadId
+            ? readCodexMcpServer(this.connection, this.threadId, name)
+            : Promise.resolve(undefined);
     }
 
     respond(requestId: string, response: AgentChatResponse): void {

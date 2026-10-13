@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
-    HookCallbackMatcher,
-    HookEvent,
     Query,
     SDKMessage,
     SDKUserMessage,
@@ -49,10 +47,11 @@ import {
     isClaudeCompactCommand,
 } from './claude-input';
 import { claudeAssistantItems } from './claude-items';
+import { readClaudeMcpServer } from './claude-mcp-servers';
 import {
     claudeChatModels,
+    claudeEffortHooks,
     claudeFastMode,
-    claudeHookEffort,
     claudeInitEffort,
     configureClaudeModel,
     readClaudeAppliedSettings,
@@ -247,24 +246,6 @@ class ClaudeChatSession implements AgentChatProviderSession {
         this.tasks.onToolResults(content);
     }
 
-    /**
-     * Read-only hook callbacks that report the turn's effective effort. Claude Code fills `effort` only for a hook that
-     * runs with a tool-use context: PreToolUse and Stop always do, UserPromptSubmit only on some paths, so it is a
-     * best-effort early report and Stop is the guaranteed one. Each returns an empty output, so Claude Code proceeds
-     * exactly as without them.
-     */
-    private effortHooks(): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
-        const matcher: HookCallbackMatcher = {
-            hooks: [
-                (input) => {
-                    this.options.apply(claudeHookEffort(input));
-                    return Promise.resolve({});
-                },
-            ],
-        };
-        return { UserPromptSubmit: [matcher], PreToolUse: [matcher], Stop: [matcher] };
-    }
-
     private onSystem(message: Json): void {
         if (this.tasks.onSystem(message)) return;
         switch (message.subtype) {
@@ -450,8 +431,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
          * The SDK bundle is over a megabyte; load it with the first Claude Chat, not with Server Core.
          */
         const { query } = await import('@anthropic-ai/claude-agent-sdk');
-        const hooks = withClaudeShellHooks(this.effortHooks(), (event) =>
-            this.options.observeLifecycle(event),
+        const hooks = withClaudeShellHooks(
+            claudeEffortHooks((operations) => this.options.apply(operations)),
+            (event) => this.options.observeLifecycle(event),
         );
         const stream = query({
             prompt: this.prompts,
@@ -578,6 +560,12 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     readContext() {
         return this.context.read(this.requireOpen());
+    }
+
+    readMcpServer(name: string) {
+        return this.query && this.isOpen
+            ? readClaudeMcpServer(this.query, name)
+            : Promise.resolve(undefined);
     }
 
     respond(requestId: string, response: AgentChatResponse): void {

@@ -19,6 +19,7 @@ import { useColorizedCode } from './use-colorized-code';
 export function CodeView({
     className,
     code,
+    defaultWrapped = false,
     isPaintable = true,
     label,
     language,
@@ -28,6 +29,10 @@ export function CodeView({
      */
     className?: string;
     code: string;
+    /**
+     * Starts soft-wrapped, for text that reads as prose; the toggle still switches it.
+     */
+    defaultWrapped?: boolean;
     /**
      * False while the code is still streaming: it is painted once complete.
      */
@@ -42,7 +47,7 @@ export function CodeView({
     language: string | undefined;
 }) {
     const { t } = useTranslation();
-    const [isWrapped, setWrapped] = useState(false);
+    const [isWrapped, setWrapped] = useState(defaultWrapped);
     const { html, languageName } = useColorizedCode(code, language, isPaintable);
     const wrapLabel = t(
         isWrapped ? 'core.codeView.disableWordWrap' : 'core.codeView.enableWordWrap',

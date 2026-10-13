@@ -9,9 +9,9 @@ import {
     savedLongPasteSchema,
 } from '../domain/terminal-long-paste.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { agentChatCommandSchema } from './agent-chat-commands.js';
 import { agentChatContextReportSchema } from './agent-chat-context.js';
 import {
-    agentChatCommandSchema,
     agentChatEffortSchema,
     agentChatHistoryPageSchema,
     agentChatImageMediaTypeSchema,

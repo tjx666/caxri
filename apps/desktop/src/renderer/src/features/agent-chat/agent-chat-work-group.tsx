@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ComponentType, CSSProperties, ReactNode } from 'react';
 import { memo, useContext, useId, useMemo, useRef } from 'react';
 
 import type { AgentChatTask, AgentChatWorkItem, AgentToolKind } from '@caxri/protocol';
@@ -9,14 +9,13 @@ import {
     agentChatToolCallArguments,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
-    agentChatWorkKind,
     isAgentChatWorkRunning,
     splitAgentChatWork,
     stripLineNumberGutter,
     unwrapShellCommand,
 } from '@caxri/protocol';
-import type { LucideIcon } from 'lucide-react';
 import {
+    BookOpen,
     Bot,
     Brain,
     ChevronRight,
@@ -24,15 +23,12 @@ import {
     Command,
     FilePenLine,
     FilePlus,
-    FileText,
     FolderOpen,
     Globe,
     Hourglass,
     Image,
-    Layers,
     ListTodo,
     MessageCircleQuestionMark,
-    Plug,
     Search,
     Sparkles,
     SquareTerminal,
@@ -45,11 +41,13 @@ import { CodeView } from '../../components/markdown/code-view';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { useTranslation } from '../../i18n';
+import { McpConnectorIcon } from '../../icons/mcp-connector-icon';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
 import { agentChatItemExpansionKey, agentChatSummaryExpansionKey } from './agent-chat-expansion';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
+import { AgentChatMcpGlyph } from './agent-chat-mcp-glyph';
 import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
@@ -59,16 +57,23 @@ import {
     agentChatTaskGlyphStatus,
     isAgentChatTaskItemRunning,
 } from './agent-chat-tasks';
-import { describeAgentChatWork, summarizeAgentChatWork } from './agent-chat-timeline';
+import {
+    agentChatWorkSummaryGlyph,
+    describeAgentChatWork,
+    summarizeAgentChatWork,
+} from './agent-chat-timeline';
+import { AgentChatToolArguments } from './agent-chat-tool-arguments';
 import { agentChatToolActiveLabel } from './agent-chat-tool-labels';
 import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
+import { useAgentChatMcpServer } from './hooks/use-agent-chat-mcp-server';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-agent-chat-task-link';
 
 /**
- * One glyph per tool kind, matching the mobile timeline so a tool reads the same on both clients. A new tool kind is
- * added to the shared table in `@caxri/protocol` and given its glyph here.
+ * One glyph per tool kind, following the Codex app's work glyphs: an open book for a read, and four connected nodes for
+ * an MCP call whose server has no icon of its own (see `AgentChatMcpGlyph`). A new tool kind is added to the shared
+ * table in `@caxri/protocol` and given its glyph here.
  */
-const WORK_ICONS: Record<AgentToolKind, LucideIcon> = {
+const WORK_ICONS: Record<AgentToolKind, ComponentType<{ className?: string }>> = {
     agent: Bot,
     manage: Bot,
     browser: Globe,
@@ -77,11 +82,11 @@ const WORK_ICONS: Record<AgentToolKind, LucideIcon> = {
     edit: FilePenLine,
     image: Image,
     list: FolderOpen,
-    mcp: Plug,
+    mcp: McpConnectorIcon,
     other: Wrench,
     plan: ListTodo,
     question: MessageCircleQuestionMark,
-    read: FileText,
+    read: BookOpen,
     search: Search,
     skill: Sparkles,
     stop: CircleStop,
@@ -226,9 +231,18 @@ function DisclosureRow({
     );
 }
 
-function WorkGlyph({ kind }: { kind: AgentToolKind | undefined }) {
-    const Icon = kind ? WORK_ICONS[kind] : Layers;
+/**
+ * A work row's glyph. An MCP call shows its server's icon once the provider described the server (`mcpToolName` names
+ * the call); every other kind shows its fixed glyph.
+ */
+function WorkGlyph({ kind, mcpToolName }: { kind: AgentToolKind; mcpToolName?: string }) {
+    if (kind === 'mcp') return <McpWorkGlyph toolName={mcpToolName} />;
+    const Icon = WORK_ICONS[kind];
     return <Icon aria-hidden="true" className="size-3.5" />;
+}
+
+function McpWorkGlyph({ toolName }: { toolName: string | undefined }) {
+    return <AgentChatMcpGlyph server={useAgentChatMcpServer(toolName)} />;
 }
 
 /**
@@ -236,7 +250,19 @@ function WorkGlyph({ kind }: { kind: AgentToolKind | undefined }) {
  */
 const COMMAND_TITLE_LENGTH = 80;
 
-function OutputView({ language, text }: { language: string | undefined; text: string }) {
+/**
+ * A tool's output. `isWrapped` starts it soft-wrapped: an MCP server answers in prose more often than in code, and a
+ * paragraph on one scrolling line is unreadable.
+ */
+function OutputView({
+    isWrapped,
+    language,
+    text,
+}: {
+    isWrapped?: boolean;
+    language: string | undefined;
+    text: string;
+}) {
     const { t } = useTranslation();
     const output = text.replace(/\n+$/u, '');
     if (!output) return <p className="m-0 text-muted">{t('agentChat.workGroup.noOutput')}</p>;
@@ -244,6 +270,7 @@ function OutputView({ language, text }: { language: string | undefined; text: st
         <CodeView
             className={OUTPUT_CLASS_NAME}
             code={output}
+            defaultWrapped={isWrapped}
             label={t('agentChat.workGroup.output')}
             language={language}
         />
@@ -307,20 +334,14 @@ function WorkDetail({
             const language = agentChatOutputLanguage(item);
             const output = item.output ?? '';
             const argumentsText = agentChatToolCallArguments(item);
+            const { kind } = describeAgentChatWork(item);
             return (
                 <>
-                    {argumentsText && (
-                        <p className="m-0 font-mono text-[11px] wrap-anywhere whitespace-pre-wrap text-muted select-text">
-                            {argumentsText}
-                        </p>
-                    )}
+                    {argumentsText && <AgentChatToolArguments text={argumentsText} />}
                     <OutputView
+                        isWrapped={kind === 'mcp'}
                         language={language}
-                        text={
-                            describeAgentChatWork(item).kind === 'read'
-                                ? stripLineNumberGutter(output)
-                                : output
-                        }
+                        text={kind === 'read' ? stripLineNumberGutter(output) : output}
                     />
                 </>
             );
@@ -422,7 +443,12 @@ const AgentChatWorkRow = memo(
                 action={link?.open && <AgentChatTaskOpenButton task={task} onOpen={link.open} />}
                 disclosureKind="agent-chat-item"
                 expansionKey={agentChatItemExpansionKey(item.id)}
-                glyph={<WorkGlyph kind={presentation.kind} />}
+                glyph={
+                    <WorkGlyph
+                        kind={presentation.kind}
+                        mcpToolName={item.type === 'toolCall' ? item.name : undefined}
+                    />
+                }
                 isRunning={isRunning}
                 itemId={item.id}
                 title={
@@ -522,12 +548,13 @@ function AgentChatWorkSummary({
     const { t } = useTranslation();
     const failureStatus = agentChatWorkGroupFailure(items);
     const summary = summarizeAgentChatWork(items, t);
+    const glyph = agentChatWorkSummaryGlyph(items);
     return (
         <DisclosureRow
             containedItems={items}
             disclosureKind="agent-chat-work-group"
             expansionKey={agentChatSummaryExpansionKey(items)}
-            glyph={<WorkGlyph kind={agentChatWorkKind(items)} />}
+            glyph={<WorkGlyph kind={glyph.kind} mcpToolName={glyph.mcpToolName} />}
             title={<span className="min-w-0 truncate">{summary}</span>}
             trailing={failureStatus && <AgentChatStatusGlyph status={failureStatus} />}
         >
