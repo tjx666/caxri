@@ -121,6 +121,13 @@ describe('Status extension review group', () => {
         expect(reviewing?.item.description).toBe('Reviewing');
         expect(reviewing?.item.iconPath?.id).toBe('loading');
 
+        const failed = repo({
+            reviewThreadCount: 2,
+            codexReviews: [{ ...codexReview, status: 'Failed', state: 'failed' }],
+        });
+        expect(failed?.item.description).toBe('Review failed');
+        expect(failed?.item.iconPath?.id).toBe('circle-x');
+
         // A push after the review leaves the review row naming the older commit it covered.
         const stale = repo({ headSha: 'a'.repeat(40), codexReviews: [codexReview] });
         expect(stale?.children?.[0]?.item.description).toBe('Completed · 9e912c5 · older commit');

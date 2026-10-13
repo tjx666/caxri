@@ -279,13 +279,13 @@ describe('Codex subagent tools', () => {
         });
         expect(
             describeAgentTool({ name: 'sendMessage', summary: '/root/acceptance-checker' }),
-        ).toMatchObject({ kind: 'agent', label: 'Messaged agent', subject: 'Acceptance checker' });
+        ).toMatchObject({ kind: 'manage', label: 'Messaged agent', subject: 'Acceptance checker' });
         expect(
             describeAgentTool({ name: 'interruptAgent', summary: '/root/review_waiter' }),
-        ).toMatchObject({ kind: 'stop', label: 'Stopped agent', subject: 'Review waiter' });
+        ).toMatchObject({ kind: 'manage', label: 'Stopped agent', subject: 'Review waiter' });
         // A v1 collab call's summary is a receiver count, not a name.
         expect(describeAgentTool({ name: 'closeAgent', summary: '2 agents' })).toEqual({
-            kind: 'stop',
+            kind: 'manage',
             label: 'Closed agent',
             isCodeSubject: false,
         });
@@ -298,5 +298,16 @@ describe('Codex subagent tools', () => {
                 { name: 'agentCompleted', summary: '/root/pr_watch_waiter' },
             ]),
         ).toBe('Waited for agents');
+    });
+
+    it('does not count messages and stops to an agent as agents run or processes stopped', () => {
+        expect(
+            summarizeAgentToolGroup([
+                { name: 'spawnAgent' },
+                { name: 'sendMessage', summary: '/root/helper' },
+                { name: 'sendMessage', summary: '/root/helper' },
+                { name: 'closeAgent', summary: '/root/helper' },
+            ]),
+        ).toBe('Ran 1 agent, managed agents');
     });
 });

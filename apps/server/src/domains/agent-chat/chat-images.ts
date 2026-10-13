@@ -1,9 +1,13 @@
 import type { AgentChatImageInput } from '@caxri/protocol';
 
+import { SingleFlight } from '../single-flight';
 import { MAX_HISTORY_TRANSCRIPT_BYTES } from './chat-history';
 import { readChatTranscript, requireChatTerminal } from './chat-launch';
+import type { AgentChatTranscript } from './chat-provider';
 import { claudeHistoryImage } from './claude-history';
 import type { AgentChatServiceOptions } from './service-options';
+
+const fullTranscripts = new SingleFlight<string, AgentChatTranscript | undefined>();
 
 /**
  * The original of an image a user message carried, read straight from the provider's on-disk record, so the Client can
@@ -19,10 +23,17 @@ export async function readChatImage(
 ): Promise<Omit<AgentChatImageInput, 'thumbnail'> | null> {
     const { provider } = requireChatTerminal(options.database, terminalId);
     if (provider !== 'claude') return null;
+    const tail = await readChatTranscript(options, terminalId);
+    if (!tail) return null;
+    const recent = claudeHistoryImage(tail.content, itemId, index);
+    if (recent || !tail.truncated) return recent ?? null;
     /**
-     * Reads as far back as history paging does, not the resume tail: images sit inline as base64, so a few turns of
-     * screenshots push an earlier message's line out of the last 4 MB while its placeholder is still on screen.
+     * Images sit inline as base64, so a few turns of screenshots push an earlier message's line out of the resume tail
+     * while its placeholder is still on screen; read as far back as history paging does. A page of placeholders asks at
+     * once, so concurrent misses share one read instead of each holding its own copy of the transcript.
      */
-    const transcript = await readChatTranscript(options, terminalId, MAX_HISTORY_TRANSCRIPT_BYTES);
-    return (transcript && claudeHistoryImage(transcript.content, itemId, index)) ?? null;
+    const full = await fullTranscripts.run(terminalId, () =>
+        readChatTranscript(options, terminalId, MAX_HISTORY_TRANSCRIPT_BYTES),
+    );
+    return (full && claudeHistoryImage(full.content, itemId, index)) ?? null;
 }

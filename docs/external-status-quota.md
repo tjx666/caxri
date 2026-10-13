@@ -176,7 +176,9 @@ bar, the sidebar sweep, and Source Control pay for a field only the Status panel
 - One query reads the first 50 threads and each thread's opening comment. Resolved and outdated
   threads are dropped on the Server, but still counted (`reviewThreadCount`), so the panel can say
   `All resolved` rather than `No comments`.
-- The same query reads the first 30 conversation comments to find the review summary Codex keeps
+- The same query reads the first 20 and the last 10 conversation comments (the summary appears
+  early when the review starts with the pull request, late when requested afterwards) to find the
+  review summary Codex keeps
   (marked `<!-- codex-pull-request-review-summary -->`). Its table rows become `codexReviews`: the
   review's status, the commit it covered, and its trigger, which is the only record of a Codex review
   that left no comment. The `Review` group is therefore shown on every open or draft pull request.

@@ -17,6 +17,7 @@ export type AgentToolKind =
     | 'edit'
     | 'image'
     | 'list'
+    | 'manage'
     | 'mcp'
     | 'other'
     | 'plan'
@@ -87,10 +88,10 @@ const TOOL_KINDS: Partial<Record<string, { kind: AgentToolKind; label: string }>
      * names `sendMessage`, `interruptAgent`, and `agentCompleted`. A v2 activity's summary is the subagent's path
      * (`/root/pr_watch_waiter`), which reads as its name; see {@link agentDisplayName}.
      */
-    sendinput: { kind: 'agent', label: 'Messaged agent' },
-    sendmessage: { kind: 'agent', label: 'Messaged agent' },
-    closeagent: { kind: 'stop', label: 'Closed agent' },
-    interruptagent: { kind: 'stop', label: 'Stopped agent' },
+    sendinput: { kind: 'manage', label: 'Messaged agent' },
+    sendmessage: { kind: 'manage', label: 'Messaged agent' },
+    closeagent: { kind: 'manage', label: 'Closed agent' },
+    interruptagent: { kind: 'manage', label: 'Stopped agent' },
     /**
      * Codex's collab `wait` (multi-agent v2 calls it `wait_agent`) blocks until any subagent reports, and names none,
      * so the row says what it waits for instead of the bare tool name. A subagent's completion is the wait's answer,
@@ -112,7 +113,14 @@ const TOOL_KINDS: Partial<Record<string, { kind: AgentToolKind; label: string }>
 };
 
 const FILE_KINDS = new Set<AgentToolKind>(['edit', 'list', 'read', 'write']);
-const PROSE_KINDS = new Set<AgentToolKind>(['agent', 'question', 'thought', 'wait', 'web']);
+const PROSE_KINDS = new Set<AgentToolKind>([
+    'agent',
+    'manage',
+    'question',
+    'thought',
+    'wait',
+    'web',
+]);
 
 /**
  * Tools whose summary is a subagent rather than a command or a prompt. `wait` is absent on purpose: Codex's only
@@ -275,6 +283,7 @@ const ACTIVE_LABELS: Partial<Record<AgentToolKind, string>> = {
     edit: 'Editing',
     image: 'Viewing image',
     list: 'Listing',
+    manage: 'Managing agent',
     plan: 'Updating plan',
     question: 'Asking',
     read: 'Reading',
@@ -300,6 +309,7 @@ const BASE_VERBS: Partial<Record<AgentToolKind, string>> = {
     edit: 'edit',
     image: 'view image',
     list: 'list',
+    manage: 'manage agent',
     plan: 'update plan',
     question: 'ask',
     read: 'read',
@@ -360,6 +370,8 @@ const GROUP_PHRASES: Record<AgentToolKind, (count: number) => string> = {
     search: (count) => `ran ${plural(count, 'search', 'searches')}`,
     web: (count) => `browsed ${plural(count, 'page')}`,
     agent: (count) => `ran ${plural(count, 'agent')}`,
+    // Counts calls, not agents: messaging one agent twice must not read as two agents.
+    manage: () => 'managed agents',
     browser: (count) => `ran ${plural(count, 'browser step')}`,
     computer: (count) => `ran ${plural(count, 'Computer Use step')}`,
     plan: () => 'updated the plan',

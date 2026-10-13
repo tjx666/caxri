@@ -43,6 +43,7 @@ export const TOOL_SAMPLES = {
     stop: { name: 'KillShell', summary: 'shell-1' },
     thought: { name: 'reasoning' },
     wait: { name: 'wait' },
+    manage: { name: 'sendMessage' },
     web: { name: 'WebFetch', summary: 'https://example.com' },
     write: { name: 'Write', summary: '/work/new.ts' },
 } satisfies Record<AgentToolKind, { name: string; summary?: string }>;

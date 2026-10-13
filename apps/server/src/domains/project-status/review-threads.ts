@@ -25,11 +25,13 @@ const MAX_RECORDS = 128;
  */
 const THREAD_PAGE_SIZE = 50;
 /**
- * Codex posts its review summary comment when the pull request opens and edits it afterwards, so it sits among the
- * conversation's first comments. GraphQL cannot filter comments by author or body, and reading the whole conversation
- * would pay for every bot's deployment comment on a busy pull request.
+ * Codex posts its review summary comment at its first review and edits it afterwards: among the conversation's first
+ * comments when the review starts with the pull request, among its latest when someone asks for one later. GraphQL
+ * cannot filter comments by author or body, and reading the whole conversation would pay for every bot's deployment
+ * comment on a busy pull request, so the query reads both ends.
  */
-const COMMENT_PAGE_SIZE = 30;
+const EARLY_COMMENT_COUNT = 20;
+const RECENT_COMMENT_COUNT = 10;
 
 /**
  * A thread's `comments(first: 1)` is its opening comment: the one that states what needs addressing. The pull request's
@@ -37,7 +39,7 @@ const COMMENT_PAGE_SIZE = 30;
  *
  * @see https://docs.github.com/en/graphql/reference/objects#pullrequestreviewthread
  */
-const REVIEW_THREADS_QUERY = `query ReviewThreads($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:${THREAD_PAGE_SIZE}){nodes{isResolved isOutdated path line comments(first:1){nodes{body url createdAt author{login}}}}} comments(first:${COMMENT_PAGE_SIZE}){nodes{body url}}}}}`;
+const REVIEW_THREADS_QUERY = `query ReviewThreads($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:${THREAD_PAGE_SIZE}){nodes{isResolved isOutdated path line comments(first:1){nodes{body url createdAt author{login}}}}} early:comments(first:${EARLY_COMMENT_COUNT}){nodes{body url}} recent:comments(last:${RECENT_COMMENT_COUNT}){nodes{body url}}}}}`;
 
 const commentSchema = z.object({
     body: z.string().nullish(),
@@ -59,7 +61,8 @@ const conversationCommentSchema = z.object({ body: z.string().nullish(), url: z.
 const conversationSchema = z.object({ nodes: z.array(conversationCommentSchema.nullable()) });
 const pullRequestSchema = z.object({
     reviewThreads: threadsSchema,
-    comments: conversationSchema.nullish(),
+    early: conversationSchema.nullish(),
+    recent: conversationSchema.nullish(),
 });
 const repoSchema = z.object({ pullRequest: pullRequestSchema.nullable() });
 
@@ -101,7 +104,7 @@ export function parseReviewFeedback(output: string): ReviewFeedback {
         });
     }
     // Codex keeps one summary comment and edits it in place; the last one wins if a pull request somehow has several.
-    const summary = (pullRequest?.comments?.nodes ?? [])
+    const summary = [...(pullRequest?.early?.nodes ?? []), ...(pullRequest?.recent?.nodes ?? [])]
         .map((comment) =>
             comment?.body && comment.url ? parseCodexReviewSummary(comment.body, comment.url) : [],
         )

@@ -70,6 +70,7 @@ import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-age
  */
 const WORK_ICONS: Record<AgentToolKind, LucideIcon> = {
     agent: Bot,
+    manage: Bot,
     browser: Globe,
     command: SquareTerminal,
     computer: Command,

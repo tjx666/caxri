@@ -7,13 +7,14 @@ import { parseReviewFeedback, ReviewThreadStore } from '../review-threads';
 const PR_URL = 'https://github.com/example/example/pull/7';
 const CONTEXT = { owner: 'example', repo: 'example' };
 
-function response(nodes: unknown[], comments?: unknown[]): string {
+function response(nodes: unknown[], early?: unknown[], recent?: unknown[]): string {
     return JSON.stringify({
         data: {
             repository: {
                 pullRequest: {
                     reviewThreads: { nodes },
-                    ...(comments && { comments: { nodes: comments } }),
+                    ...(early && { early: { nodes: early } }),
+                    ...(recent && { recent: { nodes: recent } }),
                 },
             },
         },
@@ -142,6 +143,25 @@ describe('parseReviewFeedback', () => {
                 url: summaryUrl,
             },
         ]);
+    });
+});
+
+describe('Codex review summary placement and markup', () => {
+    it('finds a summary posted after the early comments, and keeps a linked review name', () => {
+        const summaryUrl = `${PR_URL}#issuecomment-99`;
+        const linked = CODEX_SUMMARY.replace(
+            'Code Review',
+            '<a href="https://chatgpt.com/codex">Code Review</a>',
+        );
+        const output = response(
+            [],
+            [{ body: 'Deployed to preview.', url: `${PR_URL}#issuecomment-0` }],
+            [{ body: linked, url: summaryUrl }],
+        );
+        expect(parseReviewFeedback(output).codexReviews[0]).toMatchObject({
+            name: 'Code Review',
+            url: summaryUrl,
+        });
     });
 });
 
