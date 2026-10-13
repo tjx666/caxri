@@ -72,22 +72,23 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 Decisions that are hard to reverse, surprising without context, and a real trade-off. Never
 rewritten, only superseded.
 
-| ADR                                                           | Decision                                                   |
-| ------------------------------------------------------------- | ---------------------------------------------------------- |
-| [0001](adr/0001-separate-session-owner-and-workbench-root.md) | Separate Session ownership from the Workbench Root         |
-| [0002](adr/0002-unified-pane-layout.md)                       | One pane tree for Terminals and documents                  |
-| [0003](adr/0003-host-owned-esm-extension-host.md)             | Host-owned native ESM Extension Host                       |
-| [0004](adr/0004-independently-deployable-server.md)           | Independently deployable Server and process ownership      |
-| [0005](adr/0005-multi-client-state-ownership.md)              | Multi-Client identity and state ownership                  |
-| [0006](adr/0006-durable-changefeed-and-streaming-protocol.md) | Durable changefeed and streaming protocol                  |
-| [0007](adr/0007-remote-access-and-project-authorization.md)   | Remote access and Project authorization                    |
-| [0008](adr/0008-agent-native-observability.md)                | Agent-native observability and diagnostics                 |
-| [0009](adr/0009-session-activity-recency.md)                  | Session Activity owns Primary Sidebar recency              |
-| [0010](adr/0010-server-core-idle-exit.md)                     | Server Core idle-exit policy                               |
-| [0011](adr/0011-required-merge-guards.md)                     | A required `guards` check replaces direct pushes to `main` |
-| [0012](adr/0012-agent-chat-surface.md)                        | Agent Chat: a structured Terminal surface beside the PTY   |
-| [0013](adr/0013-editable-external-documents.md)               | Editable external documents through a Main-issued registry |
-| [0014](adr/0014-ssh-remote-server.md)                         | SSH Hosts run their own Server over system OpenSSH         |
+| ADR                                                           | Decision                                                          |
+| ------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [0001](adr/0001-separate-session-owner-and-workbench-root.md) | Separate Session ownership from the Workbench Root                |
+| [0002](adr/0002-unified-pane-layout.md)                       | One pane tree for Terminals and documents                         |
+| [0003](adr/0003-host-owned-esm-extension-host.md)             | Host-owned native ESM Extension Host                              |
+| [0004](adr/0004-independently-deployable-server.md)           | Independently deployable Server and process ownership             |
+| [0005](adr/0005-multi-client-state-ownership.md)              | Multi-Client identity and state ownership                         |
+| [0006](adr/0006-durable-changefeed-and-streaming-protocol.md) | Durable changefeed and streaming protocol                         |
+| [0007](adr/0007-remote-access-and-project-authorization.md)   | Remote access and Project authorization                           |
+| [0008](adr/0008-agent-native-observability.md)                | Agent-native observability and diagnostics                        |
+| [0009](adr/0009-session-activity-recency.md)                  | Session Activity owns Primary Sidebar recency                     |
+| [0010](adr/0010-server-core-idle-exit.md)                     | Server Core idle-exit policy                                      |
+| [0011](adr/0011-required-merge-guards.md)                     | A required `guards` check replaces direct pushes to `main`        |
+| [0012](adr/0012-agent-chat-surface.md)                        | Agent Chat: a structured Terminal surface beside the PTY          |
+| [0013](adr/0013-editable-external-documents.md)               | Editable external documents through a Main-issued registry        |
+| [0014](adr/0014-ssh-remote-server.md)                         | SSH Hosts run their own Server over system OpenSSH                |
+| [0015](adr/0015-chat-primary-agent-surface.md)                | Agent Chat is the primary Agent surface; Terminal stays supported |
 
 ## Historical
 

@@ -212,6 +212,11 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
   deduplicated until its real volume is unknowable, does neither. Give such an event a closed reason
   enum, a per-lifetime aggregate, or a duration, and record a state transition when it happens, not
   only the state itself.
+- Agent Chat is the primary Agent surface: design new Agent-facing features for Chat first, and a
+  feature may ship Chat-only. The PTY Terminal surface is permanent; Chat work must not remove,
+  hide, or regress its launch, input, resume, surface switch, suspension, or restore paths. For
+  example, a Chat-only Fork action is fine, but a shared Agent menu change that breaks
+  `claude --resume` in a PTY is a bug. See [ADR 0015](docs/adr/0015-chat-primary-agent-surface.md).
 - Until Caxri has a public release, optimize for the current architecture instead of preserving
   compatibility with previous local builds. Do not add protocol adapters, legacy Host controls,
   dual-read/write paths, or migration UI only to keep an unpublished build running. Fail clearly

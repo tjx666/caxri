@@ -1,19 +1,22 @@
 # Caxri
 
-Caxri is a project-first, terminal-native development workbench for macOS, built for running and
-supervising coding agents. It groups durable Agent and Shell Sessions beneath local Projects: real
-PTYs, a focused editor, Files and Source Control views, and reliable agent attention signals, in
-one Electron app.
+Caxri is a project-first development workbench for macOS, built for running and supervising coding
+agents. It groups durable Agent and Shell Sessions beneath local Projects: Agent Chats, real PTYs, a
+focused editor, Files and Source Control views, and reliable agent attention signals, in one
+Electron app.
 
 ## Highlights
 
 - **Projects and Sessions.** A Project is a user-authorized folder. Sessions are durable
   units of work beneath it, each owning its Terminals, layout, and workbench state. The shared
   vocabulary lives in [GLOSSARY.md](GLOSSARY.md).
-- **Unmodified CLIs, no wrappers.** Shell and Agent CLIs (Claude Code, Codex, …) run in genuine
-  pseudo-terminals, and Caxri never proxies or rewrites their I/O. An Agent Terminal can instead
-  be created as a Chat, which drives the same installed CLI through its vendor's own structured
-  protocol and renders a readable conversation; see [docs/agent-chat.md](docs/agent-chat.md).
+- **Chat first, Terminal always.** Agents run the user's own, unmodified CLIs (Claude Code,
+  Codex, …). A Chat drives the installed CLI through its vendor's structured protocol and renders
+  a readable conversation; it is where new Agent features land. Every Agent can also run in a
+  genuine pseudo-terminal, and a Chat can switch to one without losing its conversation. Shells
+  always run in one, and Caxri never proxies or rewrites PTY I/O. See
+  [docs/agent-chat.md](docs/agent-chat.md) and
+  [ADR 0015](docs/adr/0015-chat-primary-agent-surface.md).
 - **Attention you can trust.** Each Session's Primary Agent reports waiting / completed / failed
   states, so a wall of parallel agent sessions never stalls silently.
 - **A focused workbench.** A narrow editor, file tree, search, and an inspection-first Source
@@ -108,6 +111,7 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 ## Product boundaries
 
 Caxri treats a user-selected folder as a Project and groups durable Sessions beneath it. It is
-not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs run unmodified, in
-a real PTY or through their vendor's structured protocol (a Chat). Source Control is an inspection surface: the only Git mutation is switching to an
+not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs run unmodified,
+through their vendor's structured protocol (a Chat, the primary surface) or in a real PTY (always
+supported). Source Control is an inspection surface: the only Git mutation is switching to an
 existing local branch. The editor intentionally stays narrow.
