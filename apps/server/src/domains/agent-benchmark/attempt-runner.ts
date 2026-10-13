@@ -132,7 +132,10 @@ export async function runAttempt(
             signal,
         );
     }
-    finish(attempt, { status: outcome.status });
+    // Stopped while the check ran: the Agent's turn completed, but the user withdrew the Attempt from the comparison.
+    finish(attempt, {
+        status: outcome.status === 'completed' && isAborted(signal) ? 'cancelled' : outcome.status,
+    });
     observer.changed(true);
     logAttempt(context.logger, run, attempt);
 }

@@ -212,6 +212,44 @@ describe('BenchmarkService', () => {
         expect(harness.service.liveCount()).toBe(0);
     });
 
+    it('never starts a queued Attempt the user stopped', async () => {
+        const harness = await fixture();
+        const { runId } = await harness.service.start({
+            prompt: 'go slow',
+            entries: [CODEX, CODEX],
+            settings: harness.settings({ concurrency: 1 }),
+        });
+        await vi.waitFor(
+            () => expect(harness.service.get(runId).attempts[0].status).toBe('running'),
+            { timeout: 10_000 },
+        );
+        const [first, second] = harness.service.get(runId).attempts;
+        harness.service.cancel(runId, second.id);
+        harness.service.cancel(runId, first.id);
+        const run = await harness.finished(runId);
+
+        expect(run.attempts.map((attempt) => attempt.status)).toEqual(['cancelled', 'cancelled']);
+        expect(run.attempts[1].startedAt).toBeUndefined();
+        expect(run.attempts[1].cliVersion).toBeUndefined();
+    });
+
+    it('records an Attempt stopped during its check as cancelled', async () => {
+        const harness = await fixture();
+        const { runId } = await harness.service.start({
+            prompt: 'Say hello',
+            entries: [CODEX],
+            settings: harness.settings({ checkCommand: 'sleep 30' }),
+        });
+        await vi.waitFor(
+            () => expect(harness.service.get(runId).attempts[0].status).toBe('checking'),
+            { timeout: 10_000 },
+        );
+        harness.service.cancel(runId, harness.service.get(runId).attempts[0].id);
+        const run = await harness.finished(runId);
+
+        expect(run.attempts[0].status).toBe('cancelled');
+    });
+
     it('takes the diff of what the Agent changed and runs the check command in its folder', async () => {
         const harness = await fixture();
         const { runId } = await harness.service.start({
@@ -298,6 +336,15 @@ describe('BenchmarkService', () => {
 
         expect(() => harness.service.get(runId)).toThrow('Benchmark run not found');
         expect(harness.service.list().runs).toEqual([]);
+    });
+
+    it('refuses to delete a run that does not exist, removing nothing', async () => {
+        const harness = await fixture();
+        const sentinel = join(harness.directory, 'keep.txt');
+        await writeFile(sentinel, 'keep');
+
+        await expect(harness.service.delete('../..')).rejects.toThrow('Benchmark run not found');
+        expect(await readFile(sentinel, 'utf8')).toBe('keep');
     });
 
     it('lists the models each Agent offers', async () => {

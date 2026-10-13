@@ -143,7 +143,9 @@ export class BenchmarkService {
         const queue = [...run.attempts];
         const worker = async (): Promise<void> => {
             for (let attempt = queue.shift(); attempt; attempt = queue.shift()) {
-                if (live.isCancelled) continue;
+                // A queued Attempt the user stopped is already `cancelled`; starting it would spend tokens on a
+                // result the board no longer counts.
+                if (live.isCancelled || attempt.status !== 'queued') continue;
                 const controller = new AbortController();
                 live.controllers.set(attempt.id, controller);
                 // eslint-disable-next-line no-await-in-loop -- each worker runs its Attempts one after another
@@ -354,6 +356,9 @@ export class BenchmarkService {
 
     async delete(runId: string): Promise<null> {
         const live = this.live.get(runId);
+        // The folder is removed by ID, so only an ID that names a run may reach the filesystem.
+        if (!live && !this.runs.get(runId))
+            throw new CaxriError('NOT_FOUND', 'Benchmark run not found');
         if (live) {
             this.cancel(runId);
             await live.done;
