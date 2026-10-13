@@ -495,6 +495,14 @@ export class UsageService {
     }
 
     /**
+     * Running usage of one subagent of the conversation bound to an Agent Terminal, for its task tab.
+     */
+    async readTerminalTask(terminalId: string, taskId: string): Promise<AgentUsageReadout | null> {
+        await this.loadPricing();
+        return this.live.readTask(terminalId, taskId);
+    }
+
+    /**
      * Answers within about a second: a ledger scan still running after that (a first open over hundreds of transcripts)
      * continues in the background, and the report says how many rows it has not read yet.
      */

@@ -79,6 +79,7 @@ type ServiceHandlerMethods =
     | 'files.search'
     | 'terminal.agentThroughput'
     | 'terminal.agentUsage'
+    | 'terminal.agentTaskUsage'
     | 'terminal.agentTranscript'
     | 'terminal.commitLink.resolve'
     | 'terminal.reference.preview'
@@ -488,6 +489,8 @@ export function createServiceHandlers(services: {
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
         'usage.report': (parameters) => usage.report(parameters),
         'terminal.agentUsage': ({ terminalId }) => usage.readTerminal(terminalId),
+        'terminal.agentTaskUsage': ({ terminalId, taskId }) =>
+            usage.readTerminalTask(terminalId, taskId),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
             await agentRuntime.awaitSettingsReconcile();
