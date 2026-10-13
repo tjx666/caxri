@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { commandPolicy } from '../transport/method-spec.js';
-import { identifierSchema } from './domain.js';
+import { identifierSchema } from './identifiers.js';
 import { projectStatusStateSchema } from './project-status-state.js';
 
 export const sessionPullRequestStateSchema = z.enum(['draft', 'open', 'merged', 'closed']);

@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/max-nested-calls -- Declarative Zod schemas intentionally compose bounded validators inline. */
 import { z } from 'zod';
 
-import { identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import {
     agentChatItemSchema,
     agentChatTaskSchema,

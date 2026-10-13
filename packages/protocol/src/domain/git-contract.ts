@@ -14,9 +14,8 @@ import {
     gitPullRequestChangesSchema,
     gitSummarySchema,
     gitSummaryWireRequesterSchema,
-    identifierSchema,
-    pathSchema,
 } from './domain.js';
+import { identifierSchema, pathSchema } from './identifiers.js';
 
 const serverRead = commandPolicy('server', 'read');
 const serverWrite = commandPolicy('server', 'write');

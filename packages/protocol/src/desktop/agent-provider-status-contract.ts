@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentProviderSchema } from '../domain/domain.js';
+import { agentProviderSchema } from '../agent/agents.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 

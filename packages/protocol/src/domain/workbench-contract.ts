@@ -2,12 +2,8 @@ import { z } from 'zod';
 
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
-import {
-    identifierSchema,
-    pathSchema,
-    sessionRecordSchema,
-    workbenchRootOptionSchema,
-} from './domain.js';
+import { sessionRecordSchema, workbenchRootOptionSchema } from './domain.js';
+import { identifierSchema, pathSchema } from './identifiers.js';
 
 const canceled = z.object({ canceled: z.literal(true) });
 

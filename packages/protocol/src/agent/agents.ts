@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import type { AgentActionsSettings } from './agent-action-settings.js';
 import { defaultAgentActionsSettings } from './agent-action-settings.js';
 
@@ -7,6 +9,8 @@ import { defaultAgentActionsSettings } from './agent-action-settings.js';
  * codebase.
  */
 export const agentProviderIds = ['claude', 'codex', 'grok'] as const;
+
+export const agentProviderSchema = z.enum(agentProviderIds);
 
 export type AgentProvider = (typeof agentProviderIds)[number];
 

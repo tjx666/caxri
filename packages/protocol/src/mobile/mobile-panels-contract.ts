@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { hexColorSchema } from '../domain/color.js';
-import { identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import { viewIdSchema } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';

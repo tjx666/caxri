@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../../configuration/settings-spec';
+import { serverCredentialTokenSchema, serverProcessIdentitySchema } from '../identity';
 import {
     CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     desktopOperationSchema,
@@ -9,9 +10,7 @@ import {
     localServerEventSchema,
     localServerWelcomeSchema,
     serverControlEndpointSchema,
-    serverCredentialTokenSchema,
     serverEndpointUrl,
-    serverProcessIdentitySchema,
 } from '../local-transport';
 
 describe('WebSocket control endpoint', () => {

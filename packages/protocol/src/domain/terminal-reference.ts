@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { identifierSchema } from './domain.js';
+import { identifierSchema } from './identifiers.js';
 
 /**
  * Whether `value` can be a GitHub owner or repository name: letters, digits, `.`, `_`, and `-`, but never `.` or `..`.

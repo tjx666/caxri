@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import { usageTokenBreakdownSchema } from '../domain/usage-contract.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { agentChatEffortSchema, agentChatModelSchema } from './agent-chat-contract.js';
