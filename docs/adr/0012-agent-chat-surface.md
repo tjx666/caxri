@@ -7,6 +7,7 @@ status: accepted
 
 - Date: 2026-10-09
 - Refs: [#1529](https://github.com/tjx666/caxri/issues/1529), [#1538](https://github.com/tjx666/caxri/issues/1538)
+- Amended by: [ADR 0015](0015-chat-primary-agent-surface.md) (Chat is the primary Agent surface)
 
 Caxri launched every Agent CLI inside a real PTY and promised never to proxy or rewrite its I/O.
 A TUI is the most faithful surface, but on the desktop it reads worse than the mobile Conversation
