@@ -97,7 +97,7 @@ export const agentChatModelOptions = (
  * instead of letting the reader think the current reply changed models.
  */
 export const agentChatModelSheetNote = (snapshot: ModelSnapshot | undefined): string | undefined =>
-    snapshot?.activeTurnId ? 'Applies from the next turn.' : undefined;
+    snapshot?.activeTurnId ? 'Applies to the next turn.' : undefined;
 
 /**
  * Efforts belong to a model, and Core validates an effort against the model in use. Claude Code names its model only

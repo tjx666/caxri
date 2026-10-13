@@ -79,6 +79,22 @@ export const agentChatQueueHeader = (
  * What a failed queue action says, in Desktop's words.
  */
 /**
+ * How much of the queue card shows. While the user types, the keyboard and composer already take most of the screen, so
+ * the card shrinks to its one-line header (`Queued 3`) with an expand toggle and the timeline keeps its room; with the
+ * keyboard down the rows always show. `isExpanded` is the toggle, which only matters while typing.
+ */
+export const agentChatQueueCardLayout = ({
+    isComposing,
+    isExpanded,
+}: {
+    isComposing: boolean;
+    isExpanded: boolean;
+}): { showsRows: boolean; showsToggle: boolean } => ({
+    showsRows: !isComposing || isExpanded,
+    showsToggle: isComposing,
+});
+
+/**
  * The screen reader hints for a queued row's Send now and Edit buttons: why a button is unavailable, or what Steer
  * does. A message still on its way holds both until Server Core lists it.
  */
