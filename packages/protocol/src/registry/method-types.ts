@@ -94,6 +94,9 @@ export const effectfulCommandRecovery = {
     'agentChat.saveLongPaste': 'memory',
     'agent.dispatch.start': 'durable',
     'agent.delegation.create': 'durable',
+    'agent.session.rename': 'durable',
+    'agent.session.archive': 'durable',
+    'agent.session.unarchive': 'durable',
     'commander.ensure': 'memory',
     /**
      * Replies with the same Workbench-shaped snapshot as `commander.ensure`.

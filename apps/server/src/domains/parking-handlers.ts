@@ -1,11 +1,13 @@
-import type { FullStateChangeReason, SessionRestorePlacement } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import type { FullStateChangeReason, Principal, SessionRestorePlacement } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import type { AgentChatService } from './agent-chat';
+import { isAgentCommanderCaller } from './agent-delegation';
 import { requireCommanderSession } from './commander';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
 import type { MobileTerminalMutationQueue } from './mobile';
+import type { SessionRenameService } from './session';
 import type { TerminalRestoreSupervisor, TerminalSuspensionService } from './terminal';
 
 export interface SessionParkingOptions {
@@ -58,7 +60,7 @@ export async function parkSessions(
  * them when it is selected again; a detached one has handed its Agent Sessions to another client and takes them back
  * only through `session.resume`. Unarchiving returns Sessions to the list; their Terminals resume on selection.
  */
-export function createSessionParkingHandlers(
+function createSessionParkingHandlers(
     options: SessionParkingOptions,
 ): Pick<
     DomainHandlers,
@@ -116,6 +118,76 @@ export function createSessionParkingHandlers(
             unarchiveSessions([sessionId], placement)[0],
         'session.unarchiveMany': ({ placement, sessionIds }) =>
             unarchiveSessions([...new Set(sessionIds)], placement),
+    };
+}
+
+/**
+ * Admits an Agent to manage one Session its own Session created. Everything else is `NOT_FOUND`, the way the
+ * Commander's other Session-scoped requests treat a Session outside their reach, so an Agent cannot probe which
+ * Sessions exist.
+ *
+ * The Agent Commander is held to `requireCommanderSession`: a Session it created but the user took back, or one the
+ * user handed over, is the user's again even though its creator column still names the Commander. That holds for any
+ * Terminal in the Commander's Session (a leftover one after the Commander was recreated, say). Any other Agent
+ * qualifies through `createdBySessionId` alone, so every Agent in the creating Session shares the right, and a relaunch
+ * keeps it. The Project must still be visible: hiding it takes its Sessions out of every Agent's reach.
+ */
+function authorizeAgentSessionManagement(
+    database: CaxriDatabase,
+    authority: { principal: Principal; callerTerminalId: string },
+    sessionId: string,
+): void {
+    const caller = database.getTerminal(authority.callerTerminalId);
+    if (!caller || authority.principal.kind !== 'agent')
+        throw new CaxriError('FORBIDDEN', 'Session management requires an authorized Agent');
+    if (
+        isAgentCommanderCaller(database, authority) ||
+        caller.sessionId === database.agentCommanderRows()?.sessionId
+    ) {
+        requireCommanderSession(database, sessionId);
+        return;
+    }
+    const session = database.getSession(sessionId);
+    const project =
+        session &&
+        database.listVisibleProjects().find((candidate) => candidate.id === session.projectId);
+    if (
+        !session ||
+        !project ||
+        session.createdBySessionId !== caller.sessionId ||
+        !isTopLevelProject(project)
+    )
+        throw new CaxriError('NOT_FOUND', 'Session was not created by this Agent');
+}
+
+/**
+ * The user's Session rename and parking handlers, plus the Agent entry to the same operations. An Agent goes through
+ * exactly the code the sidebar runs (provider title synchronization, Terminal parking, Chat shutdown) after admission.
+ */
+export function createSessionHandlers(
+    database: CaxriDatabase,
+    parking: SessionParkingOptions,
+    renames: Pick<SessionRenameService, 'rename'>,
+): ReturnType<typeof createSessionParkingHandlers> &
+    Pick<DomainHandlers, 'agent.session.manageInternal' | 'session.rename'> {
+    const parkingHandlers = createSessionParkingHandlers(parking);
+    return {
+        ...parkingHandlers,
+        'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
+            renames.rename(sessionId, displayTitle, signal, finalizeDurably),
+        'agent.session.manageInternal': async (
+            { operation, sessionId, ...authority },
+            signal,
+            finalizeDurably,
+        ) => {
+            authorizeAgentSessionManagement(database, authority, sessionId);
+            if (operation.action === 'rename')
+                await renames.rename(sessionId, operation.title, signal, finalizeDurably);
+            else if (operation.action === 'archive')
+                await parkingHandlers['session.archive']({ sessionId });
+            else await parkingHandlers['session.unarchive']({ sessionId, placement: 'top' });
+            return { sessionId };
+        },
     };
 }
 

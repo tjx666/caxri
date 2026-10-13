@@ -38,6 +38,7 @@ export * from './agent-endpoint-control.js';
 export * from './agent-inbox-contract.js';
 export * from './agent-notification-contract.js';
 export * from './agent-process-environment.js';
+export * from './agent-session-contract.js';
 export * from './agent-skill-contract.js';
 export * from './agent-throughput-contract.js';
 export * from './agent-tool-presentation.js';

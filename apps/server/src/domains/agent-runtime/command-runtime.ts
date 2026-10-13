@@ -54,10 +54,15 @@ export function createAgentCommandRuntime(
         logger: options.logger,
         userDataPath: options.userDataPath,
         newSessions: {
-            create: (projectId, title, isCommander) => {
+            create: (projectId, title, isCommander, createdBySessionId) => {
                 const sessionId = isCommander
                     ? createCommanderSession(options.database, projectId, options.logger, title)
-                    : createBackgroundSession(options.database, projectId, title);
+                    : createBackgroundSession(
+                          options.database,
+                          projectId,
+                          title,
+                          createdBySessionId,
+                      );
                 announce('session.create');
                 return sessionId;
             },

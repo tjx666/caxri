@@ -126,14 +126,18 @@ export function authorizeDelegationSession(
     if (access === 'existing' || caller.sessionId === input.sessionId) return;
     /**
      * Outside its own Session, an Agent may start work only in a Session it created for a task: the one this request
-     * just created, or one where it already delegated. Delegating into a user's busy Session would fill its pane, so
-     * every other Session is refused, and only in a Project the user can still see.
+     * just created, one an Agent of its Session created, or one where it already delegated. The Commander's Session is
+     * excluded from the creator rule: what the Commander created is governed by its current membership, so a Session
+     * the user took back stays out of reach of any other Terminal there. Delegating into a user's busy Session would
+     * fill its pane, so every other Session is refused, and only in a Project the user can still see.
      */
     const project = database
         .listVisibleProjects()
         .find((candidate) => candidate.id === input.projectId);
     const isCallerSession =
         isNewSession ||
+        (session.createdBySessionId === caller.sessionId &&
+            caller.sessionId !== database.agentCommanderRows()?.sessionId) ||
         database.agentDelegations
             .receiptsForSessions([input.sessionId])
             .some((receipt) => receipt.callerTerminalId === caller.id);

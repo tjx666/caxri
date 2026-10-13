@@ -258,8 +258,10 @@ export class CommanderHandoverService {
     }
 
     managedSessions(): CommanderManagedSessions {
+        const rows = this.options.database.agentCommanderRows();
         return {
-            sessionIds: [...(this.options.database.agentCommanderRows()?.sessionIds ?? [])],
+            sessionIds: [...(rows?.sessionIds ?? [])],
+            ...(rows && { commanderSessionId: rows.sessionId }),
             inputTakeBackSessionIds: [...new Set(this.targets.values())],
             inputTakeBacks: [...this.inputTakeBacks],
         };

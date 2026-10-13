@@ -11,7 +11,6 @@ import {
     addPaneTerminalSilently,
     CaxriError,
     createPaneLayout,
-    openResource,
     removePaneTerminal,
 } from '@caxri/protocol';
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
@@ -43,13 +42,18 @@ import type {
     SessionStateUnchangedWrite,
 } from './session-state-row';
 import { parseSessionState } from './session-state-row';
-import { reconcileOwnedTerminalTabs, resolveSessionPaneLayout } from './session-terminal-layout';
+import {
+    defaultSessionPaneLayout,
+    reconcileOwnedTerminalTabs,
+    resolveSessionPaneLayout,
+} from './session-terminal-layout';
 import type { WorkbenchEditorStates } from './workbench-editor-state';
 import { parseWorkbenchEditorStates, pruneWorkbenchEditorState } from './workbench-editor-state';
 
 export interface NewSessionInput {
     projectId: string;
     displayTitle: string;
+    createdBySessionId?: string;
 }
 
 export interface SessionWorkbenchBinding {
@@ -111,13 +115,6 @@ export class SessionsModel {
         return terminalIdsBySession;
     }
 
-    private defaultPaneLayout(terminalIds: readonly string[]): SessionState['paneLayout'] {
-        return terminalIds.reduce(
-            (layout, terminalId) => openResource(layout, { kind: 'terminal', terminalId }),
-            createPaneLayout(),
-        );
-    }
-
     private defaultState(sessionId: string, terminalIds: readonly string[]): SessionState {
         const session = this.database
             .select({
@@ -133,13 +130,13 @@ export class SessionsModel {
             revision: 0,
             workbenchProjectId: session?.workbenchProjectId ?? session?.projectId ?? '',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
-            paneLayout: this.defaultPaneLayout(terminalIds),
+            paneLayout: defaultSessionPaneLayout(terminalIds),
         };
     }
 
     private readState(row: SessionStateRow, terminalIds?: readonly string[]): SessionState {
         const ownedTerminalIds = terminalIds ?? this.orderedTerminalIds(row.sessionId);
-        const parsed = parseSessionState(row, () => this.defaultPaneLayout(ownedTerminalIds));
+        const parsed = parseSessionState(row, () => defaultSessionPaneLayout(ownedTerminalIds));
         if ('state' in parsed) {
             const paneLayout = reconcileOwnedTerminalTabs(
                 parsed.state.paneLayout,
@@ -320,6 +317,7 @@ export class SessionsModel {
                 lastAttentionKind: null,
                 displayTitle: input.displayTitle,
                 titleMode: 'automatic',
+                createdBySessionId: input.createdBySessionId ?? null,
             })
             .run();
         return this.get(id)!;
