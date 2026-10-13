@@ -122,7 +122,7 @@ export function AgentActivityRowTrigger({
                     'group-hover/activity-row:pr-7',
             )}
             data-activity-group={row.groupId}
-            data-row-id={session.id}
+            data-row-id={row.rowId}
             data-session-id={session.id}
             role="treeitem"
             aria-level={2}
@@ -136,7 +136,7 @@ export function AgentActivityRowTrigger({
             tabIndex={isRenaming ? undefined : roving ? 0 : -1}
             onBlur={() => setFocused(false)}
             onFocus={(event) => {
-                onFocusChange(session.id);
+                onFocusChange(row.rowId);
                 // `SessionRowTrigger` gates the title reveal on `:focus-visible` the same way, so a pointer click that
                 // lands focus here does not also start scrolling the title.
                 setFocused(event.currentTarget.matches(':focus-visible'));
@@ -153,7 +153,7 @@ export function AgentActivityRowTrigger({
                 if (event.key === 'Enter' && event.shiftKey) {
                     event.preventDefault();
                     if (canSuggest)
-                        sessionRename.suggestRename(session.id, session.displayTitle, session.id);
+                        sessionRename.suggestRename(session.id, session.displayTitle, row.rowId);
                     return;
                 }
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -195,6 +195,7 @@ export function AgentActivityRowTrigger({
                     canSuggest={canSuggest}
                     isRenaming={isRenaming}
                     onTitleHoverChange={setHovered}
+                    rowId={row.rowId}
                     sessionId={session.id}
                     sessionRename={sessionRename}
                     textReference={textReference}

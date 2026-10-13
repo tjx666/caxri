@@ -1,29 +1,28 @@
 import { useMemo, useRef, useState } from 'react';
 
-import type { LucideIcon } from 'lucide-react';
-import { CheckCheck, Hand, Hourglass, Moon, TriangleAlert, Zap } from 'lucide-react';
-
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import { useTranslation } from '../../i18n';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
+import { usePinnedCollapse } from '../primary-sidebar/hooks/use-pinned-collapse';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
 import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { markSessionRead } from '../session/session-commands';
+import { AgentActivityHeading } from './agent-activity-heading';
 import { AgentActivityRowItem } from './agent-activity-row-item';
 import type {
     AgentActivityGroup,
-    AgentActivityGroupId,
     AgentActivityRow,
     AgentActivitySelectionAnchor,
 } from './agent-activity-rows';
 import {
     agentActivityGroups,
     agentActivityHeadingPresentation,
+    agentActivityPinnedRowId,
     agentActivitySelectionAnchor,
     isAgentActivitySelectionAnchorCurrent,
 } from './agent-activity-rows';
@@ -36,28 +35,6 @@ import {
 import { useAgentActivityClock } from './use-agent-activity-clock';
 
 const NO_RECORDS: never[] = [];
-/**
- * A glyph before each group heading, so the eye finds a group by shape before it reads the label; Paseo's status list
- * does the same. Every shape is deliberately different from the circle-family glyphs the rows use: a heading icon names
- * the section, and repeating the row glyph above its own rows would say the same thing twice. They stay in the
- * heading's muted tone, because color in this list is reserved for rows that want the user.
- *
- * "Needs attention" is a raised hand rather than a bell: the status bar's notification center already owns the bell,
- * and a Session in this group is waiting for the user's turn, not announcing an app notification.
- */
-const GROUP_ICONS: Record<AgentActivityGroupId, LucideIcon> = {
-    attention: Hand,
-    failed: TriangleAlert,
-    finished: CheckCheck,
-    idle: Moon,
-    waiting: Hourglass,
-    working: Zap,
-};
-function AgentActivityGroupIcon({ groupId }: { groupId: AgentActivityGroupId }) {
-    const Icon = GROUP_ICONS[groupId];
-    return <Icon aria-hidden="true" className="agent-activity-heading-icon flex-none" size={12} />;
-}
-
 const VERTICAL_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home']);
 
 type RenderRow =
@@ -86,6 +63,11 @@ export function AgentActivityView() {
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
     const scrollReference = useRef<HTMLDivElement>(null);
+    /**
+     * Shares the Project tree Pinned group's remembered disclosure state: both bodies show the same pinned Sessions, so
+     * collapsing them in one and finding them open in the other would read as two different features.
+     */
+    const pinnedCollapse = usePinnedCollapse();
     // The Project tree's own inset-shadow scroll cue (`primary-sidebar-project-tree.tsx`), bound to this queue's
     // scroller too: `.scroll-edge-shell`'s `::after` in styles.css reads the `data-scrolled` attribute this sets.
     useScrollEdge(scrollReference);
@@ -156,11 +138,28 @@ export function AgentActivityView() {
             terminals,
         ],
     );
-    const rows = useMemo(() => flattenAgentActivityRows(groups), [groups]);
+    const rows = useMemo(
+        () => flattenAgentActivityRows(groups, { pinnedExpanded: pinnedCollapse.expanded }),
+        [groups, pinnedCollapse.expanded],
+    );
     const rovingRowId = rovingAgentActivityRowId(rows, focusedRowId, selectedSessionId);
     const sessionRows = useMemo(() => groups.flatMap((group) => group.rows), [groups]);
     const visibleSessions = useMemo(() => sessionRows.map((row) => row.session), [sessionRows]);
-    const sessionRename = useSessionRename(visibleSessions, (session) => session.id);
+    /**
+     * A command-driven rename (`session.rename`) edits the Session's first rendered copy. A Session listed only under a
+     * collapsed Pinned group has no rendered row, so the group opens first.
+     */
+    const sessionRename = useSessionRename(visibleSessions, (session) => {
+        const statusRow = groups
+            .filter((group) => group.id !== 'pinned')
+            .flatMap((group) => group.rows)
+            .find((row) => row.session.id === session.id);
+        if (!statusRow || pinnedCollapse.expanded) {
+            pinnedCollapse.expand();
+            return agentActivityPinnedRowId(session.id);
+        }
+        return statusRow.rowId;
+    });
     /**
      * Headings and Session rows are rendered as one keyed sequence under a single parent rather than one fragment per
      * group. A Session that changes state moves between groups constantly, and a per-group fragment makes that a change
@@ -171,9 +170,11 @@ export function AgentActivityView() {
         () =>
             groups.flatMap<RenderRow>((group) => [
                 { group, heading: agentActivityHeadingPresentation(group, t), kind: 'heading' },
-                ...group.rows.map((row) => ({ kind: 'session' as const, row })),
+                ...(!pinnedCollapse.expanded && group.id === 'pinned'
+                    ? []
+                    : group.rows.map((row) => ({ kind: 'session' as const, row }))),
             ]),
-        [groups, t],
+        [groups, pinnedCollapse.expanded, t],
     );
     /**
      * `narrow` ("8m ago") rather than the prose form the Session cards use. A row here spends its one line on a Project
@@ -230,8 +231,8 @@ export function AgentActivityView() {
          * to the next row rather than follow the one that just left "Needs attention".
          */
         const focusAfterRead =
-            nextAgentActivityRowId(rows, row.session.id, 'ArrowDown') ??
-            nextAgentActivityRowId(rows, row.session.id, 'ArrowUp');
+            nextAgentActivityRowId(rows, row.rowId, 'ArrowDown') ??
+            nextAgentActivityRowId(rows, row.rowId, 'ArrowUp');
         setSelection((current) =>
             current.anchor?.sessionId === row.session.id
                 ? { ...current, anchor: undefined }
@@ -276,33 +277,27 @@ export function AgentActivityView() {
                 >
                     {renderRows.map((entry) =>
                         entry.kind === 'heading' ? (
-                            /*
-                             * A heading is a `treeitem` because everything inside `role="tree"` has to be one, but an
-                             * `aria-disabled` one with no Tab stop: these groups are derived from Agent state and cannot be
-                             * collapsed, so there is no action to land focus on. Arrow keys step over it, the same way
-                             * DESIGN.md has them step over a branch placeholder.
-                             */
-                            <div
+                            <AgentActivityHeading
                                 key={entry.group.id}
-                                aria-disabled="true"
-                                aria-level={1}
-                                className="agent-activity-heading mt-2 flex items-center gap-1.5 px-2 pb-1 text-[11px] font-medium text-muted first:mt-0"
-                                data-activity-group={entry.group.id}
-                                data-row-id={entry.group.id}
-                                role="treeitem"
-                            >
-                                <AgentActivityGroupIcon groupId={entry.group.id} />
-                                <span>{entry.heading.label}</span>
-                                {entry.heading.count !== undefined && (
-                                    <span aria-hidden="true">{entry.heading.count}</span>
-                                )}
-                                <span className="sr-only">{entry.heading.summary}</span>
-                            </div>
+                                group={entry.group}
+                                heading={entry.heading}
+                                pinnedDisclosure={
+                                    entry.group.id === 'pinned'
+                                        ? {
+                                              expanded: pinnedCollapse.expanded,
+                                              roving: rovingRowId === entry.group.id,
+                                              onFocus: () => setFocusedRowId(entry.group.id),
+                                              onToggle: pinnedCollapse.toggle,
+                                          }
+                                        : undefined
+                                }
+                            />
                         ) : (
                             <AgentActivityRowItem
-                                key={entry.row.session.id}
+                                key={entry.row.rowId}
+                                inPinnedGroup={entry.row.rowId !== entry.row.session.id}
                                 relativeTime={relativeTimeBySessionId.get(entry.row.session.id)}
-                                roving={rovingRowId === entry.row.session.id}
+                                roving={rovingRowId === entry.row.rowId}
                                 row={entry.row}
                                 selected={selectedSessionId === entry.row.session.id}
                                 sessionRename={sessionRename}

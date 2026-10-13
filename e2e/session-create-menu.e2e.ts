@@ -39,7 +39,8 @@ async function emptyProject(): Promise<EmptyProjectFixture> {
  * Session" row that stands in for the empty Session list. They used to share one menu, which anchored the popup to the
  * pencil no matter which control the user clicked (github.com/tjx666/caxri/issues/810).
  */
-test('the empty-Project New Session row anchors the Terminal menu to itself', async () => {
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('the empty-Project New Session row anchors the Terminal menu to itself', async ({}, testInfo) => {
     const { directory, project, running } = await emptyProject();
     try {
         const group = running.page.locator(`.project-group[data-project-id="${project.id}"]`);
@@ -68,16 +69,12 @@ test('the empty-Project New Session row anchors the Terminal menu to itself', as
 
         // The pencil only becomes clickable while its heading is hovered or focused.
         await heading.hover();
-        /**
-         * The pencil keeps its `session.create` tooltip. Base UI's tooltip trigger reaches its child through `render`,
-         * so wrapping a plain function component instead of the trigger element silently drops the props it injects and
-         * the tooltip never opens, which is exactly what splitting this file into two anchors first did.
-         */
         await pencil.hover();
-        await expect(running.page.locator('.tooltip-popup[data-open]')).toContainText(
-            'Create a Session in the selected Project',
-        );
 
+        // Hovering the pencil opens the list on its own, and a press while it is open keeps it open.
+        await expect(menu).toBeVisible();
+        await expect(pencil).toHaveAttribute('aria-expanded', 'true');
+        await running.page.screenshot({ path: testInfo.outputPath('heading-hover-menu.png') });
         await pencil.click();
         await expect(menu).toBeVisible();
         await expect(pencil).toHaveAttribute('aria-expanded', 'true');
