@@ -416,12 +416,17 @@ export class ChatFollowUpQueue {
         this.log('paused');
     }
 
-    resume(): void {
-        if (this.pauseReason === undefined) return;
+    /**
+     * Lifts a pause. True when queued inputs were waiting: they now go out through the send chain, so a caller can
+     * still record them as human input before they are delivered.
+     */
+    resume(): boolean {
+        if (this.pauseReason === undefined) return false;
         this.pauseReason = undefined;
         this.publish();
         this.log('resumed');
         this.dispatch();
+        return this.entries.length > 0;
     }
 
     /**

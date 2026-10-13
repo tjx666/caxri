@@ -61,9 +61,10 @@ export async function sendQueuedNow(
 }
 
 /**
- * The queue header's Resume. A Chat without live state has no paused queue to resume.
+ * The queue header's Resume; true when it released queued inputs. A Chat without live state has no paused queue to
+ * resume.
  */
-export function resumeQueue(host: ChatQueueActionsHost, terminalId: string): void {
+export function didResumeQueue(host: ChatQueueActionsHost, terminalId: string): boolean {
     requireChatTerminal(host.options.database, terminalId);
-    host.states.get(terminalId)?.followUps.resume();
+    return host.states.get(terminalId)?.followUps.resume() ?? false;
 }

@@ -38,10 +38,11 @@ import type { DelegationFollowUpRejection } from './rejection';
 import { followUpRejection, reportFollowUpRejection } from './rejection';
 import { applyDelegationCompletion, collectionIntervalMs, shouldCollectDelegation } from './result';
 import type { ExactResumeHost } from './resume';
-import { continueHandover, handoverTarget, resumeTask } from './resume';
+import { continueHandover, handoverAdmission, handoverTarget, resumeTask } from './resume';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
 import { removeDelegationFiles } from './storage';
+import { DelegationSubmissions } from './submission';
 import { pollDelegations } from './wait';
 
 /**
@@ -51,7 +52,6 @@ export class AgentDelegationService {
     private readonly requests = new SingleFlight<string, AgentDelegationReceipt>();
     private readonly now: () => number;
     private readonly collectors = new Map<string, NodeJS.Timeout>();
-    private readonly submissionTimers = new Map<string, NodeJS.Timeout>();
     private readonly activeTerminals = new Map<string, string>();
     private readonly nextCollections = new Map<string, number>();
     private readonly collections = new SingleFlight<
@@ -64,8 +64,13 @@ export class AgentDelegationService {
     private readonly pendingCreations = new Map<string, Set<Promise<AgentDelegationReceipt>>>();
     private readonly humanIntervenedTerminals = new Set<string>();
 
+    private readonly submissions: DelegationSubmissions;
+
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
+        this.submissions = new DelegationSubmissions(options, (id, failure) =>
+            this.fail(id, failure),
+        );
     }
 
     /**
@@ -143,22 +148,6 @@ export class AgentDelegationService {
         const record = this.options.database.agentDelegations.get(id);
         if (record && canFailDelegation(record, failure))
             this.save({ ...record, receipt: { ...record.receipt, status: 'failed', failure } });
-    }
-
-    /**
-     * Applies the Terminal Host's real answer for a follow-up whose prompt was admitted before it was delivered.
-     *
-     * A background delegation writes to a Terminal with no Renderer attachment, so the Host can still refuse the input:
-     * the launch changed while it was waiting, or the request was rejected outright. Reported as success, the task sat
-     * in `submitting` until its 15s timeout turned it into `submission_unconfirmed`, which names the wrong cause. Only
-     * a task still waiting for that prompt is settled; anything else already has an outcome of its own.
-     */
-    private settleSubmission(id: string, wasDelivered: boolean): void {
-        if (wasDelivered) return;
-        if (this.options.database.agentDelegations.get(id)?.receipt.status !== 'submitting') return;
-        clearTimeout(this.submissionTimers.get(id));
-        this.submissionTimers.delete(id);
-        this.fail(id, 'target_changed');
     }
 
     /**
@@ -273,22 +262,10 @@ export class AgentDelegationService {
             promptDigest: prepared.promptDigest,
             receipt: { ...record.receipt, terminalId, status: 'submitting' },
         });
-        if (
-            !this.options.write?.(
-                terminalId,
-                launchId,
-                `\u{1B}[200~${prepared.pointer}\u{1B}[201~\r`,
-                (wasDelivered) => this.settleSubmission(id, wasDelivered),
-            )
-        ) {
+        if (!this.submissions.submit(id, terminalId, launchId, prepared.pointer)) {
             this.releaseRefusedFollowUp(id, parent.receipt.delegationId);
             return reject('write_refused');
         }
-        if (this.options.database.agentDelegations.get(id)?.receipt.status === 'submitting')
-            this.armSubmissionTimer(id, () => {
-                if (this.options.database.agentDelegations.get(id)?.receipt.status === 'submitting')
-                    this.fail(id, 'submission_unconfirmed');
-            });
         return this.owned(id, authority).receipt;
     }
 
@@ -300,6 +277,7 @@ export class AgentDelegationService {
             save: (record) => this.save(record),
             fail: (id, failure) => this.fail(id, failure),
             isDeleting: (sessionId) => this.deletingSessions.has(sessionId),
+            submit: (...submission) => this.submissions.submit(...submission),
         };
     }
 
@@ -307,22 +285,13 @@ export class AgentDelegationService {
      * Settles a launch that has not started its turn by the deadline; see `startupDeadlineOutcome`.
      */
     private armStartupDeadline(id: string, terminalId: string, launchId: string): void {
-        this.armSubmissionTimer(id, () => {
+        this.submissions.arm(id, () => {
             const current = this.options.database.agentDelegations.get(id);
             const isAlive = this.options.currentLaunchId?.(terminalId) === launchId;
             const outcome = current && startupDeadlineOutcome(current, isAlive);
             if (outcome === 'startup_not_ready') this.fail(id, outcome);
             else if (outcome) this.save(outcome);
         });
-    }
-
-    private armSubmissionTimer(id: string, onExpired: () => void): void {
-        const timer = setTimeout(() => {
-            this.submissionTimers.delete(id);
-            onExpired();
-        }, this.options.submissionTimeoutMs ?? 15_000);
-        timer.unref();
-        this.submissionTimers.set(id, timer);
     }
 
     private async createInSession(
@@ -359,14 +328,15 @@ export class AgentDelegationService {
             }
             const previous = previousId ? this.owned(previousId, authority) : undefined;
             const { continueFromHandover } = input;
-            const handover = continueFromHandover
-                ? handoverTarget(
+            const handoverRequest = continueFromHandover
+                ? ([
                       this.options,
                       authority,
                       { ...input, continueFromHandover },
-                      (terminal) => Boolean(this.activeForTerminal(terminal)),
-                  )
+                      (terminal: string) => Boolean(this.activeForTerminal(terminal)),
+                  ] as const)
                 : undefined;
+            const handover = handoverRequest && handoverTarget(...handoverRequest);
             const config = resolveDelegationAdmission({
                 ...this.options,
                 authority,
@@ -379,6 +349,8 @@ export class AgentDelegationService {
             const provider = config.selection.provider;
             if (!previous || input.resumeFrom)
                 await this.options.verifyLaunch(frozenLaunch, provider);
+            // After the last await before the record exists, so input during `verifyLaunch` is fenced.
+            const admitted = handoverRequest && handoverAdmission(...handoverRequest);
             let record = this.options.database.agentDelegations.insert(
                 admittedDelegation({
                     id,
@@ -401,12 +373,12 @@ export class AgentDelegationService {
             });
             this.options.onReceiptChanged?.(record.receipt);
             try {
-                if (handover)
+                if (admitted && continueFromHandover)
                     return await continueHandover(
                         this.exactResumeHost(authority),
                         record,
                         authority,
-                        handover,
+                        { ...admitted, handoverId: continueFromHandover },
                     );
                 if (previous)
                     return await (input.resumeFrom
@@ -632,10 +604,8 @@ export class AgentDelegationService {
                     signal.terminalId,
                     saved.launchId!,
                 );
-            if (saved.turnId || !isDelegationActive(saved.receipt)) {
-                clearTimeout(this.submissionTimers.get(saved.receipt.delegationId));
-                this.submissionTimers.delete(saved.receipt.delegationId);
-            }
+            if (saved.turnId || !isDelegationActive(saved.receipt))
+                this.submissions.clear(saved.receipt.delegationId);
             if (shouldCollectDelegation(saved)) this.scheduleCollection(saved);
         }
     }
@@ -679,8 +649,7 @@ export class AgentDelegationService {
     close(): void {
         this.isClosed = true;
         for (const timer of this.collectors.values()) clearTimeout(timer);
-        for (const timer of this.submissionTimers.values()) clearTimeout(timer);
-        this.submissionTimers.clear();
+        this.submissions.close();
         this.collectors.clear();
         this.activeTerminals.clear();
         this.nextCollections.clear();

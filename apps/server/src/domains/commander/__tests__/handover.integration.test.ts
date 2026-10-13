@@ -9,6 +9,7 @@ import { CaxriDatabase } from '../../db';
 import type { DiscoveredConversation } from '../handover';
 import { CommanderHandoverService } from '../handover';
 import { commanderHandoverAccess, commanderHandovers } from '../handover-records';
+import { CommanderTerminalHooks } from '../terminal-hooks';
 
 async function fixture(discovered: DiscoveredConversation[] = []) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-handover-'));
@@ -37,6 +38,15 @@ async function fixture(discovered: DiscoveredConversation[] = []) {
         database.rebindAgentSession(terminal!.id, 'codex', conversationId);
         return { session, terminal: terminal! };
     };
+    /**
+     * A user Session whose primary Agent is an Agent Chat, bound to `conversationId` once its provider opened one.
+     */
+    const chatSession = (provider: 'claude' | 'codex' | 'grok', conversationId?: string) => {
+        const { session } = database.createSession(userProject.id, null);
+        const terminal = database.createTerminal(session.id, provider, repo, 'chat');
+        if (conversationId) database.rebindAgentSession(terminal.id, provider, conversationId);
+        return { session, terminal };
+    };
     const notify = vi.fn();
     const logger = { write: vi.fn() };
     const sendFullStateChange = vi.fn();
@@ -55,6 +65,7 @@ async function fixture(discovered: DiscoveredConversation[] = []) {
     });
     return {
         agentSession,
+        chatSession,
         commanderSession,
         database,
         directory,
@@ -144,6 +155,72 @@ describe('Commander hand-over', () => {
         ]);
     });
 
+    it('lets the Commander continue an Agent Chat as it does a PTY Agent', async () => {
+        const f = await fixture();
+        const claude = f.chatSession('claude', 'claude-conversation');
+        const codex = f.chatSession('codex', 'codex-thread');
+        const unopened = f.chatSession('codex');
+
+        const result = await f.service.handOver({
+            sessionIds: [claude.session.id, codex.session.id, unopened.session.id],
+        });
+
+        expect(result.outcomes.map((outcome) => outcome.outcome)).toEqual([
+            'accepted',
+            'accepted',
+            'accepted',
+        ]);
+        expect(result.outcomes[2]).toMatchObject({ ownershipReason: 'provider_session_missing' });
+        const targets = commanderHandovers(f.database).map((handover) => handover.target);
+        expect(targets).toEqual([
+            {
+                terminalId: claude.terminal.id,
+                provider: 'claude',
+                providerSessionId: 'claude-conversation',
+            },
+            { terminalId: codex.terminal.id, provider: 'codex', providerSessionId: 'codex-thread' },
+            undefined,
+        ]);
+        expect(f.notify).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'ready', sessionId: claude.session.id }),
+        );
+        expect(f.service.managedSessions()).toMatchObject({
+            inputTakeBackSessionIds: [claude.session.id, codex.session.id],
+            chatTakeBackSessionIds: [claude.session.id, codex.session.id],
+        });
+    });
+
+    it('keeps a Grok Build Chat ownership-only, since its Chat cannot correlate a Commander task', async () => {
+        const f = await fixture();
+        const grok = f.chatSession('grok', 'grok-conversation');
+
+        const result = await f.service.handOver({ sessionIds: [grok.session.id] });
+
+        expect(result.outcomes).toEqual([
+            expect.objectContaining({ outcome: 'accepted', ownershipReason: 'chat_surface' }),
+        ]);
+        expect(commanderHandovers(f.database)[0].target).toBeUndefined();
+        expect(f.notify).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'ownership_only', sessionId: grok.session.id }),
+        );
+    });
+
+    it('takes a Chat Session back when the user sends its Chat input', async () => {
+        const f = await fixture();
+        const { session, terminal } = f.chatSession('codex', 'codex-thread');
+        await f.service.handOver({ sessionIds: [session.id] });
+        const hooks = new CommanderTerminalHooks(f.database, f.logger as never);
+        hooks.handovers = f.service;
+
+        hooks.chatInput(terminal.id);
+
+        expect(f.service.managedSessions()).toMatchObject({
+            sessionIds: [],
+            inputTakeBacks: [expect.objectContaining({ sessionId: session.id }) as unknown],
+        });
+        expect(commanderHandovers(f.database)).toEqual([]);
+    });
+
     it('refuses everything while the Commander was never set up', async () => {
         const f = await fixture();
         const { session } = f.agentSession();
@@ -192,6 +269,7 @@ describe('Commander hand-over', () => {
             sessionIds: [session.id],
             commanderSessionId,
             inputTakeBackSessionIds: [session.id],
+            chatTakeBackSessionIds: [],
             inputTakeBacks: [],
         });
 
@@ -200,6 +278,7 @@ describe('Commander hand-over', () => {
             sessionIds: [],
             commanderSessionId,
             inputTakeBackSessionIds: [],
+            chatTakeBackSessionIds: [],
             // The Workbench reads this to tell the user a keystroke took the Session back.
             inputTakeBacks: [
                 { id: expect.any(String) as unknown, sessionId: session.id, at: 50_000 },

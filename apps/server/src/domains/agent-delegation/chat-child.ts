@@ -17,6 +17,15 @@ import type { AgentDelegationServiceOptions } from './service-options';
 const CHAT_CHILD_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'codex']);
 
 /**
+ * Whether a Chat of this provider can carry a Commander task: it reports the prompt digest and turn end that correlate
+ * the task. Shared by visible children and Commander hand-overs, so a Grok Build Chat is never accepted as
+ * continuable.
+ */
+export function canChatCorrelateTask(provider: AgentProvider): boolean {
+    return CHAT_CHILD_PROVIDERS.has(provider);
+}
+
+/**
  * What a Chat's projection knows about the task's turn; mirrors `ChatTurnAnswer` in the Agent Chat domain.
  */
 export type DelegationChatTurn =
@@ -50,7 +59,7 @@ export function delegationChildLaunch(
     const { provider } = record.receipt;
     if (
         !options.opensAgentsInChat?.() ||
-        !CHAT_CHILD_PROVIDERS.has(provider) ||
+        !canChatCorrelateTask(provider) ||
         !canUseAgentChat(provider)
     )
         return {

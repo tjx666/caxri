@@ -27,6 +27,12 @@ export class CommanderTerminalHooks {
         this.handovers?.observeInput(terminalId);
     };
 
+    /**
+     * Human input into a Chat (a message, command, rewind, or interrupt), the Chat counterpart of {@link input}: it
+     * takes a handed-over Session back. A Chat has no Terminal draft for the notifier to fence.
+     */
+    readonly chatInput = (terminalId: string): void => this.handovers?.observeInput(terminalId);
+
     readonly launchArguments = (terminal: TerminalRecord): string[] => {
         const commander = this.database.agentCommanderRows();
         return commanderLaunchArguments(terminal, {

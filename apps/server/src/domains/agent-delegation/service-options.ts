@@ -37,6 +37,11 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      * Whether a Terminal runs its Agent as a Chat. A property, so restart recovery can take it unbound.
      */
     isChatTerminal?: (terminalId: string) => boolean;
+    /**
+     * Whether a Chat Terminal's provider is live, including while it starts or is being suspended (when
+     * `currentLaunchId` has no launch yet or any more).
+     */
+    isChatLive?(terminalId: string): boolean;
     inputEpoch?(terminalId: string): number;
     currentLaunchId?(terminalId: string): string | undefined;
     isIdle?(terminalId: string, launchId: string, turnId: string): boolean;
@@ -97,6 +102,11 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
          * Marks the hand-over continued by this delegation and links its task, before the receipt is announced.
          */
         consume(handoverId: string, delegationId: string): void;
+        /**
+         * Undoes `consume` by this delegation when its continuation was refused before anything reached the
+         * conversation, so the Commander can retry the hand-over.
+         */
+        release(handoverId: string, delegationId: string): void;
     };
     submissionTimeoutMs?: number;
     now?: () => number;

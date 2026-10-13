@@ -17,6 +17,7 @@ import type {
 import {
     CaxriError,
     delegationProviderSchema,
+    isChatTerminal,
     isTopLevelProject,
     logEventCatalog,
     MAX_COMMANDER_CONVERSATIONS,
@@ -25,6 +26,7 @@ import {
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
+import { canChatCorrelateTask } from '../agent-delegation';
 import type { CaxriDatabase } from '../db';
 import { conversationProject, importExternalConversation } from '../session';
 import {
@@ -82,13 +84,15 @@ function primaryAgent(
 }
 
 /**
- * Why a Session's Agent conversation cannot be continued by the Commander, if it cannot.
+ * Why a Session's Agent conversation cannot be continued by the Commander, if it cannot. A Chat qualifies like a PTY
+ * Agent when its provider's Chat can correlate a Commander task (see `canChatCorrelateTask`): the continuation reaches
+ * its conversation through the Chat's own send chain or a Chat restart.
  */
 function ownershipReason(
     terminal: TerminalRecord | undefined,
 ): CommanderHandoverOwnershipReason | undefined {
     if (!terminal?.provider) return 'agent_missing';
-    if (terminal.surface === 'chat') return 'chat_surface';
+    if (isChatTerminal(terminal) && !canChatCorrelateTask(terminal.provider)) return 'chat_surface';
     if (!delegationProviderSchema.safeParse(terminal.provider).success)
         return 'provider_unsupported';
     if (!terminal.agentSessionId) return 'provider_session_missing';
@@ -263,6 +267,14 @@ export class CommanderHandoverService {
             sessionIds: [...(rows?.sessionIds ?? [])],
             ...(rows && { commanderSessionId: rows.sessionId }),
             inputTakeBackSessionIds: [...new Set(this.targets.values())],
+            chatTakeBackSessionIds: [
+                ...new Set(
+                    [...this.targets].flatMap(([terminalId, sessionId]) => {
+                        const terminal = this.options.database.getTerminal(terminalId);
+                        return terminal && isChatTerminal(terminal) ? [sessionId] : [];
+                    }),
+                ),
+            ],
             inputTakeBacks: [...this.inputTakeBacks],
         };
     }
@@ -451,8 +463,9 @@ export class CommanderHandoverService {
     }
 
     /**
-     * Typing into a handed-over Agent takes the Session back: the user is working in it again, so the Commander must
-     * not take the conversation over afterwards. Runs on every keystroke, so it answers from memory first.
+     * Typing into a handed-over Agent, or sending its Chat a message, takes the Session back: the user is working in it
+     * again, so the Commander must not take the conversation over afterwards. Runs on every keystroke, so it answers
+     * from memory first.
      */
     observeInput(terminalId: string): void {
         const sessionId = this.targets.get(terminalId);
