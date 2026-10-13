@@ -277,6 +277,13 @@ export const logEventCatalog = {
          */
         providerStatusFailed: 'external_status.provider_status_failed',
         providerStatusRecovered: 'external_status.provider_status_recovered',
+        /**
+         * The page's current state was read but its uptime history was not, so the status tab draws no uptime strip.
+         * Written once per change of the closed `fields.reason`; `external_status.provider_history_recovered` follows
+         * when the history reads again.
+         */
+        providerHistoryFailed: 'external_status.provider_history_failed',
+        providerHistoryRecovered: 'external_status.provider_history_recovered',
         paused: 'external_status.paused',
         quota: 'external_status.quota',
         resumed: 'external_status.resumed',
