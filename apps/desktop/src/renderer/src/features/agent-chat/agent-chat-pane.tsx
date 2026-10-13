@@ -322,7 +322,6 @@ export function AgentChatPane({
                 snapshot={snapshot}
                 terminalId={terminalId}
                 onAnswered={focusComposer}
-                onOpenTask={taskLinks.openTask}
                 onOpenAsTerminal={openAsTerminal}
                 onRecover={recover}
             />
@@ -358,6 +357,7 @@ export function AgentChatPane({
                 isQueuePaused={snapshot?.queuePaused ?? false}
                 isShown={isShown}
                 providerName={providerName}
+                onOpenTask={taskLinks.openTask}
                 onSent={jumpToLatest}
                 pendingQueue={pending.queue}
                 queue={snapshot?.queue}

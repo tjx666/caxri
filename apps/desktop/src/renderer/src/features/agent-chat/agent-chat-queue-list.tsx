@@ -199,7 +199,8 @@ export function AgentChatQueueList({
     return (
         <section
             aria-label={t('agentChat.queue.label')}
-            className="mb-2 rounded-md border border-border bg-surface p-1"
+            className="border-0 border-b border-solid border-border p-1"
+            data-agent-chat-composer-strip-row=""
         >
             <h3 className="m-0 flex min-h-6 items-center gap-2 pr-0.5 pl-2 text-[11px] font-normal text-muted">
                 {header.resumeLabel ? (

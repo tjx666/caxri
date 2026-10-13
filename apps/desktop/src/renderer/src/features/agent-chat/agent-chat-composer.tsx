@@ -31,6 +31,7 @@ import {
 import { agentChatNextQueuedId } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';
+import { AgentChatTaskStrip } from './agent-chat-task-strip';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
 import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-composer-edit';
@@ -87,6 +88,10 @@ interface AgentChatComposerProperties {
      */
     isShown: boolean;
     /**
+     * Opens a background task's tab beside the Chat; absent where the host cannot (see `canOpenBesideChat`).
+     */
+    onOpenTask: ((taskId: string) => void) | undefined;
+    /**
      * Runs once a message left this composer (it shows as pending at once), or after Server Core accepted a slash
      * command it ran. The pane uses it to scroll the timeline to the latest entry.
      */
@@ -119,6 +124,7 @@ interface AgentChatComposerProperties {
               | 'permissionMode'
               | 'planMode'
               | 'queuePauseReason'
+              | 'tasks'
               | 'turns'
               | 'usage'
           >
@@ -164,6 +170,7 @@ export function AgentChatComposer({
     isBusy,
     isQueuePaused,
     isShown,
+    onOpenTask,
     onSent,
     pendingQueue,
     providerName,
@@ -287,26 +294,17 @@ export function AgentChatComposer({
                 isDragOver={fileInput.isDragOver}
                 supportsImages={supportsImages}
             />
-            <AgentChatQueueList
-                isTurnRunning={isTurnRunning}
-                pending={pendingQueue}
-                queue={queue}
-                snapshot={{
-                    queuePaused: isQueuePaused,
-                    queuePauseReason: snapshot?.queuePauseReason,
-                }}
-                terminalId={terminalId}
-                onAction={focusInput}
-                onEdit={restoreQueued}
-            />
             {/*
              * The suggestion menus anchor to this wrapper rather than the form, so they open above the strip too.
              */}
             <div className="relative">
                 {/*
                  * The strip sits on the card's top edge, inset from its corners like a tab, so the Chat's state reads as
-                 * separate from the draft. Its last row's hairline overlaps the card's top border; with no row it collapses
-                 * to `contents`, keeping the Activity bar's live region announced without drawing an empty tab.
+                 * separate from the draft. Everything that waits above the input stacks in it as hairline-divided rows
+                 * rather than separate cards, as LobeHub and T3 Code do: the goal, background work, queued messages, then the
+                 * activity row nearest the input, since it changes most often. Its last row's hairline overlaps the card's
+                 * top border; with no row it collapses to `contents`, keeping the Activity bar's live region announced
+                 * without drawing an empty tab.
                  */}
                 <div
                     className="mx-3 -mb-px overflow-hidden rounded-t-lg border border-b-0 border-solid border-border bg-surface not-has-[[data-agent-chat-composer-strip-row]]:contents"
@@ -317,6 +315,24 @@ export function AgentChatComposer({
                         goal={snapshot?.goal}
                         terminalId={terminalId}
                         turns={snapshot?.turns}
+                    />
+                    <AgentChatTaskStrip
+                        latestTurnStartedAt={snapshot?.turns.at(-1)?.startedAt}
+                        tasks={snapshot?.tasks}
+                        terminalId={terminalId}
+                        onOpenTask={onOpenTask}
+                    />
+                    <AgentChatQueueList
+                        isTurnRunning={isTurnRunning}
+                        pending={pendingQueue}
+                        queue={queue}
+                        snapshot={{
+                            queuePaused: isQueuePaused,
+                            queuePauseReason: snapshot?.queuePauseReason,
+                        }}
+                        terminalId={terminalId}
+                        onAction={focusInput}
+                        onEdit={restoreQueued}
                     />
                     <AgentChatActivityBar
                         activity={activity}
