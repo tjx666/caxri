@@ -5,52 +5,53 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]
-  # Ready pull requests run only affected tests, so the full suite runs nightly on main at 08:00 Asia/Shanghai.
-  schedule:
-    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
+      validation_target:
+        description: Explicit validation route; full E2E never runs automatically
+        required: true
+        default: checks-only
+        type: choice
+        options: [checks-only, hosted-smoke, self-hosted-final, hosted-full]
       e2e_profile:
-        description: Full-suite profile for self-hosted control or optimized A/B runs
+        description: Full-suite profile for an explicitly selected full E2E route
         required: true
         default: skip
         type: choice
         options: [skip, control, optimized]
       eslint_concurrency:
-        description: ESLint concurrency for self-hosted A/B runs
+        description: ESLint concurrency for an explicit full validation
         required: true
         default: 'off'
         type: choice
         options: ['off', '2', auto]
       vitest_partition:
-        description: Vitest serial partition for self-hosted A/B runs
+        description: Vitest partition for an explicit full validation
         required: true
         default: optimized
         type: choice
         options: [legacy, optimized]
       vitest_max_workers:
-        description: Vitest worker cap for self-hosted A/B runs
+        description: Vitest worker cap for an explicit full validation
         required: true
-        # Match the nightly/PR fallback below; one worker stretches the checks branch into the
-        # parallel-safe pool and past the concurrent-validation deadline (issue #1842).
+        # One worker stretches an explicit full validation into the parallel-safe pool and past the
+        # concurrent-validation deadline (issue #1842).
         default: '2'
         type: choice
         options: ['1', '2', '3', '4']
       e2e_parallel_workers:
-        description: Parallel-safe Playwright worker cap for self-hosted A/B runs
+        description: Parallel-safe Playwright worker cap for an explicit full validation
         required: true
         default: '3'
         type: choice
         options: ['2', '3', '4']
 
 concurrency:
-  # A release push on main must not cancel the nightly full suite, nor the other way around. A release push also
-  # gets its own commit-scoped group: Release starts only from that exact commit's successful CI, so a later push to
-  # main cancelling it (while it queues for the shared runner) would silently drop the release.
   group: >-
-    ci-${{ github.event_name == 'schedule' && 'nightly'
-      || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release: v'))
+    ci-${{ (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release: v'))
         && format('release-{0}', github.sha)
+      || github.event_name == 'workflow_dispatch'
+        && format('dispatch-{0}', github.run_id)
       || github.ref }}
   cancel-in-progress: true
 
@@ -64,32 +65,18 @@ jobs:
       ${{ github.event_name == 'pull_request'
         && format('retry-policy / pr-{0} / base-{1}', github.event.pull_request.number, github.event.pull_request.base.sha)
         || format('retry-policy / {0}', github.ref_name) }}
-    # GitHub evaluates job conditions before checkout, so this unavoidable literal expression is
-    # bound to .github/ci-trust-policy.json by the structural trust-policy contract test.
     if: >-
       (
-        github.event_name == 'pull_request' &&
-        github.actor == 'tjx666' &&
-        github.triggering_actor == 'tjx666' &&
-        github.event.pull_request.user.login == 'tjx666' &&
-        github.event.pull_request.head.repo.full_name == github.repository
+        github.event_name == 'pull_request'
       ) || (
         github.event_name == 'workflow_dispatch' &&
         github.actor == 'tjx666' &&
         github.triggering_actor == 'tjx666'
       ) || (
         github.event_name == 'push' &&
-        github.ref == 'refs/heads/main' &&
-        github.actor == 'tjx666' &&
-        github.triggering_actor == 'tjx666' &&
-        startsWith(github.event.head_commit.message, 'release: v')
-      ) || (
-        github.event_name == 'schedule' &&
-        github.ref == 'refs/heads/main' &&
-        github.actor == 'tjx666' &&
-        github.triggering_actor == 'tjx666'
+        github.ref == 'refs/heads/main'
       )
-    runs-on: [self-hosted, macOS, ARM64, caxri-ci]
+    runs-on: macos-15
     env:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-retry-policy
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -109,6 +96,11 @@ jobs:
       reused_e2e_run: ${{ steps.policy.outputs.reused_e2e_run }}
       reused_e2e_head: ${{ steps.policy.outputs.reused_e2e_head }}
     steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
       - id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -117,7 +109,7 @@ jobs:
           # the immutable retry trailers or exact validated tree from the pushed head.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Verify self-hosted trust boundary
+      - name: Verify read-only event trust boundary
         uses: ./.github/actions/verify-trust-boundary
         with:
           policy-domain: ci
@@ -127,15 +119,18 @@ jobs:
           event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           event-ref: ${{ github.ref }}
           pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+          allow-external-pull-request: 'true'
       - id: setup
         uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
       - id: policy
         name: Resolve exact-tree retry and execution policy
         run: bun run scripts/ci-retry-policy.ts
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Clean self-hosted runner boundary
-        if: always()
+        if: always() && runner.environment == 'self-hosted'
         run: bun run scripts/self-hosted-runner.ts cleanup
 
   checks:
@@ -143,16 +138,23 @@ jobs:
     if: >-
       needs.retry-policy.outputs.checks_scope != 'skipped' &&
       (
+        github.event_name != 'workflow_dispatch' ||
+        (inputs.validation_target != 'self-hosted-final' && inputs.validation_target != 'hosted-full') ||
         needs.retry-policy.outputs.checks_scope != 'full' ||
         needs.retry-policy.outputs.e2e_profile != 'optimized'
       )
-    runs-on: [self-hosted, macOS, ARM64, caxri-ci]
+    runs-on: macos-15
     env:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-checks
       CAXRI_EXPECTED_HEAD: ${{ github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-checks
     steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
       - id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -161,7 +163,7 @@ jobs:
           # existing issue (https://www.react.doctor/docs/ci-and-prs/github-actions-setup).
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify self-hosted trust boundary
+      - name: Verify read-only event trust boundary
         uses: ./.github/actions/verify-trust-boundary
         with:
           policy-domain: ci
@@ -171,6 +173,7 @@ jobs:
           event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           event-ref: ${{ github.ref }}
           pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+          allow-external-pull-request: 'true'
       - id: setup
         uses: ./.github/actions/setup-caxri-job
         with:
@@ -178,6 +181,7 @@ jobs:
           install-dependencies: 'true'
           install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
           install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
+          install-media-tools: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}
       - name: Run gitleaks
         # Scoped to the commits this push or pull request actually introduced. The full-history scan runs instead,
         # inside "Run full platform checks", whenever this job handles the 'full' scope.
@@ -206,8 +210,45 @@ jobs:
           CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
         run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation
       - name: Clean self-hosted runner boundary
-        if: always()
+        if: always() && runner.environment == 'self-hosted'
         run: bun run scripts/self-hosted-runner.ts cleanup
+
+  hosted-smoke:
+    name: Hosted macOS smoke
+    needs: retry-policy
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.validation_target == 'hosted-smoke' &&
+      needs.retry-policy.result == 'success'
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify privileged dispatch trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.actor }}
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+      - name: Run targeted Electron smoke
+        run: bun run test:smoke
 
   e2e:
     name: e2e
@@ -220,6 +261,9 @@ jobs:
     # https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#canceling-workflows
     if: >-
       !cancelled() &&
+      (inputs.validation_target != 'self-hosted-final' || github.event.repository.private == true) &&
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.validation_target == 'self-hosted-final' || inputs.validation_target == 'hosted-full') &&
       needs.retry-policy.result == 'success' &&
       needs.retry-policy.outputs.run_e2e == 'true' &&
       (
@@ -242,23 +286,14 @@ jobs:
           )
         )
       )
-    runs-on: [self-hosted, macOS, ARM64, caxri-e2e]
+    runs-on: ${{ inputs.validation_target == 'self-hosted-final' && fromJSON('["self-hosted","macOS","ARM64","caxri-e2e"]') || 'macos-15' }}
     env:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
       CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
       CAXRI_E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
-      CAXRI_E2E_RUNNER_KIND: self-hosted
-      CAXRI_E2E_RUNNER_REASON: >-
-        ${{ github.event_name == 'pull_request'
-          && 'trusted same-repository owner PR head'
-          || github.event_name == 'workflow_dispatch'
-          && 'trusted owner validation dispatch'
-          || github.event_name == 'push'
-          && 'trusted owner main push'
-          || github.event_name == 'schedule'
-          && 'trusted nightly full suite'
-          || 'unreachable untrusted event' }}
+      CAXRI_E2E_RUNNER_KIND: ${{ inputs.validation_target == 'self-hosted-final' && 'self-hosted' || 'github-hosted' }}
+      CAXRI_E2E_RUNNER_REASON: ${{ inputs.validation_target }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       # For pull_request workflows, GitHub defines github.sha as the synthetic merge commit captured
       # for this event. Fetch that immutable SHA directly instead of the moving refs/pull/*/merge ref.
@@ -267,8 +302,10 @@ jobs:
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
     steps:
       - name: Verify runner boundary before checkout
+        env:
+          EXPECTED_RUNNER_ENVIRONMENT: ${{ inputs.validation_target == 'self-hosted-final' && 'self-hosted' || 'github-hosted' }}
         run: |
-          test "$RUNNER_ENVIRONMENT" = self-hosted
+          test "$RUNNER_ENVIRONMENT" = "$EXPECTED_RUNNER_ENVIRONMENT"
           test "$RUNNER_OS" = macOS
           test "$RUNNER_ARCH" = ARM64
       - id: checkout
@@ -278,7 +315,7 @@ jobs:
           # validated by retry-policy. The PR base identity is checked separately by that policy.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Verify self-hosted trust boundary
+      - name: Verify privileged dispatch trust boundary
         uses: ./.github/actions/verify-trust-boundary
         with:
           policy-domain: ci
@@ -288,6 +325,17 @@ jobs:
           event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           event-ref: ${{ github.ref }}
           pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+      - name: Enforce repository visibility for the full E2E route
+        env:
+          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+          VALIDATION_TARGET: ${{ inputs.validation_target }}
+        run: |
+          if [[ "$VALIDATION_TARGET" == self-hosted-final ]]; then
+            test "$REPOSITORY_VISIBILITY" = private
+          else
+            test "$VALIDATION_TARGET" = hosted-full
+            test "$REPOSITORY_VISIBILITY" = public
+          fi
       - id: setup
         uses: ./.github/actions/setup-caxri-job
         with:
@@ -295,6 +343,7 @@ jobs:
           install-dependencies: 'true'
           install-electron: 'true'
           install-playwright-shell: ${{ needs.retry-policy.outputs.mode == 'full' && needs.retry-policy.outputs.checks_scope == 'full' && needs.retry-policy.outputs.e2e_profile == 'optimized' }}
+          install-media-tools: 'true'
       - name: Report E2E runner route
         run: |
           {
@@ -308,11 +357,13 @@ jobs:
       - name: Record validation environment
         env:
           E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
-          RUNNER_LABELS: self-hosted,macOS,ARM64,caxri-e2e
+          RUNNER_LABELS: ${{ inputs.validation_target == 'self-hosted-final' && 'self-hosted,macOS,ARM64,caxri-e2e' || 'github-hosted,macOS,ARM64,macos-15' }}
           VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
           E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
         run: |
+          # JavaScript expands this template literal, not the shell.
+          # shellcheck disable=SC2016
           NODE_VERSION="$(node --version)" \
             PNPM_VERSION="$(pnpm --version)" \
             LOCKFILE_SHA256="$(shasum -a 256 pnpm-lock.yaml | awk '{print $1}')" \
@@ -439,6 +490,7 @@ jobs:
         id: renderer-performance
         if: >-
           always() &&
+          runner.environment == 'self-hosted' &&
           (
             (steps.concurrent-full.outcome == 'success' && steps.concurrent-full.outputs.aborted == 'false') ||
             steps.control.outcome == 'success' ||
@@ -564,23 +616,14 @@ jobs:
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         run: bun run scripts/ci-checks-worktree.ts remove
       - name: Clean self-hosted runner boundary
-        if: always()
+        if: always() && runner.environment == 'self-hosted'
         run: bun run scripts/self-hosted-runner.ts cleanup
 
   ci:
     name: CI gate
-    # Skipped alongside `retry-policy` on an ordinary merge to main, so those pushes leave no run to
-    # report on at all. The gate asserts `retry-policy` succeeded, so leaving it at a bare `always()`
-    # would turn every merge red instead of quiet. `!cancelled()` rather than `always()` additionally
-    # lets a superseded run release its self-hosted concurrency slot.
-    # https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#canceling-workflows
-    if: >-
-      !cancelled() && (
-        github.event_name != 'push' ||
-        startsWith(github.event.head_commit.message, 'release: v')
-      )
-    needs: [retry-policy, checks, e2e]
-    runs-on: [self-hosted, macOS, ARM64, caxri-ci]
+    if: ${{ !cancelled() }}
+    needs: [retry-policy, checks, hosted-smoke, e2e]
+    runs-on: ubuntu-latest
     steps:
       - name: Verify required execution path
         env:
@@ -589,108 +632,39 @@ jobs:
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
           FULL_CHECKS_RESULT: ${{ needs.e2e.outputs.full_checks_result }}
-          MODE: ${{ needs.retry-policy.outputs.mode }}
-          RENDERER_PERFORMANCE_RESULT: ${{ needs.e2e.outputs.renderer_performance_result }}
           RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
-          SHOULD_RUN_E2E: ${{ needs.retry-policy.outputs.run_e2e }}
-          # The stable gate runs without checkout even for rejected events, so it repeats only the
-          # pre-checkout expression that the trust-policy contract keeps structurally identical.
-          TRUSTED_EVENT: >-
-            ${{ (
-              github.event_name == 'pull_request' &&
-              github.actor == 'tjx666' &&
-              github.triggering_actor == 'tjx666' &&
-              github.event.pull_request.user.login == 'tjx666' &&
-              github.event.pull_request.head.repo.full_name == github.repository
-            ) || (
-              github.event_name == 'workflow_dispatch' &&
-              github.actor == 'tjx666' &&
-              github.triggering_actor == 'tjx666'
-            ) || (
-              github.event_name == 'push' &&
-              github.ref == 'refs/heads/main' &&
-              github.actor == 'tjx666' &&
-              github.triggering_actor == 'tjx666' &&
-              startsWith(github.event.head_commit.message, 'release: v')
-            ) || (
-              github.event_name == 'schedule' &&
-              github.ref == 'refs/heads/main' &&
-              github.actor == 'tjx666' &&
-              github.triggering_actor == 'tjx666'
-            ) }}
+          SMOKE_RESULT: ${{ needs.hosted-smoke.result }}
+          VALIDATION_TARGET: ${{ inputs.validation_target || 'automated' }}
         run: |
-          test "$TRUSTED_EVENT" = true
           test "$RETRY_POLICY_RESULT" = success
-          if test "$MODE" = full; then
+          if test "$CHECKS_SCOPE" = skipped; then
+            test "$CHECKS_RESULT" = skipped
+          elif test "$VALIDATION_TARGET" = self-hosted-final || test "$VALIDATION_TARGET" = hosted-full; then
             if test "$CHECKS_SCOPE" = full && test "$E2E_PROFILE" = optimized; then
               test "$CHECKS_RESULT" = skipped
               test "$FULL_CHECKS_RESULT" = success
-            elif test "$CHECKS_SCOPE" = skipped; then
-              test "$CHECKS_RESULT" = skipped
             else
-              test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = affected || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-e2e || test "$CHECKS_SCOPE" = focused-harness || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
               test "$CHECKS_RESULT" = success
             fi
           else
-            test "$MODE" = e2e-only || test "$MODE" = e2e-repair
-            if test "$CHECKS_SCOPE" = skipped; then
-              test "$CHECKS_RESULT" = skipped
-            else
-              test "$CHECKS_SCOPE" = focused-e2e
-              test "$CHECKS_RESULT" = success
-            fi
-          fi
-          if test "$SHOULD_RUN_E2E" = true; then
-            test "$E2E_RESULT" = success
-            if test "$E2E_PROFILE" = focused; then
-              test "$RENDERER_PERFORMANCE_RESULT" = skipped
-            else
-              test "$RENDERER_PERFORMANCE_RESULT" = success
-            fi
-          else
-            test "$E2E_RESULT" = skipped
+            test "$CHECKS_RESULT" = success
           fi
 
-  nightly-report:
-    name: Nightly failure report
-    needs: [retry-policy, checks, e2e, ci]
-    # The nightly run is the only full suite now that ready PRs run affected tests, so a red nightly must reach the
-    # issue queue instead of relying on someone opening the Actions tab.
-    if: >-
-      always() &&
-      github.event_name == 'schedule' &&
-      contains(needs.*.result, 'failure')
-    runs-on: [self-hosted, macOS, ARM64, caxri-ci]
-    permissions:
-      actions: read
-      contents: read
-      issues: write
-    env:
-      CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-nightly-report
-      CAXRI_EXPECTED_HEAD: ${{ github.sha }}
-      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
-      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-nightly-report
-    steps:
-      - id: checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Verify self-hosted trust boundary
-        uses: ./.github/actions/verify-trust-boundary
-        with:
-          policy-domain: ci
-          event-name: ${{ github.event_name }}
-          actor: ${{ github.actor }}
-          triggering-actor: ${{ github.triggering_actor }}
-          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          event-ref: ${{ github.ref }}
-          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
-      - id: setup
-        uses: ./.github/actions/setup-caxri-job
-      - name: File or update the nightly failure issue
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: bun run scripts/ci-nightly-report.ts
-      - name: Clean self-hosted runner boundary
-        if: always()
-        run: bun run scripts/self-hosted-runner.ts cleanup
+          case "$VALIDATION_TARGET" in
+            hosted-smoke)
+              test "$SMOKE_RESULT" = success
+              test "$E2E_RESULT" = skipped
+              ;;
+            self-hosted-final|hosted-full)
+              test "$SMOKE_RESULT" = skipped
+              test "$E2E_RESULT" = success
+              ;;
+            automated|checks-only)
+              test "$SMOKE_RESULT" = skipped
+              test "$E2E_RESULT" = skipped
+              ;;
+            *)
+              echo "Unknown validation target: $VALIDATION_TARGET" >&2
+              exit 1
+              ;;
+          esac

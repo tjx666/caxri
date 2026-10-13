@@ -10,8 +10,9 @@ description: Prepare Caxri releases and optional local unsigned macOS artifacts.
 2. Run non-GUI local gates such as `bun run lint`, `bun run typecheck`, and focused
    `bun run check` tests as needed for release readiness; the full unit suite runs in CI.
 3. Never run `bun run test:e2e` or an unscoped Playwright suite locally. Follow `e2e-testing` for
-   focused Electron coverage. GitHub Actions owns full E2E and release-level packaged-app
-   validation so the developer's desktop remains usable.
+   focused Electron coverage. GitHub Actions owns explicitly dispatched full E2E and release-level
+   packaged-app validation so the developer's desktop remains usable. Ordinary PR and main-push CI
+   do not provide a full E2E receipt.
 4. Run `bun run package` only when an unsigned local development application was explicitly
    requested. For a requested local versioned DMG, use the repository wrapper so temporary version
    metadata is restored and the artifact is verified:
@@ -23,7 +24,7 @@ description: Prepare Caxri releases and optional local unsigned macOS artifacts.
    The wrapper refuses a dirty source tree by default. Pass `--allow-dirty` only when the user
    explicitly wants the current uncommitted source packaged. Use raw `bun run package:dmg` only
    when packaging the version already recorded in `package.json` and separate machine-readable
-   verification is unnecessary.
+   verification is unnecessary. Both local commands use the default `include` Source Map flavor.
 
    Packaging also builds the Linux SSH Host layers (`build:remote-layers`), whose native addons
    compile in Docker. Without Docker, export them first and set `CAXRI_LINUX_NATIVES_DIR`; see
@@ -52,18 +53,25 @@ beyond the packaged application itself.
   `release: v<package-version>` commit landing on `main` must satisfy the release preparation in
   `RELEASING.md` and the exact-release CI profile in `docs/ci-performance.md`. Its lightweight CI
   run preserves the trusted `workflow_run` handoff but skips platform checks and E2E, relying on the
-  merged changes' PR CI. The fast-path requires the commit to match `release:prepare`'s exact path
+  merged changes' hosted PR checks. That evidence is not a full E2E receipt. Before the pre-public
+  runner is removed, the exact frozen candidate must also have one successful `self-hosted-final`
+  receipt; after publication, `hosted-full` owns explicit full-suite proof. The fast-path requires
+  the commit to match `release:prepare`'s exact path
   set and generated contents; any additional, missing, or modified content falls back to normal
   main-push CI. Only a successful CI `workflow_run` for the same commit may start packaging. `main`
   requires the `guards` status check with no bypass, so the release commit reaches `main` through a
   pull request squash-merged with the exact release subject, not a direct push; see `RELEASING.md`.
-- Normal commits follow the event plan in `docs/ci-performance.md`. Source pushes may run optimized
-  E2E, but they never package or publish a release.
+- Normal commits follow the event plan in `docs/ci-performance.md`. Source pushes run hosted checks
+  but never start full E2E, package, or publish a release automatically.
 - The release workflow validates the version and tag, builds the release-signed Android update APK
-  that Desktop serves to paired phones (`docs/mobile/update.md`), builds and probes the unsigned
-  Apple Silicon DMG, verifies it, and publishes the DMG and SHA-256 checksum. Packaged-app verification remains a
-  release responsibility even though product checks and the full E2E suite stay in PR CI. Runner
-  routing, availability, trust, and recovery follow `docs/self-hosted-runner.md`. A release step
+  that Desktop serves to paired phones (`docs/mobile/update.md`), rebuilds the unsigned Apple Silicon
+  app in `include` and `omit` Source Map flavors, and publishes both DMGs with one SHA-256 checksum
+  each. The canonical `Caxri-<version>-arm64.dmg` is the Source Map build and owns the focused
+  packaged-app probe; the `-nosourcemap` asset receives structural, manifest, architecture, disk
+  image, and checksum verification without duplicating the packaged Electron smoke. Packaged-app
+  verification remains a release responsibility; product checks run in PR CI, while full E2E uses
+  the separate explicit route above. Runner routing, availability, trust, and recovery follow
+  `docs/self-hosted-runner.md`. A release step
   that fails only on the runner is diagnosed there over SSH, as its Remote diagnosis section
   describes, before any rerun.
 - Follow `RELEASING.md` when preparing the release commit and opening its pull request. Creating that

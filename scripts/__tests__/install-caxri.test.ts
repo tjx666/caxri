@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    assertReleaseBundleVersion,
     findDmgPair,
     hostStopCommand,
     isHeadlessCaxriProcess,
@@ -8,6 +9,7 @@ import {
     parseArguments,
     parseHostStopActivePtyCount,
     quitRunningCaxri,
+    releaseVersionFromTag,
     resolveChecksumStep,
     resolveInstalledProfilePath,
 } from '../install-caxri';
@@ -83,6 +85,7 @@ describe('install-caxri', () => {
             skipChecksum: true,
             tag: 'v0.0.7',
         });
+        expect(parseArguments(['--no-sourcemap'])).toEqual({ shouldOmitSourceMaps: true });
         expect(() => parseArguments(['--nope'])).toThrow('Unknown argument');
         expect(() => parseArguments(['--tag'])).toThrow('Unknown argument');
     });
@@ -116,16 +119,49 @@ describe('install-caxri', () => {
         );
     });
 
-    it('pairs the downloaded DMG with its checksum companion', () => {
-        expect(findDmgPair(['Caxri-0.0.7-arm64.dmg', 'Caxri-0.0.7-arm64.dmg.sha256'])).toEqual({
+    it('selects the requested flavor and pairs its checksum companion', () => {
+        const names = [
+            'Caxri-0.0.7-arm64.dmg',
+            'Caxri-0.0.7-arm64.dmg.sha256',
+            'Caxri-0.0.7-arm64-nosourcemap.dmg',
+            'Caxri-0.0.7-arm64-nosourcemap.dmg.sha256',
+        ];
+        expect(findDmgPair(names, 'v0.0.7')).toEqual({
             checksum: 'Caxri-0.0.7-arm64.dmg.sha256',
             dmg: 'Caxri-0.0.7-arm64.dmg',
         });
-        expect(findDmgPair(['Caxri-0.0.7-arm64.dmg'])).toEqual({
+        expect(findDmgPair(names, 'v0.0.7', true)).toEqual({
+            checksum: 'Caxri-0.0.7-arm64-nosourcemap.dmg.sha256',
+            dmg: 'Caxri-0.0.7-arm64-nosourcemap.dmg',
+        });
+        expect(findDmgPair(['Caxri-0.0.7-arm64.dmg'], 'v0.0.7')).toEqual({
             checksum: undefined,
             dmg: 'Caxri-0.0.7-arm64.dmg',
         });
-        expect(findDmgPair(['README.md'])).toBeUndefined();
+    });
+
+    it('fails closed when the exact Release version is absent or duplicated', () => {
+        expect(() => findDmgPair(['README.md'], 'v0.0.7')).toThrow(
+            'Expected exactly one Caxri-0.0.7-arm64.dmg asset for v0.0.7, found 0.',
+        );
+        expect(() =>
+            findDmgPair(['Caxri-0.0.7-arm64.dmg', 'Caxri-0.0.7-arm64.dmg'], 'v0.0.7'),
+        ).toThrow('Expected exactly one Caxri-0.0.7-arm64.dmg asset for v0.0.7, found 2.');
+        expect(() =>
+            findDmgPair(['Caxri-9.9.9-arm64.dmg', 'Caxri-9.9.9-arm64.dmg.sha256'], 'v0.0.7'),
+        ).toThrow('Expected exactly one Caxri-0.0.7-arm64.dmg asset for v0.0.7, found 0.');
+    });
+
+    it('binds canonical Release tags to both the asset and bundle version', () => {
+        expect(releaseVersionFromTag('v0.0.7')).toBe('0.0.7');
+        expect(releaseVersionFromTag('v1.2.3-beta.1')).toBe('1.2.3-beta.1');
+        expect(releaseVersionFromTag('v1.2.3+build.1')).toBe('1.2.3+build.1');
+        expect(() => releaseVersionFromTag('0.0.7')).toThrow('canonical vX.Y.Z Release tag');
+        expect(() => releaseVersionFromTag('vlatest')).toThrow('canonical vX.Y.Z Release tag');
+        expect(assertReleaseBundleVersion('v0.0.7', '0.0.7\n')).toBe('0.0.7');
+        expect(() => assertReleaseBundleVersion('v0.0.7', '9.9.9')).toThrow(
+            'v0.0.7 must contain Caxri 0.0.7, but the downloaded bundle reports 9.9.9.',
+        );
     });
 
     it('separates the detached Server from the windowed application', () => {

@@ -1,13 +1,17 @@
 # Releasing Caxri
 
-Caxri currently publishes an unsigned Apple Silicon DMG for personal use. The event- and
+Caxri currently produces two unsigned Apple Silicon DMGs. The canonical asset
+includes Source Maps; the `-nosourcemap` asset is the explicit smaller flavor. The event- and
 change-specific CI profile, including whether E2E runs, is owned by the decision matrix in
 [`docs/ci-performance.md`](docs/ci-performance.md). A commit whose subject is exactly
 `release: v<package-version>` selects a lightweight CI trust gate that skips platform checks and
 E2E, relying on the merged changes' PR CI. This fast-path requires the changed-file set to match
 the exact paths and generated contents from `release:prepare`; any additional, missing, or modified
-content falls back to normal main-push CI. After that gate succeeds, the release runner builds the
-DMG and creates the matching Git tag and GitHub Release. Runner labels, availability, and recovery are owned by
+content falls back to normal main-push CI. PR and main-push CI provide hosted checks, not a full E2E
+receipt. Before the pre-public runner is removed, the exact frozen candidate must separately pass
+one owner-dispatched `self-hosted-final`; after publication, `hosted-full` is the explicit complete
+hosted route. After the release gate succeeds, the release runner builds the DMGs and creates the
+matching Git tag and GitHub Release. Runner labels, availability, and recovery are owned by
 [`docs/self-hosted-runner.md`](docs/self-hosted-runner.md).
 
 `main` requires the `guards` status check to pass before anything merges
@@ -52,12 +56,16 @@ exact-file-set check exactly like the old direct push did.
 A `release: v…` push runs CI in its own commit-scoped concurrency group, so a later merge to `main`
 cannot cancel it while it waits for the runner. The lightweight CI run rechecks both the trusted exact-release event and the exact prepared output
 without repeating platform checks or E2E. The downstream workflow rejects a release when the commit
-subject and package version differ, or when the tag already exists. It builds an arm64 DMG, launches
-the packaged application through the startup benchmark, verifies the disk image, writes a SHA-256
-checksum, and publishes both files to GitHub Releases.
+subject and package version differ, or when the tag already exists. It rebuilds the same commit and
+version with `CAXRI_SOURCE_MAPS=include` and `CAXRI_SOURCE_MAPS=omit`, placing each app and DMG in an
+isolated output directory. It launches only the canonical Source Map application through the focused
+packaged smoke, verifies both disk images and Server manifests, writes one SHA-256 checksum per DMG,
+and publishes all four files to GitHub Releases. This does not run the complete E2E suite.
 
-Every CI and Release stage follows the self-hosted availability contract above. The Release job
-uses a short-lived `contents: write` token and does not persist checkout credentials.
+The transitional production Release job and `self-hosted-final` route follow the self-hosted
+availability contract above. Hosted checks and package rehearsal do not depend on that machine.
+The Release job uses a short-lived `contents: write` token and does not persist checkout
+credentials.
 
 ## Install a release
 
@@ -65,10 +73,14 @@ Browser downloads of the unsigned DMG receive a `com.apple.quarantine` flag, so 
 the app as "damaged". Install from the terminal instead: `gh` downloads carry no quarantine flag:
 
 ```bash
-bun run install:caxri              # latest release; add `-- --tag vX.Y.Z` for a specific one
+bun run install:caxri              # latest Source Map release
+bun run install:caxri -- --no-sourcemap # latest no-map release
+bun run install:caxri -- --tag vX.Y.Z   # specific Source Map release
 ```
 
-The installer downloads the DMG and checksum with `gh`, verifies the SHA-256 (a Release without its
+The installer selects exactly one requested flavor and its checksum with `gh`; zero or multiple
+matching DMGs abort instead of choosing the first directory entry. Source Map is the default and
+`--no-sourcemap` is explicit. It verifies the SHA-256 (a Release without its
 `.sha256` aborts the install; pass `-- --skip-checksum` to install it anyway, with a warning), stops
 tasks through the installed version-matched CLI, quits Caxri without an interactive task prompt, replaces
 `/Applications/Caxri.app`, and strips any quarantine attribute defensively. A failed graceful stop
@@ -82,7 +94,8 @@ The DMG is intentionally unsigned. After downloading it on your own Mac, verify 
 SHA-256 file before opening the application. Gatekeeper will identify it as an unnotarized app; use
 the explicit override in macOS Privacy & Security only for an artifact you built and verified.
 
-Public distribution requires an Apple Developer Program membership, a Developer ID Application
-certificate, hardened-runtime entitlements, GitHub Actions secrets for signing and notarization,
-and Gatekeeper verification of the final DMG. Add that workflow only when Caxri is distributed to
-other users.
+An unsigned DMG can be offered for public download, but recipients must handle the Gatekeeper
+friction described above. Signing and notarization may be added later to remove that friction; they
+are not a prerequisite for making the approved artifacts downloadable. Distribution permissions
+come only from the published `LICENSE` and any explicit commercial authorization, not from this
+release procedure.

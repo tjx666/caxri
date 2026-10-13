@@ -12,19 +12,19 @@ import { defineConfig } from 'electron-vite';
 import Sonda from 'sonda/vite';
 import type { PluginOption } from 'vite';
 
+import { resolveSourceMapFlavor, shouldIncludeSourceMaps } from './scripts/source-map-flavor';
+
 /**
  * Opt-in bundle analysis: `CAXRI_BUNDLE_ANALYZE=1 bun run build:desktop` writes an interactive HTML + JSON report per
  * process (main/preload/renderer) under `.cache/bundle-analysis/`.
  */
 const isBundleAnalysisEnabled = process.env.CAXRI_BUNDLE_ANALYZE === '1';
 /**
- * Source maps ship in every build, including the packaged one. Minified production output is unreadable in DevTools and
- * in a Node inspector session, and a stack trace that points at `index-a91f.js:1:284713` cannot be acted on, so a build
- * that cannot explain its own crash costs an agent a full rebuild-and-reproduce cycle. The maps roughly double the
- * JavaScript payload, which is a deliberate trade: Caxri is distributed to one maintainer and the installer is
- * dominated by the Electron runtime, not by these bytes.
+ * Ordinary builds remain debuggable by default. The public release pipeline opts into `omit` for its second artifact;
+ * the shared strict parser keeps Main, Preload, Renderer, and Server on one flavor.
  */
-const IS_SOURCEMAP_ENABLED = true;
+const SOURCE_MAP_FLAVOR = resolveSourceMapFlavor();
+const IS_SOURCEMAP_ENABLED = shouldIncludeSourceMaps(SOURCE_MAP_FLAVOR);
 const isReactProfilingEnabled = process.env.CAXRI_REACT_PROFILING === '1';
 /**
  * Opt-in react-scan render counting for development audits (`CAXRI_REACT_SCAN=1`). The boot module must be the first
@@ -87,6 +87,7 @@ export default defineConfig(async ({ command }) => {
             define: {
                 __CAXRI_VERSION__: JSON.stringify(packageJson.version),
                 __CAXRI_COMMIT__: JSON.stringify(gitCommit),
+                __CAXRI_SOURCE_MAP_FLAVOR__: JSON.stringify(SOURCE_MAP_FLAVOR),
             },
             build: {
                 sourcemap: IS_SOURCEMAP_ENABLED,

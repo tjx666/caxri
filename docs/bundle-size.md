@@ -17,17 +17,17 @@ legitimately needs more bytes.
 | `Resources/server`        | ~137.6 MiB | Pinned runtime (~121 MiB), native dependencies, bundles, extensions       |
 | `app.asar`                | ~116.8 MiB | Desktop Main, Preload, and Renderer bundles plus their source maps        |
 | `out/renderer`            | ~113.2 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), Mermaid, fonts, vscode-icons, maps |
-| `out/main`                | ~4.06 MiB  | Electron Desktop Main only (measured 2026-10)                             |
+| `out/main`                | ~5.02 MiB  | Electron Desktop Main only (measured 2026-10)                             |
 | `out/preload`             | ~48 KiB    | Sandboxed preload bundles                                                 |
 | `apps/server/dist/server` | ~137.6 MiB | Byte-identical source of the embedded Server artifact                     |
 
-Roughly half of the JavaScript above is source maps, which ship in every build including the packaged
-one. This is the single largest deliberate size decision in the project and it is not drift: Caxri is
-built and debugged by coding agents, whose only view of a past failure is the artifact that produced
-it. A minified packaged build cannot say which line threw, so every investigation of a production-only
-failure would start with a rebuild and an attempt to reproduce: the expensive part of the loop. The
-bytes buy that back, and the installer is dominated by the Electron runtime regardless. Turning maps
-off is a product decision to make at the first public release, not a way to pass the budget gate.
+Roughly half of the JavaScript above is Source Maps. Ordinary builds and the canonical
+`Caxri-<version>-arm64.dmg` include them because Caxri is built and debugged by coding agents, whose
+only view of a past failure may be the artifact that produced it. A minified packaged build cannot say
+which line threw, so the maps avoid a rebuild-and-reproduce cycle. A second
+`Caxri-<version>-arm64-nosourcemap.dmg` is rebuilt with maps disabled for users who explicitly prefer
+the smaller artifact. The size gate measures the default include flavor; a drop caused by missing
+maps remains a regression there.
 
 Mermaid is ~23 MiB of the renderer with its source maps, added when the file preview shipped. It is
 loaded through a dynamic `import('mermaid')`, so a document without a diagram never executes any of
@@ -55,12 +55,14 @@ can encounter any file or folder name in a user's project at runtime, so there i
 subset to tree-shake, and shipping the complete set is what makes icons match VS Code's
 vscode-icons extension.
 
-Desktop Main grew from ~3.0 MiB to 4.06 MiB (4,261,667 B, 2026-10) across many features rather
-than through one regression, so its budget was raised from 4 MiB to 5 MiB. About 67% of `out/main`
-is source maps, and their `sourcesContent` alone is ~2 MB; the JavaScript (~1.4 MB) is not minified.
-The largest bundled sources are `zod`, the `ws` transport, and `jsonc-parser`, plus the
-`@caxri/protocol` build output. Minifying Main was considered and deferred: packaged Main stack
-traces would then need source-map support (`process.setSourceMapsEnabled` or
+Desktop Main first grew from ~3.0 MiB to 4.06 MiB across many features, which raised its budget from
+4 MiB to 5 MiB. Later cumulative growth reached 5.02 MiB (5,267,964 B, 2026-10), so the ceiling is
+now 6 MiB, about 19% above the measured baseline. A comparison against the previous main build
+confirmed that Source Map flavoring does not duplicate bundles: one flavor is built at a time.
+About 67% of `out/main` is source maps, and their `sourcesContent` alone is ~2.47 MiB; the JavaScript
+(~1.68 MiB) is not minified. The largest bundled sources are `zod`, the `ws` transport, and
+`jsonc-parser`, plus the `@caxri/protocol` build output. Minifying Main was considered and deferred:
+packaged Main stack traces would then need source-map support (`process.setSourceMapsEnabled` or
 `--enable-source-maps`) to stay readable. Dropping `sourcesContent` would contradict the
 debuggable-without-rebuild goal above.
 

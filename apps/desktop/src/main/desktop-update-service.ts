@@ -7,6 +7,7 @@ import { logEventCatalog } from '@caxri/system';
 import { app, shell } from 'electron';
 
 import { createAcceptanceUpdateFixture } from './acceptance-update';
+import { packagedSourceMapFlavor } from './source-map-flavor';
 import { UpdateService, updateStateLogFields } from './updates';
 
 /**
@@ -30,6 +31,7 @@ export function createDesktopUpdateService(options: {
         downloadDirectory: join(userDataPath, 'updates'),
         enabled: app.isPackaged,
         openPath: (path) => shell.openPath(path),
+        sourceMapFlavor: packagedSourceMapFlavor(),
         onState: (state) => {
             if (state.status !== 'downloading')
                 options

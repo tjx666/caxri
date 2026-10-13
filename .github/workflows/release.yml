@@ -5,8 +5,7 @@ on:
     workflows: [CI]
     types: [completed]
     branches: [main]
-  # Rehearses only `linux-natives` on main without a release commit, so the GitHub-hosted manylinux build and its
-  # artifacts are proven before a release depends on them. `release` keeps its `workflow_run` condition and is skipped.
+  # Rehearses the hosted Linux natives and unsigned macOS package on main without publishing a Release.
   workflow_dispatch: {}
 
 concurrency:
@@ -100,6 +99,87 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  rehearsal:
+    name: Hosted macOS no-publish rehearsal
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'tjx666' &&
+      github.triggering_actor == 'tjx666'
+    needs: linux-natives
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      CAXRI_E2E_AGENT_MODE: blocked
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify rehearsal event trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.actor }}
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+          install-android-toolchain: 'true'
+      - name: Build Android rehearsal update bundle
+        run: |
+          keystore="$RUNNER_TEMP/caxri-android-rehearsal.jks"
+          password=caxri-rehearsal-only
+          trap 'rm -f "$keystore"' EXIT
+          keytool -genkeypair -noprompt \
+            -alias caxri-rehearsal \
+            -dname "CN=Caxri Rehearsal" \
+            -keyalg RSA \
+            -keypass "$password" \
+            -keystore "$keystore" \
+            -storepass "$password" \
+            -validity 1
+          CAXRI_ANDROID_KEYSTORE_PATH="$keystore" \
+            CAXRI_ANDROID_KEYSTORE_PASSWORD="$password" \
+            CAXRI_ANDROID_KEY_ALIAS=caxri-rehearsal \
+            CAXRI_ANDROID_KEY_PASSWORD="$password" \
+            bun run --cwd apps/mobile build:update-bundle
+      - name: Download Linux natives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: linux-natives-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/caxri-linux-natives
+      - name: Package unsigned Apple Silicon DMGs without publishing
+        env:
+          CAXRI_LINUX_NATIVES_DIR: ${{ runner.temp }}/caxri-linux-natives
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: bun run package:release-dmgs
+      - name: Run targeted packaged smoke
+        env:
+          CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release.noindex/sourcemap/mac-arm64/Caxri.app/Contents/MacOS/Caxri
+          CAXRI_BENCHMARK_PROJECT_ROOT: ${{ github.workspace }}
+          CAXRI_PACKAGED_EXECUTABLE: ${{ github.workspace }}/release.noindex/sourcemap/mac-arm64/Caxri.app/Contents/MacOS/Caxri
+          CAXRI_E2E_POOL: release-rehearsal
+          CAXRI_E2E_RECEIPT_PATH: test-results/receipts/release-rehearsal.json
+        run: |
+          file "$CAXRI_PACKAGED_EXECUTABLE" | grep -q 'arm64'
+          bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=line,./scripts/reporters/e2e-receipt-reporter.ts
+
   release:
     # PR CI owns the product quality gates. The exact release commit's lightweight CI run rechecks
     # this trusted main-push boundary without repeating platform checks or the macOS E2E suite.
@@ -180,9 +260,7 @@ jobs:
           install-electron: 'true'
 
       # actions/checkout's default `clean: true` already runs `git clean -ffdx`, which removes the
-      # gitignored release.noindex, so a DMG from an earlier build on this self-hosted runner should
-      # never reach the packaging step. This makes the single-DMG precondition explicit next to the
-      # code that depends on it rather than relying on that default staying in place.
+      # gitignored release.noindex. Keep the explicit cleanup so neither flavor can reuse an older artifact.
       - name: Clean previous packaging output
         run: rm -rf release.noindex
 
@@ -210,29 +288,31 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/caxri-linux-natives
 
-      # `package:dmg` builds the SSH Host upload layers (`build:remote-layers`) from the natives the Linux jobs
-      # exported; a missing or stale export fails the build instead of reaching for Docker on this runner.
-      - name: Package unsigned Apple Silicon DMG
+      # Both flavors rebuild Desktop and the embedded Server from the same checkout. The script verifies their isolated
+      # app directories, Source Map inventories, Server manifests, DMGs, and checksums before publication.
+      - name: Package unsigned Apple Silicon DMGs
         env:
           CAXRI_LINUX_NATIVES_DIR: ${{ runner.temp }}/caxri-linux-natives
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
-          bun run package:dmg -- --arm64
-          resources="release.noindex/mac-arm64/Caxri.app/Contents/Resources/mobile"
-          cmp out/mobile-update/caxri-mobile.apk "${resources}/caxri-mobile.apk"
-          cmp out/mobile-update/manifest.json "${resources}/manifest.json"
-          remote="release.noindex/mac-arm64/Caxri.app/Contents/Resources/remote"
-          for target in linux-x64 linux-arm64; do
-            cmp "apps/server/dist/remote/${target}/descriptor.json" "${remote}/${target}/descriptor.json"
-            cmp "apps/server/dist/remote/${target}/app.tar.gz" "${remote}/${target}/app.tar.gz"
+          bun run package:release-dmgs
+          for flavor in sourcemap nosourcemap; do
+            resources="release.noindex/${flavor}/mac-arm64/Caxri.app/Contents/Resources/mobile"
+            cmp out/mobile-update/caxri-mobile.apk "${resources}/caxri-mobile.apk"
+            cmp out/mobile-update/manifest.json "${resources}/manifest.json"
+            remote="release.noindex/${flavor}/mac-arm64/Caxri.app/Contents/Resources/remote"
+            for target in linux-x64 linux-arm64; do
+              cmp "apps/server/dist/remote/${target}/descriptor.json" "${remote}/${target}/descriptor.json"
+              cmp "apps/server/dist/remote/${target}/app.tar.gz" "${remote}/${target}/app.tar.gz"
+            done
           done
 
       - name: Verify packaged application
         id: verify-packaged
         env:
-          CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri
+          CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release.noindex/sourcemap/mac-arm64/Caxri.app/Contents/MacOS/Caxri
           CAXRI_BENCHMARK_PROJECT_ROOT: ${{ github.workspace }}
-          CAXRI_PACKAGED_EXECUTABLE: ${{ github.workspace }}/release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri
+          CAXRI_PACKAGED_EXECUTABLE: ${{ github.workspace }}/release.noindex/sourcemap/mac-arm64/Caxri.app/Contents/MacOS/Caxri
           CAXRI_E2E_POOL: release-packaged
           CAXRI_E2E_RECEIPT_PATH: test-results/receipts/release-packaged.json
         run: |
@@ -253,52 +333,51 @@ jobs:
       - name: Verify release artifact
         id: artifact
         run: |
-          # Publication needs exactly one DMG. "First match" would silently pick a stale build.
-          dmgs=()
-          while IFS= read -r -d '' path; do dmgs+=("$path"); done \
-            < <(find release.noindex -maxdepth 1 -type f -name '*.dmg' -print0 | sort -z)
-          if [[ ${#dmgs[@]} -eq 0 ]]; then
-            echo "No DMG was produced." >&2
-            exit 1
-          fi
-          if [[ ${#dmgs[@]} -gt 1 ]]; then
-            echo "Expected exactly one DMG in release.noindex, found ${#dmgs[@]}:" >&2
-            printf '  %s\n' "${dmgs[@]}" >&2
-            exit 1
-          fi
-          dmg="${dmgs[0]}"
+          version="$(sed -nE 's/^[[:space:]]*"version":[[:space:]]*"([^"]+)".*/\1/p' package.json | head -1)"
+          sourcemap="release.noindex/sourcemap/Caxri-${version}-arm64.dmg"
+          nosourcemap="release.noindex/nosourcemap/Caxri-${version}-arm64-nosourcemap.dmg"
+          for dmg in "$sourcemap" "$nosourcemap"; do
+            test -f "$dmg"
+            test -f "${dmg}.sha256"
+            hdiutil verify "$dmg"
+            (cd "$(dirname "$dmg")" && shasum -a 256 -c "$(basename "$dmg").sha256")
+          done
 
-          hdiutil verify "$dmg"
-          dmg_directory="$(dirname "$dmg")"
-          dmg_name="$(basename "$dmg")"
-          (cd "$dmg_directory" && shasum -a 256 "$dmg_name" > "${dmg_name}.sha256")
-
-          echo "dmg=${dmg}" >> "$GITHUB_OUTPUT"
-          echo "checksum=${dmg}.sha256" >> "$GITHUB_OUTPUT"
+          {
+            echo "sourcemap=${sourcemap}"
+            echo "sourcemap_checksum=${sourcemap}.sha256"
+            echo "nosourcemap=${nosourcemap}"
+            echo "nosourcemap_checksum=${nosourcemap}.sha256"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
-          RELEASE_DMG: ${{ steps.artifact.outputs.dmg }}
-          RELEASE_CHECKSUM: ${{ steps.artifact.outputs.checksum }}
+          RELEASE_SOURCEMAP_DMG: ${{ steps.artifact.outputs.sourcemap }}
+          RELEASE_SOURCEMAP_CHECKSUM: ${{ steps.artifact.outputs.sourcemap_checksum }}
+          RELEASE_NOSOURCEMAP_DMG: ${{ steps.artifact.outputs.nosourcemap }}
+          RELEASE_NOSOURCEMAP_CHECKSUM: ${{ steps.artifact.outputs.nosourcemap_checksum }}
         run: |
-          # The DMG is unsigned/unnotarized: browser downloads get quarantined and Gatekeeper
+          # The DMGs are unsigned/unnotarized: browser downloads get quarantined and Gatekeeper
           # reports the app as "damaged", so the notes lead with the terminal install path.
           notes="## Install
 
           The DMG is unsigned, so a browser download is quarantined and macOS reports the app as \"damaged\". Install from the terminal instead:
 
           \`\`\`bash
-          bun run install:caxri            # from a Caxri checkout (downloads, verifies, installs)
+          bun run install:caxri                  # Source Map build
+          bun run install:caxri -- --no-sourcemap # smaller no-map build
           \`\`\`
 
           Already downloaded with a browser? Clear the quarantine flag once: \`xattr -dr com.apple.quarantine /Applications/Caxri.app\`"
 
           gh release create "$RELEASE_TAG" \
-            "$RELEASE_DMG" \
-            "$RELEASE_CHECKSUM" \
+            "$RELEASE_SOURCEMAP_DMG" \
+            "$RELEASE_SOURCEMAP_CHECKSUM" \
+            "$RELEASE_NOSOURCEMAP_DMG" \
+            "$RELEASE_NOSOURCEMAP_CHECKSUM" \
             --target "$RELEASE_TARGET_SHA" \
             --title "Caxri ${RELEASE_TAG}" \
             --notes "$notes" \

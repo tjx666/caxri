@@ -458,7 +458,7 @@ async function runInChecksWorktree(
 }
 
 async function prepareCaches(worktree: string, environment: NodeJS.ProcessEnv): Promise<void> {
-    const cacheRoot = join(requiredEnvironment(environment, 'RUNNER_TOOL_CACHE'), 'caxri');
+    const cacheRoot = requiredEnvironment(environment, 'CAXRI_CACHE_ROOT');
     const cacheDirectory = join(worktree, '.cache');
     await mkdir(cacheDirectory, { recursive: true });
     await Promise.all([

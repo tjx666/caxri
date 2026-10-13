@@ -122,6 +122,9 @@ directories.
   `pnpm-lock.yaml` by hand. Direct `pnpm install --frozen-lockfile` is reserved for the documented
   CI/frozen-install verification. Do not add `packageManager` or `devEngines.packageManager`;
   `mise.toml` and the explicit GitHub Actions setup own tool versions.
+- Treat backticks and `$()` in shell command strings as executable syntax. Put literal search
+  patterns containing them in single quotes or pass them as structured arguments; never interpolate
+  them through a double-quoted command string.
 - UI strings, code, comments, docs, PR content, and commit messages use English. GitHub issue
   titles, bodies, and comments use Simplified Chinese; keep their code, identifiers, paths, and
   commands in English. Contributor issue tracking lives in GitHub issues (`gh issue`); do not file
