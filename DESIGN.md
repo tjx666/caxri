@@ -477,9 +477,9 @@ and Project names clip with a right-edge fade instead of an ellipsis: the ellips
 row width on punctuation. The fade is about one character at the 13px UI size, matching Codex.
 A Project heading's Customize Icon and New Session buttons follow the same hover-cluster rule: at
 rest they reserve no width, so the name runs to the row's edge; on hover, keyboard focus, or while
-the New Session menu is open the name makes room and fades before them. With a configured default
-Agent, New Session splits like the tab strip's +: a press creates the default Agent (the tooltip
-names it, `New Codex Chat Session`) and hovering lists the Agents.
+the New Session menu is open the name makes room and fades before them. Hovering New Session lists
+the Agents. With a configured default Agent it splits like the tab strip's +: a press creates the
+default Agent (the tooltip names it, `New Codex Chat Session`); without one a press opens the list.
 Clipped Session names reveal their tail after a 600ms title hover or keyboard-focus pause, moving
 at a steady reading speed and holding at the end. Leaving restores the fade; short names remain
 still.
@@ -1130,8 +1130,9 @@ list in place: a `Choose model` caption, one row per model with a trailing check
 and each model's description in a tooltip to its right (Claude Code's `default` alias keeps its
 description inline). Choosing a model returns to the effort panel when the model has efforts or
 modes, and closes the popover otherwise; a model with neither opens straight on the list. The
-permission picker shows a shield and the level's name with no disclosure chevron; full access tints
-both shield and name `--warning`, as the Codex app does. For a provider that applies a switch only
+permission picker shows a shield and the level's name with no disclosure chevron, in the same muted
+tone at every level; full access differs only by its alert shield, since a trigger tinted yellow all
+day is noise for someone who always runs it. For a provider that applies a switch only
 from the next turn (Codex), it adds a `from next turn` caption while a turn runs. Its menu leads every level with a glyph (an eye for read only, a hand for ask, a pen for
 accept edits, a bot for auto, the `--warning` shield for full access) and trails the current level
 with a check; a chosen Full access row reads in `--warning`, as the Codex app tints it. Every
@@ -1195,8 +1196,7 @@ carries context notices instead: an expired prompt cache in `--muted` (a cost fa
 and context high enough to read `consider compacting` in `--warning` (a suggestion, since nothing failed) with a Compact button. References: T3 Code's Chat composer, Claude
 Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort
 picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
-`--link` (the accent eased 30% toward the text color, as soft as the Codex app's) with no underline
-until hover; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
+the full `--accent` with no underline until hover; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
 language name such as `TypeScript`, wrap and copy) shares its fill and sets its code in the 11px
 `meta` size every monospace preview uses; a table is set open, with row
 hairlines and no frame or header tint. All follow the Codex app's Dracula transcript. A path the

@@ -1,4 +1,5 @@
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { compareSessionPinnedOrder, isPinnedSession } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
@@ -12,11 +13,35 @@ import {
 } from '../session/session-agent-terminal';
 import { isWithinFinishedRetention } from './agent-activity-retention';
 
-export type AgentActivityGroupId =
+/**
+ * The state-derived groups. A row always carries one of these, including a row listed under `pinned`, because the row's
+ * glyph and tint are decided by the Agent's state rather than by where the row happens to sit.
+ */
+type AgentActivityStatusGroupId =
     'attention' | 'working' | 'waiting' | 'failed' | 'finished' | 'idle';
 
+export type AgentActivityGroupId = 'pinned' | AgentActivityStatusGroupId;
+
+/**
+ * Status groups that keep a pinned Session even though the Pinned group already lists it. These are the rows the queue
+ * exists for: the attention badge and `session.focusNextAttention` walk them, and a Session that is running, waiting,
+ * or failed is news the user should see in its state group. A pinned Session that is merely finished or idle is listed
+ * only under `pinned`, where repeating it would add a second copy and no information.
+ */
+const PINNED_DUPLICATE_GROUPS: ReadonlySet<AgentActivityStatusGroupId> = new Set([
+    'attention',
+    'working',
+    'waiting',
+    'failed',
+]);
+
 export interface AgentActivityRow {
-    groupId: AgentActivityGroupId;
+    groupId: AgentActivityStatusGroupId;
+    /**
+     * Unique within the rendered tree. A pinned Session can be listed twice (under `pinned` and under an actionable
+     * status group), so the Pinned group's copy is namespaced and every other row uses the Session id.
+     */
+    rowId: string;
     /**
      * Owning Project, named on the row's second line because the list is flat: without it a row cannot say which
      * repository it belongs to. The whole record rather than its name, because the row's hover card and context menu
@@ -103,7 +128,7 @@ function isViewedSelection(
  * rollups the same way; Orca and T3 Code put running work first because their lists describe live work rather than a
  * to-do queue.
  */
-const GROUP_ORDER: readonly AgentActivityGroupId[] = [
+const GROUP_ORDER: readonly AgentActivityStatusGroupId[] = [
     'attention',
     'working',
     'waiting',
@@ -113,6 +138,7 @@ const GROUP_ORDER: readonly AgentActivityGroupId[] = [
 ];
 
 const GROUP_LABEL_KEYS: Record<AgentActivityGroupId, TranslationKey> = {
+    pinned: 'agentActivity.group.pinned',
     attention: 'agentActivity.group.attention',
     failed: 'agentActivity.group.failed',
     finished: 'agentActivity.group.finished',
@@ -187,7 +213,7 @@ function groupForSession(
     status: SessionStatus,
     now: number,
     isViewedSelection: boolean,
-): AgentActivityGroupId | undefined {
+): AgentActivityStatusGroupId | undefined {
     if (status.kind === 'attention') return 'attention';
     if (isViewedSelection) return 'attention';
     /**
@@ -217,7 +243,9 @@ function groupForSession(
  *
  * Archived Sessions are excluded, and a Session whose Project is not in `projects` is dropped: the PrimarySidebar hides
  * auto-registered worktree Projects, and a row naming a Project the user never added would be unreachable from here.
- * Rows inside a group keep Session activity recency, so the most recent event in a group is always its first row.
+ * Rows inside a status group keep Session activity recency, so the most recent event in a group is always its first
+ * row. Pinned Sessions also get a leading `pinned` group (see `PINNED_DUPLICATE_GROUPS` for which ones stay in their
+ * status group too), and a pinned Session is never dropped by the finished retention window.
  *
  * Terminals are grouped by Session once per call, so one projection is linear in Sessions plus Terminals. It has two
  * callers and neither runs while the queue is off screen: `AgentActivityView` exists only while the Primary Side Bar
@@ -240,7 +268,8 @@ export function agentActivityGroups({
 }): AgentActivityGroup[] {
     const projectsById = new Map(projects.map((project) => [project.id, project]));
     const terminalsBySession = sessionTerminalIndex(terminals);
-    const rowsByGroup = new Map<AgentActivityGroupId, AgentActivityRow[]>();
+    const rowsByGroup = new Map<AgentActivityStatusGroupId, AgentActivityRow[]>();
+    const pinnedRows: AgentActivityRow[] = [];
     for (const session of sessions) {
         if (session.archivedAt !== undefined) continue;
         const project = projectsById.get(session.projectId);
@@ -253,10 +282,16 @@ export function agentActivityGroups({
             now,
             isViewedSelection(session, terminal, selectionAnchor),
         );
-        if (!groupId) continue;
+        const pinned = isPinnedSession(session);
+        if (!groupId && !pinned) continue;
         const row: AgentActivityRow = {
-            groupId,
+            /**
+             * A pinned Session past the finished retention window has no status group but stays listed under `pinned`;
+             * it still describes a finished turn, so its glyph reads as one.
+             */
+            groupId: groupId ?? 'finished',
             project,
+            rowId: session.id,
             session,
             status,
             statusPresentation: sessionActivityPresentation(
@@ -265,11 +300,13 @@ export function agentActivityGroups({
             ),
             terminal,
         };
+        if (pinned) pinnedRows.push({ ...row, rowId: agentActivityPinnedRowId(session.id) });
+        if (!groupId || (pinned && !PINNED_DUPLICATE_GROUPS.has(groupId))) continue;
         const existing = rowsByGroup.get(groupId);
         if (existing) existing.push(row);
         else rowsByGroup.set(groupId, [row]);
     }
-    return GROUP_ORDER.flatMap((id) => {
+    const statusGroups = GROUP_ORDER.flatMap((id) => {
         const rows = rowsByGroup.get(id);
         if (!rows || rows.length === 0) return [];
         return [
@@ -283,6 +320,28 @@ export function agentActivityGroups({
             },
         ];
     });
+    if (pinnedRows.length === 0) return statusGroups;
+    /**
+     * Pinned comes first and keeps the user's own Pinned order rather than activity recency: a pin promises a fixed
+     * place, the same one the Project tree's Pinned group gives it, so the row must not move as its Agent works.
+     */
+    return [
+        {
+            id: 'pinned',
+            rows: pinnedRows.toSorted((left, right) =>
+                compareSessionPinnedOrder(left.session, right.session),
+            ),
+        },
+        ...statusGroups,
+    ];
+}
+
+/**
+ * Row id of a Session's copy inside the Pinned group. The prefix cannot collide with a Session id, which is an opaque
+ * identifier with no `pinned:` scheme.
+ */
+export function agentActivityPinnedRowId(sessionId: string): string {
+    return `pinned:${sessionId}`;
 }
 
 /**

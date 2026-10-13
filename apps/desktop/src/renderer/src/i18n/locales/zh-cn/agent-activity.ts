@@ -6,6 +6,7 @@ export const agentActivity: TranslatedNamespace<typeof source> = {
     'agentActivity.treeLabel': '活动',
     'agentActivity.empty': '没有等待你处理的 Agent 会话。',
     'agentActivity.markReadFailed': '无法将会话标记为已读',
+    'agentActivity.group.pinned': '置顶',
     'agentActivity.group.attention': '待处理',
     'agentActivity.group.failed': '失败',
     'agentActivity.group.finished': '最近完成',

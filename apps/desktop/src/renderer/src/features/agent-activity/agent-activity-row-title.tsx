@@ -8,6 +8,7 @@ export function AgentActivityRowTitle({
     canSuggest,
     isRenaming,
     onTitleHoverChange,
+    rowId,
     sessionId,
     sessionRename,
     textReference,
@@ -24,6 +25,7 @@ export function AgentActivityRowTitle({
      * the row-level focus half of the same `useSessionTitleScroll` reveal.
      */
     onTitleHoverChange: (isHovered: boolean) => void;
+    rowId: string;
     sessionId: string;
     sessionRename: SessionRenameController;
     textReference: RefObject<HTMLSpanElement | null>;
@@ -45,7 +47,7 @@ export function AgentActivityRowTitle({
                     onChange={sessionRename.onRenameValueChange}
                     onCommit={sessionRename.commitRename}
                     onCancel={sessionRename.cancelRename}
-                    onSuggest={() => sessionRename.suggestRename(sessionId, title, sessionId)}
+                    onSuggest={() => sessionRename.suggestRename(sessionId, title, rowId)}
                     canSuggest={canSuggest}
                     suggesting={sessionRename.renameSuggestingSessionId === sessionId}
                 />
