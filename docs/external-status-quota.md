@@ -157,9 +157,11 @@ rollup, and paying for a rollup on hover is the cost this store exists to avoid.
 - Only a recognizable "no such issue" failure is cached as absence. A transport, auth, or quota
   failure stays uncached, or a temporary outage would be remembered as "this issue does not exist"
   for the whole TTL.
-- The Server reads a reference only for a repository the hovering Session already has. That gate
-  lives in `reference-preview.ts`, not here, and is the reason untrusted Terminal output cannot
-  steer an outbound request.
+- The Server reads a reference in any github.com repository, always with `--hostname github.com`.
+  The guards that keep untrusted Terminal output or Agent text from reshaping the request are the
+  protocol's `isGitHubName` check (`terminal-reference.ts`) and the pinned host in
+  `github-reference.ts`; see
+  [Terminal reference hover previews](./terminal-reference-preview.md#the-server-decides-what-a-hover-is-allowed-to-read).
 
 ### Review threads for the Status panel
 

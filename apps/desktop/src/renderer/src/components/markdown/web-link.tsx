@@ -43,7 +43,7 @@ export function WebLink({
     className?: string;
     href: string;
     /**
-     * The Terminal whose Session scopes a pull request link's state lookup.
+     * The Terminal a pull request link's state lookup is routed through.
      */
     referenceTerminalId?: string;
     /**
