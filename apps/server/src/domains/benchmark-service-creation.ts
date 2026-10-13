@@ -7,6 +7,7 @@ import { BenchmarkService, createBenchmarkHandlers } from './agent-benchmark';
 import type { createAgentRuntime } from './agent-runtime';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
+import { offlinePriceListFetch } from './usage';
 
 /**
  * Composes the Benchmark service, and the request handlers over it, with the same provider launch settings, executable
@@ -38,6 +39,8 @@ export function createBenchmarkService({
             dependencies.terminal?.agentLaunchSettings ?? agentRuntime.agentLaunchSettings,
         resolveExecutable: dependencies.terminal?.resolveExecutable,
         clientVersion: process.env.CAXRI_APP_VERSION ?? '0.0.0',
+        // E2E and Acceptance price from the bundled snapshot, as Usage does, so they never contact the network.
+        ...(process.env.CAXRI_E2E === '1' && { fetch: offlinePriceListFetch }),
     });
     return { service, handlers: createBenchmarkHandlers(service) };
 }
