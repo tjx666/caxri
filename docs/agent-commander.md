@@ -620,14 +620,14 @@ Data: one dialog lists what the Commander keeps, each with its size from `comman
 user ticks what to forget. Only Commander-owned data is offered; Sessions, their Terminals, and the
 user's repositories are never touched.
 
-| Option       | What it clears                                                                                                    |
-| ------------ | ----------------------------------------------------------------------------------------------------------------- |
-| Tasks        | Ledger rows: the finished ones (the default), all of them, or ones chosen from the list. Delegated Sessions stay. |
-| Task files   | The briefs in `tasks/` and the pull request reports in `reports/`. A link there is removed, never followed.       |
-| Needs you    | Every Commander Inbox item, open or closed, with its replies.                                                     |
-| Memory       | `memory/*.md` back to their templates. Offered only once a file differs from its template; implies Instructions.  |
-| Instructions | Rewrites `AGENTS.md` from the current template and the memory that remains.                                       |
-| Conversation | Relaunches the Commander fresh on a new conversation, ending the current turn.                                    |
+| Option       | What it clears                                                                                                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tasks        | Ledger rows: the finished ones (the default), all of them, or ones chosen from the list. Delegated Sessions stay; a hand-over the Commander has not continued goes with its task, since its note lived there. |
+| Task files   | The briefs in `tasks/` and the pull request reports in `reports/`. A link there is removed, never followed.                                                                                                   |
+| Needs you    | Every Commander Inbox item, open or closed, with its replies.                                                                                                                                                 |
+| Memory       | `memory/*.md` back to their templates. Offered only once a file differs from its template; implies Instructions.                                                                                              |
+| Instructions | Rewrites `AGENTS.md` from the current template and the memory that remains.                                                                                                                                   |
+| Conversation | Relaunches the Commander fresh on a new conversation, ending the current turn.                                                                                                                                |
 
 The dialog opens with only the finished tasks ticked, and with nothing ticked when no task has finished. When memory or instructions change while the
 running conversation already read them, it warns that the Commander still knows them until the

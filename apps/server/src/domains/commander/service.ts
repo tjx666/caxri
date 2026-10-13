@@ -19,6 +19,7 @@ import type { CaxriDatabase } from '../db';
 import { agentCommanderTerminal } from '../db';
 import { commanderBoard } from './board';
 import { clearCommanderStores, commanderAgent, readCommanderData } from './data';
+import type { CommanderHandoverService } from './handover';
 import { commanderHandovers } from './handover-records';
 import type { CommanderInboxService } from './inbox';
 import { createCommanderSession } from './sessions';
@@ -36,6 +37,10 @@ export interface AgentCommanderServiceOptions {
      * The Commander Inbox, which Clear Commander Data counts and empties.
      */
     inbox: Pick<CommanderInboxService, 'clear' | 'counts'>;
+    /**
+     * Commander hand-overs, which forget the ones whose task Clear Commander Data deleted.
+     */
+    handovers: Pick<CommanderHandoverService, 'forgetClearedTasks'>;
     /**
      * Creates the Terminal row, lets `beforeStart` record it, then launches it. Recording first matters: the launch
      * issues the Agent Endpoint, which reads the recorded identity to grant the Commander role.
@@ -382,9 +387,14 @@ export class AgentCommanderService {
                       : 'selected';
             let stage: 'stores' | 'instructions' | 'conversation' = 'stores';
             let tasksDeleted = 0;
+            let handoversForgotten = 0;
             try {
-                const cleared = await clearCommanderStores(this.options, request);
+                const { handoversForgotten: forgotten, ...cleared } = await clearCommanderStores(
+                    this.options,
+                    request,
+                );
                 tasksDeleted = cleared.tasksDeleted;
+                handoversForgotten = forgotten;
                 stage = 'instructions';
                 const instructionsRewritten = request.instructions === true || cleared.memoryReset;
                 if (instructionsRewritten)
@@ -411,6 +421,7 @@ export class AgentCommanderService {
                     fields: {
                         outcome: 'cleared',
                         ...result,
+                        handoversForgotten,
                         taskScope,
                         durationMs: Math.round(performance.now() - startedAt),
                     },
@@ -422,6 +433,7 @@ export class AgentCommanderService {
                         outcome: 'failed',
                         failedStage: stage,
                         tasksDeleted,
+                        handoversForgotten,
                         taskScope,
                         durationMs: Math.round(performance.now() - startedAt),
                     },

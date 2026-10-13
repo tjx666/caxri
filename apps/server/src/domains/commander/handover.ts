@@ -29,8 +29,7 @@ import type { CaxriDatabase } from '../db';
 import { conversationProject } from './handover-conversation-project';
 import {
     commanderHandovers,
-    consumeCommanderHandover,
-    pendingCommanderHandover,
+    isHandoverTargetBusy,
     writeCommanderHandovers,
 } from './handover-records';
 import type { CommanderHandoverNoticeEvent } from './notice-text';
@@ -94,20 +93,6 @@ function ownershipReason(
         return 'provider_unsupported';
     if (!terminal.agentSessionId) return 'provider_session_missing';
     return undefined;
-}
-
-/**
- * True while the Agent is in a turn or waiting on the user. A continuation then would cut the turn off, so the
- * Commander waits for the `ready` notice instead.
- */
-function isHandoverTargetBusy(
-    session: SessionRecord | undefined,
-    terminal: TerminalRecord | undefined,
-): boolean {
-    return (
-        terminal?.lastAgentProcessState === 'running' &&
-        (session?.lastActivityState === 'running' || session?.lastActivityState === 'waiting')
-    );
 }
 
 function conversationKey(conversation: CommanderConversationReference): string {
@@ -531,6 +516,26 @@ export class CommanderHandoverService {
     }
 
     /**
+     * Forgets each hand-over the Commander has not continued whose ledger task Clear Commander Data deleted, so no
+     * relaunch announces, and no continuation picks up, work the user cleared without its note. The Session stays the
+     * Commander's, as any Session does after its task is deleted. Returns how many went.
+     */
+    forgetClearedTasks(): number {
+        const { database } = this.options;
+        const handovers = commanderHandovers(database);
+        const kept = handovers.filter(
+            (handover) =>
+                handover.firstDelegationId !== undefined ||
+                handover.taskId === undefined ||
+                database.commanderTasks.get(handover.taskId) !== undefined,
+        );
+        if (kept.length === handovers.length) return 0;
+        writeCommanderHandovers(database, kept);
+        this.refreshTargets();
+        return handovers.length - kept.length;
+    }
+
+    /**
      * Queues every hand-over the Commander could continue but has not, for a Commander about to launch that lost the
      * in-memory notices with its previous process or a Server restart. Ownership-only hand-overs were announced once
      * and leave nothing to continue, and a hand-over still awaiting its `ready` notice gets that one instead.
@@ -544,46 +549,4 @@ export class CommanderHandoverService {
             )
                 this.announce(handover);
     }
-}
-
-/**
- * The delegation service's view of hand-overs, for the Commander's `--continue-handover` task.
- */
-export function commanderHandoverAccess(
-    database: CaxriDatabase,
-    logger?: StructuredLogger,
-    now: () => number = Date.now,
-) {
-    return {
-        target: (handoverId: string, sessionId: string) =>
-            pendingCommanderHandover(database, handoverId, sessionId).target,
-        isBusy: (sessionId: string, terminalId: string) =>
-            isHandoverTargetBusy(database.getSession(sessionId), database.getTerminal(terminalId)),
-        /**
-         * Links the hand-over's task to the delegation, as `commander task update --delegation` would, so the ledger
-         * never records a second task for the new root delegation.
-         */
-        consume: (handoverId: string, delegationId: string) => {
-            const handover = consumeCommanderHandover(database, handoverId, delegationId);
-            if (!handover) return;
-            const task = handover.taskId ? database.commanderTasks.get(handover.taskId) : undefined;
-            if (task)
-                database.commanderTasks.update(
-                    task.id,
-                    {
-                        delegationId,
-                        ...(task.status === 'pending' && { status: 'dispatched' }),
-                    },
-                    now(),
-                );
-            logger?.write('info', logEventCatalog.agentCommander.handoverContinued, {
-                fields: {
-                    handoverId,
-                    delegationId,
-                    source: handover.source,
-                    waitMs: Math.max(0, now() - handover.createdAt),
-                },
-            });
-        },
-    };
 }

@@ -7,8 +7,8 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db';
 import type { DiscoveredConversation } from '../handover';
-import { commanderHandoverAccess, CommanderHandoverService } from '../handover';
-import { commanderHandovers } from '../handover-records';
+import { CommanderHandoverService } from '../handover';
+import { commanderHandoverAccess, commanderHandovers } from '../handover-records';
 
 async function fixture(discovered: DiscoveredConversation[] = []) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-handover-'));
@@ -259,6 +259,35 @@ describe('Commander hand-over', () => {
         f.notify.mockClear();
         f.service.requeue();
         expect(f.notify).not.toHaveBeenCalled();
+    });
+
+    it('forgets a hand-over the Commander has not continued once its task is deleted', async () => {
+        const f = await fixture();
+        const { session, terminal } = f.agentSession();
+        const continued = f.agentSession('conversation-2');
+        const [pending, started] = (
+            await f.service.handOver({ sessionIds: [session.id, continued.session.id] })
+        ).outcomes;
+        if (pending.outcome !== 'accepted' || started.outcome !== 'accepted')
+            throw new Error('hand-over was refused');
+        commanderHandoverAccess(f.database).consume(started.handoverId, 'delegation-1');
+        expect(f.service.forgetClearedTasks()).toBe(0);
+
+        f.database.commanderTasks.delete('all');
+        f.notify.mockClear();
+
+        expect(f.service.forgetClearedTasks()).toBe(1);
+        expect(commanderHandovers(f.database).map((handover) => handover.id)).toEqual([
+            started.handoverId,
+        ]);
+        f.service.requeue();
+        expect(f.notify).not.toHaveBeenCalled();
+        expect(() =>
+            commanderHandoverAccess(f.database).target(pending.handoverId, session.id),
+        ).toThrow('Hand-over is unavailable');
+        // Typing no longer takes it back: the Session stays the Commander's, like after any deleted task.
+        f.service.observeInput(terminal.id);
+        expect(f.service.managedSessions().sessionIds).toEqual([session.id, continued.session.id]);
     });
 
     it('re-announces every hand-over the Commander has not continued before it launches', async () => {

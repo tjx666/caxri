@@ -166,7 +166,7 @@ export function createServiceHandlers(services: {
     awaitAgentSettingsReconcile: () => Promise<void>;
     commander: Omit<
         AgentCommanderServiceOptions,
-        'database' | 'inbox' | 'onLaunching' | 'pullRequests' | 'userDataPath'
+        'database' | 'handovers' | 'inbox' | 'onLaunching' | 'pullRequests' | 'userDataPath'
     >;
     commanderHandovers: CommanderHandoverService;
     commanderInbox: CommanderInboxService;
@@ -238,6 +238,7 @@ export function createServiceHandlers(services: {
     const commander = new AgentCommanderService({
         ...services.commander,
         database,
+        handovers: commanderHandovers,
         inbox: commanderInbox,
         logger,
         onLaunching: () => {

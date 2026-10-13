@@ -8,6 +8,7 @@ import { commanderAgentSchema, DEFAULT_COMMANDER_AGENT } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import { agentCommanderTerminal } from '../db';
+import type { CommanderHandoverService } from './handover';
 import type { CommanderInboxService } from './inbox';
 import {
     clearCommanderTaskFiles,
@@ -18,6 +19,7 @@ import {
 
 export interface CommanderDataStores {
     database: CaxriDatabase;
+    handovers: Pick<CommanderHandoverService, 'forgetClearedTasks'>;
     inbox: Pick<CommanderInboxService, 'clear' | 'counts'>;
     userDataPath: string;
 }
@@ -59,18 +61,22 @@ export async function readCommanderData({
 /**
  * Clears the ledger, Inbox, and workspace data a request names. The conversation and `AGENTS.md` are the caller's: the
  * first needs the Commander process, and the second must follow a memory reset.
+ *
+ * A deleted task of a hand-over the Commander has not continued takes the hand-over with it: its note lived on the
+ * task, and the dialog promises the Commander stops following a deleted task.
  */
 export async function clearCommanderStores(
-    { database, inbox, userDataPath }: CommanderDataStores,
+    { database, handovers, inbox, userDataPath }: CommanderDataStores,
     request: CommanderClearData,
 ): Promise<
     Pick<
         CommanderClearDataResult,
         'inboxItemsDeleted' | 'memoryReset' | 'taskFilesDeleted' | 'tasksDeleted'
-    >
+    > & { handoversForgotten: number }
 > {
     const workspacePath = commanderWorkspacePath(userDataPath);
     const tasksDeleted = request.tasks ? database.commanderTasks.delete(request.tasks) : 0;
+    const handoversForgotten = tasksDeleted > 0 ? handovers.forgetClearedTasks() : 0;
     const inboxItemsDeleted = request.inbox ? inbox.clear() : 0;
     const [taskFilesDeleted] = await Promise.all([
         request.taskFiles ? clearCommanderTaskFiles(workspacePath) : 0,
@@ -78,6 +84,7 @@ export async function clearCommanderStores(
     ]);
     return {
         tasksDeleted,
+        handoversForgotten,
         inboxItemsDeleted,
         taskFilesDeleted,
         memoryReset: request.memory === true,

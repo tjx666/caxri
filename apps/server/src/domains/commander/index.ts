@@ -1,7 +1,8 @@
 export { commanderChatEndpoint } from './chat-endpoint';
 export { createCommanderServices } from './creation';
 export { commanderDiagnostics } from './diagnostics';
-export { commanderHandoverAccess, CommanderHandoverService } from './handover';
+export { CommanderHandoverService } from './handover';
+export { commanderHandoverAccess } from './handover-records';
 export { commanderHostOptions } from './host-options';
 export { CommanderInboxService } from './inbox';
 export type { AgentCommanderServiceOptions } from './service';
