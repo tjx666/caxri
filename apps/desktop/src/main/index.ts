@@ -81,7 +81,7 @@ import {
     zoomFactorForLevel,
 } from './window-chrome';
 import { confirmWindowClose, createWindowCloseHandler } from './window-close';
-import { resolveE2EWindowMode } from './window-mode';
+import { bringWindowForward, resolveE2EWindowMode } from './window-mode';
 import type { WindowPlacement } from './window-placement';
 import { defaultWindowState, readWindowState, showWhenPlaced } from './window-placement';
 import { installWorkbenchIpc } from './workbench-ipc';
@@ -415,10 +415,7 @@ if (ownsProfileInstance) {
         openMainWindow();
         const window = mainWindow!;
         await rendererReadiness.wait(window.webContents);
-        if (window.isMinimized()) window.restore();
-        window.show();
-        app.focus({ steal: true });
-        window.focus();
+        bringWindowForward({ app, window, windowMode: e2eWindowMode });
         return window;
     }
 

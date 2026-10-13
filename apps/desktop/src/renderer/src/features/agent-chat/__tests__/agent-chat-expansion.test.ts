@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     AgentChatExpansionState,
     agentChatItemExpansionKey,
+    agentChatRevealItemKeys,
     agentChatSummaryExpansionKey,
     agentChatTurnWorkItems,
     isAgentChatExpanded,
@@ -85,5 +86,37 @@ describe('agentChatTurnWorkItems', () => {
             ],
         };
         expect(agentChatTurnWorkItems(entry).map((item) => item.id)).toEqual(['c1', 'c2']);
+    });
+});
+
+describe('agentChatRevealItemKeys', () => {
+    const spawn = (id: string): AgentChatWorkItem => ({
+        id,
+        type: 'toolCall',
+        name: 'spawnAgent',
+        status: 'completed',
+    });
+    const entry: Extract<AgentChatTimelineEntry, { kind: 'turn' }> = {
+        kind: 'turn',
+        id: 'turn:t1',
+        durationMs: 2000,
+        status: 'completed',
+        entries: [
+            { kind: 'work', id: 'work:c1', items: [command('c1'), spawn('s1'), command('c2')] },
+            { kind: 'work', id: 'work:s2', items: [spawn('s2')] },
+        ],
+    };
+
+    it('opens the summary group a settled subagent row joined', () => {
+        expect(agentChatRevealItemKeys(entry, 's1', () => false)).toEqual([
+            'turn:t1',
+            agentChatSummaryExpansionKey([command('c1'), spawn('s1'), command('c2')]),
+        ]);
+    });
+
+    it('opens only the fold for a row still running or standing alone', () => {
+        const isLive = (item: AgentChatWorkItem) => item.id === 's1';
+        expect(agentChatRevealItemKeys(entry, 's1', isLive)).toEqual(['turn:t1']);
+        expect(agentChatRevealItemKeys(entry, 's2', () => false)).toEqual(['turn:t1']);
     });
 });

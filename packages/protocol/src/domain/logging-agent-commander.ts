@@ -26,6 +26,12 @@ export const agentCommanderLogEvents = {
      */
     sessionTakenBack: 'agent_commander.session_taken_back',
     /**
+     * Handover conversation discovery could not ask the machine which Codex conversations are still open, so Codex rows
+     * fell back to the transcript-mtime heuristic. `fields.reason` is a closed `OpenCodexSessionsProbeFailure` and
+     * `durationMs` the probe's duration; never a path or a conversation id.
+     */
+    codexOpenProbeFailed: 'agent_commander.codex_open_probe_failed',
+    /**
      * The Commander's first task continued a handed-over conversation, with the hand-over's age in `fields.waitMs`.
      */
     handoverContinued: 'agent_commander.handover_continued',

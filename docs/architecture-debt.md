@@ -42,13 +42,6 @@ tracked by its own issue because it needs a product decision or its own design.
 - **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
 - **Remediation target / Acceptance:** [issue caxri#1675](https://github.com/tjx666/caxri/issues/1675): either issue a per-start Endpoint generation for Chat or refuse the operator fallback for `automation === 'agent'`, covered by an integration test.
 
-### AD-sec-main-link-fetch-trust: [OPEN · Contract drift · S]
-
-- **Summary:** Rendering or hovering a transcript link makes Main request the origin's favicon or the full URL without excluding loopback or private hosts, and redirects are followed.
-- **Evidence:** `apps/desktop/src/main/link-previews.ts`, `apps/desktop/src/main/link-favicons.ts`; the outbound inventory is now in `.agents/skills/project-architecture/references/security.md`.
-- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 @ 319eab82e
-- **Remediation target / Acceptance:** [issue caxri#1676](https://github.com/tjx666/caxri/issues/1676): host and final-URL policy with unit tests; the provider status page read gets a byte cap.
-
 ### AD-sec-delegation-hidden-project: [OPEN · Contract drift · S]
 
 - **Summary:** Delegation bootstrap reuses a hidden Project for its root and creates a Session there that Desktop never shows.
@@ -136,6 +129,14 @@ tracked by its own issue because it needs a product decision or its own design.
 ---
 
 ## RESOLVED
+
+### AD-sec-main-link-fetch-trust: [RESOLVED · Contract drift · S]
+
+- **Summary:** Rendering or hovering a transcript link made Main request the origin's favicon or the full URL without excluding loopback or private hosts, and redirects were followed; the provider status read had no body cap.
+- **Evidence:** `apps/desktop/src/main/public-https-fetch.ts` vets every hop of `link-favicons.ts` and `link-previews.ts`; `agent-provider-status.ts` reads through `read-capped-body.ts`. Covered by `public-https-fetch.test.ts`, `link-favicons.test.ts`, `link-previews.test.ts`, and `agent-provider-status.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-13 with the fix
+- **Resolved:** 2026-10-13 via [issue caxri#1676](https://github.com/tjx666/caxri/issues/1676).
+- **Remediation target / Acceptance:** Internal, loopback, and redirect-to-internal URLs are never requested; an oversize status page is cancelled and reported as `invalidResponse`.
 
 ### AD-proc-ssh-server-node-env: [RESOLVED · Contract drift · S]
 
@@ -492,7 +493,7 @@ tracked by its own issue because it needs a product decision or its own design.
 ### AD-lifecycle-chat-closed-queue-respawn: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Closing a Chat while messages were still queued behind its startup could launch a new, invisible provider for the deleted Terminal, inflating the live count and keeping Server Core from its idle exit.
-- **Evidence:** `apps/server/src/domains/agent-chat/chat-states.ts:172` admits a send against the current state and Terminal row at entry and again at the queue head (`apps/server/src/domains/agent-chat/service.ts:331-340`), so a retired state or a deleted row rejects instead of starting; `apps/server/src/domains/agent-chat/__tests__/service-admission.integration.test.ts` covers queued sends across close and row deletion.
+- **Evidence:** `apps/server/src/domains/agent-chat/chat-states.ts:172` admits a send against the current state and Terminal row at entry and again at the queue head (`apps/server/src/domains/agent-chat/service.ts` `enqueueOn()`), so a retired state or a deleted row rejects instead of starting; `apps/server/src/domains/agent-chat/__tests__/service-admission.integration.test.ts` covers queued sends across close and row deletion.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
 - **Remediation target / Acceptance:** Three or more queued sends followed by close and row deletion spawn the provider at most once and leave `liveCount()` at zero.
@@ -942,9 +943,9 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ## Current priority guide (OPEN at 2026-10-13)
 
-**Top priorities:** `AD-proc-chat-endpoint-identity` ([issue caxri#1675](https://github.com/tjx666/caxri/issues/1675)) → `AD-sec-main-link-fetch-trust` → `AD-ext-virtual-tab-descriptors` → `AD-layout-flat-family-enforcement`.
+**Top priorities:** `AD-proc-chat-endpoint-identity` ([issue caxri#1675](https://github.com/tjx666/caxri/issues/1675)) → `AD-ext-virtual-tab-descriptors` → `AD-layout-flat-family-enforcement`.
 
-**Quick wins (S):** `AD-test-knip-before-merge` · `AD-sec-delegation-hidden-project` (after its product decision) · `AD-sec-main-link-fetch-trust`.
+**Quick wins (S):** `AD-test-knip-before-merge` · `AD-sec-delegation-hidden-project` (after its product decision).
 
 ## Historical priority guide (all resolved)
 

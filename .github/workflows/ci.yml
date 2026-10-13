@@ -432,12 +432,15 @@ jobs:
         id: ci-parity
         if: always() && steps.e2e-build.outcome == 'success' && github.event_name == 'workflow_dispatch'
         run: bun run scripts/ci-metrics.ts --label "CI parity workers=1 repeat=3" -- bun run scripts/run-ci-parity.ts
+      # `ci-concurrent-validation.ts run` exits zero after an abort, and a SIGTERM mid Electron launch leaves a
+      # pending desktop lease handoff that would fail this gate with an unrelated lease error (issue #1852). A missing
+      # `aborted` output (the step crashed before publishing it) also skips the gate.
       - name: Run Renderer performance gate
         id: renderer-performance
         if: >-
           always() &&
           (
-            steps.concurrent-full.outcome == 'success' ||
+            (steps.concurrent-full.outcome == 'success' && steps.concurrent-full.outputs.aborted == 'false') ||
             steps.control.outcome == 'success' ||
             steps.desktop-exclusive.outcome == 'success'
           )

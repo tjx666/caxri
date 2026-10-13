@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import process from 'node:process';
 
 import type { FakeCodexIo, FakeThread, FakeTurn } from './fake-codex-io.ts';
+import { runBrowserStep } from './fake-codex-mcp-calls.ts';
 
 interface FakeTerminal {
     itemId: string;
@@ -65,7 +66,15 @@ function finishChildTurn(io: FakeCodexIo, child: FakeThread, turn: FakeTurn) {
     turn.onFinished?.();
 }
 
-export async function runSubagent(io: FakeCodexIo, turn: FakeTurn, isHeld: boolean) {
+/**
+ * `isHeld` keeps the child working after the parent turn ends; `isBrowsing` has the child run the `browsestep` Computer
+ * Use steps before it reports.
+ */
+export async function runSubagent(
+    io: FakeCodexIo,
+    turn: FakeTurn,
+    { isHeld, isBrowsing }: { isHeld: boolean; isBrowsing: boolean },
+) {
     const parent = io.currentThread();
     const child: FakeThread = { id: crypto.randomUUID(), turns: [], parentThreadId: parent.id };
     tasks.children.set(child.id, child);
@@ -117,6 +126,7 @@ export async function runSubagent(io: FakeCodexIo, turn: FakeTurn, isHeld: boole
         await io.streamMessage(turn, 'A helper is working on it.', 0);
         return;
     }
+    if (isBrowsing) await runBrowserStep(io, childTurn);
     await io.streamMessage(childTurn, 'Found one sample file.', 0);
     finishChildTurn(io, child, childTurn);
     const wait = {

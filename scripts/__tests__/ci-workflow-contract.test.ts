@@ -416,6 +416,12 @@ describe('CI workflow contract', () => {
             'renderer_performance_result: ${{ steps.renderer-performance.outcome }}',
         );
         expect(e2eJob).toContain('name: Run Renderer performance gate');
+        // Issue #1852: an aborted concurrent run can leave a pending desktop lease handoff, so the gate
+        // must not run on the `run` step's success alone.
+        expect(e2eJob).toContain(
+            "(steps.concurrent-full.outcome == 'success' && steps.concurrent-full.outputs.aborted == 'false')",
+        );
+        expect(e2eJob).not.toMatch(/\n\s+steps\.concurrent-full\.outcome == 'success' \|\|/u);
         expect(e2eJob).toContain('run: bun run benchmark:renderer');
         expect(e2eJob).toContain('name: Upload Renderer performance receipt');
         expect(e2eJob).toContain('path: test-results/receipts/renderer-performance.json');

@@ -69,9 +69,10 @@ export interface ListExternalConversationsOptions {
     limit?: number;
     /**
      * Thread ids some live Codex process holds a writable rollout handle for (see `codexSessionIdsFromOpenFiles` in
-     * `providers/codex/index.ts`). Omitted, or failing, falls back to the transcript recency heuristic.
+     * `providers/codex/index.ts`), normally `probeOpenCodexSessionIds` in `providers/codex/open-sessions.ts`. Omitted,
+     * resolving `undefined` (the probe could not answer), or rejecting falls back to the transcript recency heuristic.
      */
-    openCodexSessionIds?: () => Promise<ReadonlySet<string>>;
+    openCodexSessionIds?: () => Promise<ReadonlySet<string> | undefined>;
 }
 
 const DEFAULT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;

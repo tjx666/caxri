@@ -13,9 +13,9 @@ import {
 import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 /**
- * Agent Commander workflows that hand off to the Workbench. Both reach `focusMainWindow()` in Main, which shows the
- * Workbench and calls `app.focus({ steal: true })` even for a hidden E2E launch, so they take real OS focus from any
- * sibling worker. They live apart from `agent-commander.e2e.ts` so only these two stay in the desktop-exclusive pool.
+ * Agent Commander workflows that hand off to the Workbench. Both reach `focusMainWindow()` in Main, which for a hidden
+ * E2E launch only focuses the Workbench web contents (`bringWindowForward`): it never shows the window or takes OS
+ * focus, so these tests run in the parallel-safe pool beside sibling workers.
  */
 
 /**

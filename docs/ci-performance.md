@@ -211,8 +211,10 @@ The audit that inverted the default read all 92 exclusive specs. It moved 45 of 
 416s of one-worker time measured on run 38197586711, leaving 48 exclusive specs (about 545s). Two
 specs moved only after a repair: `project-status.e2e.ts` widened its fake CLI's 0.4s busy window to
 2s, and `agent-commander.e2e.ts` moved its two Workbench hand-off tests into
-`agent-commander-workbench-handoff.e2e.ts`, because `focusMainWindow()` shows the Workbench and steals
-OS focus even in a hidden launch. Rejections worth not repeating: `agent-chat-selection` and
+`agent-commander-workbench-handoff.e2e.ts`, because `focusMainWindow()` then showed the Workbench and
+stole OS focus even in a hidden launch. Once a hidden launch's `focusMainWindow()` only focused the
+Workbench web contents (`bringWindowForward` in `apps/desktop/src/main/window-mode.ts`), that spec
+joined `parallel-safe` too. Rejections worth not repeating: `agent-chat-selection` and
 `session-compaction` must observe a 4s toast before it dismisses itself, `session-rename-pending`
 races a fake Agent's real 4s timer, `editor-fold-on-open` drives a Monaco `cmd+k` chord,
 `session-title-scroll` samples marquee speed with `performance.now()`, and `agent-chat` asserts an
@@ -417,7 +419,10 @@ wall time alone hides it.
   appear in the receipt, and records any breach as `abortedInvocations` or `missingSpecs` on the
   receipt with `status: failed`. `scripts/run-e2e-pools.ts` also survives the `SIGTERM` a failed
   sibling component (or the shared deadline below) sends it, long enough to write a partial receipt
-  with `abortReason` instead of losing whatever already failed before the signal arrived.
+  with `abortReason` instead of losing whatever already failed before the signal arrived. The
+  reporter also appends each settled test to a `<receipt>.progress.jsonl` journal, so the
+  invocation the signal killed before `onEnd` still contributes its finished verdicts and failure
+  artifacts; only specs it never reached land in `missingSpecs`.
 - Every required output is checked before every launch. Each Playwright worker performs one full
   recursive build-input scan, then reuses it until a filesystem event or mtime snapshot invalidates
   the cache; watcher failure falls back to scanning.

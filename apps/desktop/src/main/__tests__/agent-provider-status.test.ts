@@ -336,6 +336,35 @@ describe('createAgentProviderStatus', () => {
         },
     );
 
+    it('stops reading an oversize status page and reports it as invalid', async () => {
+        let pulls = 0;
+        let isCancelled = false;
+        const page = new TextEncoder().encode(JSON.stringify(statuspageSummary()));
+        const body = new ReadableStream<Uint8Array>({
+            pull(controller) {
+                // 4 MiB of JSON whitespace with no content-length, then a valid page.
+                if (pulls === 64) {
+                    controller.enqueue(page);
+                    return controller.close();
+                }
+                pulls += 1;
+                controller.enqueue(new Uint8Array(64 * 1024).fill(0x20));
+            },
+            cancel() {
+                isCancelled = true;
+            },
+        });
+        const read = createAgentProviderStatus({
+            fetch: () => Promise.resolve(new Response(body)),
+        });
+        await expect(read('claude')).resolves.toMatchObject({
+            state: 'unavailable',
+            reason: 'invalidResponse',
+        });
+        expect(pulls).toBeLessThan(64);
+        expect(isCancelled).toBe(true);
+    });
+
     it('records the recovery after a failure', async () => {
         const write = vi.fn();
         let isOnline = false;

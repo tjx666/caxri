@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createLinkFavicons } from '../link-favicons';
 
+/**
+ * Every hostname resolves to a public documentation address, so only literal private hosts are refused.
+ */
+const publicHost = () => Promise.resolve(['203.0.113.7']);
+
 function iconResponse(
     body: Uint8Array<ArrayBuffer> | string,
     init: ResponseInit = {},
@@ -14,7 +19,7 @@ describe('createLinkFavicons', () => {
         const fetch = vi.fn(() =>
             iconResponse(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/png' } }),
         );
-        const favicon = createLinkFavicons(fetch);
+        const favicon = createLinkFavicons(fetch, publicHost);
         await expect(favicon('https://a.example')).resolves.toEqual({
             dataUrl: 'data:image/png;base64,AQID',
         });
@@ -24,7 +29,7 @@ describe('createLinkFavicons', () => {
     });
 
     it('labels an untyped body as an icon', async () => {
-        const favicon = createLinkFavicons(() => iconResponse(new Uint8Array([7])));
+        const favicon = createLinkFavicons(() => iconResponse(new Uint8Array([7])), publicHost);
         await expect(favicon('https://a.example')).resolves.toEqual({
             dataUrl: 'data:image/x-icon;base64,Bw==',
         });
@@ -45,7 +50,7 @@ describe('createLinkFavicons', () => {
         ],
     ])('answers no icon for %s, and remembers that', async (_label, respond) => {
         const fetch = vi.fn(respond);
-        const favicon = createLinkFavicons(fetch);
+        const favicon = createLinkFavicons(fetch, publicHost);
         await expect(favicon('https://a.example')).resolves.toEqual({});
         await expect(favicon('https://a.example')).resolves.toEqual({});
         expect(fetch).toHaveBeenCalledOnce();
@@ -65,8 +70,12 @@ describe('createLinkFavicons', () => {
                 isCancelled = true;
             },
         });
-        const favicon = createLinkFavicons(() =>
-            iconResponse(body as unknown as string, { headers: { 'content-type': 'image/png' } }),
+        const favicon = createLinkFavicons(
+            () =>
+                iconResponse(body as unknown as string, {
+                    headers: { 'content-type': 'image/png' },
+                }),
+            publicHost,
         );
         await expect(favicon('https://a.example')).resolves.toEqual({});
         expect(pulls).toBeLessThan(16);
@@ -83,8 +92,12 @@ describe('createLinkFavicons', () => {
                 controller.enqueue(chunk);
             },
         });
-        const favicon = createLinkFavicons(() =>
-            iconResponse(body as unknown as string, { headers: { 'content-type': 'image/png' } }),
+        const favicon = createLinkFavicons(
+            () =>
+                iconResponse(body as unknown as string, {
+                    headers: { 'content-type': 'image/png' },
+                }),
+            publicHost,
         );
         const result = await favicon('https://a.example');
         expect(result.dataUrl?.startsWith('data:image/png;base64,')).toBe(true);
@@ -99,7 +112,7 @@ describe('createLinkFavicons', () => {
                     headers: { 'content-type': 'image/png' },
                 }),
             );
-        const favicon = createLinkFavicons(fetch);
+        const favicon = createLinkFavicons(fetch, publicHost);
         await expect(favicon('https://a.example')).resolves.toEqual({});
         await expect(favicon('https://a.example')).resolves.toEqual({
             dataUrl: 'data:image/png;base64,AQID',
@@ -117,7 +130,7 @@ describe('createLinkFavicons', () => {
             }
             return iconResponse(new Uint8Array([1]), { headers: { 'content-type': 'image/png' } });
         });
-        const favicon = createLinkFavicons(fetch);
+        const favicon = createLinkFavicons(fetch, publicHost);
         const stale = favicon('https://a.example');
         // Fill the cache past its bound so the pending attempt for a.example is evicted, then ask again.
         await Promise.all(
@@ -130,5 +143,35 @@ describe('createLinkFavicons', () => {
         expect(
             fetch.mock.calls.filter(([url]) => url === 'https://a.example/favicon.ico'),
         ).toHaveLength(2);
+    });
+
+    it.each([
+        'https://127.0.0.1',
+        'https://localhost:8443',
+        'https://192.168.1.1',
+        'https://[::1]',
+    ])('never requests the icon of the internal origin %s', async (origin) => {
+        const fetch = vi.fn(() => iconResponse(new Uint8Array([1])));
+        const favicon = createLinkFavicons(fetch, publicHost);
+        await expect(favicon(origin)).resolves.toEqual({});
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('stops at a redirect to an internal address and keeps the globe', async () => {
+        const fetch = vi.fn((url: string) =>
+            Promise.resolve(
+                url === 'https://a.example/favicon.ico'
+                    ? new Response(null, {
+                          status: 302,
+                          headers: { location: 'https://10.0.0.8/favicon.ico' },
+                      })
+                    : new Response(new Uint8Array([1]), {
+                          headers: { 'content-type': 'image/png' },
+                      }),
+            ),
+        );
+        const favicon = createLinkFavicons(fetch, publicHost);
+        await expect(favicon('https://a.example')).resolves.toEqual({});
+        expect(fetch).toHaveBeenCalledOnce();
     });
 });
