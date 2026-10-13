@@ -1,7 +1,7 @@
 import { omit } from 'es-toolkit';
 
 import type { ChartModel, ChartPoint } from './benchmark-results';
-import { niceScale } from './benchmark-results';
+import { isHigherBetter, niceScale } from './benchmark-results';
 
 export const CHART_MARGIN = { top: 28, right: 28, bottom: 44, left: 52 } as const;
 
@@ -37,9 +37,10 @@ export interface ChartLayout {
 }
 
 /**
- * Pixel positions for a chart. Lower is better on every horizontal metric, so the axis runs high to low and the best
- * point sits on the right; quality runs up, and time, when it is the vertical axis, runs down so faster is higher. The
- * top-right corner is therefore always the most efficient.
+ * Pixel positions for a chart. A horizontal metric where lower is better (cost, time) runs high to low, and one where
+ * higher is better (tokens per second) runs low to high, so the best point always sits on the right; quality runs up,
+ * and time, when it is the vertical axis, runs down so faster is higher. The top-right corner is therefore always the
+ * most efficient.
  */
 export function layoutChart(
     chart: ChartModel,
@@ -65,8 +66,12 @@ export function layoutChart(
     const innerTop = plot.top + PLOT_INSET;
     const innerBottom = plot.bottom - PLOT_INSET;
     const span = (domain: [number, number]) => domain[1] - domain[0] || 1;
+    const isXAscending = isHigherBetter(chart.x);
     const xPosition = (value: number) =>
-        innerLeft + ((xScale.domain[1] - value) / span(xScale.domain)) * (innerRight - innerLeft);
+        innerLeft +
+        ((isXAscending ? value - xScale.domain[0] : xScale.domain[1] - value) /
+            span(xScale.domain)) *
+            (innerRight - innerLeft);
     /**
      * Quality grows upward; time grows downward so that faster is higher, like better quality.
      */

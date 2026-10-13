@@ -390,6 +390,7 @@ export const commandDefinitions: CommandDefinition[] = [
             'Run one prompt across several Agents and models and compare quality, time, tokens, and cost',
         keywords: ['benchmark', 'compare', 'models', 'leaderboard', 'eval', 'arena', 'effort'],
         nativeMenu: { menu: 'view', group: 3, order: 1 },
+        when: 'localMachine',
     },
     {
         id: 'settings.open',

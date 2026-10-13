@@ -62,12 +62,13 @@ export interface WorkbenchIpcOptions {
     onStartupFrame?(diagnostic: StartupFrameDiagnostic): void;
     renderer(): WebContents | undefined;
     /**
-     * Optional second Renderer (the Agent Commander window) that shares the Workbench preload and Main's single
-     * Desktop↔Server connection. It is trusted only for the requests its policy admits. It mounts the same Terminal
-     * pane, so its Terminal diagnostics (`TERMINAL_DIAGNOSTIC_KINDS`) are accepted and tagged `window: 'commander'`;
-     * startup-frame, editor, performance, and Workbench readiness diagnostics stay bound to the main window.
+     * Finds the companion Renderer a sender belongs to: an optional window (the Agent Commander, the Benchmark window)
+     * that shares the Workbench preload and Main's single Desktop↔Server connection. Each is trusted only for the
+     * requests its own policy admits. The Commander mounts the same Terminal pane, so a companion's Terminal
+     * diagnostics (`TERMINAL_DIAGNOSTIC_KINDS`) are accepted and tagged with its `rendererWindow`; startup-frame,
+     * editor, performance, and Workbench readiness diagnostics stay bound to the main window.
      */
-    companion?: CompanionRendererPolicy;
+    companion?(sender: WebContents): CompanionRendererPolicy | undefined;
     /**
      * Finds the SSH Host window a sender belongs to. Each SSH Host window has its own Server connection, so its
      * requests use that environment's transport and never reach the local Server; its diagnostics are tagged `window:
@@ -88,7 +89,7 @@ export interface RemoteRendererRoute {
  * Which window a Renderer diagnostic came from, logged as the closed `window` field so a Terminal failure in the Agent
  * Commander window is told apart from one in the Workbench.
  */
-export type RendererWindow = 'commander' | 'remote' | 'workbench';
+export type RendererWindow = 'benchmark' | 'commander' | 'remote' | 'workbench';
 
 /**
  * The diagnostics the Terminal pane emits, which both windows mount. Every other kind describes the Workbench itself
@@ -102,6 +103,10 @@ const TERMINAL_DIAGNOSTIC_KINDS: ReadonlySet<RendererDiagnostic['kind']> = new S
 ]);
 
 export interface CompanionRendererPolicy {
+    /**
+     * Tags this window's diagnostics and failures.
+     */
+    readonly rendererWindow: 'benchmark' | 'commander';
     renderer(): WebContents | undefined;
     /**
      * The window a Main method presents native UI over for this companion's requests, such as its context menu.
@@ -125,8 +130,7 @@ export interface CompanionRendererPolicy {
 export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
     function senderRole(sender: WebContents): 'companion' | 'remote' | 'workbench' | undefined {
         if (options.renderer() && sender === options.renderer()) return 'workbench';
-        const companion = options.companion?.renderer();
-        if (companion && sender === companion) return 'companion';
+        if (options.companion?.(sender)) return 'companion';
         if (options.remote?.(sender)) return 'remote';
         return undefined;
     }
@@ -139,8 +143,9 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
 
     ipcMain.on(RENDERER_ERROR_CHANNELS.workbench, (event, rawKind: unknown) => {
         if (!isRendererErrorKind(rawKind)) return;
-        if (senderRole(event.sender) === 'companion') {
-            options.companion?.onRendererError(rawKind);
+        const companion = options.companion?.(event.sender);
+        if (companion) {
+            companion.onRendererError(rawKind);
             return;
         }
         if (event.sender !== options.renderer() && !options.remote?.(event.sender)) return;
@@ -171,7 +176,10 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
          * them with network latency.
          */
         if (role === 'remote' && !TERMINAL_DIAGNOSTIC_KINDS.has(diagnostic.kind)) return;
-        const rendererWindow: RendererWindow = role === 'companion' ? 'commander' : role;
+        const rendererWindow: RendererWindow =
+            role === 'companion'
+                ? (options.companion?.(event.sender)?.rendererWindow ?? 'commander')
+                : role;
         if (diagnostic.kind === 'terminal-renderer') {
             options.onRendererDiagnostic?.(diagnostic, rendererWindow);
             return;
@@ -405,7 +413,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
     ipcMain.on('caxri:renderer-events-ready', (event) => {
         const role = assertSender(event.sender);
         if (role === 'companion') {
-            options.companion?.onEventsReady();
+            options.companion?.(event.sender)?.onEventsReady();
             return;
         }
         if (role === 'remote') {
@@ -419,7 +427,8 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         let isRecovering = () => options.isRecovering();
         try {
             const role = assertSender(event.sender);
-            if (role === 'companion') options.companion?.admit(raw);
+            const companion = role === 'companion' ? options.companion?.(event.sender) : undefined;
+            companion?.admit(raw);
             const remote = role === 'remote' ? options.remote?.(event.sender) : undefined;
             if (remote) isRecovering = () => remote.isRecovering();
             isTrustedRenderer = true;
@@ -439,10 +448,10 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     error: toWireError(new CaxriError('CANCELLED', 'Application is quitting')),
                 };
             const reply = await runInRequestWindow(
-                role === 'companion' ? options.companion?.window() : remote?.window(),
+                companion ? companion.window() : remote?.window(),
                 () => (remote?.transport ?? options.transport).dispatch(raw),
             );
-            if (role === 'companion' && reply.ok) options.companion?.observeReply?.(raw, reply);
+            if (companion && reply.ok) companion.observeReply?.(raw, reply);
             /**
              * In-flight reads can outlive the window once quit closes the Server attachment; the consumer is gone.
              */

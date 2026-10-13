@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 
 import { parseMarkdownBlocks } from '@caxri/markdown';
 import type { BenchmarkAttempt } from '@caxri/protocol';
-import { formatTokens } from '@caxri/protocol';
 import { Square } from 'lucide-react';
 
 import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
@@ -13,6 +12,7 @@ import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { pushToast, tryCommand } from '../../stores/toasts';
+import { BenchmarkAttemptMetrics } from './benchmark-attempt-metrics';
 import { cancelBenchmark } from './benchmark-commands';
 import { attemptStatusLabel } from './benchmark-presentation';
 import { isAttemptFinished } from './benchmark-results';
@@ -115,14 +115,6 @@ export function BenchmarkAttemptDetail({
                         })}
                     </span>
                 )}
-                {attempt.tokens && (
-                    <span className="text-muted tabular-nums">
-                        {t('benchmark.detail.tokens', {
-                            total: formatTokens(attempt.tokens.total),
-                            output: formatTokens(attempt.tokens.output),
-                        })}
-                    </span>
-                )}
                 {isFinished && (
                     <span className="text-muted tabular-nums">
                         {t('benchmark.board.steps', { count: attempt.steps })}
@@ -147,6 +139,7 @@ export function BenchmarkAttemptDetail({
                     </Button>
                 )}
             </div>
+            {isFinished && <BenchmarkAttemptMetrics attempt={attempt} />}
             {attempt.failureMessage && (
                 <p className="m-0 rounded-md border border-border bg-background p-2 text-[12px] whitespace-pre-wrap text-danger">
                     {attempt.failureMessage}

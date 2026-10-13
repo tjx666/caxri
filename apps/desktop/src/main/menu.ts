@@ -23,6 +23,7 @@ export interface AppMenuOptions {
     dispatchCommand: (command: CommandId, isViaAccelerator: boolean) => void;
     openProcessExplorer: () => void;
     openAgentCommander: () => void;
+    openBenchmark: () => void;
     /**
      * The Workbench window, which runs every command-backed item. Absent while it is closed.
      */
@@ -181,6 +182,7 @@ export function buildAppMenuTemplate({
     keybindings,
     dispatchCommand,
     openAgentCommander,
+    openBenchmark,
     openProcessExplorer,
     workbenchWindow,
     focusWorkbench,
@@ -217,6 +219,8 @@ export function buildAppMenuTemplate({
              * ask before a running Commander turn ends.
              */
             if (definition.id === 'agentCommander.open') return openAgentCommander();
+            // Open Benchmark raises its own window from Main too, so it also works while that window is focused.
+            if (definition.id === 'benchmark.open') return openBenchmark();
             // A programmatic `MenuItem.click()` passes no event; it is a deliberate click, not an accelerator.
             const isViaAccelerator = event?.triggeredByAccelerator === true;
             if (focused && dispatchToRemoteWindow?.(focused, definition.id, isViaAccelerator))

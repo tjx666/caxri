@@ -1,4 +1,5 @@
 import { RENDERER_DIAGNOSTIC_CHANNEL } from '@caxri/protocol';
+import type { WebContents } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => {
@@ -21,6 +22,7 @@ const electronMock = vi.hoisted(() => {
 vi.mock('electron', () => ({ ipcMain: electronMock.ipcMain }));
 
 import { currentRequestWindow } from '../request-window';
+import type { CompanionRendererPolicy } from '../workbench-ipc';
 import { installWorkbenchIpc } from '../workbench-ipc';
 
 describe('workbench IPC companion requests', () => {
@@ -40,13 +42,17 @@ describe('workbench IPC companion requests', () => {
             onEventsReady: vi.fn(),
             onRendererDiagnostic: vi.fn(),
             renderer: () => renderer as never,
-            companion: {
-                renderer: () => companionRenderer as never,
-                window: () => companionWindow as never,
-                admit: vi.fn(),
-                onEventsReady: vi.fn(),
-                onRendererError: vi.fn(),
-            },
+            companion: (sender) =>
+                sender === (companionRenderer as never)
+                    ? {
+                          rendererWindow: 'commander',
+                          renderer: () => companionRenderer as never,
+                          window: () => companionWindow as never,
+                          admit: vi.fn(),
+                          onEventsReady: vi.fn(),
+                          onRendererError: vi.fn(),
+                      }
+                    : undefined,
             transport: {
                 dispatch: vi.fn(() => {
                     seen.push(currentRequestWindow());
@@ -70,6 +76,59 @@ describe('workbench IPC companion requests', () => {
     });
 
     /**
+     * The Agent Commander and Benchmark windows are open together: each request is admitted by the policy of the window
+     * that sent it, so one window's allowlist never widens or narrows the other's.
+     */
+    it('admits each companion request through its own window policy', async () => {
+        const commanderRenderer = {} as WebContents;
+        const benchmarkRenderer = {} as WebContents;
+        const commanderAdmit = vi.fn();
+        const benchmarkAdmit = vi.fn(() => {
+            throw new Error('denied');
+        });
+        const companion = (
+            rendererWindow: 'benchmark' | 'commander',
+            renderer: WebContents,
+            admit: () => void,
+        ): CompanionRendererPolicy => ({
+            rendererWindow,
+            renderer: () => renderer,
+            window: () => {},
+            admit,
+            onEventsReady: vi.fn(),
+            onRendererError: vi.fn(),
+        });
+        const dispatch = vi.fn(() =>
+            Promise.resolve({ protocolVersion: 2, id: 'r1', ok: true, result: null } as const),
+        );
+        installWorkbenchIpc({
+            isQuitting: () => false,
+            isRecovering: () => false,
+            logger: () => {},
+            renderer: () => {},
+            companion: (sender) => {
+                if (sender === commanderRenderer)
+                    return companion('commander', commanderRenderer, commanderAdmit);
+                if (sender === benchmarkRenderer)
+                    return companion('benchmark', benchmarkRenderer, benchmarkAdmit);
+                return;
+            },
+            transport: { dispatch, negotiate: vi.fn() },
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+        const envelope = { protocolVersion: 2, id: 'r1', method: 'commander.board', params: {} };
+
+        const commanderReply = await request({ sender: commanderRenderer }, envelope);
+        const benchmarkReply = await request({ sender: benchmarkRenderer }, envelope);
+
+        expect(commanderReply).toMatchObject({ ok: true });
+        expect(benchmarkReply).toMatchObject({ ok: false });
+        expect(commanderAdmit).toHaveBeenCalledOnce();
+        expect(benchmarkAdmit).toHaveBeenCalledOnce();
+        expect(dispatch).toHaveBeenCalledOnce();
+    });
+
+    /**
      * The Agent Commander window mounts the same Terminal pane, so a WebGL failure there must reach the GPU log tagged
      * with its window; its startup frame is not the Workbench's and must not complete the Workbench startup profile.
      */
@@ -87,13 +146,17 @@ describe('workbench IPC companion requests', () => {
             onRendererDiagnostic,
             onStartupFrame,
             renderer: () => renderer as never,
-            companion: {
-                renderer: () => companionRenderer as never,
-                window: () => {},
-                admit: vi.fn(),
-                onEventsReady: vi.fn(),
-                onRendererError: vi.fn(),
-            },
+            companion: (sender) =>
+                sender === (companionRenderer as never)
+                    ? {
+                          rendererWindow: 'commander',
+                          renderer: () => companionRenderer as never,
+                          window: () => {},
+                          admit: vi.fn(),
+                          onEventsReady: vi.fn(),
+                          onRendererError: vi.fn(),
+                      }
+                    : undefined,
             transport: { dispatch: vi.fn(), negotiate: vi.fn() },
         });
         const report = electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;

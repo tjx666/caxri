@@ -499,6 +499,7 @@ export default defineConfig(
             '**/main.tsx',
             '**/process-explorer-main.tsx',
             '**/agent-commander-main.tsx',
+            '**/benchmark-main.tsx',
             '**/index.tsx',
             '**/*.test.tsx',
             '**/*.stories.tsx',
