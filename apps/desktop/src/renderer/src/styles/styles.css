@@ -480,8 +480,13 @@
  * the renderer canvas only paints the theme background over the character grid, so the reserved
  * gutter would show as a black strip. VS Code clears the viewport background the same way and lets
  * the terminal container own the background color.
+ *
+ * The selector repeats xterm's `:not(.allow-transparency)` so it outranks xterm's rule by
+ * specificity alone. With equal specificity, source order decides, and the production build emits
+ * xterm.css in a shared chunk linked after this file, so the black strip returned in packaged
+ * builds while dev (which follows `main.tsx` import order) looked correct.
  */
-.terminal-surface .xterm .xterm-viewport {
+.terminal-surface .xterm:not(.allow-transparency) .xterm-viewport {
     background-color: transparent;
 }
 /* Keep xterm's own scrollbar as the scroll owner so FitAddon, wheel input, and scrollback state never pass through an
