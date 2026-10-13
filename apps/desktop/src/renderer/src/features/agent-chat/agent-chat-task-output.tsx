@@ -1,5 +1,6 @@
 import { CodeView } from '../../components/markdown/code-view';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 
@@ -49,7 +50,11 @@ export function AgentChatTaskOutput({
                 </div>
             )}
             <div
-                className="min-h-0 flex-1 overflow-auto outline-none"
+                className={cn(
+                    'min-h-0 flex-1 overflow-auto outline-none',
+                    // Ends above Jump to latest while it shows, as the Chat pane does, so it never covers a line.
+                    !isFollowing && 'mb-10',
+                )}
                 ref={scrollReference}
                 tabIndex={-1}
                 onScroll={onScroll}

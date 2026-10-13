@@ -129,7 +129,11 @@ function TaskTimeline({
     return (
         <div className="relative h-full min-h-0">
             <div
-                className="h-full overflow-y-auto outline-none"
+                className={cn(
+                    'absolute inset-x-0 top-0 overflow-y-auto outline-none',
+                    // Ends above Jump to latest while it shows, as the Chat pane does, so it never covers a line.
+                    isFollowing ? 'bottom-0' : 'bottom-10',
+                )}
                 ref={scrollReference}
                 tabIndex={-1}
                 onScroll={onScroll}
