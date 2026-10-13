@@ -8,6 +8,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { AgentDispatchService } from '../../agent-dispatch';
 import { createCommanderSession, discardCommanderSession } from '../../commander';
 import { CaxriDatabase } from '../../db';
+import { createBackgroundSession, discardEmptySession } from '../../session';
 import { AgentDelegationService } from '../service';
 
 async function fixture() {
@@ -44,10 +45,16 @@ async function fixture() {
         launchSettings: () => ({ executable: 'claude', args: ['--model', 'sonnet'] }),
         verifyLaunch: () => Promise.resolve(),
         readTranscript: vi.fn().mockResolvedValue(null),
-        commanderSessions: {
-            create: (projectId, title) =>
-                createCommanderSession(database, projectId, undefined, title),
-            discard: (sessionId) => discardCommanderSession(database, sessionId),
+        newSessions: {
+            create: (projectId, title, isCommander) =>
+                isCommander
+                    ? createCommanderSession(database, projectId, undefined, title)
+                    : createBackgroundSession(database, projectId, title),
+            discard: (sessionId) => {
+                if (database.agentCommanderRows()?.sessionIds.includes(sessionId))
+                    discardCommanderSession(database, sessionId);
+                else discardEmptySession(database, sessionId);
+            },
         },
     });
     onTestFinished(() => service.close());
@@ -61,6 +68,20 @@ async function fixture() {
         },
         callerTerminalId: commander.terminal!.id,
     };
+    const callerRoot = join(directory, 'caller');
+    await mkdir(callerRoot);
+    const callerProject = database.createProject(callerRoot);
+    const caller = database.createSession(callerProject.id, 'codex');
+    const agentAuthority = {
+        principal: {
+            kind: 'agent' as const,
+            id: 'agent',
+            endpointId: 'agent',
+            generation: 1,
+            projectIds: [callerProject.id],
+        },
+        callerTerminalId: caller.terminal!.id,
+    };
     const request = {
         projectId: project.id,
         provider: 'claude' as const,
@@ -68,7 +89,7 @@ async function fixture() {
         newSession: true as const,
         title: 'Fix login retry',
     };
-    return { database, service, commanderAuthority, request };
+    return { database, service, commanderAuthority, agentAuthority, project, request };
 }
 
 /**
@@ -123,15 +144,107 @@ describe('Delegation into a new Commander Session', () => {
         expect(database.agentCommanderRows()?.sessionIds).toEqual([]);
     });
 
-    it('refuses a caller other than the Agent Commander', async () => {
-        const { service, request } = await fixture();
+    it('refuses an external delegation identity bound to one Session', async () => {
+        const { database, service, project, request } = await fixture();
+        const bound = database.createSession(project.id, null);
+        const sessionsBefore = database.listVisibleSessions().length;
 
         await expect(
             service.create(
                 randomUUID(),
-                { principal: { kind: 'human-cli', id: 'owner' } },
+                {
+                    principal: {
+                        kind: 'delegation-client',
+                        id: 'external',
+                        clientId: 'external-client',
+                        generation: 1,
+                        projectIds: [project.id] as [string],
+                        sessionId: bound.session.id,
+                        callerProvider: 'codex',
+                    },
+                },
                 request,
             ),
-        ).rejects.toThrow('Only the Agent Commander');
+        ).rejects.toThrow('cannot delegate into a new Session');
+        expect(database.listVisibleSessions()).toHaveLength(sessionsBefore);
+    });
+});
+
+/**
+ * Creating and talking to Sessions is ordinary Agent work, not a Commander privilege: an Agent in any Session, Terminal
+ * or Chat, used to be refused here, and was steered toward borrowing the owner's identity instead.
+ */
+describe('Delegation into a new Session from an ordinary Agent', () => {
+    it('creates a visible Session in another added Project and keeps working there', async () => {
+        const { database, service, agentAuthority, project, request } = await fixture();
+
+        const receipt = await service.create(randomUUID(), agentAuthority, request);
+
+        expect(database.getSession(receipt.sessionId)).toMatchObject({
+            projectId: project.id,
+            displayTitle: 'Fix login retry',
+        });
+        // A plain user-visible Session: the Commander never records it as its own.
+        expect(database.listVisibleSessions().map(({ id }) => id)).toContain(receipt.sessionId);
+        expect(database.agentCommanderRows()?.sessionIds).toEqual([]);
+        // The Agent's own task there admits its next one, without a new Session.
+        const second = await service.create(randomUUID(), agentAuthority, {
+            projectId: project.id,
+            sessionId: receipt.sessionId,
+            provider: 'claude',
+            prompt: 'Second synthetic task',
+        });
+        expect(second.sessionId).toBe(receipt.sessionId);
+        expect(service.status(receipt.delegationId, agentAuthority)).toMatchObject({
+            sessionId: receipt.sessionId,
+        });
+        // An Agent that lost its context recovers its own task IDs, and only its own.
+        expect(
+            service
+                .list(agentAuthority, { active: false, limit: 1 })
+                .delegations.map(({ delegationId }) => delegationId),
+        ).toEqual([second.delegationId]);
+        expect(service.list(agentAuthority, { active: false, limit: 1 }).truncated).toBe(true);
+        expect(
+            service.list(
+                { ...agentAuthority, principal: { ...agentAuthority.principal, generation: 2 } },
+                { active: false, limit: 20 },
+            ).delegations,
+        ).toEqual([]);
+    });
+
+    it('refuses a Session the Agent did not create, and a hidden Project', async () => {
+        const { database, service, agentAuthority, project, request } = await fixture();
+        const userSession = database.createSession(project.id, null);
+
+        await expect(
+            service.create(randomUUID(), agentAuthority, {
+                projectId: project.id,
+                sessionId: userSession.session.id,
+                provider: 'claude',
+                prompt: 'Synthetic private task',
+            }),
+        ).rejects.toThrow('its own Session or a Session it created');
+        database.hideProject(project.id);
+        const sessionsBefore = database.listVisibleSessions().length;
+        await expect(service.create(randomUUID(), agentAuthority, request)).rejects.toThrow(
+            'Project is unavailable',
+        );
+        expect(database.listVisibleSessions()).toHaveLength(sessionsBefore);
+    });
+
+    it('removes the Session again when admission refuses the task', async () => {
+        const { database, service, agentAuthority, request } = await fixture();
+        const sessionsBefore = database.listSessions().length;
+
+        await expect(
+            service.create(randomUUID(), agentAuthority, {
+                ...request,
+                provider: undefined,
+                preset: 'missing-preset',
+            }),
+        ).rejects.toThrow();
+
+        expect(database.listSessions()).toHaveLength(sessionsBefore);
     });
 });

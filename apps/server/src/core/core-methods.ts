@@ -110,6 +110,7 @@ export const coreForwardedMethods = [
     'keybindings.get',
     'keybindings.update',
     'logs.query',
+    'project.add',
     'project.browseFolders',
     'project.hide',
     'project.restorable',

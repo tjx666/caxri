@@ -32,10 +32,17 @@ import { notifyListeners } from '@caxri/utils';
 const ENDPOINT_TTL_MS = 24 * 60 * 60 * 1_000;
 const MAX_RETIRED_ENDPOINTS = 256;
 
+/**
+ * Every managed Agent can open Sessions and delegate tasks into them, and register a local folder as a Project to do
+ * so, the way the Agent Commander does: cross-Session delegation is ordinary Agent work, not a Commander privilege. The
+ * delegation domain decides which Sessions a task may target (`authorizeDelegationSession`).
+ */
 const BASELINE_CAPABILITIES = [
     'agents.read',
     'agents.message',
+    'agents.delegate',
     'projects.read',
+    'projects.write',
     'sessions.read',
     'terminals.read',
 ] as const satisfies readonly Capability[];
@@ -44,7 +51,6 @@ const GRANT_CAPABILITIES = {
     'debug:read': ['diagnostics.read', 'events.read', 'settings.read'],
     'business:write': ['settings.write'],
     'agent:control': ['agents.control', 'agents.dispatch'],
-    'agent:delegate': ['agents.delegate', 'agents.read'],
 } as const satisfies Record<AgentGrantPolicy, readonly Capability[]>;
 
 interface StoredEndpoint {
@@ -97,14 +103,11 @@ function tokenDigest(token: string): Buffer {
 }
 
 /**
- * Fixed authority of the Agent Commander Terminal: read the cross-Project board, create empty Sessions, and delegate
- * into them. Target Sessions are authorized per request by domain services, so the principal's Project scope stays the
- * Commander's own system Project and never widens to control or dispatch.
+ * Fixed authority of the Agent Commander Terminal: read the cross-Project board, keep its task ledger and Inbox, and
+ * create empty Sessions. Target Sessions are authorized per request by domain services, so the principal's Project
+ * scope stays the Commander's own system Project and never widens to control or dispatch.
  */
-const COMMANDER_CAPABILITIES = [
-    'agents.delegate',
-    'commander',
-] as const satisfies readonly Capability[];
+const COMMANDER_CAPABILITIES = ['commander'] as const satisfies readonly Capability[];
 
 function capabilitiesFor(record: StoredEndpoint, now: number): Capability[] {
     const granted = new Set<Capability>(BASELINE_CAPABILITIES);

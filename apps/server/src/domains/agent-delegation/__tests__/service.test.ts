@@ -289,7 +289,7 @@ describe('AgentDelegationService', () => {
         };
         await expect(
             f.service.create(f.id, { principal, callerTerminalId: other.terminal!.id }, f.input),
-        ).rejects.toThrow(/caller Session/u);
+        ).rejects.toThrow(/its own Session or a Session it created/u);
         expect(f.start).not.toHaveBeenCalled();
         await f.service.create(f.id, owner, f.input);
         expect(() =>

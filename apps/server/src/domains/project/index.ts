@@ -1,3 +1,4 @@
+export { addProjectFolder } from './add';
 export {
     createProjectFolderBrowser,
     hasVisibleChildDirectory,

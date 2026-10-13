@@ -1,6 +1,6 @@
 ---
 name: caxri-cli
-description: Operate and debug the current Caxri Host through its version-matched CLI contract. Use when an Agent needs to inspect Caxri Projects or Sessions, validate Settings, collect redacted diagnostics, exchange bounded peer messages, dispatch or control an Agent, steer a Terminal with human authority, or verify which capabilities and commands are available.
+description: Operate and debug the current Caxri Host through its version-matched CLI contract. Use when an Agent needs to inspect Caxri Projects or Sessions, start a task in a new Session of any added Project and follow its result, add a folder as a Project, validate Settings, collect redacted diagnostics, exchange bounded peer messages, dispatch or control an Agent, steer a Terminal with human authority, or verify which capabilities and commands are available.
 ---
 
 # Caxri CLI
@@ -8,7 +8,11 @@ description: Operate and debug the current Caxri Host through its version-matche
 Use only the bundled `caxri` binary and its authenticated local Host transport. Treat this skill as
 workflow guidance; treat live introspection as the command and capability authority.
 
-<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,commander,diagnostics.read,projects.read,sessions.read,settings.read,settings.write,terminals.steer -->
+Inside a Caxri Terminal or Agent Chat, the `CAXRI_CLI` environment variable names the launcher that
+matches the Host which started you. Run `"${CAXRI_CLI:-caxri}"` wherever this guide writes `caxri`:
+a `caxri` found on `PATH` can belong to another installed version that lacks newer commands.
+
+<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,commander,diagnostics.read,projects.read,projects.write,sessions.read,settings.read,settings.write,terminals.steer -->
 
 ## Start with live introspection
 
@@ -111,6 +115,32 @@ or use Terminal input as a delivery fallback. If messaging reports unavailable, 
 next action or require local skill installation; do not downgrade to arbitrary shell or Provider
 state access.
 
+## Start work in another Session
+
+Every Agent, in a Terminal or an Agent Chat, can hand a task to a new Agent in its own visible
+Session, in any Project the user added. The user sees that Session appear in the sidebar and can
+open it at any time, so prefer this over running a long side task inside your own conversation.
+
+```bash
+caxri project list --json
+caxri project add ../other-repo --json
+```
+
+Then write the task to a file and run
+`agent delegate create --project <id> --new-session --title <subject> --provider <provider> --prompt-file <path> --request-id <id> --json`.
+
+- `project list` returns every top-level Project the user added. To find the Project for a folder,
+  or to add one the user has not opened yet, run `project add <path>`: it returns the existing
+  Project for an added folder and shows a hidden one again, so tell the user when you add or
+  unhide one.
+- `--new-session --title <subject>` creates the Session together with its task. Name it after the
+  task's concrete subject; the user reads it in the sidebar. Without `--new-session`, `--session`
+  accepts only your own Session or a Session you already delegated into.
+- Report the returned `sessionId` and title to the user, then follow the task as described below:
+  `wait`, `result`, `--follow-up` for the next instruction to the same Agent, and `stop`.
+- Lost track of a task after a context reset? `caxri agent delegate list --active --json` lists
+  your own tasks, newest first.
+
 ## Keep dispatch, control, and steer separate
 
 - `agent delegate create` runs a task from `--prompt-file` in a visible Claude, Codex or Grok child Terminal.
@@ -118,8 +148,8 @@ state access.
   then select `--preset <name>` or explicit `--provider` with optional `--model` and `--effort`.
   The Server enforces preset exclusions and nesting depth. Follow-up and resume keep their saved
   selection and instructions; do not resend a different model or try to override caller identity.
-  It needs an explicit `agent:delegate` grant or an owner-issued external delegation identity, plus
-  exact `--project`/`--session` selectors.
+  Every managed Agent holds `agents.delegate`; an external caller needs an owner-issued delegation
+  identity. Pass `--project` with `--session` or `--new-session --title <text>`.
   Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
   to retrieve the exact saved answer. With several tasks running, `agent delegate wait <id> <id>...`
   returns the first one that settled or blocked. A wait timeout never authorizes resubmitting the task.

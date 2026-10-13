@@ -1,17 +1,18 @@
 import type { AgentProvider, AgentProviderSettings } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import type { AgentChatEndpoint } from '../agent-chat';
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { CaxriDatabase } from '../db';
+import type { AgentChatEndpoint } from './service-options';
 
 /**
- * The Agent Endpoint a Chat Commander carries. The Commander does all its work through `"$CAXRI_CLI" ...` with the
- * `commander` role, which a PTY launch receives from the Terminal lifecycle environment. A Chat launch has no PTY
- * lifecycle, so the Chat service asks here instead, and only the recorded Commander Terminal gets an Endpoint: every
- * other Chat keeps running without one, as before.
+ * The Agent Endpoint every Chat process carries, so `caxri` commands from a Chat Agent authenticate as that Agent on
+ * either surface. A PTY launch receives the same environment from the Terminal lifecycle; a Chat launch has no PTY
+ * lifecycle, so the Chat service asks here instead. The Agent Commander's Chat keeps the `commander` role, matching the
+ * PTY launch. Without an Endpoint, the CLI would fall back to the profile owner's identity, which the bundled skill
+ * forbids an Agent to borrow, so a Chat Agent could not delegate at all.
  */
-export function commanderChatEndpoint({
+export function agentChatEndpoint({
     database,
     endpoints,
     providerSettings,
@@ -29,16 +30,15 @@ export function commanderChatEndpoint({
                 await endpoints.activate(terminalId);
         },
         environment: async (terminal, launchId) => {
-            if (database.agentCommanderRows()?.terminalId !== terminal.id) return {};
+            if (!terminal.provider) return {};
             const session = database.getSession(terminal.sessionId);
-            if (!session || !terminal.provider)
-                throw new CaxriError('CONFLICT', 'Agent Commander Session no longer exists');
+            if (!session) throw new CaxriError('CONFLICT', 'Agent Chat Session no longer exists');
             return endpoints.environment(
                 terminal,
                 session.projectId,
                 providerSettings(terminal.provider),
                 launchId,
-                'commander',
+                database.agentCommanderRows()?.terminalId === terminal.id ? 'commander' : undefined,
             );
         },
         retire: (terminalId) => endpoints.retire(terminalId),

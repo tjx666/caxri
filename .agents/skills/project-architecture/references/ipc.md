@@ -27,9 +27,10 @@ Controlled view operations use the public protocol union and exhaustive metadata
 routing, cancellation, and request lifetime. Host dispatch must remain exhaustive over that union;
 Core capability and active-context authorization remain independent of the shared lifecycle policy.
 
-Visible task delegation owns a separate `agent-delegation` Server domain. Its explicit
-`agents.delegate` capability and `agent:delegate` grant never widen human Terminal steer or general
-Agent control. Task identity, frozen launch settings and private answers are persisted before/after
+Visible task delegation owns a separate `agent-delegation` Server domain. Its `agents.delegate`
+capability, held by every managed Agent, never widens human Terminal steer or general Agent control.
+Server Core defers an Agent's target Project check to that domain, which admits the caller's own
+Session and Sessions it created in a visible top-level Project. Task identity, frozen launch settings and private answers are persisted before/after
 the managed Terminal side effects. Provider adapters own native launch flags, identity and finality:
 Claude matches a proven Stop digest, while Codex binds an authenticated turn to a native final event.
 Codex result reads advance a bounded private cursor without rescanning unchanged history.

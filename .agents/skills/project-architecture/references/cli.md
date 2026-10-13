@@ -38,8 +38,12 @@ through Main's `files.trash`.
 For a directly managed Agent PTY, Server Core creates a separate Endpoint credential immediately before
 the Terminal Host spawn request. Server Core stores only its digest and fences every command by Server,
 Endpoint, generation, and launch identity; restart, exit, close, deletion, Server Core crash, and
-expiry revoke it. The inherited Agent credential supplies same-Project read capabilities by default,
-while bounded generation grants add debug, business-write, or Agent-control capabilities. The Agent
+expiry revoke it. The inherited Agent credential supplies same-Project read capabilities, visible
+delegation (`agents.delegate`), and Project registration (`projects.write`) by default, while bounded
+generation grants add debug, business-write, or Agent-control capabilities. Every Agent Chat process
+carries an Endpoint the same way, so a Chat Agent never falls back to the owner's identity.
+Cross-Session delegation is ordinary Agent work: do not make a general delegation capability
+Commander-only. The Agent
 Commander's Endpoint alone carries the fixed `commander` capability for `commander board`,
 `commander session create|archive`, the `commander task` ledger, and the Commander's side of the Inbox
 (`commander inbox add|list|show|ack|resolve`); replying, dismissing, and merging require `desktop` (see

@@ -55,6 +55,12 @@ Every path that registers a Project is one of these authorities; a new one belon
   human CLI may call `commander.session.handOver`; Server Core refuses every other principal, including
   an Agent Endpoint holding an `agent:control` grant; see
   [Agent Commander](../../../../docs/agent-commander.md).
+- `project.add` (`caxri project add <path>`) from any managed Agent Endpoint or the owner's human CLI,
+  through the `projects.write` capability. Server Core canonicalizes the absolute path the CLI
+  resolved from its working directory and registers that root as `mobile.project.add` does, without
+  the home-directory restriction: an Agent already runs as the user, and the user chose to let Agents
+  open repositories they have not added yet. It is idempotent by root and shows a hidden Project
+  again; see [visible delegation](../../../../docs/agent-delegation.md#start-work-in-a-new-session).
 
 ## Main outbound requests
 
