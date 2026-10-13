@@ -30,6 +30,39 @@ export interface BoundedRegularFileReadOptions {
     symlinks?: 'follow' | 'nofollow';
 }
 
+/**
+ * Reads an opened file from offset 0, returning at most `maxBytes + 1` bytes so a caller detects an oversized file by
+ * length. The buffer starts at the `fstat` size the caller already holds instead of the cap: V8 counts every Buffer as
+ * external memory, and allocating the whole cap (2 MiB for Project search) per file kept a search Worker in
+ * back-to-back full GCs while it read thousands of small files. A file that grew after its `fstat` (or one that reports
+ * size 0, like procfs) continues into a cap-sized buffer, so the result is the same as reading into the cap.
+ *
+ * `apps/server/src/domains/files/project-search-worker.ts` keeps its own copy of this loop: that Worker imports only
+ * Node builtins at runtime, because its tests run the TypeScript source directly as a Worker.
+ */
+export async function readFileHandleUpTo(
+    file: Pick<FileHandle, 'read'>,
+    sizeHint: number,
+    maxBytes: number,
+): Promise<Buffer> {
+    let buffer = Buffer.allocUnsafe(Math.min(Math.max(0, sizeHint), maxBytes) + 1);
+    let bytesRead = 0;
+    for (;;) {
+        if (bytesRead === buffer.length) {
+            if (buffer.length > maxBytes) break;
+            const grown = Buffer.allocUnsafe(maxBytes + 1);
+            buffer.copy(grown, 0, 0, bytesRead);
+            buffer = grown;
+        }
+        // Each read's offset depends on the bytes already read, so the reads are inherently sequential.
+        // eslint-disable-next-line no-await-in-loop -- sequential-by-offset read, see comment above
+        const result = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
+        if (result.bytesRead === 0) break;
+        bytesRead += result.bytesRead;
+    }
+    return buffer.subarray(0, bytesRead);
+}
+
 function capacityError(maxBytes: number, message?: string): CaxriError {
     return new CaxriError('CAPACITY', message ?? `File exceeds the ${maxBytes} byte safety limit`);
 }
@@ -66,18 +99,9 @@ export async function readBoundedRegularFile(
         if (stats.size > maxBytes) throw capacityError(maxBytes, options.capacityMessage);
         await options.beforeRead?.();
 
-        const buffer = Buffer.allocUnsafe(maxBytes + 1);
-        let bytesRead = 0;
-        while (bytesRead < buffer.length) {
-            // Each read's offset depends on the byte count already read, so the reads are
-            // inherently sequential and cannot be batched with Promise.all.
-            // eslint-disable-next-line no-await-in-loop -- sequential-by-offset read, see comment above
-            const result = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
-            if (result.bytesRead === 0) break;
-            bytesRead += result.bytesRead;
-        }
-        if (bytesRead > maxBytes) throw capacityError(maxBytes, options.capacityMessage);
-        return buffer.subarray(0, bytesRead);
+        const buffer = await readFileHandleUpTo(file, stats.size, maxBytes);
+        if (buffer.length > maxBytes) throw capacityError(maxBytes, options.capacityMessage);
+        return buffer;
     } finally {
         await file.close();
     }
