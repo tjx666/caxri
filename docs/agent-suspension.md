@@ -122,10 +122,13 @@ samples a Chat does not record. Besides the conditions above, the Chat's own pro
 nothing pending (`AgentChatService.isSuspendable`): its provider is ready and bound to an Agent
 Session, and no turn, approval or question, operation (compaction), running background task, or
 queued message remains. An unbound Chat is never parked, because it has no conversation to resume.
+A Chat a paired phone has open (an `agentChat` subscription) counts as viewed, like a phone-watched
+Conversation, so a reply sent from the phone never finds its provider stopped.
 
 Parking a Chat (`AgentChatService.suspendIdle`) runs on its send chain, so input accepted first is
 delivered first. It stops the provider process but keeps the in-memory conversation, so every
-Client still shows it, and records the Terminal as `suspended`. Selecting the Session starts the
+Client still shows it. The provider's requested exit records the Terminal as `suspended` rather than
+`stopped`, whenever that exit lands, and the next start clears the mark. Selecting the Session starts the
 provider again on the same Agent Session; so does a message or a read from any Client. A Chat that
 an earlier Server Core left `suspended` resumes lazily on its next read, like any Chat after a
 restart. Grok Build Chats are eligible because a Chat resumes through the provider's session

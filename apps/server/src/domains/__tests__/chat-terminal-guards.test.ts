@@ -208,6 +208,7 @@ describe('Chat Terminal PTY guards', () => {
         const agentChat = {
             compactIdle: vi.fn<(terminalId: string, launchId: string) => Promise<void>>(),
             idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(),
+            isLive: vi.fn(() => false),
         };
         const service = new SessionCompaction({
             agentChat,

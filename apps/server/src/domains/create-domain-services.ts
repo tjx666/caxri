@@ -214,7 +214,7 @@ export async function createDomainServices(
         send,
         settings: () => configuration.getSettings().value,
         ...dependencies.terminalSuspension,
-        remoteObservers: [dependencies.terminalExecution, transcripts],
+        remoteObservers: [dependencies.terminalExecution, transcripts, agentChat],
         terminals,
         chats: agentChat,
         watchHub,
@@ -474,6 +474,7 @@ export async function createDomainServices(
         ...createProjectFolderBrowser(),
         ...createSessionCreationHandlers(database, createSessionForProject),
         ...createMobileDomainHandlers({
+            agentChat,
             autoAllow: agentRuntime,
             attentionRequests,
             imageDirectory: join(userDataPath, 'mobile-attachments'),

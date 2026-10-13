@@ -4,6 +4,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentInputFromEnvironment,
@@ -19,7 +20,7 @@ import { isPtyTerminal } from '../pty-guard';
 import type { TerminalManager } from '../terminal';
 
 interface Options {
-    agentChat: Pick<AgentChatService, 'compactIdle' | 'idleLaunchId'>;
+    agentChat: Pick<AgentChatService, 'compactIdle' | 'idleLaunchId' | 'isLive'>;
     database: CaxriDatabase;
     logger?: StructuredLogger;
     coordinator: Pick<AgentCoordinator, 'agentOperation' | 'hasIdleProof' | 'observeInput'>;
@@ -92,7 +93,11 @@ export class SessionCompaction {
         terminal: TerminalRecord,
         activity: SessionRecord['lastActivityState'],
     ): Target | SessionCompactionOutcome {
-        if (!terminal.agentSessionId || terminal.lastProcessState !== 'running')
+        if (
+            !terminal.agentSessionId ||
+            terminal.lastProcessState !== 'running' ||
+            !this.options.agentChat.isLive(terminal.id)
+        )
             return 'not_running';
         const launchId = this.options.agentChat.idleLaunchId(terminal.id);
         if (!launchId || !['idle', 'completed'].includes(activity)) return 'busy';
@@ -143,7 +148,10 @@ export class SessionCompaction {
         try {
             await this.options.agentChat.compactIdle(target.terminal.id, target.launchId);
             return 'submitted';
-        } catch {
+        } catch (error) {
+            // `compactIdle` refuses a Chat that left its idle launch, or a provider without a native compact command.
+            if (error instanceof CaxriError && error.code === 'CONFLICT') return 'changed';
+            if (error instanceof CaxriError && error.code === 'VALIDATION') return 'unsupported';
             return 'failed';
         }
     }
