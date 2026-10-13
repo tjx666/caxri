@@ -95,6 +95,10 @@ export const effectfulCommandRecovery = {
     'agent.dispatch.start': 'durable',
     'agent.delegation.create': 'durable',
     'commander.ensure': 'memory',
+    /**
+     * Replies with the same Workbench-shaped snapshot as `commander.ensure`.
+     */
+    'commander.switchAgent': 'memory',
     'commander.session.create': 'durable',
     'commander.session.archive': 'durable',
     'commander.session.handOver': 'durable',
@@ -189,6 +193,7 @@ export const effectfulCommandRecovery = {
     'contextMenu.show': 'none',
     'processExplorer.open': 'durable',
     'benchmark.open': 'durable',
+    'agentCommander.clearData': 'durable',
     'agentCommander.open': 'durable',
     'agentCommander.openFileLink': 'memory',
     'agentCommander.openSettings': 'durable',

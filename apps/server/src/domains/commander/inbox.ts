@@ -43,6 +43,10 @@ export interface CommanderInboxServiceOptions {
      * Queues a content-free notice for the Commander.
      */
     notify(itemId: string, event: CommanderInboxNoticeEvent): void;
+    /**
+     * Drops every queued Inbox notice once the items they name are deleted.
+     */
+    forgetNotices(): void;
     refreshIntervalMs?: number;
     run: ExternalStatusRunner;
     send(event: ServerEvent): void;
@@ -328,6 +332,22 @@ export class CommanderInboxService {
      */
     dismiss(id: string): CommanderInboxItem {
         return this.present(this.closeItem(this.require(id), 'dismissed'));
+    }
+
+    /**
+     * Deletes every item with its replies for Clear Commander Data. Nothing is announced to the Commander: the user,
+     * not the Commander, chose to forget these, and an unacknowledged reply has nothing left to point at.
+     */
+    clear(): number {
+        const ids = this.model.deleteAll();
+        this.live.clear();
+        this.options.forgetNotices();
+        this.changed(ids);
+        return ids.length;
+    }
+
+    counts(): { open: number; closed: number } {
+        return this.model.counts();
     }
 
     /**

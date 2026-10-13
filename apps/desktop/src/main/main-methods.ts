@@ -27,6 +27,7 @@ import {
     pruneBugReportScreenshots,
 } from './bug-report-screenshots';
 import {
+    clearCommanderDataPrompt,
     deleteProjectPrompt,
     deleteSessionPrompt,
     deleteSessionsPrompt,
@@ -256,6 +257,15 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.workbenchRootAuthority.openTerminalFileLink(request.params);
             case 'agentCommander.openFileLink':
                 return options.workbenchRootAuthority.openCommanderFileLink(request.params);
+            case 'agentCommander.clearData': {
+                // The Agent Commander window asks, so the sheet attaches to the window that sent the request.
+                const result = await dialog.showMessageBox(
+                    requestWindowOr(mainWindow),
+                    clearCommanderDataPrompt(request.params),
+                );
+                if (result.response !== 0) return { canceled: true };
+                return supervisor.request('commander.clearData', request.params);
+            }
             case 'files.trash': {
                 const item = await supervisor.request('files.authorizeTrash', request.params);
                 const state = environment.get();

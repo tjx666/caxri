@@ -8,11 +8,7 @@ export type {
 } from './execution-port';
 export { resolveTerminalFileLink } from './file-links';
 export { createTerminalHandlers } from './handlers';
-export {
-    createTerminalAgentExactInputHandler,
-    createTerminalBinaryInputHandler,
-    createTerminalInputHandler,
-} from './input';
+export { createTerminalInputHandlers } from './input';
 export {
     assertTerminalWorkingDirectory,
     resolveTerminalExecutable,

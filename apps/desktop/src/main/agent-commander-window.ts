@@ -4,7 +4,7 @@ import type { AgentCommanderOpenTarget, AuxiliaryWindowState, ServerEvent } from
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
-import type { BrowserWindow, WebContents } from 'electron';
+import type { BaseWindow, BrowserWindow, WebContents } from 'electron';
 import { screen } from 'electron';
 
 import { AgentCommanderRendererPolicy } from './agent-commander-policy';
@@ -14,6 +14,7 @@ import {
     trackAuxiliaryWindowBounds,
 } from './auxiliary-window';
 import { AuxiliaryWindowBoundsMemory } from './auxiliary-window-bounds';
+import type { AppMenuOptions } from './menu';
 import { resolveRendererEntryUrl } from './renderer-entry';
 import {
     publishFullScreenState,
@@ -280,7 +281,7 @@ export class AgentCommanderWindowController {
 
     /**
      * Closes the window first so it never shows its own Terminal going away, then stops the Commander on the Server.
-     * Reopening the window runs `commander.ensure`, which resumes the same Codex conversation.
+     * Reopening the window runs `commander.ensure`, which resumes the same Agent conversation.
      */
     async stop(): Promise<void> {
         this.close();
@@ -295,6 +296,21 @@ export class AgentCommanderWindowController {
     }
 
     /**
+     * Opens this window's own Command Palette when `window` is this window, and returns whether it was. The request
+     * goes straight to this Renderer like the Inbox request does: the Workbench has a palette of its own. A window
+     * still loading swallows it, since the shortcut was typed there and the Workbench is not what the user is looking
+     * at.
+     */
+    requestCommandPalette(window: BaseWindow): boolean {
+        if (window !== this.openWindow()) return false;
+        const renderer = this.renderer();
+        if (!renderer || !this.isEventsReady) return true;
+        const event: ServerEvent = { event: 'agentCommander.commandPaletteRequested', payload: {} };
+        renderer.send('caxri:event', event);
+        return true;
+    }
+
+    /**
      * Opens or raises the window. `target: 'inbox'` also asks its Renderer to open the Inbox and focus the first open
      * item, delivered as soon as the window listens for events.
      */
@@ -303,4 +319,18 @@ export class AgentCommanderWindowController {
         this.openWindowIfClosed();
         this.deliverInboxRequest();
     }
+}
+
+/**
+ * The Agent Commander's part of the app menu's routing: Open Agent Commander, and its own Command Palette taking
+ * `Cmd+Shift+P` while it is focused. The controller is read per click, since it is created after the menu is first
+ * built.
+ */
+export function agentCommanderMenuOptions(
+    controller: () => AgentCommanderWindowController | undefined,
+): Pick<AppMenuOptions, 'openAgentCommander' | 'openWindowCommandPalette'> {
+    return {
+        openAgentCommander: () => controller()?.open(),
+        openWindowCommandPalette: (window) => controller()?.requestCommandPalette(window) ?? false,
+    };
 }

@@ -57,6 +57,9 @@ async function fixture() {
             logger,
             now: () => now,
             notify: (itemId, event) => notices.push([itemId, event]),
+            forgetNotices: () => {
+                notices.length = 0;
+            },
             run,
             send: (event) => events.push(event),
             workingDirectory: directory,
@@ -215,6 +218,29 @@ describe('CommanderInboxService', () => {
         expect(notices).toEqual([[dismissed.id, 'dismissed']]);
         expect(() => service.reply(dismissed.id, 'late', 'desktop')).toThrow(CaxriError);
         expect(service.list(true).items).toHaveLength(2);
+    });
+
+    it('clears every item with its replies and queued notices, and announces the removal', async () => {
+        const { events, notices, service } = await fixture();
+        const open = service.add({ kind: 'hands', title: 'Log in', body: '', options: [] });
+        const closed = service.add({ kind: 'decision', title: 'Pick', body: '', options: [] });
+        service.reply(open.id, 'done', 'desktop');
+        service.resolve(closed.id);
+        expect(service.counts()).toEqual({ open: 1, closed: 1 });
+        events.length = 0;
+
+        expect(service.clear()).toBe(2);
+
+        expect(service.counts()).toEqual({ open: 0, closed: 0 });
+        expect(service.list(true).items).toEqual([]);
+        expect(notices).toEqual([]);
+        expect(events).toEqual([
+            {
+                event: 'commanderInbox.changed',
+                payload: { itemIds: expect.arrayContaining([open.id, closed.id]) as string[] },
+            },
+        ]);
+        expect(() => service.show(open.id)).toThrow(CaxriError);
     });
 
     it('merges pinned to the verified head, closes the item, and tells the Commander', async () => {

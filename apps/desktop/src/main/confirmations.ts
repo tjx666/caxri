@@ -1,4 +1,4 @@
-import type { MethodResult } from '@caxri/protocol';
+import type { CommanderClearData, MethodResult } from '@caxri/protocol';
 import type { MessageBoxOptions } from 'electron';
 
 import { translateMain as t } from './locale';
@@ -305,6 +305,39 @@ export function revokeMobileDevicePrompt(device: {
         message: t('desktop.revokeDevice.message', { name: device.displayName }),
         detail: t('desktop.revokeDevice.detail', { platform }),
         buttons: [t('desktop.revokeDevice.confirm'), t('desktop.dialog.cancel')],
+        defaultId: 1,
+        cancelId: 1,
+    };
+}
+
+/**
+ * Clear Agent Commander Data names every kind of data the request removes, in the dialog's order, and states what
+ * stays. Projects, Sessions, and the delegations those Sessions hold are never part of it.
+ */
+export function clearCommanderDataPrompt(request: CommanderClearData): MessageBoxOptions {
+    const items = [
+        request.tasks === 'all' && t('desktop.clearCommanderData.allTasks'),
+        request.tasks === 'closed' && t('desktop.clearCommanderData.closedTasks'),
+        Array.isArray(request.tasks) &&
+            (request.tasks.length === 1
+                ? t('desktop.clearCommanderData.someTasksOne')
+                : t('desktop.clearCommanderData.someTasks', { count: request.tasks.length })),
+        request.taskFiles && t('desktop.clearCommanderData.taskFiles'),
+        request.inbox && t('desktop.clearCommanderData.inbox'),
+        request.memory && t('desktop.clearCommanderData.memory'),
+        request.instructions && t('desktop.clearCommanderData.instructions'),
+        request.conversation && t('desktop.clearCommanderData.conversation'),
+    ].filter((item): item is string => typeof item === 'string');
+    return {
+        type: 'warning',
+        title: t('desktop.clearCommanderData.title'),
+        message: t('desktop.clearCommanderData.message'),
+        detail: [
+            ...items.map((item) => `• ${item}`),
+            '',
+            t('desktop.clearCommanderData.detail'),
+        ].join('\n'),
+        buttons: [t('desktop.clearCommanderData.confirm'), t('desktop.dialog.cancel')],
         defaultId: 1,
         cancelId: 1,
     };

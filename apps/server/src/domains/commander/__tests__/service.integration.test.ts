@@ -1,80 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { BootstrapState, CommanderIdentity, TerminalKind } from '@caxri/protocol';
-import { describe, expect, it, onTestFinished, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { authorizeDelegationSession } from '../../agent-delegation/admission';
-import { CaxriDatabase } from '../../db';
 import { CommanderHandoverService } from '../handover';
-import { AgentCommanderService, requireCommanderSession } from '../service';
+import { requireCommanderSession } from '../sessions';
 import { COMMANDER_WORKSPACE_DIRECTORY } from '../workspace';
-
-async function fixture() {
-    const directory = await realpath(await mkdtemp(`${tmpdir()}/caxri-commander-`));
-    const database = new CaxriDatabase(join(directory, 'state.db'));
-    onTestFinished(async () => {
-        database.close();
-        await rm(directory, { recursive: true, force: true });
-    });
-    const userRoot = join(directory, 'repository');
-    await mkdir(userRoot);
-    const userProject = database.createProject(userRoot);
-    const userSession = database.createSession(userProject.id, 'shell').session;
-    const terminalIdsAtStart: Array<string | undefined> = [];
-    const createAndStartTerminal = vi.fn(
-        (
-            sessionId: string,
-            kind: TerminalKind,
-            cwd: string,
-            beforeStart: (terminal: { id: string }) => void,
-        ) => {
-            const terminal = database.createTerminal(sessionId, kind, cwd);
-            beforeStart(terminal);
-            terminalIdsAtStart.push(database.agentCommanderRows()?.terminalId);
-            return Promise.resolve(terminal);
-        },
-    );
-    const sendFullStateChange = vi.fn();
-    const restoreTerminals = vi.fn();
-    const cancelRestore = vi.fn<(sessionId: string) => Promise<void>>(() => Promise.resolve());
-    const sendTerminalChange = vi.fn();
-    const stopTerminal = vi.fn((terminalId: string) => {
-        database.updateTerminalState(terminalId, 'detached');
-        return Promise.resolve();
-    });
-    const service = new AgentCommanderService({
-        cancelRestore,
-        database,
-        createAndStartTerminal,
-        now: () => 1_000,
-        probeTerminal: () => {},
-        restoreTerminals,
-        pullRequests: () => ({ pullRequests: {}, refreshedAt: 5 }),
-        scopedWorkbench: (identity: CommanderIdentity) =>
-            ({ selectedSessionId: identity.sessionId }) as BootstrapState,
-        sendFullStateChange,
-        sendTerminalChange,
-        stopTerminal,
-        userDataPath: directory,
-    });
-    return {
-        cancelRestore,
-        createAndStartTerminal,
-        database,
-        directory,
-        restoreTerminals,
-        sendFullStateChange,
-        sendTerminalChange,
-        service,
-        stopTerminal,
-        terminalIdsAtStart,
-        userProject,
-        userSession,
-    };
-}
+import { fixture } from './service.fixture';
 
 describe('Agent Commander service', () => {
     it('creates hidden Commander rows once and records the Terminal before it launches', async () => {

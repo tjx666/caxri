@@ -32,6 +32,7 @@ describe('commanderEventEffect', () => {
             board: true,
             ensure: false,
             inbox: false,
+            openPalette: false,
             pullRequestSessionIds: [],
             reattach: false,
             revealInbox: false,
@@ -50,6 +51,7 @@ describe('commanderEventEffect', () => {
             board: true,
             ensure: false,
             inbox: false,
+            openPalette: false,
             pullRequestSessionIds: [],
             reattach: false,
             revealInbox: false,
@@ -92,6 +94,7 @@ describe('commanderEventEffect', () => {
             board: true,
             ensure: shouldEnsure,
             inbox: true,
+            openPalette: false,
             pullRequestSessionIds: [],
             reattach: true,
             revealInbox: false,
@@ -104,6 +107,7 @@ describe('commanderEventEffect', () => {
             board: false,
             ensure: false,
             inbox: false,
+            openPalette: false,
             pullRequestSessionIds: [],
             reattach: false,
             revealInbox: false,
@@ -126,6 +130,7 @@ describe('commanderEventEffect', () => {
                 board: false,
                 ensure: false,
                 inbox: false,
+                openPalette: false,
                 pullRequestSessionIds: [],
                 reattach: false,
                 revealInbox: false,
@@ -151,6 +156,7 @@ describe('commanderEventEffect', () => {
             board: false,
             ensure: false,
             inbox: false,
+            openPalette: false,
             pullRequestSessionIds: ['session-1', 'session-2'],
             reattach: false,
             revealInbox: false,
@@ -168,6 +174,7 @@ describe('commanderEventEffect', () => {
             board: false,
             ensure: false,
             inbox: true,
+            openPalette: false,
             pullRequestSessionIds: [],
             reattach: false,
             revealInbox: false,
@@ -175,11 +182,18 @@ describe('commanderEventEffect', () => {
         });
     });
 
+    it('opens the Command Palette, and only that, when its shortcut was typed in this window', () => {
+        expect(
+            commanderEventEffect(event('agentCommander.commandPaletteRequested', {}), identity),
+        ).toMatchObject({ board: false, inbox: false, openPalette: true, snapshot: false });
+    });
+
     it('opens the Inbox, and only that, when the status bar chip asks for it', () => {
         expect(commanderEventEffect(event('agentCommander.inboxRequested', {}), identity)).toEqual({
             board: false,
             ensure: false,
             inbox: false,
+            openPalette: false,
             pullRequestSessionIds: [],
             reattach: false,
             revealInbox: true,
@@ -207,6 +221,7 @@ describe('commanderEventEffect', () => {
             board: false,
             ensure: false,
             inbox: false,
+            openPalette: false,
             pullRequestSessionIds: [],
             reattach: false,
             revealInbox: false,

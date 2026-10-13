@@ -6,7 +6,8 @@ status: current
 # Agent Commander
 
 The Agent Commander is a second Caxri window for delegating work instead of doing it. It has two
-parts: a Codex Agent Terminal (the Commander) and a board of every visible Project and Session.
+parts: an Agent Terminal running Codex or Claude Code (the Commander) and a board of every visible
+Project and Session.
 You describe a goal to the Commander. It breaks the goal into tasks, starts a coding Agent for each
 one in a visible Session, tracks the Agents, and reports back. Routine product and engineering
 decisions stay with the Commander. It asks you only about high-risk decisions, such as a database
@@ -63,8 +64,10 @@ The window runs with the Desktop principal. Main therefore authorizes it separat
 `AgentCommanderRendererPolicy` (`agent-commander-policy.ts`) in the `caxri:request` IPC path:
 
 - **Always admitted.** A short read list (`commander.board`, Settings, keybindings, theme,
-  `events.recover`), the Commander's own lifecycle (`commander.ensure`, `commander.snapshot`, and
-  `agentCommander.stop` for the title bar's Stop button), `external.open`, the Terminal pane's
+  `events.recover`), the Commander's own lifecycle (`commander.ensure`, `commander.snapshot`,
+  `agentCommander.stop` for **Stop Commander**, and `commander.switchAgent`), Clear Commander Data
+  (`commander.data` and `agentCommander.clearData`, which still passes Main's native confirmation),
+  `external.open`, the Terminal pane's
   context menu (`contextMenu.show`), and two Workbench hand-offs: `agentCommander.revealSession`
   and `agentCommander.openSettings`, which the pane's Open Settings sends when the Agent CLI is
   missing. An optional `target` on `agentCommander.openSettings` (see `settingsTargetSchema` in
@@ -139,10 +142,10 @@ Terminal accepts them itself (`commander-terminal.tsx`) through the same drop-to
 runs. A file dropped from Finder, usually a bug screenshot for the Commander to hand on, inserts its
 path, and so does a Files entry, Editor tab, or Project dragged over from the Workbench.
 
-The Commander Terminal can run as a Terminal or as an [Agent Chat](agent-chat.md), like any Codex
-Terminal in the Workbench. The title bar's surface toggle, next to **Stop**, and the Switch Agent
+The Commander Terminal can run as a Terminal or as an [Agent Chat](agent-chat.md), like any Codex or
+Claude Code Terminal in the Workbench. The title bar's surface toggle and the Switch Agent
 Surface shortcut (`terminal.switchAgentSurface`, `Cmd+Shift+J` by default) flip it through `terminal.switchSurface`, which keeps the bound
-Codex conversation. In Chat mode the window mounts the same `AgentChatTerminalContent` the Workbench
+conversation. In Chat mode the window mounts the same `AgentChatTerminalContent` the Workbench
 pane uses and subscribes to `agentChat.patch` itself. The Chat's file-change Open in Editor stays
 unavailable here, because the window mounts no pane session. For the same reason the Chat opens
 nothing beside itself (`canOpenBesideChat` in `agentChatHostCapabilities`): background work lists
@@ -158,7 +161,8 @@ The native menu belongs to the whole app, and its command items act on the Workb
 Commander window (or the Process Explorer) is focused, Main therefore routes them by the focused
 window (`apps/desktop/src/main/menu.ts`): Close Tab (`Cmd+W`) closes the focused window, a shortcut
 typed there is dropped except the app-level Settings shortcut, and an item picked from the menu bar
-brings the Workbench forward before it runs.
+brings the Workbench forward before it runs. The Command Palette (`Cmd+Shift+P`) is the exception:
+it opens the Commander's own palette (see [Title bar and Command Palette](#title-bar-and-command-palette)).
 
 Terminal chords such as Find (`Cmd+F`), Clear (`Cmd+Shift+K`), and Restart (`Cmd+Shift+R`) have no
 native accelerator; the focused Renderer dispatches them. The Commander window does not mount the
@@ -182,15 +186,37 @@ While the Commander runs, the Workbench status bar shows a muted `Commander` chi
 window. A stopped Commander shows no chip. While the Inbox holds open items, a second muted chip
 reads `1 needs you` or `N need you` and opens the window; it is never hidden for width, because the
 main window has no other trace that the Commander is waiting on the owner. **View > Stop Agent Commander** (also in the Command
-Palette) and the window's **Stop** button run `agentCommander.stop`: Main closes the window, then
+Palette) and **Stop Commander** in the window's More menu and palette run `agentCommander.stop`: Main closes the window, then
 calls `commander.stop`. Every entry asks **Stop the running turn?** (**Stop and Close**) first while the
 Commander is working; the menu and the Command Palette run in the Workbench, which reads
 `commander.status` because it cannot see the Commander's Terminal. Main logs a failed stop as `agent_commander.stop_failed` with its error
 code.
 
+## Title bar and Command Palette
+
+The title bar keeps only the controls used all the time: the Commander Agent chip, the surface
+toggle, the **Sessions** and **Needs you** column toggles, and a **More** (`⋯`) menu. More holds the
+Command Palette, **Clear Commander Data…**, and **Stop Commander**, so a rarely used and
+destructive command is never one stray click away.
+
+The window has its own Command Palette (`commander-command-palette.tsx`), on the Workbench palette's
+picker shell and row layout. Its rows (`commander-palette.ts`) are grouped as **Commander** (switch
+the Agent, Hand Over to the Commander, Clear Commander Data, Open Settings, Stop), **View** (each
+column toggle names the state it moves to, plus the board scope), and **Agent** (the Commander
+Terminal's own commands, such as Find, Clear, Open Detected Link, and Restart, each with its
+shortcut). Typing a Session title also lists the board's Sessions, and choosing one reveals it in the
+Workbench.
+
+`Cmd+Shift+P` is a native menu accelerator, so no Renderer ever sees the key. While the Commander
+window is focused, Main forwards the menu item to it as the transient event
+`agentCommander.commandPaletteRequested` instead of raising the Workbench palette behind it
+(`openWindowCommandPalette` in `apps/desktop/src/main/menu.ts`, wired by
+`agentCommanderMenuOptions` in `agent-commander-window.ts`). The forward reaches only that window;
+the Workbench ignores the event.
+
 ## Server model
 
-The Commander runs in real rows: a system Project, one Session, and one Codex Terminal. As a result it
+The Commander runs in real rows: a system Project, one Session, and one Agent Terminal. As a result it
 reuses the ordinary PTY, Agent Endpoint, hook, and restore machinery. These rows are recorded in the
 `app_state.agentCommander` cell, together with the IDs of the Sessions the Commander has created.
 Readers go through `agentCommanderRows` (`apps/server/src/domains/db/commander-rows.ts`), which
@@ -219,14 +245,15 @@ there. When Git is missing or `git init` fails, the Commander still starts and S
 `agent_commander.workspace_repository_failed` with a `git_missing` or `init_failed` reason. It then
 creates any missing Commander row.
 
-Every launch of the Commander Terminal (first launch, restore, and restart) trusts the workspace for
+Every launch of a Codex Commander Terminal (first launch, restore, and restart) trusts the workspace for
 that Codex process only, with a `-c projects={ "<workspace>" = { trust_level = "trusted" } }`
 override (`apps/server/src/domains/commander/launch.ts`). Without it the first launch on a machine,
 and on every new development profile, stops at Codex's folder-trust prompt. The workspace holds only
 generated instructions and the Commander's notes, so this grants what answering the prompt would:
 project configuration, hooks, and Codex's sandbox defaults for a trusted project. Nothing is written
-to the user's `~/.codex/config.toml`, so profiles never accumulate trust entries there. The override
-applies only to the Terminal recorded as the Commander, never to delegated or Workbench Agents. The Terminal is launched only when
+to the user's `~/.codex/config.toml`, so profiles never accumulate trust entries there. The override applies only to the Terminal recorded as the Commander, never to delegated or Workbench Agents. A
+Claude Code Commander is trusted through Claude Code's own config instead (see
+[Commander Agent](#commander-agent)). The Terminal is launched only when
 it was just created. An existing Terminal that an app restart or suspension interrupted is resumed
 through a dedicated restore supervisor: the Workbench resumes Terminals only for the Session it
 selects, and it never selects the Commander Session. The same restore resumes a Commander the user
@@ -237,7 +264,7 @@ a window that is closed leaves the Commander parked until the next ensure.
 
 `commander.stop` is desktop-only and idempotent. It drops any queued Commander restore and waits
 for one that is already spawning, then kills the PTY behind the same barrier a suspension uses and
-parks the Terminal as `detached`, keeping its row, final screen, and bound Codex conversation. Only
+parks the Terminal as `detached`, keeping its row, final screen, and bound conversation. Only
 an explicit `commander.ensure` resumes it; an app restart does not. A stop racing an ensure is
 ordered: a stop waits for the Terminal the first ensure creates, and an ensure that arrives during a
 stop runs after it and restores what it parked. Sessions the Commander delegated into keep running;
@@ -251,8 +278,8 @@ Commander Terminal receives an Endpoint with the `commander` role; every other C
 without one. `commander.stop` parks a Chat Commander through `agentChat.closeSession(..., 'detached')`
 instead of suspending a PTY, and the Commander restore resumes that detached Chat as well.
 
-`commander.status` is a content-free read for the status bar. The Commander is Codex inside a Shell
-PTY, and Codex can exit while the Shell lives on, so it reads `stopped` unless both processes are
+`commander.status` is a content-free read for the status bar. The Commander is an Agent CLI inside a
+Shell PTY, and the Agent can exit while the Shell lives on, so it reads `stopped` unless both processes are
 live, whatever its Session last reported. A live Commander reads `starting`, or mirrors the
 Commander Session's activity as `working`, `waiting`, or `idle`. Every `state.changed` event
 invalidates it in the Workbench, because Workbench records exclude the Commander's rows and no
@@ -286,9 +313,9 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
 
 The window lists only the Commander's own Sessions by default: the Workbench already shows every
 Session, and the user's hand-run Sessions mixed into this board buried the work the Commander
-dispatched. A `Commander` / `All` toggle above the board, each with its count, switches to every
-Session and back; the choice is remembered in the window's local storage
-(`use-commander-board-scope.ts`). In the `All` scope each Commander row leads its chip with
+dispatched. A `Commander` / `All` toggle above the board, each with its count, and the Command
+Palette switch to every Session and back; the choice is remembered in the window's local storage
+(`commander-board-store.ts`). In the `All` scope each Commander row leads its chip with
 `Commander`. The Server's board, and `caxri commander board`, always cover every Session, so the
 Commander itself still sees the whole Workbench.
 
@@ -297,9 +324,8 @@ Terminal takes its width, for example to read the Terminal beside the Inbox in a
 window: with the board open the Inbox becomes a drawer over the Terminal below 1080px, and with it
 collapsed only below 720px. The column has a fixed width and no resize edge, so open or collapsed
 is the only state, and it is remembered in the window's local storage (`commander-board-store.ts`).
-A collapsed board stops polling until it opens again. Neither toggle has a keyboard shortcut: the
-window's keyboard reaches only the Terminal's own commands (see
-[Window and Desktop Main](#window-and-desktop-main)).
+A collapsed board stops polling until it opens again. Neither toggle has a keyboard shortcut of its
+own; both are rows in the window's Command Palette.
 
 Each row favors icons over words so the Project name keeps its width. The first line holds the
 activity glyph (a live turn draws the PrimarySidebar's monochrome running arc in `--muted`, not a
@@ -356,8 +382,11 @@ A transition only reaches the Terminal once every one of these holds, reusing ex
   Session unread, and the Commander window never marks it read.
 
 On a Chat Commander the coalesced line is sent as a Chat message (`AgentChatService.send`), which
-queues behind a running turn the way a typed message does; on a PTY it is written to the exact launch
-followed by Enter. The idle-proof fence above applies to both.
+queues behind a running turn the way a typed message does; on a PTY it is pasted into the exact launch
+as a bracketed paste, and Enter follows as its own write once the paste is acknowledged
+(`completion-notice-delivery.ts`). Claude Code reads input arriving in one chunk as a paste and keeps
+an Enter inside it as a new draft line, so a line and its Enter written together would sit unsent in
+a Claude Code Commander's composer. The idle-proof fence above applies to both.
 
 A transition that arrives while any of these fails stays queued and is retried the next time the
 Commander reaches a clean idle point; several transitions queued at once coalesce into one line. A
@@ -550,33 +579,96 @@ marker must re-read the set anyway, so one read serves both without adding an ev
 registry, the durable journal, mobile subscriptions, and the companion-window policy. A reader
 treats the take-backs it sees on its first read as already shown.
 
+## Commander Agent
+
+The Commander runs on Codex or Claude Code (`commanderAgentIds`). The title bar's Agent chip names
+the current one and opens a menu to switch; the Command Palette offers the same switch. Switching is
+not destructive, so it takes the in-app confirmation, which says that only the conversation starts
+over. `commander.switchAgent` stores the choice in the `app_state.commanderAgent` cell, then replaces
+the Commander Terminal's provider in place (`terminalSurfaces.replaceAgentProvider`) and relaunches
+it fresh through the Workbench's own `terminal.restart`. The Terminal row, and so the Commander
+identity, stays: every task it delegated before the switch is still its own, and its task ledger,
+memory, Inbox, and Commander Sessions carry over because they live in Caxri and the workspace, not
+in the conversation. Without a Commander Terminal yet, the choice is stored and the next
+`commander.ensure` uses it.
+
+Both Agents read the same generated `AGENTS.md`: Codex natively, and Claude Code because it loads
+`AGENTS.md` when no `CLAUDE.md` exists, which the workspace never has.
+
+Claude Code asks whether to trust a new folder even when it runs without permission prompts, and
+only its own config can answer that. Before every Claude Code launch of the Commander,
+`grantClaudeFolderTrust` (`apps/server/src/domains/agents/providers/claude/folder-trust.ts`) marks
+the workspace, and its real path, trusted in Claude Code's global config (`.claude.json` under
+`CLAUDE_CONFIG_DIR`, or in the home directory), under the same `.lock` directory Claude Code takes, so
+a running Claude Code never loses a write. That lock sits beside the config path as looked up, even
+when the config is a link into a dotfiles folder; the write goes through the link to its target. It changes only the workspace's own `projects` entry. It
+never creates the config: a Claude Code that never ran shows its onboarding anyway, and its first run
+must not find a file Caxri invented. The outcome is a closed enum logged as
+`agent_commander.claude_trust_prepared`; anything but `granted` or `already_trusted` leaves Claude
+Code's own trust question for the user. That grant covers only the Commander workspace: a task
+delegated to Claude Code in a folder it never trusted still stops at that question, and its delegation
+reports `blocked` with `startup_waiting` for the Commander to raise in the Inbox.
+
+Automatic Session naming skips the Commander's own Session (`SessionAutoNamingService`). That Session
+carries every task in turn, so a name taken from one request would mislabel the next, and Claude Code
+would show it on the Commander's composer once the native `/rename` wrote it into the conversation.
+
+## Clear Commander Data
+
+**Clear Commander Data…** (More menu or Command Palette) works like a browser's Clear Browsing
+Data: one dialog lists what the Commander keeps, each with its size from `commander.data`, and the
+user ticks what to forget. Only Commander-owned data is offered; Sessions, their Terminals, and the
+user's repositories are never touched.
+
+| Option       | What it clears                                                                                                    |
+| ------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Tasks        | Ledger rows: the finished ones (the default), all of them, or ones chosen from the list. Delegated Sessions stay. |
+| Task files   | The briefs in `tasks/` and the pull request reports in `reports/`. A link there is removed, never followed.       |
+| Needs you    | Every Commander Inbox item, open or closed, with its replies.                                                     |
+| Memory       | `memory/*.md` back to their templates. Offered only once a file differs from its template; implies Instructions.  |
+| Instructions | Rewrites `AGENTS.md` from the current template and the memory that remains.                                       |
+| Conversation | Relaunches the Commander fresh on a new conversation, ending the current turn.                                    |
+
+The dialog opens with only the finished tasks ticked, and with nothing ticked when no task has finished. When memory or instructions change while the
+running conversation already read them, it warns that the Commander still knows them until the
+conversation starts over. The window asks Desktop Main (`agentCommander.clearData`), which shows the
+native destructive confirmation listing each ticked item before it forwards the internal
+`commander.clearData`; a cancel keeps the dialog and its selection. On success the dialog closes and
+a notification names what went. Server Core logs `agent_commander.data_cleared` with counts and
+flags only. A clear queued behind a Commander switch can wait for that relaunch, so its request never
+expires on the client. A failure partway still refreshes the window when tasks already went or the
+conversation restart was reached, and the log names the stage that failed.
+
 ## Observability
 
 Every step of a Commander workflow leaves a content-free log line in Server Core's
 `<userData>/logs/server-core.jsonl`, readable with `caxri logs query` (see [CLI](cli.md)). Together
 they reconstruct a bug report without Terminal output or transcripts:
 
-| Event                                               | Meaning                                                                                                                                               |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ipc.request`                                       | Every CLI call the Commander makes (`commander.board`, `agent.delegation.*`), with its duration and correlation ID (debug level).                     |
-| `agent_commander.ensured`                           | `commander.ensure` finished: `outcome` `created`, `restored`, or `running`, the prior Terminal state, and the duration.                               |
-| `agent_commander.stopped`                           | `commander.stop` parked the Commander (`stopped`) or found nothing running (`not_running`).                                                           |
-| `agent_commander.session_created`/`_discarded`      | A Commander Session was created, or removed because its delegation was refused before launch.                                                         |
-| `agent_delegation.requested`                        | A task was admitted: `mode` (`new`, `follow_up`, `resume`), whether the Commander sent it, its Session, and its parent task.                          |
-| `agent_delegation.transitioned`                     | Every receipt `status`/`failure` change, with the previous status, the task's age, and whether it came from restart recovery.                         |
-| `agent_delegation.admission_rejected`               | Why a follow-up or resume was refused, as a closed reason.                                                                                            |
-| `agent_commander.completion_notice_queued`          | A settled task was queued for the Commander Terminal, with the batch size (debug).                                                                    |
-| `agent_commander.completion_notice_deferred`        | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).                               |
-| `agent_commander.completion_notice_delivered`       | The coalesced line was written, with its task count, the oldest entry's wait, and the finished turns that could not take it.                          |
-| `agent_commander.resume_prompt_delivered`           | A relaunched Commander received its launch prompt: missed delegation `count`, Inbox `inboxCount`, `interruptedTurn`, and the oldest entry's `waitMs`. |
-| `agent_commander.task_recorded`                     | A ledger task was created, with `origin` `commander` (`commander task add`) or `delegation` (an unregistered dispatch).                               |
-| `agent_commander.task_transitioned`                 | A ledger task changed status: `from`, `to`, and the task's age.                                                                                       |
-| `agent_commander.inbox_item_reported`               | The Commander added an Inbox item or replaced the open one with the same key: `kind` and `outcome` (`added`, `updated`).                              |
-| `agent_commander.inbox_item_closed`                 | An item closed: the closed `reason`, its `kind`, how long it was open (`openMs`), and its reply count.                                                |
-| `agent_commander.inbox_replied`                     | The owner replied: item `kind`, reply `sequence`, and `source` (`desktop`, `mobile`); never the text.                                                 |
-| `agent_commander.inbox_stale_changed`               | A `merge` item went stale (`headMoved`) or became current again (`null`).                                                                             |
-| `agent_commander.inbox_pull_request_refresh_failed` | Reading one `merge` item's pull request failed, with the shared CLI failure `kind`.                                                                   |
-| `agent_commander.codex_open_probe_failed`           | The Outside Caxri Codex open-file probe failed and Codex rows fell back to mtime: closed `reason` and `durationMs`.                                   |
+| Event                                               | Meaning                                                                                                                                                |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ipc.request`                                       | Every CLI call the Commander makes (`commander.board`, `agent.delegation.*`), with its duration and correlation ID (debug level).                      |
+| `agent_commander.ensured`                           | `commander.ensure` finished: `outcome` `created`, `restored`, or `running`, the prior Terminal state, and the duration.                                |
+| `agent_commander.stopped`                           | `commander.stop` parked the Commander (`stopped`) or found nothing running (`not_running`).                                                            |
+| `agent_commander.session_created`/`_discarded`      | A Commander Session was created, or removed because its delegation was refused before launch.                                                          |
+| `agent_delegation.requested`                        | A task was admitted: `mode` (`new`, `follow_up`, `resume`), whether the Commander sent it, its Session, and its parent task.                           |
+| `agent_delegation.transitioned`                     | Every receipt `status`/`failure` change, with the previous status, the task's age, and whether it came from restart recovery.                          |
+| `agent_delegation.admission_rejected`               | Why a follow-up or resume was refused, as a closed reason.                                                                                             |
+| `agent_commander.completion_notice_queued`          | A settled task was queued for the Commander Terminal, with the batch size (debug).                                                                     |
+| `agent_commander.completion_notice_deferred`        | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).                                |
+| `agent_commander.completion_notice_delivered`       | The coalesced line was written, with its task count, the oldest entry's wait, and the finished turns that could not take it.                           |
+| `agent_commander.resume_prompt_delivered`           | A relaunched Commander received its launch prompt: missed delegation `count`, Inbox `inboxCount`, `interruptedTurn`, and the oldest entry's `waitMs`.  |
+| `agent_commander.task_recorded`                     | A ledger task was created, with `origin` `commander` (`commander task add`) or `delegation` (an unregistered dispatch).                                |
+| `agent_commander.task_transitioned`                 | A ledger task changed status: `from`, `to`, and the task's age.                                                                                        |
+| `agent_commander.inbox_item_reported`               | The Commander added an Inbox item or replaced the open one with the same key: `kind` and `outcome` (`added`, `updated`).                               |
+| `agent_commander.inbox_item_closed`                 | An item closed: the closed `reason`, its `kind`, how long it was open (`openMs`), and its reply count.                                                 |
+| `agent_commander.inbox_replied`                     | The owner replied: item `kind`, reply `sequence`, and `source` (`desktop`, `mobile`); never the text.                                                  |
+| `agent_commander.inbox_stale_changed`               | A `merge` item went stale (`headMoved`) or became current again (`null`).                                                                              |
+| `agent_commander.inbox_pull_request_refresh_failed` | Reading one `merge` item's pull request failed, with the shared CLI failure `kind`.                                                                    |
+| `agent_commander.codex_open_probe_failed`           | The Outside Caxri Codex open-file probe failed and Codex rows fell back to mtime: closed `reason` and `durationMs`.                                    |
+| `agent_commander.agent_switched`                    | `commander.switchAgent` finished: `outcome` (`switched`, `unchanged`, `stored`), `from`, `to`, and the duration.                                       |
+| `agent_commander.claude_trust_prepared`             | A Claude Code Commander launch pre-granted workspace trust: the closed trust `outcome` (warn unless `granted` or `already_trusted`).                   |
+| `agent_commander.data_cleared`                      | Clear Commander Data finished: `outcome` (`cleared`, or `failed` with `failedStage` and `tasksDeleted`), counts, flags, `taskScope`, and the duration. |
 
 The delegation ID links them: the Commander's `agent delegate create` returns it, every transition
 and notice names it, and the `ipc.request` line of each `agent.delegation.*` call carries it as
@@ -629,7 +721,8 @@ instructions in the generated `AGENTS.md`, so they reach every new conversation.
 capped at 40 KiB, cut at a line boundary with a note to read the rest, and the Commander launches
 with `-c project_doc_max_bytes=65536` (on both surfaces: a Chat Commander carries it as a
 `codex app-server` root option) because Codex's default 32 KiB limit would otherwise drop the
-memory silently. The files live in `<userData>/agent-commander/memory/`; the user can edit them
+memory silently. A Claude Code Commander reads the same `AGENTS.md`. The files live in
+`<userData>/agent-commander/memory/`; the user can edit them
 directly or tell the Commander what to remember.
 
 The instructions make repository choice evidence-based: `memory/repositories.md` first, then each
@@ -761,7 +854,8 @@ confirmation. See [CLI](cli.md) and
   only a turn that a restart or crash cut off is continued.
 - There is no setting to stop the Commander whenever its window closes. The status bar chip and the
   explicit Stop cover the single-maintainer workflow; add one only when a real need appears.
-- The Commander runs with the user's own Codex configuration, including its sandbox mode. Endpoint
+- The Commander runs with the user's own Codex or Claude Code configuration, including its sandbox
+  and permission mode. Endpoint
   capabilities are product authorization, not a filesystem sandbox for processes of the same OS
   user.
 - The Commander delegates only into Sessions it manages: ones it created, normally with

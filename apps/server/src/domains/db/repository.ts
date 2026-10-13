@@ -77,7 +77,7 @@ import { renameSessionWithPrimaryAgentTab } from './session-title';
 import { assertTerminalCapacity } from './terminal-capacity';
 import { terminalIdsBySession } from './terminal-ids-by-session';
 import { moveTerminalToNewSession } from './terminal-move';
-import { switchTerminalSurface } from './terminal-surface';
+import { TerminalSurfaces } from './terminal-surface';
 
 /**
  * Facade kept close to the pre-split `Database` API so every consumer (composition root, Terminal manager, File
@@ -95,6 +95,7 @@ export class CaxriDatabase {
     readonly commanderInbox: CaxriDatabase_['commanderInbox'];
     readonly commanderTasks: CaxriDatabase_['commanderTasks'];
     readonly commanderPendingNotices: CaxriDatabase_['commanderPendingNotices'];
+    readonly terminalSurfaces: TerminalSurfaces;
 
     constructor(path: string, options?: CaxriDatabaseOptions) {
         this.db = new CaxriDatabase_(path, options);
@@ -106,6 +107,7 @@ export class CaxriDatabase {
         this.commanderInbox = this.db.commanderInbox;
         this.commanderTasks = this.db.commanderTasks;
         this.commanderPendingNotices = this.db.commanderPendingNotices;
+        this.terminalSurfaces = new TerminalSurfaces(this.db);
     }
 
     private insertTerminal(
@@ -606,10 +608,6 @@ export class CaxriDatabase {
 
     updateAgentProcessState(id: string, state: ProcessState): void {
         this.db.transaction(() => this.db.terminals.updateAgentProcessState(id, state));
-    }
-
-    updateTerminalSurface(id: string, surface: TerminalSurface): void {
-        this.db.transaction(() => switchTerminalSurface(this.db, id, surface));
     }
 
     getChatPermission(id: string): AgentChatPermission | undefined {

@@ -13,6 +13,7 @@ import {
     refreshCommanderBoardPullRequests,
     useAgentCommanderStore,
 } from '../commander-client';
+import { requestCommanderPalette } from '../commander-dialogs-store';
 import { commanderEventEffect } from '../commander-events';
 import { invalidateCommanderInbox } from '../commander-inbox-commands';
 import { revealCommanderInbox } from '../commander-inbox-store';
@@ -100,6 +101,7 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             if (effect.inbox) void invalidateCommanderInbox();
             if (effect.revealInbox) revealCommanderInbox();
+            if (effect.openPalette) requestCommanderPalette();
             if (effect.pullRequestSessionIds.length > 0) {
                 for (const sessionId of effect.pullRequestSessionIds)
                     pullRequestSessionIds.add(sessionId);

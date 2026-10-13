@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { CommanderTask, CommanderTaskStatus } from '@caxri/protocol';
+import type { CommanderTask, CommanderTaskDeleteScope, CommanderTaskStatus } from '@caxri/protocol';
 import { MAX_COMMANDER_TASKS, openCommanderTaskStatuses } from '@caxri/protocol';
 import { and, asc, count, desc, eq, inArray, ne, notInArray } from 'drizzle-orm';
 
@@ -84,6 +84,29 @@ export class CommanderTasksModel {
             .limit(MAX_COMMANDER_TASKS - open.length)
             .all();
         return [...open, ...closed].map(toTask);
+    }
+
+    countAll(): number {
+        return this.database.select({ value: count() }).from(commanderTasks).get()?.value ?? 0;
+    }
+
+    /**
+     * Deletes the listed tasks, every task (`all`), or every closed one (`closed`, including those too old for the
+     * list), and returns how many rows went. A delegation the ledger already recorded is never re-recorded by a later
+     * receipt, so a deleted task stays deleted.
+     */
+    delete(scope: CommanderTaskDeleteScope): number {
+        if (typeof scope !== 'string' && scope.length === 0) return 0;
+        return this.database
+            .delete(commanderTasks)
+            .where(
+                scope === 'all'
+                    ? undefined
+                    : scope === 'closed'
+                      ? notInArray(commanderTasks.status, [...openCommanderTaskStatuses])
+                      : inArray(commanderTasks.id, [...scope]),
+            )
+            .run().changes;
     }
 
     insert(input: NewCommanderTask, now: number): CommanderTask {
