@@ -45,6 +45,7 @@
  * the configuration Caxri asked for (`fake-codex-threads.ts`). A `<threadId>.writer-held` file there makes resuming
  * that thread fail as Codex does when another client still holds the thread's writer, and an `unsubscribe-fails` file
  * makes `thread/unsubscribe` answer with an error. `config/read` reports `readFakeConfig`'s workspace-write table.
+ * `thread/goal/*` keeps a thread goal that starts its own turns while active (`fake-codex-goals.ts`).
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -58,6 +59,7 @@ import {
     runQuestions,
 } from './fake-codex-approvals.ts';
 import { runTurnArtifacts } from './fake-codex-artifacts.ts';
+import { didHandleGoalRequest } from './fake-codex-goals.ts';
 import {
     listThreadItems,
     listThreadTurns,
@@ -213,6 +215,7 @@ const io: FakeCodexIo = {
     loadThread,
     wireTurn,
     beginTurn: beginFakeTurn,
+    hasActiveTurn: () => state.activeTurn !== undefined,
     finishTurn,
     serverRequest,
 };
@@ -415,6 +418,7 @@ function handle(message: RpcMessage) {
     }
     const { id, method, params: parameters = {} } = message;
     if (didHandleTaskRequest(io, id, method, parameters)) return;
+    if (didHandleGoalRequest(io, id, method, parameters)) return;
     switch (method) {
         case 'initialize': {
             send({ id, result: { userAgent: 'caxri/0.162.0 (fake)', platformOs: 'macos' } });

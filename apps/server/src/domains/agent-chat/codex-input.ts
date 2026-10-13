@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { AgentChatCommand, AgentChatItem, AgentChatMessageInput } from '@caxri/protocol';
+import { AGENT_CHAT_GOAL_COMMAND } from '@caxri/protocol';
 
 import { isRecord, stringField } from './chat-items';
 import type { JsonRpcRequestError } from './json-rpc-connection';
@@ -11,6 +12,12 @@ import type { JsonRpcRequestError } from './json-rpc-connection';
  */
 export const CODEX_COMMANDS: AgentChatCommand[] = [
     { name: 'compact', description: 'Summarize the conversation to free up context' },
+    {
+        name: AGENT_CHAT_GOAL_COMMAND,
+        description: 'Set a goal the Agent keeps working toward',
+        argumentHint: '<objective> | pause | resume | clear',
+        goal: true,
+    },
 ];
 
 /**

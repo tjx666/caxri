@@ -252,7 +252,7 @@ export class AgentChatService {
             if (!isAgentChatCommandListed(state.projection.snapshot, name))
                 throw new CaxriError('VALIDATION', `/${name} is not available in this Chat`);
             const trimmed = arguments_?.trim() ? arguments_ : undefined;
-            if (state.followUps.mustWait()) {
+            if (!session.isImmediateCommand?.(name) && state.followUps.mustWait()) {
                 state.followUps.add({
                     id: randomUUID(),
                     kind: 'command',

@@ -15,17 +15,19 @@ import { z } from 'zod';
  * and it answers from the same snapshot `commander.board` embeds, so it exposes nothing the board does not already
  * show. `agentChat.confirmRevertFiles` names no Terminal: it only asks the native confirmation before "Edit from here"
  * or "Restore code to here" reverts files and returns the answer, and the revert itself is a separate
- * `agentChat.rewind` or `agentChat.restoreFiles` admitted only for the Commander Terminal. It shares the Workbench's
- * Desktop principal, so this list is its only authority boundary. The hand-over picker's `commander.conversations`,
- * `commander.session.handOver`, and `commander.session.takeBack` are the user's own grant of Sessions to the Commander,
- * the same requests the Workbench's Session menu sends; the Commander's Agent Endpoint still lacks the `agents.control`
- * they require.
+ * `agentChat.rewind` or `agentChat.restoreFiles` admitted only for the Commander Terminal.
+ * `agentChat.openPathReference` only shows a path the user attached in Finder and changes nothing. It shares the
+ * Workbench's Desktop principal, so this list is its only authority boundary. The hand-over picker's
+ * `commander.conversations`, `commander.session.handOver`, and `commander.session.takeBack` are the user's own grant of
+ * Sessions to the Commander, the same requests the Workbench's Session menu sends; the Commander's Agent Endpoint still
+ * lacks the `agents.control` they require.
  */
 const ADMITTED_METHODS = new Set<string>([
     'agentCommander.openSettings',
     'agentCommander.revealSession',
     'agentCommander.stop',
     'agentChat.confirmRevertFiles',
+    'agentChat.openPathReference',
     'commander.board',
     'commander.conversations',
     'commander.ensure',

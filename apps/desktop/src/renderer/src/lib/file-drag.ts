@@ -121,6 +121,20 @@ export function projectTerminalInput(
     return path ? terminalInputPath(path) : undefined;
 }
 
+/**
+ * Whether a drag carries files from another application rather than one of Caxri's own Files entry, file reference, or
+ * Project drags, which name their path themselves.
+ */
+export function isOsFileDrag(dataTransfer: Pick<DataTransfer, 'types'>): boolean {
+    const { types } = dataTransfer;
+    return (
+        hasOsFiles(dataTransfer) &&
+        !types.includes(FILE_REFERENCE_DRAG_TYPE) &&
+        !types.includes(FILE_TREE_DRAG_TYPE) &&
+        !types.includes(PROJECT_PATH_DRAG_TYPE)
+    );
+}
+
 export function dragPath(event: DragEvent): string | undefined {
     return event.dataTransfer.getData(FILE_TREE_DRAG_TYPE) || undefined;
 }

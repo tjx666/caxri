@@ -20,7 +20,7 @@ import { app, clipboard, ClipboardItem, dialog, nativeImage, net, shell } from '
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
 import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
-import { selectAgentChatPaths } from './agent-chat-path-picker';
+import { openAgentChatPathReference, selectAgentChatPaths } from './agent-chat-path-picker';
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import { createAgentProviderStatus, createE2EStatusPageFetch } from './agent-provider-status';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
@@ -447,6 +447,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 );
                 return { confirmed: result.response === 0 };
             }
+            case 'agentChat.openPathReference':
+                await openAgentChatPathReference(request.params.path);
+                return null;
             case 'editor.unsavedReply':
                 options.onUnsavedEditorsReply?.(request.params);
                 return null;

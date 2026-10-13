@@ -344,14 +344,21 @@ export function agentChatSendAction(
 }
 
 /**
- * The input's placeholder. While a message waits at the head of the queue, an empty input's Enter sends it now
- * (`agentChatComposerKeyAction`), so the placeholder says so instead of describing a follow-up nobody typed yet.
+ * The input's placeholder. Goal mode asks for the goal, as the Codex app does. While a message waits at the head of the
+ * queue, an empty input's Enter sends it now (`agentChatComposerKeyAction`), so the placeholder says so instead of
+ * describing a follow-up nobody typed yet.
  */
 export function agentChatComposerPlaceholder(
     sendAction: { placeholder: string },
-    state: { hasNextQueued: boolean; isEditing: boolean; isTurnRunning: boolean },
+    state: {
+        hasNextQueued: boolean;
+        isEditing: boolean;
+        isGoalMode: boolean;
+        isTurnRunning: boolean;
+    },
     t: Translate = translate,
 ): string {
+    if (state.isGoalMode) return t('agentChat.goal.placeholder');
     if (!state.hasNextQueued || state.isEditing) return sendAction.placeholder;
     return t(
         state.isTurnRunning

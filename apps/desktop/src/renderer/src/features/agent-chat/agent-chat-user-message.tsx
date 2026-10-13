@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 
+import { parseAgentChatPathReferences } from '@caxri/protocol';
+
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { WebLink } from '../../components/markdown/web-link';
@@ -11,6 +13,7 @@ import { AgentChatInvocationChip } from './agent-chat-invocation-chip';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import { AgentChatMessageTime } from './agent-chat-message-time';
+import { AgentChatPathReferenceChips } from './agent-chat-path-reference-chips';
 import { agentChatDeliveryCaption } from './agent-chat-presentation';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { agentChatLeadingInvocation } from './agent-chat-slash-commands';
@@ -34,7 +37,9 @@ import { useIsAgentChatClamped } from './hooks/use-is-agent-chat-clamped';
  * when the provider restores files, "Restore code to here", which reverts the files changed since and keeps the
  * conversation, as Claude Code's `/rewind` "Restore code" does. A right-click offers the same actions in a native menu
  * (`agentChatUserMessageMenu`), so they are reachable without finding the hover row; a message read back from history
- * lists Edit and Fork there disabled with why.
+ * lists Edit and Fork there disabled with why. Files and folders the message cites (`agentChatTextWithPathReferences`)
+ * show as chips under its images rather than as the reference block the provider received; clicking one shows it in
+ * Finder.
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -62,8 +67,9 @@ export function AgentChatUserMessage({
     const isEditing = edit?.editingId === id;
     const container = useRef<HTMLDivElement>(null);
     const menu = useAgentChatUserMessageMenu({ container, id, text });
+    const { references, text: words } = parseAgentChatPathReferences(text);
     const hasActions =
-        text !== '' ||
+        words !== '' ||
         createdAt !== undefined ||
         edit?.availability(id) !== undefined ||
         edit?.restore?.availability(id) !== undefined;
@@ -77,10 +83,10 @@ export function AgentChatUserMessage({
                 text={text}
                 onFork={menu.fork}
             />
-            {text && (
+            {words && (
                 <CopyIconButton
                     className="-mr-1"
-                    copy={() => writeToClipboardWithFeedback(navigator.clipboard, text)}
+                    copy={() => writeToClipboardWithFeedback(navigator.clipboard, words)}
                     label={t('agentChat.message.copy')}
                 />
             )}
@@ -103,10 +109,11 @@ export function AgentChatUserMessage({
                     message={terminalId === undefined ? undefined : { terminalId, itemId: id }}
                 />
             )}
-            {text && (
+            {references.length > 0 && <AgentChatPathReferenceChips references={references} />}
+            {words && (
                 <AgentChatUserMessageBubble
                     isEditing={isEditing}
-                    text={text}
+                    text={words}
                     onOpenFile={onOpenFile}
                 />
             )}

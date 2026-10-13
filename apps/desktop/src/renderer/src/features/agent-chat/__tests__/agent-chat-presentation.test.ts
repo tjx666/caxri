@@ -241,13 +241,11 @@ describe('agentChatEmptyHint', () => {
 });
 
 describe('agentChatAttachLabel', () => {
-    it('says a pick inserts paths, and attaches images only when the provider takes them', () => {
-        expect(agentChatAttachLabel(true, false)).toBe('Attach images or insert file paths');
-        expect(agentChatAttachLabel(false, false)).toBe('Insert file paths');
-        expect(agentChatAttachLabel(true, true)).toBe(
-            'Attach images or insert file and folder paths',
-        );
-        expect(agentChatAttachLabel(false, true)).toBe('Insert file and folder paths');
+    it('says a pick attaches files, and images only when the provider takes them', () => {
+        expect(agentChatAttachLabel(true, false)).toBe('Attach images or files');
+        expect(agentChatAttachLabel(false, false)).toBe('Attach files');
+        expect(agentChatAttachLabel(true, true)).toBe('Attach images, files, or folders');
+        expect(agentChatAttachLabel(false, true)).toBe('Attach files or folders');
     });
 });
 
@@ -398,7 +396,12 @@ describe('agentChatComposerPlaceholder', () => {
     const sendAction = { placeholder: 'Queue a follow-up (⌘Enter to steer)' };
 
     it('says Enter sends the queued message while one waits, except during an edit', () => {
-        const state = { hasNextQueued: true, isEditing: false, isTurnRunning: true };
+        const state = {
+            hasNextQueued: true,
+            isEditing: false,
+            isGoalMode: false,
+            isTurnRunning: true,
+        };
         expect(agentChatComposerPlaceholder(sendAction, state)).toBe(
             'Enter to steer the queued message, or type a follow-up',
         );
@@ -411,6 +414,17 @@ describe('agentChatComposerPlaceholder', () => {
         expect(agentChatComposerPlaceholder(sendAction, { ...state, hasNextQueued: false })).toBe(
             sendAction.placeholder,
         );
+    });
+
+    it('asks for the goal in Goal mode', () => {
+        expect(
+            agentChatComposerPlaceholder(sendAction, {
+                hasNextQueued: true,
+                isEditing: false,
+                isGoalMode: true,
+                isTurnRunning: true,
+            }),
+        ).toBe('Describe your goal, define measurable outcomes for best results');
     });
 });
 

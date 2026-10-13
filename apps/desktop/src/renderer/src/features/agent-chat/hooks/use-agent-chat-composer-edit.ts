@@ -1,7 +1,8 @@
 import type { RefObject } from 'react';
-import { useImperativeHandle, useState } from 'react';
+import { useImperativeHandle, useRef, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
+import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import { draftAfterEditCancel, readAgentChatDraft } from '../agent-chat-drafts';
@@ -14,6 +15,7 @@ import {
 } from '../agent-chat-edit';
 import type { AgentChatEditBarProperties as AgentChatEditBarProperties } from '../agent-chat-edit-bar';
 import { agentChatEscapeAction, agentChatSendAction } from '../agent-chat-presentation';
+import type { useAgentChatAttachments } from './use-agent-chat-attachments';
 import type { useAgentChatSubmit } from './use-agent-chat-submit';
 
 export interface AgentChatComposerEditHandle {
@@ -44,6 +46,7 @@ export interface AgentChatComposerEditOptions {
  * Chat no longer holds its message (it was reset, or restarted onto other history).
  */
 export function useAgentChatComposerEdit({
+    attachments,
     canSend,
     draft,
     focusInput,
@@ -57,6 +60,10 @@ export function useAgentChatComposerEdit({
     terminalId,
     setDraft,
 }: {
+    /**
+     * Takes the edited message's file and folder cards back, and removes them again when the edit is cancelled.
+     */
+    attachments: Pick<ReturnType<typeof useAgentChatAttachments>, 'addPaths' | 'removePaths'>;
     canSend: boolean;
     draft: string;
     focusInput: () => void;
@@ -86,7 +93,15 @@ export function useAgentChatComposerEdit({
         readAgentChatEdit(terminalId) ?? current;
     const removedTurns = edit && snapshot ? agentChatEditRemovedTurns(snapshot, edit) : undefined;
     const active = edit && removedTurns !== undefined ? { ...edit, removedTurns } : undefined;
-    const startEdit = (itemId: string, text: string): void => {
+    /**
+     * The cards the edit brought back, which Cancel removes. Kept for this mount only: an edit restored after a remount
+     * leaves its cards for the user to remove.
+     */
+    const editPathIds = useRef<string[]>([]);
+    const startEdit = (itemId: string, message: string): void => {
+        const { references, text } = parseAgentChatPathReferences(message);
+        attachments.removePaths(editPathIds.current);
+        editPathIds.current = attachments.addPaths(references);
         setDraft(() => text);
         setEdit({
             itemId,
@@ -105,6 +120,8 @@ export function useAgentChatComposerEdit({
     useImperativeHandle(options.handleReference, () => ({ startEdit }));
     const cancel = (): void => {
         if (!active) return;
+        attachments.removePaths(editPathIds.current);
+        editPathIds.current = [];
         setDraft(() => draftAfterEditCancel(storedEdit(active)));
         setEdit(undefined);
         focusInput();

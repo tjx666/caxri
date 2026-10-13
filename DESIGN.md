@@ -1074,11 +1074,16 @@ search/path fields use `InputGroup`, never feature-local field chrome.
 **Agent Chat composer**: one radius-8 `--surface` card with a 1px `--border` that turns `--muted`
 while focused (the pane ring already carries the accent focus) and `--accent` while a file is
 dragged over the Chat. The whole pane takes the drop under a faint `--accent` tint with a centered
-`--elevated` label (`Drop to attach images or insert paths`, or `Drop to insert paths` when the
-provider takes no images). A dropped image attaches when the provider accepts images; any other file, Files entry, or Editor tab is inserted at
-the caret as its path, spelled relative to the Agent's directory the way a Terminal drop is. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, drawn
-from a preview that covers the 96px sent-message tile at 2x, each with its remove control inset in
-the top-right corner; clicking one previews the full image in a dialog, and an image that takes
+`--elevated` label (`Drop to add images, files, or folders`, or `Drop to add files or folders` when
+the provider takes no images). A dropped image attaches when the provider accepts images; any other
+file or folder from Finder becomes a card, while a Files entry or Editor tab dragged from inside
+Caxri is inserted at the caret as its path, spelled relative to the Agent's directory the way a
+Terminal drop is. Inside, top to bottom: the attachment tray, bottom-aligned with a 10px gap as in
+the Codex app (112px radius-8 image thumbnails, drawn from a preview that covers the 96px
+sent-message tile at 2x, and 56px-high radius-8 `--elevated` path cards whose 40px `--background`
+tile holds a folder or file glyph beside the name and a `--muted` `Folder` or `File` line, the full
+path in a tooltip; every item carries a 20px round remove control on its top-right corner; clicking
+a thumbnail previews the full image in a dialog, and an image that takes
 noticeably long to read holds a placeholder tile with a spinner, so a disabled Send has a visible
 cause), a borderless auto-growing textarea, and one action row in `--muted`, split like the Codex
 app's composer. Leading on the left: `+` (a round ghost icon, tooltip `Add files and more`, that
@@ -1088,7 +1093,7 @@ outline, a pressed toggle that turns plan mode off) while plan
 mode is on, and the permission picker. `+` opens a menu laid out like the Codex app's: under `Add`,
 Files (the system file picker; its muted description says what a pick does for this provider,
 `Attach images or insert file paths` or `Insert file paths`), Goal (only while the provider reports
-a `goal` command; it turns the draft into `/goal <draft>`), and Plan mode (with its description and a
+a `goal` command; it enters Goal mode), and Plan mode (with its description and a
 trailing check while on); under `Sessions`, the five most recently opened Sessions with an Agent
 conversation, each cited at the caret the way the `@` list cites it. Folders cannot be picked yet:
 Chromium's file input selects files only. Trailing on the right: the context meter (a
@@ -1159,7 +1164,16 @@ as part of the draft (reference: LobeHub's chat input). The strip is a `--surfac
 from the card's sides, its top corners radius-8 and its hairline resting on the card's top border;
 the `Editing an earlier message` bar and the idle context notices below use the same strip. The row holds a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
-stop` right-aligned. A working turn's label is one playful phrase chosen per turn from LobeHub's list (`Herding tokens…`),
+stop` right-aligned. While the provider pursues a goal, a goal row leads the strip, after the Codex
+app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
+`Goal paused`, `Goal stalled`, `Goal hit usage limits`, `Goal budget reached`, `Goal achieved`), the
+objective truncated in `--muted`, the goal's time (`1h 37m 29s`, ticking each second only while an
+active goal's turn runs), and ghost icon buttons Clear, Pause or Resume, and Expand, which shows the
+whole objective below the row. A completed goal stays until cleared. Goal mode, entered by choosing
+`/goal` from the suggestion list or Goal from `+`, adds a Goal chip after the permission picker,
+divided from it by a vertical hairline, and changes the placeholder to `Describe your goal, define
+measurable outcomes for best results`; Enter then sets the draft as the goal, and the chip or
+Backspace in an empty input leaves the mode. A working turn's label is one playful phrase chosen per turn from LobeHub's list (`Herding tokens…`),
 so a long turn reads as progress rather than a stall; a waiting one reads `Waiting for your
 approval` or `Waiting for your answer` by its first pending request. On an idle Chat the same row
 carries context notices instead: an expired prompt cache in `--muted` (a cost fact, not a fault),
@@ -1174,7 +1188,9 @@ Agent writes as plain prose (`src/app.ts:12`, an absolute path) is a file link l
 in the user's bubble a path keeps the text color with a dotted underline that turns `--accent` on
 hover, so the user's words still read as theirs. A user message longer than 12 lines clamps with
 Show more / Show less; clicking a sent image opens a larger preview, a loading one pulses, and one
-whose data is gone says `Image no longer available`. A web link leads with the site's favicon (the
+whose data is gone says `Image no longer available`. Files and folders the message attached sit
+between its images and its bubble as 28px round `--elevated` chips (glyph and name, full path in a
+tooltip); clicking one opens the folder in Finder or reveals the file there. A web link leads with the site's favicon (the
 GitHub mark for GitHub, a globe when there is none, fading in only on first load) and a dotted
 underline; hovering it opens a 320px card naming the host with an Open action, then where the
 link leads (`owner/repo · #N` beside a pull request, issue, or discussion glyph for GitHub). A user

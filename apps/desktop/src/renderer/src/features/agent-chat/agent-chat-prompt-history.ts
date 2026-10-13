@@ -1,4 +1,5 @@
 import type { AgentChatItem } from '@caxri/protocol';
+import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 /**
  * Shell-style prompt recall for the Chat composer: ArrowUp on an empty input walks back through the prompts this Chat
@@ -36,7 +37,8 @@ export function agentChatPromptHistory(
     if (!items) return entries;
     for (const item of items) {
         if (item.type !== 'userMessage') continue;
-        const prompt = item.text.trim();
+        // Recall brings back the user's words; the files and folders the message cited are not part of the prompt.
+        const prompt = parseAgentChatPathReferences(item.text).text.trim();
         if (!prompt) continue;
         if (entries.at(-1)?.prompt === prompt) entries.pop();
         entries.push({ id: item.id, prompt });

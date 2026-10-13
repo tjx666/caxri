@@ -37,7 +37,7 @@ describe('Agent Chat images and slash commands with a fake Codex app-server', ()
     it('lists /compact and runs it as a compaction turn', async () => {
         const { service, terminal, until } = await fixture();
         const ready = await until((snapshot) => snapshot.status === 'ready');
-        expect(ready.commands?.map((command) => command.name)).toEqual(['compact']);
+        expect(ready.commands?.map((command) => command.name)).toEqual(['compact', 'goal']);
 
         await service.runCommand(terminal.id, 'compact');
         const snapshot = await until((current) => current.turns.at(-1)?.status === 'completed');
