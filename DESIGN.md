@@ -1201,14 +1201,14 @@ language name such as `TypeScript`, wrap and copy) shares its fill and sets its 
 `meta` size every monospace preview uses; a table is set open, with row
 hairlines and no frame or header tint. All follow the Codex app's Dracula transcript. A path the
 Agent writes as plain prose (`src/app.ts:12`, an absolute path) is a file link like a cited one;
-in the user's bubble a path keeps the text color with a dotted underline that turns `--accent` on
-hover, so the user's words still read as theirs. A user message longer than 12 lines clamps with
+in the user's bubble a path or URL takes the same `--accent` with no underline until hover, so a
+link reads the same on both sides of the transcript. A user message longer than 12 lines clamps with
 Show more / Show less; clicking a sent image opens a larger preview, a loading one pulses, and one
 whose data is gone says `Image no longer available`. Files and folders the message attached sit
 between its images and its bubble as 28px round `--elevated` chips (glyph and name, full path in a
 tooltip); clicking one opens the folder in Finder or reveals the file there. A web link leads with the site's favicon (the
 GitHub mark for GitHub, a globe when there is none, fading in only on first load), underlined only
-in the user's bubble (dotted) and on hover; hovering it opens a 320px card naming the host with an Open action, then where the
+on hover; hovering it opens a 320px card naming the host with an Open action, then where the
 link leads (`owner/repo · #N` beside a pull request, issue, or discussion glyph for GitHub). A user
 message that starts with a skill (`$name`) or command (`/name`) shows it as an `--accent` chip;
 clicking the chip opens a popover with that skill's rendered Markdown.
