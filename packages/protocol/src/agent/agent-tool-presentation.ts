@@ -26,6 +26,7 @@ export type AgentToolKind =
     | 'skill'
     | 'stop'
     | 'thought'
+    | 'wait'
     | 'web'
     | 'write';
 
@@ -81,6 +82,23 @@ const TOOL_KINDS: Partial<Record<string, { kind: AgentToolKind; label: string }>
     agent: { kind: 'agent', label: 'Ran agent' },
     // Codex's collab tool that starts a subagent thread.
     spawnagent: { kind: 'agent', label: 'Started agent' },
+    /**
+     * Codex's other collab tools (`sendInput`, `closeAgent`) and the multi-agent v2 `subAgentActivity` kinds the Server
+     * names `sendMessage`, `interruptAgent`, and `agentCompleted`. A v2 activity's summary is the subagent's path
+     * (`/root/pr_watch_waiter`), which reads as its name; see {@link agentDisplayName}.
+     */
+    sendinput: { kind: 'agent', label: 'Messaged agent' },
+    sendmessage: { kind: 'agent', label: 'Messaged agent' },
+    closeagent: { kind: 'stop', label: 'Closed agent' },
+    interruptagent: { kind: 'stop', label: 'Stopped agent' },
+    /**
+     * Codex's collab `wait` (multi-agent v2 calls it `wait_agent`) blocks until any subagent reports, and names none,
+     * so the row says what it waits for instead of the bare tool name. A subagent's completion is the wait's answer,
+     * which is why it shares the kind: a settled group reads `Waited for agents`, not `Ran 1 agent`.
+     */
+    wait: { kind: 'wait', label: 'Waited for agents' },
+    wait_agent: { kind: 'wait', label: 'Waited for agents' },
+    agentcompleted: { kind: 'wait', label: 'Agent finished' },
     todowrite: { kind: 'plan', label: 'Updated plan' },
     update_plan: { kind: 'plan', label: 'Updated plan' },
     exitplanmode: { kind: 'plan', label: 'Proposed plan' },
@@ -94,12 +112,33 @@ const TOOL_KINDS: Partial<Record<string, { kind: AgentToolKind; label: string }>
 };
 
 const FILE_KINDS = new Set<AgentToolKind>(['edit', 'list', 'read', 'write']);
-const PROSE_KINDS = new Set<AgentToolKind>(['agent', 'question', 'thought', 'web']);
+const PROSE_KINDS = new Set<AgentToolKind>(['agent', 'question', 'thought', 'wait', 'web']);
+
+/**
+ * Tools whose summary is a subagent rather than a command or a prompt. `wait` is absent on purpose: Codex's only
+ * summary for it is a receiver count (`1 agent`), which `Waited for agents` already says.
+ */
+const AGENT_SUBJECT_TOOLS = new Set([
+    'agentcompleted',
+    'closeagent',
+    'interruptagent',
+    'sendmessage',
+]);
 
 const basename = (path: string): string => {
     const trimmed = path.replace(/[\\/]+$/u, '');
     const index = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
     return index === -1 ? trimmed : trimmed.slice(index + 1) || trimmed;
+};
+
+/**
+ * A multi-agent v2 subagent path (`/root/pr_watch_waiter`) as the name the Codex app shows (`Pr watch waiter`); any
+ * other text is returned unchanged.
+ */
+const agentDisplayName = (subject: string): string => {
+    if (!subject.startsWith('/')) return subject;
+    const name = basename(subject).replaceAll(/[_-]+/gu, ' ').trim();
+    return name ? `${name.charAt(0).toUpperCase()}${name.slice(1)}` : subject;
 };
 
 /**
@@ -167,6 +206,12 @@ export const describeAgentTool = (
     const known = TOOL_KINDS[tool.name.toLowerCase()];
     if (!known)
         return { kind: 'other', label: tool.name, subject: rawSubject, isCodeSubject: true };
+    const toolName = tool.name.toLowerCase();
+    if (known.kind === 'wait' || AGENT_SUBJECT_TOOLS.has(toolName)) {
+        // A receiver count (`1 agent`) says nothing the label does not; only a subagent path names who it was.
+        const name = rawSubject?.startsWith('/') ? agentDisplayName(rawSubject) : undefined;
+        return { ...known, ...(name && { subject: name }), isCodeSubject: false };
+    }
     if (rawSubject && known.kind === 'command' && known.label === 'Ran') {
         const command = unwrapShellCommand(rawSubject);
         return describeShellAction(command) ?? { ...known, subject: command, isCodeSubject: true };
@@ -237,6 +282,7 @@ const ACTIVE_LABELS: Partial<Record<AgentToolKind, string>> = {
     skill: 'Using skill',
     stop: 'Stopping',
     thought: 'Thinking',
+    wait: 'Waiting for agents',
     web: 'Browsing',
     write: 'Writing',
 };
@@ -261,6 +307,7 @@ const BASE_VERBS: Partial<Record<AgentToolKind, string>> = {
     skill: 'use skill',
     stop: 'stop',
     thought: 'think',
+    wait: 'wait for agents',
     web: 'browse',
     write: 'write',
 };
@@ -322,6 +369,7 @@ const GROUP_PHRASES: Record<AgentToolKind, (count: number) => string> = {
     image: (count) => `viewed ${plural(count, 'image')}`,
     stop: (count) => `stopped ${plural(count, 'process', 'processes')}`,
     thought: () => 'thought',
+    wait: () => 'waited for agents',
     other: (count) => `used ${plural(count, 'tool')}`,
 };
 

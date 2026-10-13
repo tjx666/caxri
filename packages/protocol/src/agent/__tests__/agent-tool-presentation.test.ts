@@ -253,3 +253,50 @@ describe('agentToolOutcomeLabel', () => {
         expect(agentToolOutcomeLabel(mcp, 'declined')).toBe('Not allowed: github');
     });
 });
+
+describe('Codex subagent tools', () => {
+    it('reads a wait as waiting for agents instead of the bare tool name', () => {
+        for (const name of ['wait', 'wait_agent']) {
+            const wait = describeAgentTool({ name, summary: '1 agent' });
+            expect(wait).toEqual({
+                kind: 'wait',
+                label: 'Waited for agents',
+                isCodeSubject: false,
+            });
+            expect(agentToolActiveLabel(wait)).toBe('Waiting for agents');
+            expect(agentToolOutcomeLabel(wait, 'interrupted')).toBe('Stopped waiting for agents');
+        }
+    });
+
+    it('names a multi-agent v2 subagent by its path, the way the Codex app does', () => {
+        expect(
+            describeAgentTool({ name: 'agentCompleted', summary: '/root/pr_watch_waiter' }),
+        ).toEqual({
+            kind: 'wait',
+            label: 'Agent finished',
+            subject: 'Pr watch waiter',
+            isCodeSubject: false,
+        });
+        expect(
+            describeAgentTool({ name: 'sendMessage', summary: '/root/acceptance-checker' }),
+        ).toMatchObject({ kind: 'agent', label: 'Messaged agent', subject: 'Acceptance checker' });
+        expect(
+            describeAgentTool({ name: 'interruptAgent', summary: '/root/review_waiter' }),
+        ).toMatchObject({ kind: 'stop', label: 'Stopped agent', subject: 'Review waiter' });
+        // A v1 collab call's summary is a receiver count, not a name.
+        expect(describeAgentTool({ name: 'closeAgent', summary: '2 agents' })).toEqual({
+            kind: 'stop',
+            label: 'Closed agent',
+            isCodeSubject: false,
+        });
+    });
+
+    it('summarizes a wait and the completion it returned as one wait', () => {
+        expect(
+            summarizeAgentToolGroup([
+                { name: 'wait' },
+                { name: 'agentCompleted', summary: '/root/pr_watch_waiter' },
+            ]),
+        ).toBe('Waited for agents');
+    });
+});

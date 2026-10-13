@@ -27,6 +27,7 @@ import {
     FileText,
     FolderOpen,
     Globe,
+    Hourglass,
     Image,
     Layers,
     ListTodo,
@@ -84,6 +85,7 @@ const WORK_ICONS: Record<AgentToolKind, LucideIcon> = {
     skill: Sparkles,
     stop: CircleStop,
     thought: Brain,
+    wait: Hourglass,
     web: Globe,
     write: FilePlus,
 };
