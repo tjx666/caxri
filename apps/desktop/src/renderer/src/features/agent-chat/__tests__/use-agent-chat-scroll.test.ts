@@ -5,6 +5,7 @@ import {
     agentChatAnchoredScrollTop,
     agentChatFollowScrollTop,
     agentChatTurnSpacerHeight,
+    isFollowingAfterScroll,
     isLatestInView,
     isScrolledToEnd,
 } from '../hooks/use-agent-chat-scroll';
@@ -27,6 +28,61 @@ describe('isScrolledToEnd', () => {
         expect(isScrolledToEnd({ scrollHeight: 1000, scrollTop: 500, clientHeight: 400 })).toBe(
             false,
         );
+    });
+});
+
+describe('isFollowingAfterScroll', () => {
+    it("keeps following when the view's own scroll to the end is reported after a sent message grew the content", () => {
+        // Send scrolled to the end at 600; the pending message then added 150px before the scroll event arrived.
+        expect(
+            isFollowingAfterScroll(
+                { scrollHeight: 1150, scrollTop: 600, clientHeight: 400 },
+                { isFollowing: true, lastScrollTop: 600 },
+            ),
+        ).toBe(true);
+    });
+
+    it('keeps following when scroll anchoring pushed the view down as a sent message rendered', () => {
+        // Recorded in a Chat: the view sat at the end at 36 and the browser moved it to 42 as the content grew to 810.
+        expect(
+            isFollowingAfterScroll(
+                { scrollHeight: 810, scrollTop: 42, clientHeight: 706 },
+                { isFollowing: true, lastScrollTop: 36 },
+            ),
+        ).toBe(true);
+    });
+
+    it('stops following once the user scrolled up away from the end', () => {
+        expect(
+            isFollowingAfterScroll(
+                { scrollHeight: 1000, scrollTop: 400, clientHeight: 400 },
+                { isFollowing: true, lastScrollTop: 600 },
+            ),
+        ).toBe(false);
+    });
+
+    it('keeps reading history when a scroll down stops short of the end', () => {
+        expect(
+            isFollowingAfterScroll(
+                { scrollHeight: 1000, scrollTop: 300, clientHeight: 400 },
+                { isFollowing: false, lastScrollTop: 200 },
+            ),
+        ).toBe(false);
+    });
+
+    it('resumes following once a scroll reaches the end, as when a row collapsed at the end', () => {
+        expect(
+            isFollowingAfterScroll(
+                { scrollHeight: 1000, scrollTop: 600, clientHeight: 400 },
+                { isFollowing: false, lastScrollTop: 600 },
+            ),
+        ).toBe(true);
+        expect(
+            isFollowingAfterScroll(
+                { scrollHeight: 1000, scrollTop: 600, clientHeight: 400 },
+                { isFollowing: false, lastScrollTop: undefined },
+            ),
+        ).toBe(true);
     });
 });
 

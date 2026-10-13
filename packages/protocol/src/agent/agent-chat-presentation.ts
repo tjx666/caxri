@@ -111,10 +111,11 @@ function mobileFailureMessage(
 
 /**
  * Claude Code marks the option it recommends by ending its label with `(Recommended)`, the convention its
- * `AskUserQuestion` tool asks the model to follow; there is no structured flag. The card shows the label without the
- * suffix and a badge instead, while the answer still sends the provider its original label.
+ * `AskUserQuestion` tool asks the model to follow; there is no structured flag. A model answering in Chinese writes the
+ * same suffix in Chinese, often with full-width parentheses (`（推荐）`). The card shows the label without the suffix and a
+ * badge instead, while the answer still sends the provider its original label.
  */
-const RECOMMENDED_SUFFIX = /\s*\(recommended\)\s*$/i;
+const RECOMMENDED_SUFFIX = /\s*[(（]\s*(?:recommended|推荐)\s*[)）]\s*$/iu;
 
 export function agentChatQuestionOption(label: string): { isRecommended: boolean; text: string } {
     const text = label.replace(RECOMMENDED_SUFFIX, '');

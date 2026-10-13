@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import type { AgentChatItem, AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import { AGENT_CHAT_EXIT_PLAN_TOOL } from '@caxri/protocol';
 
+import { useColorizedCode } from '../../components/markdown/use-colorized-code';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
@@ -103,6 +104,9 @@ export function AgentChatRequestCard({
     });
     const cwd =
         request.kind === 'command' ? agentChatCommandCwd(request.cwd, projectRoot) : undefined;
+    const command = request.kind === 'command' ? request.command : undefined;
+    // Painted with the editor's colors like the command on a work row, so the approval reads the same as the run.
+    const { html: commandHtml } = useColorizedCode(command ?? '', 'shell', Boolean(command));
     const title = agentChatLocalizedRequestTitle(request, providerName, t);
     return (
         <section
@@ -126,8 +130,18 @@ export function AgentChatRequestCard({
                     {request.kind === 'tool' && request.summary && (
                         <ApprovalToolSummary name={request.name} summary={request.summary} />
                     )}
-                    {request.kind === 'command' && request.command && (
-                        <pre className={APPROVAL_PRE_CLASS_NAME}>{request.command}</pre>
+                    {command && (
+                        <pre className={APPROVAL_PRE_CLASS_NAME}>
+                            {commandHtml ? (
+                                /**
+                                 * Monaco's colorizer escapes the source and wraps it only in its own color-class spans;
+                                 * `colorizeCode` rejects any other markup shape before it reaches here.
+                                 */
+                                <code dangerouslySetInnerHTML={{ __html: commandHtml }} />
+                            ) : (
+                                <code>{command}</code>
+                            )}
+                        </pre>
                     )}
                     {cwd && (
                         <p className="m-0 font-mono text-[11px] wrap-anywhere text-muted">

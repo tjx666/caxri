@@ -17,6 +17,25 @@ export function isScrolledToEnd(
 }
 
 /**
+ * Whether the view follows the end after a scroll event, given `lastScrollTop`, where the view was last put or seen.
+ * Only a scroll up leaves the end, yet a scroll event can report a position nobody scrolled up to, a frame after the
+ * content below already grew: Send's own scroll to the end, reported once the pending message rendered, or Chromium's
+ * scroll anchoring pushing the view down a few pixels to hold its place when a row above changes height as the message
+ * is sent. Judged by position alone, either reads as the user scrolling up and stops following just as the message
+ * should rise to the top. So while following, a scroll that kept or moved the view down keeps following, and only a
+ * scroll up is judged by where it left the view. Reaching the end resumes following either way, as when a row collapsed
+ * at the end and the view held it there.
+ */
+export function isFollowingAfterScroll(
+    metrics: { scrollHeight: number; scrollTop: number; clientHeight: number },
+    { isFollowing, lastScrollTop }: { isFollowing: boolean; lastScrollTop: number | undefined },
+): boolean {
+    // A pixel of slack absorbs fractional positions rounding differently between writing and reading back.
+    const hasNotMovedUp = lastScrollTop !== undefined && metrics.scrollTop >= lastScrollTop - 1;
+    return (isFollowing && hasNotMovedUp) || isScrolledToEnd(metrics);
+}
+
+/**
  * Whether the end of the content (the latest entry, not the empty space kept below the latest turn) is within the view.
  * `contentBottom` is that end's offset from the view's top. While it is, Jump to latest has nothing to bring into view:
  * scrolling up a little inside the kept space still shows the whole latest turn.
@@ -140,6 +159,11 @@ export function useAgentChatScroll(
     const anchorReference = useRef<{ element: HTMLElement; offset: number; until: number }>(
         undefined,
     );
+    /**
+     * Where the view was last put or seen, so a scroll event can tell whether it moved up (see
+     * {@link isFollowingAfterScroll}).
+     */
+    const lastScrollTopReference = useRef<number | undefined>(undefined);
     const pin = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;
@@ -165,15 +189,22 @@ export function useAgentChatScroll(
                 anchored.offset,
                 offsetInView(element, anchored.element),
             );
+            lastScrollTopReference.current = element.scrollTop;
             return;
         }
         const top = agentChatFollowScrollTop(element, isFollowingReference.current);
-        if (top !== null) element.scrollTop = top;
+        if (top === null) return;
+        element.scrollTop = top;
+        lastScrollTopReference.current = element.scrollTop;
     }, [turnSelector]);
     const onScroll = useCallback(() => {
         const element = scrollReference.current;
         if (!element) return;
-        isFollowingReference.current = isScrolledToEnd(element);
+        isFollowingReference.current = isFollowingAfterScroll(element, {
+            isFollowing: isFollowingReference.current,
+            lastScrollTop: lastScrollTopReference.current,
+        });
+        lastScrollTopReference.current = element.scrollTop;
         syncLatestInView();
     }, [syncLatestInView]);
     const jumpToLatest = useCallback(() => {

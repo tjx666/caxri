@@ -39,6 +39,8 @@ test('Jump to latest shows only while the latest turn is out of view, not over t
         await message.press('Enter');
         await expect(chat.getByRole('table')).toHaveCount(2);
         await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+        // Sent from the end, a message keeps following even when scroll anchoring nudges the view as it renders.
+        await expect(jump).toHaveCount(0);
         await message.fill('short one');
         await message.press('Enter');
         await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
@@ -74,6 +76,62 @@ test('Jump to latest shows only while the latest turn is out of view, not over t
         });
         await expect(jump).toBeVisible();
         await jump.click();
+        await expect(jump).toHaveCount(0);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('A message sent while reading above the end still rises to the top', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-rise-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        const transcript = chat.getByRole('log');
+        const jump = chat.locator('button:not([inert])', { hasText: 'Jump to latest' });
+
+        await message.fill('table please');
+        await message.press('Enter');
+        await expect(chat.getByRole('table')).toHaveCount(1);
+        await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+        await message.fill('table please');
+        await message.press('Enter');
+        await expect(chat.getByRole('table')).toHaveCount(2);
+        await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+
+        // Scrolled up a little to reread the long reply, so sending is what brings the view back to the end.
+        await transcript.evaluate((element) => {
+            element.scrollTop -= 200;
+        });
+        await expect(jump).toBeVisible();
+        await message.fill('short one');
+        await message.press('Enter');
+        // The reply proves the provider's message replaced the pending row, so the check covers the settled turn.
+        await expect(transcript.getByText('You said: short one')).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+
+        const sent = transcript.getByText('short one', { exact: true });
+        await expect
+            .poll(() =>
+                sent.evaluate((element) => {
+                    const view = element.closest('[role="log"]');
+                    if (!view) return NaN;
+                    return element.getBoundingClientRect().top - view.getBoundingClientRect().top;
+                }),
+            )
+            .toBeLessThan(200);
+        await page.screenshot({ path: testInfo.outputPath('sent-from-history-rises.png') });
         await expect(jump).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);

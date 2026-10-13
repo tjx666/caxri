@@ -17,7 +17,8 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
  * The composer strip's row while the Chat starts, works, or waits on the user. The strip sits on top of the card rather
  * than inside it, so the Chat's state never reads as part of what the user is typing. A working turn shows its verb
  * under a sweeping highlight and how long it has run, so a long turn reads as progress rather than a stall; a turn
- * waiting on the user holds still, since nothing is in progress until the user answers. The polite live region stays
+ * waiting on the user shows no row of its own, since its request card right above already says so, and holds still once
+ * a draft brings the row back, since nothing is in progress until the user answers. The polite live region stays
  * mounted so transitions between starting, working, and waiting are announced, while the ticking time never is. The Esc
  * hint is also clickable, so pointing at it gives feedback instead of reading as dead text. While a turn runs and the
  * user has typed something, the row also says what Enter and Cmd+Enter will do with it, because the difference between
@@ -48,7 +49,12 @@ export function AgentChatActivityBar({
             <span aria-live="polite" className="sr-only" role="status">
                 {notice ?? activity?.text}
             </span>
-            {activity && (
+            {/*
+             * While a turn waits, the approval or question card sits right above the composer and is the waiting state
+             * itself, so a second "waiting" row would only wedge between the card and its composer. The row returns
+             * once the user types, to say what Enter does with the draft. The live region above still announces it.
+             */}
+            {activity && (activity.kind !== 'waiting' || showsDeliveryHint) && (
                 <div
                     aria-hidden="true"
                     className="flex h-8 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
