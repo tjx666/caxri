@@ -3,11 +3,13 @@ import type {
     AgentChatItemStatus,
     AgentChatTask,
     AgentChatTaskSnapshot,
+    AgentUsageReadout,
 } from '@caxri/protocol';
 import { formatTokens } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
+import { agentUsageCostLabel } from '../status-bar/agent-usage-label';
 
 /**
  * Tool names whose row starts a subagent, compared without case or separators: Claude Code's `Task` and `Agent`, and
@@ -138,16 +140,23 @@ export function agentChatTaskElapsedMs(
 }
 
 /**
- * `12.3k tokens · 8 tool uses`, from whatever usage the provider reported.
+ * `683k tokens · $0.21 · 8 tool uses`. `billed` is the subagent's own transcript priced like the status bar
+ * (`terminal.agentTaskUsage`); its tokens replace the provider's `totalTokens`, which counts only the latest request's
+ * context, so the figure beside the cost is the one the cost was computed from and adds up to the conversation's total.
+ * Without it the provider's count is shown and no cost.
  */
 export function agentChatTaskUsageSummary(
     task: Pick<AgentChatTask, 'usage'>,
     t: Translate,
+    billed?: AgentUsageReadout | null,
 ): string | undefined {
     const parts: string[] = [];
-    const { totalTokens, toolUses } = task.usage ?? {};
+    const { toolUses } = task.usage ?? {};
+    const totalTokens = billed ? billed.tokens.total : task.usage?.totalTokens;
     if (totalTokens)
         parts.push(t('agentChat.tasks.usageTokens', { tokens: formatTokens(totalTokens) }));
+    const cost = billed && agentUsageCostLabel(billed);
+    if (cost) parts.push(cost);
     if (toolUses)
         parts.push(
             toolUses === 1

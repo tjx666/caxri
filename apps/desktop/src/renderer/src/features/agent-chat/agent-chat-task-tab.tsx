@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react';
 import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol';
 import { ArrowLeft, RotateCcw, Square } from 'lucide-react';
 
+import { usePolledQuery } from '@/hooks/use-polled-query';
+
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
@@ -32,6 +34,12 @@ import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { useAgentChatTask } from './hooks/use-agent-chat-task';
 
+/**
+ * An ended subagent's transcript can still gain its last response after the task reports it ended, so its usage is
+ * re-read rarely rather than never.
+ */
+const ENDED_TASK_USAGE_POLL_MS = 30_000;
+
 const STATE_CLASS_NAME =
     'flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[13px] text-muted';
 
@@ -50,9 +58,22 @@ function TaskHeader({
     title: string;
 }) {
     const { t } = useTranslation();
+    const isRunning = task?.status === 'running';
+    // Polled every two seconds while the subagent runs, like the status bar's usage chip.
+    const { data: billed } = usePolledQuery(
+        'terminal.agentTaskUsage',
+        { terminalId, taskId: task?.id ?? '' },
+        {
+            label: 'terminal.agentTaskUsage',
+            intervalMs: isRunning ? 2_000 : ENDED_TASK_USAGE_POLL_MS,
+            staleTime: 1_000,
+            retry: false,
+            enabled: kind === 'agent' && task !== undefined,
+        },
+    );
     const details = [
         kind === 'agent' ? agentChatTaskIdentity(task) : undefined,
-        task && agentChatTaskUsageSummary(task, t),
+        task && agentChatTaskUsageSummary(task, t, billed),
         task && agentChatTaskActivity(task, t),
     ].filter(Boolean);
     return (
