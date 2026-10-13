@@ -44,6 +44,11 @@ function mapCodexGoal(raw: unknown, receivedAt = Date.now()): AgentChatGoal | un
  * only forwards the user's changes and mirrors what Codex reports into the snapshot's `goal`.
  */
 export class CodexGoals {
+    /**
+     * Counts goal notifications, so a `set` response does not overwrite a newer goal Codex reported after it.
+     */
+    private notificationCount = 0;
+
     constructor(
         private readonly host: Pick<AgentChatSessionHost, 'apply' | 'read'>,
         private readonly threadId: () => string | undefined,
@@ -54,14 +59,24 @@ export class CodexGoals {
         fields: { objective?: string; status: 'active' | 'paused' },
         timeoutMs = GOAL_REQUEST_TIMEOUT_MS,
     ): Promise<void> {
+        let seen = this.notificationCount;
         const result = await connection.request(
             'thread/goal/set',
             { threadId: this.threadId(), origin: 'user', ...fields },
             timeoutMs,
+            () => {
+                seen = this.notificationCount;
+            },
         );
-        // The response carries the goal before `thread/goal/updated` does, so the row changes as the request settles.
+        /**
+         * The response carries the goal before `thread/goal/updated` does, so the row changes as the request settles.
+         * Codex may already have pursued and completed the goal by the time this continuation runs: notifications that
+         * followed the response in the same read are applied first, and they are newer. One that arrived before the
+         * response (an earlier change's update) is older and must not hide this result.
+         */
         const goal = isRecord(result) ? mapCodexGoal(result.goal) : undefined;
-        if (goal) this.host.apply([{ op: 'state', state: { goal } }]);
+        if (goal && this.notificationCount === seen)
+            this.host.apply([{ op: 'state', state: { goal } }]);
     }
 
     private async clear(connection: JsonRpcConnection): Promise<void> {
@@ -92,6 +107,7 @@ export class CodexGoals {
      * Applies a `thread/goal/updated` or `thread/goal/cleared` notification for this thread.
      */
     onNotification(method: string, parameters: Record<string, unknown>): void {
+        this.notificationCount += 1;
         if (method === 'thread/goal/cleared') {
             this.host.apply([{ op: 'state', state: { goal: null } }]);
             return;

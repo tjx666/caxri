@@ -41,9 +41,13 @@ export function isReceiptTransition(
 /**
  * What a Server restart does with a task that was still active. A retired native process may have persisted completion
  * just before the restart, so a task with a recorded answer or a native-completion turn is collected, never replayed;
- * every other task was cut off by the host reset.
+ * every other task was cut off by the host reset. So is every task of a Chat child (`isChatTerminal`): its answer lives
+ * in the Chat projection, which did not survive the restart.
  */
-export function recoveredDelegation(record: StoredAgentDelegation): {
+export function recoveredDelegation(
+    record: StoredAgentDelegation,
+    isChatTerminal?: (terminalId: string) => boolean,
+): {
     next: StoredAgentDelegation;
     shouldCollect: boolean;
 } {
@@ -51,7 +55,10 @@ export function recoveredDelegation(record: StoredAgentDelegation): {
     const isNativeTurn =
         Boolean(record.turnId) &&
         delegationAdapter(record.receipt.provider).completion === 'native-completion';
-    const shouldCollect = (hasAnswer || isNativeTurn) && Boolean(record.providerSessionId);
+    const { terminalId } = record.receipt;
+    const isChatChild = Boolean(terminalId && isChatTerminal?.(terminalId));
+    const shouldCollect =
+        !isChatChild && (hasAnswer || isNativeTurn) && Boolean(record.providerSessionId);
     return {
         next: {
             ...record,
@@ -84,6 +91,7 @@ export function applyDelegationLifecycle(
     record: StoredAgentDelegation,
     signal: AgentLifecycleSignal,
     source: 'lifecycle' | 'evidence' = 'lifecycle',
+    isChatTerminal?: (terminalId: string) => boolean,
 ): StoredAgentDelegation | undefined {
     const isGrokStop = signal.provider === 'grok' && signal.phase === 'turnFinished';
     if (isGrokStop !== (source === 'evidence')) return;
@@ -130,14 +138,25 @@ export function applyDelegationLifecycle(
         if (isNativeCompletion && !record.providerSessionId)
             return patch('answer_unavailable', 'correlation_missing', 'native_session_missing');
         if (record.turnId && signal.agentTurnId === record.turnId) return;
+        /**
+         * A Chat child's continuation may carry no prompt: Claude Code waking from background work starts its own turn,
+         * which the Chat opens without one. The coordinator's continuation proof is enough there, because a Chat
+         * child's answer is read from the Chat projection rather than matched in a transcript by prompt digest.
+         */
+        const isChatChild = Boolean(
+            record.receipt.terminalId && isChatTerminal?.(record.receipt.terminalId),
+        );
         if (
             record.turnId &&
             signal.agentContinuedTurnId === record.turnId &&
             signal.agentTurnId &&
-            signal.agentPromptDigest
+            (isChatChild || signal.agentPromptDigest)
         ) {
-            const digests = [...(record.continuationPromptDigests ?? []), signal.agentPromptDigest];
-            if (digests.length > 64) return patch('answer_unavailable', 'payload_overflow');
+            const digests = signal.agentPromptDigest
+                ? [...(record.continuationPromptDigests ?? []), signal.agentPromptDigest]
+                : record.continuationPromptDigests;
+            if (digests && digests.length > 64)
+                return patch('answer_unavailable', 'payload_overflow');
             return {
                 ...patch('running'),
                 turnId: signal.agentTurnId,

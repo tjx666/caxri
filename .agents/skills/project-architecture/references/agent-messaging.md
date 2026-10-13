@@ -37,7 +37,9 @@ launch ID before an interrupt or stop reaches the current Caxri-owned Agent chil
 long-lived Shell root. A client disconnect explicitly cancels its dispatch long poll. A Chat Terminal target
 has no child process to signal: `terminal.sendInternal`, interrupt, stop, and dispatch `resume`/`wake` drive it
 through `AgentChatService` (`agent-dispatch/chat-target.ts`, `chat-launch.ts`), and its process state reaches
-receipts through `AgentChatServiceOptions.onAgentStateChanged`; dispatch `start` still creates a PTY.
+receipts through `AgentChatServiceOptions.onAgentStateChanged`. Dispatch `start` creates a PTY, except a visible
+delegation child that `session.openAgentsInChat` opens as a Claude Code or Codex Chat (`agent-delegation/chat-child.ts`;
+see `docs/agent-delegation.md`).
 
 The Agent Commander Endpoint is the one fixed exception to grant-only delegation. Domain services begin
 it with `role: 'commander'`, which adds `commander` and `agents.delegate` while its Project scope stays

@@ -61,6 +61,22 @@ describe('JsonRpcConnection framing', () => {
         expect(notifications[0]?.[1]).toEqual({ text: '你好' });
     });
 
+    it('reports a response before the frames that follow it in the same read', async () => {
+        const child = fakeChild();
+        const { connection, notifications } = connect(child);
+        let seenAtResponse: number | undefined;
+        const response = connection.request('goal/set', {}, undefined, () => {
+            seenAtResponse = notifications.length;
+        });
+        child.stdout.emit(
+            'data',
+            Buffer.from('{"method":"before"}\n{"id":1,"result":{}}\n{"method":"after"}\n'),
+        );
+        await response;
+        expect(seenAtResponse).toBe(1);
+        expect(notifications.map(([method]) => method)).toEqual(['before', 'after']);
+    });
+
     it('rejects an oversized frame before parsing it, even when its final chunk completes it', () => {
         const child = fakeChild();
         const { notifications, ends, connection } = connect(child);

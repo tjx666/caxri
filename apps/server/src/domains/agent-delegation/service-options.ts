@@ -28,6 +28,15 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
     delegationSettings?(): AgentDelegationSettings;
     verifyLaunch(launch: AgentLaunchSettings, provider: AgentProvider): Promise<void>;
     dimensions?(terminalId: string): { cols: number; rows: number } | undefined;
+    /**
+     * Whether `session.openAgentsInChat` is on and Agent Chat is available, so an eligible child opens as a Chat; see
+     * `delegationChildLaunch`.
+     */
+    opensAgentsInChat?(): boolean;
+    /**
+     * Whether a Terminal runs its Agent as a Chat. A property, so restart recovery can take it unbound.
+     */
+    isChatTerminal?: (terminalId: string) => boolean;
     inputEpoch?(terminalId: string): number;
     currentLaunchId?(terminalId: string): string | undefined;
     isIdle?(terminalId: string, launchId: string, turnId: string): boolean;

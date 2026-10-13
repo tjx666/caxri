@@ -215,6 +215,46 @@ describe('Delegation continuation correlation', () => {
         ).toBeUndefined();
     });
 
+    it('accepts a promptless coordinator-proven continuation only for a Chat child', () => {
+        // Claude Code waking from background work: the Chat opens that turn itself, with no prompt.
+        const woke = {
+            ...signal,
+            phase: 'turnStarted' as const,
+            agentTurnId: 'second',
+            agentContinuedTurnId: 'first',
+        };
+        const isChat = (terminalId: string) => terminalId === 'terminal';
+        const continued = applyDelegationLifecycle(record, woke, 'lifecycle', isChat)!;
+        expect(continued).toMatchObject({ turnId: 'second', receipt: { status: 'running' } });
+        expect(continued.continuationPromptDigests).toBeUndefined();
+        expect(
+            applyDelegationLifecycle(
+                continued,
+                {
+                    ...signal,
+                    phase: 'turnFinished',
+                    agentTurnId: 'second',
+                    agentResponseDigest: 'c'.repeat(64),
+                },
+                'lifecycle',
+                isChat,
+            )?.receipt.status,
+        ).toBe('collecting');
+        // Without coordinator proof, or for a PTY child, the promptless turn still fails correlation.
+        expect(
+            applyDelegationLifecycle(
+                record,
+                { ...woke, agentContinuedTurnId: undefined },
+                'lifecycle',
+                isChat,
+            )?.receipt,
+        ).toMatchObject({ status: 'answer_unavailable', correlationFailure: 'turn_changed' });
+        expect(applyDelegationLifecycle(record, woke)?.receipt).toMatchObject({
+            status: 'answer_unavailable',
+            correlationFailure: 'turn_changed',
+        });
+    });
+
     it('returns a Codex task past its startup deadline to awaiting its turn once the native session starts', () => {
         const waiting: StoredAgentDelegation = {
             ...record,

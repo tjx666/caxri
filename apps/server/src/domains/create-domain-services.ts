@@ -7,7 +7,7 @@ import { readActiveContext } from './active-context';
 import { createAgentChatHandlers } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
-import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
+import { AgentAttentionRequests, CompactionReadiness, createLongPasteService } from './agents';
 import { createBackgroundTasks } from './background-tasks';
 import { createBenchmarkService } from './benchmark-service-creation';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
@@ -178,13 +178,12 @@ export async function createDomainServices(
             dependencies.terminal?.terminalColors ??
             (() => configuration.getTheme().value.terminal),
     });
-    const longPastes = new LongPasteService(
+    const longPastes = await createLongPasteService({
         userDataPath,
         database,
-        () => configuration.getSettings().value,
-        (terminalId) => terminals.agentLaunchId(terminalId),
-    );
-    await longPastes.initialize();
+        settings: () => configuration.getSettings().value,
+        agentLaunchId: (terminalId) => terminals.agentLaunchId(terminalId),
+    });
     const unsubscribeTerminalSettings = configuration.subscribeSettings(() =>
         terminals.reconcileOutputRecoverySettings(),
     );
@@ -193,6 +192,7 @@ export async function createDomainServices(
         commanderHooks,
         configuration,
         database,
+        delegationState,
         dependencies,
         logger,
         send,
@@ -359,7 +359,7 @@ export async function createDomainServices(
     const agentCommands = createAgentCommandRuntime({
         agentChat,
         logger,
-        delegationSettings: () => configuration.getSettings().value['agents.delegation'],
+        settings: () => configuration.getSettings().value,
         database,
         coordinator,
         emit: send,
