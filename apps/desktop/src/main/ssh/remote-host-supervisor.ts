@@ -4,8 +4,8 @@ import process from 'node:process';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AskpassHandler } from './askpass';
-import type { RemoteSeedConfig, RemoteStateUpdate } from './remote-server-supervisor';
 import { RemoteServerSupervisor } from './remote-server-supervisor';
+import type { RemoteSeedConfig, RemoteStateUpdate } from './remote-server-supervisor-options';
 import { defaultSshControlDirectory } from './ssh-connection';
 
 /**

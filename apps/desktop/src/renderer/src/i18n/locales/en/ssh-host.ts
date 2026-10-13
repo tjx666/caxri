@@ -5,6 +5,7 @@ export const sshHost = {
     'sshHost.status.tooltip':
         "This window's Projects, Terminals, and Agents run on the SSH Host {{destination}}.",
     'sshHost.status.platform': '{{hostname}} · Linux {{architecture}} · glibc {{glibc}}',
+    'sshHost.status.stopServer': 'Stop Server on SSH Host…',
 
     // Connect to SSH Host dialog
     'sshHost.connect.title': 'Connect to SSH Host',
@@ -14,12 +15,14 @@ export const sshHost = {
     'sshHost.connect.recent': 'Recent',
     'sshHost.connect.config': 'SSH config',
     'sshHost.connect.invalid': 'An SSH destination cannot start with "-" or contain spaces.',
-    'sshHost.connect.empty': 'Type user@host, or add a Host to ~/.ssh/config.',
+    'sshHost.connect.empty': 'Type user@host, or choose Open SSH Config to add a Host.',
+    'sshHost.connect.openConfig': 'Open SSH Config',
+    'sshHost.connect.openConfigFailed': 'Unable to show the SSH config',
     'sshHost.connect.noMatch': 'No matching SSH Host. Type a full user@host to connect to it.',
     'sshHost.connect.loadFailed': 'Unable to read ~/.ssh/config. You can still type a destination.',
     'sshHost.connect.failed': 'Unable to open the SSH Host window',
     'sshHost.connect.reused':
-        'Already connected to the same SSH Host ({{destination}}) in this window',
+        'This window is already connected to {{destination}} (same SSH Host as {{typed}})',
 
     // Connection overlay
     'sshHost.phase.connecting': 'Connecting…',
@@ -28,13 +31,13 @@ export const sshHost = {
     'sshHost.phase.starting': 'Starting Caxri Server…',
     'sshHost.phase.connected': 'Connected',
     'sshHost.phase.reconnecting': 'Reconnecting…',
+    'sshHost.phase.reconnectingAttempt': 'Reconnecting (attempt {{attempt}})…',
     'sshHost.phase.disconnected': 'Disconnected',
-    'sshHost.phase.stopped': 'Server stopped',
+    'sshHost.phase.stopped': 'Stopping Server…',
     'sshHost.phase.failed': 'Unable to connect',
+    'sshHost.phase.cancelled': 'Connection cancelled',
     'sshHost.progress.label': 'Installing Caxri Server',
     'sshHost.progress.percent': '{{percent}}%',
-    'sshHost.needsUserAction':
-        'Caxri stopped reconnecting because the SSH Host needs your answer. Choose Reconnect to try again.',
     'sshHost.failure.authentication':
         'The SSH Host did not accept your credentials. Check your password, key, or 2FA code, then reconnect.',
     'sshHost.failure.hostKey':
@@ -52,23 +55,32 @@ export const sshHost = {
     'sshHost.failure.launchFailed': 'Caxri Server was installed but did not start on the SSH Host.',
     'sshHost.failure.profileInUse':
         'Another computer that shares your home folder is running Caxri Server with the same data. Stop that Server, or wait a minute after it exits, then reconnect.',
+    'sshHost.failure.profileInUseHost':
+        'Another computer that shares your home folder ({{hostname}}) is running Caxri Server with the same data. Stop that Server, or wait a minute after it exits, then reconnect.',
     'sshHost.failure.takenOver':
-        'Another Caxri window connected to this SSH Host and took over its Server. Terminals and Agents keep running there. Choose Use Here to continue in this window; the other window then disconnects.',
-    'sshHost.failure.cancelled': 'The connection was cancelled.',
+        "Caxri in another window or on another computer took over this SSH Host's Server. Terminals and Agents keep running there.",
+    'sshHost.failure.cancelled': 'Choose Reconnect when you want to connect again.',
     'sshHost.failure.connectionLost':
         'The connection to the SSH Host dropped. Terminals and Agents keep running there and reappear when you reconnect.',
     'sshHost.failure.unknown': 'Something went wrong while connecting to the SSH Host.',
     'sshHost.reconnect': 'Reconnect',
     'sshHost.useHere': 'Use Here',
     'sshHost.closeWindow': 'Close Window',
+    'sshHost.copyDetails': 'Copy Details',
+    'sshHost.copyCommand': 'Copy Command',
     'sshHost.reconnect.failed': 'Unable to reconnect to the SSH Host',
+    'sshHost.cancel.failed': 'Unable to cancel the connection',
 
     // OpenSSH prompts (passwords, passphrases, 2FA codes, host keys)
     'sshHost.askpass.title': '{{destination}} Needs Your Answer',
+    'sshHost.askpass.passwordTitle': 'Enter Password for {{destination}}',
+    'sshHost.askpass.passphraseTitle': 'Enter Passphrase for {{destination}}',
     'sshHost.askpass.verifyTitle': 'Verify {{destination}}',
+    'sshHost.askpass.trust': 'Trust and Connect',
+    'sshHost.askpass.continue': 'Continue',
     'sshHost.askpass.inputLabel': 'Answer',
     'sshHost.askpass.privacy': 'Caxri hands this answer to OpenSSH and never stores it.',
-    'sshHost.askpass.retry': 'OpenSSH rejected the previous answer. Try again (retry {{count}}).',
+    'sshHost.askpass.retry': 'OpenSSH rejected the previous answer. Attempt {{count}}.',
     'sshHost.askpass.failed': 'Unable to answer the SSH Host',
 
     // Stop Server on SSH Host
@@ -97,7 +109,13 @@ export const sshHost = {
         'Enter an absolute path such as /srv/app, or a path in your home folder such as ~/app.',
     'sshHost.folderPicker.open': 'Open',
     'sshHost.watchLimit.watches':
-        'The SSH Host ran out of file watches (fs.inotify.max_user_watches), so the file tree and Git status may take a few seconds to update. Ask an administrator to raise the limit; Caxri switches back on its own.',
+        'The SSH Host ran out of file watches (fs.inotify.max_user_watches), so the file tree and Git status may take a few seconds to update. To raise the limit, copy the command and run it on the SSH Host with sudo; Caxri switches back on its own.',
     'sshHost.watchLimit.instances':
-        'The SSH Host ran out of file watchers (fs.inotify.max_user_instances), so the file tree and Git status may take a few seconds to update. Ask an administrator to raise the limit; Caxri switches back on its own.',
+        'The SSH Host ran out of file watchers (fs.inotify.max_user_instances), so the file tree and Git status may take a few seconds to update. To raise the limit, copy the command and run it on the SSH Host with sudo; Caxri switches back on its own.',
+
+    // Open File by Path in an SSH Host window
+    'sshHost.pathBrowser.homeUnavailable':
+        'Open File by Path covers this Project only on an SSH Host. Type a path inside the Project.',
+    'sshHost.pathBrowser.outsideProject':
+        'That path is outside this Project. Open File by Path covers this Project only on an SSH Host.',
 } as const;

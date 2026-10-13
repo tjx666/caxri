@@ -11,8 +11,10 @@ import {
     DialogTitle,
 } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
+import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { useSshEnvironment } from '../../stores/environment';
+import { askpassAttempt, askpassTitleKey } from './askpass-copy';
 import { didReplySshHostPrompt } from './ssh-host-commands';
 
 /**
@@ -65,8 +67,12 @@ function AskpassPrompt({
     return (
         <Dialog
             open
+            /**
+             * Cancelling fails the whole SSH attempt, so a stray click beside the dialog must not do it: only Escape
+             * and Cancel answer the prompt that way.
+             */
+            disablePointerDismissal
             onOpenChange={(nextOpen) => {
-                // Escape and an outside click cancel the prompt, which fails this SSH attempt.
                 if (!nextOpen) answer(null);
             }}
         >
@@ -87,14 +93,7 @@ function AskpassPrompt({
                     }}
                 >
                     <DialogHeader>
-                        <DialogTitle>
-                            {t(
-                                isConfirm ? 'sshHost.askpass.verifyTitle' : 'sshHost.askpass.title',
-                                {
-                                    destination,
-                                },
-                            )}
-                        </DialogTitle>
+                        <DialogTitle>{t(askpassTitleKey(request), { destination })}</DialogTitle>
                         {/* OpenSSH's host-key question spans several lines with a fingerprint, so line breaks are kept. */}
                         <DialogDescription className="max-h-[40vh] overflow-auto font-mono text-[12px] break-words whitespace-pre-wrap text-foreground">
                             {request.prompt}
@@ -104,7 +103,9 @@ function AskpassPrompt({
                         <div className="flex flex-col gap-1 px-4 pt-4">
                             {request.retry !== undefined && (
                                 <p className="m-0 text-[11px] text-danger" role="alert">
-                                    {t('sshHost.askpass.retry', { count: request.retry })}
+                                    {t('sshHost.askpass.retry', {
+                                        count: askpassAttempt(request.retry),
+                                    })}
                                 </p>
                             )}
                             <Input
@@ -133,10 +134,12 @@ function AskpassPrompt({
                             disabled={isAnswered}
                             onClick={() => answer(isConfirm ? 'no' : null)}
                         >
-                            {t(isConfirm ? 'common.no' : 'common.cancel')}
+                            {t('common.cancel')}
                         </Button>
+                        {/* The labels say what happens; OpenSSH still receives the `yes`/`no` its question expects. */}
                         <Button type="submit" disabled={isAnswered}>
-                            {t(isConfirm ? 'common.yes' : 'common.ok')}
+                            {isAnswered && <Spinner />}
+                            {t(isConfirm ? 'sshHost.askpass.trust' : 'sshHost.askpass.continue')}
                         </Button>
                     </div>
                 </form>
