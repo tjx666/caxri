@@ -6,6 +6,8 @@ import { translate, useLocaleStore } from '../../../i18n';
 import {
     agentChatLocalizedChangeKindLabel,
     agentChatLocalizedEditedFilesTitle,
+    agentChatLocalizedFileListToggle,
+    agentChatVisibleEditedFiles,
 } from '../agent-chat-diff-labels';
 import { agentChatActivity, agentChatItemStatusLabel } from '../agent-chat-presentation';
 import {
@@ -78,6 +80,26 @@ describe('Desktop Agent Chat labels over the shared English rules', () => {
                 translateIn('zh-CN'),
             ),
         ).not.toBe('Created a.svg');
+    });
+
+    it('folds a turn card past three files behind a localized toggle', () => {
+        expect(agentChatVisibleEditedFiles(['a', 'b', 'c'], false)).toEqual({
+            visible: ['a', 'b', 'c'],
+            hiddenCount: 0,
+        });
+        expect(agentChatVisibleEditedFiles(['a', 'b', 'c', 'd', 'e'], false)).toEqual({
+            visible: ['a', 'b', 'c'],
+            hiddenCount: 2,
+        });
+        expect(agentChatVisibleEditedFiles(['a', 'b', 'c', 'd'], true)).toEqual({
+            visible: ['a', 'b', 'c', 'd'],
+            hiddenCount: 0,
+        });
+        const en = translateIn('en');
+        expect(agentChatLocalizedFileListToggle(1, en)).toBe('Show 1 more file');
+        expect(agentChatLocalizedFileListToggle(2, en)).toBe('Show 2 more files');
+        expect(agentChatLocalizedFileListToggle(0, en)).toBe('Show fewer files');
+        expect(agentChatLocalizedFileListToggle(2, translateIn('zh-CN'))).toBe('再显示 2 个文件');
     });
 
     it('translates the shared work row verb, file count, and summary', () => {

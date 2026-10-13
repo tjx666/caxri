@@ -20,7 +20,12 @@ import { parentDirectoryPath } from '../../lib/file-path';
 import { cn } from '../../lib/utilities';
 import { openFileForSession } from '../editor/document-commands';
 import { usePaneViewSession } from '../workbench/pane-view-session';
-import { agentChatLocalizedEditedFilesTitle } from './agent-chat-diff-labels';
+import {
+    AGENT_CHAT_COLLAPSED_FILE_ROWS,
+    agentChatLocalizedEditedFilesTitle,
+    agentChatLocalizedFileListToggle,
+    agentChatVisibleEditedFiles,
+} from './agent-chat-diff-labels';
 import { AgentChatDiff } from './agent-chat-file-changes';
 import { AgentChatTurnUndoButton } from './agent-chat-turn-undo-button';
 import { useAgentChatTurnReviewOpener } from './hooks/use-agent-chat-task-link';
@@ -147,6 +152,9 @@ export function AgentChatTurnChanges({
     const session = usePaneViewSession();
     const openTurnReview = useAgentChatTurnReviewOpener();
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+    const [isListExpanded, setListExpanded] = useState(false);
+    const { visible, hiddenCount } = agentChatVisibleEditedFiles(files, isListExpanded);
+    const listId = useId();
     const detailId = useId();
     const displayPath = (path: string): string => projectDisplayPath(path, session?.rootPath);
     const stat = agentChatEditedFilesStat(files);
@@ -159,6 +167,8 @@ export function AgentChatTurnChanges({
     const [isPreviewOpen, setPreviewOpen] = useState(false);
     const toggleAll = (): void => {
         setPreviewOpen(false);
+        // Disclosing every diff lists every file, so no diff opens behind the folded rows.
+        if (!isAllExpanded) setListExpanded(true);
         setExpanded(isAllExpanded ? new Set() : new Set(files.map((file) => file.path)));
     };
     const toggle = (path: string): void =>
@@ -260,25 +270,45 @@ export function AgentChatTurnChanges({
                 )}
             </div>
             {files.length > 1 ? (
-                <ul className="m-0 list-none p-0">
-                    {files.map((file) => (
-                        <EditedFileRow
-                            displayPath={displayPath(file.path)}
-                            file={file}
-                            isExpanded={expanded.has(file.path)}
-                            key={file.path}
-                            onOpen={
-                                sessionId !== undefined && file.kind !== 'delete'
-                                    ? () => {
-                                          // eslint-disable-next-line no-void -- openFileForSession reports failures through tryCommand
-                                          void openFileForSession(sessionId, file.path);
-                                      }
-                                    : undefined
-                            }
-                            onToggle={() => toggle(file.path)}
-                        />
-                    ))}
-                </ul>
+                <>
+                    <ul className="m-0 list-none p-0" id={listId}>
+                        {visible.map((file) => (
+                            <EditedFileRow
+                                displayPath={displayPath(file.path)}
+                                file={file}
+                                isExpanded={expanded.has(file.path)}
+                                key={file.path}
+                                onOpen={
+                                    sessionId !== undefined && file.kind !== 'delete'
+                                        ? () => {
+                                              // eslint-disable-next-line no-void -- openFileForSession reports failures through tryCommand
+                                              void openFileForSession(sessionId, file.path);
+                                          }
+                                        : undefined
+                                }
+                                onToggle={() => toggle(file.path)}
+                            />
+                        ))}
+                    </ul>
+                    {files.length > AGENT_CHAT_COLLAPSED_FILE_ROWS && (
+                        <button
+                            aria-controls={listId}
+                            aria-expanded={isListExpanded}
+                            className="flex h-9 w-full cursor-pointer items-center gap-1 border-0 border-t border-border bg-transparent px-3 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:-outline-offset-1 focus-visible:outline-accent"
+                            type="button"
+                            onClick={() => setListExpanded((current) => !current)}
+                        >
+                            {agentChatLocalizedFileListToggle(hiddenCount, t)}
+                            <ChevronDown
+                                aria-hidden="true"
+                                className={cn(
+                                    'size-3.5 transition-transform duration-(--motion-expand) ease-(--motion-ease-emphasized) motion-reduce:transition-none',
+                                    isListExpanded && 'rotate-180',
+                                )}
+                            />
+                        </button>
+                    )}
+                </>
             ) : (
                 only && (
                     <DisclosureMotion

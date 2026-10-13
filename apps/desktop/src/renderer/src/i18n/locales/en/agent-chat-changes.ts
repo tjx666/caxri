@@ -29,6 +29,9 @@ export const agentChatChanges = {
     'agentChat.changes.hideAllWithStat': 'Hide changes, {{stat}}',
     'agentChat.changes.viewChanges': 'View changes',
     'agentChat.changes.hideChanges': 'Hide changes',
+    'agentChat.changes.showMoreFilesOne': 'Show {{count}} more file',
+    'agentChat.changes.showMoreFilesOther': 'Show {{count}} more files',
+    'agentChat.changes.showFewerFiles': 'Show fewer files',
     'agentChat.undo.undone': 'Undone',
     'agentChat.undo.truncatedTooltip':
         'A diff was too large to keep in full, so this turn cannot be undone',

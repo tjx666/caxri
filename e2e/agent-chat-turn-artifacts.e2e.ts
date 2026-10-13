@@ -132,3 +132,50 @@ test('a finished Codex turn shows its edited files with Undo and the pull reques
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a turn card lists its first three files and folds the rest behind a Show more row', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-many-files-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await message.fill('manyfiles please');
+        await message.press('Enter');
+
+        const changes = chat.locator('[data-agent-chat-turn-changes]');
+        await expect(changes.getByText('Edited 5 files')).toBeVisible();
+        await expect(changes.getByRole('listitem')).toHaveText([
+            /notes\/note-1\.md/,
+            /notes\/note-2\.md/,
+            /notes\/note-3\.md/,
+        ]);
+        const toggle = changes.getByRole('button', { name: 'Show 2 more files' });
+        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        await page.screenshot({ path: testInfo.outputPath('turn-files-folded.png') });
+
+        await toggle.click();
+        await expect(changes.getByRole('listitem')).toHaveCount(5);
+        await expect(changes.getByRole('button', { name: 'Show fewer files' })).toHaveAttribute(
+            'aria-expanded',
+            'true',
+        );
+        await changes.getByRole('button', { name: 'Show fewer files' }).click();
+        await expect(changes.getByRole('listitem')).toHaveCount(3);
+
+        // Disclosing every diff lists every file, so no diff opens behind the folded rows.
+        await changes.getByRole('button', { name: /^View changes, / }).click();
+        await expect(changes.getByRole('listitem')).toHaveCount(5);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
