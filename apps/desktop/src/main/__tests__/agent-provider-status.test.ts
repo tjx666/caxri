@@ -4,13 +4,12 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createAgentProviderStatus, createE2EStatusPageFetch } from '../agent-provider-status';
 import {
-    createAgentProviderStatus,
-    createE2EStatusPageFetch,
     parseClaudeStatusPage,
     parseCodexStatusPage,
     parseIncidentIoHistory,
-} from '../agent-provider-status';
+} from '../agent-provider-status-parsers';
 
 function statuspageSummary(
     overrides: { apiStatus?: string; incidents?: unknown[] } = {},
@@ -264,6 +263,28 @@ describe('parseIncidentIoHistory', () => {
         });
     });
 
+    it('skips group-level rows, which carry a group id instead of a component id', () => {
+        expect(
+            parseIncidentIoHistory(
+                {
+                    component_impacts: [
+                        {
+                            status_page_component_group_id: 'cx-group',
+                            start_at: '2026-01-02T00:00:00Z',
+                            status: 'partial_outage',
+                        },
+                    ],
+                    component_uptimes: [
+                        { status_page_component_group_id: 'cx-group', uptime: '99.00' },
+                        { component_id: 'cx-api', uptime: '99.95' },
+                    ],
+                },
+                'cx-api',
+                { start: 0, end: 1 },
+            ),
+        ).toEqual({ windowStart: 0, windowEnd: 1, percent: 99.95, impacts: [] });
+    });
+
     it('rejects a body without impacts', () => {
         expect(parseIncidentIoHistory({}, 'cx-api', { start: 0, end: 1 })).toBeUndefined();
     });
@@ -443,6 +464,38 @@ describe('createAgentProviderStatus Codex history', () => {
             name: 'Codex API',
             status: 'operational',
         });
+    });
+
+    it('logs a history failure once per reason and its recovery', async () => {
+        const write = vi.fn();
+        let isHistoryUp = false;
+        let time = 0;
+        const read = createAgentProviderStatus({
+            fetch: (url) =>
+                url.includes('/component_impacts')
+                    ? jsonResponse(isHistoryUp ? history : { component_impacts: 'changed' })
+                    : jsonResponse(incidentIoSummary()),
+            logger: () => ({ write }) as never,
+            now: () => time,
+        });
+        await read('codex');
+        time += 61_000;
+        await read('codex');
+        isHistoryUp = true;
+        time += 61_000;
+        await read('codex');
+        expect(write.mock.calls).toEqual([
+            [
+                'warn',
+                'external_status.provider_history_failed',
+                { fields: { provider: 'codex', reason: 'invalidResponse' } },
+            ],
+            [
+                'info',
+                'external_status.provider_history_recovered',
+                { fields: { provider: 'codex', previousReason: 'invalidResponse' } },
+            ],
+        ]);
     });
 });
 

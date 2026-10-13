@@ -1141,16 +1141,16 @@ opens the same kind of list of other Sessions to cite, each with its Project; a 
 row shares adds when that Session was last opened (`· 3h`), a query with no match reads `No Sessions
 match`, and after a choice the list becomes one spinner row (`Preparing “Title”…`) until the
 reference is written, while Enter waits. Both lists show only while the input has focus. Queued
-messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
+messages list in the composer strip (below) as 12px rows, each with Edit (back into the composer),
 Delete, and Send now (Steer while a turn runs); a paused queue is headed by a row that
 names why (`queuePauseReason`): a stopped turn reads `Queue paused` with Resume, a failed send
-reads `Couldn't send queued messages` in `--danger` with Retry. The dock above the card (recovery row, plan, requests, and task strip) is capped
+reads `Couldn't send queued messages` in `--danger` with Retry. The dock above the composer (recovery row, plan, and requests) is capped
 at 60% of the pane and scrolls past it. Above everything in the dock, a recovery row explains why the Chat cannot
 continue: a provider failure in a `--danger` bordered card with Retry (a conversation the provider
 could not resume adds a body naming the cause and Open as Terminal), or a hand-over to another
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
-and Resume; while either shows, Send is disabled. Running subagents and background shells list in a
-strip above the composer with elapsed time and their own Stop, and its `N ended` count expands the
+and Resume; while either shows, Send is disabled. Running subagents and background shells list in the
+composer strip with elapsed time and their own Stop, and its `N ended` count expands the
 ended tasks, most recent first, with how each ended; a shell is named by the Agent's
 description of it (Claude Code's `Bash` description) when there is one, with its command line atop
 its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
@@ -1162,7 +1162,11 @@ interrupts a running turn regardless. While the Chat starts, works, or waits on 
 status row sits in a strip on top of the card rather than inside it, so the Chat's state never reads
 as part of the draft (reference: LobeHub's chat input). The strip is a `--surface` tab inset 12px
 from the card's sides, its top corners radius-8 and its hairline resting on the card's top border;
-the `Editing an earlier message` bar and the idle context notices below use the same strip. The row holds a spinner (or a `--warning`
+the `Editing an earlier message` bar and the idle context notices below use the same strip. Everything
+else that waits above the input joins that strip as hairline-divided sections instead of its own
+card, so the stack reads as one tray (references: LobeHub's input trays, T3 Code's composer drawer):
+Background work below the goal row, then queued messages, then the status row nearest the input, since it
+changes most often. The row holds a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
 stop` right-aligned. While the provider pursues a goal, a goal row leads the strip, after the Codex
 app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
@@ -1211,8 +1215,8 @@ plan). Cmd+Enter approves and Cmd+Backspace denies, answering only the first car
 composer is empty, where neither chord has another meaning. A question names the provider (`Codex has a
 question`), and each option's description sits under its label in `meta` `--muted`, not in a
 tooltip. While the reader follows the end, the transcript stays pinned when a dock grows and
-shrinks the view. As in ChatGPT and the Codex app, the latest user message rests 16px below the
-top of the view at the end: the transcript keeps empty space below the latest turn, so a sent
+shrinks the view. As in ChatGPT and the Codex app, the latest user message rests 112px below the
+top of the view at the end, leaving the last lines of the previous reply in view as context: the transcript keeps empty space below the latest turn, so a sent
 message rises to the top and its reply fills in below it; once the turn outgrows the view the space
 is gone and following the end takes over.
 
@@ -1242,13 +1246,19 @@ reply and Copy, a finished turn shows what it left behind as `--surface` cards w
 card's single expand toggle, and it carries no external arrow because nothing leaves the Chat), a
 ghost Undo, and a labeled secondary Review (the one action that opens something else: the whole
 turn as one commentable diff in a side tab), then one row per file with its directory in `--muted`
-and its name in `--foreground`, each disclosing its own diff; then one card per pull request or
+and its name in `--foreground`, each disclosing its own diff. Past three files the rest fold behind a
+`Show N more files` row (the Codex app's fold, so a large turn does not push the next reply off
+screen) that becomes `Show fewer files` once unfolded; unlike the sidebar's reveal row it carries a
+chevron, because it collapses again. Folding closes the hidden rows' diffs, and disclosing every
+diff from the header unfolds the list first. Then one card per pull request or
 issue the turn created or edited, with the GitHub or Linear mark, the title, a monospace
 `owner/repo#N` or `ENG-12`, the body's first line, and `Created pull request` with a trailing
 external arrow at the end, since that card opens the browser. A screen
 reader hears `Reply ready`, `Turn failed`, or `Stopped` when a turn ends. A Chat that keeps only the
 recent part of a long conversation opens with a `meta` line saying so, since the provider still has
-all of it, and Open as Terminal. `Jump to latest`
+all of it, and Open as Terminal. `Jump to latest` shows only once the end of the latest entry has
+left the view, not while the reader scrolls within the empty space kept below a short latest turn,
+where it would have nothing to bring back. It
 returns focus to the composer (to the scroll view in a read-only task tab). Expanded output renders
 in the shared code view at the `meta` size diffs, the command preview, and task output use, painted in the language inferred from what produced it (a printed file's
 extension, a Git diff, JSON), any other command output as shell, and capped in height. A new

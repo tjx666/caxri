@@ -5,6 +5,7 @@
  * - `approve`: a command needing approval; accept runs it, decline records it as declined.
  * - `artifacts`: edits and creates files on disk, opens a pull request, rewrites another through `gh api`, files a Linear
  *   issue, and publishes an acceptance report.
+ * - `manyfiles`: creates five notes on disk, so a turn card folds the files past its first rows.
  * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
  * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
  * - `browsestep`: a Computer Use browser step that binds a tab, then one that drives it and stays running briefly before
@@ -58,7 +59,7 @@ import {
     runQuestion,
     runQuestions,
 } from './fake-codex-approvals.ts';
-import { runTurnArtifacts } from './fake-codex-artifacts.ts';
+import { runTurnArtifacts, runTurnManyFiles } from './fake-codex-artifacts.ts';
 import { didHandleGoalRequest } from './fake-codex-goals.ts';
 import {
     listThreadItems,
@@ -252,6 +253,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runApprovalCommand(io, turn);
     } else if (text.includes('artifacts')) {
         await runTurnArtifacts(io, turn);
+    } else if (text.includes('manyfiles')) {
+        await runTurnManyFiles(io, turn);
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
     } else if (text.includes('bigdiff')) {

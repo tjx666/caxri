@@ -123,7 +123,7 @@ export function AgentChatPane({
         scrollReference,
         contentReference,
         spacerReference,
-        isFollowing,
+        isLatestInView,
         onScroll,
         jumpToLatest,
         stopFollowing,
@@ -231,7 +231,7 @@ export function AgentChatPane({
                             // While Jump to latest shows, the transcript ends above it instead of scrolling under it,
                             // so the button never covers a line of text in a narrow pane. The top stays anchored, so
                             // nothing the user is reading moves.
-                            isFollowing ? 'bottom-0' : 'bottom-10',
+                            isLatestInView ? 'bottom-0' : 'bottom-10',
                         )}
                         ref={scrollReference}
                         role="log"
@@ -309,7 +309,7 @@ export function AgentChatPane({
                     />
                     <AgentChatJumpToLatest
                         focusTarget={inputReference}
-                        isFollowing={isFollowing}
+                        isLatestInView={isLatestInView}
                         onJump={jumpToLatest}
                     />
                 </AgentChatFindScope>
@@ -322,7 +322,6 @@ export function AgentChatPane({
                 snapshot={snapshot}
                 terminalId={terminalId}
                 onAnswered={focusComposer}
-                onOpenTask={taskLinks.openTask}
                 onOpenAsTerminal={openAsTerminal}
                 onRecover={recover}
             />
@@ -358,6 +357,7 @@ export function AgentChatPane({
                 isQueuePaused={snapshot?.queuePaused ?? false}
                 isShown={isShown}
                 providerName={providerName}
+                onOpenTask={taskLinks.openTask}
                 onSent={jumpToLatest}
                 pendingQueue={pending.queue}
                 queue={snapshot?.queue}

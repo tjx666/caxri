@@ -8,7 +8,6 @@ import { cn } from '../../lib/utilities';
 import { AgentChatPlanCard } from './agent-chat-plan-card';
 import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
 import { AgentChatRequestCard } from './agent-chat-request-card';
-import { AgentChatTaskStrip } from './agent-chat-task-strip';
 
 /**
  * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling
@@ -65,7 +64,7 @@ function AgentChatRecoveryBanner({
 
 /**
  * What docks above the composer, outside the scrolling timeline: the recovery banner, the Agent's plan, each pending
- * approval or question, and the strip of subagents and background shells (running, or just ended).
+ * approval or question. Background work and queued messages join the composer's strip instead (`AgentChatComposer`).
  */
 export function AgentChatDock({
     answeredRequestIds,
@@ -76,7 +75,6 @@ export function AgentChatDock({
     terminalId,
     onAnswered,
     onOpenAsTerminal,
-    onOpenTask,
     onRecover,
 }: {
     /**
@@ -90,10 +88,6 @@ export function AgentChatDock({
     terminalId: string;
     onAnswered: () => void;
     onOpenAsTerminal: (() => void) | undefined;
-    /**
-     * Opens a background task's tab beside the Chat; absent where the host cannot (see `canOpenBesideChat`).
-     */
-    onOpenTask: ((taskId: string) => void) | undefined;
     onRecover: () => void;
 }) {
     const dockedPlan = agentChatDockedPlan(snapshot);
@@ -127,12 +121,6 @@ export function AgentChatDock({
                         terminalId={terminalId}
                     />
                 ))}
-            <AgentChatTaskStrip
-                latestTurnStartedAt={snapshot?.turns.at(-1)?.startedAt}
-                tasks={snapshot?.tasks}
-                terminalId={terminalId}
-                onOpenTask={onOpenTask}
-            />
         </div>
     );
 }

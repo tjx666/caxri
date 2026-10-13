@@ -107,3 +107,23 @@ export async function runTurnArtifacts(io: FakeCodexIo, turn: FakeTurn) {
     });
     await io.streamMessage(turn, 'Updated the greeting and opened a pull request.', 0);
 }
+
+/**
+ * `manyfiles`: a turn that creates five notes on disk, more than a turn card lists before folding the rest away.
+ */
+export async function runTurnManyFiles(io: FakeCodexIo, turn: FakeTurn) {
+    const changes = Array.from({ length: 5 }, (_, index) => {
+        const file = path.join(process.cwd(), 'notes', `note-${index + 1}.md`);
+        const content = `# Note ${index + 1}\n`;
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, content);
+        return { path: file, kind: { type: 'add' }, diff: content };
+    });
+    io.completeItem(turn, {
+        type: 'fileChange',
+        id: crypto.randomUUID(),
+        status: 'completed',
+        changes,
+    });
+    await io.streamMessage(turn, 'Wrote five notes.', 0);
+}

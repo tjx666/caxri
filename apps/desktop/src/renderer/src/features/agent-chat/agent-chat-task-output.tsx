@@ -30,7 +30,7 @@ export function AgentChatTaskOutput({
     revision: number;
 }) {
     const { t } = useTranslation();
-    const { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest } =
+    const { scrollReference, contentReference, isLatestInView, onScroll, jumpToLatest } =
         useAgentChatScroll(revision);
     const text = output?.replace(/\n+$/u, '') ?? '';
     return (
@@ -53,7 +53,7 @@ export function AgentChatTaskOutput({
                 className={cn(
                     'min-h-0 flex-1 overflow-auto outline-none',
                     // Ends above Jump to latest while it shows, as the Chat pane does, so it never covers a line.
-                    !isFollowing && 'mb-10',
+                    !isLatestInView && 'mb-10',
                 )}
                 ref={scrollReference}
                 tabIndex={-1}
@@ -82,7 +82,7 @@ export function AgentChatTaskOutput({
             </div>
             <AgentChatJumpToLatest
                 focusTarget={scrollReference}
-                isFollowing={isFollowing}
+                isLatestInView={isLatestInView}
                 onJump={jumpToLatest}
             />
         </div>

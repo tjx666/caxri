@@ -113,7 +113,7 @@ function TaskTimeline({
     truncated: boolean;
 }) {
     const { t } = useTranslation();
-    const { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest, anchor } =
+    const { scrollReference, contentReference, isLatestInView, onScroll, jumpToLatest, anchor } =
         useAgentChatScroll(revision);
     const timeline = useMemo(() => buildAgentChatTimeline(items, [], undefined), [items]);
     /**
@@ -132,7 +132,7 @@ function TaskTimeline({
                 className={cn(
                     'absolute inset-x-0 top-0 overflow-y-auto outline-none',
                     // Ends above Jump to latest while it shows, as the Chat pane does, so it never covers a line.
-                    isFollowing ? 'bottom-0' : 'bottom-10',
+                    isLatestInView ? 'bottom-0' : 'bottom-10',
                 )}
                 ref={scrollReference}
                 tabIndex={-1}
@@ -175,7 +175,7 @@ function TaskTimeline({
             />
             <AgentChatJumpToLatest
                 focusTarget={scrollReference}
-                isFollowing={isFollowing}
+                isLatestInView={isLatestInView}
                 onJump={jumpToLatest}
             />
         </div>

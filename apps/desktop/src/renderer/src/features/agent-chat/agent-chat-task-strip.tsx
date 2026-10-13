@@ -116,12 +116,12 @@ function TaskEntry({
 }
 
 /**
- * Background work, just above the composer: each running subagent and background shell with its elapsed time, opened in
- * its side tab on click (where the host can open one) and stoppable on its own. Stopping the turn with Esc never stops
- * these. Ended work is counted, and the count reveals it (most recent first, with how each ended) so a task that just
- * finished is one click from its tab without hunting for its timeline row. When the last task ends, the strip collapses
- * to that count until the next turn starts or the user dismisses it (see `agentChatTaskStripView`), instead of
- * disappearing at once.
+ * Background work, the top section of the composer's strip: each running subagent and background shell with its elapsed
+ * time, opened in its side tab on click (where the host can open one) and stoppable on its own. Stopping the turn with
+ * Esc never stops these. Ended work is counted, and the count reveals it (most recent first, with how each ended) so a
+ * task that just finished is one click from its tab without hunting for its timeline row. When the last task ends, the
+ * strip collapses to that count until the next turn starts or the user dismisses it (see `agentChatTaskStripView`),
+ * instead of disappearing at once.
  */
 export function AgentChatTaskStrip({
     latestTurnStartedAt,
@@ -150,7 +150,8 @@ export function AgentChatTaskStrip({
     return (
         <section
             aria-label={t('agentChat.tasks.backgroundWork')}
-            className="rounded-md border border-border bg-surface p-1"
+            className="border-0 border-b border-solid border-border p-1"
+            data-agent-chat-composer-strip-row=""
         >
             <h3 className="m-0 flex min-h-6 items-center gap-2 px-2 text-[11px] font-normal text-muted">
                 <span className="min-w-0 flex-1 truncate">

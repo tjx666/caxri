@@ -17,6 +17,18 @@ export function isScrolledToEnd(
 }
 
 /**
+ * Whether the end of the content (the latest entry, not the empty space kept below the latest turn) is within the view.
+ * `contentBottom` is that end's offset from the view's top. While it is, Jump to latest has nothing to bring into view:
+ * scrolling up a little inside the kept space still shows the whole latest turn.
+ */
+export function isLatestInView(
+    metrics: { contentBottom: number; viewHeight: number },
+    threshold = AGENT_CHAT_FOLLOW_THRESHOLD_PX,
+): boolean {
+    return metrics.contentBottom - metrics.viewHeight <= threshold;
+}
+
+/**
  * Where a following view scrolls to after a layout change: the end of its content, or `null` while the user reads
  * history. The end moves both when the content grows and when the view itself shrinks (a dock below it expanding a diff
  * or the plan), and either one would otherwise leave the latest entry clipped under the dock.
@@ -41,9 +53,11 @@ export function agentChatAnchoredScrollTop(
 }
 
 /**
- * How far below the view's top the latest user message rests once the view reaches the end.
+ * How far below the view's top the latest user message rests once the view reaches the end. Like the Codex app, it
+ * leaves the last lines of the previous reply in view, so a sent message keeps the context it answers instead of
+ * starting a blank page.
  */
-const AGENT_CHAT_TURN_TOP_GAP_PX = 16;
+const AGENT_CHAT_TURN_TOP_GAP_PX = 112;
 
 /**
  * The empty space kept below the latest turn so it can rest at the top of the view, as ChatGPT and the Codex app show a
@@ -70,7 +84,7 @@ function offsetInView(view: HTMLElement, element: HTMLElement): number {
  * content is observed too. So is the scroll view itself: a dock below it growing shrinks the view without changing the
  * content, and the end must stay in sight. With `turnSelector` (the Chat's user messages), the space below the latest
  * turn keeps it at the top of the view at the end, so a sent message rises to the top and its reply fills in below it.
- * `isFollowing` drives the "Jump to latest" control shown while reading history.
+ * `isLatestInView` hides the "Jump to latest" control while following or while the latest entry is still on screen.
  *
  * Expanding or collapsing a row is the user reading, not the conversation moving: `anchor` stops following and keeps
  * the clicked row where it is while the disclosure animates, instead of pinning the end and sliding the row away.
@@ -87,7 +101,11 @@ export function useAgentChatScroll(
      * sits outside the observed content so resizing it never re-triggers a layout pass.
      */
     spacerReference: RefObject<HTMLDivElement | null>;
-    isFollowing: boolean;
+    /**
+     * Following the end, or scrolled away from it with the latest entry still in view. Only when this is false does
+     * Jump to latest have something to bring back.
+     */
+    isLatestInView: boolean;
     onScroll: () => void;
     jumpToLatest: () => void;
     /**
@@ -104,7 +122,21 @@ export function useAgentChatScroll(
     const contentReference = useRef<HTMLDivElement | null>(null);
     const spacerReference = useRef<HTMLDivElement | null>(null);
     const isFollowingReference = useRef(true);
-    const [isFollowing, setFollowing] = useState(true);
+    const [isLatestVisible, setLatestVisible] = useState(true);
+    const syncLatestInView = useCallback(() => {
+        const view = scrollReference.current;
+        const content = contentReference.current;
+        setLatestVisible(
+            isFollowingReference.current ||
+                !view ||
+                !content ||
+                isLatestInView({
+                    contentBottom:
+                        content.getBoundingClientRect().bottom - view.getBoundingClientRect().top,
+                    viewHeight: view.clientHeight,
+                }),
+        );
+    }, []);
     const anchorReference = useRef<{ element: HTMLElement; offset: number; until: number }>(
         undefined,
     );
@@ -142,57 +174,63 @@ export function useAgentChatScroll(
         const element = scrollReference.current;
         if (!element) return;
         isFollowingReference.current = isScrolledToEnd(element);
-        setFollowing(isFollowingReference.current);
-    }, []);
+        syncLatestInView();
+    }, [syncLatestInView]);
     const jumpToLatest = useCallback(() => {
         anchorReference.current = undefined;
         isFollowingReference.current = true;
-        setFollowing(true);
         pin();
-    }, [pin]);
+        syncLatestInView();
+    }, [pin, syncLatestInView]);
     const stopFollowing = useCallback(() => {
         isFollowingReference.current = false;
-        setFollowing(false);
-    }, []);
-    const anchor = useCallback((element: HTMLElement) => {
-        const view = scrollReference.current;
-        if (!view) return;
-        isFollowingReference.current = false;
-        setFollowing(false);
-        anchorReference.current = {
-            element,
-            offset: offsetInView(view, element),
-            // The disclosure animates its height for at most this long; after that the row is left alone.
-            until:
-                performance.now() +
-                Math.max(
-                    motionSettleTimeoutMs('--motion-expand'),
-                    motionSettleTimeoutMs('--motion-collapse'),
-                ),
-        };
-    }, []);
+        syncLatestInView();
+    }, [syncLatestInView]);
+    const anchor = useCallback(
+        (element: HTMLElement) => {
+            const view = scrollReference.current;
+            if (!view) return;
+            isFollowingReference.current = false;
+            syncLatestInView();
+            anchorReference.current = {
+                element,
+                offset: offsetInView(view, element),
+                // The disclosure animates its height for at most this long; after that the row is left alone.
+                until:
+                    performance.now() +
+                    Math.max(
+                        motionSettleTimeoutMs('--motion-expand'),
+                        motionSettleTimeoutMs('--motion-collapse'),
+                    ),
+            };
+        },
+        [syncLatestInView],
+    );
     useLayoutEffect(() => {
         const element = scrollReference.current;
-        if (element && !isFollowingReference.current && isScrolledToEnd(element)) {
+        if (element && !isFollowingReference.current && isScrolledToEnd(element))
             isFollowingReference.current = true;
-            setFollowing(true);
-        }
         pin();
-    }, [pin, revision]);
+        syncLatestInView();
+    }, [pin, revision, syncLatestInView]);
     useEffect(() => {
         const content = contentReference.current;
         const view = scrollReference.current;
         if (!content || !view) return;
-        const observer = new ResizeObserver(pin);
+        // A reply growing past the view's bottom, or the view shrinking, moves the latest entry out of sight.
+        const observer = new ResizeObserver(() => {
+            pin();
+            syncLatestInView();
+        });
         observer.observe(content);
         observer.observe(view);
         return () => observer.disconnect();
-    }, [pin]);
+    }, [pin, syncLatestInView]);
     return {
         scrollReference,
         contentReference,
         spacerReference,
-        isFollowing,
+        isLatestInView: isLatestVisible,
         onScroll,
         jumpToLatest,
         stopFollowing,
