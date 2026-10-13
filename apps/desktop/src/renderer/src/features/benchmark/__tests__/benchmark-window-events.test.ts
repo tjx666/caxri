@@ -65,6 +65,6 @@ describe('benchmarkWindowEventEffect', () => {
     });
 
     it('ignores events this window does not render', () => {
-        expect(benchmarkWindowEventEffect(event('ui.command', { command: 'x' }))).toEqual(none);
+        expect(benchmarkWindowEventEffect(event('agent.notification', {}))).toEqual(none);
     });
 });
