@@ -20,6 +20,7 @@ import { AgentChatComposerActions } from './agent-chat-composer-actions';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
+import { AgentChatGoalBar } from './agent-chat-goal-bar';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { agentChatSendBlock } from './agent-chat-presentation';
 import {
@@ -29,7 +30,6 @@ import {
 } from './agent-chat-presentation';
 import { agentChatNextQueuedId } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
-import { agentChatGoalDraft, isAgentChatGoalOffered } from './agent-chat-slash-commands';
 import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
@@ -112,6 +112,7 @@ interface AgentChatComposerProperties {
               AgentChatSnapshot,
               | 'activeTurnId'
               | 'effort'
+              | 'goal'
               | 'items'
               | 'model'
               | 'models'
@@ -221,7 +222,7 @@ export function AgentChatComposer({
         terminalId,
         workbenchRoot,
     });
-    const { choose, compact, complete, edit, hasContent, isSendable, isSending, submit } =
+    const { choose, compact, complete, edit, goalMode, hasContent, isSendable, isSending, submit } =
         useAgentChatComposerSend({
             canSend: sendBlock === undefined,
             commands,
@@ -310,6 +311,16 @@ export function AgentChatComposer({
                     className="mx-3 -mb-px overflow-hidden rounded-t-lg border border-b-0 border-solid border-border bg-surface not-has-[[data-agent-chat-composer-strip-row]]:contents"
                     data-agent-chat-composer-strip=""
                 >
+                    <AgentChatGoalBar
+                        goal={snapshot?.goal}
+                        runningTurnStartedAt={
+                            isTurnRunning
+                                ? snapshot?.turns.find((turn) => turn.id === activeTurnId)
+                                      ?.startedAt
+                                : undefined
+                        }
+                        terminalId={terminalId}
+                    />
                     <AgentChatActivityBar
                         activity={activity}
                         notice={
@@ -366,15 +377,19 @@ export function AgentChatComposer({
                         aria-label={t('agentChat.composer.message')}
                         className="field-sizing-content max-h-48 min-h-18 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
                         maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
-                        placeholder={agentChatComposerPlaceholder(
-                            sendAction,
-                            {
-                                hasNextQueued: nextQueuedId !== undefined,
-                                isEditing: edit.isEditing,
-                                isTurnRunning,
-                            },
-                            t,
-                        )}
+                        placeholder={
+                            goalMode.isOn
+                                ? t('agentChat.goal.placeholder')
+                                : agentChatComposerPlaceholder(
+                                      sendAction,
+                                      {
+                                          hasNextQueued: nextQueuedId !== undefined,
+                                          isEditing: edit.isEditing,
+                                          isTurnRunning,
+                                      },
+                                      t,
+                                  )
+                        }
                         ref={inputReference}
                         rows={1}
                         value={draft}
@@ -394,6 +409,7 @@ export function AgentChatComposer({
                                 return;
                             if (menu.didHandleKey(event, { choose, complete })) return;
                             if (sessionMenu.didHandleKey(event)) return;
+                            if (goalMode.didHandleKey(event)) return;
                             composerKeys.onKeyDown(event);
                         }}
                         onPaste={fileInput.onPaste}
@@ -407,14 +423,8 @@ export function AgentChatComposer({
                         isSendable={isSendable}
                         isStopping={isStopping}
                         onCompact={compact}
-                        onGoal={
-                            isAgentChatGoalOffered(commands)
-                                ? () => {
-                                      setDraft(agentChatGoalDraft);
-                                      focusInput();
-                                  }
-                                : undefined
-                        }
+                        onGoal={goalMode.enter}
+                        onTurnOffGoalMode={goalMode.isOn ? goalMode.exit : undefined}
                         onReferenceSession={sessionMenu.reference}
                         onPick={(files) => {
                             fileInput.pick(files);

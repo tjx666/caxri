@@ -3,13 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatDraftMatches,
-    agentChatGoalDraft,
+    agentChatGoalModeDraft,
     agentChatLeadingInvocation,
     agentChatMenuActions,
     agentChatMenuGroupHeading,
     agentChatSkillDiscoveryNotice,
     completeAgentChatAction,
     filterAgentChatActions,
+    isAgentChatGoalAction,
     isAgentChatGoalOffered,
 } from '../agent-chat-slash-commands';
 
@@ -138,17 +139,40 @@ describe('agentChatLeadingInvocation', () => {
     });
 });
 
-describe('the Add menu Goal', () => {
-    it('is offered only when the provider reports a goal command', () => {
-        expect(isAgentChatGoalOffered([{ name: 'goal' }])).toBe(true);
+describe('Goal mode', () => {
+    it('is offered only when the provider reports a native goal command', () => {
+        expect(isAgentChatGoalOffered([{ name: 'goal', goal: true }])).toBe(true);
+        // A Claude Code custom /goal runs as an ordinary command.
+        expect(isAgentChatGoalOffered([{ name: 'goal' }])).toBe(false);
         expect(isAgentChatGoalOffered([{ name: 'compact' }])).toBe(false);
         expect(isAgentChatGoalOffered(undefined)).toBe(false);
     });
 
-    it('turns the typed text into the goal and leaves an existing goal command alone', () => {
-        expect(agentChatGoalDraft('')).toBe('/goal ');
-        expect(agentChatGoalDraft('  ship the picker')).toBe('/goal ship the picker');
-        expect(agentChatGoalDraft('/goal ship it')).toBe('/goal ship it');
-        expect(agentChatGoalDraft('/goals are fun')).toBe('/goal /goals are fun');
+    it('keeps the typed text as the goal and drops a /goal the user already typed', () => {
+        expect(agentChatGoalModeDraft('')).toBe('');
+        expect(agentChatGoalModeDraft('ship the picker')).toBe('ship the picker');
+        expect(agentChatGoalModeDraft('/goal ship it')).toBe('ship it');
+        expect(agentChatGoalModeDraft('  /goal')).toBe('');
+        expect(agentChatGoalModeDraft('/goals are fun')).toBe('/goals are fun');
+    });
+
+    it('enters Goal mode from the /goal command row only', () => {
+        expect(
+            isAgentChatGoalAction({
+                invocation: '/goal',
+                kind: 'command',
+                requiresArguments: true,
+                source: 'builtIn',
+            }),
+        ).toBe(true);
+        expect(isAgentChatGoalAction(skill('$goal'))).toBe(false);
+        expect(
+            isAgentChatGoalAction({
+                invocation: '/compact',
+                kind: 'command',
+                requiresArguments: false,
+                source: 'builtIn',
+            }),
+        ).toBe(false);
     });
 });

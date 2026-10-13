@@ -300,8 +300,14 @@ export interface AgentChatProviderSession {
         options?: ChatInputOptions,
     ): Promise<void>;
     /**
+     * Whether `name` acts on the provider beside the conversation rather than taking a turn, so it runs at once instead
+     * of waiting behind the running turn and the follow-up queue (Codex's `/goal`, whose pause must reach the turn it
+     * would otherwise continue).
+     */
+    isImmediateCommand?(name: string): boolean;
+    /**
      * Runs one of the commands this session reported in the snapshot's `commands`; the service has already checked that
-     * `name` is listed and that no turn is running.
+     * `name` is listed and that no turn is running, unless `isImmediateCommand` says it runs during one.
      */
     runCommand(
         name: string,

@@ -221,6 +221,7 @@ export function applyAgentChatOperation(
             if (state.activeTurnId !== undefined)
                 next.activeTurnId = state.activeTurnId ?? undefined;
             if (state.plan !== undefined) next.plan = state.plan ?? undefined;
+            if (state.goal !== undefined) next.goal = state.goal ?? undefined;
             if (state.model !== undefined) next.model = state.model ?? undefined;
             if (state.effort !== undefined) next.effort = state.effort ?? undefined;
             if (state.ultracode !== undefined) next.ultracode = state.ultracode ?? undefined;
@@ -242,6 +243,7 @@ export function applyAgentChatOperation(
                 'failure',
                 'activeTurnId',
                 'plan',
+                'goal',
                 'model',
                 'effort',
                 'ultracode',

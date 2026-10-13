@@ -1,5 +1,5 @@
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
-import { agentChatSlashQuery } from '@caxri/protocol';
+import { AGENT_CHAT_GOAL_COMMAND, agentChatSlashQuery } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { searchAgentActions } from '../agent-actions/agent-action-search';
@@ -119,21 +119,30 @@ export function agentChatLeadingInvocation(
 }
 
 /**
- * The provider's goal command (Codex's `/goal`), which the composer's Add menu offers as Goal only when the provider
- * reports it.
+ * Whether the provider has a native goal command (Codex's `/goal`), which the composer's Goal mode and Add menu Goal
+ * need. A custom command that only shares the name is not one.
  */
-const GOAL_COMMAND = 'goal';
-
 export function isAgentChatGoalOffered(commands: readonly AgentChatCommand[] | undefined): boolean {
-    return commands?.some((command) => command.name === GOAL_COMMAND) === true;
+    return (
+        commands?.some(
+            (command) => command.goal === true && command.name === AGENT_CHAT_GOAL_COMMAND,
+        ) === true
+    );
 }
 
 /**
- * The draft with Goal chosen from the Add menu: what is typed becomes the goal's text, as Synara's Codex-style menu
- * does, and a draft that already starts with `/goal` stays as it is.
+ * Whether choosing `action` from the slash menu enters Goal mode instead of completing `/goal ` in the draft, as the
+ * Codex app's `/goal` does.
  */
-export function agentChatGoalDraft(draft: string): string {
-    const text = draft.trimStart();
-    if (new RegExp(String.raw`^/${GOAL_COMMAND}(?:\s|$)`, 'u').test(text)) return draft;
-    return `/${GOAL_COMMAND} ${text}`;
+export function isAgentChatGoalAction(action: AgentAction): boolean {
+    return action.kind === 'command' && action.invocation === `/${AGENT_CHAT_GOAL_COMMAND}`;
+}
+
+/**
+ * The draft once Goal mode takes it: what is typed becomes the goal's text, so a leading `/goal` the user already typed
+ * is dropped rather than becoming part of the objective.
+ */
+export function agentChatGoalModeDraft(draft: string): string {
+    const match = new RegExp(String.raw`^\s*/${AGENT_CHAT_GOAL_COMMAND}(?:\s+|$)`, 'u').exec(draft);
+    return match ? draft.slice(match[0].length) : draft;
 }
