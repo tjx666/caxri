@@ -70,6 +70,13 @@ interface TerminalSuspensionServiceOptions {
      */
     remoteObservers: ReadonlyArray<Pick<TerminalExecutionPort, 'isObservedRemotely'>>;
     terminals: Pick<TerminalManager, 'processId' | 'settleLaunches' | 'suspend'>;
+    /**
+     * Agent Chats, which park by stopping their provider process (see `AgentChatService.suspendIdle`).
+     */
+    chats?: {
+        isSuspendable(terminalId: string): boolean;
+        suspendIdle(terminalId: string): Promise<TerminalRecord | undefined>;
+    };
     watchHub: Pick<WatchHub, 'registerPoller'>;
 }
 
@@ -140,6 +147,8 @@ export class TerminalSuspensionService {
             if (!database.getTerminal(terminalId)) this.parked.delete(terminalId);
         const decisions = decideTerminalSuspensions({
             deselectedAt: (sessionId) => this.deselectedAt.get(sessionId),
+            isChatSuspendable: (terminalId) =>
+                this.options.chats?.isSuspendable(terminalId) ?? false,
             isObservedRemotely: (terminalId) =>
                 this.options.remoteObservers.some((source) =>
                     source.isObservedRemotely(terminalId),
@@ -186,7 +195,12 @@ export class TerminalSuspensionService {
         try {
             const { cause, state } = PARKED_AS[reason];
             const metrics = this.parkMetrics(terminalId, reason);
-            const record = await this.options.terminals.suspend(terminalId, state, cause);
+            const terminal = this.options.database.getTerminal(terminalId);
+            // Only the automatic sweep decides a Chat; explicit parks reach PTYs only (see `park`).
+            const record =
+                terminal && !isPtyTerminal(terminal)
+                    ? await this.options.chats?.suspendIdle(terminalId)
+                    : await this.options.terminals.suspend(terminalId, state, cause);
             if (!record) return false;
             this.samples.delete(terminalId);
             // Only an Agent comes back through `observeLaunch`; a parked Shell would linger and mislabel a later launch.

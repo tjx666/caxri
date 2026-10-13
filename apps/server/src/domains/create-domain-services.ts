@@ -216,6 +216,7 @@ export async function createDomainServices(
         ...dependencies.terminalSuspension,
         remoteObservers: [dependencies.terminalExecution, transcripts],
         terminals,
+        chats: agentChat,
         watchHub,
     });
     suspensionState.service = terminalSuspension;
@@ -302,7 +303,10 @@ export async function createDomainServices(
         terminalRestores,
     });
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
-        createBackgroundTasks(logger, files, git, restoreInterruptedTerminals);
+        createBackgroundTasks(logger, files, git, async (sessionId, options) => {
+            agentChat.resumeSuspended(sessionId);
+            await restoreInterruptedTerminals(sessionId, options);
+        });
     terminalSuspension.setOnSuspendedSessionReselected(restoreInterruptedTerminalsInBackground);
     const { restore: restoreCommander, supervisor: commanderRestores } =
         createCommanderTerminalRestorer(restorerOptions);
