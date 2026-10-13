@@ -8,7 +8,9 @@ status: current
 A Chat is an Agent Terminal created with the `chat` surface. It runs the user's own, unmodified
 Agent CLI through the vendor's structured protocol and renders a conversation (streamed Markdown,
 collapsible tool rows, approval and question cards) instead of a terminal grid. The decision and
-its trade-offs are in [ADR 0012](adr/0012-agent-chat-surface.md).
+its trade-offs are in [ADR 0012](adr/0012-agent-chat-surface.md). Chat is the primary Agent surface
+and the default target for new Agent features, while the PTY surface stays supported; see
+[ADR 0015](adr/0015-chat-primary-agent-surface.md).
 
 Codex, Claude Code, and Grok Build are Chat-capable (`capabilities.chat` in the provider catalog,
 `packages/protocol/src/agent/agents.ts`). Copy that names the Agent

@@ -5,8 +5,9 @@ reference this file; deviations require updating this spec first.
 
 ## Principles
 
-1. **The terminal is the hero.** Chrome (primarySidebar, tabs, secondarySidebar, status bar) stays
-   low-contrast and quiet. Saturated color is reserved for content and live status.
+1. **The Agent's work is the hero.** Chrome (primarySidebar, tabs, secondarySidebar, status bar)
+   stays low-contrast and quiet. Saturated color is reserved for content (a Chat transcript, a
+   Terminal, a document) and live status.
 2. **One durable accent focus per screen.** `--accent` marks exactly one resting focus at a time:
    the focused pane together with its active workbench tab's 2px top border. The tab border and the
    pane ring express the same focus and count as one, VS Code style. The tab border drops out at a
