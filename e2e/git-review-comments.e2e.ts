@@ -4,12 +4,14 @@ import { join } from 'node:path';
 
 import { execFileAsync } from '@caxri/system';
 
+import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     clickGitGroupAction,
     createProjectSession,
     launchCaxri,
+    VISIBLE_SESSION,
     waitForSourceControlReady,
 } from './support/helpers.ts';
 
@@ -136,9 +138,7 @@ test('Review comments become outdated after a changed line and survive a missing
         const sendDialog = page.getByRole('dialog', { name: 'Send review comments to Agent' });
         await sendDialog.getByRole('button', { name: 'Send 1 comment' }).click();
         // The failure is reported inline in the dialog instead of as an error toast.
-        await expect(sendDialog.getByRole('alert')).toHaveText(
-            'No running Agent Terminal in this Session',
-        );
+        await expect(sendDialog.getByRole('alert')).toHaveText('No Agent in this Session');
         await page.screenshot({
             path: test.info().outputPath('missing-agent.png'),
             mask: [page.locator('.xterm')],
@@ -155,6 +155,51 @@ test('Review comments become outdated after a changed line and survive a missing
             path: test.info().outputPath('outdated-comment.png'),
             mask: [page.locator('.xterm')],
         });
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Review comments reach an Agent Chat as one message', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-review-chat-e2e-'));
+    const root = join(testDirectory, 'project');
+    const userData = join(testDirectory, 'user-data');
+    await mkdir(root, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    await writeFile(join(root, 'tracked.txt'), 'one\noriginal\nthree\n');
+    await execFileAsync('git', ['add', '.'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+    await writeFile(join(root, 'tracked.txt'), 'one\nchanged\nthree\n');
+    const agentMode = await fakeCodexChatAgentMode(testDirectory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await waitForSourceControlReady(page);
+        const repo = page.locator('.git-repository-section');
+        await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
+        const modified = page.locator('.git-file-diff .editor.modified');
+        await modified.locator('.view-line').filter({ hasText: 'changed' }).click();
+        await page.keyboard.press('Meta+Shift+M');
+        await page.getByRole('textbox', { name: 'Review comment' }).fill('Explain this change');
+        await page.getByRole('textbox', { name: 'Review comment' }).press('Meta+Enter');
+        await page.getByRole('button', { name: 'Send 1 comment to Agent' }).click();
+        const sendDialog = page.getByRole('dialog', { name: 'Send review comments to Agent' });
+        await sendDialog.getByRole('button', { name: 'Send 1 comment' }).click();
+        await expect(sendDialog).toHaveCount(0);
+
+        // The Chat tab is brought forward and shows the prompt as the user's message, not as Terminal input.
+        const chat = page.locator(VISIBLE_SESSION);
+        await expect(chat.getByRole('textbox', { name: 'Message' })).toBeVisible();
+        await expect(chat.getByText(/Explain this change/u).first()).toBeVisible();
+        await expect(chat.getByText(/tracked\.txt#L2/u).first()).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Send 1 comment to Agent' })).toHaveCount(0);
+        await page.screenshot({ path: test.info().outputPath('review-sent-to-chat.png') });
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });

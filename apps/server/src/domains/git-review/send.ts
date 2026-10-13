@@ -1,12 +1,15 @@
 import {
+    AGENT_CHAT_LONG_PASTE_THRESHOLD,
     CaxriError,
     formatGitReviewComments,
     formatLongPasteReference,
     formatReviewTerminalInput,
+    isChatTerminal,
     isGitReviewPromptInline,
     isLongPasteWithinLimit,
 } from '@caxri/protocol';
 
+import type { AgentChatService } from '../agent-chat';
 import type { LongPasteService } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
@@ -32,13 +35,16 @@ function resolveRepoFilePath(repoRootPath: string, relativePath: string): string
 }
 
 interface GitReviewSendOptions {
+    agentChat: Pick<AgentChatService, 'send'>;
     database: CaxriDatabase;
     git: Pick<GitService, 'repositoryIdentity'>;
-    longPastes: LongPasteService;
+    longPastes: Pick<LongPasteService, 'prepare' | 'saveForChat'>;
     reviewComments: GitReviewCommentStore;
     terminalInput: DomainHandlers['terminal.input'];
     terminals: Pick<TerminalManager, 'agentLaunchId' | 'writeAgentExact'>;
 }
+
+const LONG_REVIEW_INSTRUCTION = 'Address every review comment in that file.';
 
 /**
  * Builds the send prompt from the Server's own comment store and writes it to the already-attached Terminal the
@@ -56,9 +62,16 @@ export function createGitReviewSendHandler(
         if (comments.length === 0)
             throw new CaxriError('VALIDATION', 'No pending review comments to send');
 
-        assertPtyTerminal(options.database.getTerminal(terminalId));
-        const agentLaunchId = options.terminals.agentLaunchId(terminalId);
-        if (!agentLaunchId) throw new CaxriError('CONFLICT', 'Managed Agent is no longer running');
+        const terminal = options.database.getTerminal(terminalId);
+        const isChat = terminal !== undefined && isChatTerminal(terminal);
+        if (isChat) {
+            if (terminal.sessionId !== sessionId || !terminal.provider)
+                throw new CaxriError('NOT_FOUND', 'Agent Chat not found in this Session');
+        } else {
+            assertPtyTerminal(terminal);
+            if (!options.terminals.agentLaunchId(terminalId))
+                throw new CaxriError('CONFLICT', 'Managed Agent is no longer running');
+        }
 
         const { rootPath } = await options.git.repositoryIdentity(sessionId, repositoryId);
         const session = options.database.getSession(sessionId);
@@ -74,7 +87,24 @@ export function createGitReviewSendHandler(
                 'These review comments are too long to send at once. Send fewer comments.',
             );
 
-        if (!isGitReviewPromptInline(prompt)) {
+        if (isChat) {
+            /**
+             * A Chat takes the prompt as an ordinary message: no bracketed paste, and `send` starts or resumes the
+             * provider itself. It resolves once the provider took the message or it joined the Chat's follow-up queue,
+             * which is the point the comments count as sent. A prompt past the Chat's own long-paste threshold goes
+             * through the same saved file a composer paste would.
+             */
+            const text =
+                prompt.length <= AGENT_CHAT_LONG_PASTE_THRESHOLD
+                    ? prompt
+                    : `${formatLongPasteReference(
+                          await options.longPastes.saveForChat(
+                              { terminalId, content: prompt },
+                              signal,
+                          ),
+                      )}\n${LONG_REVIEW_INSTRUCTION}`;
+            await options.agentChat.send(terminalId, { text });
+        } else if (!isGitReviewPromptInline(prompt)) {
             const result = await options.longPastes.prepare(
                 { terminalId, content: prompt },
                 signal,
@@ -87,7 +117,7 @@ export function createGitReviewSendHandler(
             const accepted = options.terminals.writeAgentExact(
                 terminalId,
                 formatReviewTerminalInput(
-                    `${formatLongPasteReference(result)}\nAddress every review comment in that file.`,
+                    `${formatLongPasteReference(result)}\n${LONG_REVIEW_INSTRUCTION}`,
                 ),
                 result.agentLaunchId,
             );

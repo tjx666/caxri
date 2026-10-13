@@ -1,10 +1,11 @@
+import { isChatTerminal } from '@caxri/protocol';
+
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
-import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { getBootstrap, getSessionState } from '../../stores/selectors';
+import { chooseAgentPromptTerminal } from '../terminal/agent-prompt-commands';
 import { activateTerminal } from '../terminal/terminal-commands';
 import { focusTerminalById, whenTerminalAttached } from '../terminal/terminal-pane-handlers';
-import { chooseReferenceTerminal } from './file-reference';
 
 export type GitReviewSendResult = { ok: true } | { ok: false; message: string };
 
@@ -13,6 +14,9 @@ export type GitReviewSendResult = { ok: true } | { ok: false; message: string };
  * failure is returned rather than pushed as a toast: DESIGN.md's Dialogs/Toasts rule says a failure the dialog can
  * report in place belongs in the dialog, not in a toast behind it. The caller renders the message inline and keeps the
  * dialog open with Send re-enabled.
+ *
+ * The target is the same Agent a palette prompt goes to (`chooseAgentPromptTerminal`): a Chat, which Server Core starts
+ * or resumes on send and which needs no attached pane, or a Terminal whose Agent is running.
  *
  * Terminal selection, activation, and the attach wait stay in the Renderer because they depend on `PaneLayout`, a
  * Renderer-only concept the Server has no view of. Everything after that (reading the pending comments, building the
@@ -26,16 +30,18 @@ export async function sendGitReviewComments(
     const bootstrap = getBootstrap();
     const agent =
         bootstrap &&
-        chooseReferenceTerminal(
-            bootstrap.terminals.filter(
-                (terminal) =>
-                    terminal.provider && isAgentProcessRunning(terminal.lastAgentProcessState),
-            ),
-            sessionId,
-            getSessionState()?.paneLayout,
-        );
+        chooseAgentPromptTerminal(bootstrap.terminals, sessionId, getSessionState()?.paneLayout);
     if (!agent) return { ok: false, message: translate('editor.reviewSend.noAgentTerminal') };
     try {
+        if (isChatTerminal(agent)) {
+            await caxri.request('gitReview.send', {
+                sessionId,
+                repositoryId: repoId,
+                terminalId: agent.id,
+            });
+            activateTerminal(agent.id);
+            return { ok: true };
+        }
         activateTerminal(agent.id);
         if (!(await whenTerminalAttached(agent.id, 3000)))
             throw new Error(translate('editor.reviewSend.agentNotReady'));

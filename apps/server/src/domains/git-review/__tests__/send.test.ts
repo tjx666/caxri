@@ -1,3 +1,4 @@
+import type { TerminalRecord } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LongPasteService } from '../../agents';
@@ -9,6 +10,7 @@ import { createGitReviewSendHandler } from '../send';
 function makeOptions(overrides: Partial<Parameters<typeof createGitReviewSendHandler>[0]> = {}) {
     const reviewComments = overrides.reviewComments ?? new GitReviewCommentStore(vi.fn());
     return {
+        agentChat: { send: vi.fn().mockResolvedValue(undefined) },
         database: {
             getSession: vi.fn(() => ({ projectId: 'project-1' })),
             getTerminal: vi.fn(() => ({ surface: 'pty' })),
@@ -233,5 +235,130 @@ describe('createGitReviewSendHandler', () => {
             ),
         ).rejects.toThrow('Managed Agent changed before review input');
         expect(reviewComments.list('session-1', 'repo-1')[0]).toMatchObject({ status: 'pending' });
+    });
+
+    describe('to an Agent Chat', () => {
+        const chatTerminal: Pick<TerminalRecord, 'provider' | 'sessionId' | 'surface'> = {
+            surface: 'chat',
+            sessionId: 'session-1',
+            provider: 'codex',
+        };
+
+        function addComment(store: GitReviewCommentStore, text: string): void {
+            store.add({
+                id: 'a',
+                sessionId: 'session-1',
+                repositoryId: 'repo-1',
+                sourceKey: 'working',
+                path: 'src/example.ts',
+                side: 'modified',
+                startLine: 1,
+                endLine: 1,
+                snippet: 'line',
+                text,
+                status: 'pending',
+            });
+        }
+
+        function chatOptions(
+            reviewComments: GitReviewCommentStore,
+            send = vi.fn().mockResolvedValue(undefined),
+            terminal = chatTerminal,
+        ) {
+            const base = makeOptions({ reviewComments });
+            return makeOptions({
+                reviewComments,
+                agentChat: { send },
+                database: {
+                    ...(base.database as object),
+                    getTerminal: vi.fn(() => terminal),
+                } as never,
+            });
+        }
+
+        it('sends the plain prompt as a Chat message and marks the comments after it is accepted', async () => {
+            const reviewComments = new GitReviewCommentStore(vi.fn());
+            addComment(reviewComments, 'Fix this');
+            const send = vi.fn().mockResolvedValue(undefined);
+            const options = chatOptions(reviewComments, send);
+
+            const result = await createGitReviewSendHandler(options)(
+                { sessionId: 'session-1', repositoryId: 'repo-1', terminalId: 'chat-1' },
+                undefined,
+            );
+
+            expect(result).toEqual({ sentCommentIds: ['a'] });
+            expect(send).toHaveBeenCalledTimes(1);
+            const [terminalId, message] = send.mock.calls[0] as [string, { text: string }];
+            expect(terminalId).toBe('chat-1');
+            expect(message.text).toContain('Fix this');
+            expect(message.text).toContain('@/repo/src/example.ts#L1');
+            // A Chat message is not Terminal input: no bracketed-paste envelope.
+            expect(message.text).not.toContain('\u{1B}[200~');
+            expect(options.terminalInput).not.toHaveBeenCalled();
+            expect(reviewComments.list('session-1', 'repo-1')[0]).toMatchObject({
+                status: 'sent',
+            });
+        });
+
+        it('keeps the comments pending when the Chat refuses the message', async () => {
+            const reviewComments = new GitReviewCommentStore(vi.fn());
+            addComment(reviewComments, 'Fix this');
+            const options = chatOptions(
+                reviewComments,
+                vi.fn().mockRejectedValue(new Error('Chat closed')),
+            );
+
+            await expect(
+                createGitReviewSendHandler(options)(
+                    { sessionId: 'session-1', repositoryId: 'repo-1', terminalId: 'chat-1' },
+                    undefined,
+                ),
+            ).rejects.toThrow('Chat closed');
+            expect(reviewComments.list('session-1', 'repo-1')[0]).toMatchObject({
+                status: 'pending',
+            });
+        });
+
+        it('saves a prompt past the Chat long-paste threshold and sends its reference', async () => {
+            const reviewComments = new GitReviewCommentStore(vi.fn());
+            addComment(reviewComments, 'x'.repeat(40_000));
+            const send = vi.fn().mockResolvedValue(undefined);
+            const options = chatOptions(reviewComments, send);
+            const saveForChat = vi.fn<LongPasteService['saveForChat']>().mockResolvedValue({
+                filePath: '/tmp/review.md',
+                lineCount: 10,
+                characterCount: 40_000,
+            });
+            options.longPastes = { prepare: vi.fn(), saveForChat };
+
+            await createGitReviewSendHandler(options)(
+                { sessionId: 'session-1', repositoryId: 'repo-1', terminalId: 'chat-1' },
+                undefined,
+            );
+
+            expect(saveForChat).toHaveBeenCalledTimes(1);
+            const [, message] = send.mock.calls[0] as [string, { text: string }];
+            expect(message.text).toContain('Original file: "/tmp/review.md"');
+            expect(message.text).toContain('Address every review comment in that file.');
+        });
+
+        it('refuses a Chat that belongs to another Session', async () => {
+            const reviewComments = new GitReviewCommentStore(vi.fn());
+            addComment(reviewComments, 'Fix this');
+            const send = vi.fn();
+            const options = chatOptions(reviewComments, send, {
+                ...chatTerminal,
+                sessionId: 'session-2',
+            });
+
+            await expect(
+                createGitReviewSendHandler(options)(
+                    { sessionId: 'session-1', repositoryId: 'repo-1', terminalId: 'chat-1' },
+                    undefined,
+                ),
+            ).rejects.toThrow('Agent Chat not found in this Session');
+            expect(send).not.toHaveBeenCalled();
+        });
     });
 });

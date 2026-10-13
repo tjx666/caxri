@@ -49,6 +49,7 @@ import {
     createTerminalCreation,
     createTerminalHandlers,
     createTerminalInputHandlers,
+    createTerminalLifecycleHandlers,
     createTerminalMoveHandler,
     terminalDirectoryIdentity,
     TerminalManager,
@@ -513,33 +514,18 @@ export async function createDomainServices(
         },
         'session.queryForPrincipal': ({ principal, query }) =>
             introspection.records.session(query, principal),
-        'terminal.create': async ({ sessionId, kind, cwd, surface }) => {
-            const terminal =
-                surface === 'chat'
-                    ? await createChatTerminal(sessionId, kind, cwd)
-                    : await createAndStartTerminal(sessionId, kind, cwd);
-            if (terminal.provider) coordinator.probeTerminal(terminal.id);
-            sendFullStateChange('terminal.create');
-            return terminal;
-        },
-        'terminal.createInExternalDirectory': async ({ sessionId, cwd }) => {
-            const terminal = await createAndStartTerminal(sessionId, 'shell', cwd, undefined, cwd);
-            sendFullStateChange('terminal.create');
-            return terminal;
-        },
         ...terminalInputs,
-        'terminal.close': ({ terminalId }) =>
-            mobileTerminalMutations.run(terminalId, () => {
-                const sessionId = database.getTerminal(terminalId)?.sessionId;
-                coordinator.forgetTerminal(terminalId);
-                transcripts.forgetTerminal(terminalId);
-                // eslint-disable-next-line no-void -- the provider exits on its own; the record is removed now.
-                void agentChat.close(terminalId);
-                terminals.close(terminalId);
-                if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);
-                sendFullStateChange('terminal.close');
-                return null;
-            }),
+        ...createTerminalLifecycleHandlers({
+            agentChat,
+            coordinator,
+            createAndStartTerminal,
+            createChatTerminal,
+            database,
+            mobileTerminalMutations,
+            sendFullStateChange,
+            terminals,
+            transcripts,
+        }),
         ...relaunchHandlers,
         ...createTerminalHandlers({
             countLiveChats: (sessionId) => agentChat.liveCount(sessionId),
@@ -593,7 +579,15 @@ export async function createDomainServices(
             userDataPath,
             vercel,
         }),
-        ...createGitReviewHandlers({ database, git, longPastes, send, terminalInput, terminals }),
+        ...createGitReviewHandlers({
+            agentChat,
+            database,
+            git,
+            longPastes,
+            send,
+            terminalInput,
+            terminals,
+        }),
     };
     observeSelectedSession(selectedSessionId());
     terminalSuspension.start();
