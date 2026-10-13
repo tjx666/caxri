@@ -20,6 +20,7 @@ import {
     describeAgentChatWork,
     describeAgentTool,
     gitDiffTabLabel,
+    parseAgentMcpToolName,
     parseGitDiffTab,
     summarizeAgentChatWork,
     summarizeAgentToolGroup,
@@ -218,7 +219,18 @@ const ROWS: ParityRow[] = [
     },
     {
         name: 'describeAgentChatWork',
-        run: () => pair(workItems(), (item) => desktopDescribeWork(item), describeAgentChatWork),
+        /**
+         * An MCP call is the one deliberate difference: Desktop shows the server's icon, so its row reads as the tool
+         * alone (agent-chat-mcp-presentation.test.ts), while the phone and the CLI keep the server name in the label.
+         */
+        run: () =>
+            pair(
+                workItems().filter(
+                    (item) => item.type !== 'toolCall' || !parseAgentMcpToolName(item.name),
+                ),
+                (item) => desktopDescribeWork(item),
+                describeAgentChatWork,
+            ),
     },
     {
         name: 'summarizeAgentChatWork',

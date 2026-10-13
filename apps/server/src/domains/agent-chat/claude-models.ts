@@ -1,4 +1,9 @@
-import type { EffortLevel, Query } from '@anthropic-ai/claude-agent-sdk';
+import type {
+    EffortLevel,
+    HookCallbackMatcher,
+    HookEvent,
+    Query,
+} from '@anthropic-ai/claude-agent-sdk';
 import type {
     AgentChatModel,
     AgentChatModelChange,
@@ -81,10 +86,30 @@ export function claudeInitEffort(message: Record<string, unknown>): AgentChatPat
  * frames, so a Chat learns the level Claude Code actually sends (after settings, env overrides, and model downgrades)
  * from hook input instead. A subagent's hook reports its own effort, not the Chat's, so it is ignored.
  */
-export function claudeHookEffort(input: unknown): AgentChatPatchOperation[] {
+function claudeHookEffort(input: unknown): AgentChatPatchOperation[] {
     if (!isRecord(input) || input.agent_id !== undefined || !isRecord(input.effort)) return [];
     const effort = stringField(input.effort.level);
     return effort ? [{ op: 'state', state: { effort: clip(effort, 40) } }] : [];
+}
+
+/**
+ * Read-only hook callbacks that report the turn's effective effort. Claude Code fills `effort` only for a hook that
+ * runs with a tool-use context: PreToolUse and Stop always do, UserPromptSubmit only on some paths, so it is a
+ * best-effort early report and Stop is the guaranteed one. Each returns an empty output, so Claude Code proceeds
+ * exactly as without them.
+ */
+export function claudeEffortHooks(
+    apply: (operations: AgentChatPatchOperation[]) => void,
+): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
+    const matcher: HookCallbackMatcher = {
+        hooks: [
+            (input) => {
+                apply(claudeHookEffort(input));
+                return Promise.resolve({});
+            },
+        ],
+    };
+    return { UserPromptSubmit: [matcher], PreToolUse: [matcher], Stop: [matcher] };
 }
 
 /**

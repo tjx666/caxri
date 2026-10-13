@@ -14,6 +14,9 @@ export const linkFaviconDesktopMethods = {
      * system proxy and HTTP cache apply) rather than the Renderer loading it as an `<img>`: a site without one answers
      * 404, and Chromium reports every failed image load as a console error. An HTTPS origin only; the result has no
      * `dataUrl` when the site has no usable icon.
+     *
+     * `path` reads a named icon on that origin instead of `/favicon.ico`, such as the icon an MCP server advertises in
+     * its `serverInfo.icons`, under the same size cap and cache.
      */
     'links.favicon': {
         ...commandPolicy('desktop', 'read'),
@@ -22,6 +25,11 @@ export const linkFaviconDesktopMethods = {
                 .string()
                 .max(2048)
                 .regex(/^https:\/\/[^\s#/?@]+$/u),
+            path: z
+                .string()
+                .max(2048)
+                .regex(/^\/[^\s#]*$/u)
+                .optional(),
         }),
         result: z.strictObject({
             dataUrl: z.string().max(MAX_LINK_FAVICON_DATA_URL_LENGTH).optional(),

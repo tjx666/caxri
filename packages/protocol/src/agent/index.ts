@@ -7,6 +7,7 @@ export * from './agent-chat-contract.js';
 export * from './agent-chat-diff.js';
 export * from './agent-chat-goal.js';
 export * from './agent-chat-goal-contract.js';
+export * from './agent-chat-mcp.js';
 export * from './agent-chat-methods.js';
 export * from './agent-chat-models.js';
 export * from './agent-chat-path-references.js';

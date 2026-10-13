@@ -231,7 +231,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     window: mainWindow,
                 });
             case 'links.favicon':
-                return linkFavicon(request.params.origin);
+                return linkFavicon(request.params.origin, request.params.path);
             case 'agentProviderStatus.read':
                 return agentProviderStatus(request.params.provider);
             case 'links.preview':

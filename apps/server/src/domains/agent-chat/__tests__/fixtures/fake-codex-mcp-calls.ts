@@ -7,6 +7,8 @@ import crypto from 'node:crypto';
 
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
 
+type Json = Record<string, unknown>;
+
 const BROWSER_META = {
     'codex/browserUse': true,
     'codex/toolSurface': { backend: 'chrome', browserFamily: 'chrome', kind: 'browserUse' },
@@ -119,4 +121,43 @@ export async function runBrowserStep(io: FakeCodexIo, turn: FakeTurn) {
         durationMs: BROWSER_STEP_RUNNING_MS,
     });
     await io.streamMessage(turn, 'Saved the router settings.', 0);
+}
+
+/**
+ * The `docs` server's MCP `initialize` identity, the way Codex reports it from `mcpServerStatus/list`: a title and one
+ * inline icon, so a Chat shows the server's own glyph without reaching the network.
+ */
+const DOCS_SERVER_ICON =
+    'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHJlY3Qgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2IiByeD0iMyIgZmlsbD0iIzI1NjNlYiIvPjxwYXRoIGQ9Ik00IDRoOHYySDZ2MS41aDV2Mkg2VjEySDR6IiBmaWxsPSIjZmZmIi8+PC9zdmc+';
+
+export function didHandleMcpStatusRequest(
+    io: FakeCodexIo,
+    id: number | undefined,
+    method: string | undefined,
+    parameters: Json,
+): boolean {
+    if (method !== 'mcpServerStatus/list') return false;
+    const servers = [
+        {
+            name: 'docs',
+            runtimeStatus: 'connected',
+            serverInfo: {
+                name: 'docs',
+                title: 'Docs',
+                version: '1.0.0',
+                icons: [{ src: DOCS_SERVER_ICON, mimeType: 'image/svg+xml', sizes: ['any'] }],
+            },
+        },
+    ];
+    io.send({
+        id,
+        result: {
+            data: servers.filter(
+                (server) =>
+                    parameters.serverName === undefined || server.name === parameters.serverName,
+            ),
+            nextCursor: null,
+        },
+    });
+    return true;
 }

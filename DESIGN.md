@@ -1235,15 +1235,20 @@ Codex app: once the turn ends, and in a Chat opened idle, the content rests on t
 rather than leaving a blank view to scroll through.
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
-change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
-mobile timeline uses), a past-tense verb that names a non-success outcome in words (`Failed to
+change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the Codex app's
+set: an open book for reads, four linked nodes for MCP), a past-tense verb that names a non-success outcome in words (`Failed to
 edit`, `Not allowed to run`, `Stopped editing`), the subject in the body font (a single file it read
 or changed is an underlined link that opens it), and trailing facts
 (a `+N -M` diff stat, a non-success status glyph, a duration of at least one second; a command
 always shows its duration, plus a `--danger` `Exit N` when non-zero and a `--surface` `Background`
 tag once handed off). A command the Agent described is titled by the description in the body font,
-and its command line moves into the expanded view. Consecutive
-work collapses into one summary row (`Ran 3 commands, read 2 files`), ending `, N failed` when items
+and its command line moves into the expanded view. An MCP call leads with its server's own 14px
+icon (radius 2, fading in over the generic MCP glyph that holds the slot while it loads, which stays
+when the server has none) and reads as the tool alone in sentence case (`Web search exa`), since the
+icon already names the server; expanded, its arguments list as muted mono names beside body-font
+values, and its result wraps. Consecutive
+work collapses into one summary row (`Ran 3 commands, read 2 files`) that leads with the glyph of
+the kind its phrase names first (an MCP lead shows that call's server icon), ending `, N failed` when items
 failed or were declined, whose expanded list scrolls past 240px and fades its clipped edge over
 24px. A shell command that only reads, searches, or lists files reads as that action (`sed -n
 '1,40p' src/app.ts` is `Read app.ts`, `rg foo src` is `Searched foo in src`), keeping its command
