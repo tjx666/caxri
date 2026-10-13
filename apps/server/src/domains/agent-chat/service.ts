@@ -37,6 +37,7 @@ import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
 import type { ChatState, ChatStateDelivery } from './chat-states';
 import { ChatStates } from './chat-states';
+import { isChatIdleForSuspension } from './chat-suspension';
 import { readChatTask, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -463,6 +464,61 @@ export class AgentChatService {
         for (const terminalId of this.states.clearDetachedSession(sessionId))
             // eslint-disable-next-line no-void -- a failed start is recorded in the projection every Client reads
             void this.startQuietly(terminalId, this.states.open(terminalId));
+    }
+
+    /**
+     * Whether idle suspension may stop this Chat now; see {@link isChatIdleForSuspension}.
+     */
+    isSuspendable(terminalId: string): boolean {
+        const state = this.states.get(terminalId);
+        const terminal = this.options.database.getTerminal(terminalId);
+        return Boolean(
+            state &&
+            terminal &&
+            !this.starts.has(terminalId) &&
+            isChatIdleForSuspension(state, terminal),
+        );
+    }
+
+    /**
+     * Idle suspension: stops a background Chat's provider but keeps its projection, so every Client still shows the
+     * conversation, and records the Terminal as `suspended`. It runs on the send chain, so input accepted before it is
+     * delivered first and input accepted after it starts the provider again on the same Agent Session, as does the next
+     * read or {@link resumeSuspended}. Returns the record, or `undefined` when the Chat was no longer idle.
+     */
+    async suspendIdle(terminalId: string): Promise<TerminalRecord | undefined> {
+        const state = this.states.get(terminalId);
+        if (!state) return undefined;
+        const { database } = this.options;
+        const previous = state.sendQueue;
+        const run = (async () => {
+            await previous;
+            if (this.states.get(terminalId) !== state || !this.isSuspendable(terminalId)) return;
+            await state.session?.close();
+            state.session = undefined;
+            // The requested exit recorded `stopped`; a suspension is resumable on selection instead.
+            if (this.states.get(terminalId) !== state || !database.getTerminal(terminalId)) return;
+            database.updateTerminalState(terminalId, 'suspended');
+            database.updateAgentProcessState(terminalId, 'suspended');
+            this.states.publish(terminalId);
+            return database.getTerminal(terminalId);
+        })();
+        state.sendQueue = Promise.allSettled([run]);
+        return run;
+    }
+
+    /**
+     * Selecting a Session starts its suspended Chats again, as it restores suspended PTYs. Only a Chat this process
+     * suspended is started: one an earlier Server Core left `suspended` resumes lazily on its next read, like any idle
+     * Chat after a restart.
+     */
+    resumeSuspended(sessionId: string): void {
+        for (const terminal of this.options.database.listTerminals(sessionId)) {
+            const state = this.states.get(terminal.id);
+            if (!state || state.session || terminal.lastProcessState !== 'suspended') continue;
+            // eslint-disable-next-line no-void -- a failed start is recorded in the projection every Client reads
+            void this.startQuietly(terminal.id, state);
+        }
     }
 
     /**

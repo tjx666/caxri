@@ -34,9 +34,9 @@ Core sweep every 15 seconds, so a park lands at most one sweep after its window 
 
 Both automatic rules consider a Terminal only when every condition holds:
 
-- It is a PTY Agent Terminal (never a Shell tab and never a Chat) whose provider supports automatic
-  suspension (Claude Code and Codex; Grok Build does not), its process is running, and its Agent is
-  `starting` or `running`.
+- It is a PTY Agent Terminal (never a Shell tab) whose provider supports automatic suspension
+  (Claude Code and Codex; Grok Build does not), or an Agent Chat on any provider; its process is
+  running, and its Agent is `starting` or `running`.
 - Its Session is not the selected Session, not the Agent Commander's Session, and not archived.
 - No phone has it open through the mobile gateway: neither its Terminal screen nor its Session's
   Conversation.
@@ -114,3 +114,19 @@ Both transitions are logged without any Terminal or transcript content:
 - `apps/server/src/domains/terminal/suspension.ts`: the sweep, the activity samples, parking, and
   the transition logs.
 - `apps/server/src/domains/terminal/restore.ts`: the resume on Session selection.
+
+## Agent Chats
+
+An Agent Chat is considered by the idle rule only; the untouched rule judges launch and input
+samples a Chat does not record. Besides the conditions above, the Chat's own projection must report
+nothing pending (`AgentChatService.isSuspendable`): its provider is ready and bound to an Agent
+Session, and no turn, approval or question, operation (compaction), running background task, or
+queued message remains. An unbound Chat is never parked, because it has no conversation to resume.
+
+Parking a Chat (`AgentChatService.suspendIdle`) runs on its send chain, so input accepted first is
+delivered first. It stops the provider process but keeps the in-memory conversation, so every
+Client still shows it, and records the Terminal as `suspended`. Selecting the Session starts the
+provider again on the same Agent Session; so does a message or a read from any Client. A Chat that
+an earlier Server Core left `suspended` resumes lazily on its next read, like any Chat after a
+restart. Grok Build Chats are eligible because a Chat resumes through the provider's session
+protocol rather than a PTY restore.

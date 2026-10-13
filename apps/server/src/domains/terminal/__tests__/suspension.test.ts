@@ -483,4 +483,45 @@ describe('TerminalSuspensionService: idle suspension', () => {
         harness.advance(24 * 60 * 60_000);
         expect(await harness.service.sweep()).toEqual([]);
     });
+
+    it('parks an idle background Chat through the Chat service and never through the PTY manager', async () => {
+        const chats = {
+            isSuspendable: vi.fn(() => true),
+            suspendIdle: vi.fn((terminalId: string) =>
+                Promise.resolve(
+                    terminal(terminalId, 'session-a', {
+                        lastProcessState: 'suspended',
+                        surface: 'chat',
+                    }),
+                ),
+            ),
+        };
+        const harness = createHarness({ chats, settings: idleAfterThirtyMinutes });
+        harness.terminals.set(
+            'terminal-a',
+            terminal('terminal-a', 'session-a', {
+                kind: 'codex',
+                provider: 'codex',
+                surface: 'chat',
+            }),
+        );
+        harness.service.start();
+        harness.advance(31 * 60_000);
+
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+        expect(chats.suspendIdle).toHaveBeenCalledWith('terminal-a');
+        expect(harness.suspend).not.toHaveBeenCalled();
+
+        chats.isSuspendable.mockReturnValue(false);
+        harness.terminals.set(
+            'terminal-a',
+            terminal('terminal-a', 'session-a', {
+                kind: 'codex',
+                provider: 'codex',
+                surface: 'chat',
+            }),
+        );
+        harness.advance(31 * 60_000);
+        expect(await harness.service.sweep()).toEqual([]);
+    });
 });

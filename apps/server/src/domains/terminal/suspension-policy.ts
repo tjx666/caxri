@@ -53,6 +53,11 @@ export interface TerminalSuspensionPolicyInput {
      * like the selected Session on the desktop, so automatic suspension leaves it alone.
      */
     isObservedRemotely(terminalId: string): boolean;
+    /**
+     * Whether an Agent Chat is idle enough to stop (`AgentChatService.isSuspendable`). A Chat has no activity sample of
+     * a launch or Core-delivered input, so its own projection is the authority on pending work.
+     */
+    isChatSuspendable?(terminalId: string): boolean;
     sample(terminalId: string): TerminalActivitySample | undefined;
     session(sessionId: string): SessionRecord | undefined;
 }
@@ -115,11 +120,17 @@ function decideTerminal(
 ): TerminalSuspensionReason | undefined {
     if (!terminal.provider || terminal.lastProcessState !== 'running') return undefined;
     /**
-     * A Chat has no PTY to park. Its provider process starts lazily on the first read and stops only when its Terminal
-     * or Session is closed, archived, or detached; idle Chats are not suspended automatically.
+     * A Chat parks by stopping its provider process, which resumes the same Agent Session on every provider, so the
+     * per-provider `automaticSuspension` capability (a PTY restore concern) does not apply. Only the idle rule does:
+     * the `untouched` rule judges launch and input samples a Chat does not record.
      */
-    if (!isPtyTerminal(terminal)) return undefined;
-    if (!agentProviderCatalog[terminal.provider].capabilities.automaticSuspension) return undefined;
+    const isChat = !isPtyTerminal(terminal);
+    if (
+        isChat
+            ? !input.isChatSuspendable?.(terminal.id)
+            : !agentProviderCatalog[terminal.provider].capabilities.automaticSuspension
+    )
+        return undefined;
     if (!LIVE_AGENT_STATES.has(terminal.lastAgentProcessState)) return undefined;
     if (terminal.sessionId === input.selectedSessionId) return undefined;
     if (input.isObservedRemotely(terminal.id)) return undefined;
@@ -142,6 +153,7 @@ function decideTerminal(
         return undefined;
     const sinceDeselected = input.now - deselectedAt;
     if (
+        !isChat &&
         input.settings['terminal.suspendUntouchedAgents'] &&
         sample?.launchedAt !== undefined &&
         sample.lastInputAt === undefined &&
