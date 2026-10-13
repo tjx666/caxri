@@ -383,6 +383,15 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'view', group: 3, order: 0 },
     },
     {
+        id: 'benchmark.open',
+        title: 'Open Benchmark',
+        category: 'View',
+        description:
+            'Run one prompt across several Agents and models and compare quality, time, tokens, and cost',
+        keywords: ['benchmark', 'compare', 'models', 'leaderboard', 'eval', 'arena', 'effort'],
+        nativeMenu: { menu: 'view', group: 3, order: 1 },
+    },
+    {
         id: 'settings.open',
         title: 'Open Settings',
         category: 'Preferences',

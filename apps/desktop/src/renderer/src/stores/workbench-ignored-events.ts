@@ -17,6 +17,8 @@ import type { ServerEvent } from '@caxri/protocol';
  *   `externalDocument.changed`.
  * - `environment.changed` and `environment.connectionReused` go to `subscribeEnvironment` in `stores/environment.ts`.
  * - `files.watchLimitAlert` goes to `subscribeFileWatchLimitAlerts` in `features/ssh-host/file-watch-limit-alert.ts`.
+ * - `benchmark.changed` goes to `useBenchmarkEvents` in `features/benchmark/benchmark-queries.ts`, which refreshes the
+ *   Benchmark tab's run list and the changed run.
  */
 const WORKBENCH_IGNORED_EVENTS = [
     'agent.dispatch.changed',
@@ -29,6 +31,7 @@ const WORKBENCH_IGNORED_EVENTS = [
     'agentCommander.inboxRequested',
     'agentHooks.changed',
     'agentTranscript.changed',
+    'benchmark.changed',
     'commanderInbox.changed',
     'editor.unsavedRequest',
     'environment.changed',
