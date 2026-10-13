@@ -15,11 +15,16 @@ type LinkFavicon = MethodResult<'links.favicon'>;
 const MAX_FAVICON_BYTES = 32 * 1024;
 const FETCH_TIMEOUT_MS = 5000;
 /**
- * Origins remembered for the life of the app, whether they answered with an icon or definitively without one. A
+ * Icons remembered for the life of the app, whether they answered with an icon or definitively without one. A
  * transcript re-renders its links on every tab switch, and a site with no icon should cost one request, not one per
  * render.
  */
-const MAX_CACHED_ORIGINS = 256;
+const MAX_CACHED_ICONS = 256;
+
+/**
+ * The icon a site serves when nothing names another one.
+ */
+const DEFAULT_ICON_PATH = '/favicon.ico';
 
 /**
  * Whether a response body is an icon. Many servers send `.ico` as `application/octet-stream` or with no type at all, so
@@ -32,15 +37,15 @@ function iconType(contentType: string | null): string | undefined {
 }
 
 /**
- * The origin's icon, `{}` when it definitively has none, or `undefined` when the request failed outright and is worth
+ * The icon at `url`, `{}` when it definitively has none, or `undefined` when the request failed outright and is worth
  * retrying later.
  */
 async function fetchFavicon(
     fetch: PublicHttpsFetch,
-    origin: string,
+    url: string,
 ): Promise<LinkFavicon | undefined> {
     try {
-        const result = await fetch(`${origin}/favicon.ico`, {
+        const result = await fetch(url, {
             signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
         // A loopback, private, or non-HTTPS hop was refused before it was requested; the link keeps its globe.
@@ -69,31 +74,33 @@ async function fetchFavicon(
 }
 
 /**
- * Site icons for transcript links, fetched once per origin. `fetch` is Electron's `net.request` in the app, so the
- * system proxy and Chromium's HTTP cache apply as they would to an `<img>`; it never follows a redirect itself, so
- * `createPublicHttpsFetch` can refuse every loopback, private, or non-HTTPS hop. A request that failed outright is
- * forgotten rather than cached, so a link first rendered while offline gets its icon once the network is back.
+ * Site icons for transcript links and MCP servers, fetched once per icon URL (an origin's `/favicon.ico` unless a path
+ * names another icon). `fetch` is Electron's `net.request` in the app, so the system proxy and Chromium's HTTP cache
+ * apply as they would to an `<img>`; it never follows a redirect itself, so `createPublicHttpsFetch` can refuse every
+ * loopback, private, or non-HTTPS hop. A request that failed outright is forgotten rather than cached, so a link first
+ * rendered while offline gets its icon once the network is back.
  */
 export function createLinkFavicons(fetch: ManualRedirectFetch, resolveHost: ResolveHost) {
     const publicFetch = createPublicHttpsFetch(fetch, resolveHost);
     const cache = new Map<string, Promise<LinkFavicon>>();
     /**
      * Resolves a cache entry and forgets it when the request failed outright. Only that exact entry is forgotten:
-     * eviction may already have replaced it with a newer attempt for the same origin.
+     * eviction may already have replaced it with a newer attempt for the same icon.
      */
-    async function settle(origin: string, entry: PromiseWithResolvers<LinkFavicon>): Promise<void> {
-        const result = await fetchFavicon(publicFetch, origin);
-        if (!result && cache.get(origin) === entry.promise) cache.delete(origin);
+    async function settle(url: string, entry: PromiseWithResolvers<LinkFavicon>): Promise<void> {
+        const result = await fetchFavicon(publicFetch, url);
+        if (!result && cache.get(url) === entry.promise) cache.delete(url);
         entry.resolve(result ?? {});
     }
-    return (origin: string): Promise<LinkFavicon> => {
-        const cached = cache.get(origin);
+    return (origin: string, path = DEFAULT_ICON_PATH): Promise<LinkFavicon> => {
+        const url = `${origin}${path}`;
+        const cached = cache.get(url);
         if (cached) return cached;
-        if (cache.size >= MAX_CACHED_ORIGINS) cache.delete(cache.keys().next().value!);
+        if (cache.size >= MAX_CACHED_ICONS) cache.delete(cache.keys().next().value!);
         const entry = Promise.withResolvers<LinkFavicon>();
-        cache.set(origin, entry.promise);
+        cache.set(url, entry.promise);
         // eslint-disable-next-line no-void -- the entry's promise carries the outcome; settling has nothing else to report
-        void settle(origin, entry);
+        void settle(url, entry);
         return entry.promise;
     };
 }

@@ -220,16 +220,21 @@ export function clipAgentChatQueueForMobile(queue: AgentChatQueue): AgentChatQue
 }
 
 /**
- * Background tasks are a Desktop surface the phone does not render yet, so they stay on the computer. The follow-up
- * queue travels as a bounded preview (see {@link clipAgentChatQueueForMobile}) with its paused flag and its real length,
- * which the preview alone cannot tell once the queue outgrows it.
+ * Background tasks and MCP server icons are Desktop surfaces the phone does not render yet, so they stay on the
+ * computer (an inline icon would also spend the phone's frame budget on nothing it shows). The follow-up queue travels
+ * as a bounded preview (see {@link clipAgentChatQueueForMobile}) with its paused flag and its real length, which the
+ * preview alone cannot tell once the queue outgrows it.
  */
 function withoutDesktopOnlyState<
-    State extends Pick<Partial<AgentChatSnapshot>, 'queue' | 'queueLength' | 'tasks'>,
+    State extends Pick<
+        Partial<AgentChatSnapshot>,
+        'mcpServers' | 'queue' | 'queueLength' | 'tasks'
+    >,
 >(state: State): State {
-    if (!state.tasks && !state.queue) return state;
+    if (!state.tasks && !state.queue && !state.mcpServers) return state;
     const rest = { ...state };
     delete rest.tasks;
+    delete rest.mcpServers;
     if (rest.queue) {
         rest.queueLength = rest.queue.length;
         rest.queue = clipAgentChatQueueForMobile(rest.queue);

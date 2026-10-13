@@ -28,6 +28,20 @@ describe('createLinkFavicons', () => {
         expect(fetch).toHaveBeenCalledWith('https://a.example/favicon.ico', expect.anything());
     });
 
+    it('reads a named icon path on the origin and caches it apart from the favicon', async () => {
+        const fetch = vi.fn<(url: string) => ReturnType<typeof iconResponse>>(() =>
+            iconResponse(new Uint8Array([1]), { headers: { 'content-type': 'image/png' } }),
+        );
+        const favicon = createLinkFavicons(fetch, publicHost);
+        await favicon('https://a.example', '/images/icon-32.png');
+        await favicon('https://a.example', '/images/icon-32.png');
+        await favicon('https://a.example');
+        expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+            'https://a.example/images/icon-32.png',
+            'https://a.example/favicon.ico',
+        ]);
+    });
+
     it('labels an untyped body as an icon', async () => {
         const favicon = createLinkFavicons(() => iconResponse(new Uint8Array([7])), publicHost);
         await expect(favicon('https://a.example')).resolves.toEqual({

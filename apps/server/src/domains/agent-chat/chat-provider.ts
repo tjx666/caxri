@@ -18,6 +18,7 @@ import type {
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
+import type { McpServerReport } from './chat-mcp-servers';
 
 /**
  * The seam between `AgentChatService` and one provider's structured protocol. The service owns the Terminal row, the
@@ -388,6 +389,11 @@ export interface AgentChatProviderSession {
      * What fills the context now, item by item, for the Context tab. Providers that report no composition omit it.
      */
     readContext?(): Promise<ChatContextDetails>;
+    /**
+     * Reads what the provider knows about one MCP server (its `serverInfo` and endpoint), by the server name a tool
+     * call carries, so the timeline can show the server's icon. Providers without an MCP status read omit it.
+     */
+    readMcpServer?(name: string): Promise<McpServerReport | undefined>;
     respond(requestId: string, response: AgentChatResponse): void;
     /**
      * Orderly stop requested by Caxri. The provider's record is already durable, so nothing is lost.

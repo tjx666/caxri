@@ -68,7 +68,11 @@ import {
     wireTurn,
 } from './fake-codex-history.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
-import { completeMcpCalls, runBrowserStep } from './fake-codex-mcp-calls.ts';
+import {
+    completeMcpCalls,
+    didHandleMcpStatusRequest,
+    runBrowserStep,
+} from './fake-codex-mcp-calls.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
 import { runCodeBlocks, runMarkdownTable, runTestCommands } from './fake-codex-replies.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
@@ -424,6 +428,7 @@ function handle(message: RpcMessage) {
     const { id, method, params: parameters = {} } = message;
     if (didHandleTaskRequest(io, id, method, parameters)) return;
     if (didHandleGoalRequest(io, id, method, parameters)) return;
+    if (didHandleMcpStatusRequest(io, id, method, parameters)) return;
     switch (method) {
         case 'initialize': {
             send({ id, result: { userAgent: 'caxri/0.162.0 (fake)', platformOs: 'macos' } });

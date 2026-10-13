@@ -53,6 +53,10 @@ import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHistory } from './hooks/use-agent-chat-history';
+import {
+    AgentChatMcpServersContext,
+    useAgentChatMcpServers,
+} from './hooks/use-agent-chat-mcp-server';
 import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
@@ -172,6 +176,7 @@ export function AgentChatPane({
     );
     const readBackHistory = useMemo(() => ({ canFork }), [canFork]);
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId, canOpenBesideChat);
+    const mcpServers = useAgentChatMcpServers(snapshot?.mcpServers);
     /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
      * `detached`, while the projection only reads `stopped`.
@@ -263,30 +268,34 @@ export function AgentChatPane({
                             />
                             <AgentChatExpansionContext value={expansion}>
                                 <AgentChatTaskLinksContext value={taskLinks}>
-                                    <AgentChatTerminalContext value={terminalId}>
-                                        {/*
-                                         * History read back is not in the projection, so it never offers Edit, Fork,
-                                         * or Restore; keeping it outside the actions, which change with every patch,
-                                         * lets a patch skip it. Its menus list Edit and Fork disabled with why.
-                                         */}
-                                        <AgentChatReadBackHistoryContext value={readBackHistory}>
-                                            <AgentChatSettledTimeline
-                                                chunks={settledChunks}
-                                                onOpenFile={openFile}
-                                            />
-                                        </AgentChatReadBackHistoryContext>
-                                        <AgentChatEditContext value={editActions}>
-                                            <LiveTimelineEntries
-                                                dayBreaks={dayBreaks}
-                                                timeline={timeline}
-                                                onOpenFile={openFile}
-                                            />
-                                            <AgentChatPendingTimeline
-                                                pending={pending}
-                                                onOpenFile={openFile}
-                                            />
-                                        </AgentChatEditContext>
-                                    </AgentChatTerminalContext>
+                                    <AgentChatMcpServersContext value={mcpServers}>
+                                        <AgentChatTerminalContext value={terminalId}>
+                                            {/*
+                                             * History read back is not in the projection, so it never offers Edit, Fork,
+                                             * or Restore; keeping it outside the actions, which change with every patch,
+                                             * lets a patch skip it. Its menus list Edit and Fork disabled with why.
+                                             */}
+                                            <AgentChatReadBackHistoryContext
+                                                value={readBackHistory}
+                                            >
+                                                <AgentChatSettledTimeline
+                                                    chunks={settledChunks}
+                                                    onOpenFile={openFile}
+                                                />
+                                            </AgentChatReadBackHistoryContext>
+                                            <AgentChatEditContext value={editActions}>
+                                                <LiveTimelineEntries
+                                                    dayBreaks={dayBreaks}
+                                                    timeline={timeline}
+                                                    onOpenFile={openFile}
+                                                />
+                                                <AgentChatPendingTimeline
+                                                    pending={pending}
+                                                    onOpenFile={openFile}
+                                                />
+                                            </AgentChatEditContext>
+                                        </AgentChatTerminalContext>
+                                    </AgentChatMcpServersContext>
                                 </AgentChatTaskLinksContext>
                             </AgentChatExpansionContext>
                             <AgentChatEmptyState
