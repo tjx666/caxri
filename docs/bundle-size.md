@@ -21,13 +21,13 @@ legitimately needs more bytes.
 | `out/preload`             | ~48 KiB    | Sandboxed preload bundles                                                 |
 | `apps/server/dist/server` | ~137.6 MiB | Byte-identical source of the embedded Server artifact                     |
 
-Roughly half of the JavaScript above is source maps, which ship in every build including the packaged
-one. This is the single largest deliberate size decision in the project and it is not drift: Caxri is
-built and debugged by coding agents, whose only view of a past failure is the artifact that produced
-it. A minified packaged build cannot say which line threw, so every investigation of a production-only
-failure would start with a rebuild and an attempt to reproduce: the expensive part of the loop. The
-bytes buy that back, and the installer is dominated by the Electron runtime regardless. Turning maps
-off is a product decision to make at the first public release, not a way to pass the budget gate.
+Roughly half of the JavaScript above is Source Maps. Ordinary builds and the canonical
+`Caxri-<version>-arm64.dmg` include them because Caxri is built and debugged by coding agents, whose
+only view of a past failure may be the artifact that produced it. A minified packaged build cannot say
+which line threw, so the maps avoid a rebuild-and-reproduce cycle. A second
+`Caxri-<version>-arm64-nosourcemap.dmg` is rebuilt with maps disabled for users who explicitly prefer
+the smaller artifact. The size gate measures the default include flavor; a drop caused by missing
+maps remains a regression there.
 
 Mermaid is ~23 MiB of the renderer with its source maps, added when the file preview shipped. It is
 loaded through a dynamic `import('mermaid')`, so a document without a diagram never executes any of

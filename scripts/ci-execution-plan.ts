@@ -18,7 +18,8 @@ export interface CIExecutionPlanInput {
      */
     affectedE2ETests?: string[];
     /**
-     * Why affected E2E selection failed, for example a malformed `CI-E2E-Tests` line; the PR then keeps the full suite.
+     * Why affected E2E selection failed, for example a malformed `CI-E2E-Tests` line; the PR then uses full hosted
+     * checks while an explicit dispatch continues to own full E2E.
      */
     affectedSelectionError?: string;
     changedFiles: string[];
@@ -26,7 +27,7 @@ export interface CIExecutionPlanInput {
     eventName: string;
     /**
      * True when the delta touches dependency, toolchain, workflow, or shared E2E infrastructure whose impact an import
-     * graph cannot bound, so the pull request keeps the full suite.
+     * graph cannot bound, so the pull request uses full hosted checks without starting E2E.
      */
     hasFullValidationPath?: boolean;
     /**
@@ -97,20 +98,12 @@ function areAllPathsMatching(
  * re-evaluates the same source SHA with `draft=false`, promoting it to full CI.
  */
 export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutionPlan {
-    if (input.retryMode && input.retryKind === 'metadata-only') {
+    if (input.retryMode) {
         return {
-            checksScope: 'skipped',
+            checksScope: 'full',
             e2eProfile: 'control',
-            reason: `validated ${input.retryMode} receipt`,
-            runE2E: true,
-        };
-    }
-    if (input.retryMode === 'e2e-repair' && input.retryKind === 'spec-only') {
-        return {
-            checksScope: 'focused-e2e',
-            e2eProfile: 'focused',
-            reason: 'validated E2E spec-only repair',
-            runE2E: true,
+            reason: `${input.retryMode} is compatibility metadata; explicit dispatch owns full E2E`,
+            runE2E: false,
         };
     }
 
@@ -119,7 +112,7 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
         return {
             checksScope: 'full',
             e2eProfile: profile === 'optimized' ? 'optimized' : 'control',
-            reason: 'self-hosted performance dispatch',
+            reason: 'explicit validation dispatch',
             runE2E: profile !== 'skip',
         };
     }
@@ -187,7 +180,7 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
                 checksScope: 'full',
                 e2eProfile: 'optimized',
                 reason: `affected E2E selection failed closed: ${input.affectedSelectionError}`,
-                runE2E: true,
+                runE2E: false,
             };
         }
         if (input.hasFullValidationPath) {
@@ -195,11 +188,11 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
                 checksScope: 'full',
                 e2eProfile: 'optimized',
                 reason: 'ready pull request changes global configuration',
-                runE2E: true,
+                runE2E: false,
             };
         }
         /**
-         * Ready source PRs validate only what the diff can reach; the scheduled nightly run owns the full suite.
+         * Ready source PRs validate only what the diff can reach; an explicit validation dispatch owns the full suite.
          */
         const e2eTests = input.affectedE2ETests?.length
             ? [...new Set(input.affectedE2ETests)].toSorted((left, right) =>
@@ -210,8 +203,8 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
             checksScope: 'affected',
             e2eProfile: 'focused',
             e2eTests,
-            reason: 'ready source pull request; affected tests only',
-            runE2E: true,
+            reason: 'ready source pull request; affected E2E recorded for explicit validation',
+            runE2E: false,
         };
     }
 
@@ -227,8 +220,8 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
         return {
             checksScope: 'full',
             e2eProfile: 'optimized',
-            reason: 'nightly full suite',
-            runE2E: true,
+            reason: 'scheduled checks only; full E2E requires an explicit dispatch',
+            runE2E: false,
         };
     }
 
@@ -241,12 +234,6 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
                 runE2E: false,
             };
         }
-        /**
-         * Direct pushes to main used to skip the E2E pools entirely, which let UI changes land with stale specs that
-         * only failed on the next pull request (two such regressions surfaced in PR #179). Source pushes now pay for
-         * the optimized pools; documentation/skill-only pushes stay cheap. An empty change list (force push, unknown
-         * base) fails closed into running E2E.
-         */
         const isDocumentationOnlyPush = areAllPathsMatching(
             input.changedFiles,
             (path) => isDocumentationPath(path) || isRepoHarnessPath(path),
@@ -255,17 +242,17 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
             checksScope: 'full',
             e2eProfile: isDocumentationOnlyPush ? 'control' : 'optimized',
             reason: isDocumentationOnlyPush ? 'documentation-only main push' : 'ordinary main push',
-            runE2E: !isDocumentationOnlyPush,
+            runE2E: false,
         };
     }
 
     /**
-     * Unknown future event types pay the macOS cost instead of silently weakening CI.
+     * Unknown future event types keep full checks but cannot opt into a full E2E route implicitly.
      */
     return {
         checksScope: 'full',
         e2eProfile: 'control',
-        reason: `unknown event ${input.eventName || 'missing'}; running full CI`,
-        runE2E: true,
+        reason: `unknown event ${input.eventName || 'missing'}; running full checks only`,
+        runE2E: false,
     };
 }

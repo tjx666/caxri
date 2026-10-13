@@ -296,13 +296,15 @@ readiness handshake its supervisor waits on, so the app would look hung rather t
 inspector binds to loopback and does nothing until a client attaches. The Server bundles are built
 unminified (`apps/server/vite.config.ts`), so a session shows readable code either way.
 
-### Source maps: always on
+### Source maps: default on, explicit release flavor
 
-Desktop Main, Preload, Renderer, and the Server all ship source maps, in the packaged build too, so
-DevTools Sources and a Node inspector session show real files and a stack trace names a real line. The
-maps roughly double the JavaScript payload (`out/renderer` ≈ 91 MiB against ≈ 41 MiB without them);
-`scripts/ci-bundle-budget.ts` carries budgets sized for that, and `docs/bundle-size.md` explains the
-trade. Nothing needs to be rebuilt to make a packaged crash readable.
+Ordinary builds and the canonical macOS DMG ship Source Maps for Desktop Main, Preload, Renderer,
+and the embedded Server, so DevTools Sources and a Node inspector session show real files and a stack
+trace names a real line. The public Release also carries an explicit `nosourcemap` DMG. Do not use
+that flavor for packaged debugging: reproduce with the canonical artifact instead. The maps roughly
+double the JavaScript payload (`out/renderer` ≈ 91 MiB against ≈ 41 MiB without them);
+`scripts/ci-bundle-budget.ts` carries budgets for the default build, and `docs/bundle-size.md`
+explains the trade.
 
 ### Builds made for measurement: `CAXRI_REACT_PROFILING`, `CAXRI_REACT_SCAN`
 

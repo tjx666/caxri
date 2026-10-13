@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { AcceptanceUpdateDiscovery } from './updates';
+import type { AcceptanceUpdateDiscovery } from './update-service-contract';
 
 /**
  * The one update state an Acceptance case can declare (`updateFixture` in the frozen plan). The launcher arms it as

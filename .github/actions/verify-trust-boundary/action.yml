@@ -23,6 +23,10 @@ inputs:
   pull-request-author:
     description: Pull request author, or the event actor for non-PR events.
     required: true
+  allow-external-pull-request:
+    description: Allow an untrusted fork pull request in a read-only GitHub-hosted job.
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -36,6 +40,7 @@ runs:
         POLICY_DOMAIN: ${{ inputs.policy-domain }}
         PR_AUTHOR: ${{ inputs.pull-request-author }}
         TRIGGERING_ACTOR: ${{ inputs.triggering-actor }}
+        ALLOW_EXTERNAL_PULL_REQUEST: ${{ inputs.allow-external-pull-request }}
       run: |
         policy=.github/ci-trust-policy.json
         trusted_actor="$(sed -nE 's/^[[:space:]]*"trustedActor":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
@@ -54,13 +59,24 @@ runs:
         test -n "$schedule_event"
         test -n "$release_branch"
         test "$POLICY_DOMAIN" = ci || test "$POLICY_DOMAIN" = release
-        test "$EVENT_ACTOR" = "$trusted_actor"
-        test "$TRIGGERING_ACTOR" = "$trusted_actor"
-        test "$EVENT_REPOSITORY" = "$GITHUB_REPOSITORY"
+        external_pull_request=false
+        if [[ "$POLICY_DOMAIN" == ci && "$EVENT_NAME" == "$pull_request_event" && "$EVENT_REPOSITORY" != "$GITHUB_REPOSITORY" ]]; then
+          external_pull_request=true
+        fi
+
+        if [[ "$external_pull_request" == true ]]; then
+          test "$ALLOW_EXTERNAL_PULL_REQUEST" = true
+        else
+          test "$EVENT_ACTOR" = "$trusted_actor"
+          test "$TRIGGERING_ACTOR" = "$trusted_actor"
+          test "$EVENT_REPOSITORY" = "$GITHUB_REPOSITORY"
+        fi
 
         if [[ "$EVENT_NAME" == "$pull_request_event" ]]; then
           test "$POLICY_DOMAIN" = ci
-          test "$PR_AUTHOR" = "$trusted_actor"
+          if [[ "$external_pull_request" != true ]]; then
+            test "$PR_AUTHOR" = "$trusted_actor"
+          fi
         elif [[ "$EVENT_NAME" == "$push_event" ]]; then
           if [[ "$POLICY_DOMAIN" == release ]]; then
             test "$EVENT_REF" = "refs/heads/$release_branch"
@@ -74,7 +90,3 @@ runs:
           test "$POLICY_DOMAIN" = ci
           test "$EVENT_NAME" = "$workflow_dispatch_event"
         fi
-
-        test "$RUNNER_ENVIRONMENT" = self-hosted
-        test "$RUNNER_OS" = macOS
-        test "$RUNNER_ARCH" = ARM64

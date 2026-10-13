@@ -44,10 +44,12 @@ describe('testing skill routing', () => {
         expect(e2eSkill).toContain("only the user's own");
         expect(e2eSkill).toContain('long temporary-path conditions');
         expect(e2eSkill).toContain('observable product invariant');
-        expect(e2eSkill).toContain('self-hosted `m2-24` runner');
+        expect(e2eSkill).toContain('owner-dispatched `self-hosted-final`');
+        expect(e2eSkill).toContain('`hosted-full` is the explicit complete hosted route');
         expect(e2eSkill).not.toContain('runner_probe=true');
         expect(e2eSkill).toContain('namespaced two-worker pool');
-        expect(e2eSkill).toContain('never as a reason to iterate through full runs');
+        expect(e2eSkill).toContain('cannot reuse an ancestor E2E receipt');
+        expect(e2eSkill).toContain('must not be added to new PRs');
     });
 
     it('removes the legacy combined skill and routes repository contracts explicitly', () => {

@@ -77,7 +77,7 @@ describe('CI execution plan', () => {
             checksScope: 'affected',
             e2eProfile: 'focused',
             e2eTests: ['e2e/settings.e2e.ts', 'e2e/terminal.e2e.ts'],
-            runE2E: true,
+            runE2E: false,
         });
     });
 
@@ -91,7 +91,7 @@ describe('CI execution plan', () => {
         ).toMatchObject({ checksScope: 'affected', e2eTests: [SMOKE_E2E_SPEC] });
     });
 
-    it('keeps the full suite for global configuration changes and failed E2E selection', () => {
+    it('falls back to full hosted checks for global configuration changes and failed E2E selection', () => {
         const input = {
             changedFiles: ['apps/server/src/domains/index.ts'],
             eventName: 'pull_request',
@@ -101,7 +101,7 @@ describe('CI execution plan', () => {
         expect(evaluateCIExecutionPlan({ ...input, hasFullValidationPath: true })).toMatchObject({
             checksScope: 'full',
             e2eProfile: 'optimized',
-            runE2E: true,
+            runE2E: false,
         });
         expect(
             evaluateCIExecutionPlan({ ...input, affectedSelectionError: 'bad CI-E2E-Tests' }),
@@ -109,14 +109,15 @@ describe('CI execution plan', () => {
             checksScope: 'full',
             e2eProfile: 'optimized',
             reason: 'affected E2E selection failed closed: bad CI-E2E-Tests',
+            runE2E: false,
         });
     });
 
-    it('runs the nightly full suite unless main has not moved since the previous nightly', () => {
+    it('keeps scheduled checks without starting full E2E', () => {
         expect(evaluateCIExecutionPlan({ changedFiles: [], eventName: 'schedule' })).toMatchObject({
             checksScope: 'full',
             e2eProfile: 'optimized',
-            runE2E: true,
+            runE2E: false,
         });
         expect(
             evaluateCIExecutionPlan({
@@ -193,17 +194,17 @@ describe('CI execution plan', () => {
                     runId: 123,
                 },
             }),
-        ).toMatchObject({ checksScope: 'affected', runE2E: true });
+        ).toMatchObject({ checksScope: 'affected', runE2E: false });
     });
 
-    it('runs source main pushes with optimized E2E and skips duplicate gates for release commits', () => {
+    it('runs source main push checks without E2E and skips duplicate gates for release commits', () => {
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: ['apps/desktop/src/main/index.ts'],
                 eventName: 'push',
                 isVerifiedReleaseCommit: false,
             }),
-        ).toMatchObject({ checksScope: 'full', e2eProfile: 'optimized', runE2E: true });
+        ).toMatchObject({ checksScope: 'full', e2eProfile: 'optimized', runE2E: false });
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: ['package.json'],
@@ -217,10 +218,10 @@ describe('CI execution plan', () => {
                 eventName: 'push',
                 isVerifiedReleaseCommit: false,
             }),
-        ).toMatchObject({ checksScope: 'full', e2eProfile: 'optimized', runE2E: true });
+        ).toMatchObject({ checksScope: 'full', e2eProfile: 'optimized', runE2E: false });
     });
 
-    it('skips E2E only for documentation or skill-only main pushes and fails closed on empty deltas', () => {
+    it('keeps every automatic main push free of full E2E', () => {
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: ['docs/quality-toolchain.md', '.agents/skills/go/SKILL.md'],
@@ -234,10 +235,10 @@ describe('CI execution plan', () => {
                 eventName: 'push',
                 isVerifiedReleaseCommit: false,
             }),
-        ).toMatchObject({ runE2E: true });
+        ).toMatchObject({ runE2E: false });
     });
 
-    it('runs only focused checks and focused E2E for a spec-only repair', () => {
+    it('keeps legacy repair metadata on full hosted checks without starting E2E', () => {
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: ['e2e/session-attention.e2e.ts'],
@@ -247,14 +248,14 @@ describe('CI execution plan', () => {
                 retryMode: 'e2e-repair',
             }),
         ).toEqual({
-            checksScope: 'focused-e2e',
-            e2eProfile: 'focused',
-            reason: 'validated E2E spec-only repair',
-            runE2E: true,
+            checksScope: 'full',
+            e2eProfile: 'control',
+            reason: 'e2e-repair is compatibility metadata; explicit dispatch owns full E2E',
+            runE2E: false,
         });
     });
 
-    it('keeps metadata-only E2E retries on the control profile without checks', () => {
+    it('turns metadata-only retry trailers into full hosted checks', () => {
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: [],
@@ -263,7 +264,12 @@ describe('CI execution plan', () => {
                 retryKind: 'metadata-only',
                 retryMode: 'e2e-only',
             }),
-        ).toMatchObject({ checksScope: 'skipped', e2eProfile: 'control', runE2E: true });
+        ).toMatchObject({
+            checksScope: 'full',
+            e2eProfile: 'control',
+            reason: 'e2e-only is compatibility metadata; explicit dispatch owns full E2E',
+            runE2E: false,
+        });
     });
 
     it('uses workflow dispatch to compare the same manifest under control and optimized profiles', () => {
@@ -276,12 +282,12 @@ describe('CI execution plan', () => {
         ).toEqual({
             checksScope: 'full',
             e2eProfile: 'optimized',
-            reason: 'self-hosted performance dispatch',
+            reason: 'explicit validation dispatch',
             runE2E: true,
         });
     });
 
-    it('never selects concurrent full checks without the E2E job that owns them', () => {
+    it('selects concurrent full checks only for an explicit optimized dispatch', () => {
         const inputs = [
             {
                 changedFiles: ['package.json'],
@@ -305,12 +311,12 @@ describe('CI execution plan', () => {
             },
         ];
 
-        for (const input of inputs) {
+        for (const [index, input] of inputs.entries()) {
             const plan = evaluateCIExecutionPlan(input);
             expect(plan).toMatchObject({
                 checksScope: 'full',
                 e2eProfile: 'optimized',
-                runE2E: true,
+                runE2E: index === inputs.length - 1,
             });
         }
     });

@@ -36,10 +36,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    and resolve every finding. The changed-file checker suggests this gate but does not run it;
    a green lint/type/knip result cannot substitute for the CI React Doctor gate.
    Before pushing any TypeScript change, run `bun run knip` against the intended diff and resolve
-   every finding. CI runs knip only in the `full` checks scope (the nightly suite, or a ready PR
-   that touches a full-validation path); the `affected`, `focused-*`, and draft scopes skip it, and
-   the changed-file checker runs knip only when `--knip` is passed. An unused export that skips the
-   local run therefore usually merges and surfaces later as a red nightly on `main`.
+   every finding. CI runs knip only in the `full` checks scope (a main push, an explicit dispatch,
+   or a ready PR that touches a full-validation path); the `affected`, `focused-*`, and draft scopes
+   skip it, and the changed-file checker runs knip only when `--knip` is passed. An unused export
+   that skips the local run can therefore merge and surface only on the hosted main-push checks.
 3. Once required checks have started for a published PR head, routine `origin/main` advancement
    alone does not invalidate that evidence or require another rebase. When GitHub reports no
    conflict and branch protection does not require an up-to-date branch, let those checks finish
@@ -52,11 +52,11 @@ or cancels the delivery, or a concrete blocker requires their input.
    `--force-with-lease=refs/heads/<branch>:<observed-oid>` lease. Never use bare `--force`, and
    stop if the lease rejects the update.
 5. Create or update the PR with an English title and body that describe observable behavior,
-   validation, non-goals, and closing issue links. A ready PR runs only affected tests, and the
-   import graph cannot see which Electron workflows a Renderer or Server change reaches: when the
-   change is user-visible, add one `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line naming the specs
-   that cover it (see `docs/ci-performance.md`). Set it before pushing, since the policy reads the
-   body at push time.
+   validation, non-goals, and closing issue links. A ready PR records affected E2E but never starts
+   the full suite automatically, and the import graph cannot see which Electron workflows a
+   Renderer or Server change reaches: when the change is user-visible, add one
+   `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line naming the specs that cover it (see
+   `docs/ci-performance.md`). Set it before pushing, since the policy reads the body at push time.
    Run `bun run scripts/surface-matrix.ts` against the pushed diff (`--base origin/main` is the
    default) and paste its Markdown output into the PR body. It reports which product surfaces the
    diff touches (Desktop main/preload/Renderer, Server, Terminal Host, Extension Host, CLI,
@@ -90,18 +90,18 @@ or cancels the delivery, or a concrete blocker requires their input.
    A failed unit, integration, or E2E case gets two local repetitions of the related cases: the
    failed cases plus, when they touch the changed behavior, the delivery's focused tests. Repairing
    CI never runs the local full unit or E2E suite (it occupies the user's machine; only the user's
-   explicit request authorizes one) and never reruns CI repeatedly: checks share one self-hosted
-   runner, so chasing an intermittent failure in place blocks this delivery and every sibling
-   delivery behind it. When both repetitions pass, record the exact head, failed CI case/run, local commands/results, whether the case touches
+   explicit request authorizes one) and never reruns CI repeatedly: repair the demonstrated cause
+   locally before spending another disposable hosted run. When both repetitions pass, record the
+   exact head, failed CI case/run, local commands/results, whether the case touches
    the changed behavior (a waived in-scope failure must say so explicitly),
    and waiver in the PR and the shared flaky-case tracker, then continue authorized delivery.
    Use the owning test runner; E2E reproduction and tracker publication follow
    [CI-only parity](../e2e-testing/SKILL.md#ci-only-parity).
    Do not require runner access or infrastructure root-cause diagnosis before applying this exception.
-   A failure that only the runner produces (a download timeout, a missing toolchain, a stale cache)
-   is diagnosed on the runner over `ssh -o BatchMode=yes <runner_name>`, whose alias lives only in
-   the operator's SSH config; follow the limits in
-   [Remote diagnosis](../../../docs/self-hosted-runner.md#remote-diagnosis).
+   A failure that only a hosted runner produces (a download timeout or missing cold-environment
+   toolchain) is diagnosed from that job's logs and the pinned runner-image contract. SSH diagnosis
+   in [Remote diagnosis](../../../docs/self-hosted-runner.md#remote-diagnosis) applies only to the
+   explicit `self-hosted-final` or legacy publication route.
    Keep the failed CI result red, distinguish waived failures from checks that never ran, and never
    report the whole suite as passed. A failure that reproduces locally or lacks the two local passes
    remains a blocker unless the user explicitly authorizes a narrower exception.
@@ -135,10 +135,9 @@ or cancels the delivery, or a concrete blocker requires their input.
 GitHub-hosted runner, see [ADR 0011](../../../docs/adr/0011-required-merge-guards.md)) to pass
 before anything merges, and that requirement applies with no bypass: a raw `git push` to `main` is
 rejected outright, so every change, including a one-line documentation fix, goes through a pull
-request. What "fast merge" skips is the separate self-hosted `checks`/`e2e` job: one self-hosted
-runner serves every session, and a full pass costs 20-25 minutes of it, so spending that on a diff CI
-cannot meaningfully judge starves every sibling delivery queued behind it. Three classes of change
-therefore skip waiting on `checks`/`e2e` once their own local gates and `guards` pass:
+request. What "fast merge" skips is the separate non-required hosted `checks` job; full E2E never
+starts automatically. Until branch protection adopts that hosted result as required, the owner
+continues to allow these three classes to merge after their own local gates and `guards` pass:
 
 - **Documentation only**: `docs/`, `AGENTS.md`, Markdown and skill `agents/openai.yaml` metadata
   under `.agents/`, or another tracked `.md` that no shipped code reads. Scripts under `.agents/`,
@@ -150,11 +149,10 @@ therefore skip waiting on `checks`/`e2e` once their own local gates and `guards`
   even when the change ships a test alongside them. Same as above: open the pull request and merge
   once `guards` passes.
 - **Locally verified code change**: any other diff whose PR `CI-E2E-Tests` specs pass locally
-  and, for a user-visible change, whose behavior was accepted over CDP. A queued `checks`/`e2e` run
-  can wait an hour or more behind sibling deliveries, so the owner allows the PR to merge once
-  `guards` passes, without waiting for `checks`/`e2e`. A `checks`/`e2e` run that already finished
-  red still blocks unless step 6 waived it; `guards` itself never gets waived; its failure means
-  fix the diff, not merge around it.
+  and, for a user-visible change, whose behavior was accepted over CDP. The owner allows the PR to
+  merge once `guards` passes, without waiting for the non-required hosted `checks` result. A hosted
+  `checks` run that already finished red still blocks unless step 6 waived it; `guards` itself never
+  gets waived; its failure means fix the diff, not merge around it.
 
 Run the gates that actually cover the changed files first, and require them to pass:
 
@@ -175,10 +173,6 @@ One line outside the first two classes disqualifies them. A diff that also touch
 change and needs the third class's gates. For a PR, the exception removes the wait, not the merge
 authorization step 7 still requires.
 
-Merging does not stop the PR's run, and merging a documentation PR to `main` may start one; a
-queued job keeps its place in line and will still take the runner for a head nobody is waiting on.
-Cancel it explicitly:
-
-```bash
-gh api -X POST repos/tjx666/caxri/actions/runs/<run-id>/cancel
-```
+Merging does not stop the PR's hosted run, and the merge starts a separate hosted main-push check.
+Keep both as evidence unless a replacement head makes one obsolete; cancel only that exact obsolete
+run under the delivery's existing Actions authority.
