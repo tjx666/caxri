@@ -11,7 +11,7 @@ import { CODEX_ROLLOUT_NAME_PATTERN } from './rollouts';
 /**
  * `sessions_root_missing` means this machine has no Codex sessions directory to resolve open rollouts against.
  */
-export type OpenCodexSessionsProbeFailure = AgentOpenFilesProbeFailure | 'sessions_root_missing';
+type OpenCodexSessionsProbeFailure = AgentOpenFilesProbeFailure | 'sessions_root_missing';
 
 export type OpenCodexSessionsProbe =
     | { ok: true; sessionIds: ReadonlySet<string> }
