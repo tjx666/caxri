@@ -81,12 +81,12 @@ describe('agentChatAnchoredScrollTop', () => {
 
 describe('agentChatTurnSpacerHeight', () => {
     it('leaves room for the latest turn to rest at the top of the view', () => {
-        expect(agentChatTurnSpacerHeight(800, 120)).toBe(664);
+        expect(agentChatTurnSpacerHeight(800, 120)).toBe(568);
         expect(agentChatTurnSpacerHeight(800, 120, 0)).toBe(680);
     });
 
     it('needs no room once the turn fills the view', () => {
-        expect(agentChatTurnSpacerHeight(800, 784)).toBe(0);
+        expect(agentChatTurnSpacerHeight(800, 688)).toBe(0);
         expect(agentChatTurnSpacerHeight(800, 2000)).toBe(0);
     });
 });

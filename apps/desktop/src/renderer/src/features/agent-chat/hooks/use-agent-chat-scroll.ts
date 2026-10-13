@@ -53,9 +53,11 @@ export function agentChatAnchoredScrollTop(
 }
 
 /**
- * How far below the view's top the latest user message rests once the view reaches the end.
+ * How far below the view's top the latest user message rests once the view reaches the end. Like the Codex app, it
+ * leaves the last lines of the previous reply in view, so a sent message keeps the context it answers instead of
+ * starting a blank page.
  */
-const AGENT_CHAT_TURN_TOP_GAP_PX = 16;
+const AGENT_CHAT_TURN_TOP_GAP_PX = 112;
 
 /**
  * The empty space kept below the latest turn so it can rest at the top of the view, as ChatGPT and the Codex app show a
