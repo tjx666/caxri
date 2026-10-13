@@ -4,7 +4,7 @@ import { chmod, cp, lstat, mkdir, readdir, readFile, rm, writeFile } from 'node:
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 
 import type { ServerArtifactFileReceipt, ServerArtifactManifest } from '@caxri/protocol';
-import { serverArtifactManifestSchema } from '@caxri/protocol';
+import { SERVER_CORE_EXEC_ARGV, serverArtifactManifestSchema } from '@caxri/protocol';
 
 export interface ServerArtifactInput {
     architecture: string;
@@ -141,7 +141,7 @@ function launcherSource(): string {
     return `#!/bin/sh
 set -eu
 runtime_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec "$runtime_directory/bin/node" "$runtime_directory/../bundles/server-core.js" "$@"
+exec "$runtime_directory/bin/node" ${SERVER_CORE_EXEC_ARGV.join(' ')} "$runtime_directory/../bundles/server-core.js" "$@"
 `;
 }
 

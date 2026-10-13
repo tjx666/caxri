@@ -123,6 +123,9 @@ describe('standalone Server artifact', () => {
         expect(
             manifest.integrity.files.find(({ path }) => path === 'runtime/bin/rg'),
         ).toMatchObject({ mode: 0o755 });
+        expect(await readFile(join(artifactRoot, 'runtime', 'caxri-server'), 'utf8')).toContain(
+            'exec "$runtime_directory/bin/node" --max-semi-space-size=8 "$runtime_directory/../bundles/server-core.js" "$@"',
+        );
         expect(await verifyServerArtifact(artifactRoot)).toEqual(manifest);
         expect(await readFile(join(artifactRoot, 'metadata', 'manifest.json'), 'utf8')).toContain(
             manifest.integrity.aggregateSha256,
