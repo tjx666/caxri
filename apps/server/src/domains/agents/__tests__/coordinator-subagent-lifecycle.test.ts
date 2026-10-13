@@ -279,6 +279,56 @@ describe('AgentCoordinator subagent lifecycle', () => {
         }
     });
 
+    it('keeps a Claude Session running in the background while reported work runs', async () => {
+        vi.useFakeTimers();
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-background-work-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const emitted = vi.fn();
+        const coordinator = new AgentCoordinator(database, createAgents(), emitted, logger);
+        const terminalId = created.terminal!.id;
+        const signal = (phase: 'turnStarted' | 'turnFinished', hasBackgroundWork = false) =>
+            coordinator.observeLifecycleSignal({
+                ...(hasBackgroundWork && { agentBackgroundWork: true }),
+                launchId: 'launch-1',
+                phase,
+                provider: 'claude',
+                terminalId,
+            });
+
+        try {
+            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+            signal('turnStarted');
+            emitted.mockClear();
+            signal('turnFinished', true);
+
+            expect(coordinator.agentOperation(terminalId)).toBe('background');
+            expect(emitted).toHaveBeenCalled();
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                lastActivityState: 'running',
+            });
+
+            emitted.mockClear();
+            signal('turnStarted');
+            expect(coordinator.agentOperation(terminalId)).toBeUndefined();
+            expect(emitted).toHaveBeenCalled();
+
+            signal('turnFinished');
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 1,
+                lastActivityState: 'completed',
+            });
+        } finally {
+            vi.useRealTimers();
+            coordinator.close();
+            database.close();
+            await logger.flush();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
     it('keeps a hook-started turn running when a probe has no provider evidence', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-turn-probe-unknown-'));
         const database = new CaxriDatabase(join(directory, 'state.db'));

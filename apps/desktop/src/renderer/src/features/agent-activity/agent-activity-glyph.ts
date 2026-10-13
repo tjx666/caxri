@@ -11,7 +11,7 @@ import type { AgentActivityRow } from './agent-activity-rows';
 import { isAgentActivityActionable } from './agent-activity-rows';
 
 export type AgentActivityGlyphId =
-    'check' | 'dashed' | 'hollow' | 'question' | 'spinner' | 'unplug' | 'x';
+    'background' | 'check' | 'dashed' | 'hollow' | 'question' | 'spinner' | 'unplug' | 'x';
 
 export interface AgentActivityGlyph {
     id: AgentActivityGlyphId;
@@ -76,6 +76,13 @@ export function agentActivityGlyph(
      * progress. It cannot be mistaken for a request, because an unread running Session sits under "Needs attention"
      * with its attention glyph instead, and this branch only ever renders under "Working".
      */
+    // Waiting on background work is running without progress to show, so it stays muted like the sidebar.
+    if (status.kind === 'running' && status.variant === 'background')
+        return {
+            id: 'background',
+            label: statusPresentation.label,
+            toneClassName: TONE_TEXT_CLASSNAME.neutral,
+        };
     if (status.kind === 'running')
         return {
             id: 'spinner',

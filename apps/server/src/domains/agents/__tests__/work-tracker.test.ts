@@ -16,6 +16,79 @@ function signal(phase: AgentLifecycleSignal['phase'], agentId?: string): AgentLi
 describe('AgentWorkTracker', () => {
     afterEach(() => vi.useRealTimers());
 
+    describe('reported background work', () => {
+        const backgroundFinish = { ...signal('turnFinished'), agentBackgroundWork: true } as const;
+
+        it('holds the completion and drops it when the Agent resumes', () => {
+            vi.useFakeTimers();
+            const onDeferredParentFinished = vi.fn();
+            const tracker = new AgentWorkTracker(onDeferredParentFinished, {
+                resumeGraceMs: 1_000,
+            });
+
+            expect(tracker.observe(backgroundFinish).deferCompletion).toBe(true);
+            expect(tracker.isWaitingOnBackground('terminal-1')).toBe(true);
+
+            tracker.observe(signal('turnStarted'));
+            expect(tracker.isWaitingOnBackground('terminal-1')).toBe(false);
+            vi.advanceTimersByTime(60 * 60_000);
+            expect(onDeferredParentFinished).not.toHaveBeenCalled();
+        });
+
+        it('drops the held completion when the main turn fails', () => {
+            vi.useFakeTimers();
+            const onDeferredParentFinished = vi.fn();
+            const tracker = new AgentWorkTracker(onDeferredParentFinished);
+
+            tracker.observe(backgroundFinish);
+            expect(tracker.observe(signal('turnFailed')).deferCompletion).toBe(false);
+            expect(tracker.isWaitingOnBackground('terminal-1')).toBe(false);
+            vi.advanceTimersByTime(60 * 60_000);
+            expect(onDeferredParentFinished).not.toHaveBeenCalled();
+        });
+
+        it('releases the original finish after the work drains and no turn resumes', () => {
+            vi.useFakeTimers();
+            const onDeferredParentFinished = vi.fn();
+            const tracker = new AgentWorkTracker(onDeferredParentFinished, {
+                resumeGraceMs: 1_000,
+            });
+
+            tracker.observe(backgroundFinish);
+            expect(tracker.observe(signal('turnFinished')).deferCompletion).toBe(true);
+            vi.advanceTimersByTime(999);
+            expect(onDeferredParentFinished).not.toHaveBeenCalled();
+
+            vi.advanceTimersByTime(1);
+            expect(onDeferredParentFinished).toHaveBeenCalledExactlyOnceWith(
+                signal('turnFinished'),
+            );
+            expect(tracker.isWaitingOnBackground('terminal-1')).toBe(false);
+        });
+
+        it('settles once the reported work stays silent past the stale window', () => {
+            vi.useFakeTimers();
+            const onDeferredParentFinished = vi.fn();
+            const tracker = new AgentWorkTracker(onDeferredParentFinished, {
+                staleTimeoutMs: 5_000,
+            });
+
+            tracker.observe(backgroundFinish);
+            vi.advanceTimersByTime(5_000);
+
+            expect(onDeferredParentFinished).toHaveBeenCalledExactlyOnceWith(
+                signal('turnFinished'),
+            );
+        });
+
+        it('leaves an ordinary finish without reported work untouched', () => {
+            const tracker = new AgentWorkTracker(vi.fn());
+
+            expect(tracker.observe(signal('turnFinished')).deferCompletion).toBe(false);
+            expect(tracker.isWaitingOnBackground('terminal-1')).toBe(false);
+        });
+    });
+
     it('drops a deferred completion when a new parent turn starts', () => {
         const onDeferredParentFinished = vi.fn();
         const tracker = new AgentWorkTracker(onDeferredParentFinished);

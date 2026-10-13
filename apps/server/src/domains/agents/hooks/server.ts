@@ -16,6 +16,7 @@ import type {
 } from './contract';
 import { agentLifecyclePhases } from './contract';
 import { validateToolSignal } from './tool-signal';
+import { validateTurnOutcomeSignal } from './turn-outcome-signal';
 
 const MAX_SIGNAL_BYTES = 4_096;
 const MAX_ATTENTION_BYTES = 64 * 1_024;
@@ -228,7 +229,8 @@ function parsePacket(
             signal.agentResponseByteLength !== undefined ||
             signal.agentFailure !== undefined ||
             signal.agentResponseStop !== undefined ||
-            signal.agentTurnContinues !== undefined
+            signal.agentTurnContinues !== undefined ||
+            signal.agentBackgroundWork !== undefined
         ) {
             return { reason: 'invalidAgentDigest' };
         }
@@ -305,49 +307,8 @@ function parsePacket(
     }
     if (signal.agentContentOverflow !== undefined && signal.agentContentOverflow !== true)
         return { reason: 'invalidAgentDigest' };
-    if (
-        signal.agentResponseByteLength !== undefined &&
-        (signal.provider !== 'grok' ||
-            signal.phase !== 'turnFinished' ||
-            signal.agentId !== undefined ||
-            typeof signal.agentResponseByteLength !== 'number' ||
-            !Number.isSafeInteger(signal.agentResponseByteLength) ||
-            signal.agentResponseByteLength < 0 ||
-            signal.agentResponseByteLength > 1_048_576 ||
-            !signal.agentResponseDigest)
-    )
-        return { reason: 'invalidAgentDigest' };
-    if (
-        signal.agentFailure !== undefined &&
-        (typeof signal.agentFailure !== 'string' ||
-            !['claude', 'grok'].includes(signal.provider) ||
-            !['turnFinished', 'turnFailed'].includes(signal.phase) ||
-            signal.agentId !== undefined ||
-            ![
-                'rate_limit',
-                'billing_error',
-                'authentication_failed',
-                'max_output_tokens',
-                'provider_failed',
-            ].includes(signal.agentFailure))
-    )
-        return { reason: 'invalidAgentDigest' };
-    if (
-        signal.agentResponseStop !== undefined &&
-        (signal.agentResponseStop !== true ||
-            signal.provider !== 'grok' ||
-            signal.phase !== 'turnFinished' ||
-            signal.agentId !== undefined)
-    )
-        return { reason: 'invalidAgentDigest' };
-    if (
-        signal.agentTurnContinues !== undefined &&
-        (signal.agentTurnContinues !== true ||
-            signal.provider !== 'grok' ||
-            signal.phase !== 'turnFinished' ||
-            signal.agentId !== undefined)
-    )
-        return { reason: 'invalidAgentDigest' };
+    const outcomeReason = validateTurnOutcomeSignal(signal);
+    if (outcomeReason) return { reason: outcomeReason };
     /**
      * Shape-only validation. A path that clears this gate is still an unproven provider claim; it becomes durable state
      * only after `WorkbenchRootService.observeAgentCwd` matches it against real Git worktree topology.

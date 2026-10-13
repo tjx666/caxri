@@ -17,6 +17,7 @@ import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
 import type { SessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
+import { BackgroundArc } from '../primary-sidebar/running-arc';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
 import { canSuggestSessionTitle } from '../primary-sidebar/session-rename-draft';
 import { didSelectSession } from '../session/session-commands';
@@ -30,6 +31,7 @@ import type { AgentActivityRow } from './agent-activity-rows';
  * The shape that renders each Activity state.
  */
 const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, ComponentType<{ size?: number }>> = {
+    background: BackgroundArc,
     check: CircleCheck,
     dashed: CircleDashed,
     hollow: Circle,

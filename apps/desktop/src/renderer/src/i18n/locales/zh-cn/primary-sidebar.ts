@@ -148,6 +148,9 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.activity.unknown.description': '没有可靠的 Agent 活动信息。',
     'primarySidebar.activity.waiting.label': '等待你操作',
     'primarySidebar.activity.waiting.description': 'Agent 正在等待输入或确认。',
+    'primarySidebar.activity.background.label': '后台运行中',
+    'primarySidebar.activity.background.description':
+        '本轮已结束，Agent 启动的后台任务仍在运行，任务返回后会继续。',
     'primarySidebar.activity.compacting.label': '压缩中',
     'primarySidebar.activity.compacting.description': 'Agent 正在总结之前的上下文，随后继续。',
     'primarySidebar.activity.detached.label': '已分离',

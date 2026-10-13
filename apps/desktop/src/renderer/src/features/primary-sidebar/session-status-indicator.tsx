@@ -6,7 +6,8 @@ import { CircleQuestionMark, Unplug } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import type { SessionStatusTerminal } from './session-status';
+import { BackgroundArc, RunningArc } from './running-arc';
+import type { SessionStatus, SessionStatusTerminal } from './session-status';
 import { sessionStatus } from './session-status';
 
 /**
@@ -87,33 +88,7 @@ export function SessionStatusIndicator({
                 data-attention-variant={status.kind === 'attention' ? status.variant : undefined}
                 data-session-status={status.kind}
             >
-                {status.kind === 'attention' ? (
-                    <>
-                        <span
-                            aria-hidden="true"
-                            className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-reduce:hidden"
-                            data-session-status-ripple=""
-                        />
-                        {status.variant === 'waiting' ? (
-                            <CircleQuestionMark aria-hidden="true" size={14} strokeWidth={2.25} />
-                        ) : (
-                            <>
-                                <span
-                                    aria-hidden="true"
-                                    className="size-3.5 rounded-full border border-warning"
-                                />
-                                <span
-                                    aria-hidden="true"
-                                    className="absolute size-2 rounded-full bg-warning"
-                                />
-                            </>
-                        )}
-                    </>
-                ) : status.kind === 'detached' ? (
-                    <Unplug aria-hidden="true" size={12} />
-                ) : (
-                    <RunningArc />
-                )}
+                <SessionStatusGlyph status={status} />
             </span>
             <span id={descriptionId} hidden>
                 {status.ariaDescription}
@@ -123,31 +98,31 @@ export function SessionStatusIndicator({
 }
 
 /**
- * A thin open ring that spins in the surrounding text color, the way Codex marks a working thread. It is deliberately
- * monochrome: a colored arc on every running row reads as a wall of color once several Agents work at once, and the
- * motion alone already separates a working Session from a settled one. The 10px ring sits centered in the 14px status
- * slot, so it shares one vertical line with the attention and pull request glyphs. The dash covers three quarters of
- * the circumference and its round caps eat into the rest, leaving about the opening Codex shows. Reduced motion leaves
- * it still.
+ * The glyph inside a visible status slot: a pinging ring for attention, an unplugged plug when detached, and a running
+ * arc that turns into a slower dotted ring while the Agent only waits on its own background work.
  */
-export function RunningArc() {
+function SessionStatusGlyph({ status }: { status: Exclude<SessionStatus, { kind: 'default' }> }) {
+    if (status.kind === 'detached') return <Unplug aria-hidden="true" size={12} />;
+    if (status.kind === 'running')
+        return status.variant === 'background' ? <BackgroundArc /> : <RunningArc />;
     return (
-        <svg
-            aria-hidden="true"
-            className="size-2.5 flex-none motion-safe:animate-spin"
-            data-session-status-arc=""
-            viewBox="0 0 20 20"
-        >
-            <circle
-                cx="10"
-                cy="10"
-                fill="none"
-                r="8.5"
-                stroke="currentColor"
-                strokeDasharray="40 13.4"
-                strokeLinecap="round"
-                strokeWidth="3"
+        <>
+            <span
+                aria-hidden="true"
+                className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-reduce:hidden"
+                data-session-status-ripple=""
             />
-        </svg>
+            {status.variant === 'waiting' ? (
+                <CircleQuestionMark aria-hidden="true" size={14} strokeWidth={2.25} />
+            ) : (
+                <>
+                    <span
+                        aria-hidden="true"
+                        className="size-3.5 rounded-full border border-warning"
+                    />
+                    <span aria-hidden="true" className="absolute size-2 rounded-full bg-warning" />
+                </>
+            )}
+        </>
     );
 }

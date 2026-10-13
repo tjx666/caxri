@@ -20,10 +20,16 @@ interface VisibleSessionStatus {
  */
 type SessionAttentionVariant = 'result' | 'waiting';
 
+/**
+ * `background` is a running Session whose turn ended while work that wakes it again (a subagent, workflow, or monitor)
+ * still runs, so it reads as running but quieter than a live turn.
+ */
+type SessionRunningVariant = 'active' | 'background';
+
 export type SessionStatus =
     | (VisibleSessionStatus & { kind: 'attention'; variant: SessionAttentionVariant })
     | (VisibleSessionStatus & { kind: 'detached' })
-    | (VisibleSessionStatus & { kind: 'running' })
+    | (VisibleSessionStatus & { kind: 'running'; variant: SessionRunningVariant })
     | { kind: 'default' };
 
 export interface SessionStatusTerminal {
@@ -92,6 +98,7 @@ export function sessionStatus(
             ariaDescription: currentActivity.description,
             ariaLabel: currentActivity.label,
             kind: 'running',
+            variant: agentOperation === 'background' ? 'background' : 'active',
         };
     }
 
