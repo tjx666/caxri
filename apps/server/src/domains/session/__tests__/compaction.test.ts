@@ -71,7 +71,12 @@ async function fixture() {
         agentOperation: vi.fn<() => undefined>(() => {}),
         observeInput: vi.fn(() => true),
     };
+    const agentChat = {
+        compactIdle: vi.fn(() => Promise.resolve()),
+        idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(() => 'chat-launch'),
+    };
     const service = new SessionCompaction({
+        agentChat,
         database,
         readiness,
         terminals,
@@ -80,7 +85,17 @@ async function fixture() {
         now: () => now,
         readTranscript,
     });
-    return { ...first, add, database, readiness, terminals, coordinator, readTranscript, service };
+    return {
+        ...first,
+        add,
+        agentChat,
+        database,
+        readiness,
+        terminals,
+        coordinator,
+        readTranscript,
+        service,
+    };
 }
 
 describe('batch compaction', () => {
@@ -99,6 +114,24 @@ describe('batch compaction', () => {
         );
         expect((await f.service.run()).items[0]?.outcome).toBe('unsafe_input');
         expect(f.terminals.writeAgentExact).toHaveBeenCalledTimes(1);
+    });
+    it('compacts an idle Agent Chat through its provider protocol and never wakes a stopped one', async () => {
+        const f = await fixture();
+        f.database.terminalSurfaces.switch(f.terminal.id, 'chat');
+        f.database.updateTerminalState(f.terminal.id, 'running');
+        expect((await f.service.run()).items[0]?.outcome).toBe('submitted');
+        expect(f.agentChat.compactIdle).toHaveBeenCalledWith(f.terminal.id, 'chat-launch');
+        expect(f.terminals.writeAgentExact).not.toHaveBeenCalled();
+
+        f.agentChat.idleLaunchId.mockReturnValue(undefined);
+        expect((await f.service.run()).items[0]?.outcome).toBe('busy');
+        f.database.updateTerminalState(f.terminal.id, 'suspended');
+        expect((await f.service.run()).items[0]?.outcome).toBe('not_running');
+        f.agentChat.compactIdle.mockClear();
+        f.database.updateTerminalState(f.terminal.id, 'running');
+        f.agentChat.idleLaunchId.mockReturnValue('chat-launch');
+        f.agentChat.compactIdle.mockRejectedValue(new Error('changed'));
+        expect((await f.service.run()).items[0]?.outcome).toBe('failed');
     });
     it.each([30, 31, -1])(
         'does not spend tokens outside the estimated cache window (%i minutes)',

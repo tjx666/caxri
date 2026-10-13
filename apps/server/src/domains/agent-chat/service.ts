@@ -481,6 +481,32 @@ export class AgentChatService {
     }
 
     /**
+     * The launch of a Chat whose provider is running and idle (see {@link isChatIdleForSuspension}), or `undefined`.
+     * Batch compaction reads it so it never wakes a stopped Chat or interrupts pending work.
+     */
+    idleLaunchId(terminalId: string): string | undefined {
+        return this.isSuspendable(terminalId) ? this.states.get(terminalId)?.launchId : undefined;
+    }
+
+    /**
+     * Batch compaction: runs the provider's native compaction on an idle Chat, through the send chain, only while the
+     * same launch is still idle when the command reaches the head of the chain. Rejects otherwise.
+     */
+    async compactIdle(terminalId: string, launchId: string): Promise<void> {
+        assertE2EAgentChatInput(readE2EAgentPolicy(), '/compact');
+        const state = this.states.get(terminalId);
+        if (!state || state.launchId !== launchId)
+            throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
+        await this.enqueueOn(terminalId, state, async (session) => {
+            if (state.launchId !== launchId || this.idleLaunchId(terminalId) !== launchId)
+                throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
+            if (!isAgentChatCommandListed(state.projection.snapshot, 'compact'))
+                throw new CaxriError('VALIDATION', '/compact is not available in this Chat');
+            await session.runCommand('compact', undefined);
+        });
+    }
+
+    /**
      * Idle suspension: stops a background Chat's provider but keeps its projection, so every Client still shows the
      * conversation, and records the Terminal as `suspended`. It runs on the send chain, so input accepted before it is
      * delivered first and input accepted after it starts the provider again on the same Agent Session, as does the next

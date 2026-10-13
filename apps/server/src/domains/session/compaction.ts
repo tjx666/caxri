@@ -1,6 +1,7 @@
 import type {
     SessionCompactionOutcome,
     SessionCompactionResult,
+    SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -10,6 +11,7 @@ import {
     mapWithConcurrency,
 } from '@caxri/system';
 
+import type { AgentChatService } from '../agent-chat';
 import type { AgentCoordinator, AgentEnvironment, CompactionReadiness } from '../agents';
 import { inspectContextCache, readAgentTranscript } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -17,6 +19,7 @@ import { isPtyTerminal } from '../pty-guard';
 import type { TerminalManager } from '../terminal';
 
 interface Options {
+    agentChat: Pick<AgentChatService, 'compactIdle' | 'idleLaunchId'>;
     database: CaxriDatabase;
     logger?: StructuredLogger;
     coordinator: Pick<AgentCoordinator, 'agentOperation' | 'hasIdleProof' | 'observeInput'>;
@@ -27,6 +30,10 @@ interface Options {
     readTranscript?: typeof readAgentTranscript;
 }
 interface Target {
+    /**
+     * An Agent Chat compacts through its provider protocol instead of typing `/compact` into a PTY.
+     */
+    isChat: boolean;
     terminal: TerminalRecord;
     launchId: string;
     turnId: string;
@@ -52,13 +59,9 @@ export class SessionCompaction {
             return 'changed';
         const terminal =
             session.primaryAgentTerminalId && database.getTerminal(session.primaryAgentTerminalId);
-        // Compaction types `/compact` into the PTY; a Chat Terminal has none.
-        if (
-            !terminal ||
-            !isPtyTerminal(terminal) ||
-            (terminal.provider !== 'claude' && terminal.provider !== 'codex')
-        )
+        if (!terminal || (terminal.provider !== 'claude' && terminal.provider !== 'codex'))
             return 'unsupported';
+        if (!isPtyTerminal(terminal)) return this.chatTarget(terminal, session.lastActivityState);
         const launchId = terminals.agentLaunchId(terminal.id);
         if (
             !launchId ||
@@ -78,7 +81,22 @@ export class SessionCompaction {
             !coordinator.hasIdleProof(terminal.id, launchId, proof.turnId)
         )
             return 'unsafe_input';
-        return { terminal, launchId, turnId: proof.turnId };
+        return { isChat: false, terminal, launchId, turnId: proof.turnId };
+    }
+
+    /**
+     * A Chat's own projection proves it idle, so it needs no PTY input proof. A stopped Chat is never woken: starting a
+     * provider only to compact it would cost more than the cache it saves.
+     */
+    private chatTarget(
+        terminal: TerminalRecord,
+        activity: SessionRecord['lastActivityState'],
+    ): Target | SessionCompactionOutcome {
+        if (!terminal.agentSessionId || terminal.lastProcessState !== 'running')
+            return 'not_running';
+        const launchId = this.options.agentChat.idleLaunchId(terminal.id);
+        if (!launchId || !['idle', 'completed'].includes(activity)) return 'busy';
+        return { isChat: true, terminal, launchId, turnId: launchId };
     }
 
     private async compact(
@@ -112,12 +130,22 @@ export class SessionCompaction {
             current.turnId !== target.turnId
         )
             return 'changed';
+        if (target.isChat) return this.deliverToChat(target);
         assertE2EAgentInputFromEnvironment(target.terminal.provider);
         /**
          * Consume before sending: even an ambiguous delivery must never be automatically retried.
          */
         this.options.readiness.forget(target.terminal.id);
         return this.deliver(target);
+    }
+
+    private async deliverToChat(target: Target): Promise<SessionCompactionOutcome> {
+        try {
+            await this.options.agentChat.compactIdle(target.terminal.id, target.launchId);
+            return 'submitted';
+        } catch {
+            return 'failed';
+        }
     }
 
     private deliver(target: Target): Promise<SessionCompactionOutcome> {
