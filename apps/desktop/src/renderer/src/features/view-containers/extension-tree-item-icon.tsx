@@ -50,6 +50,12 @@ const themeIcons = {
     'archive': ArchiveIcon,
     'check': Check,
     'circle-check': CircleCheck,
+    /**
+     * A merged pull request whose checks passed. The verdict is history once the work landed, and the green
+     * `circle-check` read as a pull request still in flight beside the branch row's violet merge glyph, so it takes the
+     * merged tone.
+     */
+    'circle-check-merged': CircleCheck,
     'circle-arrow-up': CircleArrowUp,
     'circle-dot': CircleDot,
     'circle-outline': Circle,
@@ -128,6 +134,7 @@ type ThemeIconId = keyof typeof themeIcons | LinearStatusIconId;
 const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'check': 'text-success',
     'circle-check': 'text-success',
+    'circle-check-merged': 'text-merged',
     'circle-dot': 'text-muted',
     'circle-outline': 'text-muted',
     'circle-slash': 'text-muted',

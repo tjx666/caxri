@@ -50,6 +50,20 @@ export function deploymentIcon(deployment: ProjectStatusDeployment): string {
 }
 
 /**
+ * The pull request row's leading glyph aggregates its checks. Once the pull request merged, a passing verdict is
+ * settled history: the shared green check read as work still in flight beside the branch row's violet merge glyph, so
+ * it takes the merged tone instead. Every other state keeps the shared glyph, because a failure or a post-merge run
+ * still asks for attention.
+ */
+export function pullRequestCheckIcon(
+    pullRequest: Pick<NonNullable<ProjectStatusRepository['pullRequest']>, 'lifecycle' | 'state'>,
+): string {
+    return pullRequest.lifecycle === 'merged' && pullRequest.state === 'success'
+        ? 'circle-check-merged'
+        : stateIcons[pullRequest.state];
+}
+
+/**
  * The glyph family acceptance rows own. Every other row in this tree reports a machine's verdict with a circle (a CI
  * check, a deployment, a Linear state), so a report a _person_ still has to sign off on was indistinguishable from the
  * run that produced it. The shield says "this is the sign-off" by shape alone, and the state only picks which shield,
