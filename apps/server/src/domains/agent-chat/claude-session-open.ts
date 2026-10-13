@@ -70,7 +70,11 @@ export function claudeQueryOptions({
          * only with `stop_task` or when the CLI exits.
          */
         perTaskStopAffordance: true,
-        systemPrompt: { type: 'preset', preset: 'claude_code' },
+        systemPrompt: {
+            type: 'preset',
+            preset: 'claude_code',
+            ...(host.instructions && { append: host.instructions }),
+        },
         tools: { type: 'preset', preset: 'claude_code' },
         permissionMode: settings.permissionMode,
         /**

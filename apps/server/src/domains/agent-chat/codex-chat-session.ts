@@ -363,6 +363,7 @@ class CodexChatSession implements AgentChatProviderSession {
         const opened = await openCodexThread(connection, {
             cwd: this.options.cwd,
             settings: this.settings,
+            instructions: this.options.instructions,
             ...(this.threadId && { threadId: this.threadId }),
         });
         if (opened.outcome === 'resumed') {

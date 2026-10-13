@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentRunAutonomy } from '../agents';
+import { AGENT_SESSION_DISCOVERY_CONTEXT } from '../agents';
 import { agentChatDrivers } from './chat-drivers';
 import type { ChatExitHost } from './chat-exit';
 import { abandonChatStart, handleChatExit } from './chat-exit';
@@ -85,6 +86,10 @@ export async function startChat(
             agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
             ...(state.resumeAt !== undefined && { resumeAt: state.resumeAt }),
             clientVersion: options.clientVersion,
+            ...(environment.CAXRI_CLI &&
+                database.agentCommanderRows()?.terminalId !== terminalId && {
+                    instructions: AGENT_SESSION_DISCOVERY_CONTEXT,
+                }),
             spawnProcess: options.spawnProcess,
             turnRequestTimeoutMs: options.turnRequestTimeoutMs,
             read: () => state.projection.snapshot,

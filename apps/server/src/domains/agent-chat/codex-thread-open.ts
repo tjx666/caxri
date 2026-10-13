@@ -109,19 +109,50 @@ function isThreadWriterConflict(error: unknown): boolean {
     );
 }
 
+const CONFIG_READ_TIMEOUT_MS = 10_000;
+
+/**
+ * Caxri's instructions joined after the user's own `developer_instructions`. The thread's `developerInstructions`
+ * replaces the configured value instead of adding to it, so the configured value is read first with `config/read`. A
+ * Codex that cannot report it gets nothing from Caxri rather than losing the user's instructions.
+ */
+async function developerInstructions(
+    connection: JsonRpcConnection,
+    cwd: string,
+    instructions: string | undefined,
+): Promise<string | undefined> {
+    if (!instructions) return undefined;
+    let result: unknown;
+    try {
+        result = await connection.request('config/read', { cwd }, CONFIG_READ_TIMEOUT_MS);
+    } catch {
+        return undefined;
+    }
+    if (!isRecord(result) || !isRecord(result.config)) return undefined;
+    const configured = stringField(result.config.developer_instructions);
+    return configured ? `${configured}\n\n${instructions}` : instructions;
+}
+
 /**
  * Resumes `threadId` with its history, or starts a new thread when there is none.
  */
 export async function openCodexThread(
     connection: JsonRpcConnection,
-    { cwd, settings, threadId }: { cwd: string; settings: CodexThreadSettings; threadId?: string },
+    {
+        cwd,
+        settings,
+        instructions,
+        threadId,
+    }: { cwd: string; settings: CodexThreadSettings; instructions?: string; threadId?: string },
 ): Promise<CodexThreadOpening> {
+    const developer = await developerInstructions(connection, cwd, instructions);
     const threadParameters = {
         cwd,
         approvalPolicy: settings.approvalPolicy,
         approvalsReviewer: settings.approvalsReviewer,
         sandbox: settings.sandbox,
         config: { 'tools.update_plan.enabled': true },
+        ...(developer && { developerInstructions: developer }),
     };
     if (threadId) {
         let result: unknown;

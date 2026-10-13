@@ -10,7 +10,7 @@ import process from 'node:process';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentHookSignalResult } from '../server';
-import { pruneStaleAgentHookSockets } from '../server';
+import { pruneStaleAgentHookSockets } from '../socket-path';
 import { anyHandlingMs, createTestServer, send, validPayload } from './server.fixture';
 
 describe('AgentHookServer', () => {
@@ -178,6 +178,21 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('{"ok":true}\n');
                 expect(onSignal).toHaveBeenCalledOnce();
+            } finally {
+                await server.close();
+            }
+        });
+
+        it('hands the context of an accepted signal back to the bridge', async () => {
+            const { server, socketPath } = await createTestServer(
+                vi.fn(() => ({ disposition: 'accepted', context: 'Use "$CAXRI_CLI".' }) as const),
+            );
+            try {
+                const token = server.register('terminal-1', 'launch-1');
+
+                const response = await send(socketPath, validPayload({ token }));
+
+                expect(JSON.parse(response)).toEqual({ ok: true, context: 'Use "$CAXRI_CLI".' });
             } finally {
                 await server.close();
             }
