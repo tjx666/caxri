@@ -427,9 +427,21 @@ describe('Runtime Agent hook integration', () => {
                         lastActivityState: 'running',
                     },
                 ],
-                terminals: [{ agentSessionId: undefined }],
+                terminals: [{ agentSessionId: undefined, agentOperation: 'background' }],
             });
-            expect(send).not.toHaveBeenCalled();
+            // The only event is the record refresh that shows the background sub-mode: no attention or completion.
+            expect(send.mock.calls).toEqual([
+                [
+                    {
+                        event: 'state.changed',
+                        payload: {
+                            kind: 'records',
+                            sessionIds: [created.session.id],
+                            terminalIds: [created.terminal!.id],
+                        },
+                    },
+                ],
+            ]);
 
             const subagentFinished = execFileAsync(
                 bridge,
