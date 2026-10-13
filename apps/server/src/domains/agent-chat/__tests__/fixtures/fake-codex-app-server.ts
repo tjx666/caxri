@@ -21,7 +21,8 @@
  *   short reply, so a Client folds the work behind its `Worked for` row and shows the failed command's exit code.
  * - `subagent`: a `spawnAgent` collab call whose child thread runs its own turn (notifications with the child's
  *   `threadId`, some before the spawn completes, as real Codex sends them), then a `wait` call reporting its result.
- *   With `hold`, the child keeps streaming until `turn/interrupt` stops it and the parent turn ends right away.
+ *   With `hold`, the child keeps streaming until `turn/interrupt` stops it and the parent turn ends right away. With
+ *   `browsestep`, the child runs the `browsestep` steps first.
  * - `background`: a unified-exec command (with a `processId`) that outlives its turn, streaming output until
  *   `thread/backgroundTerminals/terminate` stops it. With `flood`, it emits Codex's 10,000 output deltas at once.
  * - `vanish`: every background terminal disappears from `thread/backgroundTerminals/list` without a notification.
@@ -232,7 +233,10 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     if (imageCount > 0) {
         await streamMessage(turn, `Received ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 0);
     } else if (text.includes('subagent')) {
-        await runSubagent(io, turn, text.includes('hold'));
+        await runSubagent(io, turn, {
+            isHeld: text.includes('hold'),
+            isBrowsing: text.includes('browsestep'),
+        });
     } else if (text.includes('vanish')) {
         dropTerminalsSilently();
         await streamMessage(turn, 'Done.', 0);

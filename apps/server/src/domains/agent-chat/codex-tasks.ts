@@ -5,6 +5,7 @@ import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost, ChatTaskHistory } from './chat-provider';
 import { ChatTaskList } from './chat-tasks';
 import { CodexBackgroundTerminals } from './codex-background-terminals';
+import { CodexComputerUseBindings } from './codex-computer-use';
 import { mapCodexItem } from './codex-items';
 import { historyItems } from './codex-turns';
 import { JsonRpcRequestError } from './json-rpc-connection';
@@ -40,6 +41,11 @@ const REQUEST_TIMEOUT_MS = 30_000;
 
 interface ChildThread {
     activeTurnId?: string;
+    /**
+     * The child's own Computer Use bindings: each thread runs its own `cua_repl` REPL scope, so a variable a subagent
+     * bound in an earlier step names its surface only within that thread (#1945).
+     */
+    computerUse: CodexComputerUseBindings;
 }
 
 interface PendingNotification {
@@ -143,7 +149,7 @@ export class CodexTasks {
 
     private adopt(threadId: string, fields: Partial<Omit<AgentChatTask, 'id'>>): void {
         const isNew = !this.children.has(threadId);
-        if (isNew) this.children.set(threadId, {});
+        if (isNew) this.children.set(threadId, { computerUse: new CodexComputerUseBindings() });
         const existing = this.list.get(threadId);
         this.list.upsert(threadId, {
             ...(!existing && {
@@ -199,7 +205,7 @@ export class CodexTasks {
                 const raw = parameters.item;
                 if (!isRecord(raw)) return;
                 const isStarted = method === 'item/started';
-                const item = mapCodexItem(raw, turnId, isStarted);
+                const item = mapCodexItem(raw, turnId, isStarted, child.computerUse);
                 if (item) this.applyTask(threadId, [{ op: 'upsertItem', item }]);
                 if (raw.type === 'collabAgentToolCall' || raw.type === 'subAgentActivity')
                     this.onAgentItem(raw);

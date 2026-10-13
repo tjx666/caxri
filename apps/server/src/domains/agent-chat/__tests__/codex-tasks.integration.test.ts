@@ -64,6 +64,26 @@ describe('Codex Chat background work with a fake app-server', () => {
         expect(viaItem.items).toEqual(child.items);
     });
 
+    it("names a subagent's running browser step after the tab it bound earlier", async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'subagent browsestep' });
+        const running = await until(
+            (snapshot) => agentTask(snapshot)?.lastToolName === 'browserUse',
+        );
+        const taskId = agentTask(running)?.id ?? '';
+        const child = await service.readTask(terminal.id, taskId);
+        const save = child.items.find(
+            (item) => item.type === 'toolCall' && item.summary === 'Click Save',
+        );
+        expect(save).toMatchObject({ name: 'browserUse', status: 'running' });
+
+        await until((snapshot) => agentTask(snapshot)?.status === 'completed');
+        const done = await service.readTask(terminal.id, taskId);
+        expect(
+            done.items.find((item) => item.type === 'toolCall' && item.summary === 'Click Save'),
+        ).toMatchObject({ name: 'browserUse', status: 'completed' });
+    });
+
     it('stops a running subagent without ending the Chat turn state', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'subagent hold' });
