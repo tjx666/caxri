@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
@@ -285,6 +286,24 @@ describe('Visible same-Terminal follow-up', () => {
         expect((await f.finish(id, 'Synthetic resumed answer')).answer?.text).toBe(
             'Synthetic resumed answer',
         );
+    });
+
+    it('returns the parent chain claim when dispatch refuses an exact resume before recording it', async () => {
+        const f = await fixture();
+        f.resume.mockRejectedValueOnce(
+            new CaxriError('CONFLICT', 'Agent Terminal is already running'),
+        );
+        const refused = randomUUID();
+        expect(
+            await f.service.create(refused, owner, { ...f.input, resumeFrom: f.id }),
+        ).toMatchObject({ failure: 'launch_failed' });
+        expect(f.database.agentDelegations.get(f.id)?.nextDelegationId).toBeUndefined();
+        expect(f.database.agentDelegations.get(refused)?.hasLostTarget).toBe(true);
+
+        const retried = randomUUID();
+        await f.service.create(retried, owner, { ...f.input, resumeFrom: f.id });
+        expect(f.resume).toHaveBeenCalledTimes(2);
+        expect(f.database.agentDelegations.get(f.id)?.nextDelegationId).toBe(retried);
     });
 
     it.each([

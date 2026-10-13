@@ -15,7 +15,8 @@ async function sendChatNotice(
     onDelivered?: (wasAccepted: boolean) => void,
 ): Promise<void> {
     try {
-        await agentChat.send(terminalId, { text });
+        // Not human input, like the PTY notice's `origin: 'delegation'` writes.
+        await agentChat.send(terminalId, { text }, 'queue', 'delegation');
     } catch {
         onDelivered?.(false);
         return;

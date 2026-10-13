@@ -3,6 +3,7 @@ import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatSessionHost, ChatLifecycleEvent } from '../chat-provider';
+import { chatTextDigest } from '../chat-turn-answer';
 import { ClaudeTurns } from '../claude-turns';
 
 function backgroundTask(fields: Partial<AgentChatTask> = {}): AgentChatTask {
@@ -35,7 +36,7 @@ function harness() {
         settleRequests: () => {},
     });
     const setTasks = (tasks: AgentChatTask[]) => host.apply([{ op: 'state', state: { tasks } }]);
-    return { events, setTasks, turns };
+    return { events, host, setTasks, turns };
 }
 
 describe('ClaudeTurns background work', () => {
@@ -98,5 +99,60 @@ describe('ClaudeTurns background work', () => {
         turns.onSessionState('idle');
 
         expect(events.at(-1)).not.toHaveProperty('agentBackgroundWork');
+    });
+});
+
+describe('ClaudeTurns delegation digests', () => {
+    it('digests the prompt at turn start and the final answer at turn end', () => {
+        const { events, host, turns } = harness();
+        turns.begin('turn-1', { isOwnPrompt: true, prompt: 'Read the task.' });
+        expect(events[0]).toEqual({
+            phase: 'turnStarted',
+            agentSessionId: 'agent-session',
+            agentTurnId: 'turn-1',
+            agentPromptDigest: chatTextDigest('Read the task.'),
+        });
+
+        host.apply([
+            {
+                op: 'upsertItem',
+                item: {
+                    id: 'a-1',
+                    type: 'agentMessage',
+                    text: 'Draft',
+                    turnId: 'turn-1',
+                    streaming: false,
+                },
+            },
+            {
+                op: 'upsertItem',
+                item: {
+                    id: 'a-2',
+                    type: 'agentMessage',
+                    text: 'Answer',
+                    turnId: 'turn-1',
+                    streaming: false,
+                },
+            },
+        ]);
+        turns.onSessionState('running');
+        turns.onSessionState('idle');
+
+        expect(events.at(-1)).toEqual({
+            phase: 'turnFinished',
+            agentSessionId: 'agent-session',
+            agentTurnId: 'turn-1',
+            agentResponseDigest: chatTextDigest('Answer'),
+        });
+    });
+
+    it('omits both digests for a turn without a known prompt or answer', () => {
+        const { events, turns } = harness();
+        turns.begin('turn-1');
+        turns.onSessionState('running');
+        turns.onSessionState('idle');
+
+        expect(events[0]).not.toHaveProperty('agentPromptDigest');
+        expect(events.at(-1)).not.toHaveProperty('agentResponseDigest');
     });
 });

@@ -215,7 +215,7 @@ export async function runSubagent(io: FakeClaudeIo, startedAt: number) {
     io.result(startedAt, 'done');
 }
 
-function startBackgroundAgent(io: FakeClaudeIo, startedAt: number) {
+function startBackgroundAgent(io: FakeClaudeIo, startedAt: number, finishAfterMs?: number) {
     const toolUseId = `toolu_${crypto.randomUUID()}`;
     const taskId = `a${tasks.nextTaskId++}`;
     const description = 'Watch the build';
@@ -249,6 +249,11 @@ function startBackgroundAgent(io: FakeClaudeIo, startedAt: number) {
             });
     }, 50);
     io.result(startedAt, 'done');
+    if (finishAfterMs)
+        setTimeout(() => {
+            endBackground(io, taskId, 'completed');
+            io.startAutoTurn();
+        }, finishAfterMs);
 }
 
 /**
@@ -349,6 +354,7 @@ function startWorkflow(io: FakeClaudeIo, startedAt: number, finishAfterMs?: numb
 export function didStartBackgroundTask(io: FakeClaudeIo, startedAt: number, text: string): boolean {
     if (text.includes('quick workflow')) startWorkflow(io, startedAt, 300);
     else if (text.includes('workflow')) startWorkflow(io, startedAt);
+    else if (text.includes('quick background agent')) startBackgroundAgent(io, startedAt, 300);
     else if (text.includes('background agent')) startBackgroundAgent(io, startedAt);
     else if (text.includes('quick background')) startBackgroundShell(io, startedAt, 300);
     else if (text.includes('background')) startBackgroundShell(io, startedAt);

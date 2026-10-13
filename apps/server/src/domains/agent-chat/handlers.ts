@@ -7,6 +7,10 @@ import type { AgentChatServiceOptions } from './service-options';
 /**
  * Core methods a Client uses to read and drive a Chat Terminal. `records` locates the provider's on-disk record, which
  * `agentChat.readImage` reads without the service or a provider process; `createSessionForProject` opens a fork.
+ *
+ * Every message, command, rewind, and interrupt a Client sends is human input: it takes a delegated Chat over from its
+ * task, like typing into a PTY Agent. `AgentChatService.send` records that for a message itself; the other handlers
+ * record it here. Answering an approval request is not human input.
  */
 export function createAgentChatHandlers(
     agentChat: AgentChatService,
@@ -41,6 +45,7 @@ export function createAgentChatHandlers(
             return null;
         },
         'agentChat.rewind': async ({ terminalId, itemId, restoreFiles, text, images }) => {
+            agentChat.delegation.observeHumanInput(terminalId);
             await agentChat.rewind(terminalId, {
                 itemId,
                 restoreFiles,
@@ -70,6 +75,7 @@ export function createAgentChatHandlers(
             return null;
         },
         'agentChat.runCommand': async ({ terminalId, name, arguments: arguments_ }) => {
+            agentChat.delegation.observeHumanInput(terminalId);
             await agentChat.runCommand(terminalId, name, arguments_);
             return null;
         },
@@ -102,6 +108,7 @@ export function createAgentChatHandlers(
             return null;
         },
         'agentChat.interrupt': async ({ terminalId }) => {
+            agentChat.delegation.observeHumanInput(terminalId);
             await agentChat.interrupt(terminalId);
             return null;
         },
@@ -125,6 +132,7 @@ export function createAgentChatHandlers(
         },
         'agentChat.takeQueued': ({ terminalId, id }) => agentChat.takeQueued(terminalId, id),
         'agentChat.sendQueuedNow': async ({ terminalId, id }) => {
+            agentChat.delegation.observeHumanInput(terminalId);
             await agentChat.sendQueuedNow(terminalId, id);
             return null;
         },

@@ -5,6 +5,7 @@ import type { AgentChatSnapshot, AgentChatTurn } from '@caxri/protocol';
 
 import { MAX_TRACKED_TURNS } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
+import { chatTextDigest, chatTurnFinalMessage } from './chat-turn-answer';
 import { claudeContextWindow, finishedClaudeTurn } from './claude-items';
 
 /**
@@ -88,6 +89,7 @@ export class ClaudeTurns {
         const isWaitingOnBackground =
             status === 'completed' && hasWakingBackgroundWork(host.read());
         this.backgroundTurnId = isWaitingOnBackground ? id : undefined;
+        const answer = status === 'completed' ? chatTurnFinalMessage(host.read(), id) : undefined;
         host.lifecycle(
             status === 'failed'
                 ? {
@@ -100,6 +102,7 @@ export class ClaudeTurns {
                       phase: 'turnFinished',
                       agentSessionId,
                       agentTurnId: id,
+                      ...(answer && { agentResponseDigest: chatTextDigest(answer.text) }),
                       ...(isWaitingOnBackground && { agentBackgroundWork: true as const }),
                   },
         );
@@ -109,7 +112,14 @@ export class ClaudeTurns {
         return this.contextWindowSize;
     }
 
-    begin(id: string, { isOwnPrompt = false }: { isOwnPrompt?: boolean } = {}): void {
+    /**
+     * Opens a turn. `prompt` is the exact text of the message that starts it, digested at this moment rather than when
+     * it was sent, because a message sent during a turn waits in the Chat's queue until that turn ends.
+     */
+    begin(
+        id: string,
+        { isOwnPrompt = false, prompt }: { isOwnPrompt?: boolean; prompt?: string } = {},
+    ): void {
         const { host } = this.options;
         const snapshot = host.read();
         const sessionId = this.options.bindSession();
@@ -130,7 +140,12 @@ export class ClaudeTurns {
                 },
             },
         ]);
-        host.lifecycle({ phase: 'turnStarted', agentSessionId: sessionId, agentTurnId: id });
+        host.lifecycle({
+            phase: 'turnStarted',
+            agentSessionId: sessionId,
+            agentTurnId: id,
+            ...(prompt !== undefined && { agentPromptDigest: chatTextDigest(prompt) }),
+        });
     }
 
     /**

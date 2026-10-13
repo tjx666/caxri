@@ -100,9 +100,14 @@ describe('createCommanderCompletionNotifier', () => {
         const { delivered, send, writeAgentExact } = await deliver('chat');
 
         expect(writeAgentExact).not.toHaveBeenCalled();
-        expect(send).toHaveBeenCalledWith('commander-terminal', {
-            text: '[Caxri notice] 1 delegation update: delegation delegation-1 in Session session-1 completed.',
-        });
+        expect(send).toHaveBeenCalledWith(
+            'commander-terminal',
+            {
+                text: '[Caxri notice] 1 delegation update: delegation delegation-1 in Session session-1 completed.',
+            },
+            'queue',
+            'delegation',
+        );
         expect(delivered).toHaveBeenCalledOnce();
     });
 

@@ -161,9 +161,12 @@ describe('Agent dispatch to a Chat', () => {
             endpoint: { endpointId: `endpoint-${f.terminal.id}` },
         });
         expect(f.chats.restart).toHaveBeenCalledExactlyOnceWith(f.terminal.id);
-        expect(f.chats.send).toHaveBeenCalledExactlyOnceWith(f.terminal.id, {
-            text: 'continue the plan',
-        });
+        expect(f.chats.send).toHaveBeenCalledExactlyOnceWith(
+            f.terminal.id,
+            { text: 'continue the plan' },
+            'queue',
+            'delegation',
+        );
         expect(beforeResume).toHaveBeenCalledOnce();
 
         await f.chats.stopProvider(f.terminal.id);

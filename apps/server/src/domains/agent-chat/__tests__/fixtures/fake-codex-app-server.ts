@@ -222,7 +222,9 @@ const io: FakeCodexIo = {
 };
 
 async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | null) {
-    const text = input.map((entry) => entry.text ?? '').join('\n');
+    const said = input.map((entry) => entry.text ?? '').join('\n');
+    // A delegation pointer selects no scenario: its "task" says `ask`, a `dispatch-` ID says `patch`.
+    const text = said.startsWith('Read the delegated task from ') ? '' : said;
     const imageCount = input.filter((entry) => entry.type === 'image').length;
     const user = { type: 'userMessage', id: crypto.randomUUID(), clientId, content: input };
     startItem(turn, user);
@@ -365,7 +367,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
                 { step: 'Reply', status: 'inProgress' },
             ],
         });
-        await streamMessage(turn, `Hello from fake Codex. You said: ${text}`, 0);
+        await streamMessage(turn, `Hello from fake Codex. You said: ${said}`, 0);
         notify('thread/tokenUsage/updated', {
             turnId: turn.id,
             tokenUsage: {

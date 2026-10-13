@@ -178,3 +178,22 @@ export class LongPasteService {
         return this.save(parameters.content, signal);
     }
 }
+
+/**
+ * Creates the Server's long paste store and prunes what an earlier run left before any Agent can reference it.
+ */
+export async function createLongPasteService(options: {
+    userDataPath: string;
+    database: CaxriDatabase;
+    settings: () => AppSettings;
+    agentLaunchId: (terminalId: string) => string | undefined;
+}): Promise<LongPasteService> {
+    const service = new LongPasteService(
+        options.userDataPath,
+        options.database,
+        options.settings,
+        options.agentLaunchId,
+    );
+    await service.initialize();
+    return service;
+}

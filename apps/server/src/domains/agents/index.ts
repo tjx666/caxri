@@ -36,7 +36,7 @@ export {
 } from './hooks/contract';
 export { commandCreatesWorktree } from './hooks/worktree-command';
 export { isMidTurnSignal, isStandaloneEscape } from './lifecycle-watchdogs';
-export { LongPasteService } from './long-paste';
+export { createLongPasteService, LongPasteService } from './long-paste';
 export { lowCostSandboxFailureReason } from './low-cost-sandbox';
 export { reconcilePrimaryTurnFailure } from './primary-turn-failure';
 export { agentProviders } from './providers';

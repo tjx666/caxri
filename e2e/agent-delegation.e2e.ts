@@ -10,7 +10,9 @@ import type {
     BootstrapState,
 } from '@caxri/protocol';
 
+import { fakeClaudeChatExecutableSource } from '../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-chat-executables.ts';
 import { delegationFixtureSource } from '../scripts/agent-delegation-fixture.ts';
+import { fakeCodexChatProvider } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
@@ -328,6 +330,102 @@ process.stdout.write('Synthetic caller ready\r\n');
             );
             expect(previous).toMatchObject({ status: 'interrupted', failure: 'caller_stopped' });
             await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
+        } finally {
+            await running.app.close();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+}
+
+for (const provider of ['codex', 'claude'] as const) {
+    test(`${provider} delegation opens its child as an Agent Chat when Open Agents in Chat is on, and collects each answer from the Chat, including an exact resume`, async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-chat-'));
+        const userData = join(directory, 'profile');
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const agentMode = await createFakeAgentMode({
+            userDataDir: userData,
+            providers: {
+                [provider]:
+                    provider === 'codex'
+                        ? fakeCodexChatProvider(directory)
+                        : { executableSource: fakeClaudeChatExecutableSource() },
+            },
+        });
+        const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+        try {
+            const settings = await pageRequest<{ value: AppSettings }>(
+                running.page,
+                'settings.get',
+            );
+            await pageRequest(running.page, 'settings.update', {
+                source: JSON.stringify({ ...settings.value, 'session.openAgentsInChat': true }),
+            });
+            const sessionId = await createProjectSession(running.page, 'shell');
+            const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+            const common = {
+                projectId: bootstrap.sessions.find((session) => session.id === sessionId)!
+                    .projectId,
+                sessionId,
+                provider,
+                prompt: 'Synthetic Chat task',
+            };
+            interface Result {
+                receipt: AgentDelegationReceipt;
+                answer?: AgentDelegationAnswer;
+            }
+            const wait = (delegationId: string) =>
+                pageRequest<Result>(running.page, 'agent.delegation.wait', {
+                    delegationId,
+                    timeoutMs: 20000,
+                });
+            const initial = await pageRequest<AgentDelegationReceipt>(
+                running.page,
+                'agent.delegation.create',
+                common,
+            );
+            const first = await wait(initial.delegationId);
+            expect(first.receipt.status).toBe('completed');
+            // The fake echoes the Chat message it got, so the answer proves the pointer arrived as the first message.
+            expect(first.answer?.text).toMatch(
+                new RegExp(
+                    String.raw`You said: Read the delegated task from .+ Delegation ID: ${initial.delegationId}\.$`,
+                    'u',
+                ),
+            );
+            const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+            expect(
+                state.terminals.find((terminal) => terminal.id === initial.terminalId)?.surface,
+            ).toBe('chat');
+            await expect(
+                running.page
+                    .locator('.workbench-pane')
+                    .getByText(/You said: Read the delegated task/u),
+            ).toBeVisible();
+
+            const followed = await pageRequest<AgentDelegationReceipt>(
+                running.page,
+                'agent.delegation.create',
+                { ...common, followUpOf: initial.delegationId },
+            );
+            expect(followed.terminalId).toBe(initial.terminalId);
+            const second = await wait(followed.delegationId);
+            expect(second.receipt.status).toBe('completed');
+            expect(second.answer?.text).toMatch(/You said: Read the delegated task from /u);
+            expect(second.answer?.text).not.toBe(first.answer?.text);
+
+            // The child Chat is still live and idle: an exact resume replaces its own launch in the same Terminal.
+            const resumed = await pageRequest<AgentDelegationReceipt>(
+                running.page,
+                'agent.delegation.create',
+                { ...common, resumeFrom: followed.delegationId },
+            );
+            expect(resumed.terminalId).toBe(initial.terminalId);
+            const third = await wait(resumed.delegationId);
+            expect(third.receipt.status).toBe('completed');
+            expect(third.answer?.text).toMatch(
+                new RegExp(String.raw`Delegation ID: ${resumed.delegationId}\.$`, 'u'),
+            );
         } finally {
             await running.app.close();
             await rm(directory, { recursive: true, force: true });

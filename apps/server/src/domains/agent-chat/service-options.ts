@@ -10,6 +10,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { AgentEnvironment, AgentLifecycleSignal } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { TerminalManagerOptions } from '../terminal';
+import type { ChatDelegationHooks } from './chat-delegation';
 import type { SpawnChatProcess } from './chat-provider';
 
 /**
@@ -68,6 +69,11 @@ export interface AgentChatServiceOptions {
      * without a prepared Endpoint.
      */
     endpoint?: AgentChatEndpoint;
+    /**
+     * Reports Chat launches, exits, and human input to Agent delegation; see {@link ChatDelegationHooks}. Optional so a
+     * test can omit it.
+     */
+    delegation?: ChatDelegationHooks;
 }
 
 export interface AgentChatEndpoint {

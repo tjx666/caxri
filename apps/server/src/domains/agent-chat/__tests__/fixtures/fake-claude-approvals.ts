@@ -87,6 +87,8 @@ export async function didRunApprovalScenario(
     startedAt: number,
     text: string,
 ): Promise<boolean> {
+    // Agent delegation's task pointer says "task", which would read as the `ask` scenario.
+    if (text.startsWith('Read the delegated task from ')) return false;
     if (text.includes('approve')) {
         const isAllowed = await wasToolAllowed(
             io,

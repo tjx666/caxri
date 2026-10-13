@@ -1,4 +1,5 @@
 export { isAgentCommanderCaller } from './admission';
+export type { DelegationChatTurn } from './chat-child';
 export { createDelegationHandlers } from './handlers';
 export { delegationResumeLaunch } from './launch';
 export { AgentDelegationService } from './service';

@@ -518,17 +518,17 @@ export class CaxriDatabase {
     }
 
     /**
-     * Atomically binds a durable dispatch receipt to its new Terminal before any PTY can spawn, refusing an archived
-     * Session; see {@link insertAgentDispatchWithTerminal}.
+     * Atomically binds a durable dispatch receipt to its new PTY or Chat Terminal before any Agent process can start,
+     * refusing an archived Session; see {@link insertAgentDispatchWithTerminal}.
      */
     createAgentDispatchWithTerminal(
         input: NewAgentDispatchReceipt,
         kind: AgentProvider,
-        cwd?: string,
+        { cwd, surface }: { cwd?: string; surface?: TerminalSurface } = {},
     ): { stored: StoredAgentDispatchReceipt; terminal: TerminalRecord } {
         return this.db.transaction(() =>
             insertAgentDispatchWithTerminal(this.db, input, () =>
-                this.insertTerminal(input.sessionId, kind, cwd),
+                this.insertTerminal(input.sessionId, kind, cwd, surface),
             ),
         );
     }

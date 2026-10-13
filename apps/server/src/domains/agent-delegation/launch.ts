@@ -74,6 +74,10 @@ export async function prepareDelegationLaunch(
 ): Promise<{
     launch: AgentLaunchSettings;
     promptDigest: string;
+    /**
+     * The task pointer `promptDigest` covers; a child that opens as a Chat receives it as its first message.
+     */
+    pointer: string;
     initialPrompt?: string;
     assignedAgentSessionId?: string;
 }> {
@@ -100,6 +104,7 @@ export async function prepareDelegationLaunch(
             assignedAgentSessionId: providerSessionId,
         }),
         promptDigest: createHash('sha256').update(pointer).digest('hex'),
+        pointer,
     };
 }
 
