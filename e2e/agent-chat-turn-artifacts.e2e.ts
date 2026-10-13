@@ -174,6 +174,14 @@ test('a turn card lists its first three files and folds the rest behind a Show m
         // Disclosing every diff lists every file, so no diff opens behind the folded rows.
         await changes.getByRole('button', { name: /^View changes, / }).click();
         await expect(changes.getByRole('listitem')).toHaveCount(5);
+
+        // Folding closes the hidden rows' diffs, so the header no longer reads as every diff being open.
+        await changes.getByRole('button', { name: 'Show fewer files' }).click();
+        await expect(changes.getByRole('button', { name: /^View changes, / })).toBeVisible();
+        await changes.getByRole('button', { name: 'Show 2 more files' }).click();
+        await expect(
+            changes.getByRole('button', { name: /^Show changes: notes\/note-5\.md/ }),
+        ).toHaveAttribute('aria-expanded', 'false');
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
