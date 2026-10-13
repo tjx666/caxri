@@ -7,7 +7,6 @@ import type {
     AgentHookHealthMap,
     AgentProvider,
     AgentProviderSettings,
-    ServerEvent,
 } from '@caxri/protocol';
 import {
     agentProviderCatalog,
@@ -16,12 +15,10 @@ import {
     errorMessage,
     isCaxriError,
 } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
 import { atomicWrite, atomicWriteUserConfig } from '../../atomic-file';
 import { WatchHub } from '../../watch';
-import type { AgentEnvironment } from '../contract';
 import { agentProviders } from '../providers';
 import { stageAgentHookBridge } from './bridge';
 import {
@@ -35,18 +32,15 @@ import type {
     AgentHookConfigTarget,
     AgentHookDocuments,
     AgentHookEntryStatus,
-    AgentLifecycleSignal,
-    AgentSignalDecision,
     DesiredHookInstall,
 } from './contract';
-import type { HookExecutableDiscovery } from './executable-gate';
 import { gateHookSettingsOnExecutables } from './executable-gate';
 import { defaultHookHealth, hookHealthFor } from './health';
 import { withAgentHookInstallLock } from './install-lock';
 import { HookLaunchRegistry } from './launch-registry';
+import type { AgentHookManagerOptions } from './manager-options';
 import { parseProfileIntents, serializeProfileIntents } from './profile-intents';
 import { SerialTasks } from './serial-tasks';
-import type { HookWireAttention } from './server';
 import { AgentHookServer } from './server';
 import { prepareAgentHookSocketPath } from './socket-path';
 import { AgentHookTelemetry } from './telemetry';
@@ -58,43 +52,6 @@ const MAX_CONCURRENT_PROFILE_STATS = 8;
  * let reconciliation rewrite a file it could not safely inspect.
  */
 export const MAX_AGENT_HOOK_CONFIG_BYTES = 1 * 1024 * 1024;
-
-interface AgentHookManagerOptions {
-    /**
-     * Resolves the provider CLI on this machine. Lifecycle hooks default to enabled, but a provider whose CLI is not
-     * installed must not have Caxri write into its configuration directory or claim it in the shared profile registry:
-     * the setting stays on, the installation simply waits for the CLI to appear.
-     */
-    discoverExecutable: HookExecutableDiscovery;
-    environment: AgentEnvironment;
-    logger: StructuredLogger;
-    onAuthorityLost: (provider: AgentProvider) => void;
-    onLaunchEnded: (terminalId: string) => void;
-    onLaunchStarted: (terminalId: string, launchId: string) => void;
-    onSignal: (signal: AgentLifecycleSignal) => AgentSignalDecision | Promise<AgentSignalDecision>;
-    onAttention?: (
-        request: HookWireAttention,
-        signal: AbortSignal,
-    ) => Promise<{
-        decision?: 'allow' | 'deny';
-        answers?: Record<string, string>;
-    } | null>;
-    hookExecutable: string;
-    /**
-     * Per-provider schema version this instance writes as the provider-file ordering token, announces to the bridge,
-     * and accepts on the socket. Production derives it from the registered provider adapters; the multi-build
-     * integration test substitutes a sibling build's value so two instances with different versions share one file.
-     */
-    schemaVersions?: Partial<Record<AgentProvider, number>>;
-    send: (event: ServerEvent) => void;
-    sharedPath?: string;
-    userDataPath: string;
-    /**
-     * Shared Server watch registry. Production passes the Server-wide hub; tests may omit it, in which case the manager
-     * owns a private hub with equivalent behavior.
-     */
-    watchHub?: WatchHub;
-}
 
 /**
  * Generic lifecycle-hook owner. Provider adapters define config syntax only; this class owns the cross-process lock,
@@ -631,7 +588,10 @@ export class AgentHookManager {
                         if (decision !== 'accepted')
                             return { disposition: 'ignored', reason: decision };
                         this.markActive(signal.provider);
-                        return { disposition: 'accepted' };
+                        return {
+                            disposition: 'accepted',
+                            context: this.options.turnContext?.(signal),
+                        };
                     } catch (error) {
                         this.options.logger.write('warn', logEventCatalog.agentHooks.signalFailed, {
                             fields: {

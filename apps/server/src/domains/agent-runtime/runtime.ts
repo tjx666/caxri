@@ -28,6 +28,7 @@ import { SessionAutoNamingService, SessionRenameService } from '../session';
 import type { WatchHub } from '../watch';
 import type { WorkbenchRootService } from '../workbench';
 import * as provenance from '../workbench';
+import { AgentTurnContext } from './turn-context';
 
 interface CreateAgentRuntimeOptions {
     attentionRequests: AgentAttentionRequests;
@@ -124,6 +125,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
      * controller so the transition log and the live `agent.permissionAutoAllowChanged` event are always attached.
      */
     const attentionAutoAllow = createPermissionAutoAllowController({ logger, send });
+    const turnContext = new AgentTurnContext(database);
     const agentHooks = new AgentHookManager({
         discoverExecutable,
         environment: agentEnvironment,
@@ -132,6 +134,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         onLaunchEnded: (terminalId) => {
             coordinator.endTerminalLaunch(terminalId);
             options.attentionRequests.supersedeTerminal(terminalId);
+            turnContext.forget(terminalId);
             /**
              * "The Agent restarts" (issue caxri#1295's grant boundary) is this Agent-hook-bound launch ending, not a
              * generic Shell PTY closing: `HookLaunchRegistry` only calls `onLaunchEnded` for launches it activated.
@@ -141,6 +144,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         },
         onLaunchStarted: (terminalId, launchId) =>
             coordinator.beginTerminalLaunch(terminalId, launchId),
+        turnContext: (signal) => turnContext.for(signal),
         onSignal: async (rawSignal) => {
             // Only Codex reaches the transcript read here (issue caxri#1345): every other provider's own StopFailure
             // hook already classifies its failure, so `resolvePrimaryTurnFailure` is unset and this returns immediately.

@@ -322,11 +322,16 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
   socket.on('connect', () => socket.end(JSON.stringify(signal)));
   socket.on('data', (chunk) => {
     response += chunk;
-    if (response.length > 1024) response = '';
+    if (response.length > 8192) response = '';
   });
   socket.on('end', () => {
     try {
-      finish(JSON.parse(response).ok === true ? 0 : exitCodes.signalRejected);
+      const answer = JSON.parse(response);
+      if (answer.ok === true && signal.phase === 'turnStarted' && typeof answer.context === 'string')
+        process.stdout.write(JSON.stringify({ hookSpecificOutput: {
+          hookEventName: 'UserPromptSubmit', additionalContext: answer.context,
+        } }) + '\n');
+      finish(answer.ok === true ? 0 : exitCodes.signalRejected);
     } catch {
       finish(exitCodes.ackUnavailable);
     }
@@ -347,7 +352,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
  * Bump on every bridge script change, including a behavior-preserving one: same-version builds sharing the staged
  * bridge would otherwise keep rewriting each other's copy.
  */
-const BRIDGE_VERSION = 23;
+const BRIDGE_VERSION = 24;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -362,6 +367,7 @@ elif [ ! -r "$bridge_dir/bridge.cjs" ]; then
 else
   case " $* " in
     *" --interactive "*) ELECTRON_RUN_AS_NODE=1 "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" 2>/dev/null ;;
+    *" --phase turnStarted "*) ELECTRON_RUN_AS_NODE=1 "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" 2>/dev/null ;;
     *) ELECTRON_RUN_AS_NODE=1 "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" >/dev/null 2>&1 ;;
   esac
   bridge_status=$?

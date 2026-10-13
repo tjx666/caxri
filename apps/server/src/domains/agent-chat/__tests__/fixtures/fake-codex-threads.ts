@@ -40,7 +40,7 @@ export function readSavedThread(id: string): FakeThread | undefined {
 export function recordThreadOpen(method: string, parameters: Record<string, unknown>) {
     fs.appendFileSync(
         stateFile('thread-opens.jsonl'),
-        `${JSON.stringify({ method, sandbox: parameters.sandbox, approvalPolicy: parameters.approvalPolicy, approvalsReviewer: parameters.approvalsReviewer })}\n`,
+        `${JSON.stringify({ method, sandbox: parameters.sandbox, approvalPolicy: parameters.approvalPolicy, approvalsReviewer: parameters.approvalsReviewer, developerInstructions: parameters.developerInstructions })}\n`,
     );
 }
 
