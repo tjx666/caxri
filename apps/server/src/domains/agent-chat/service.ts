@@ -28,6 +28,7 @@ import { forkChat } from './chat-fork';
 import { readChatTerminalHistory } from './chat-history';
 import { isAgentChatCommandListed } from './chat-items';
 import { requireChatTerminal } from './chat-launch';
+import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
 import * as queueActions from './chat-queue-actions';
@@ -37,6 +38,7 @@ import type { ChatStartHost } from './chat-start';
 import { startChat } from './chat-start';
 import type { ChatState, ChatStateDelivery } from './chat-states';
 import { ChatStates } from './chat-states';
+import { isChatIdleForSuspension } from './chat-suspension';
 import { readChatTask, stopChatTask } from './chat-task-read';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -53,6 +55,8 @@ export class AgentChatService {
     private readonly starts = new SingleFlight<string, void>();
 
     private readonly agentRunAutonomy = new AgentRunAutonomy();
+
+    private readonly mobileWatchers = new ChatMobileWatchers();
 
     private readonly permissionSwitches: ChatPermissionSwitches;
 
@@ -181,9 +185,10 @@ export class AgentChatService {
     }
 
     /**
-     * Whether a Chat has a provider process or a start in flight, which is what a detach hands over.
+     * Whether a Chat has a provider process or a start in flight, which is what a detach hands over and what batch
+     * compaction requires before it reports a Chat as anything but not running.
      */
-    private isLive(terminalId: string): boolean {
+    isLive(terminalId: string): boolean {
         return this.states.get(terminalId)?.session?.isOpen === true || this.starts.has(terminalId);
     }
 
@@ -463,6 +468,101 @@ export class AgentChatService {
         for (const terminalId of this.states.clearDetachedSession(sessionId))
             // eslint-disable-next-line no-void -- a failed start is recorded in the projection every Client reads
             void this.startQuietly(terminalId, this.states.open(terminalId));
+    }
+
+    /**
+     * Registers a phone subscribed to this Chat; see {@link ChatMobileWatchers}.
+     */
+    watchMobile(terminalId: string): void {
+        this.mobileWatchers.watch(terminalId);
+    }
+
+    unwatchMobile(terminalId: string): void {
+        this.mobileWatchers.unwatch(terminalId);
+    }
+
+    isObservedRemotely(terminalId: string): boolean {
+        return this.mobileWatchers.has(terminalId);
+    }
+
+    /**
+     * Whether idle suspension may stop this Chat now; see {@link isChatIdleForSuspension}.
+     */
+    isSuspendable(terminalId: string): boolean {
+        const state = this.states.get(terminalId);
+        const terminal = this.options.database.getTerminal(terminalId);
+        return Boolean(
+            state &&
+            terminal &&
+            !this.starts.has(terminalId) &&
+            isChatIdleForSuspension(state, terminal),
+        );
+    }
+
+    /**
+     * The launch of a Chat whose provider is running and idle (see {@link isChatIdleForSuspension}), or `undefined`.
+     * Batch compaction reads it so it never wakes a stopped Chat or interrupts pending work.
+     */
+    idleLaunchId(terminalId: string): string | undefined {
+        return this.isSuspendable(terminalId) ? this.states.get(terminalId)?.launchId : undefined;
+    }
+
+    /**
+     * Batch compaction: runs the provider's native compaction on an idle Chat, through the send chain, only while the
+     * same launch is still idle when the command reaches the head of the chain. Rejects otherwise.
+     */
+    async compactIdle(terminalId: string, launchId: string): Promise<void> {
+        assertE2EAgentChatInput(readE2EAgentPolicy(), '/compact');
+        const state = this.states.get(terminalId);
+        if (!state || state.launchId !== launchId)
+            throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
+        await this.enqueueOn(terminalId, state, async (session) => {
+            if (state.launchId !== launchId || this.idleLaunchId(terminalId) !== launchId)
+                throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
+            if (!isAgentChatCommandListed(state.projection.snapshot, 'compact'))
+                throw new CaxriError('VALIDATION', '/compact is not available in this Chat');
+            await session.runCommand('compact', undefined);
+        });
+    }
+
+    /**
+     * Idle suspension: stops a background Chat's provider but keeps its projection, so every Client still shows the
+     * conversation, and records the Terminal as `suspended`. It runs on the send chain, so input accepted before it is
+     * delivered first and input accepted after it starts the provider again on the same Agent Session, as does the next
+     * read or {@link resumeSuspended}. Returns the record, or `undefined` when the Chat was no longer idle.
+     */
+    async suspendIdle(terminalId: string): Promise<TerminalRecord | undefined> {
+        const state = this.states.get(terminalId);
+        if (!state) return undefined;
+        const { database } = this.options;
+        const previous = state.sendQueue;
+        const run = (async () => {
+            await previous;
+            if (this.states.get(terminalId) !== state || !this.isSuspendable(terminalId)) return;
+            // The requested exit records `suspended` through this flag whenever it lands; a provider (Claude) may
+            // report it after `close` resolves, and writing here instead could overwrite a start that began since.
+            state.suspending = true;
+            const { session } = state;
+            await session?.close();
+            if (state.session === session) state.session = undefined;
+            return database.getTerminal(terminalId);
+        })();
+        state.sendQueue = Promise.allSettled([run]);
+        return run;
+    }
+
+    /**
+     * Selecting a Session starts its suspended Chats again, as it restores suspended PTYs. Only a Chat this process
+     * suspended is started: one an earlier Server Core left `suspended` resumes lazily on its next read, like any idle
+     * Chat after a restart.
+     */
+    resumeSuspended(sessionId: string): void {
+        for (const terminal of this.options.database.listTerminals(sessionId)) {
+            const state = this.states.get(terminal.id);
+            if (!state || state.session || terminal.lastProcessState !== 'suspended') continue;
+            // eslint-disable-next-line no-void -- a failed start is recorded in the projection every Client reads
+            void this.startQuietly(terminal.id, state);
+        }
     }
 
     /**

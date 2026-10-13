@@ -18,6 +18,7 @@ export interface MobileGatewayOptions {
         resource: MobileSubscriptionResource,
     ) => Promise<void>;
     beginConversationSubscription?: MobileAppOptions['beginConversationSubscription'];
+    beginAgentChatSubscription?: MobileAppOptions['beginAgentChatSubscription'];
     agentChatProjectRoot?: MobileAppOptions['agentChatProjectRoot'];
     bootId: string;
     now?: () => number;

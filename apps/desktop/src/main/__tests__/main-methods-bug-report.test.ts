@@ -150,6 +150,40 @@ describe('bugReport.send screenshot delivery gating', () => {
         expect(electronMock.clipboard.write).not.toHaveBeenCalled();
     });
 
+    it('attaches the screenshot to an idle Agent Chat message without touching the clipboard', async () => {
+        const deliver = vi.fn(() => Promise.resolve(null));
+        const request = requestWith(
+            terminal({ lastProcessState: 'exited', processId: undefined, surface: 'chat' }),
+            deliver,
+        );
+        const handle = handler(request);
+        const chatImage = {
+            data: 'Zm9v',
+            mediaType: 'image/jpeg' as const,
+            thumbnail: screenshot.dataUrl,
+        };
+
+        await handle({
+            method: 'bugReport.send',
+            params: {
+                chatImage,
+                report: 'issue',
+                screenshot,
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+            },
+        });
+        expect(request).toHaveBeenCalledWith('bugReport.deliver', {
+            images: [chatImage],
+            pasteImage: false,
+            report: 'issue',
+            sessionId: 'session-1',
+            terminalId: 'terminal-1',
+        });
+        expect(electronMock.nativeImage.createFromDataURL).not.toHaveBeenCalled();
+        expect(electronMock.clipboard.write).not.toHaveBeenCalled();
+    });
+
     it('never touches the clipboard for a provider without clipboard image input', async () => {
         const deliver = vi.fn(() => Promise.resolve(null));
         const request = requestWith(terminal({ provider: 'claude' }), deliver);

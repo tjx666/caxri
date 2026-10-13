@@ -41,6 +41,11 @@ export interface ChatState {
      */
     retiring?: ChatRetirement;
     /**
+     * Set while idle suspension stops the provider, so its requested exit records `suspended` (restored on selection)
+     * instead of `stopped`, whenever the exit lands. The next start clears it.
+     */
+    suspending?: boolean;
+    /**
      * Where the next start resumes the conversation, set by a rewind for the restart that follows it.
      */
     resumeAt?: string;
@@ -235,7 +240,8 @@ export class ChatStates {
      */
     recordRequestedStop(terminalId: string, state: ChatState): void {
         const { database } = this.options;
-        const processState = state.retiring === 'detached' ? 'detached' : 'stopped';
+        const processState =
+            state.retiring === 'detached' ? 'detached' : state.suspending ? 'suspended' : 'stopped';
         if (this.states.get(terminalId) === state) this.setStatus(terminalId, 'stopped');
         database.updateTerminalState(terminalId, processState);
         database.updateAgentProcessState(terminalId, processState);

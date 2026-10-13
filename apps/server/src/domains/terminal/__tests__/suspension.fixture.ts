@@ -53,6 +53,7 @@ function session(id: string, primaryAgentTerminalId: string) {
  */
 export function createHarness(
     options: {
+        chats?: ConstructorParameters<typeof TerminalSuspensionService>[0]['chats'];
         commanderSessionId?: string;
         /**
          * When set, every `terminals.suspend` call pauses instead of resolving immediately, standing in for the real
@@ -122,6 +123,7 @@ export function createHarness(
             write: (_level: string, event: string, entry?: { fields?: Record<string, unknown> }) =>
                 logs.push({ event, fields: entry?.fields ?? {} }),
         } as never,
+        chats: options.chats,
         now: () => now,
         onSuspendedSessionReselected: options.onSuspendedSessionReselected,
         selectedSessionId: () => selected,

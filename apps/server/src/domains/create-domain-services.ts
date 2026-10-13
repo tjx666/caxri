@@ -49,6 +49,7 @@ import {
     createTerminalCreation,
     createTerminalHandlers,
     createTerminalInputHandlers,
+    createTerminalLifecycleHandlers,
     createTerminalMoveHandler,
     terminalDirectoryIdentity,
     TerminalManager,
@@ -213,8 +214,9 @@ export async function createDomainServices(
         send,
         settings: () => configuration.getSettings().value,
         ...dependencies.terminalSuspension,
-        remoteObservers: [dependencies.terminalExecution, transcripts],
+        remoteObservers: [dependencies.terminalExecution, transcripts, agentChat],
         terminals,
+        chats: agentChat,
         watchHub,
     });
     suspensionState.service = terminalSuspension;
@@ -301,7 +303,10 @@ export async function createDomainServices(
         terminalRestores,
     });
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
-        createBackgroundTasks(logger, files, git, restoreInterruptedTerminals);
+        createBackgroundTasks(logger, files, git, async (sessionId, options) => {
+            agentChat.resumeSuspended(sessionId);
+            await restoreInterruptedTerminals(sessionId, options);
+        });
     terminalSuspension.setOnSuspendedSessionReselected(restoreInterruptedTerminalsInBackground);
     const { restore: restoreCommander, supervisor: commanderRestores } =
         createCommanderTerminalRestorer(restorerOptions);
@@ -415,6 +420,7 @@ export async function createDomainServices(
         database.close();
     }
     const compaction = new SessionCompaction({
+        agentChat,
         database,
         coordinator,
         terminals,
@@ -459,7 +465,7 @@ export async function createDomainServices(
             observeSelectedSession,
         }),
         'bugReport.context': () => diagnostics.reportContext(),
-        ...createBugReportDeliveryHandler({ database, terminals }),
+        ...createBugReportDeliveryHandler({ agentChat, database, terminals }),
         'project.list': () => ({ view: 'desktop', projects: database.listVisibleProjects() }),
         'project.queryForPrincipal': ({ principal, query }) =>
             introspection.records.project(query, principal),
@@ -468,6 +474,7 @@ export async function createDomainServices(
         ...createProjectFolderBrowser(),
         ...createSessionCreationHandlers(database, createSessionForProject),
         ...createMobileDomainHandlers({
+            agentChat,
             autoAllow: agentRuntime,
             attentionRequests,
             imageDirectory: join(userDataPath, 'mobile-attachments'),
@@ -513,33 +520,18 @@ export async function createDomainServices(
         },
         'session.queryForPrincipal': ({ principal, query }) =>
             introspection.records.session(query, principal),
-        'terminal.create': async ({ sessionId, kind, cwd, surface }) => {
-            const terminal =
-                surface === 'chat'
-                    ? await createChatTerminal(sessionId, kind, cwd)
-                    : await createAndStartTerminal(sessionId, kind, cwd);
-            if (terminal.provider) coordinator.probeTerminal(terminal.id);
-            sendFullStateChange('terminal.create');
-            return terminal;
-        },
-        'terminal.createInExternalDirectory': async ({ sessionId, cwd }) => {
-            const terminal = await createAndStartTerminal(sessionId, 'shell', cwd, undefined, cwd);
-            sendFullStateChange('terminal.create');
-            return terminal;
-        },
         ...terminalInputs,
-        'terminal.close': ({ terminalId }) =>
-            mobileTerminalMutations.run(terminalId, () => {
-                const sessionId = database.getTerminal(terminalId)?.sessionId;
-                coordinator.forgetTerminal(terminalId);
-                transcripts.forgetTerminal(terminalId);
-                // eslint-disable-next-line no-void -- the provider exits on its own; the record is removed now.
-                void agentChat.close(terminalId);
-                terminals.close(terminalId);
-                if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);
-                sendFullStateChange('terminal.close');
-                return null;
-            }),
+        ...createTerminalLifecycleHandlers({
+            agentChat,
+            coordinator,
+            createAndStartTerminal,
+            createChatTerminal,
+            database,
+            mobileTerminalMutations,
+            sendFullStateChange,
+            terminals,
+            transcripts,
+        }),
         ...relaunchHandlers,
         ...createTerminalHandlers({
             countLiveChats: (sessionId) => agentChat.liveCount(sessionId),
@@ -593,7 +585,15 @@ export async function createDomainServices(
             userDataPath,
             vercel,
         }),
-        ...createGitReviewHandlers({ database, git, longPastes, send, terminalInput, terminals }),
+        ...createGitReviewHandlers({
+            agentChat,
+            database,
+            git,
+            longPastes,
+            send,
+            terminalInput,
+            terminals,
+        }),
     };
     observeSelectedSession(selectedSessionId());
     terminalSuspension.start();

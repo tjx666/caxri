@@ -46,6 +46,16 @@ the previous turn was running. Unknown, restored, queued, and permission-interru
 skipped rather than cleared. After restarting Caxri, complete a normal turn before batch compaction can
 safely target that Session. Existing manual `/compact` remains available.
 
+A primary Agent Chat needs no input proof: its composer draft never reaches the provider, and its own
+projection says whether it is idle. The Server compacts a Chat only while its provider is running,
+bound to an Agent Session, and reports no turn, approval, operation, running task, or queued message
+(`AgentChatService.idleLaunchId`). It then runs the provider's native compaction (Claude Code's
+`/compact`, Codex's `thread/compact/start`) through the Chat's send chain with
+`AgentChatService.compactIdle`, which rechecks that the same launch is still idle. A stopped or
+suspended Chat, or one with no provider in this Server Core, is reported `not_running` and is never
+started for this. A Chat that left the idle launch before delivery reports `changed`, and a provider
+without a native compact command reports `unsupported`.
+
 The Server rechecks primary Terminal, provider binding, Session visibility, launch generation, turn,
 and idle proof after its asynchronous read and immediately before submission. It consumes input proof
 before writing, so repeat clicks and ambiguous delivery never trigger automatic retries. Ordinary

@@ -31,13 +31,12 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.reviewSend.sendToAgentOne': '将 {{count}} 条评论发送给 Agent',
     'editor.reviewSend.sendToAgentOther': '将 {{count}} 条评论发送给 Agent',
     'editor.reviewSend.dialogTitle': '将评审评论发送给 Agent',
-    'editor.reviewSend.dialogDescription':
-        '发送前请检查以下文本，它将发送到当前会话的 Agent 终端。',
+    'editor.reviewSend.dialogDescription': '发送前请检查以下文本，它将发送到当前会话的 Agent。',
     'editor.reviewSend.promptPreview': '评审评论提示词预览',
     'editor.reviewSend.sending': '正在发送…',
     'editor.reviewSend.sendOne': '发送 {{count}} 条评论',
     'editor.reviewSend.sendOther': '发送 {{count}} 条评论',
-    'editor.reviewSend.noAgentTerminal': '此会话中没有正在运行的 Agent 终端',
+    'editor.reviewSend.noAgentTerminal': '此会话中没有 Agent',
     'editor.reviewSend.agentNotReady': 'Agent 终端尚未准备好接收输入',
     'editor.reviewSend.failed': '无法发送评审评论',
 

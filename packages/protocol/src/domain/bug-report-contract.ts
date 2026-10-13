@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentChatImageInputSchema } from '../agent/agent-chat-methods.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { identifierSchema } from './identifiers.js';
@@ -65,6 +66,11 @@ export const bugReportMethods = {
     'bugReport.send': {
         ...commandPolicy('desktop', 'write'),
         params: z.object({
+            /**
+             * The annotated screenshot already encoded as a Chat image attachment. Only an Agent Chat whose provider
+             * accepts images (`capabilities.chatImages`) receives one; a PTY Agent takes `screenshot` instead.
+             */
+            chatImage: agentChatImageInputSchema.optional(),
             report: bugReportText,
             screenshot: bugReportScreenshot.optional(),
             sessionId: identifierSchema,
@@ -78,6 +84,10 @@ export const bugReportInternalMethods = {
     'bugReport.deliver': {
         ...commandPolicy('server', 'control'),
         params: z.object({
+            /**
+             * Chat image attachments sent with the report as one message; only valid for an Agent Chat.
+             */
+            images: z.array(agentChatImageInputSchema).max(1).optional(),
             pasteImage: z.boolean(),
             report: bugReportText,
             sessionId: identifierSchema,

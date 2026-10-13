@@ -55,6 +55,10 @@ export interface MobileAppOptions {
         sessionId: string,
     ) => Promise<() => void>;
     /**
+     * Registers a phone watching an Agent Chat so idle suspension leaves it running; returns the matching release.
+     */
+    beginAgentChatSubscription?: (principal: Principal, terminalId: string) => Promise<() => void>;
+    /**
      * The Project root an Agent Chat subscription relativizes changed-file paths against; see
      * `clipAgentChatPatchForMobile`.
      */
@@ -98,6 +102,7 @@ export class MobileGatewayFrameRouter {
         this.#subscriptions = new MobileGatewaySubscriptions({
             authorize: options.authorizeSubscription,
             beginConversation: options.beginConversationSubscription,
+            beginAgentChat: options.beginAgentChatSubscription,
             agentChatProjectRoot: options.agentChatProjectRoot,
             currentPrincipal: () => options.context().principal,
             matches: options.matchesSubscriptionEvent,

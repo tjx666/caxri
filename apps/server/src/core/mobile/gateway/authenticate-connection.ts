@@ -33,6 +33,7 @@ export interface AuthenticateConnectionDependencies {
         | 'agentChatProjectRoot'
         | 'authorizeMethod'
         | 'authorizeSubscription'
+        | 'beginAgentChatSubscription'
         | 'beginConversationSubscription'
     > & {
         logger?: Pick<StructuredLogger, 'write'>;
@@ -58,6 +59,7 @@ export const connectionOptions = (
     authorizeMethod: options.authorizePairedDeviceMethod,
     authorizeSubscription: options.authorizeSubscription,
     beginConversationSubscription: options.beginConversationSubscription,
+    beginAgentChatSubscription: options.beginAgentChatSubscription,
     agentChatProjectRoot: options.agentChatProjectRoot,
     logger: options.logger,
     matchesSubscriptionEvent: options.matchesSubscriptionEvent,
@@ -125,6 +127,7 @@ export async function authenticateConnection(
         authorizeMethod: dependencies.options.authorizeMethod,
         authorizeSubscription: dependencies.options.authorizeSubscription,
         beginConversationSubscription: dependencies.options.beginConversationSubscription,
+        beginAgentChatSubscription: dependencies.options.beginAgentChatSubscription,
         agentChatProjectRoot: dependencies.options.agentChatProjectRoot,
         context: () => dependencies.context(session),
         dispatch: dependencies.dispatch,
