@@ -140,6 +140,16 @@ describe('BenchmarkService', () => {
             expect(attempt.tokens).toBeUndefined();
             expect(attempt.costUsd).toBeUndefined();
         }
+        // Every driver reports first output, context usage, and compactions through the Chat stream.
+        for (const attempt of run.attempts) {
+            expect(attempt.timeToFirstTokenMs).toBeGreaterThanOrEqual(0);
+            expect(attempt.compactions).toBe(0);
+            expect(attempt.context?.peakTokens).toBeGreaterThan(0);
+            expect(attempt.context?.window).toBeGreaterThan(0);
+        }
+        // Generation time comes from the transcript, which only the Claude fake writes.
+        expect(claude.generation).toMatchObject({ outputTokens: 40, responses: 1 });
+        expect(codex.generation).toBeUndefined();
         expect(run.pricing?.source).toBe('bundled');
         expect(new BenchmarkRunsModel(harness.database.database).get(runId)?.status).toBe(
             'completed',

@@ -15,6 +15,7 @@ import {
     seriesColor,
 } from './benchmark-presentation';
 import type { ChartModel, ChartPoint, QualitySource } from './benchmark-results';
+import { isHigherBetter } from './benchmark-results';
 
 const CHART_HEIGHT = 380;
 /**
@@ -107,7 +108,12 @@ export function BenchmarkChart({
     const byEntry = new Map(layout.points.map((point) => [point.entryIndex, point]));
     const yTitle =
         chart.y === 'quality' ? qualityLabel(t, source) : t('benchmark.chart.timeFaster');
-    const xTitle = t('benchmark.chart.xTitle', { metric: metricLabel(t, chart.x) });
+    const xTitle = t(
+        isHigherBetter(chart.x) ? 'benchmark.chart.xTitleMore' : 'benchmark.chart.xTitle',
+        {
+            metric: metricLabel(t, chart.x),
+        },
+    );
     return (
         <div ref={reference} className="relative w-full" data-benchmark-chart>
             {width > 0 && (

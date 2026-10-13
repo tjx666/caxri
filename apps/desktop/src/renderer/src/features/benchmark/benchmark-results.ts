@@ -1,4 +1,9 @@
-import type { BenchmarkAttempt, BenchmarkEntry, BenchmarkRun } from '@caxri/protocol';
+import type {
+    BenchmarkAttempt,
+    BenchmarkEntry,
+    BenchmarkRun,
+    UsageTokenBreakdown,
+} from '@caxri/protocol';
 
 /**
  * What one Entry (an Agent, model, and effort) achieved across its repeats.
@@ -25,6 +30,27 @@ export interface ConfigResult {
     totalTokens?: number;
     steps?: number;
     /**
+     * Median time to first token of the completed Attempts.
+     */
+    timeToFirstTokenMs?: number;
+    /**
+     * Output tokens per second of model generation over the completed Attempts, present only when every one of them was
+     * measured.
+     */
+    tokensPerSecond?: number;
+    /**
+     * Share (0 to 1) of input tokens served from the prompt cache over the completed Attempts.
+     */
+    cacheHitRate?: number;
+    /**
+     * The fullest context any completed Attempt reached, with its share of the window the Agent compacts against.
+     */
+    peakContext?: { tokens: number; ratio?: number };
+    /**
+     * Mean compactions per completed Attempt.
+     */
+    compactions?: number;
+    /**
      * Mean judge score (0 to 100) of the completed Attempts the judge scored.
      */
     score?: number;
@@ -41,9 +67,85 @@ export interface ConfigResult {
  */
 export type QualitySource = 'judge' | 'check' | 'none';
 
-export type BenchmarkMetric = 'cost' | 'time' | 'outputTokens' | 'steps';
+export type BenchmarkMetric =
+    | 'cost'
+    | 'time'
+    | 'outputTokens'
+    | 'steps'
+    | 'timeToFirstToken'
+    | 'tokensPerSecond'
+    | 'cacheHitRate';
 
-const BENCHMARK_METRICS: readonly BenchmarkMetric[] = ['cost', 'time', 'outputTokens', 'steps'];
+const BENCHMARK_METRICS: readonly BenchmarkMetric[] = [
+    'cost',
+    'time',
+    'outputTokens',
+    'steps',
+    'timeToFirstToken',
+    'tokensPerSecond',
+    'cacheHitRate',
+];
+
+/**
+ * Metrics where more is better. The chart runs their axis low to high, and every other one high to low, so the best
+ * point always sits on the right.
+ */
+export function isHigherBetter(metric: BenchmarkMetric): boolean {
+    return metric === 'tokensPerSecond' || metric === 'cacheHitRate';
+}
+
+/**
+ * Share of input tokens read from the prompt cache. Cache writes count as uncached input: they were billed as new.
+ */
+export function cacheHitRate(tokens: UsageTokenBreakdown): number | undefined {
+    const input = tokens.input + tokens.cacheRead + tokens.cacheWrite;
+    return input > 0 ? tokens.cacheRead / input : undefined;
+}
+
+/**
+ * Output tokens per second while the model generated, or `undefined` when the Agent's transcript has no timing.
+ */
+export function tokensPerSecond(attempt: BenchmarkAttempt): number | undefined {
+    const generation = attempt.generation;
+    return generation ? generation.outputTokens / (generation.durationMs / 1_000) : undefined;
+}
+
+/**
+ * The context an Attempt reached against the window the Agent compacts at, which is when pressure starts to matter.
+ */
+export function contextRatio(
+    context: NonNullable<BenchmarkAttempt['context']>,
+    tokens = context.peakTokens,
+): number | undefined {
+    const window = context.compactWindow ?? context.window;
+    return window ? tokens / window : undefined;
+}
+
+/**
+ * Every token of an Attempt and the judge summed field by field, for the run's total.
+ */
+export function runTokens(run: BenchmarkRun): UsageTokenBreakdown | undefined {
+    return sumTokens([...run.attempts.map((attempt) => attempt.tokens), run.judge?.tokens]);
+}
+
+function sumTokens(
+    breakdowns: ReadonlyArray<UsageTokenBreakdown | undefined>,
+): UsageTokenBreakdown | undefined {
+    const parts = breakdowns.filter((tokens) => tokens !== undefined);
+    if (parts.length === 0) return undefined;
+    const total: UsageTokenBreakdown = {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        reasoning: 0,
+        total: 0,
+    };
+    for (const tokens of parts)
+        for (const key of Object.keys(total) as Array<keyof UsageTokenBreakdown>)
+            total[key] += tokens[key];
+    return total;
+}
 
 const FINAL_STATUSES = new Set<BenchmarkAttempt['status']>([
     'completed',
@@ -117,6 +219,7 @@ export function configResults(run: BenchmarkRun): ConfigResult[] {
             const totalTokens = meanOfAll(completed, (attempt) => attempt.tokens?.total);
             if (totalTokens !== undefined) result.totalTokens = totalTokens;
             result.steps = mean(completed.map((attempt) => attempt.steps));
+            Object.assign(result, performanceOf(completed));
         }
         const score = mean(scores);
         if (score !== undefined) result.score = score;
@@ -126,6 +229,55 @@ export function configResults(run: BenchmarkRun): ConfigResult[] {
                 checked.length;
         return result;
     });
+}
+
+/**
+ * Speed, cache, and context figures of an Entry's completed Attempts. Rates are pooled (summed tokens over summed time)
+ * rather than averaged, so a short Attempt does not weigh as much as a long one.
+ */
+function performanceOf(
+    completed: readonly BenchmarkAttempt[],
+): Pick<
+    ConfigResult,
+    'cacheHitRate' | 'compactions' | 'peakContext' | 'timeToFirstTokenMs' | 'tokensPerSecond'
+> {
+    const result: ReturnType<typeof performanceOf> = {};
+    const firstTokens = completed.flatMap((attempt) =>
+        attempt.timeToFirstTokenMs === undefined ? [] : [attempt.timeToFirstTokenMs],
+    );
+    const timeToFirstTokenMs = median(firstTokens);
+    if (timeToFirstTokenMs !== undefined) result.timeToFirstTokenMs = timeToFirstTokenMs;
+    if (completed.every((attempt) => attempt.generation)) {
+        const outputTokens = completed.reduce(
+            (sum, a) => sum + (a.generation?.outputTokens ?? 0),
+            0,
+        );
+        const durationMs = completed.reduce((sum, a) => sum + (a.generation?.durationMs ?? 0), 0);
+        if (durationMs > 0) result.tokensPerSecond = outputTokens / (durationMs / 1_000);
+    }
+    if (completed.every((attempt) => attempt.tokens)) {
+        const pooled = sumTokens(completed.map((attempt) => attempt.tokens));
+        const rate = pooled && cacheHitRate(pooled);
+        if (rate !== undefined) result.cacheHitRate = rate;
+    }
+    const peak = completed
+        .map((attempt) => attempt.context)
+        .filter((context) => context !== undefined)
+        .reduce<NonNullable<BenchmarkAttempt['context']> | undefined>(
+            (fullest, context) =>
+                !fullest || context.peakTokens > fullest.peakTokens ? context : fullest,
+            undefined,
+        );
+    if (peak) {
+        const ratio = contextRatio(peak);
+        result.peakContext = { tokens: peak.peakTokens, ...(ratio !== undefined && { ratio }) };
+    }
+    const compactions = completed.flatMap((attempt) =>
+        attempt.compactions === undefined ? [] : [attempt.compactions],
+    );
+    const meanCompactions = mean(compactions);
+    if (meanCompactions !== undefined) result.compactions = meanCompactions;
+    return result;
 }
 
 /**
@@ -170,6 +322,15 @@ function metricOf(result: ConfigResult, metric: BenchmarkMetric): number | undef
         }
         case 'steps': {
             return result.completed > 0 ? result.steps : undefined;
+        }
+        case 'timeToFirstToken': {
+            return result.timeToFirstTokenMs;
+        }
+        case 'tokensPerSecond': {
+            return result.tokensPerSecond;
+        }
+        case 'cacheHitRate': {
+            return result.cacheHitRate === undefined ? undefined : result.cacheHitRate * 100;
         }
     }
 }
@@ -271,18 +432,21 @@ export function buildChart(
         });
     }
     /**
-     * Lower is better on every horizontal metric; on the vertical axis higher quality, or lower time, is better.
+     * Positive when `left` is better: on the vertical axis higher quality, or lower time; on the horizontal axis the
+     * metric's own direction.
      */
     const yBetter = (left: number, right: number) =>
         y === 'quality' ? left - right : right - left;
+    const xBetter = (left: number, right: number) =>
+        isHigherBetter(x) ? left - right : right - left;
     for (const point of points)
         point.isFrontier = points.every(
             (other) =>
                 !(
                     other !== point &&
-                    other.x <= point.x &&
+                    xBetter(other.x, point.x) >= 0 &&
                     yBetter(other.y, point.y) >= 0 &&
-                    (other.x < point.x || yBetter(other.y, point.y) > 0)
+                    (xBetter(other.x, point.x) > 0 || yBetter(other.y, point.y) > 0)
                 ),
         );
     const groups = new Map<string, ChartPoint[]>();

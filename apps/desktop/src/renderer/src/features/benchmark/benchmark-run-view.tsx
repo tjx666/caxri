@@ -1,7 +1,12 @@
 import { useState } from 'react';
 
 import type { BenchmarkCatalog, BenchmarkRun } from '@caxri/protocol';
-import { agentProviderCatalog, formatShortDuration, formatUsd } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    formatShortDuration,
+    formatTokens,
+    formatUsd,
+} from '@caxri/protocol';
 import { RotateCcw, Square, Trash2 } from 'lucide-react';
 
 import { ReportCard, StatTile } from '../../components/report-card';
@@ -23,6 +28,7 @@ import {
     qualitySource,
     rankResults,
     runSpend,
+    runTokens,
 } from './benchmark-results';
 
 function runCaption(
@@ -100,6 +106,7 @@ export function BenchmarkRunView({
             ? undefined
             : ranked.find((result) => result.completed > 0);
     const spend = runSpend(run);
+    const tokens = runTokens(run);
     const completed = run.attempts.filter((attempt) => attempt.status === 'completed').length;
     const wallMs = (run.finishedAt ?? now) - run.createdAt;
     const unplottedNames = results
@@ -161,7 +168,7 @@ export function BenchmarkRunView({
                 </summary>
                 <p className="mt-2 mb-0 leading-[1.5] whitespace-pre-wrap">{run.prompt}</p>
             </details>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(112px,1fr))] gap-3">
                 <StatTile
                     label={t('benchmark.run.best')}
                     value={
@@ -185,6 +192,20 @@ export function BenchmarkRunView({
                     detail={t(
                         spend.isPartial ? 'benchmark.run.spentPartial' : 'benchmark.run.spentBasis',
                     )}
+                />
+                <StatTile
+                    label={t('benchmark.run.tokens')}
+                    value={tokens ? formatTokens(tokens.total) : undefined}
+                    detail={
+                        tokens
+                            ? `${t('benchmark.run.tokensDetail', {
+                                  input: formatTokens(tokens.input),
+                                  output: formatTokens(tokens.output),
+                                  cacheRead: formatTokens(tokens.cacheRead),
+                                  cacheWrite: formatTokens(tokens.cacheWrite),
+                              })}${run.judge?.tokens ? ` · ${t('benchmark.run.tokensJudge')}` : ''}`
+                            : undefined
+                    }
                 />
                 <StatTile
                     label={t('benchmark.run.wallTime')}

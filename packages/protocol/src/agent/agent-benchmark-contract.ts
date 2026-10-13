@@ -130,6 +130,34 @@ export const benchmarkDiffStatSchema = z.strictObject({
 });
 export type BenchmarkDiffStat = z.infer<typeof benchmarkDiffStatSchema>;
 
+/**
+ * How full the Agent's context window got during an Attempt, from the usage the Agent reported after each response.
+ */
+export const benchmarkContextUsageSchema = z.strictObject({
+    peakTokens: count,
+    finalTokens: count,
+    /**
+     * The model's context window, when the Agent reported one.
+     */
+    window: z.number().int().positive().optional(),
+    /**
+     * The smaller window the Agent compacts against, when it has one; context pressure is measured against it.
+     */
+    compactWindow: z.number().int().positive().optional(),
+});
+export type BenchmarkContextUsage = z.infer<typeof benchmarkContextUsageSchema>;
+
+/**
+ * Output tokens and the time the model spent generating them, summed over the Attempt's measured responses. Excludes
+ * tool and command time, so tokens per second describes the model, not the task.
+ */
+export const benchmarkGenerationSchema = z.strictObject({
+    outputTokens: count,
+    durationMs: z.number().int().positive(),
+    responses: z.number().int().positive(),
+});
+export type BenchmarkGeneration = z.infer<typeof benchmarkGenerationSchema>;
+
 export const benchmarkAttemptSchema = z.strictObject({
     id: identifierSchema,
     entryIndex: count,
@@ -162,6 +190,20 @@ export const benchmarkAttemptSchema = z.strictObject({
     costUsd: z.number().nonnegative().optional(),
     costSource: benchmarkCostSourceSchema.optional(),
     /**
+     * From sending the prompt until the Agent's first output (text, reasoning, or a tool call) reached the Chat stream.
+     * Includes the provider's own startup of the turn, which is part of what a user waits for.
+     */
+    timeToFirstTokenMs: count.optional(),
+    /**
+     * Absent for an Agent whose transcript carries no per-response timing (Grok Build).
+     */
+    generation: benchmarkGenerationSchema.optional(),
+    context: benchmarkContextUsageSchema.optional(),
+    /**
+     * Times the Agent compacted its context during the turn. Present once the turn started.
+     */
+    compactions: count.optional(),
+    /**
      * Commands, file changes, and tool calls the Agent made. Live while the Attempt runs.
      */
     steps: count,
@@ -183,6 +225,7 @@ export const benchmarkJudgeRunSchema = z.strictObject({
     status: z.enum(['pending', 'running', 'completed', 'failed', 'skipped']),
     failureMessage: z.string().max(2_000).optional(),
     costUsd: z.number().nonnegative().optional(),
+    tokens: usageTokenBreakdownSchema.optional(),
     durationMs: count.optional(),
 });
 export type BenchmarkJudgeRun = z.infer<typeof benchmarkJudgeRunSchema>;
