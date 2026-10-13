@@ -1242,7 +1242,11 @@ reply and Copy, a finished turn shows what it left behind as `--surface` cards w
 card's single expand toggle, and it carries no external arrow because nothing leaves the Chat), a
 ghost Undo, and a labeled secondary Review (the one action that opens something else: the whole
 turn as one commentable diff in a side tab), then one row per file with its directory in `--muted`
-and its name in `--foreground`, each disclosing its own diff; then one card per pull request or
+and its name in `--foreground`, each disclosing its own diff. Past three files the rest fold behind a
+`Show N more files` row (the Codex app's fold, so a large turn does not push the next reply off
+screen) that becomes `Show fewer files` once unfolded; unlike the sidebar's reveal row it carries a
+chevron, because it collapses again. Folding closes the hidden rows' diffs, and disclosing every
+diff from the header unfolds the list first. Then one card per pull request or
 issue the turn created or edited, with the GitHub or Linear mark, the title, a monospace
 `owner/repo#N` or `ENG-12`, the body's first line, and `Created pull request` with a trailing
 external arrow at the end, since that card opens the browser. A screen

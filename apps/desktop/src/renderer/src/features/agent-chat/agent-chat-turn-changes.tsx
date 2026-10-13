@@ -171,6 +171,19 @@ export function AgentChatTurnChanges({
         if (!isAllExpanded) setListExpanded(true);
         setExpanded(isAllExpanded ? new Set() : new Set(files.map((file) => file.path)));
     };
+    /**
+     * Folding the list also closes the diffs of the rows it hides, so the header's `Hide changes` state never counts a
+     * diff the reader cannot see, and unfolding again shows those rows closed.
+     */
+    const toggleList = (): void => {
+        if (isListExpanded) {
+            const hidden = new Set(
+                files.slice(AGENT_CHAT_COLLAPSED_FILE_ROWS).map((file) => file.path),
+            );
+            setExpanded((current) => new Set([...current].filter((path) => !hidden.has(path))));
+        }
+        setListExpanded(!isListExpanded);
+    };
     const toggle = (path: string): void =>
         setExpanded((current) => {
             const next = new Set(current);
@@ -296,7 +309,7 @@ export function AgentChatTurnChanges({
                             aria-expanded={isListExpanded}
                             className="flex h-9 w-full cursor-pointer items-center gap-1 border-0 border-t border-border bg-transparent px-3 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:-outline-offset-1 focus-visible:outline-accent"
                             type="button"
-                            onClick={() => setListExpanded((current) => !current)}
+                            onClick={toggleList}
                         >
                             {agentChatLocalizedFileListToggle(hiddenCount, t)}
                             <ChevronDown
