@@ -48,8 +48,7 @@ export async function startChat(
     state.launchId = launchId;
     state.suspending = undefined;
     states.setStatus(terminalId, 'starting');
-    database.updateTerminalState(terminalId, 'starting');
-    database.updateAgentProcessState(terminalId, 'starting');
+    states.writeProcessState(terminalId, 'starting');
     states.publish(terminalId);
     options.coordinator.beginTerminalLaunch(terminalId, launchId);
     const isCurrent = () => state.launchId === launchId && states.get(terminalId) === state;
@@ -129,8 +128,7 @@ export async function startChat(
         }
         await endpoint.activate(terminalId);
         states.setStatus(terminalId, 'ready');
-        database.updateTerminalState(terminalId, 'running');
-        database.updateAgentProcessState(terminalId, 'running');
+        states.writeProcessState(terminalId, 'running');
         states.publish(terminalId);
         if (database.getTerminal(terminalId)?.agentSessionId)
             options.coordinator.probeTerminal(terminalId);

@@ -27,7 +27,7 @@ describe('Agent command handlers', () => {
         };
         const handlers = createAgentCommandHandlers({
             coordinator: { observeInterrupt } as unknown as AgentCoordinator,
-            database: {} as CaxriDatabase,
+            database: { getTerminal: () => {} } as unknown as CaxriDatabase,
             dispatch: {} as AgentDispatchService,
             emit: vi.fn(),
             endpoints: {

@@ -220,6 +220,7 @@ export function didPersistChatStartFailure(
         failure.detail,
     );
     database.updateAgentProcessState(terminalId, 'failed');
+    options.onAgentStateChanged?.(terminalId, 'failed');
     return true;
 }
 

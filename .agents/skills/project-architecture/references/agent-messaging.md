@@ -34,7 +34,10 @@ Server Core persists a dispatch receipt before a fresh Terminal or resumed manag
 resume to the Terminal's exact provider session binding, and reports lifecycle changes from managed Agent
 process events without reading output or silence. Server Core and Terminal Host both revalidate the exact
 launch ID before an interrupt or stop reaches the current Caxri-owned Agent child; control never targets the
-long-lived Shell root. A client disconnect explicitly cancels its dispatch long poll.
+long-lived Shell root. A client disconnect explicitly cancels its dispatch long poll. A Chat Terminal target
+has no child process to signal: `terminal.sendInternal`, interrupt, stop, and dispatch `resume`/`wake` drive it
+through `AgentChatService` (`agent-dispatch/chat-target.ts`, `chat-launch.ts`), and its process state reaches
+receipts through `AgentChatServiceOptions.onAgentStateChanged`; dispatch `start` still creates a PTY.
 
 The Agent Commander Endpoint is the one fixed exception to grant-only delegation. Domain services begin
 it with `role: 'commander'`, which adds `commander` and `agents.delegate` while its Project scope stays
