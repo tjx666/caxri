@@ -99,7 +99,11 @@ function openAiStatusPages(now: number) {
                     status: 'partial_outage',
                 },
             ],
-            component_uptimes: [{ component_id: 'cx-api', uptime: '99.95' }],
+            // The live feed also lists a per-group figure keyed by group id, without a `component_id`.
+            component_uptimes: [
+                { component_id: 'cx-api', uptime: '99.95' },
+                { status_page_component_group_id: 'cx-group', uptime: '99.90' },
+            ],
         },
     };
 }
