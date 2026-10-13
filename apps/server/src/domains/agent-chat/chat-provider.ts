@@ -153,6 +153,11 @@ export interface AgentChatSessionHost {
      */
     resumeAt?: string;
     clientVersion: string;
+    /**
+     * Caxri's own instructions for this Agent, added to the provider's system or developer instructions without
+     * replacing the user's. Absent for the Agent Commander, whose workspace carries its own.
+     */
+    instructions?: string;
     spawnProcess?: SpawnChatProcess;
     /**
      * Bound on a request that starts or steers a turn. Tests shorten it to exercise a provider that answers late.

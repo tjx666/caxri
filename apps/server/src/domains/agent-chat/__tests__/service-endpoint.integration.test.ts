@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { AGENT_SESSION_DISCOVERY_CONTEXT } from '../../agents';
 import type { AgentChatEndpoint } from '../service-options';
 import { fixture } from './chat-service-fixture';
 
@@ -33,6 +34,27 @@ describe('Agent Chat Endpoint', () => {
 
         await service.close(terminal.id);
         await vi.waitFor(() => expect(lease.retire).toHaveBeenCalledWith(terminal.id));
+    });
+
+    it('tells an Agent that carries the Caxri CLI how to start work in another Session', async () => {
+        const lease = endpoint({
+            environment: vi.fn(() => Promise.resolve({ CAXRI_CLI: '/profile/bin/caxri' })),
+        });
+        const { service, terminal, threadOpens, until } = await fixture({ endpoint: lease });
+        service.read(terminal.id);
+        await until((snapshot) => snapshot.status === 'ready');
+
+        expect((await threadOpens()).at(-1)).toMatchObject({
+            developerInstructions: AGENT_SESSION_DISCOVERY_CONTEXT,
+        });
+    });
+
+    it('adds no instructions to an Agent without the Caxri CLI', async () => {
+        const { service, terminal, threadOpens, until } = await fixture({ endpoint: endpoint() });
+        service.read(terminal.id);
+        await until((snapshot) => snapshot.status === 'ready');
+
+        expect((await threadOpens()).at(-1)).not.toHaveProperty('developerInstructions');
     });
 
     it('fails the start and retires the generation when activation is refused', async () => {
