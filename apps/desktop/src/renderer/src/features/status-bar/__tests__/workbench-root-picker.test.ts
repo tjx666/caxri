@@ -8,12 +8,27 @@ const mocks = vi.hoisted(() => ({
     request: vi.fn(),
     confirm:
         vi.fn<
-            (options: { message: string; title: string; confirmLabel: string }) => Promise<boolean>
+            (options: {
+                message: string;
+                title: string;
+                confirmLabel: string;
+                dontAskAgainLabel?: string;
+            }) => Promise<{ isConfirmed: boolean; dontAskAgain: boolean }>
         >(),
     refresh: vi.fn(),
+    settings: {} as Record<string, unknown>,
+    getSettings: vi.fn(() => Promise.resolve({ source: '{}' })),
+    updateSettings: vi.fn<(update: { source: string }) => Promise<void>>(() => Promise.resolve()),
 }));
 vi.mock('../../../lib/caxri', () => ({
-    caxri: { request: mocks.request, window: { showConfirm: mocks.confirm } },
+    caxri: { request: mocks.request, window: { showConfirmChoice: mocks.confirm } },
+}));
+vi.mock('../../../stores/selectors', () => ({
+    getBootstrap: () => ({ settings: mocks.settings }),
+}));
+vi.mock('../../settings/settings-client', () => ({
+    getSettings: mocks.getSettings,
+    updateSettings: mocks.updateSettings,
 }));
 vi.mock('../../../stores/workbench', () => ({
     useWorkbenchStore: { getState: () => ({ refresh: mocks.refresh }) },
@@ -44,6 +59,7 @@ function option(id: string, extra: Partial<WorkbenchRootOption> = {}): Workbench
 describe('Workbench Root picker', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mocks.settings = {};
         mocks.request.mockResolvedValue({ id: 'session' });
         mocks.refresh.mockResolvedValue(undefined);
     });
@@ -73,7 +89,7 @@ describe('Workbench Root picker', () => {
         );
     });
     it('cancels first authorization without submitting or refreshing state', async () => {
-        mocks.confirm.mockResolvedValue(false);
+        mocks.confirm.mockResolvedValue({ isConfirmed: false, dontAskAgain: false });
         await expect(selectWorkbenchRoot('session', option('unapproved'))).resolves.toBe(
             'canceled',
         );
@@ -81,7 +97,7 @@ describe('Workbench Root picker', () => {
         expect(mocks.refresh).not.toHaveBeenCalled();
     });
     it('shows the destination and sends only its ID after explicit confirmation', async () => {
-        mocks.confirm.mockResolvedValue(true);
+        mocks.confirm.mockResolvedValue({ isConfirmed: true, dontAskAgain: false });
         await expect(selectWorkbenchRoot('session', option('unapproved'))).resolves.toBe(
             'selected',
         );
@@ -91,6 +107,32 @@ describe('Workbench Root picker', () => {
             worktreeId: 'unapproved',
         });
         expect(mocks.refresh).toHaveBeenCalledOnce();
+    });
+    it('turns the question off when the user confirms with "Don\'t ask again" ticked', async () => {
+        mocks.confirm.mockResolvedValue({ isConfirmed: true, dontAskAgain: true });
+        await expect(selectWorkbenchRoot('session', option('unapproved'))).resolves.toBe(
+            'selected',
+        );
+        expect(mocks.confirm.mock.calls[0]?.[0].dontAskAgainLabel).toBe("Don't ask again");
+        expect(JSON.parse(mocks.updateSettings.mock.calls[0]?.[0].source ?? '{}')).toEqual({
+            'workbench.confirmWorktreeAuthorization': false,
+        });
+        expect(mocks.request).toHaveBeenCalledExactlyOnceWith('session.authorizeWorkbenchRoot', {
+            sessionId: 'session',
+            worktreeId: 'unapproved',
+        });
+    });
+    it('authorizes without asking once the setting is off', async () => {
+        mocks.settings = { 'workbench.confirmWorktreeAuthorization': false };
+        await expect(selectWorkbenchRoot('session', option('unapproved'))).resolves.toBe(
+            'selected',
+        );
+        expect(mocks.confirm).not.toHaveBeenCalled();
+        expect(mocks.updateSettings).not.toHaveBeenCalled();
+        expect(mocks.request).toHaveBeenCalledExactlyOnceWith('session.authorizeWorkbenchRoot', {
+            sessionId: 'session',
+            worktreeId: 'unapproved',
+        });
     });
     it('switches an authorized Project without asking for another grant', async () => {
         await selectWorkbenchRoot(
@@ -104,7 +146,7 @@ describe('Workbench Root picker', () => {
         });
     });
     it('keeps failed authorization distinct from a completed switch', async () => {
-        mocks.confirm.mockResolvedValue(true);
+        mocks.confirm.mockResolvedValue({ isConfirmed: true, dontAskAgain: false });
         mocks.request.mockRejectedValue(new Error('Worktree replaced'));
         await expect(selectWorkbenchRoot('session', option('stale'))).resolves.toBe('failed');
         expect(mocks.refresh).not.toHaveBeenCalled();

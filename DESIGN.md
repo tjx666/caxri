@@ -398,7 +398,9 @@ root, includes the five newest other linked roots, and keeps the Git main worktr
 a `Main worktree` marker. `Show all worktrees…` expands the same popover into the full list.
 Unknown creation times sort last, deterministically. An `Authorize` label distinguishes discovered
 but unapproved roots; selecting one opens the shared in-app confirmation with its full destination
-and `Authorize and switch`. Cancel grants nothing. Approved roots switch directly without Finder.
+and `Authorize and switch`. Cancel grants nothing. A `Don't ask again` checkbox at the dialog's
+leading edge turns `workbench.confirmWorktreeAuthorization` off only when the user also confirms;
+the Settings switch turns the question back on. Approved roots switch directly without Finder.
 While the Session is still on its own root and its conversation worked in a linked worktree, the
 picker's glyph carries a `--foreground` dot in its top-right corner (drawn into the glyph, so the
 chip keeps its width; never `--accent`, because a passive hint must not compete with the one durable
@@ -1193,7 +1195,8 @@ carries context notices instead: an expired prompt cache in `--muted` (a cost fa
 and context high enough to read `consider compacting` in `--warning` (a suggestion, since nothing failed) with a Compact button. References: T3 Code's Chat composer, Claude
 Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort
 picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
-`--accent`; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
+`--link` (the accent eased 30% toward the text color, as soft as the Codex app's) with no underline
+until hover; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
 language name such as `TypeScript`, wrap and copy) shares its fill and sets its code in the 11px
 `meta` size every monospace preview uses; a table is set open, with row
 hairlines and no frame or header tint. All follow the Codex app's Dracula transcript. A path the
@@ -1204,8 +1207,8 @@ Show more / Show less; clicking a sent image opens a larger preview, a loading o
 whose data is gone says `Image no longer available`. Files and folders the message attached sit
 between its images and its bubble as 28px round `--elevated` chips (glyph and name, full path in a
 tooltip); clicking one opens the folder in Finder or reveals the file there. A web link leads with the site's favicon (the
-GitHub mark for GitHub, a globe when there is none, fading in only on first load) and a dotted
-underline; hovering it opens a 320px card naming the host with an Open action, then where the
+GitHub mark for GitHub, a globe when there is none, fading in only on first load), underlined only
+in the user's bubble (dotted) and on hover; hovering it opens a 320px card naming the host with an Open action, then where the
 link leads (`owner/repo · #N` beside a pull request, issue, or discussion glyph for GitHub). A user
 message that starts with a skill (`$name`) or command (`/name`) shows it as an `--accent` chip;
 clicking the chip opens a popover with that skill's rendered Markdown.

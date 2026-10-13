@@ -58,6 +58,7 @@
     --color-overlay: var(--overlay);
     --color-shadow: var(--shadow);
     --color-indicator: var(--indicator);
+    --color-link: var(--link);
     --color-tab-active-background: var(--tab-active-background);
     --color-tab-active-foreground: var(--tab-active-foreground);
     --color-tab-inactive-background: var(--tab-inactive-background);
@@ -134,6 +135,11 @@
     --overlay: color-mix(in srgb, var(--background) 60%, transparent);
     --shadow: #00000073;
     --indicator: color-mix(in srgb, var(--foreground) 45%, transparent);
+    /*
+     * A transcript link: the accent eased toward the text color, the softer pink the Codex app's Dracula transcript
+     * uses, so a reply dense with links does not read as a row of saturated buttons.
+     */
+    --link: color-mix(in oklab, var(--accent) 70%, var(--foreground));
 
     color: var(--foreground);
     background: var(--background);

@@ -169,6 +169,9 @@ export const statusBar = {
     'statusBar.workbenchRoot.authorizeMessage':
         'Allow Caxri to access the folder "{{path}}" for branch "{{branch}}"? Files, Editor, and Git in this Session will switch to this worktree.',
     'statusBar.workbenchRoot.authorizeConfirm': 'Authorize and switch',
+    'statusBar.workbenchRoot.authorizeDontAskAgain': "Don't ask again",
+    'statusBar.workbenchRoot.dontAskAgainFailed':
+        'Unable to save the worktree authorization preference',
     'statusBar.workbenchRoot.authorizeFailed': 'Unable to authorize Workbench Root',
     'statusBar.workbenchRoot.switchFailed': 'Unable to switch Workbench Root',
     'statusBar.workbenchRoot.detached': 'Detached',
