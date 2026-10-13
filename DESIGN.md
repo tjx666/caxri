@@ -1088,7 +1088,7 @@ outline, a pressed toggle that turns plan mode off) while plan
 mode is on, and the permission picker. `+` opens a menu laid out like the Codex app's: under `Add`,
 Files (the system file picker; its muted description says what a pick does for this provider,
 `Attach images or insert file paths` or `Insert file paths`), Goal (only while the provider reports
-a `goal` command; it turns the draft into `/goal <draft>`), and Plan mode (with its description and a
+a `goal` command; it enters Goal mode), and Plan mode (with its description and a
 trailing check while on); under `Sessions`, the five most recently opened Sessions with an Agent
 conversation, each cited at the caret the way the `@` list cites it. Folders cannot be picked yet:
 Chromium's file input selects files only. Trailing on the right: the context meter (a
@@ -1159,7 +1159,16 @@ as part of the draft (reference: LobeHub's chat input). The strip is a `--surfac
 from the card's sides, its top corners radius-8 and its hairline resting on the card's top border;
 the `Editing an earlier message` bar and the idle context notices below use the same strip. The row holds a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
-stop` right-aligned. A working turn's label is one playful phrase chosen per turn from LobeHub's list (`Herding tokens…`),
+stop` right-aligned. While the provider pursues a goal, a goal row leads the strip, after the Codex
+app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
+`Goal paused`, `Goal stalled`, `Goal hit usage limits`, `Goal budget reached`, `Goal achieved`), the
+objective truncated in `--muted`, the goal's time (`1h 37m 29s`, ticking each second only while an
+active goal's turn runs), and ghost icon buttons Clear, Pause or Resume, and Expand, which shows the
+whole objective below the row. A completed goal stays until cleared. Goal mode, entered by choosing
+`/goal` from the suggestion list or Goal from `+`, adds a Goal chip after the permission picker,
+divided from it by a vertical hairline, and changes the placeholder to `Describe your goal, define
+measurable outcomes for best results`; Enter then sets the draft as the goal, and the chip or
+Backspace in an empty input leaves the mode. A working turn's label is one playful phrase chosen per turn from LobeHub's list (`Herding tokens…`),
 so a long turn reads as progress rather than a stall; a waiting one reads `Waiting for your
 approval` or `Waiting for your answer` by its first pending request. On an idle Chat the same row
 carries context notices instead: an expired prompt cache in `--muted` (a cost fact, not a fault),

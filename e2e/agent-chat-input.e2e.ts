@@ -134,6 +134,7 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
         await expect(commands.getByRole('option')).toHaveText([
             /^\/compact/u,
+            /^\/goal/u,
             /^\$review-pr\s*Review the open pull request$/u,
         ]);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-commands.png') });

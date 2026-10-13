@@ -1,5 +1,6 @@
 import type {
     AgentChatDefault,
+    AgentChatGoalChange,
     AgentChatMessageInput,
     AgentChatModelRequest,
     AgentChatRequest,
@@ -8,7 +9,12 @@ import type {
     MethodResult,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentChatAnsweredNotice, formatLongPasteReference } from '@caxri/protocol';
+import {
+    AGENT_CHAT_GOAL_COMMAND,
+    agentChatAnsweredNotice,
+    agentChatGoalArguments,
+    formatLongPasteReference,
+} from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
@@ -212,6 +218,20 @@ export async function didRunAgentChatCommand(
         },
     );
     return isRun;
+}
+
+/**
+ * Pauses, resumes, or clears the Chat's goal from its composer row, through the same `/goal` command the composer runs.
+ */
+export function changeAgentChatGoal(
+    terminalId: string,
+    change: Exclude<AgentChatGoalChange, { action: 'set' }>,
+): void {
+    // eslint-disable-next-line no-void -- didRunAgentChatCommand reports its own failures through tryCommand
+    void didRunAgentChatCommand(terminalId, {
+        name: AGENT_CHAT_GOAL_COMMAND,
+        arguments: agentChatGoalArguments(change),
+    });
 }
 
 export function interruptAgentChat(terminalId: string): void {

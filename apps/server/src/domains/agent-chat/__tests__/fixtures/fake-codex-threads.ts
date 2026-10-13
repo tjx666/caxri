@@ -18,7 +18,7 @@ export function fakeCodexStateDirectory() {
     return directory;
 }
 
-function stateFile(name: string) {
+export function stateFile(name: string) {
     return path.join(fakeCodexStateDirectory(), name);
 }
 

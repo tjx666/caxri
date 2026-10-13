@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 
+import type { LucideIcon } from 'lucide-react';
 import { Goal, Lightbulb, MessageCircle, Paperclip, Plus } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';
@@ -42,9 +43,9 @@ function RowText({ description, label }: { description: string; label: string })
  * once: images attach and everything else, folders included, is cited by path. Chromium's file input cannot pick a
  * folder together with files, so it remains only in an SSH Host window, as Files, whose Agent cannot read this Mac's
  * paths anyway but can still take a picked image (each picked `File` carries its bytes, so that pick takes a drop's
- * route); Goal, only while the provider reports a goal command, turns the draft into that command; Plan mode toggles
- * the provider's plan mode. Under Sessions, the most recently opened Sessions with an Agent conversation can be cited
- * the way the `@` list cites them. Every row is a capability this Chat already has; the menu only gathers them.
+ * route); Goal, only while the provider reports a goal command, puts the composer in Goal mode; Plan mode toggles the
+ * provider's plan mode. Under Sessions, the most recently opened Sessions with an Agent conversation can be cited the
+ * way the `@` list cites them. Every row is a capability this Chat already has; the menu only gathers them.
  */
 export function AgentChatAddMenu({
     canAttachImages,
@@ -65,7 +66,7 @@ export function AgentChatAddMenu({
      */
     isBusy: boolean;
     /**
-     * Turns the draft into the provider's goal command; `undefined` when the provider reports none.
+     * Puts the composer in Goal mode; `undefined` when the provider reports no goal command.
      */
     onGoal: (() => void) | undefined;
     onPick: (files: File[]) => void;
@@ -187,27 +188,43 @@ export function AgentChatAddMenu({
 }
 
 /**
- * Plan mode while it is on, beside `+`: the word in the foreground color, as Synara and Superset show the mode in the
- * composer's footer, and a press turns it off. It is a pressed toggle named "Plan mode", so a screen reader hears the
- * mode and its state rather than a command, and its tooltip names `agentChat.togglePlanMode`'s shortcut. It draws the
- * same pressed fill and `--border` outline as the model picker's mode toggles, never `--accent` (DESIGN.md Principle
- * 2), so it reads as a mode that is on rather than as a plain word in the footer.
+ * A composer mode while it is on: Plan mode beside `+`, Goal mode after the permission picker, as the Codex app places
+ * them. The mode's glyph and word in the foreground color, as Synara and Superset show the mode in the composer's
+ * footer, and a press turns it off. It is a pressed toggle named after the mode ("Plan mode"), so a screen reader hears
+ * the mode and its state rather than a command, and its tooltip says what a press does, with the mode's shortcut when
+ * it has one. It draws the same pressed fill and `--border` outline as the model picker's mode toggles, never
+ * `--accent` (DESIGN.md Principle 2), so it reads as a mode that is on rather than as a plain word in the footer.
  */
-export function AgentChatPlanChip({ onTurnOff }: { onTurnOff: () => void }) {
-    const { t } = useTranslation();
-    const shortcut = useCommandShortcut('agentChat.togglePlanMode');
+export function AgentChatModeChip({
+    icon: Icon,
+    label,
+    name,
+    shortcut,
+    turnOffLabel,
+    onTurnOff,
+}: {
+    icon: LucideIcon;
+    label: string;
+    /**
+     * The accessible name: the mode itself, such as "Plan mode".
+     */
+    name: string;
+    shortcut?: string;
+    turnOffLabel: string;
+    onTurnOff: () => void;
+}) {
     return (
-        <Tooltip content={t('agentChat.add.turnOffPlanMode')} shortcut={shortcut}>
+        <Tooltip content={turnOffLabel} shortcut={shortcut}>
             <Button
-                aria-label={t('agentChat.permission.planMode')}
+                aria-label={name}
                 aria-pressed
                 className="h-7 gap-1 rounded-full border-border bg-[var(--selection)] px-2 text-[12px] text-foreground"
                 size="sm"
                 variant="ghost"
                 onClick={onTurnOff}
             >
-                <Lightbulb className="size-3.5" />
-                {t('agentChat.permission.plan')}
+                <Icon className="size-3.5" />
+                {label}
             </Button>
         </Tooltip>
     );

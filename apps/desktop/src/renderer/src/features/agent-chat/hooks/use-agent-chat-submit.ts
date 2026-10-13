@@ -48,12 +48,14 @@ export function useAgentChatSubmit({
     terminalId: string;
 }) {
     const [isSending, setSending] = useState(false);
-    const send = async (
+    const didDeliver = async (
         delivery: Parameters<typeof didDeliverAgentChatComposerInput>[0],
-    ): Promise<void> => {
+    ): Promise<boolean> => {
         setSending(true);
         try {
-            if (await didDeliverAgentChatComposerInput(delivery)) onSent?.();
+            const isDelivered = await didDeliverAgentChatComposerInput(delivery);
+            if (isDelivered) onSent?.();
+            return isDelivered;
         } finally {
             setSending(false);
         }
@@ -61,13 +63,14 @@ export function useAgentChatSubmit({
     /**
      * Runs `command`, typed or chosen in the composer as `sent`. A command the composer did not hold (the compact
      * command the context alert runs, `isFromDraft: false`) leaves the draft alone and has nothing to put back.
+     * Resolves whether Server Core accepted it.
      */
     const runCommand = (
         sent: string,
         command: { name: string; arguments?: string },
         { isFromDraft = true }: { isFromDraft?: boolean } = {},
     ) =>
-        send({
+        didDeliver({
             clear: () => setDraft((current) => draftAfterSend(current, sent)),
             deliver: (clear) => {
                 clear();
@@ -83,7 +86,10 @@ export function useAgentChatSubmit({
      */
     const submit = async (sent: string, delivery?: 'queue' | 'steer'): Promise<void> => {
         const command = parseAgentChatCommand(sent, commands);
-        if (command) return runCommand(sent, command);
+        if (command) {
+            await runCommand(sent, command);
+            return;
+        }
         const sentAttachments = attachments;
         const pendingId = showAgentChatPendingMessage(
             terminalId,
@@ -122,7 +128,7 @@ export function useAgentChatSubmit({
      * and `onCleared` ends the edit; if Server Core then refuses it, its images come back and `onReturned` puts the
      * edit back.
      */
-    const submitEdit = (
+    const submitEdit = async (
         sent: string,
         edit: {
             itemId: string;
@@ -134,7 +140,7 @@ export function useAgentChatSubmit({
         { onCleared, onReturned }: { onCleared: () => void; onReturned: () => void },
     ): Promise<void> => {
         const sentAttachments = attachments;
-        return send({
+        await didDeliver({
             clear: () => {
                 setDraft((current) => (current === sent ? edit.previousDraft : current));
                 clearSent(sentAttachments);
