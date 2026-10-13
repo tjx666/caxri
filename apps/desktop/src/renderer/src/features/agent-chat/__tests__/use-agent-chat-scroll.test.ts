@@ -5,6 +5,7 @@ import {
     agentChatAnchoredScrollTop,
     agentChatFollowScrollTop,
     agentChatTurnSpacerHeight,
+    isLatestInView,
     isScrolledToEnd,
 } from '../hooks/use-agent-chat-scroll';
 
@@ -26,6 +27,27 @@ describe('isScrolledToEnd', () => {
         expect(isScrolledToEnd({ scrollHeight: 1000, scrollTop: 500, clientHeight: 400 })).toBe(
             false,
         );
+    });
+});
+
+describe('isLatestInView', () => {
+    it('counts the latest entry in view while its end is on screen, whatever space is kept below it', () => {
+        expect(isLatestInView({ contentBottom: 400, viewHeight: 800 })).toBe(true);
+        expect(
+            isLatestInView({
+                contentBottom: 800 + AGENT_CHAT_FOLLOW_THRESHOLD_PX,
+                viewHeight: 800,
+            }),
+        ).toBe(true);
+    });
+
+    it('reports the latest entry out of view once its end is below the view', () => {
+        expect(
+            isLatestInView({
+                contentBottom: 801 + AGENT_CHAT_FOLLOW_THRESHOLD_PX,
+                viewHeight: 800,
+            }),
+        ).toBe(false);
     });
 });
 

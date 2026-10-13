@@ -1252,7 +1252,9 @@ issue the turn created or edited, with the GitHub or Linear mark, the title, a m
 external arrow at the end, since that card opens the browser. A screen
 reader hears `Reply ready`, `Turn failed`, or `Stopped` when a turn ends. A Chat that keeps only the
 recent part of a long conversation opens with a `meta` line saying so, since the provider still has
-all of it, and Open as Terminal. `Jump to latest`
+all of it, and Open as Terminal. `Jump to latest` shows only once the end of the latest entry has
+left the view, not while the reader scrolls within the empty space kept below a short latest turn,
+where it would have nothing to bring back. It
 returns focus to the composer (to the scroll view in a read-only task tab). Expanded output renders
 in the shared code view at the `meta` size diffs, the command preview, and task output use, painted in the language inferred from what produced it (a printed file's
 extension, a Git diff, JSON), any other command output as shell, and capped in height. A new
