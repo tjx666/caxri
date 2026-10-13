@@ -104,6 +104,14 @@ describe('agentChatQuestionOption', () => {
             isRecommended: true,
             text: 'Merge',
         });
+        expect(agentChatQuestionOption('秋天（推荐）')).toEqual({
+            isRecommended: true,
+            text: '秋天',
+        });
+        expect(agentChatQuestionOption('Rebase (推荐)')).toEqual({
+            isRecommended: true,
+            text: 'Rebase',
+        });
         expect(agentChatQuestionOption('Recommended settings')).toEqual({
             isRecommended: false,
             text: 'Recommended settings',
