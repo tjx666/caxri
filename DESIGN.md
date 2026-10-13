@@ -1165,7 +1165,7 @@ from the card's sides, its top corners radius-8 and its hairline resting on the 
 the `Editing an earlier message` bar and the idle context notices below use the same strip. Everything
 else that waits above the input joins that strip as hairline-divided sections instead of its own
 card, so the stack reads as one tray (references: LobeHub's input trays, T3 Code's composer drawer):
-Background work on top, then queued messages, then the status row nearest the input, since it
+Background work below the goal row, then queued messages, then the status row nearest the input, since it
 changes most often. The row holds a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
 stop` right-aligned. While the provider pursues a goal, a goal row leads the strip, after the Codex

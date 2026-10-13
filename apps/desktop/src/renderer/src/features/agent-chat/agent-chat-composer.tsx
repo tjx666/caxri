@@ -17,10 +17,10 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
+import { AgentChatComposerStrip } from './agent-chat-composer-strip';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
-import { AgentChatGoalBar } from './agent-chat-goal-bar';
 import type { AgentChatPendingMessage } from './agent-chat-pending';
 import type { agentChatSendBlock } from './agent-chat-presentation';
 import {
@@ -29,9 +29,7 @@ import {
     agentChatSendTooltipShortcut,
 } from './agent-chat-presentation';
 import { agentChatNextQueuedId } from './agent-chat-queue';
-import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';
-import { AgentChatTaskStrip } from './agent-chat-task-strip';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
 import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-composer-edit';
@@ -298,42 +296,18 @@ export function AgentChatComposer({
              * The suggestion menus anchor to this wrapper rather than the form, so they open above the strip too.
              */}
             <div className="relative">
-                {/*
-                 * The strip sits on the card's top edge, inset from its corners like a tab, so the Chat's state reads as
-                 * separate from the draft. Everything that waits above the input stacks in it as hairline-divided rows
-                 * rather than separate cards, as LobeHub and T3 Code do: the goal, background work, queued messages, then the
-                 * activity row nearest the input, since it changes most often. Its last row's hairline overlaps the card's
-                 * top border; with no row it collapses to `contents`, keeping the Activity bar's live region announced
-                 * without drawing an empty tab.
-                 */}
-                <div
-                    className="mx-3 -mb-px overflow-hidden rounded-t-lg border border-b-0 border-solid border-border bg-surface not-has-[[data-agent-chat-composer-strip-row]]:contents"
-                    data-agent-chat-composer-strip=""
+                <AgentChatComposerStrip
+                    activeTurnId={activeTurnId}
+                    isQueuePaused={isQueuePaused}
+                    isTurnRunning={isTurnRunning}
+                    pendingQueue={pendingQueue}
+                    queue={queue}
+                    snapshot={snapshot}
+                    terminalId={terminalId}
+                    onOpenTask={onOpenTask}
+                    onQueueAction={focusInput}
+                    onQueueEdit={restoreQueued}
                 >
-                    <AgentChatGoalBar
-                        activeTurnId={activeTurnId}
-                        goal={snapshot?.goal}
-                        terminalId={terminalId}
-                        turns={snapshot?.turns}
-                    />
-                    <AgentChatTaskStrip
-                        latestTurnStartedAt={snapshot?.turns.at(-1)?.startedAt}
-                        tasks={snapshot?.tasks}
-                        terminalId={terminalId}
-                        onOpenTask={onOpenTask}
-                    />
-                    <AgentChatQueueList
-                        isTurnRunning={isTurnRunning}
-                        pending={pendingQueue}
-                        queue={queue}
-                        snapshot={{
-                            queuePaused: isQueuePaused,
-                            queuePauseReason: snapshot?.queuePauseReason,
-                        }}
-                        terminalId={terminalId}
-                        onAction={focusInput}
-                        onEdit={restoreQueued}
-                    />
                     <AgentChatActivityBar
                         activity={activity}
                         notice={
@@ -354,7 +328,7 @@ export function AgentChatComposer({
                         onContinueInNewChat={continueInNewChat}
                         terminalId={terminalId}
                     />
-                </div>
+                </AgentChatComposerStrip>
                 <form
                     className={cn(
                         'flex flex-col rounded-lg border border-border bg-surface transition-[border-color] focus-within:border-muted',
