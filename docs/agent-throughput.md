@@ -105,7 +105,10 @@ CSP forbids the request. Results are cached per provider (60 s after success, 30
 and concurrent reads share one request. A failure is reported to the UI with a closed reason
 (`network`, `http`, `invalidResponse`) plus a link to the page; the log records
 `external_status.provider_status_failed` once per reason change and
-`external_status.provider_status_recovered` when the page reads again. Under `CAXRI_E2E=1` Main
+`external_status.provider_status_recovered` when the page reads again. The Codex uptime history is
+read beside the current state and fails on its own: the page still answers without the strip, and
+the log records `external_status.provider_history_failed` and
+`external_status.provider_history_recovered` the same way. Under `CAXRI_E2E=1` Main
 never touches the network: it reads fixtures from `CAXRI_E2E_PROVIDER_STATUS_DIR`, preferring
 `<hostname>.<last path segment>.json` (such as `status.openai.com.component_impacts.json`) and
 falling back to `<hostname>.json`, and reports `network` without one.
