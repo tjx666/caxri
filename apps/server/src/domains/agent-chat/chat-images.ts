@@ -1,5 +1,6 @@
 import type { AgentChatImageInput } from '@caxri/protocol';
 
+import { MAX_HISTORY_TRANSCRIPT_BYTES } from './chat-history';
 import { readChatTranscript, requireChatTerminal } from './chat-launch';
 import { claudeHistoryImage } from './claude-history';
 import type { AgentChatServiceOptions } from './service-options';
@@ -18,6 +19,10 @@ export async function readChatImage(
 ): Promise<Omit<AgentChatImageInput, 'thumbnail'> | null> {
     const { provider } = requireChatTerminal(options.database, terminalId);
     if (provider !== 'claude') return null;
-    const transcript = await readChatTranscript(options, terminalId);
+    /**
+     * Reads as far back as history paging does, not the resume tail: images sit inline as base64, so a few turns of
+     * screenshots push an earlier message's line out of the last 4 MB while its placeholder is still on screen.
+     */
+    const transcript = await readChatTranscript(options, terminalId, MAX_HISTORY_TRANSCRIPT_BYTES);
     return (transcript && claudeHistoryImage(transcript.content, itemId, index)) ?? null;
 }

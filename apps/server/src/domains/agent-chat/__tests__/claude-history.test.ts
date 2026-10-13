@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { claudeHistoryOperations, claudeRewindPoint } from '../claude-history';
+import { claudeHistoryImage, claudeHistoryOperations, claudeRewindPoint } from '../claude-history';
 import { CLAUDE_DECLINED_MESSAGE } from '../claude-tool-results';
 
 function jsonl(records: unknown[]): string {
@@ -328,5 +328,35 @@ describe('Claude transcript rewinds', () => {
         // The tail no longer holds the message's parent.
         const orphan = jsonl([prompt('u9', 'gone', 'late')]);
         expect(claudeRewindPoint(orphan, 'u9')).toBeUndefined();
+    });
+
+    it('reads back an image from a message steered into a running turn', () => {
+        const transcript = jsonl([
+            {
+                type: 'attachment',
+                uuid: 'record-1',
+                attachment: {
+                    type: 'queued_command',
+                    commandMode: 'prompt',
+                    source_uuid: 'sent-1',
+                    prompt: [
+                        {
+                            type: 'image',
+                            source: {
+                                type: 'base64',
+                                media_type: 'image/png',
+                                data: 'iVBORw0KGgo=',
+                            },
+                        },
+                        { type: 'text', text: 'and this one' },
+                    ],
+                },
+            },
+        ]);
+        expect(claudeHistoryImage(transcript, 'sent-1', 0)).toEqual({
+            mediaType: 'image/png',
+            data: 'iVBORw0KGgo=',
+        });
+        expect(claudeHistoryImage(transcript, 'sent-1', 1)).toBeUndefined();
     });
 });
