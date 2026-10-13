@@ -8,8 +8,9 @@ description: >-
   UX, extensions/plugins, keybindings, themes, settings, command palette) or GitLens precedent
   (blame, history, richer Git UX), when working on the Status panel (reference: vscode-fe-helper's
   sidebar), when comparing Caxri against a named competitor (Orca, cmux, Muxy, Kero, Termany, Herdr,
-  Mux, Kooky, Warp, Otty, Conductor, Superset, Paseo, T3 Code, Synara, Jean, Omnara, Trevize), or when
-  updating competitive research notes.
+  Mux, Kooky, Warp, Otty, Conductor, Superset, Paseo, T3 Code, Synara, Jean, Omnara, Trevize), when
+  updating competitive research notes, or when recording which external project a shipped feature
+  drew on.
 ---
 
 # Competitors
@@ -21,6 +22,8 @@ Load only what the current question needs:
 - Read `references/<product>.md` for per-product research notes: positioning, architecture
   highlights, standout features, and community sentiment. Each note is dated; treat notes older
   than a quarter as stale.
+- Read [references/feature-references.md](references/feature-references.md) for which shipped
+  Caxri features drew on which external project, before changing a surface that follows one.
 - All open-source repositories are shallow-cloned into the git-ignored top-level `competitors/`
   directory; read the source there instead of fetching from GitHub.
 - Run [scripts/sync.sh](scripts/sync.sh) to clone missing repositories, update existing ones, and
@@ -50,6 +53,10 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
   and the Agent workbenches above keep a streaming reply's Markdown cheap to parse and render. Read
   it before changing Agent Chat Markdown rendering. Their clones are synced alongside the
   references above.
+- **Cross-Agent session history search**
+  ([references/session-history-search.md](references/session-history-search.md)): how Wake, Orca,
+  cmux, Kooky, Jean, Paseo, agentsview, and agent-sessions discover, index, and reopen Agent
+  conversations. Read it before changing Session search. The session tools' clones are synced too.
 
 ## Working rules
 
@@ -68,3 +75,7 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
 - When research reveals a durable architectural insight, record it in the matching per-product
   reference in the same change, with the research date. Add a new `references/<product>.md` when a
   new competitor is added to the landscape table, and add its repository to `scripts/sync.sh`.
+- When a delivered feature adopts an idea, interaction, value, or format from an external project,
+  add an evidence-backed row to [references/feature-references.md](references/feature-references.md)
+  in the same change, following that file's entry rules. Copied code, assets, or text also needs a
+  `THIRD_PARTY_NOTICES.md` entry.
