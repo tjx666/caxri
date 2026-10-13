@@ -1215,8 +1215,8 @@ plan). Cmd+Enter approves and Cmd+Backspace denies, answering only the first car
 composer is empty, where neither chord has another meaning. A question names the provider (`Codex has a
 question`), and each option's description sits under its label in `meta` `--muted`, not in a
 tooltip. While the reader follows the end, the transcript stays pinned when a dock grows and
-shrinks the view. As in ChatGPT and the Codex app, the latest user message rests 16px below the
-top of the view at the end: the transcript keeps empty space below the latest turn, so a sent
+shrinks the view. As in ChatGPT and the Codex app, the latest user message rests 112px below the
+top of the view at the end, leaving the last lines of the previous reply in view as context: the transcript keeps empty space below the latest turn, so a sent
 message rises to the top and its reply fills in below it; once the turn outgrows the view the space
 is gone and following the end takes over.
 

@@ -30,15 +30,32 @@ test('Jump to latest shows only while the latest turn is out of view, not over t
         // The control stays mounted to animate; while hidden it is `inert`, so only a live one counts.
         const jump = chat.locator('button:not([inert])', { hasText: 'Jump to latest' });
 
-        // A long reply first, so the history above the latest turn is taller than the view.
+        // Two long replies first, so the history above the latest turn is taller than the view.
         await message.fill('table please');
         await message.press('Enter');
-        await expect(chat.getByRole('table')).toBeVisible();
+        await expect(chat.getByRole('table')).toHaveCount(1);
+        await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+        await message.fill('table please');
+        await message.press('Enter');
+        await expect(chat.getByRole('table')).toHaveCount(2);
         await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
         await message.fill('short one');
         await message.press('Enter');
         await expect(chat.getByRole('button', { name: 'Stop' })).toHaveCount(0);
         await expect(jump).toHaveCount(0);
+
+        // Like the Codex app, the sent message rests below the view's top, leaving the previous reply's tail in view.
+        const sent = transcript.getByText('short one', { exact: true });
+        await expect
+            .poll(() =>
+                sent.evaluate((element) => {
+                    const view = element.closest('[role="log"]');
+                    if (!view) return NaN;
+                    return element.getBoundingClientRect().top - view.getBoundingClientRect().top;
+                }),
+            )
+            .toBeGreaterThan(100);
+        await page.screenshot({ path: testInfo.outputPath('sent-message-top-gap.png') });
 
         // The short latest turn rests at the top with empty space below it; scrolling up a little keeps it in view.
         await transcript.hover();
