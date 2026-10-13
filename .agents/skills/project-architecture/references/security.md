@@ -57,7 +57,10 @@ session cookies): every hop must be `https:` and its host must be, or resolve th
 resolver only to, public addresses. Loopback, `localhost`, RFC 1918 private, carrier-grade NAT,
 link-local (including `169.254.169.254`), multicast, reserved, and IPv6 unique-local or link-local
 addresses are refused before any request; `198.18.0.0/15` stays allowed because fake-IP proxy
-clients answer public hosts from it. Redirects are followed manually, at most 5, each target vetted
+clients answer public hosts from it. A hostname the local resolver cannot resolve is still requested
+(only the URL-only checks apply): behind an HTTP or PAC proxy on a network without outside DNS,
+the proxy resolves the name, and a name this machine cannot resolve cannot reach a local service
+over a direct connection. Redirects are followed manually, at most 5, each target vetted
 the same way. A refused link keeps the globe icon and a card without a page preview; clicking it is
 unchanged. DNS rebinding between the check and the connection is out of scope for the single-user
 threat model.

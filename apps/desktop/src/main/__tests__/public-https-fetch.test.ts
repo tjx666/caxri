@@ -58,13 +58,32 @@ describe('createPublicHttpsFetch', () => {
         expect(fetch).not.toHaveBeenCalled();
     });
 
-    it('rejects when the host cannot be resolved, so the caller can retry', async () => {
+    it('requests a hostname the local resolver cannot resolve, as a proxy may resolve it', async () => {
         const fetch = vi.fn(() => Promise.resolve(new Response('ok')));
         const publicFetch = createPublicHttpsFetch(fetch, () =>
-            Promise.reject(new Error('ENOTFOUND')),
+            Promise.reject(new Error('net::ERR_NAME_NOT_RESOLVED')),
         );
-        await expect(publicFetch('https://a.example/', init)).rejects.toThrow('ENOTFOUND');
+        const result = await publicFetch('https://a.example/', init);
+        expect(fetch).toHaveBeenCalledWith('https://a.example/', init);
+        await expect(result?.response.text()).resolves.toBe('ok');
+    });
+
+    it('still refuses localhost and internal literals when lookups fail', async () => {
+        const fetch = vi.fn(() => Promise.resolve(new Response('ok')));
+        const resolveHost = vi.fn(() => Promise.reject(new Error('net::ERR_NAME_NOT_RESOLVED')));
+        const publicFetch = createPublicHttpsFetch(fetch, resolveHost);
+        await expect(publicFetch('https://app.localhost/', init)).resolves.toBeUndefined();
+        await expect(publicFetch('https://127.0.0.1/', init)).resolves.toBeUndefined();
         expect(fetch).not.toHaveBeenCalled();
+        expect(resolveHost).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the request itself fails, so the caller can retry', async () => {
+        const fetch = vi.fn(() => Promise.reject(new Error('net::ERR_INTERNET_DISCONNECTED')));
+        const publicFetch = createPublicHttpsFetch(fetch, () =>
+            Promise.reject(new Error('net::ERR_NAME_NOT_RESOLVED')),
+        );
+        await expect(publicFetch('https://a.example/', init)).rejects.toThrow('DISCONNECTED');
     });
 
     it('gives up after too many redirects', async () => {

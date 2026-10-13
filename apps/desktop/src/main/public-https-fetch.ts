@@ -10,7 +10,8 @@ export type ManualRedirectFetch = (
 ) => Promise<Response>;
 
 /**
- * Every address a hostname resolves to. A rejection means the host could not be resolved right now.
+ * Every address a hostname resolves to. A rejection means this machine could not resolve the host; the request may
+ * still succeed through a proxy that resolves names itself.
  */
 export type ResolveHost = (hostname: string) => Promise<readonly string[]>;
 
@@ -67,7 +68,10 @@ export function isPublicAddress(address: string): boolean {
 /**
  * Whether a URL may be requested on the user's behalf without a click: HTTPS, and a host that is, or resolves only to,
  * public addresses. `localhost` and its subdomains are refused without a lookup because the resolver may special-case
- * them.
+ * them. A failed lookup falls back to that URL-only check and allows the request: behind an HTTP or PAC proxy on a
+ * network without outside DNS, Chromium hands the hostname to the proxy instead of resolving it, so the local lookup
+ * fails while the request succeeds. A name this machine cannot resolve also cannot make a direct connection reach a
+ * local service, and when the network is down the request itself fails and the caller retries.
  */
 async function isPublicHttpsUrl(url: URL, resolveHost: ResolveHost): Promise<boolean> {
     if (url.protocol !== 'https:') return false;
@@ -75,7 +79,12 @@ async function isPublicHttpsUrl(url: URL, resolveHost: ResolveHost): Promise<boo
     const hostname = url.hostname.replace(/^\[(.*)\]$/u, '$1').toLowerCase();
     if (isIP(hostname) !== 0) return isPublicAddress(hostname);
     if (hostname === 'localhost' || hostname.endsWith('.localhost')) return false;
-    const addresses = await resolveHost(hostname);
+    let addresses: readonly string[];
+    try {
+        addresses = await resolveHost(hostname);
+    } catch {
+        return true;
+    }
     return addresses.length > 0 && addresses.every(isPublicAddress);
 }
 
@@ -85,7 +94,8 @@ async function isPublicHttpsUrl(url: URL, resolveHost: ResolveHost): Promise<boo
  * keeps a public link from bouncing the request to a loopback or private service. The host is resolved before the
  * request rather than pinned to the connection, so DNS rebinding between the two lookups is out of scope: Caxri's bar
  * is a single user on their own machine, and the goal is that a rendered or hovered link cannot reach local services by
- * name or address. A failed lookup rejects, so the caller can retry instead of remembering a refusal.
+ * name or address. A failed lookup does not refuse the hop (see `isPublicHttpsUrl`); a failed request rejects, so the
+ * caller can retry instead of remembering a refusal.
  */
 export function createPublicHttpsFetch(fetch: ManualRedirectFetch, resolveHost: ResolveHost) {
     return async (
