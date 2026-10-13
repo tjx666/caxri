@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
-import { agentProviderIds } from './agents.js';
+import { identifierSchema } from '../domain/identifiers.js';
+import { agentProviderIds, agentProviderSchema } from './agents.js';
 
 const versionSchema = z
     .string()

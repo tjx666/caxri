@@ -1,5 +1,5 @@
-import type { LogLevel } from '../domain/business-contract.js';
-import { logLevelSchema } from '../domain/business-contract.js';
+import type { LogLevel } from '../domain/log-level.js';
+import { logLevelSchema } from '../domain/log-level.js';
 
 /**
  * Environment variable every Caxri process reads to override its compiled-in log level. Desktop Main forwards it to

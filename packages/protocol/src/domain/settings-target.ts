@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentProviderSchema } from './domain.js';
+import { agentProviderSchema } from '../agent/agents.js';
 
 /**
  * A typed request to open Settings scrolled and focused to one specific row, instead of landing on the tab's default

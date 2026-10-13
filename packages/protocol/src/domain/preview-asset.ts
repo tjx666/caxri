@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { pathSchema } from './domain.js';
+import { pathSchema } from './identifiers.js';
 
 /**
  * Upper bound on one previewable image. Images referenced by a document are the common consumer, and a preview that

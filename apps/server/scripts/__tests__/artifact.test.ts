@@ -39,9 +39,15 @@ describe('standalone Server artifact', () => {
             fixtureFile(ripgrepExecutable, '#!/bin/sh\nexit 0\n'),
             fixtureFile(ripgrepLicense, 'ripgrep license'),
             fixtureFile(vscodeRipgrepLicense, 'vscode ripgrep license'),
-            fixtureFile(join(sources, 'native', 'better-sqlite3', 'package.json'), '{}'),
-            fixtureFile(join(sources, 'migrations', '0000.sql'), 'SELECT 1;'),
-            fixtureFile(join(sources, 'migrations', 'meta', '_journal.json'), '{}'),
+            ...[
+                'package.json',
+                'LICENSE.md',
+                'README.md',
+                'lib/database.js',
+                'lib/database.js.map',
+                'lib/database.test.js',
+                'lib/index.d.ts',
+            ].map((name) => fixtureFile(join(sources, 'native', 'better-sqlite3', name), '{}')),
             fixtureFile(join(sources, 'extensions', 'git', 'package.json'), '{}'),
             fixtureFile(join(sources, 'extensions', 'git', 'dist', 'extension.js'), 'export {};'),
         ]);
@@ -53,7 +59,6 @@ describe('standalone Server artifact', () => {
             bundleSource: join(sources, 'bundles'),
             commit: '01234567',
             extensions: [{ id: 'caxri.git', source: join(sources, 'extensions', 'git') }],
-            migrationsSource: join(sources, 'migrations'),
             nativePackages: [
                 {
                     name: 'better-sqlite3',
@@ -94,7 +99,6 @@ describe('standalone Server artifact', () => {
                 'bundles/project-search-worker.js',
                 'bundles/terminal-host.js',
                 'extensions/git/dist/extension.js',
-                'migrations/0000.sql',
                 'native/node_modules/better-sqlite3/package.json',
                 'licenses/RIPGREP_LICENSE.txt',
                 'licenses/VSCODE_RIPGREP_LICENSE.txt',
@@ -104,8 +108,24 @@ describe('standalone Server artifact', () => {
             ]),
         );
         expect(
+            new Set(
+                manifest.integrity.files
+                    .map(({ path }) => path)
+                    .filter((path) => path.startsWith('native/node_modules/better-sqlite3/')),
+            ),
+        ).toEqual(
+            new Set([
+                'native/node_modules/better-sqlite3/LICENSE.md',
+                'native/node_modules/better-sqlite3/lib/database.js',
+                'native/node_modules/better-sqlite3/package.json',
+            ]),
+        );
+        expect(
             manifest.integrity.files.find(({ path }) => path === 'runtime/bin/rg'),
         ).toMatchObject({ mode: 0o755 });
+        expect(await readFile(join(artifactRoot, 'runtime', 'caxri-server'), 'utf8')).toContain(
+            'exec "$runtime_directory/bin/node" --max-semi-space-size=8 "$runtime_directory/../bundles/server-core.js" "$@"',
+        );
         expect(await verifyServerArtifact(artifactRoot)).toEqual(manifest);
         expect(await readFile(join(artifactRoot, 'metadata', 'manifest.json'), 'utf8')).toContain(
             manifest.integrity.aggregateSha256,
@@ -131,7 +151,6 @@ describe('standalone Server artifact', () => {
             fixtureFile(ripgrepExecutable, 'ripgrep'),
             fixtureFile(ripgrepLicense, 'ripgrep license'),
             fixtureFile(vscodeRipgrepLicense, 'vscode ripgrep license'),
-            fixtureFile(join(root, 'migrations', '0000.sql'), 'SELECT 1;'),
         ]);
         await Promise.all([chmod(runtimeExecutable, 0o755), chmod(ripgrepExecutable, 0o755)]);
         await assembleServerArtifact({
@@ -140,7 +159,6 @@ describe('standalone Server artifact', () => {
             bundleSource,
             commit: '01234567',
             extensions: [],
-            migrationsSource: join(root, 'migrations'),
             nativePackages: [],
             platform: 'darwin',
             protocolVersion: 2,
@@ -181,7 +199,6 @@ describe('standalone Server artifact', () => {
             fixtureFile(ripgrepExecutable, 'ripgrep'),
             fixtureFile(join(root, 'RIPGREP_LICENSE.txt'), 'ripgrep license'),
             fixtureFile(join(root, 'VSCODE_RIPGREP_LICENSE.txt'), 'vscode ripgrep license'),
-            fixtureFile(join(root, 'migrations', '0000.sql'), 'SELECT 1;'),
             fixtureFile(cliBundle, 'cli'),
         ]);
         const input = {
@@ -189,7 +206,6 @@ describe('standalone Server artifact', () => {
             bundleSource,
             commit: '01234567',
             extensions: [],
-            migrationsSource: join(root, 'migrations'),
             nativePackages: [],
             platform: 'linux',
             protocolVersion: 2,

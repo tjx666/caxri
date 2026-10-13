@@ -1,4 +1,4 @@
-import type { TerminalRecord } from './domain.js';
+import type { TerminalRecord } from './terminal-record.js';
 
 /**
  * Upper bound on a persisted Terminal title, whichever source produced it. Long enough for a path plus a command, short

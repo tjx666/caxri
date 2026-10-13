@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { identifierSchema } from './domain.js';
+import { identifierSchema } from './identifiers.js';
 
 /**
  * Human-initiated batch results describe delivery, never claim that a provider finished compaction.

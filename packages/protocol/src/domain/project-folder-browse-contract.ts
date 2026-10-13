@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
-import { pathSchema } from './domain.js';
+import { pathSchema } from './identifiers.js';
 
 const serverRead = commandPolicy('server', 'read');
 

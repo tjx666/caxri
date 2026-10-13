@@ -340,7 +340,6 @@ const manifest = await assembleServerArtifact({
     ...(linuxTarget && { cliBundle: await ensureCliBundle(), omitSourceMaps: true }),
     commit,
     extensions,
-    migrationsSource: resolve(serverRoot, 'src/domains/db/migrations'),
     nativePackages,
     platform: target.platform,
     protocolVersion: CAXRI_PROTOCOL_VERSION,

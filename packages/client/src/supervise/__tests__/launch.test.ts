@@ -35,6 +35,10 @@ it('keeps detached Server descendants attributable to their CI owner', async () 
     await expect(launchServer('/fixture/profile', { artifactRoot: '/fixture' })).resolves.toEqual({
         pid: 123,
     });
+    const [executable, argv] = spawn.mock.calls[0] as [string, string[]];
+    expect(executable).toBe('/fixture/runtime/node');
+    expect(argv[0]).toBe('--max-semi-space-size=8');
+    expect(argv.at(-1)).toBe('/fixture/server.js');
     const options = spawn.mock.calls[0][2] as SpawnOptions;
     expect(options.detached).toBe(true);
     expect(options.env?.CAXRI_RUNNER_OWNER).toBe('caxri-42-1-e2e');

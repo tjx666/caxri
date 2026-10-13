@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
-import { identifierSchema, MAX_TERMINAL_INPUT_LENGTH, pathSchema } from './domain.js';
+import { MAX_TERMINAL_INPUT_LENGTH } from './domain.js';
+import { identifierSchema, pathSchema } from './identifiers.js';
 
 /**
  * Bounds one saved paste independently of the smaller native Terminal input budget.

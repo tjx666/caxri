@@ -13,14 +13,11 @@ import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { protocolVersionSchema } from '../transport/version.js';
-import {
-    humanProjectSchema,
-    identifierSchema,
-    scopedProjectSchema,
-    sessionRecordSchema,
-    terminalRecordSchema,
-} from './domain.js';
+import { humanProjectSchema, scopedProjectSchema, sessionRecordSchema } from './domain.js';
+import { identifierSchema } from './identifiers.js';
+import { logLevelSchema } from './log-level.js';
 import { logEventNameSchema } from './logging.js';
+import { terminalRecordSchema } from './terminal-record.js';
 
 const noParameters = z.object({}).default({});
 const principalViewSchema = z.enum([
@@ -200,7 +197,6 @@ export const settingsPatchResultSchema = settingsInspectionSchema.extend({
     changedKeys: z.array(settingsPatchKeySchema).max(32),
 });
 
-export const logLevelSchema = z.enum(['debug', 'info', 'warn', 'error']);
 export const logProcesses = ['desktop', 'extension-host', 'server-core', 'terminal-host'] as const;
 export const logProcessSchema = z.enum(logProcesses);
 export function isLogProcess(value: unknown): value is LogProcess {
@@ -437,5 +433,4 @@ export type SettingsPatchResult = z.infer<typeof settingsPatchResultSchema>;
 export type LogQueryParams = z.infer<typeof logQueryParametersSchema>;
 export type LogQueryRecord = z.infer<typeof logQueryRecordSchema>;
 export type LogQueryResult = z.infer<typeof logQueryResultSchema>;
-export type LogLevel = z.infer<typeof logLevelSchema>;
 export type LogProcess = z.infer<typeof logProcessSchema>;

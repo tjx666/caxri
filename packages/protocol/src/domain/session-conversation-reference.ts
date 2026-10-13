@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { identifierSchema, pathSchema } from './domain.js';
+import { identifierSchema, pathSchema } from './identifiers.js';
 
 /**
  * Upper bound on the condensed Markdown a reference file holds. A long Session keeps its most recent messages; the file

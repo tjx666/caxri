@@ -1,4 +1,4 @@
-import { MAX_TERMINAL_LINK_LENGTH, MAX_TERMINAL_LINK_ROWS } from './domain.js';
+import { MAX_TERMINAL_LINK_LENGTH, MAX_TERMINAL_LINK_ROWS } from './terminal-limits.js';
 
 interface TerminalBufferLineReader {
     getCell(column: number): { getChars(): string; getWidth(): number } | undefined;

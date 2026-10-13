@@ -4,8 +4,9 @@ import { desktopOpenIdentitySchema } from '../desktop/desktop-contract.js';
 import { externalEditorDocumentSchema } from '../desktop/path-browser-contract.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
-import { canceledResultSchema, identifierSchema, pathSchema } from './domain.js';
+import { canceledResultSchema } from './domain.js';
 import { editorNavigationTargetSchema } from './editor.js';
+import { identifierSchema, pathSchema } from './identifiers.js';
 
 const serverControl = commandPolicy('server', 'control');
 const desktopControl = commandPolicy('desktop', 'control');

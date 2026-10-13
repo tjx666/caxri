@@ -10,12 +10,11 @@ import {
     fileDocumentSchema,
     fileEntrySchema,
     fileMutationOperationSchema,
-    identifierSchema,
     movedFileEntrySchema,
     mutableFileEntrySchema,
-    pathSchema,
 } from './domain.js';
 import { fileSearchModeSchema, fileSearchResultSchema } from './file-search.js';
+import { identifierSchema, pathSchema } from './identifiers.js';
 import { fileAssetSchema } from './preview-asset.js';
 
 /**

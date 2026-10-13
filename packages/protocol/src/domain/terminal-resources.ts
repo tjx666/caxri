@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-import { agentProviderSchema, identifierSchema, terminalKindSchema } from './domain.js';
+import { agentProviderSchema } from '../agent/agents.js';
+import { identifierSchema } from './identifiers.js';
+import { terminalKindSchema } from './terminal-record.js';
 
 export const terminalResourceUsageSchema = z.object({
     memoryMb: z.number().nonnegative(),
