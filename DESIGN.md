@@ -1141,16 +1141,16 @@ opens the same kind of list of other Sessions to cite, each with its Project; a 
 row shares adds when that Session was last opened (`· 3h`), a query with no match reads `No Sessions
 match`, and after a choice the list becomes one spinner row (`Preparing “Title”…`) until the
 reference is written, while Enter waits. Both lists show only while the input has focus. Queued
-messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
+messages list in the composer strip (below) as 12px rows, each with Edit (back into the composer),
 Delete, and Send now (Steer while a turn runs); a paused queue is headed by a row that
 names why (`queuePauseReason`): a stopped turn reads `Queue paused` with Resume, a failed send
-reads `Couldn't send queued messages` in `--danger` with Retry. The dock above the card (recovery row, plan, requests, and task strip) is capped
+reads `Couldn't send queued messages` in `--danger` with Retry. The dock above the composer (recovery row, plan, and requests) is capped
 at 60% of the pane and scrolls past it. Above everything in the dock, a recovery row explains why the Chat cannot
 continue: a provider failure in a `--danger` bordered card with Retry (a conversation the provider
 could not resume adds a body naming the cause and Open as Terminal), or a hand-over to another
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
-and Resume; while either shows, Send is disabled. Running subagents and background shells list in a
-strip above the composer with elapsed time and their own Stop, and its `N ended` count expands the
+and Resume; while either shows, Send is disabled. Running subagents and background shells list in the
+composer strip with elapsed time and their own Stop, and its `N ended` count expands the
 ended tasks, most recent first, with how each ended; a shell is named by the Agent's
 description of it (Claude Code's `Bash` description) when there is one, with its command line atop
 its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
@@ -1162,7 +1162,11 @@ interrupts a running turn regardless. While the Chat starts, works, or waits on 
 status row sits in a strip on top of the card rather than inside it, so the Chat's state never reads
 as part of the draft (reference: LobeHub's chat input). The strip is a `--surface` tab inset 12px
 from the card's sides, its top corners radius-8 and its hairline resting on the card's top border;
-the `Editing an earlier message` bar and the idle context notices below use the same strip. The row holds a spinner (or a `--warning`
+the `Editing an earlier message` bar and the idle context notices below use the same strip. Everything
+else that waits above the input joins that strip as hairline-divided sections instead of its own
+card, so the stack reads as one tray (references: LobeHub's input trays, T3 Code's composer drawer):
+Background work on top, then queued messages, then the status row nearest the input, since it
+changes most often. The row holds a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
 stop` right-aligned. While the provider pursues a goal, a goal row leads the strip, after the Codex
 app's: a goal glyph (`--accent` while active), the status in `--foreground` medium (`Pursuing goal`,
