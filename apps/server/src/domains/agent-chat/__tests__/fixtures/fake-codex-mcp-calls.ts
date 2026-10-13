@@ -76,7 +76,7 @@ export function completeMcpCalls(io: FakeCodexIo, turn: FakeTurn) {
  * How long the `browsestep` scenario's second browser step stays running: long enough for a test to see it, or a person
  * to watch the icon, before its result arrives.
  */
-export const BROWSER_STEP_RUNNING_MS = 2_000;
+const BROWSER_STEP_RUNNING_MS = 2_000;
 
 /**
  * A browser step that binds a tab, then one that only drives that tab and stays running for
