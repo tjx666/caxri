@@ -30,6 +30,8 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
             .filter({ visible: true });
         // Codex launches with its default autonomy flag, which is the Full access level.
         await expect(picker).toHaveAccessibleName('Permissions: Full access');
+        // The resting Full access trigger, which keeps the muted composer tone instead of a warning tint.
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-full-access.png') });
 
         await picker.click();
         const menu = page.getByRole('menu');
