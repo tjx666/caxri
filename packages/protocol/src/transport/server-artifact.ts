@@ -1,5 +1,18 @@
 import { z } from 'zod';
 
+/**
+ * V8 flags every Server Core launch passes before its entry: Desktop and the CLI (`@caxri/client/supervise`) and the
+ * artifact's own `runtime/caxri-server` launcher an SSH Host runs. Its Workers and the Extension Host inherit them.
+ *
+ * Left to itself, V8 sizes each young-generation semi-space from the heap limit: up to 64 MiB on a 64-bit host with a 4
+ * GiB limit, a 192 MiB young-generation budget that a busy Server Core grows into and never returns. Capped at 8 MiB
+ * (as the Terminal Host already is), Server Core under a heavy Git and search workload stayed at about 200 MiB RSS
+ * instead of 290 MiB, with the same request latency and the same number of full GCs; scavenges ran half again as often
+ * for about 1% more GC time. 16 MiB measured about 210 MiB. This is not a heap ceiling: long-lived state still promotes
+ * to the old generation. See `docs/server-footprint.md`.
+ */
+export const SERVER_CORE_EXEC_ARGV: readonly string[] = ['--max-semi-space-size=8'];
+
 const artifactRelativePathSchema = z
     .string()
     .min(1)

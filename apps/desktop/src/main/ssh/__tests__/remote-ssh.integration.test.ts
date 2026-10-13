@@ -1,10 +1,8 @@
-import type { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { access, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
-import { PassThrough } from 'node:stream';
 import { promisify } from 'node:util';
 
 import type { ServerClient } from '@caxri/client/supervise';
@@ -21,7 +19,13 @@ import type { RemoteStateUpdate } from '../remote-server-supervisor-options';
 import type { SshConnectionOptions } from '../ssh-connection';
 import { SshConnection } from '../ssh-connection';
 import { makeShortTemporaryDirectory } from './support/remote-fixtures';
-import { isSshIntegrationEnabled, labConfigFile, labDestination } from './support/ssh-lab';
+import {
+    createCountingConnection,
+    isSshIntegrationEnabled,
+    labConfigFile,
+    labDestination,
+    resetRemoteServerScript,
+} from './support/ssh-lab';
 
 const execFileAsync = promisify(execFile);
 
@@ -43,14 +47,7 @@ const layersRoot = resolve(import.meta.dirname, '../../../../../server/dist/remo
 const localBundles = resolve(import.meta.dirname, '../../../../../server/dist/bundles');
 const PROJECT_FOLDER = 'caxri-integration-project';
 
-const RESET_SCRIPT = String.raw`pid=$(sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$HOME/.caxri-server/profile/host/manifest.json" 2>/dev/null | head -n 1)
-if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-    kill "$pid"
-    i=0
-    while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
-fi
-rm -rf "$HOME/.caxri-server" "$HOME/${PROJECT_FOLDER}"
-`;
+const RESET_SCRIPT = resetRemoteServerScript(PROJECT_FOLDER);
 
 /**
  * Lists installed builds and runtimes, and the build the given pid runs from, as a marker-delimited result.
@@ -148,19 +145,10 @@ describe.skipIf(!isSshIntegrationEnabled)('remote SSH Host (integration)', () =>
             remoteLayersRoot: layers,
             runtimeCacheDirectory: join(root, 'runtimes'),
             createTransport: (options: SshConnectionOptions) => {
-                const connection = new SshConnection(options);
+                const connection = createCountingConnection(options, (count) => {
+                    stdinBytes += count;
+                });
                 transports.push(connection);
-                const exec = connection.exec.bind(connection);
-                // Counts the bytes that actually travel to the host so "no re-upload" is measured, not inferred.
-                connection.exec = (script, execOptions) => {
-                    if (!execOptions.stdin) return exec(script, execOptions);
-                    const counter = new PassThrough();
-                    counter.on('data', (chunk: Buffer) => {
-                        stdinBytes += chunk.length;
-                    });
-                    execOptions.stdin.on('error', (error) => counter.destroy(error));
-                    return exec(script, { ...execOptions, stdin: execOptions.stdin.pipe(counter) });
-                };
                 return connection;
             },
         });

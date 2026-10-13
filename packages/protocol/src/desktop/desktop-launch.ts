@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { pathSchema } from '../domain/domain.js';
+import { pathSchema } from '../domain/identifiers.js';
 
 export const SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY = 'CAXRI_DESKTOP_LAUNCH';
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { identifierSchema, pathSchema } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
+import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 
 export const desktopStatusResultSchema = z.discriminatedUnion('state', [
     z.object({ state: z.literal('offline') }),

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 
 export const MOBILE_CHANGES_MAX_FILES = 100;
 export const MOBILE_CHANGES_MAX_PATCH_BYTES = 48 * 1_024;

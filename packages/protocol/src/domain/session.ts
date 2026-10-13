@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { identifierSchema } from './domain.js';
+import { identifierSchema } from './identifiers.js';
 import { paneLayoutSchema } from './pane-layout.js';
 import {
     extensionTreeViewStatesSchema,

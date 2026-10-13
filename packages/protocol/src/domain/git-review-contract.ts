@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { commandPolicy } from '../transport/method-spec.js';
-import { identifierSchema } from './domain.js';
+import { identifierSchema } from './identifiers.js';
 
 const serverRead = commandPolicy('server', 'read');
 const serverWrite = commandPolicy('server', 'write');

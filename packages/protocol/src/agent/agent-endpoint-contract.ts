@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
-import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { capabilitySchema } from '../transport/principal.js';
+import { agentProviderSchema } from './agents.js';
 
 const noParameters = z.object({}).default({});
 

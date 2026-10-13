@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { agentProviderCatalog } from '../agent/agents.js';
-import type { TerminalKind } from './domain.js';
+import type { TerminalKind } from './terminal-record.js';
 
 /**
  * How a Terminal presents its process, fixed at creation. `pty` runs the Shell or Agent CLI in a real pseudo-terminal;

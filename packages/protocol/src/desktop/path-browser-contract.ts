@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import { fileEntrySchema, identifierSchema, pathSchema } from '../domain/domain.js';
+import { fileEntrySchema } from '../domain/domain.js';
+import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
 export const MAX_PATH_BROWSER_ENTRIES = 200;

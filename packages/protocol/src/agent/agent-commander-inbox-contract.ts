@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import {
     projectStatusStateSchema,
     pullRequestMergeStateSchema,

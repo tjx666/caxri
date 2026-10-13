@@ -1,20 +1,16 @@
 import { z } from 'zod';
 
 import { bootstrapStateSchema } from '../domain/bootstrap.js';
-import {
-    identifierSchema,
-    pathSchema,
-    sessionRecordSchema,
-    terminalKindSchema,
-    terminalRecordSchema,
-} from '../domain/domain.js';
+import { sessionRecordSchema } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
+import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import {
     pullRequestUnavailableSchema,
     sessionPullRequestSchema,
 } from '../domain/session-pull-request.js';
 import { settingsTargetSchema } from '../domain/settings-target.js';
 import { terminalFileLinkOpenResultSchema } from '../domain/terminal-file-link.js';
+import { terminalKindSchema, terminalRecordSchema } from '../domain/terminal-record.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import {

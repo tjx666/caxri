@@ -8,8 +8,8 @@ import {
     projectRecordSchema,
     scopedProjectSchema,
     sessionRecordSchema,
-    terminalRecordSchema,
 } from '../domain/domain.js';
+import { terminalRecordSchema } from '../domain/terminal-record.js';
 import type { Principal } from '../transport/principal.js';
 import { protocolVersionSchema } from '../transport/version.js';
 

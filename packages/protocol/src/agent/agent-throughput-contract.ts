@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentProviderSchema } from '../domain/domain.js';
+import { agentProviderSchema } from './agents.js';
 
 /**
  * Most recent measured responses kept for the status bar's per-response chart.

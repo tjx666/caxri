@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { logLevelSchema } from './business-contract.js';
 import { hexColorSchema } from './color.js';
+import { logLevelSchema } from './log-level.js';
 import { projectStatusStateSchema, pullRequestMergeStateSchema } from './project-status-state.js';
 import {
     pullRequestUnavailableSchema,

@@ -1,10 +1,11 @@
 import { z } from 'zod';
 
-import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { agentEndpointRefSchema as agentEndpointReferenceSchema } from './agent-endpoint-contract.js';
+import { agentProviderSchema } from './agents.js';
 
 export const agentDispatchOperationSchema = z.enum(['start', 'resume', 'wake']);
 export const agentDispatchStatusSchema = z.enum([

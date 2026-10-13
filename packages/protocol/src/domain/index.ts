@@ -23,6 +23,7 @@ export * from './file-watch.js';
 export * from './git-diff.js';
 export * from './git-review-contract.js';
 export * from './line-count-format.js';
+export * from './log-level.js';
 export * from './logging.js';
 export * from './logging-reasons.js';
 export * from './low-cost-generation.js';

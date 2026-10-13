@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { MAX_AGENT_CHAT_IMAGES } from '../agent/agent-chat-contract.js';
-import { identifierSchema } from '../domain/domain.js';
+import { identifierSchema } from '../domain/identifiers.js';
 import { principalSchema } from '../transport/principal.js';
 
 /**
