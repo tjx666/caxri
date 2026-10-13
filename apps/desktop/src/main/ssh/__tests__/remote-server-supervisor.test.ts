@@ -272,7 +272,11 @@ describe('remote server supervisor', () => {
             const connectOperator = vi.fn(() => handshake.promise);
             const supervisor = createSupervisor({ connectOperator });
             const ensured = supervisor.ensure();
-            await vi.waitFor(() => expect(connectOperator).toHaveBeenCalledTimes(1));
+            // Reaching the handshake runs the real install and launch shims, which can exceed waitFor's 1 s default
+            // on a loaded CI runner; a timeout here would also leave setup running into afterEach's directory removal.
+            await vi.waitFor(() => expect(connectOperator).toHaveBeenCalledTimes(1), {
+                timeout: 10_000,
+            });
             supervisor.cancel();
             handshake.resolve({ close } as unknown as ServerClient);
 
