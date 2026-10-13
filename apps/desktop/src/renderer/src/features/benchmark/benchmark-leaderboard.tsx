@@ -19,7 +19,14 @@ import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { BenchmarkAttemptDetail } from './benchmark-attempt-detail';
-import { attemptStatusLabel, markerShape, modelLabel, seriesColor } from './benchmark-presentation';
+import {
+    attemptStatusLabel,
+    formatLatency,
+    formatPercent,
+    markerShape,
+    modelLabel,
+    seriesColor,
+} from './benchmark-presentation';
 import { useTickingNow } from './benchmark-queries';
 import type { ConfigResult, QualitySource } from './benchmark-results';
 import { isAttemptFinished } from './benchmark-results';
@@ -123,6 +130,39 @@ function qualityCell(
  * Below this board width, tokens, steps, and changes give their room to the model name; the expanded row repeats them.
  */
 const WIDE_BOARD_MIN_WIDTH = 768;
+/**
+ * From this width the board also shows first-token latency, cache hits, and peak context.
+ */
+const WIDEST_BOARD_MIN_WIDTH = 1_024;
+
+function PerformanceCells({ result }: { result: ConfigResult }) {
+    const { peakContext } = result;
+    return (
+        <>
+            <td className={numericCellClass}>
+                {result.timeToFirstTokenMs === undefined ? (
+                    <Dash />
+                ) : (
+                    formatLatency(result.timeToFirstTokenMs)
+                )}
+            </td>
+            <td className={numericCellClass}>
+                {result.cacheHitRate === undefined ? <Dash /> : formatPercent(result.cacheHitRate)}
+            </td>
+            <td className={numericCellClass}>
+                {peakContext ? (
+                    <span title={formatTokens(peakContext.tokens)}>
+                        {peakContext.ratio === undefined
+                            ? formatTokens(peakContext.tokens)
+                            : formatPercent(peakContext.ratio)}
+                    </span>
+                ) : (
+                    <Dash />
+                )}
+            </td>
+        </>
+    );
+}
 
 /**
  * The ranked table under the chart, the same rows from the first queued Attempt to the last result. A row opens to its
@@ -151,8 +191,9 @@ export function BenchmarkLeaderboard({
     const hasQuality = source !== 'none';
     const [boardReference, boardWidth] = useContainerWidth<HTMLDivElement>();
     const isWide = boardWidth >= WIDE_BOARD_MIN_WIDTH;
+    const isWidest = boardWidth >= WIDEST_BOARD_MIN_WIDTH;
     // The expanded row spans exactly the rendered columns: extra span would add empty fixed-layout columns.
-    const columns = 5 + Number(hasQuality) + (isWide ? 3 : 0);
+    const columns = 5 + Number(hasQuality) + (isWide ? 3 : 0) + (isWidest ? 3 : 0);
     const figureWidth = isWide ? 'w-20' : 'w-16';
     return (
         <div ref={boardReference}>
@@ -192,6 +233,28 @@ export function BenchmarkLeaderboard({
                             <th className={cn(numericHeadClass, 'w-24')}>
                                 {t('benchmark.board.changes')}
                             </th>
+                        )}
+                        {isWidest && (
+                            <>
+                                <th
+                                    className={cn(numericHeadClass, 'w-20')}
+                                    title={t('benchmark.board.firstTokenHint')}
+                                >
+                                    {t('benchmark.board.firstToken')}
+                                </th>
+                                <th
+                                    className={cn(numericHeadClass, 'w-20')}
+                                    title={t('benchmark.board.cacheHint')}
+                                >
+                                    {t('benchmark.board.cache')}
+                                </th>
+                                <th
+                                    className={cn(numericHeadClass, 'w-20')}
+                                    title={t('benchmark.board.contextHint')}
+                                >
+                                    {t('benchmark.board.context')}
+                                </th>
+                            </>
                         )}
                         <th className={cn(tableHeadClass, 'pl-3', isWide ? 'w-40' : 'w-28')}>
                             {t('benchmark.board.status')}
@@ -328,6 +391,7 @@ export function BenchmarkLeaderboard({
                                             </td>
                                         </>
                                     )}
+                                    {isWidest && <PerformanceCells result={result} />}
                                     <td className={cn(cellClass, 'pl-3')}>
                                         {statusText(t, result, now)}
                                     </td>

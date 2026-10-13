@@ -3,18 +3,20 @@ import process from 'node:process';
 
 import type { AuxiliaryWindowState, ServerEvent } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import type { BrowserWindow } from 'electron';
+import type { BaseWindow, BrowserWindow, WebContents } from 'electron';
 import { app } from 'electron';
 
 import { AgentCommanderWindowController } from './agent-commander-window';
+import { BenchmarkWindowController } from './benchmark-window';
 import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
 import type { DesktopServerConnection } from './server-connection';
 import type { E2EWindowMode } from './window-mode';
+import type { CompanionRendererPolicy } from './workbench-ipc';
 
 /**
- * Creates the controllers of Main's on-demand windows: Process Explorer and the Agent Commander. Neither window opens
- * here; each controller creates its BrowserWindow on first `open()`.
+ * Creates the controllers of Main's on-demand windows: Process Explorer, the Agent Commander, and Benchmark. No window
+ * opens here; each controller creates its BrowserWindow on first `open()`.
  */
 export function createOnDemandWindows(options: {
     currentDirectory: string;
@@ -61,6 +63,15 @@ export function createOnDemandWindows(options: {
         windowMode,
         zoomLevel: options.zoomLevel,
     });
+    const benchmark = new BenchmarkWindowController({
+        currentDirectory,
+        isPackaged: app.isPackaged,
+        logger: () => options.logger,
+        rendererUrl: process.env.ELECTRON_RENDERER_URL,
+        sendEvent: options.sendEvent,
+        windowMode,
+        zoomLevel: options.zoomLevel,
+    });
     const processExplorer: ProcessExplorerWindowController = new ProcessExplorerWindowController({
         currentDirectory,
         forceRenderError:
@@ -98,6 +109,8 @@ export function createOnDemandWindows(options: {
                 if (explorerPid !== undefined) roles.set(explorerPid, 'process explorer');
                 const commanderPid = agentCommander.processId();
                 if (commanderPid !== undefined) roles.set(commanderPid, 'agent commander');
+                const benchmarkPid = benchmark.processId();
+                if (benchmarkPid !== undefined) roles.set(benchmarkPid, 'benchmark');
                 return roles;
             },
             electronProcesses: () =>
@@ -124,5 +137,34 @@ export function createOnDemandWindows(options: {
         // eslint-disable-next-line no-void -- refreshLanguage() keeps the current language on failure
         if (event.event === 'settings.changed') void processExplorer.refreshLanguage();
     });
-    return { agentCommander, processExplorer };
+    return { agentCommander, benchmarkWindow: benchmark, processExplorer };
+}
+
+/**
+ * An optional window that shares the Workbench preload and Main's Desktop connection as a Workbench IPC companion.
+ */
+interface CompanionWindow {
+    companion(): CompanionRendererPolicy;
+    openWindow(): BrowserWindow | undefined;
+    renderer(): WebContents | undefined;
+}
+
+/**
+ * The companion policy of the optional window `sender` belongs to, or `undefined` when it is none of them.
+ */
+export function companionWindowFor(
+    sender: WebContents,
+    windows: ReadonlyArray<CompanionWindow | undefined>,
+): CompanionRendererPolicy | undefined {
+    return windows.find((window) => window?.renderer() === sender)?.companion();
+}
+
+/**
+ * Whether `window` is one of the optional windows that zoom along with the Workbench's app-wide `window.zoomLevel`.
+ */
+export function isZoomingWithApp(
+    window: BaseWindow,
+    windows: ReadonlyArray<CompanionWindow | undefined>,
+): boolean {
+    return windows.some((candidate) => candidate?.openWindow() === window);
 }

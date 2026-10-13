@@ -22,6 +22,8 @@ import type {
 import { agentChatDrivers, AgentChatStartError, prepareChatLaunch } from '../agent-chat';
 import type { HeadlessHost } from './headless-host';
 import { createHeadlessHost } from './headless-host';
+import type { TurnMetricsResult } from './turn-metrics';
+import { TurnMetrics } from './turn-metrics';
 
 /**
  * Timeline items that count as one Agent step: a command it ran, a file change it made, or a tool it called.
@@ -53,7 +55,7 @@ export interface HeadlessTurnRequest {
     onProgress?(progress: { steps: number; startedAt?: number }): void;
 }
 
-export interface HeadlessTurnOutcome {
+export interface HeadlessTurnOutcome extends TurnMetricsResult {
     status: 'completed' | 'failed' | 'timedOut' | 'cancelled';
     failureReason?: BenchmarkFailureReason;
     failureMessage?: string;
@@ -97,6 +99,7 @@ export async function runHeadlessTurn(
     let headless: HeadlessHost | undefined;
     const snapshot = () => headless?.snapshot() ?? emptyAgentChatSnapshot(request.id);
     const stepIds = new Set<string>();
+    const metrics = new TurnMetrics();
     let startedAt: number | undefined;
     let session: AgentChatProviderSession | undefined;
     const answered = new Set<string>();
@@ -122,6 +125,7 @@ export async function runHeadlessTurn(
         ...(startedAt !== undefined && { startedAt }),
         ...(headless?.agentSessionId() && { agentSessionId: headless.agentSessionId() }),
         ...resolvedSettings(snapshot(), entry),
+        ...metrics.result(),
         ...extra,
     });
     const onAbort = () => settle({ kind: 'cancel' });
@@ -143,6 +147,7 @@ export async function runHeadlessTurn(
                 for (const operation of operations)
                     if (operation.op === 'upsertItem' && STEP_ITEM_TYPES.has(operation.item.type))
                         stepIds.add(operation.item.id);
+                metrics.observe(operations, snapshot());
                 if (stepIds.size !== before)
                     request.onProgress?.({ steps: stepIds.size, startedAt });
                 if (snapshot().requests.length > 0) answerRequests();
@@ -156,6 +161,7 @@ export async function runHeadlessTurn(
         await applyEffort(session, snapshot(), entry);
         timer = setTimeout(() => settle({ kind: 'timeout' }), request.timeoutMs);
         startedAt = Date.now();
+        metrics.start();
         request.onProgress?.({ steps: 0, startedAt });
         const sent = await Promise.race([session.send({ text: request.prompt }), ended]);
         const end = sent ?? (await ended);

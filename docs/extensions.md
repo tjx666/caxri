@@ -393,7 +393,8 @@ newlines and tabs are stripped first. The Agent is revealed and the success toas
 action's `feedback.failure` prefixes the reason when there is no Agent or the write fails. Project
 Status uses it for the green `Fix` button on the `Unresolved Comments` group, which sends every
 unresolved thread (repository, pull request, location, author, link, and text, with long bodies
-clipped) to the Agent. Nothing is resolved on GitHub, so it does not confirm first. A pull request
+clipped) to the Agent as suggestions to weigh, not instructions: the Agent changes code only for the comments it agrees
+with and says why it leaves the rest. Nothing is resolved on GitHub, so it does not confirm first. A pull request
 that conflicts with its base gets a red `Resolve` button in place of the merge button GitHub would
 refuse: it asks the Agent to rebase onto the latest base, resolve the conflicts, run the covering
 checks, and push with `--force-with-lease`, leaving the merge itself to the user.

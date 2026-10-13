@@ -13,6 +13,10 @@ export const core = {
     'core.errorBoundary.agentCommander.description':
         'Reload Agent Commander to reconnect to its Terminal. The Commander keeps running meanwhile.',
     'core.errorBoundary.agentCommander.reload': 'Reload Agent Commander',
+    'core.errorBoundary.benchmark.title': 'Benchmark stopped rendering',
+    'core.errorBoundary.benchmark.description':
+        'Reload Benchmark to show your runs again. Runs already started keep going meanwhile.',
+    'core.errorBoundary.benchmark.reload': 'Reload Benchmark',
     'core.errorBoundary.processExplorer.title': 'Process Explorer stopped rendering',
     'core.errorBoundary.processExplorer.description':
         'Reload Process Explorer to resume live diagnostics.',
@@ -115,7 +119,7 @@ export const core = {
 
     // commands/execute.ts
     'core.commands.usageNeedsProject': 'Add a Project to open Usage',
-    'core.commands.benchmarkNeedsProject': 'Add a Project to open Benchmark',
+    'core.commands.openBenchmarkFailed': 'Unable to open Benchmark',
     'core.commands.openAgentCommanderFailed': 'Unable to open Agent Commander',
     'core.commands.diagnosticsExportFailed': 'Diagnostics export failed',
     'core.commands.diagnosticsExported': 'Diagnostics exported to {{path}}',
