@@ -164,10 +164,14 @@ export class SessionSearchService {
         holdings: Holdings,
     ): RankedEntry[] {
         const { terms } = parseSessionQuery(query);
+        const allowedProviders = providers && new Set(providers);
         return this.options.database.listVisibleSessions().flatMap((session) => {
             if (status === 'archived' && session.archivedAt === undefined) return [];
             const conversations = holdings.bySession.get(session.id) ?? [];
-            if (providers && conversations.every((held) => !providers.includes(held.provider)))
+            if (
+                allowedProviders &&
+                conversations.every((held) => !allowedProviders.has(held.provider))
+            )
                 return [];
             const primary = conversations[0];
             const updatedAt = Math.trunc(session.lastSessionActivityAt);
