@@ -187,8 +187,10 @@ describe('Commander hand-over', () => {
         if (accepted.outcome !== 'accepted') throw new Error('hand-over was refused');
 
         f.service.observeInput(other.terminal.id);
+        const commanderSessionId = f.database.agentCommanderRows()?.sessionId;
         expect(f.service.managedSessions()).toEqual({
             sessionIds: [session.id],
+            commanderSessionId,
             inputTakeBackSessionIds: [session.id],
             inputTakeBacks: [],
         });
@@ -196,6 +198,7 @@ describe('Commander hand-over', () => {
         f.service.observeInput(terminal.id);
         expect(f.service.managedSessions()).toEqual({
             sessionIds: [],
+            commanderSessionId,
             inputTakeBackSessionIds: [],
             // The Workbench reads this to tell the user a keystroke took the Session back.
             inputTakeBacks: [

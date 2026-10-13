@@ -181,6 +181,11 @@ const commanderInputTakeBackSchema = z.strictObject({
 export const commanderManagedSessionsSchema = z.strictObject({
     sessionIds: z.array(identifierSchema).max(1_000),
     /**
+     * The Commander's own hidden Session, so the Workbench can name the Commander as the creator of a Session whose
+     * `createdBySessionId` points there. Absent while no Commander exists.
+     */
+    commanderSessionId: identifierSchema.optional(),
+    /**
      * The subset of `sessionIds` whose hand-over continues an Agent conversation, where typing into that Agent takes
      * the Session back. Sessions the Commander created, and ownership-only hand-overs, are not in it.
      */

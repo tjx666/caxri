@@ -5,6 +5,7 @@ import {
     MAX_DELEGATION_WAIT_TASKS,
 } from '@caxri/protocol';
 
+import { AGENT_SESSION_COMMANDS } from './agent-session';
 import { readBoundedTextFile } from './text-file';
 import type { RemoteCommandDefinition } from './types';
 
@@ -194,4 +195,8 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         usage: '[--active] [--limit <count>]',
         parseParams: listParameters,
     },
+    /**
+     * Managing the Sessions `--new-session` created.
+     */
+    ...AGENT_SESSION_COMMANDS,
 ];

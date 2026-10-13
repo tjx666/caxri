@@ -30,6 +30,7 @@ import {
     sessionToneCalloutClassName,
     sessionUnreadTone,
 } from './session-activity';
+import { SessionCreatorRow } from './session-creator-row';
 import { sessionPullRequestPresentation } from './session-pull-request';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 import { sidebarDetailCardDismissal } from './sidebar-detail-card-dismissal';
@@ -271,6 +272,7 @@ export function SessionActivityCard({
                         </span>
                     </div>
                 )}
+                {session.createdBySessionId && <SessionCreatorRow session={session} />}
                 {changes && (
                     <div className="session-card-changes mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
                         <span className="flex-none">{t('primarySidebar.card.changes')}</span>
