@@ -10,6 +10,7 @@ import {
     foregroundAgentProviderFromProcessList,
     openFilesFromLsofOutput,
     openFilesFromProcFileSystem,
+    openFilesInChunks,
 } from '../process-detection';
 
 describe('Shell foreground Agent detection', () => {
@@ -93,6 +94,44 @@ describe('Shell foreground Agent detection', () => {
                 'codex',
             ),
         ).toEqual([200, 300]);
+    });
+
+    it('reads the open files of many Agent processes in bounded chunks instead of refusing them', async () => {
+        // About 35 npm-installed Codex sessions: each runs a `node .../codex.js` wrapper and its native child.
+        const pids = Array.from({ length: 100 }, (_, index) => 1_000 + index);
+        const chunks: number[][] = [];
+        const files = await openFilesInChunks(pids, (chunk) => {
+            chunks.push([...chunk]);
+            return Promise.resolve(
+                chunk.map((pid) => ({ access: 'w', path: `/tmp/rollout-${pid}.jsonl`, pid })),
+            );
+        });
+        expect(chunks.length).toBeGreaterThan(1);
+        expect(chunks.every((chunk) => chunk.length <= 32)).toBe(true);
+        expect(chunks.flat().toSorted((a, b) => a - b)).toEqual(pids);
+        expect(files.map((file) => file.pid).toSorted((a, b) => a - b)).toEqual(pids);
+    });
+
+    it('keeps only files the probed processes hold and fails when one chunk fails', async () => {
+        const pids = Array.from({ length: 40 }, (_, index) => 1_000 + index);
+        await expect(
+            openFilesInChunks(pids, (chunk) =>
+                Promise.resolve([
+                    { access: 'w', path: '/tmp/a.jsonl', pid: chunk[0] },
+                    { access: 'w', path: '/tmp/b.jsonl', pid: 9_999 },
+                ]),
+            ),
+        ).resolves.toEqual([
+            { access: 'w', path: '/tmp/a.jsonl', pid: 1_000 },
+            { access: 'w', path: '/tmp/a.jsonl', pid: 1_032 },
+        ]);
+        await expect(
+            openFilesInChunks(pids, (chunk) =>
+                chunk[0] === 1_032
+                    ? Promise.reject(new Error('lsof timed out'))
+                    : Promise.resolve([]),
+            ),
+        ).rejects.toThrow('lsof timed out');
     });
 
     it('parses lsof access fields and resets them for each descriptor', () => {

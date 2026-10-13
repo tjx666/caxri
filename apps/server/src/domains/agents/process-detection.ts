@@ -4,7 +4,7 @@ import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
-import { execFileAsync } from '@caxri/system';
+import { execFileAsync, mapWithConcurrency } from '@caxri/system';
 
 const PROCESS_QUERY_TIMEOUT_MS = 2_000;
 const PROCESS_QUERY_MAX_BUFFER_BYTES = 2 * 1024 * 1024;
@@ -12,10 +12,17 @@ const OPEN_FILE_QUERY_TIMEOUT_MS = 1_000;
 const OPEN_FILE_QUERY_MAX_BUFFER_BYTES = 512 * 1024;
 const MAX_FOREGROUND_AGENT_PROCESSES = 64;
 /**
- * Bound on the provider processes one machine-wide open-file probe inspects. More than this is not a plausible count of
- * interactive Agent CLIs, so the probe reports `too_many_processes` instead of paying for an unbounded `lsof`.
+ * Safety bound on the provider processes one machine-wide open-file probe inspects. Each npm-installed CLI counts twice
+ * (the `node .../codex.js` wrapper and its native child) and every Codex Chat runs its own `codex app-server`, so
+ * dozens of parallel sessions are routine; only a count past this reports `too_many_processes`.
  */
-const MAX_MACHINE_AGENT_PROCESSES = 64;
+const MAX_MACHINE_AGENT_PROCESSES = 1_024;
+/**
+ * PIDs one machine-wide open-file query covers, and how many such queries run at once. Chunking keeps each `lsof`
+ * within its timeout and output limit, so a large process count costs latency instead of the whole answer.
+ */
+const MACHINE_OPEN_FILE_QUERY_CHUNK_SIZE = 32;
+const MACHINE_OPEN_FILE_QUERY_CONCURRENCY = 4;
 const MACHINE_OPEN_FILE_QUERY_MAX_BUFFER_BYTES = 2 * 1024 * 1024;
 /**
  * Per-process bound on `/proc/<pid>/fd` entries read on Linux, mirroring the `lsof` output cap on macOS.
@@ -349,6 +356,40 @@ function partialLsofOutput(error: unknown): string | undefined {
 }
 
 /**
+ * Reads the open files of `pids` in chunks of {@link MACHINE_OPEN_FILE_QUERY_CHUNK_SIZE}, a few chunks at a time, and
+ * keeps only files the listed PIDs hold. A chunk that throws fails the whole read.
+ */
+export async function openFilesInChunks(
+    pids: readonly number[],
+    readChunk: (chunk: readonly number[]) => Promise<ProcessOpenFile[]>,
+): Promise<ProcessOpenFile[]> {
+    const chunks: number[][] = [];
+    for (let index = 0; index < pids.length; index += MACHINE_OPEN_FILE_QUERY_CHUNK_SIZE)
+        chunks.push(pids.slice(index, index + MACHINE_OPEN_FILE_QUERY_CHUNK_SIZE));
+    const files = await mapWithConcurrency(chunks, MACHINE_OPEN_FILE_QUERY_CONCURRENCY, readChunk);
+    const allowed = new Set(pids);
+    return files.flat().filter((file) => allowed.has(file.pid));
+}
+
+async function lsofOpenFiles(pids: readonly number[]): Promise<ProcessOpenFile[]> {
+    let output: string;
+    try {
+        output = (
+            await execFileAsync('/usr/sbin/lsof', ['-nP', '-a', '-p', pids.join(','), '-Fpfan'], {
+                encoding: 'utf8',
+                maxBuffer: MACHINE_OPEN_FILE_QUERY_MAX_BUFFER_BYTES,
+                timeout: OPEN_FILE_QUERY_TIMEOUT_MS,
+            })
+        ).stdout;
+    } catch (error) {
+        const partial = partialLsofOutput(error);
+        if (partial === undefined) throw error;
+        output = partial;
+    }
+    return openFilesFromLsofOutput(output);
+}
+
+/**
  * Lists the files every running `provider` process on this machine holds open: `lsof` on macOS, `/proc` on Linux.
  * Unlike {@link detectForegroundAgentOpenFiles} this is not scoped to one Terminal, so it also sees an Agent running in
  * another terminal application. Only paths and access modes are read, never contents; neither is logged here.
@@ -370,25 +411,13 @@ export async function detectAgentOpenFiles(provider: AgentProvider): Promise<Age
     if (pids.length === 0) return { ok: true, files: [] };
     if (pids.length > MAX_MACHINE_AGENT_PROCESSES)
         return { ok: false, reason: 'too_many_processes' };
-    if (process.platform === 'linux')
-        return { ok: true, files: await openFilesFromProcFileSystem(pids) };
-    let output: string;
+    const readChunk =
+        process.platform === 'linux'
+            ? (chunk: readonly number[]) => openFilesFromProcFileSystem(chunk)
+            : lsofOpenFiles;
     try {
-        output = (
-            await execFileAsync('/usr/sbin/lsof', ['-nP', '-a', '-p', pids.join(','), '-Fpfan'], {
-                encoding: 'utf8',
-                maxBuffer: MACHINE_OPEN_FILE_QUERY_MAX_BUFFER_BYTES,
-                timeout: OPEN_FILE_QUERY_TIMEOUT_MS,
-            })
-        ).stdout;
-    } catch (error) {
-        const partial = partialLsofOutput(error);
-        if (partial === undefined) return { ok: false, reason: 'open_file_query_failed' };
-        output = partial;
+        return { ok: true, files: await openFilesInChunks(pids, readChunk) };
+    } catch {
+        return { ok: false, reason: 'open_file_query_failed' };
     }
-    const allowed = new Set(pids);
-    return {
-        ok: true,
-        files: openFilesFromLsofOutput(output).filter((file) => allowed.has(file.pid)),
-    };
 }
