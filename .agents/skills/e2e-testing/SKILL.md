@@ -350,8 +350,11 @@ comparison is not a gate during that calibration. Inspect failures, repair the s
 for the authorized replacement checks. Do not merge or close without delivery authorization.
 
 Use `bun run --silent test:smoke` for the cheap post-change Electron launch gate when broad desktop
-startup confidence is useful but focused product E2E is unnecessary. Keep implementation subagents
-scoped to explicit specs and test names; never delegate the full `bun run test:e2e` gate.
+startup confidence is useful but focused product E2E is unnecessary. The hosted smoke may skip
+clipboard preservation only through its fail-closed GitHub-hosted CI override because the spec does
+not request clipboard access; local focused runs still preserve the clipboard. A future smoke that
+needs clipboard access must remove that override and declare the capability. Keep implementation
+subagents scoped to explicit specs and test names; never delegate the full `bun run test:e2e` gate.
 
 ## Guarded Go fallback
 
