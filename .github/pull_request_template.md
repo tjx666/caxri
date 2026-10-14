@@ -18,8 +18,10 @@ List the checks actually run. Distinguish local checks from CI, package, or Acce
 - [ ] I updated durable documentation for any changed product contract or operator procedure.
 - [ ] I identified copied or adapted third-party code, assets, text, or product references and
       updated the applicable notices.
+- [ ] I have read and accept the [Caxri Individual Contributor License
+      Agreement](https://github.com/tjx666/caxri/blob/main/CLA.md) 1.0 for this contribution.
 - [ ] I included screenshots or recordings for user-visible interaction changes, or marked them as
       not applicable with a reason.
 
 Submitting a pull request does not guarantee review or merge. The maintainer retains final merge
-discretion, and applicable contribution terms must be published and accepted before merge.
+discretion.

@@ -99,8 +99,19 @@ and command authority boundaries, is in [docs/cli.md](docs/cli.md).
 - See [SUPPORT.md](SUPPORT.md) for the boundary between bug reports, feature requests, security
   reports, and general support.
 
-The project license and contribution authorization process are still being finalized. Do not infer
-license permissions from repository visibility; rely on the project `LICENSE` once it is published.
+## License
+
+Caxri is source-available under the [Caxri Source-Available License 1.0](LICENSE). It is not licensed
+under an OSI-approved open source license.
+
+Using Caxri for personal or company work, earning money from Outputs created with it, and keeping
+private Modifications closed source are free. Free redistribution is allowed under the License's
+notice and source-availability conditions. Selling, commercially distributing, or monetizing access
+to Caxri or a Modification requires a separate written commercial license. Contact
+[ytj2713151713@gmail.com](mailto:ytj2713151713@gmail.com) for commercial terms.
+
+External Contributions require acceptance of the [Caxri Individual Contributor License
+Agreement](CLA.md) before merge. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution flow.
 
 ## Development
 
@@ -133,6 +144,8 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 | [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                      |
 | [AGENTS.md](AGENTS.md)                                                                 | Contributor standing orders for coding agents              |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                                                     | Issue and pull request contribution workflow               |
+| [LICENSE](LICENSE)                                                                     | Source-available use and commercial licensing terms        |
+| [CLA.md](CLA.md)                                                                       | Contributor license agreement                              |
 | [SECURITY.md](SECURITY.md)                                                             | Private vulnerability reporting policy                     |
 | [SUPPORT.md](SUPPORT.md)                                                               | Community support scope and request routing                |
 | [docs/README.md](docs/README.md)                                                       | Full index of every living doc, ADR, and historical record |

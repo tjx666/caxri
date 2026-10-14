@@ -31,6 +31,7 @@ describe('standalone Server artifact', () => {
         const licensesDirectory = join(sources, 'licenses');
         const ripgrepLicense = join(licensesDirectory, 'RIPGREP_LICENSE.txt');
         const vscodeRipgrepLicense = join(licensesDirectory, 'VSCODE_RIPGREP_LICENSE.txt');
+        const projectLicense = join(sources, 'LICENSE');
         const thirdPartyNotices = join(sources, 'THIRD_PARTY_NOTICES.md');
         await Promise.all([
             fixtureFile(join(sources, 'bundles', 'server-core.js'), 'server-core'),
@@ -44,6 +45,7 @@ describe('standalone Server artifact', () => {
             fixtureFile(ripgrepLicense, 'ripgrep license'),
             fixtureFile(vscodeRipgrepLicense, 'vscode ripgrep license'),
             fixtureFile(join(licensesDirectory, 'ANOTHER_LICENSE.txt'), 'another license'),
+            fixtureFile(projectLicense, 'project license'),
             fixtureFile(thirdPartyNotices, 'third-party notices'),
             ...[
                 'package.json',
@@ -76,6 +78,7 @@ describe('standalone Server artifact', () => {
             protocolVersion: 2,
             repositoryNotices: {
                 licensesDirectory,
+                projectLicense,
                 thirdPartyNotices,
             },
             ripgrep: { executable: ripgrepExecutable },
@@ -110,6 +113,7 @@ describe('standalone Server artifact', () => {
                 'bundles/terminal-host.js',
                 'extensions/git/dist/extension.js',
                 'native/node_modules/better-sqlite3/package.json',
+                'LICENSE',
                 'THIRD_PARTY_NOTICES.md',
                 'licenses/ANOTHER_LICENSE.txt',
                 'licenses/NODE_RUNTIME_LICENSE.txt',
@@ -156,6 +160,7 @@ describe('standalone Server artifact', () => {
         const licensesDirectory = join(root, 'licenses');
         const ripgrepLicense = join(licensesDirectory, 'RIPGREP_LICENSE.txt');
         const vscodeRipgrepLicense = join(licensesDirectory, 'VSCODE_RIPGREP_LICENSE.txt');
+        const projectLicense = join(root, 'LICENSE');
         const thirdPartyNotices = join(root, 'THIRD_PARTY_NOTICES.md');
         await Promise.all([
             fixtureFile(join(bundleSource, 'server-core.js'), 'server-core'),
@@ -168,6 +173,7 @@ describe('standalone Server artifact', () => {
             fixtureFile(ripgrepExecutable, 'ripgrep'),
             fixtureFile(ripgrepLicense, 'ripgrep license'),
             fixtureFile(vscodeRipgrepLicense, 'vscode ripgrep license'),
+            fixtureFile(projectLicense, 'project license'),
             fixtureFile(thirdPartyNotices, 'third-party notices'),
         ]);
         await Promise.all([chmod(runtimeExecutable, 0o755), chmod(ripgrepExecutable, 0o755)]);
@@ -182,6 +188,7 @@ describe('standalone Server artifact', () => {
             protocolVersion: 2,
             repositoryNotices: {
                 licensesDirectory,
+                projectLicense,
                 thirdPartyNotices,
             },
             ripgrep: { executable: ripgrepExecutable },
@@ -208,6 +215,7 @@ describe('standalone Server artifact', () => {
         const ripgrepExecutable = join(root, 'rg');
         const cliBundle = join(root, 'caxri.cjs');
         const licensesDirectory = join(root, 'licenses');
+        const projectLicense = join(root, 'LICENSE');
         const thirdPartyNotices = join(root, 'THIRD_PARTY_NOTICES.md');
         await Promise.all([
             ...[
@@ -228,6 +236,7 @@ describe('standalone Server artifact', () => {
                 join(licensesDirectory, 'VSCODE_RIPGREP_LICENSE.txt'),
                 'vscode ripgrep license',
             ),
+            fixtureFile(projectLicense, 'project license'),
             fixtureFile(thirdPartyNotices, 'third-party notices'),
             fixtureFile(cliBundle, 'cli'),
         ]);
@@ -241,6 +250,7 @@ describe('standalone Server artifact', () => {
             protocolVersion: 2,
             repositoryNotices: {
                 licensesDirectory,
+                projectLicense,
                 thirdPartyNotices,
             },
             ripgrep: { executable: ripgrepExecutable },
@@ -299,6 +309,7 @@ describe('standalone Server artifact', () => {
             fixtureFile(join(root, 'node'), 'runtime'),
             fixtureFile(runtimeLicense, 'node runtime license'),
             fixtureFile(join(root, 'rg'), 'ripgrep'),
+            fixtureFile(join(root, 'LICENSE'), 'project license'),
             fixtureFile(join(root, 'THIRD_PARTY_NOTICES.md'), 'third-party notices'),
             fixtureFile(join(licensesDirectory, 'LICENSE.txt'), 'repository license'),
         ]);
@@ -314,6 +325,7 @@ describe('standalone Server artifact', () => {
             protocolVersion: 2,
             repositoryNotices: {
                 licensesDirectory,
+                projectLicense: join(root, 'LICENSE'),
                 thirdPartyNotices: join(root, 'THIRD_PARTY_NOTICES.md'),
             },
             ripgrep: { executable: join(root, 'rg') },

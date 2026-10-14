@@ -3,6 +3,7 @@
     "version": "0.0.103",
     "private": true,
     "author": "Caxri contributors",
+    "license": "SEE LICENSE IN LICENSE",
     "description": "A project-first, terminal-native local development workbench for macOS.",
     "type": "module",
     "scripts": {
@@ -334,6 +335,7 @@
         "files": [
             "out/**",
             "package.json",
+            "LICENSE",
             "THIRD_PARTY_NOTICES.md",
             "licenses/**"
         ],

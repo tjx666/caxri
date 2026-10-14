@@ -26,7 +26,11 @@ export interface ServerArtifactInput {
      * unchanged.
      */
     omitSourceMaps?: boolean;
-    repositoryNotices: { licensesDirectory: string; thirdPartyNotices: string };
+    repositoryNotices: {
+        licensesDirectory: string;
+        projectLicense: string;
+        thirdPartyNotices: string;
+    };
     ripgrep: { executable: string };
     runtime: { executable: string; license: string; version: string };
     runtimeSource?: { member: string; sha256: string; url: string };
@@ -110,10 +114,12 @@ async function assertRegularFile(path: string, label: string): Promise<void> {
 }
 
 /**
- * Copies the repository-wide third-party notice and every top-level license without following links. The Node runtime
- * license has a reserved destination because it must describe the exact runtime executable staged for this artifact.
+ * Copies the product license, repository-wide third-party notice, and every top-level third-party license without
+ * following links. The Node runtime license has a reserved destination because it must describe the exact runtime
+ * executable staged for this artifact.
  */
 async function copyRepoNotices(input: ServerArtifactInput): Promise<void> {
+    await assertRegularFile(input.repositoryNotices.projectLicense, 'LICENSE');
     await assertRegularFile(input.repositoryNotices.thirdPartyNotices, 'THIRD_PARTY_NOTICES.md');
     const licensesMetadata = await lstat(input.repositoryNotices.licensesDirectory);
     if (!licensesMetadata.isDirectory() || licensesMetadata.isSymbolicLink())
@@ -139,6 +145,7 @@ async function copyRepoNotices(input: ServerArtifactInput): Promise<void> {
         join(input.artifactRoot, 'THIRD_PARTY_NOTICES.md'),
     );
     await Promise.all([
+        cp(input.repositoryNotices.projectLicense, join(input.artifactRoot, 'LICENSE')),
         ...licenseNames.map((name) =>
             cp(
                 join(input.repositoryNotices.licensesDirectory, name),

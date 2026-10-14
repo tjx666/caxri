@@ -54,6 +54,15 @@ A pull request should:
   applicable notices.
 - Avoid unrelated formatting, refactors, dependency changes, or generated files.
 
-The project license and contribution authorization process are still being finalized. Do not add
-license grants or contributor agreements to an individual pull request. A contribution will not be
-merged until the applicable project contribution terms have been published and accepted.
+## Contributor license agreement
+
+Every external code, documentation, test, or asset contribution requires acceptance of the
+[Caxri Individual Contributor License Agreement](CLA.md). Opening a pull request accepts CLA 1.0
+for everything included in that submission; pushing more commits accepts it for those additions.
+The pull request checklist records that acceptance. If the repository enables a CLA check, that
+check must also pass before merge.
+
+The CLA does not transfer copyright. It lets the maintainer distribute and commercially license
+contributed work while keeping the Contribution available under Caxri's public license. If an
+employer or another party may own the Contribution, obtain their authorization before submitting
+it. Disclose the origin and license of every third-party part.

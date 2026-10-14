@@ -347,6 +347,7 @@ const manifest = await assembleServerArtifact({
     protocolVersion: CAXRI_PROTOCOL_VERSION,
     repositoryNotices: {
         licensesDirectory: resolve(root, 'licenses'),
+        projectLicense: resolve(root, 'LICENSE'),
         thirdPartyNotices: resolve(root, 'THIRD_PARTY_NOTICES.md'),
     },
     ...(linuxRuntime && {

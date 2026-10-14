@@ -2,6 +2,7 @@
     "name": "caxri",
     "version": "0.0.103",
     "description": "Public ESM API for Caxri extensions.",
+    "license": "SEE LICENSE IN LICENSE",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/tjx666/caxri.git",

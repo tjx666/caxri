@@ -1,0 +1,191 @@
+CAXRI SOURCE-AVAILABLE LICENSE 1.0
+
+Copyright (c) 2026 tjx666 and Caxri contributors
+
+This is a source-available license, not an Open Source Initiative approved open source license.
+
+By exercising any right granted by this License, you accept its terms.
+
+## 1. Definitions
+
+"Licensor" means a copyright holder who places material under this License.
+
+"you" means the individual or legal entity exercising rights under this License. For a legal
+entity, "you" also includes an entity under common control when it acts together to exercise those
+rights or receive the Software. "Control" means direct or indirect ownership of more than 50% of
+the voting interests or the power to direct management.
+
+"Commercial Licensor" means tjx666, reachable at ytj2713151713@gmail.com, to the extent tjx666
+owns or has written authority to license the rights required for separate commercial terms.
+
+"Software" means Caxri source code, object code, documentation, and other material expressly placed
+under this License, including Modifications. Software excludes separately identified third-party
+material governed by another license.
+
+"Modification" means a modified copy or derivative work of the Software. An independently
+distributed extension, plugin, theme, or other work that uses only documented public APIs and does
+not include a copy of the Software is an Output rather than a Modification.
+
+"Output" means code, content, an artifact, or another work created by using the Software as a tool,
+provided that the work is not itself the Software, a Modification, or a product that supplies a
+Primary Caxri Capability.
+
+"Consideration" means money, cryptocurrency, equity, or another direct or indirect economic benefit
+received in exchange for, or as direct funding for, providing the Software, a Modification, Hosted
+Access, or a Primary Caxri Capability. It includes advertising shown to recipients or users, data
+collected from them for economic benefit, and branding or customer acquisition intentionally tied
+to the offering. It also includes a donation or sponsorship solicited or accepted as payment or
+direct funding for providing, distributing, or hosting the Software, even if no specific benefit is
+promised in return. A general donation or sponsorship that is not tied to such an offering is not
+Consideration.
+
+"Primary Caxri Capability" means a user-facing or programmable capability that is material to Caxri
+as distributed, including Projects, Sessions, Agent Chat, the Terminal, Files, Source Control, the
+Server, and the CLI, and any substitute that supplies substantially the same function to another
+person.
+
+"Hosted Access" means allowing another person to use a Primary Caxri Capability over a network,
+whether or not that person receives a copy or thin client.
+
+"Complete Corresponding Source" means the preferred form for making modifications, including the
+source code and repository-controlled scripts needed to build, install, and run the distributed
+object code. It does not include generally available, unmodified operating-system or toolchain
+components.
+
+## 2. Copyright grant
+
+Subject to this License, each Licensor grants you a worldwide, non-exclusive, royalty-free right to
+use, reproduce, execute, display, study, test, and modify the Software. You may distribute the
+Software only under Section 4 and may provide Hosted Access only under Sections 3 and 5.
+
+The grant is conditioned on compliance with this License and terminates only as described in
+Section 10. No right is granted for conduct prohibited by Section 5.
+
+## 3. Uses that are free
+
+You may, without paying a Licensor:
+
+1. use the Software for personal, educational, evaluation, internal, or business purposes;
+2. use the Software as a tool to perform paid work, including contracting and consulting;
+3. use the Software to create, maintain, or operate commercial or closed-source Outputs;
+4. keep private or internal Modifications closed source;
+5. charge for installation, configuration, maintenance, support, or training for a customer's
+   lawful copy when you do not provide a Software copy, a Modification, Hosted Access, or a Primary
+   Caxri Capability; and
+6. provide Hosted Access without Consideration, advertising, donations, sponsorships, or another
+   direct or indirect economic benefit.
+
+This License does not govern an Output merely because the Software was used to create it. You do
+not have to disclose source code for an Output or for a private or internal Modification.
+
+## 4. Free distribution
+
+You may distribute the Software or a Modification without Consideration if you:
+
+1. include this License and preserve all copyright, attribution, trademark, and third-party
+   notices supplied with the Software;
+2. state prominently that you modified the Software and identify the date of the distributed
+   version;
+3. license the parts of the Modification for which you own copyright under this License;
+4. impose no additional term that contradicts or restricts this License; and
+5. when distributing object code, provide its Complete Corresponding Source at no charge under
+   this License by including it with the object code, making it available from a durable and
+   publicly accessible location, or providing a written offer valid for at least three years that
+   lets every recipient obtain it at no charge.
+
+Each recipient receives rights directly from the applicable Licensors.
+
+Charging pass-through media, bandwidth, hosting, shipping, or delivery costs is distribution for
+Consideration and requires a separate commercial license. Paid delivery of a Software copy or
+Modification, including a customized fork delivered as part of professional services, also
+requires a separate commercial license. Using Caxri to perform paid work while delivering only an
+Output remains free under Section 3.
+
+## 5. Restricted monetization
+
+Unless the Commercial Licensor gives you a separate written commercial license, you may not:
+
+1. sell, rent, lease, or license the Software or a Modification for Consideration;
+2. distribute the Software or a Modification for Consideration;
+3. provide Hosted Access for Consideration;
+4. solicit or accept donations or sponsorships as payment or direct funding for providing,
+   distributing, or hosting the Software;
+5. make access to the Software, a Modification, or a Primary Caxri Capability conditional on a
+   subscription, purchase, advertising arrangement, data collection for economic benefit, or other
+   Consideration;
+6. market or provide a paid product or service whose primary purpose or material marketed feature
+   is to supply the Software, a Modification, or a Primary Caxri Capability; or
+7. rebrand, wrap, bundle, or make immaterial changes to avoid these restrictions.
+
+Using the Software internally to build, test, maintain, or operate another product does not by
+itself violate this Section. Payment for an Output does not by itself violate this Section. Payment
+for installation, configuration, maintenance, support, or training does not violate this Section
+when no Software copy, Modification, Hosted Access, or Primary Caxri Capability is provided. A
+general donation or sponsorship unrelated to providing, distributing, or hosting the Software does
+not violate this Section.
+
+## 6. Commercial licenses
+
+The Commercial Licensor may offer separate commercial terms, including a fixed fee, subscription,
+or negotiated revenue share. This public License does not promise that commercial permission will
+be available, does not set a price or percentage, and does not authorize monetization before a
+separate written agreement becomes effective.
+
+Commercial-license contact: ytj2713151713@gmail.com
+
+## 7. Patent grant
+
+Subject to this License, each Licensor grants you a worldwide, non-exclusive, royalty-free patent
+license under patent claims controlled by that Licensor that are necessarily infringed by material
+provided by that Licensor, alone or in combination with the Software to which it was contributed.
+The patent license covers making, having made, using, offering to sell, selling, importing, and
+otherwise transferring that material only as permitted by this License.
+
+The patent license granted to you terminates if you initiate patent litigation alleging that the
+Software or a contribution to it infringes a patent.
+
+## 8. Notices and third-party material
+
+You must preserve all copyright, attribution, license, and trademark notices supplied with the
+Software. `THIRD_PARTY_NOTICES.md` and files under `licenses/` identify material that may be governed
+by separate terms. Separately identified third-party material is excluded from the Software
+governed by this License, and its own terms control. This License grants no rights that a Licensor
+does not own or have authority to grant.
+
+## 9. Trademarks
+
+This License grants no trademark rights. It does not prohibit a reference that applicable law
+already allows. A distributed Modification must not use Caxri names, logos, or marks as its own
+product name or imply sponsorship, endorsement, or official status.
+
+## 10. Termination and cure
+
+Your rights under this License terminate automatically when you materially violate it. Those rights
+are provisionally reinstated when you stop the violation. They are reinstated permanently if no
+Licensor notifies you of the violation within 60 days after you stop it, or, for the first notice you
+receive, if you stop the violation within 30 days after receiving that notice. A later material
+violation terminates your rights permanently unless the Commercial Licensor agrees otherwise in
+writing.
+
+Termination does not end valid licenses previously received by downstream recipients who remain in
+compliance.
+
+## 11. Disclaimer of warranty
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF TITLE, NON-INFRINGEMENT,
+MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE. YOU BEAR THE RISK OF USING OR DISTRIBUTING
+THE SOFTWARE.
+
+## 12. Limitation of liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, NO LICENSOR IS LIABLE FOR ANY DAMAGES, INCLUDING DIRECT,
+INDIRECT, SPECIAL, INCIDENTAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR LOST PROFITS,
+REVENUE, DATA, OR BUSINESS OPPORTUNITY, ARISING FROM THE SOFTWARE OR THIS LICENSE, EVEN IF ADVISED
+OF THE POSSIBILITY OF THOSE DAMAGES.
+
+## 13. General terms
+
+If a provision is unenforceable, it will be limited only as much as necessary, and the remaining
+provisions will continue to apply. A failure to enforce a provision is not a waiver. This License
+does not limit any use that applicable law permits without a copyright or patent license.

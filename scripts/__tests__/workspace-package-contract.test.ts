@@ -71,6 +71,25 @@ describe('workspace package manifests', () => {
         expect(apiManifest.version).toBe(appManifest.version);
     });
 
+    it('keeps product and public package license metadata aligned', async () => {
+        const [rootManifestText, apiManifestText, projectLicense, apiLicense] = await Promise.all([
+            readFile(join(workspaceRoot, 'package.json'), 'utf8'),
+            readFile(join(workspaceRoot, 'packages/extension-api/package.json'), 'utf8'),
+            readFile(join(workspaceRoot, 'LICENSE'), 'utf8'),
+            readFile(join(workspaceRoot, 'packages/extension-api/LICENSE'), 'utf8'),
+        ]);
+        const rootManifest = JSON.parse(rootManifestText) as {
+            build: { files: string[] };
+            license: string;
+        };
+        const apiManifest = JSON.parse(apiManifestText) as { license: string };
+
+        expect(rootManifest.license).toBe('SEE LICENSE IN LICENSE');
+        expect(apiManifest.license).toBe(rootManifest.license);
+        expect(rootManifest.build.files).toContain('LICENSE');
+        expect(apiLicense).toBe(projectLicense);
+    });
+
     it('exposes the public caxri types from its published build', async () => {
         const manifestPath = join(workspaceRoot, 'packages/extension-api/package.json');
         const manifestText = await readFile(manifestPath, 'utf8');
@@ -135,7 +154,10 @@ describe('workspace package manifests', () => {
                 mkdir(tarballRoot, { recursive: true }),
                 mkdir(consumerRoot, { recursive: true }),
             ]);
-            await copyFile(join(apiRoot, 'package.json'), join(packageRoot, 'package.json'));
+            await Promise.all([
+                copyFile(join(apiRoot, 'package.json'), join(packageRoot, 'package.json')),
+                copyFile(join(apiRoot, 'LICENSE'), join(packageRoot, 'LICENSE')),
+            ]);
             await execFileAsync(
                 join(workspaceRoot, 'node_modules/.bin/tsc'),
                 [
@@ -166,6 +188,7 @@ describe('workspace package manifests', () => {
             await expect(
                 access(join(installedPackageRoot, 'dist/index.d.ts')),
             ).resolves.toBeUndefined();
+            await expect(access(join(installedPackageRoot, 'LICENSE'))).resolves.toBeUndefined();
             await expect(
                 access(join(installedPackageRoot, 'dist/__tests__/api.test.d.ts')),
             ).rejects.toMatchObject({ code: 'ENOENT' });

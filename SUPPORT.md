@@ -26,7 +26,7 @@ welcome as information, but they may be closed without investigation.
 
 ## Commercial licensing
 
-The project license and commercial authorization terms are still being finalized. A public
-commercial licensing contact has not been published. An Issue, pull request, or lack of response
-does not grant commercial authorization; rely only on the published `LICENSE` and an explicit
-authorization channel once they are available.
+Caxri is source-available under the repository [LICENSE](LICENSE), not under an OSI-approved open
+source license. Commercial rights beyond that public License require a separate written agreement.
+Contact [ytj2713151713@gmail.com](mailto:ytj2713151713@gmail.com) for commercial terms. An Issue,
+pull request, email, or lack of response does not itself grant commercial authorization.
