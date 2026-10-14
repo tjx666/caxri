@@ -74,6 +74,7 @@ const VALUE_FLAGS = new Map<FullSuiteRunner, readonly string[]>([
     [
         'e2e',
         [
+            '--add-reporter',
             '--config',
             '--max-failures',
             '--output',

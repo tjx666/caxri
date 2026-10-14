@@ -9,6 +9,7 @@ import process from 'node:process';
 import { waitForChildExit } from './exec';
 import type { E2EPoolReceipt } from './reporters/e2e-receipt-reporter';
 import { assertE2EPoolCensusComplete } from './reporters/e2e-receipt-reporter';
+import { playwrightReporterArgument } from './reporters/public-e2e-reporter';
 import { mergeCensusReceipts } from './run-e2e-pools';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -29,7 +30,7 @@ async function run(
             `--config=${config}`,
             '--workers=1',
             `--max-failures=${maxFailures}`,
-            '--reporter=line,./scripts/reporters/e2e-receipt-reporter.ts',
+            playwrightReporterArgument({ includeReceipt: true }),
         ],
         {
             cwd: projectRoot,

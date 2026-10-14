@@ -269,8 +269,8 @@ Vite's `.vite` directory is not a reusable production-output cache.
 - A failed explicit full-E2E candidate must be repaired against a new exact SHA. It is dispatched
   again only when the maintainer gives fresh authorization; ready-PR ancestor reuse is suspended
   while automatic PR E2E is disabled.
-- Keep test counts, assertions, isolation, error gates, and failure artifacts unchanged. Optimize
-  fixture cost and orchestration rather than coverage.
+- Keep test counts, assertions, isolation, error gates, and content-safe failure receipts unchanged.
+  Optimize fixture cost and orchestration rather than coverage.
 
 ## Current CI decision matrix
 
@@ -409,6 +409,19 @@ wall time alone hides it.
   reporter also appends each settled test to a `<receipt>.progress.jsonl` journal, so the
   invocation the signal killed before `onEnd` still contributes its finished verdicts and failure
   artifacts; only specs it never reached land in `missingSpecs`.
+- Before an Actions upload, `scripts/prepare-public-e2e-receipts.ts` reads only the fixed internal
+  receipt filenames and atomically writes a strict public projection under
+  `test-results/public-receipts/`. The projection removes titles, test IDs, artifact paths,
+  timestamps, and arbitrary error text. It retains a stable error hash when available and otherwise
+  emits the closed `missing-error` classification, so each failed or timed-out test remains visible.
+  Workflow upload paths name individual JSON files: raw Playwright output, progress journals, traces,
+  screenshots, DOM snapshots, Terminal content, and auxiliary receipts never leave the disposable
+  hosted runner.
+- GitHub-hosted Playwright commands use `scripts/reporters/public-e2e-reporter.ts`. It emits only
+  repository-relative locations, closed statuses, durations, counts, and run state. Test titles,
+  errors, source snippets, annotations, attachments, worker stdout/stderr, DOM values, and Terminal
+  values are deliberately absent from the public Actions log. Local focused reproduction keeps the
+  normal detailed reporter.
 - Every required output is checked before every launch. Each Playwright worker performs one full
   recursive build-input scan, then reuses it until a filesystem event or mtime snapshot invalidates
   the cache; watcher failure falls back to scanning.
@@ -651,16 +664,14 @@ The committed `scripts/performance-baseline.json` records that retired machine's
 GitHub-hosted run. Never hand-edit the JSON file; a future hosted baseline must be derived from its
 own reviewed same-image sample window.
 
-The receipt artifacts expire after seven days, but the `e2e` job log keeps the same receipt as its
-`CAXRI_RENDERER_BENCHMARK {...}` line (`e2e/renderer.performance.e2e.ts` prints the exact payload it
-writes). To re-derive from an expired window, for example after adding an exclusion, fetch each
-run's `e2e` job log with `gh api repos/{owner}/{repo}/actions/jobs/<job-id>/logs`, write its last
-`CAXRI_RENDERER_BENCHMARK` payload to `<dir>/<job-id>/renderer-performance.json`, and run the same
-`--input-dir` derivation. Before committing, confirm the result reproduces every unchanged metric of
-the committed baseline exactly, which proves the reconstructed set is the original one. The
-`frames.sampleCount` exclusion was applied this way: the reconstructed 98 receipts reproduced all 60
-previously gated metrics, so the regenerated file differs only by that metric's move to `excluded`,
-`recordedAt`, and `commit`.
+The receipt artifacts expire after seven days. The content-safe public reporter suppresses worker
+stdout, including the full `CAXRI_RENDERER_BENCHMARK` payload, so a future baseline sample window must
+be downloaded before expiry. The 98 historical self-hosted receipts predate that boundary and were
+reconstructed from their old logs; that recovery path is historical evidence, not the current
+contract. Before committing a new baseline, confirm the derivation reproduces every unchanged metric
+of its reviewed downloaded sample set. The historical `frames.sampleCount` exclusion was applied by
+reconstructing those 98 old receipts and reproducing all 60 previously gated metrics, so the
+regenerated file differed only by that metric's move to `excluded`, `recordedAt`, and `commit`.
 
 ### Gradual-creep trend check
 
@@ -733,8 +744,8 @@ peak process-tree RSS, cache state, and every non-green attempt. Adopt a paralle
 change only when correctness and isolation stay green and same-image GitHub-hosted medians improve;
 otherwise
 restore control and record the rejection. `CAXRI_VALIDATION_ENV`, `CAXRI_CACHE_STATE`,
-`CAXRI_CI_METRIC`, `CAXRI_E2E_MANIFEST`, and `CAXRI_RENDERER_BENCHMARK` provide the machine-readable
-inputs for that report;
+`CAXRI_CI_METRIC`, `CAXRI_E2E_MANIFEST`, and the downloaded `renderer-performance-receipt` artifacts
+provide the machine-readable inputs for that report;
 the owning issue or PR records the candidate-specific samples and adoption decision.
 
 Before dispatch, freeze the sample count, dispatch order, expected minimum wall time from the most

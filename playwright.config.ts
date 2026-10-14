@@ -2,6 +2,11 @@ import process from 'node:process';
 
 import { defineConfig } from '@playwright/test';
 
+import {
+    publicE2EReporterPath,
+    shouldUsePublicE2EReporter,
+} from './scripts/reporters/public-e2e-reporter';
+
 export default defineConfig({
     globalSetup: './e2e/support/full-suite-guard.ts',
     testDir: './e2e',
@@ -11,7 +16,7 @@ export default defineConfig({
     expect: { timeout: 15_000 },
     maxFailures: process.env.CI ? 3 : 0,
     workers: 1,
-    reporter: [['list']],
+    reporter: [[shouldUsePublicE2EReporter(process.env) ? publicE2EReporterPath : 'list']],
     use: {
         trace: 'retain-on-failure',
         screenshot: 'only-on-failure',

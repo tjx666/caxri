@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import process from 'node:process';
 
 import { runChildProcess } from './exec';
+import { playwrightReporterArgument } from './reporters/public-e2e-reporter';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -88,7 +89,7 @@ async function main(): Promise<void> {
                 parityCase.match,
                 '--workers=1',
                 '--repeat-each=3',
-                '--reporter=line',
+                playwrightReporterArgument(),
             ],
             ciParityEnvironment(parityCase.id),
         );

@@ -109,7 +109,6 @@ try {
             'test',
             'e2e/mobile-pairing-desktop-acceptance.e2e.ts',
             '--workers=1',
-            '--reporter=line',
         ],
         E2E_TIMEOUT_MS,
         {
