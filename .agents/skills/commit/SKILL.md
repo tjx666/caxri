@@ -107,9 +107,16 @@ Confirm that each requested change is committed and unrelated changes remain unt
 
 ## Push an existing PR branch
 
-If the pre-commit PR check found an open PR for the current branch, automatically run `git push`
-after all commits and validations succeed. Read back the branch/PR state and report the pushed
-commit SHA and PR URL.
+If the pre-commit PR check found an open PR for the current branch, resolve the current branch name
+and push it explicitly after all commits and validations succeed:
+
+```bash
+git push origin HEAD:refs/heads/<current-branch>
+```
+
+Do not rely on the configured upstream: a task branch created from `origin/main` may retain that
+base as its comparison upstream, and a plain `git push` would target or be blocked as a default-
+branch push. Read back the branch/PR state and report the pushed commit SHA and PR URL.
 
 If the branch had no open PR, do not push unless the user separately asked for a push. Never create
 a PR implicitly, never force-push, and stop with the rejection details if a normal push fails.
