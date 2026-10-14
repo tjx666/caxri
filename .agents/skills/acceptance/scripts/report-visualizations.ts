@@ -3,10 +3,9 @@ import { z } from 'zod';
 import { validateHumanText } from './validate-report';
 
 /**
- * For LobeHub publication, Caxri keeps `cases[].datasets` + `cases[].visualizations` native, which preserves machine-readable values,
- * theme adaptation, and accessibility that a generated PNG throws away. Local validation rejects a plausible-but-wrong
- * shape, so publication cannot continue with degraded evidence; local validation turns that into a
- * finalize-time failure instead.
+ * Native `cases[].datasets` + `cases[].visualizations` preserve machine-readable values, theme adaptation, and
+ * accessibility that a generated PNG throws away. Local validation keeps a plausible-but-wrong shape from reaching
+ * publication with degraded evidence.
  */
 const DATASET_FIELD_TYPES = ['boolean', 'category', 'number', 'string', 'temporal'] as const;
 const VISUALIZATION_TYPES = [

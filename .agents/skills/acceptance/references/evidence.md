@@ -17,9 +17,9 @@ but each case belongs to the surface whose user outcome it asks the reviewer to 
 
 The `requiredEvidence` declaration is binding. A final screenshot cannot replace
 a required temporal recording, and prose cannot replace a required screenshot.
-The Caxri evidence schema used for LobeHub publication has no `transcript` type.
-Save transcript-like event-order evidence as `.txt` and declare it as `text`;
-use `.md` or `.markdown` only when the declared type is `markdown`.
+The Caxri evidence schema has no `transcript` type. Save transcript-like
+event-order evidence as `.txt` and declare it as `text`; use `.md` or
+`.markdown` only when the declared type is `markdown`.
 Save `dom_snapshot` evidence as `.html` or `.htm`. The interactive
 `agent-browser snapshot -i` output supplies element references but is not the
 report artifact; serialize the smallest relevant Renderer subtree by following
@@ -30,8 +30,8 @@ report artifact; serialize the smallest relevant Renderer subtree by following
 - Reference artifacts from `cases[].evidence` as
   `{ "path": "...", "description": "..." }`, with the path relative to the report
   directory, for example `assets/terminal-layout.png`. The bare-path form is
-  rejected: a filename alone tells a reviewer
-  nothing about what the artifact shows.
+  rejected because a filename alone tells a reviewer nothing about what the
+  artifact shows.
 - Write a concise, factual Simplified Chinese sentence identifying the file's
   contents and their relevance to the check, including the action, observed
   state, or target where useful. The reviewer should know why to open it without

@@ -61,13 +61,13 @@ phrasing: unit / integration / regression / snapshot tests, coverage,
 `type-check` / `tsc`, lint / `eslint`, format, "compiles", "build passes",
 "CI is green". Run them, then report them as **one line of narrative**.
 
-Enforced before publication: every matching item (matched on title, category, AND
-`method`: "run `bun run check`" under a product-sounding title still matches) is
-**rejected** before the plan is frozen; a plan containing only such checks
-**fails local validation**. The line is the _subject_ of the check, not who judged it:
-a Terminal behavior asserted by a command is a fine check (`verifier: "program"`);
-"the suite is green" is not. Before writing any plan, ask of each draft check:
-_would the user click accept/reject on this?_
+Reject any matching item before freezing the plan, including a product-sounding
+title whose `method` says to run `bun run check`. Do not rely on a downstream
+publication service to remove, reinterpret, or recount invalid checks. The line
+is the _subject_ of the check, not who judged it: a Terminal behavior asserted
+by a command is a fine check (`verifier: "program"`); "the suite is green" is
+not. Before writing any plan, ask of each draft check: _would the user click
+accept/reject on this?_
 
 ## Boundaries
 
@@ -268,10 +268,10 @@ description; `finalize` rejects a bare path and an English-only description.
 
 Follow [references/report.md](references/report.md) for the authoritative ingest commands and
 result schema. Preserve the returned Acceptance id, URL, and round index. Never overwrite a
-published round. If post-publication readback indicates declared evidence is missing, preserve that
-history and publish a corrected round. Run the report scaffold's `finalize` command before every
-ingest. It computes the summary and fails locally on plan/case drift, missing evidence,
-required-medium gaps, or English-only human-facing content.
+published round. If the post-publication readback does not contain every declared evidence item,
+preserve that history and publish a corrected round. Run the report scaffold's `finalize` command
+before every ingest. It computes the summary and fails locally on plan/case drift, missing
+evidence, required-medium gaps, or English-only human-facing content.
 
 Inside Go, never call raw `lh acceptance run ingest`. Use the Go `acceptance-publish` command
 so later rounds are forced onto the frozen Acceptance id and publication is recorded only after

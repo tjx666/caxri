@@ -151,7 +151,7 @@ function viewJson(
     const verifyRunId = input.verifyRunId ?? `run-${roundIndex}`;
     return JSON.stringify({
         acceptance: { id: acceptanceId },
-        // LobeHub compatibility fixture exercises the supported response shapes.
+        // Exercise the current and legacy response shapes used by the compatibility parser.
         checks: (input.checkIds ?? ['acceptance-round-lineage']).map((id, index) => ({
             evidence: input.evidence ?? [
                 { content: 'Remote evidence receipt', fileId: null, fileUrl: null, type: 'text' },

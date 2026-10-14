@@ -32,6 +32,10 @@ safe merely because it looks harmless, is inside a test, is in a comment, or is 
 - **An absolute path containing a real account name**, whether the developer's or anyone else's.
 - **A real person's name, handle, or email**, outside the repository's own authorship metadata.
 - **A credential of any kind**, including one that is expired, revoked, or "just a test key".
+- **Non-public implementation behavior of an external service.** Do not record private filtering,
+  scoring, moderation, or data-handling rules. Document only publicly documented behavior, the
+  minimum authenticated request/response contract required by Caxri, and Caxri's local fail-closed
+  behavior.
 
 ### Write instead
 

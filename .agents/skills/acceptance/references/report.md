@@ -308,9 +308,9 @@ render under the check next to the outcome.
 
 The repo's own gates (Vitest, Playwright E2E, coverage, `type-check`, lint,
 format, a clean build, "CI passes") are never `plan[]` / `cases[]` items, under
-any phrasing; they are one line in `report.md`. Treat a plan containing matching items as invalid,
-and reject it before publication; a
-gates-only plan fails local validation. Full rule: [SKILL.md](../SKILL.md).
+any phrasing; they are one line in `report.md`. Treat a plan containing one as
+invalid and rewrite it before initializing a round; never depend on downstream
+publication behavior to correct the plan. Full rule: [SKILL.md](../SKILL.md).
 
 ## Structured visualizations
 
@@ -367,9 +367,9 @@ declared keys with string, number, boolean, or null values, and one case's
 combined inline rows are limited to 10,000. Every encoding key that names a field
 must reference a field that dataset declared; `xLabel`, `yLabel`, `valueLabel`,
 `unit`, `statistic`, and `direction` are free prose, not field names.
-Finalization checks all of this locally, so local validation rejects a
-malformed visualization shape before publication can degrade the
-evidence.
+Finalization checks all of this locally so malformed visualization data cannot
+reach publication or degrade the evidence attached to an otherwise valid
+round.
 
 ## Finalize before publication
 
@@ -390,8 +390,8 @@ Simplified Chinese report prose, and writes `summary` from the case statuses.
 Pass `--conclusion` only when the generic Chinese conclusion is not precise
 enough. It never writes observations or changes case verdicts.
 
-Evidence for LobeHub publication follows Caxri's schema. Supported required
-types are `screenshot`, `gif`, `video`, `text`, `markdown`, and `dom_snapshot`.
+Evidence type follows Caxri's publication schema. Supported required types are
+`screenshot`, `gif`, `video`, `text`, `markdown`, and `dom_snapshot`.
 In particular, save a required DOM snapshot with `.html` or `.htm`, Markdown
 with `.md` or `.markdown`, and text or transcript-like output with `.txt`. The
 schema does not define a `transcript` evidence type.

@@ -239,17 +239,16 @@ replace the scenario result.
 **Situation:** A plan item's `method` or `category` explains that some part of the contract is
 carried by a unit test, a lint gate, or a type-check.
 
-**Does not work:** Leaving that sentence in the plan. Before LobeHub publication, Caxri validates every plan item's
-title, category, and method for programmatic-test vocabulary (including the Chinese 单测 /
-单元测试 / 类型检查) and must reject the invalid matching check before publication. The published
-round must preserve its declared checks and verdict, so a locally blocked case
-must remain blocked. Publication readback must fail closed on any mismatch, and the
-already-published round remains immutable.
+**Does not work:** Leaving that sentence in the plan. A programmatic gate is supporting evidence,
+not a user outcome. Mixing it into the frozen checklist makes the plan's coverage and verdict
+ambiguous and leaves publication behavior, rather than Caxri's local contract, to decide what the
+reviewer sees.
 
 **Works:** Keep the plan item strictly about the outcome a person judges, and put the supporting-test
-explanation in `report.md`. If a round was already published with an invalid
-check, retain it with `state.ts acceptance-orphan` and republish the corrected round; never delete
-remote history. See the canonical
+explanation in `report.md`. Reject the plan before execution if its title, category, or method still
+describes a unit test, lint gate, type-check, build, or CI result. If an invalid round was already
+published, retain it with `state.ts acceptance-orphan` and republish the corrected round; never
+delete remote history. See the canonical
 [Go Acceptance loop](../skills/go/references/acceptance-loop.md).
 
 ## Recovering a case whose launcher never completed its receipt

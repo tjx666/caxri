@@ -183,8 +183,8 @@ developer tools without explicit authorization.
 
 ## 3. Auth
 
-Caxri itself has no account login. LobeHub publication uses the operator's
-authenticated CLI session and must be checked separately with:
+Caxri itself has no account login. Acceptance publication uses the operator's
+existing authenticated `lh` CLI session and must be checked separately with:
 
 ```bash
 lh whoami --json

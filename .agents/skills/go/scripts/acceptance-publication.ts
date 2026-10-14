@@ -164,9 +164,7 @@ const acceptanceCheckSchema = z.object({
 type RemoteAcceptanceCheck = z.infer<typeof acceptanceCheckSchema>;
 
 /**
- * For LobeHub publication, normalize the stable check id across current and earlier response shapes before every
- * local-vs-remote check comparison; the parser supports both response shapes.
- *
+ * Normalize the stable check id across current and earlier response shapes before comparing local and remote rounds.
  */
 function stableCheckId(check: RemoteAcceptanceCheck): string {
     return check.planItem?.id ?? check.id;
@@ -214,9 +212,8 @@ function requiredEvidenceType(
 }
 
 /**
- * For LobeHub publication, a successful command is insufficient: the remote evidence
- * inventory must match every local case exactly so
- * the reviewer receives every declared screenshot and recording.
+ * A successful publication command is insufficient: the remote evidence inventory must match every local case exactly
+ * so the reviewer receives every screenshot and recording declared by the finalized report.
  */
 function assertRemoteEvidenceIntegrity(
     report: z.infer<typeof localReportSchema>,
@@ -330,8 +327,8 @@ async function hasMatchingPublishedMobileReceipt(
 }
 
 /**
- * For LobeHub publication, remote readback must preserve both the product surface and concrete mobile target.
- * Otherwise, an Android result could be reviewed as generic desktop proof.
+ * Remote readback must preserve both the product surface and concrete mobile target so an Android result cannot be
+ * reviewed as generic desktop proof.
  */
 async function assertRemoteSurfaceAndDeviceIntegrity(
     report: z.infer<typeof localReportSchema>,

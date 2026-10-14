@@ -205,7 +205,7 @@ free, so it bypasses the circuit entirely.
   [GitHub's secondary rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits).
 - **Reserve**: before a `gh` call, at most once every five minutes, read the remaining GraphQL
   points. Below 100, pause until reset. Caxri is not the only thing on this account.
-- For **Linear, Vercel, and LobeHub**, Caxri uses a conservative geometric backoff when no usable reset time is available
+- When a provider response supplies no usable reset time, its circuit backs off geometrically
   (60s → 120s → 300s → 900s) and resets the ladder on the first success.
 - A paused source fails immediately with the same `rate-limited` error kind the CLI would have
   produced. Surfaces keep rendering their last good snapshot because the store serves the stale
