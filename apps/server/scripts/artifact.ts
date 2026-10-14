@@ -26,8 +26,9 @@ export interface ServerArtifactInput {
      * unchanged.
      */
     omitSourceMaps?: boolean;
-    ripgrep: { executable: string; ripgrepLicense: string; vscodeLicense: string };
-    runtime: { executable: string; version: string };
+    repositoryNotices: { licensesDirectory: string; thirdPartyNotices: string };
+    ripgrep: { executable: string };
+    runtime: { executable: string; license: string; version: string };
     runtimeSource?: { member: string; sha256: string; url: string };
     version: string;
 }
@@ -93,6 +94,59 @@ async function hasPath(path: string): Promise<boolean> {
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
         throw error;
     }
+}
+
+async function assertRegularFile(path: string, label: string): Promise<void> {
+    let metadata: Awaited<ReturnType<typeof lstat>>;
+    try {
+        metadata = await lstat(path);
+    } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+            throw new Error(`${label} is missing: ${path}`, { cause: error });
+        throw error;
+    }
+    if (!metadata.isFile() || metadata.isSymbolicLink())
+        throw new Error(`${label} must be a regular file: ${path}`);
+}
+
+/**
+ * Copies the repository-wide third-party notice and every top-level license without following links. The Node runtime
+ * license has a reserved destination because it must describe the exact runtime executable staged for this artifact.
+ */
+async function copyRepoNotices(input: ServerArtifactInput): Promise<void> {
+    await assertRegularFile(input.repositoryNotices.thirdPartyNotices, 'THIRD_PARTY_NOTICES.md');
+    const licensesMetadata = await lstat(input.repositoryNotices.licensesDirectory);
+    if (!licensesMetadata.isDirectory() || licensesMetadata.isSymbolicLink())
+        throw new Error(
+            `Repository licenses path must be a regular directory: ${input.repositoryNotices.licensesDirectory}`,
+        );
+    const licenseNames = (await readdir(input.repositoryNotices.licensesDirectory)).toSorted(
+        compareCodeUnits,
+    );
+    if (licenseNames.some((name) => name.toLowerCase() === 'node_runtime_license.txt'))
+        throw new Error('Repository licenses must not override NODE_RUNTIME_LICENSE.txt');
+    await Promise.all(
+        licenseNames.map((name) =>
+            assertRegularFile(
+                join(input.repositoryNotices.licensesDirectory, name),
+                `Repository license ${name}`,
+            ),
+        ),
+    );
+    await assertRegularFile(input.runtime.license, 'Node runtime license');
+    await cp(
+        input.repositoryNotices.thirdPartyNotices,
+        join(input.artifactRoot, 'THIRD_PARTY_NOTICES.md'),
+    );
+    await Promise.all([
+        ...licenseNames.map((name) =>
+            cp(
+                join(input.repositoryNotices.licensesDirectory, name),
+                join(input.artifactRoot, 'licenses', name),
+            ),
+        ),
+        cp(input.runtime.license, join(input.artifactRoot, 'licenses', 'NODE_RUNTIME_LICENSE.txt')),
+    ]);
 }
 
 /**
@@ -201,6 +255,8 @@ export async function assembleServerArtifact(
         }),
     );
 
+    await copyRepoNotices(input);
+
     const runtimeExecutable = join(input.artifactRoot, 'runtime', 'bin', 'node');
     await cp(input.runtime.executable, runtimeExecutable);
     await chmod(runtimeExecutable, 0o755);
@@ -210,17 +266,6 @@ export async function assembleServerArtifact(
         throw new Error('ripgrep executable must be a regular file');
     await cp(input.ripgrep.executable, ripgrepExecutable);
     await chmod(ripgrepExecutable, 0o755);
-    await Promise.all(
-        [
-            ['RIPGREP_LICENSE.txt', input.ripgrep.ripgrepLicense],
-            ['VSCODE_RIPGREP_LICENSE.txt', input.ripgrep.vscodeLicense],
-        ].map(async ([name, source]) => {
-            const metadata = await lstat(source);
-            if (!metadata.isFile() || metadata.isSymbolicLink())
-                throw new Error(`${name} must be a regular file`);
-            await cp(source, join(input.artifactRoot, 'licenses', name));
-        }),
-    );
     const launcher = join(input.artifactRoot, 'runtime', 'caxri-server');
     await writeFile(launcher, launcherSource(), { mode: 0o755 });
 

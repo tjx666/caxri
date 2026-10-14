@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cp, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
@@ -53,6 +53,15 @@ export interface LinuxNatives {
     betterSqlite: string;
     nodePty: string;
     watcherPackage: string;
+}
+
+/**
+ * Locates the LICENSE at the root of the Node installation that owns a host runtime executable. Resolving links first
+ * keeps a mise or package-manager shim from selecting an unrelated license beside the shim itself.
+ */
+export async function resolveHostNodeLicense(executable: string): Promise<string> {
+    const resolvedExecutable = await realpath(executable);
+    return resolve(dirname(resolvedExecutable), '..', 'LICENSE');
 }
 
 async function hasPath(path: string): Promise<boolean> {
@@ -126,21 +135,45 @@ export async function ensureLinuxRuntime(
 }
 
 /**
- * Extracts only the `node` binary from a verified runtime tarball.
+ * Extracts the `node` binary and its top-level LICENSE from the same verified official runtime tarball. The optional
+ * extraction root lets focused tests isolate their cache without changing production behavior.
  */
 export async function extractLinuxNode(
     source: LinuxRuntimeSource,
     destination: string,
-): Promise<void> {
-    const directory = join(cacheRoot, 'runtime', `${source.sha256}-extract`);
+    extractionRoot = join(cacheRoot, 'runtime'),
+): Promise<string> {
+    const memberMatch = /^([^/]+)\/bin\/node$/u.exec(source.member);
+    if (!memberMatch) throw new Error(`Invalid Node runtime member: ${source.member}`);
+    if (sha256(await readFile(source.tarballPath)) !== source.sha256)
+        throw new Error(`Runtime tarball checksum no longer matches ${source.sha256}`);
+    const licenseMember = `${memberMatch[1]}/LICENSE`;
+    const directory = join(extractionRoot, `${source.sha256}-extract`);
     const extracted = join(directory, source.member);
-    if (!(await hasPath(extracted))) {
+    const extractedLicense = join(directory, licenseMember);
+    if (!(await hasPath(extracted)) || !(await hasPath(extractedLicense))) {
         await rm(directory, { force: true, recursive: true });
         await mkdir(directory, { recursive: true });
-        await execFileAsync('tar', ['-xzf', source.tarballPath, '-C', directory, source.member]);
+        await execFileAsync('tar', [
+            '-xzf',
+            source.tarballPath,
+            '-C',
+            directory,
+            source.member,
+            licenseMember,
+        ]);
     }
+    const [runtimeMetadata, licenseMetadata] = await Promise.all([
+        lstat(extracted),
+        lstat(extractedLicense),
+    ]);
+    if (!runtimeMetadata.isFile() || runtimeMetadata.isSymbolicLink())
+        throw new Error(`Extracted Node runtime is not a regular file: ${source.member}`);
+    if (!licenseMetadata.isFile() || licenseMetadata.isSymbolicLink())
+        throw new Error(`Extracted Node runtime license is not a regular file: ${licenseMember}`);
     await mkdir(dirname(destination), { recursive: true });
     await cp(extracted, destination);
+    return extractedLicense;
 }
 
 function packageDirectory(name: string): string {

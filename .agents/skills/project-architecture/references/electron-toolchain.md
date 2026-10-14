@@ -52,6 +52,9 @@ uses `server/runtime/bin/node` from the standalone artifact; its Core, Runtime, 
 lifecycle-hook bridge, and native dependencies never execute through Electron. Packaging validation
 hashes both Server copies, loads all Server process entrypoints using the pinned artifact runtime, and
 executes a real Project Search through the staged `server/runtime/bin/rg` and search Worker.
+Every standalone and SSH Host Server artifact also integrity-binds the repository's third-party notice,
+all repository license files, and the LICENSE from the installation or official archive that supplies
+its exact Node runtime.
 
 The Desktop build consumes `@caxri/client` and `@caxri/protocol` through public package exports while
 leaving workspace links out of the packaged application. Main discovers and supervises the embedded

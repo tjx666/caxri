@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -26,9 +26,12 @@ describe('standalone Server artifact', () => {
         const sources = join(root, 'sources');
         const artifactRoot = join(root, 'output', 'server');
         const runtimeExecutable = join(sources, 'node');
+        const runtimeLicense = join(sources, 'NODE_LICENSE');
         const ripgrepExecutable = join(sources, 'rg');
-        const ripgrepLicense = join(sources, 'RIPGREP_LICENSE.txt');
-        const vscodeRipgrepLicense = join(sources, 'VSCODE_RIPGREP_LICENSE.txt');
+        const licensesDirectory = join(sources, 'licenses');
+        const ripgrepLicense = join(licensesDirectory, 'RIPGREP_LICENSE.txt');
+        const vscodeRipgrepLicense = join(licensesDirectory, 'VSCODE_RIPGREP_LICENSE.txt');
+        const thirdPartyNotices = join(sources, 'THIRD_PARTY_NOTICES.md');
         await Promise.all([
             fixtureFile(join(sources, 'bundles', 'server-core.js'), 'server-core'),
             fixtureFile(join(sources, 'bundles', 'agent-launcher.js'), 'agent-launcher'),
@@ -36,9 +39,12 @@ describe('standalone Server artifact', () => {
             fixtureFile(join(sources, 'bundles', 'project-search-worker.js'), 'search-worker'),
             fixtureFile(join(sources, 'bundles', 'terminal-host.js'), 'terminal-host'),
             fixtureFile(runtimeExecutable, '#!/bin/sh\nexit 0\n'),
+            fixtureFile(runtimeLicense, 'node runtime license'),
             fixtureFile(ripgrepExecutable, '#!/bin/sh\nexit 0\n'),
             fixtureFile(ripgrepLicense, 'ripgrep license'),
             fixtureFile(vscodeRipgrepLicense, 'vscode ripgrep license'),
+            fixtureFile(join(licensesDirectory, 'ANOTHER_LICENSE.txt'), 'another license'),
+            fixtureFile(thirdPartyNotices, 'third-party notices'),
             ...[
                 'package.json',
                 'LICENSE.md',
@@ -68,12 +74,16 @@ describe('standalone Server artifact', () => {
             ],
             platform: 'darwin',
             protocolVersion: 2,
-            ripgrep: {
-                executable: ripgrepExecutable,
-                ripgrepLicense,
-                vscodeLicense: vscodeRipgrepLicense,
+            repositoryNotices: {
+                licensesDirectory,
+                thirdPartyNotices,
             },
-            runtime: { executable: runtimeExecutable, version: '24.0.0-fixture' },
+            ripgrep: { executable: ripgrepExecutable },
+            runtime: {
+                executable: runtimeExecutable,
+                license: runtimeLicense,
+                version: '24.0.0-fixture',
+            },
             version: '0.0.18',
         });
 
@@ -100,6 +110,9 @@ describe('standalone Server artifact', () => {
                 'bundles/terminal-host.js',
                 'extensions/git/dist/extension.js',
                 'native/node_modules/better-sqlite3/package.json',
+                'THIRD_PARTY_NOTICES.md',
+                'licenses/ANOTHER_LICENSE.txt',
+                'licenses/NODE_RUNTIME_LICENSE.txt',
                 'licenses/RIPGREP_LICENSE.txt',
                 'licenses/VSCODE_RIPGREP_LICENSE.txt',
                 'runtime/bin/node',
@@ -138,9 +151,12 @@ describe('standalone Server artifact', () => {
         const artifactRoot = join(root, 'server');
         const bundleSource = join(root, 'bundles');
         const runtimeExecutable = join(root, 'node');
+        const runtimeLicense = join(root, 'NODE_LICENSE');
         const ripgrepExecutable = join(root, 'rg');
-        const ripgrepLicense = join(root, 'RIPGREP_LICENSE.txt');
-        const vscodeRipgrepLicense = join(root, 'VSCODE_RIPGREP_LICENSE.txt');
+        const licensesDirectory = join(root, 'licenses');
+        const ripgrepLicense = join(licensesDirectory, 'RIPGREP_LICENSE.txt');
+        const vscodeRipgrepLicense = join(licensesDirectory, 'VSCODE_RIPGREP_LICENSE.txt');
+        const thirdPartyNotices = join(root, 'THIRD_PARTY_NOTICES.md');
         await Promise.all([
             fixtureFile(join(bundleSource, 'server-core.js'), 'server-core'),
             fixtureFile(join(bundleSource, 'agent-launcher.js'), 'agent-launcher'),
@@ -148,9 +164,11 @@ describe('standalone Server artifact', () => {
             fixtureFile(join(bundleSource, 'project-search-worker.js'), 'search-worker'),
             fixtureFile(join(bundleSource, 'terminal-host.js'), 'terminal-host'),
             fixtureFile(runtimeExecutable, 'runtime'),
+            fixtureFile(runtimeLicense, 'node runtime license'),
             fixtureFile(ripgrepExecutable, 'ripgrep'),
             fixtureFile(ripgrepLicense, 'ripgrep license'),
             fixtureFile(vscodeRipgrepLicense, 'vscode ripgrep license'),
+            fixtureFile(thirdPartyNotices, 'third-party notices'),
         ]);
         await Promise.all([chmod(runtimeExecutable, 0o755), chmod(ripgrepExecutable, 0o755)]);
         await assembleServerArtifact({
@@ -162,12 +180,16 @@ describe('standalone Server artifact', () => {
             nativePackages: [],
             platform: 'darwin',
             protocolVersion: 2,
-            ripgrep: {
-                executable: ripgrepExecutable,
-                ripgrepLicense,
-                vscodeLicense: vscodeRipgrepLicense,
+            repositoryNotices: {
+                licensesDirectory,
+                thirdPartyNotices,
             },
-            runtime: { executable: runtimeExecutable, version: '24.0.0-fixture' },
+            ripgrep: { executable: ripgrepExecutable },
+            runtime: {
+                executable: runtimeExecutable,
+                license: runtimeLicense,
+                version: '24.0.0-fixture',
+            },
             version: '0.0.18',
         });
 
@@ -182,8 +204,11 @@ describe('standalone Server artifact', () => {
         temporaryDirectories.push(root);
         const bundleSource = join(root, 'bundles');
         const runtimeExecutable = join(root, 'node');
+        const runtimeLicense = join(root, 'NODE_LICENSE');
         const ripgrepExecutable = join(root, 'rg');
         const cliBundle = join(root, 'caxri.cjs');
+        const licensesDirectory = join(root, 'licenses');
+        const thirdPartyNotices = join(root, 'THIRD_PARTY_NOTICES.md');
         await Promise.all([
             ...[
                 'server-core.js',
@@ -196,9 +221,14 @@ describe('standalone Server artifact', () => {
                 fixtureFile(join(bundleSource, `${name}.map`), '{}'),
             ]),
             fixtureFile(runtimeExecutable, 'runtime'),
+            fixtureFile(runtimeLicense, 'node runtime license'),
             fixtureFile(ripgrepExecutable, 'ripgrep'),
-            fixtureFile(join(root, 'RIPGREP_LICENSE.txt'), 'ripgrep license'),
-            fixtureFile(join(root, 'VSCODE_RIPGREP_LICENSE.txt'), 'vscode ripgrep license'),
+            fixtureFile(join(licensesDirectory, 'RIPGREP_LICENSE.txt'), 'ripgrep license'),
+            fixtureFile(
+                join(licensesDirectory, 'VSCODE_RIPGREP_LICENSE.txt'),
+                'vscode ripgrep license',
+            ),
+            fixtureFile(thirdPartyNotices, 'third-party notices'),
             fixtureFile(cliBundle, 'cli'),
         ]);
         const input = {
@@ -209,12 +239,16 @@ describe('standalone Server artifact', () => {
             nativePackages: [],
             platform: 'linux',
             protocolVersion: 2,
-            ripgrep: {
-                executable: ripgrepExecutable,
-                ripgrepLicense: join(root, 'RIPGREP_LICENSE.txt'),
-                vscodeLicense: join(root, 'VSCODE_RIPGREP_LICENSE.txt'),
+            repositoryNotices: {
+                licensesDirectory,
+                thirdPartyNotices,
             },
-            runtime: { executable: runtimeExecutable, version: '24.0.0-fixture' },
+            ripgrep: { executable: ripgrepExecutable },
+            runtime: {
+                executable: runtimeExecutable,
+                license: runtimeLicense,
+                version: '24.0.0-fixture',
+            },
             runtimeSource: {
                 member: 'node-v24.0.0-linux-x64/bin/node',
                 sha256: 'a'.repeat(64),
@@ -246,5 +280,63 @@ describe('standalone Server artifact', () => {
             files.filter(({ path }) => path.startsWith('bundles/') && path.endsWith('.js'));
         expect(bundles(remote.integrity.files)).toEqual(bundles(local.integrity.files));
         expect(remote.runtime.source?.url).toMatch(/\.tar\.gz$/u);
+    });
+
+    it('fails closed when a repository license is linked or the matching runtime license is missing', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-server-artifact-'));
+        temporaryDirectories.push(root);
+        const bundleSource = join(root, 'bundles');
+        const licensesDirectory = join(root, 'licenses');
+        const runtimeLicense = join(root, 'NODE_LICENSE');
+        await Promise.all([
+            ...[
+                'server-core.js',
+                'agent-launcher.js',
+                'extension-host.js',
+                'project-search-worker.js',
+                'terminal-host.js',
+            ].map((name) => fixtureFile(join(bundleSource, name), name)),
+            fixtureFile(join(root, 'node'), 'runtime'),
+            fixtureFile(runtimeLicense, 'node runtime license'),
+            fixtureFile(join(root, 'rg'), 'ripgrep'),
+            fixtureFile(join(root, 'THIRD_PARTY_NOTICES.md'), 'third-party notices'),
+            fixtureFile(join(licensesDirectory, 'LICENSE.txt'), 'repository license'),
+        ]);
+        await symlink('LICENSE.txt', join(licensesDirectory, 'LINKED_LICENSE.txt'));
+        const input = {
+            architecture: 'arm64',
+            artifactRoot: join(root, 'output', 'server'),
+            bundleSource,
+            commit: '01234567',
+            extensions: [],
+            nativePackages: [],
+            platform: 'darwin',
+            protocolVersion: 2,
+            repositoryNotices: {
+                licensesDirectory,
+                thirdPartyNotices: join(root, 'THIRD_PARTY_NOTICES.md'),
+            },
+            ripgrep: { executable: join(root, 'rg') },
+            runtime: {
+                executable: join(root, 'node'),
+                license: runtimeLicense,
+                version: '24.0.0-fixture',
+            },
+            version: '0.0.18',
+        };
+
+        await expect(assembleServerArtifact(input)).rejects.toThrow(
+            'Repository license LINKED_LICENSE.txt must be a regular file',
+        );
+        await unlink(join(licensesDirectory, 'LINKED_LICENSE.txt'));
+        const reservedLicense = join(licensesDirectory, 'node_runtime_license.txt');
+        await fixtureFile(reservedLicense, 'conflicting license');
+        await expect(assembleServerArtifact(input)).rejects.toThrow(
+            'Repository licenses must not override NODE_RUNTIME_LICENSE.txt',
+        );
+        await Promise.all([unlink(reservedLicense), unlink(runtimeLicense)]);
+        await expect(assembleServerArtifact(input)).rejects.toThrow(
+            'Node runtime license is missing',
+        );
     });
 });

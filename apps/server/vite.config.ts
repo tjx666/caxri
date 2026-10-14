@@ -11,6 +11,7 @@ import {
     resolveSourceMapFlavor,
     shouldIncludeSourceMaps,
 } from '../../scripts/source-map-flavor.ts';
+import { anthropicSourceMapPolicy } from './scripts/anthropic-source-map-policy.ts';
 import { hostStartupBudget } from './scripts/host-startup-budget.ts';
 
 const execFileAsync = promisify(execFile);
@@ -169,7 +170,12 @@ export default defineConfig(async () => {
             __CAXRI_COMMIT__: JSON.stringify(await resolveGitCommit()),
             __CAXRI_VERSION__: JSON.stringify(workspaceManifest.version),
         },
-        plugins: [asciiOnlyBundles(), selfContainedBundles(), hostStartupBudget()],
+        plugins: [
+            asciiOnlyBundles(),
+            selfContainedBundles(),
+            hostStartupBudget(),
+            anthropicSourceMapPolicy({ required: shouldIncludeSourceMaps(sourceMapFlavor) }),
+        ],
         resolve: { builtins: nodeBuiltins },
         ssr: {
             external: Object.keys(nativeModulePaths),

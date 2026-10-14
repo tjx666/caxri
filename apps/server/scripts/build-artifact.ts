@@ -19,6 +19,7 @@ import {
     extractLinuxNode,
     parseLinuxTargets,
     pinnedRuntimeVersion,
+    resolveHostNodeLicense,
 } from './linux-target';
 
 const execFileAsync = promisify(execFile);
@@ -286,11 +287,13 @@ const target: StagingTarget = linuxTarget
       }
     : { arch: process.arch, platform: process.platform };
 let executable: string;
+let runtimeLicense: string;
 if (linuxRuntime) {
     executable = resolve(root, `.cache/server-linux-target/runtime/node-${linuxTarget}`);
-    await extractLinuxNode(linuxRuntime, executable);
+    runtimeLicense = await extractLinuxNode(linuxRuntime, executable);
 } else {
     executable = await runtimeExecutable(runtimeVersion);
+    runtimeLicense = await resolveHostNodeLicense(executable);
 }
 
 // Per-target staging keeps a host build and a cross-assembled target build from deleting each other's inputs.
@@ -307,7 +310,6 @@ const nativePackages: Array<{ name: string; source: string; version: string }> =
     }),
 );
 const ripgrepExecutable = binPathFor({ arch: target.arch, os: target.platform });
-const ripgrepPackageRoot = resolve(dirname(ripgrepExecutable), '../..');
 
 const artifactRoot = linuxTarget
     ? resolve(serverRoot, 'dist/targets', `linux-${linuxTarget}`, 'server')
@@ -343,6 +345,10 @@ const manifest = await assembleServerArtifact({
     nativePackages,
     platform: target.platform,
     protocolVersion: CAXRI_PROTOCOL_VERSION,
+    repositoryNotices: {
+        licensesDirectory: resolve(root, 'licenses'),
+        thirdPartyNotices: resolve(root, 'THIRD_PARTY_NOTICES.md'),
+    },
     ...(linuxRuntime && {
         runtimeSource: {
             url: linuxRuntime.url,
@@ -350,12 +356,8 @@ const manifest = await assembleServerArtifact({
             member: linuxRuntime.member,
         },
     }),
-    ripgrep: {
-        executable: ripgrepExecutable,
-        ripgrepLicense: resolve(root, 'licenses/RIPGREP_LICENSE.txt'),
-        vscodeLicense: join(ripgrepPackageRoot, 'LICENSE'),
-    },
-    runtime: { executable, version: runtimeVersion },
+    ripgrep: { executable: ripgrepExecutable },
+    runtime: { executable, license: runtimeLicense, version: runtimeVersion },
     version: workspaceManifest.version,
 });
 await verifyServerArtifact(artifactRoot);
