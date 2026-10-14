@@ -12,14 +12,14 @@ const protectedPathPatterns = [
     /^(?:mise\.toml|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-bundle-budget|ci-checks-worktree|ci-checks-worktree-setup|ci-child-environment|ci-concurrent-validation|ci-concurrent-validation-report|ci-execution-plan|ci-green-reuse|ci-metrics|ci-path-policy|ci-platform-checks|ci-platform-gates|ci-retry-policy|redact-e2e-artifacts|report-e2e-manifest|run-ci-focused-checks|run-ci-parity)\.ts$/,
+    /^scripts\/(?:ci-bundle-budget|ci-checks-worktree|ci-checks-worktree-setup|ci-child-environment|ci-concurrent-validation|ci-concurrent-validation-report|ci-execution-plan|ci-green-reuse|ci-metrics|ci-path-policy|ci-platform-checks|ci-platform-gates|ci-retry-policy|prepare-public-e2e-receipts|report-e2e-manifest|run-ci-focused-checks|run-ci-parity)\.ts$/,
     /^scripts\/performance-baseline[^/]*\.(?:json|ts)$/,
     // Every `run-e2e-*` runner and everything under `scripts/fixtures/` participates in E2E job
     // steps (census fixture included), so protect them by prefix instead of enumerating each file
     // and re-creating the omission that let census infrastructure bypass full validation.
     /^scripts\/run-e2e-[^/]+\.ts$/,
     /^scripts\/fixtures\//,
-    /^scripts\/reporters\/e2e-receipt-reporter\.ts$/,
+    /^scripts\/reporters\/(?:e2e-receipt-reporter|public-e2e-reporter)\.ts$/,
     /^e2e\/support\//,
     /^e2e\/editor\.performance\.e2e\.ts$/,
     /^e2e\/failure-isolation\.e2e\.ts$/,

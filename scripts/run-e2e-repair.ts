@@ -10,6 +10,7 @@ import {
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
 import { selectAffectedE2ETests } from './ci-path-policy';
 import { waitForChildExit } from './exec';
+import { playwrightReporterArgument } from './reporters/public-e2e-reporter';
 
 type E2EPool = 'control' | 'desktop-exclusive' | 'parallel-safe';
 
@@ -134,7 +135,7 @@ async function runFocused(
             ...paths,
             `--workers=${workers}`,
             `--repeat-each=${repeat}`,
-            '--reporter=line',
+            playwrightReporterArgument({ environment }),
         ],
         { env: environment, stdio: 'inherit' },
     );

@@ -80,8 +80,9 @@ export function parseArguments(argv: string[]): CliOptions {
 }
 
 async function runOnce(spec: string, environment: Record<string, string>): Promise<string> {
-    const child = spawn('bunx', ['playwright', 'test', spec, '--reporter=line'], {
-        env: { ...process.env, ...environment },
+    const childEnvironment = { ...process.env, ...environment };
+    const child = spawn('bunx', ['playwright', 'test', spec], {
+        env: childEnvironment,
         stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';

@@ -333,7 +333,6 @@ describe('playwrightArguments', () => {
         expect(playwrightArguments(['e2e/smoke.e2e.ts'], 'launches')).toEqual([
             'test',
             'e2e/smoke.e2e.ts',
-            '--reporter=line',
             '-g',
             'launches',
         ]);

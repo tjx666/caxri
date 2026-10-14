@@ -153,15 +153,17 @@ evidence rather than automated test or Acceptance evidence.
   assume a logical token belongs to one DOM row.
 - Publish repository and desktop ownership only after complete owner metadata is durable. Await
   launch finalization and lease cleanup so one worker failure cannot poison later specs.
-- Preserve the first causal failure and its artifacts. Do not use retries to turn an original red
-  result green or allow a lock/lease cascade to hide it.
-- Map a CI failure to the exact assertion in that run's source and its screenshot or trace before
-  naming the failed stage. A test title that mentions reload can still fail during an earlier split,
-  as `terminal-commands.e2e.ts` did; current line numbers may have shifted since the run.
+- Preserve the first causal failure, its content-safe Actions log, and its public receipt. Do not use
+  retries to turn an original red result green or allow a lock/lease cascade to hide it.
+- Map a CI failure to the repository-relative location and closed status in that run's public log,
+  plus the receipt's spec and stable error classification, before naming the failed stage. Inspect
+  the assertion text only from the checked-out source or a focused local reproduction; the public
+  reporter deliberately omits titles, errors, snippets, stdout, and stderr. Remote Playwright
+  screenshots and traces are not public diagnostic evidence.
 - CI keeps `maxFailures` for fast containment, then reruns suppressed tests once per file and line with
   `--max-failures=0` so every parameterized sibling receives a verdict.
-  The final pool receipt must classify every planned spec as `pass`, `fail`, or `timeout`, retain
-  per-test artifacts, and group repeated failures by stable error identity before repair begins.
+  The final pool receipt must classify every planned spec as `pass`, `fail`, or `timeout` and group
+  repeated failures by stable error identity before repair begins.
   A `passed` receipt does not by itself prove a green pool: every child must also exit zero and
   every dispatched spec must reach the receipt, or the runner marks it `failed` with
   `abortedInvocations` / `missingSpecs`. A sibling `checks` failure (or the shared 25-minute
@@ -220,55 +222,43 @@ or another agent's verdict: every run or retry requires fresh, explicit maintain
 Hosted runs are metered while the repository is private. Repair from the preserved first failure
 and the #1418 record instead of redispatching until the cause is addressed.
 
-CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
-Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
+CI publishes only content-safe JSON receipts for failures. Its `public-e2e-reporter.ts` console
+reporter prints bounded locations, statuses, durations, counts, and run state while dropping titles,
+errors, source snippets, worker stdout/stderr, DOM values, and Terminal values. Playwright
+screenshots, traces, DOM snapshots, and raw Main/Runtime logs remain on the disposable runner and are
+never uploaded. Keep the failed CI run red while diagnosing it.
 Use a distinct `CAXRI_E2E_OUTPUT_DIR` for each local reproduction and verification round when comparing
 failures; Playwright clears its output directory at startup, including a preceding pool's evidence.
 
-A failed pool's `e2e-<pool>-failure-artifacts` CI artifact carries both the pool receipt
-(`test-results/receipts/<pool>.json`) and the pool's full Playwright output directory
-(`test-results/<pool>/**`): per-test screenshots, `trace.zip` (retained on failure only), and the
-`caxri-desktop-*.jsonl` / `caxri-server-core-*.jsonl` log attachments below. `.github/workflows/ci.yml`
-owns the exact upload step per pool. A pool that concurrent validation aborted before its turn has no
-receipt and uploads nothing; `ci-concurrent-validation.json` in `e2e-auxiliary-failure-artifacts`
-records it as `null`.
+A failed pool's `e2e-<pool>-failure-artifacts` CI artifact carries only the validated pool receipt
+(`test-results/public-receipts/<pool>.json`). `.github/workflows/ci.yml` owns the exact receipt-only
+upload step per pool. A pool that concurrent validation aborted before its turn has no receipt and
+uploads nothing. Auxiliary E2E files remain only inside the disposable runner; the Actions log keeps
+their bounded step outcome, and there is no auxiliary artifact upload.
 
-**Artifact-content audit (issue #1446).** E2E fixtures are synthetic, so this audit is about the
-runner and the harness, not real user data:
-
-- The `.jsonl` log attachments are the raw structured logs (`e2e/support/error-gate.ts` copies the
-  file as-is), so their safety comes from the writer: `safeFields()` in
-  `packages/system/src/observability/logger.ts` passes every string field through `redactLogValue()`
-  (`packages/system/src/observability/redaction.ts`), which replaces the process's own home directory
-  with `$HOME` and redacts secret-shaped text before anything reaches disk. Re-verify that path, not
-  the narrower receipt parser, after a logger change. The pool receipt is narrower still, and
-  `assertE2EPoolReceipt` rejects an absolute path in it.
-- `redactLogValue()` replaces both the process `HOME` and the OS account home (`userInfo().homedir`)
-  with `$HOME`. E2E runs Caxri under an isolated fixture `HOME`, while a GitHub-hosted runner's
-  workspace and job temp root sit under its account home; covering both keeps fixture and workspace
-  paths in the `.jsonl` logs from naming the account.
-- Playwright's own outputs (`error-context.md`, `trace.zip`) carry absolute workspace and fixture
-  paths in stack frames, error text, and DOM snapshots. The `Redact E2E artifacts before upload` CI step
-  runs `scripts/redact-e2e-artifacts.ts` over every pool output directory before upload, rewriting
-  each home prefix to `$HOME` in text files and in the text entries of `trace.zip`.
-- Screenshots and `trace.zip` render Caxri's UI against synthetic fixtures (fake projects, fake file
-  content), so the Editor/File Explorer/diff surfaces they capture are not real user data.
-- The Terminal pane hosts a real PTY shell, but `createE2EAgentEnvironment` (used by `launchCaxriApp`
-  for blocked and fake Agent modes) points both `HOME` and `ZDOTDIR` at the isolated fixture home and
-  seeds a fixed `caxri-e2e$` prompt (`.zlogin` for zsh, `.bash_profile`/`.profile` for bash and
-  sh), so no runner dotfile, account name, or hostname reaches the prompt.
-  `e2e/terminal-prompt-isolation.e2e.ts` guards this. Only `agentMode: { mode: 'real' }` keeps the
-  host `HOME` and shell startup; that manual smoke never runs in CI. A spec that seeds its own
-  `.zshrc` under the isolated home still gets the fixed prompt, because `.zlogin` runs last.
+**Public CI evidence boundary (issues #1446 and #2118).**
+`scripts/prepare-public-e2e-receipts.ts` reads only the fixed internal receipt filenames, validates
+their closed schemas, strips titles, test IDs, artifact paths, timestamps, and arbitrary error text,
+then atomically writes the public projection. A public pool receipt contains only closed verdicts,
+counts, durations, root E2E spec paths, stable error hashes (or a closed `missing-error`
+classification), and abort metadata. Workflow upload steps depend on that preparation succeeding and
+name each public JSON file exactly: no directory or glob is an allowed upload path. Never upload a
+Playwright output directory, `trace.zip`, screenshot, video, `error-context.md`, or raw `.jsonl` log:
+path redaction does not remove embedded repository source, DOM snapshots, Terminal input, or Terminal
+output. When a failure needs that deeper evidence, reproduce only its exact cases locally and inspect
+the local output before the worktree-owned process is stopped.
 
 ### Diagnosing an error-gate notification
 
 `toast categories:` in a gate failure names the notification's product copy, never its cause. Read
 the cause out of the retained logs instead of guessing from the category:
 
-1. Download the run's artifacts and open the attached `caxri-desktop-*.jsonl` and
-   `caxri-server-core-*.jsonl` beside the failing test's output.
-2. Line up the notification against `ipc.request_failed` entries by timestamp. A pairing gives the
+1. Read the failed spec and stable error identity (or `missing-error` classification) from the public
+   pool receipt, use the Actions log only for its bounded location/status, then inspect the assertion
+   from the same checkout and reproduce only that case locally with a distinct
+   `CAXRI_E2E_OUTPUT_DIR`.
+2. Open the locally generated `caxri-desktop-*.jsonl` and `caxri-server-core-*.jsonl`, then line up
+   the notification against `ipc.request_failed` entries by timestamp. A pairing gives the
    request name and error code behind the notification: that is how a `terminal.activate`
    notification was traced to a `NOT_FOUND` on `session.updateState`.
 3. No pairing is evidence, not a capture gap. The gate says so in the failure text. Only two
@@ -320,7 +310,7 @@ Ordinary PR and main-push CI never starts Playwright E2E. The legacy `CI-Mode: e
 checks, cannot start E2E, cannot reuse an ancestor E2E receipt, and must not be added to new PRs.
 `CI-E2E-Tests` records the affected spec set for review but is not an execution receipt.
 
-When an explicitly authorized `hosted-full` run fails, preserve its artifacts and
+When an explicitly authorized `hosted-full` run fails, preserve its Actions log and receipts and
 reproduce the exact failed spec against a fresh production build with the focused command above.
 Do not push one repair per observed assertion. Inspect the whole failed spec and its async/locator
 assumptions, finish the repair batch locally, then create one new exact candidate. Dispatch the

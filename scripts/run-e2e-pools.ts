@@ -30,6 +30,7 @@ import {
     e2eProgressJournalPath,
     receiptFromProgressJournal,
 } from './reporters/e2e-receipt-reporter';
+import { playwrightReporterArgument } from './reporters/public-e2e-reporter';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
@@ -97,6 +98,7 @@ export function playwrightTestArguments(
     invocation: E2EPoolInvocation,
     workers: number,
     isCensus: boolean,
+    environment: NodeJS.ProcessEnv = process.env,
 ): string[] {
     return [
         'playwright',
@@ -104,7 +106,7 @@ export function playwrightTestArguments(
         ...invocation.specs,
         `--workers=${workers}`,
         ...(isCensus ? ['--max-failures=0'] : []),
-        '--reporter=line,./scripts/reporters/e2e-receipt-reporter.ts',
+        playwrightReporterArgument({ environment, includeReceipt: true }),
     ];
 }
 

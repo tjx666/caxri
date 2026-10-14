@@ -267,14 +267,7 @@ function executePlaywrightScenario(
     };
     run(
         'bunx',
-        [
-            '--bun',
-            'playwright',
-            'test',
-            'e2e/mobile-acceptance-scenarios.e2e.ts',
-            '--workers=1',
-            '--reporter=line',
-        ],
+        ['--bun', 'playwright', 'test', 'e2e/mobile-acceptance-scenarios.e2e.ts', '--workers=1'],
         E2E_TIMEOUT_MS,
         environment,
     );

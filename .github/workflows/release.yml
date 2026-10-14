@@ -114,6 +114,7 @@ jobs:
     env:
       CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+      PW_TEST_REPORTER: ''
     steps:
       - name: Verify hosted runner boundary before checkout
         run: |
@@ -178,7 +179,7 @@ jobs:
           CAXRI_E2E_RECEIPT_PATH: test-results/receipts/release-rehearsal.json
         run: |
           file "$CAXRI_PACKAGED_EXECUTABLE" | grep -q 'arm64'
-          bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=line,./scripts/reporters/e2e-receipt-reporter.ts
+          bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=./scripts/reporters/public-e2e-reporter.ts,./scripts/reporters/e2e-receipt-reporter.ts
 
   release:
     # PR CI owns the product quality gates. The exact release commit's lightweight CI run rechecks
@@ -202,6 +203,7 @@ jobs:
       CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_EXPECTED_HEAD: ${{ github.event.workflow_run.head_sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+      PW_TEST_REPORTER: ''
     steps:
       - name: Verify hosted runner boundary before checkout
         run: |
@@ -316,16 +318,23 @@ jobs:
           CAXRI_E2E_RECEIPT_PATH: test-results/receipts/release-packaged.json
         run: |
           file "$CAXRI_BENCHMARK_EXECUTABLE" | grep -q 'arm64'
-          bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=line,./scripts/reporters/e2e-receipt-reporter.ts
+          bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=./scripts/reporters/public-e2e-reporter.ts,./scripts/reporters/e2e-receipt-reporter.ts
 
       # The packaged-app probe only runs here. Keep its failure receipt without uploading raw
       # traces, screenshots, or logs from the hosted runner.
+      - name: Prepare public E2E receipts
+        id: prepare-public-e2e-receipts
+        if: always()
+        run: bun run scripts/prepare-public-e2e-receipts.ts
       - name: Upload packaged verification failure artifacts
-        if: always() && steps.verify-packaged.outcome == 'failure'
+        if: >-
+          always() &&
+          steps.prepare-public-e2e-receipts.outcome == 'success' &&
+          steps.verify-packaged.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-packaged-verification-failure-artifacts
-          path: test-results/receipts/release-packaged.json
+          path: test-results/public-receipts/release-packaged.json
           if-no-files-found: error
           retention-days: 7
 

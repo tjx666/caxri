@@ -383,11 +383,14 @@ describe('E2E pools', () => {
         expect(() =>
             mergeCensusReceipts(initial, [receipt('parallel-safe', [testReceipt('unrelated')])]),
         ).toThrow('unexpected test');
-        expect(playwrightTestArguments({ specs: [location] }, 1, true)).toContain(
+        expect(playwrightTestArguments({ specs: [location] }, 1, true, {})).toContain(
             '--max-failures=0',
         );
-        expect(playwrightTestArguments({ specs: [location] }, 1, false)).not.toContain(
+        expect(playwrightTestArguments({ specs: [location] }, 1, false, {})).not.toContain(
             '--max-failures=0',
+        );
+        expect(playwrightTestArguments({ specs: [location] }, 1, false, { CI: 'true' })).toContain(
+            '--reporter=./scripts/reporters/public-e2e-reporter.ts,./scripts/reporters/e2e-receipt-reporter.ts',
         );
     });
 

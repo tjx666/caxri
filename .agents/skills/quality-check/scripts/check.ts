@@ -231,7 +231,7 @@ export function selectE2ESpecs(files: string[], hasExplicitFiles: boolean): stri
 }
 
 export function playwrightArguments(specs: string[], grep?: string): string[] {
-    return ['test', ...specs, '--reporter=line', ...(grep ? ['-g', grep] : [])];
+    return ['test', ...specs, ...(grep ? ['-g', grep] : [])];
 }
 
 export function lintPipelineForFile(file: string): 'code' | 'format' | undefined {

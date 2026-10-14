@@ -25,6 +25,7 @@ describe('full suite authorization', () => {
         ['unit', ['run', '--outputFile', '.vitest/json/output.json']],
         ['e2e', ['test', '--workers', '1']],
         ['e2e', ['test', '--max-failures', '1']],
+        ['e2e', ['test', '--add-reporter', 'json']],
         ['e2e', ['test', '--reporter', 'line']],
     ] as const)(
         'still sees the full %s gate behind a separated flag value (%j)',

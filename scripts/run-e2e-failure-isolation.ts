@@ -10,6 +10,7 @@ import {
     releaseDesktopLease,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
 import { waitForChildExit } from './exec';
+import { playwrightReporterArgument } from './reporters/public-e2e-reporter';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -49,7 +50,7 @@ async function main(): Promise<void> {
             'e2e/failure-isolation.e2e.ts',
             '--workers=1',
             '--max-failures=2',
-            '--reporter=line',
+            playwrightReporterArgument(),
         ],
         {
             cwd: projectRoot,

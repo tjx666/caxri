@@ -210,6 +210,8 @@ jobs:
       needs.retry-policy.result == 'success'
     runs-on: macos-15
     timeout-minutes: 15
+    env:
+      PW_TEST_REPORTER: ''
     steps:
       - name: Verify hosted runner boundary before checkout
         run: |
@@ -290,6 +292,7 @@ jobs:
       CAXRI_CHECKS_REVISION: ${{ github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
+      PW_TEST_REPORTER: ''
     steps:
       - name: Verify hosted runner boundary before checkout
         run: |
@@ -495,14 +498,6 @@ jobs:
         run: >-
           bun run scripts/report-e2e-manifest.ts
           ${{ needs.retry-policy.outputs.e2e_profile == 'optimized' && 'parallel-safe desktop-exclusive' || 'control' }}
-      - name: Upload Renderer performance receipt
-        if: always() && steps.renderer-performance.outcome != 'skipped'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: renderer-performance-receipt
-          path: test-results/receipts/renderer-performance.json
-          if-no-files-found: error
-          retention-days: 7
       # The committed baseline was derived from different runner hardware and is deliberately unarmed. Keep running
       # the comparison so it records an explicit unarmed verdict without blocking until macos-15 is recalibrated.
       - name: Run Renderer performance baseline gate
@@ -513,20 +508,30 @@ jobs:
         run: >-
           bun run scripts/performance-baseline-gate.ts --receipt
           test-results/receipts/renderer-performance.json --baseline scripts/performance-baseline.json
-      # Playwright's own outputs (`error-context.md`, `trace.zip`) carry absolute workspace and fixture paths, and both
-      # sit under the runner account's home; scrub them before any failure-artifact upload below (issue #1461).
-      - name: Redact E2E artifacts before upload
+      - name: Prepare public E2E receipts
+        id: prepare-public-e2e-receipts
         if: always()
-        run: >-
-          bun run scripts/redact-e2e-artifacts.ts
-          test-results/parallel-safe test-results/desktop-exclusive test-results/control
+        run: bun run scripts/prepare-public-e2e-receipts.ts
+      - name: Upload Renderer performance receipt
+        if: >-
+          always() &&
+          steps.prepare-public-e2e-receipts.outcome == 'success' &&
+          steps.renderer-performance.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: renderer-performance-receipt
+          path: test-results/public-receipts/renderer-performance.json
+          if-no-files-found: error
+          retention-days: 7
       # A concurrent-validation pool can fail its receipt check without ever starting: a sibling `checks` failure
       # aborts the run before this pool's turn, and `ci-concurrent-validation.json` records the pool as `null`. There is
       # nothing to upload then, so that branch waits for the pool's own receipt. The direct pool step always launched
       # `run-e2e-pools.ts`, which writes the receipt on every exit path including a SIGTERM abort.
       - name: Upload parallel-safe failure artifacts
         if: >-
-          always() && (
+          always() &&
+          steps.prepare-public-e2e-receipts.outcome == 'success' &&
+          (
             steps.parallel-safe.outcome == 'failure' ||
             (
               steps.parallel-safe-receipt.outcome == 'failure' &&
@@ -536,19 +541,16 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-parallel-safe-failure-artifacts
-          # The receipt alone only names a failure; the per-test directory underneath carries the screenshot, trace,
-          # and content-free `caxri-desktop-*.jsonl`/`caxri-server-core-*.jsonl` log attachments a case actually
-          # needs to diagnose without re-running it (see docs/ci-performance.md and .agents/skills/e2e-testing).
-          # A started pool always leaves its receipt, so an upload that finds no files at all is itself an
-          # evidence-capture defect and stays a hard error.
-          path: |
-            test-results/receipts/parallel-safe.json
-            test-results/parallel-safe/**
+          # Only schema-validated receipts may leave the runner. Playwright outputs can embed repository source and
+          # Terminal snapshots even when their paths are redacted, so they remain on the disposable hosted machine.
+          path: test-results/public-receipts/parallel-safe.json
           if-no-files-found: error
           retention-days: 7
       - name: Upload desktop-exclusive failure artifacts
         if: >-
-          always() && (
+          always() &&
+          steps.prepare-public-e2e-receipts.outcome == 'success' &&
+          (
             steps.desktop-exclusive.outcome == 'failure' ||
             (
               steps.desktop-exclusive-receipt.outcome == 'failure' &&
@@ -558,40 +560,18 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-desktop-exclusive-failure-artifacts
-          path: |
-            test-results/receipts/desktop-exclusive.json
-            test-results/desktop-exclusive/**
+          path: test-results/public-receipts/desktop-exclusive.json
           if-no-files-found: error
           retention-days: 7
       - name: Upload control failure artifacts
-        if: always() && steps.control.outcome == 'failure'
+        if: >-
+          always() &&
+          steps.prepare-public-e2e-receipts.outcome == 'success' &&
+          steps.control.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-control-failure-artifacts
-          path: |
-            test-results/receipts/control.json
-            test-results/control/**
-          if-no-files-found: error
-          retention-days: 7
-      - name: Upload auxiliary E2E failure artifacts
-        if: >-
-          always() && (
-            steps.concurrent-full.outcome == 'failure' ||
-            steps.full-checks-receipt.outcome == 'failure' ||
-            steps.auxiliary-receipt.outcome == 'failure' ||
-            steps.focused-repair.outcome == 'failure' ||
-            steps.failure-isolation.outcome == 'failure' ||
-            steps.failure-census.outcome == 'failure' ||
-            steps.ci-parity.outcome == 'failure' ||
-            steps.renderer-performance.outcome == 'failure' ||
-            steps.execution-receipt.outcome == 'failure'
-          )
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: e2e-auxiliary-failure-artifacts
-          path: |
-            test-results/receipts/*.json
-            test-results/receipts/census-fixture/*.json
+          path: test-results/public-receipts/control.json
           if-no-files-found: error
           retention-days: 7
       - name: Remove synthetic-merge checks worktree
