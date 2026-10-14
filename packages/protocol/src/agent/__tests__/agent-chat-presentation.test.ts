@@ -254,12 +254,15 @@ describe('agentChatActivity', () => {
         });
     });
 
-    it('keeps one verb for a turn and varies it across turns', () => {
-        expect(agentChatWorkingVerb('turn-1')).toBe(agentChatWorkingVerb('turn-1'));
-        const verbs = new Set(
+    it('keeps the hash-to-phrase mapping stable and varies it across turns', () => {
+        expect(agentChatWorkingVerb('turn-0')).toBe('Mapping the terrain');
+        expect(agentChatWorkingVerb('turn-1')).toBe('Following a bright thread');
+        expect(agentChatWorkingVerb('turn-27')).toBe('Giving the idea a spin');
+        expect(agentChatWorkingVerb('💡')).toBe('Turning another page');
+        const phrases = new Set(
             Array.from({ length: 40 }, (_, index) => agentChatWorkingVerb(`turn-${index}`)),
         );
-        expect(verbs.size).toBeGreaterThan(5);
+        expect(phrases.size).toBeGreaterThan(5);
     });
 });
 

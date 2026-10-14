@@ -187,47 +187,47 @@ export function agentChatNextUnansweredQuestion(
 
 /**
  * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
- * in it, as Claude Code's spinner does; the words never claim a specific step. The phrases are LobeHub's
- * (`opStatusTray.generatingPhrases`); Desktop's translated list keeps the same order, so both pick the same position.
+ * in it, as Claude Code's spinner does; the words never claim a specific step. These Caxri-owned phrases stay in the
+ * same order as Desktop's translated list, so every client picks the same position.
  */
-const WORKING_VERBS = [
-    'Summoning electrons',
-    'Herding tokens',
-    'Waking the hamsters',
-    'Reticulating splines',
-    'Consulting the oracle',
-    'Bribing the GPU',
-    'Untangling thoughts',
-    'Doing big-brain things',
-    'Letting it cook',
-    'Pondering the orb',
-    'Connecting the dots',
-    'Spinning up neurons',
-    'Chasing the muse',
-    'Aligning the stars',
-    'Brewing brilliance',
-    'Tickling transistors',
-    'Wrangling ideas',
-    'Crunching numbers',
-    'Channeling genius',
-    'Charging brain cells',
-    'Asking the rubber duck',
-    'Overthinking it',
-    'Shuffling synapses',
-    'Mining for answers',
-    'Polishing the prose',
-    'Befriending the algorithm',
-    'Greasing the gears',
-    'Decoding the universe',
+const WORKING_PHRASES = [
+    'Mapping the terrain',
+    'Following a bright thread',
+    'Sorting the puzzle pieces',
+    'Checking the compass',
+    'Turning the problem around',
+    'Turning another page',
+    'Sketching a few routes',
+    'Listening for the signal',
+    'Clearing a little fog',
+    'Taking the scenic route',
+    'Reading between the lines',
+    'Tuning the workshop',
+    'Finding the loose thread',
+    'Looking under the hood',
+    'Trying another angle',
+    'Letting the pieces settle',
+    'Peeking behind the curtain',
+    'Walking through the maze',
+    'Sharpening the outline',
+    'Following the breadcrumbs',
+    'Checking the other pocket',
+    'Giving the idea a spin',
+    'Looking for the quiet clue',
+    'Moving the lantern closer',
+    'Bringing the edges together',
+    'Taking one more pass',
+    'Getting the bearings',
+    'Bringing it into focus',
 ] as const;
 
 /**
- * One verb per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
+ * One phrase per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
  */
 export function agentChatWorkingVerb(turnId: string): string {
     let hash = 0;
     for (const character of turnId) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) >>> 0;
-    return WORKING_VERBS[hash % WORKING_VERBS.length] ?? 'Working';
+    return WORKING_PHRASES[hash % WORKING_PHRASES.length] ?? 'Working';
 }
 
 export type AgentChatActivity =

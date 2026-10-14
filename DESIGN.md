@@ -1188,7 +1188,7 @@ whole objective below the row. A completed goal stays until cleared. Goal mode, 
 `/goal` from the suggestion list or Goal from `+`, adds a Goal chip after the permission picker,
 divided from it by a vertical hairline, and changes the placeholder to `Describe your goal, define
 measurable outcomes for best results`; Enter then sets the draft as the goal, and the chip or
-Backspace in an empty input leaves the mode. A working turn's label is one playful phrase chosen per turn from LobeHub's list (`Herding tokens…`),
+Backspace in an empty input leaves the mode. A working turn's label is one playful phrase chosen per turn from Caxri's own list (`Mapping the terrain…`),
 so a long turn reads as progress rather than a stall; a waiting one shows no row, since the
 approval or question card right above the composer is the waiting state, and returns as `Waiting
 for your approval` or `Waiting for your answer` only while a draft needs the Enter hint. On an idle Chat the same row

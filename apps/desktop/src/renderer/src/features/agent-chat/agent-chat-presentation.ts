@@ -169,10 +169,10 @@ export function agentChatRecoveryNotice(
 
 /**
  * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
- * in it, as Claude Code's spinner does; the words never claim a specific step. The phrases are LobeHub's
- * (`opStatusTray.generatingPhrases`); Desktop's translated list keeps the same order, so both pick the same position.
+ * in it, as Claude Code's spinner does; the words never claim a specific step. These Caxri-owned phrase keys stay in
+ * the same order as the protocol fallback, so every client picks the same position.
  */
-const WORKING_VERBS: readonly TranslationKey[] = [
+const WORKING_PHRASES: readonly TranslationKey[] = [
     'agentChat.timeline.working.phrase01',
     'agentChat.timeline.working.phrase02',
     'agentChat.timeline.working.phrase03',
@@ -204,12 +204,14 @@ const WORKING_VERBS: readonly TranslationKey[] = [
 ];
 
 /**
- * One verb per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
+ * One phrase per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
  */
 function agentChatWorkingVerb(turnId: string, t: Translate = translate): string {
     let hash = 0;
     for (const character of turnId) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) >>> 0;
-    return t(WORKING_VERBS[hash % WORKING_VERBS.length] ?? 'agentChat.timeline.working.working');
+    return t(
+        WORKING_PHRASES[hash % WORKING_PHRASES.length] ?? 'agentChat.timeline.working.working',
+    );
 }
 
 export type AgentChatActivity =

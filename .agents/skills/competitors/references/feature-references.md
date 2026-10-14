@@ -17,7 +17,7 @@ Rules for entries:
 
 Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit history.
 
-## VS Code (MIT)
+## VS Code (MIT; Codicons CC BY 4.0)
 
 | Caxri feature                                       | Borrowed                                                                                                      | Evidence                                                                                                                         |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -56,11 +56,10 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## vscode-fe-helper (MIT)
 
-| Caxri feature                         | Borrowed                                          | Evidence                                                                                                                  |
-| ------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Status panel (Project Status)         | Sidebar model and polling scheduler               | `.agents/skills/competitors/SKILL.md`                                                                                     |
-| Unresolved review threads             | The "Unresolved Comments" group and its page size | `extensions/status/src/status-review-threads.ts`; `apps/server/src/domains/project-status/review-threads.ts`              |
-| Linear status icons (Desktop, Mobile) | SVG glyphs (copied)                               | `apps/desktop/src/renderer/src/icons/linear/linear-status-icon.tsx`; `apps/mobile/src/features/panels/tree-item-icon.tsx` |
+| Caxri feature                 | Borrowed                                          | Evidence                                                                                                     |
+| ----------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Status panel (Project Status) | Sidebar model and polling scheduler               | `.agents/skills/competitors/SKILL.md`                                                                        |
+| Unresolved review threads     | The "Unresolved Comments" group and its page size | `extensions/status/src/status-review-threads.ts`; `apps/server/src/domains/project-status/review-threads.ts` |
 
 ## iTerm2
 
@@ -137,10 +136,9 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## Streaming Markdown references
 
-| Caxri feature             | Reference                         | Borrowed                                                         | Evidence                                                                            |
-| ------------------------- | --------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Streaming Markdown parser | Streamdown, LobeHub, assistant-ui | Re-parse only the tail with per-block reuse; count-based CI gate | `packages/markdown/src/streaming-parser.ts`; `chat-markdown-rendering.md`           |
-| "Working" status phrases  | LobeHub                           | Phrase list (copied; license under review, no notice entry yet)  | `packages/protocol/src/agent/agent-chat-presentation.ts`; `DESIGN.md` (Chat status) |
+| Caxri feature             | Reference                         | Borrowed                                                         | Evidence                                                                  |
+| ------------------------- | --------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Streaming Markdown parser | Streamdown, LobeHub, assistant-ui | Re-parse only the tail with per-block reuse; count-based CI gate | `packages/markdown/src/streaming-parser.ts`; `chat-markdown-rendering.md` |
 
 ## Codex app and Claude Code (closed or product references)
 

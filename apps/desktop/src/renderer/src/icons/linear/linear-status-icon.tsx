@@ -9,9 +9,7 @@ type LinearStatusIconProperties = SVGProps<SVGSVGElement> & {
 };
 
 /**
- * Static Linear workflow glyphs adapted from the MIT-licensed vscode-fe-helper sidebar reference.
- *
- * Source: https://github.com/tjx666/vscode-fe-helper/blob/main/src/sidebar/linearStatusIcon.ts
+ * Caxri-owned workflow glyphs for Linear states.
  */
 export function LinearStatusIcon({
     kind,
@@ -21,15 +19,13 @@ export function LinearStatusIcon({
     const maskId = `linear-${kind}-${useId()}-cutout`;
     const cutout =
         kind === 'triage' ? (
-            <path d="M4.5 8h2.75M4.5 8l1.25-1.25M4.5 8l1.25 1.25M11.5 8H8.75M11.5 8l-1.25-1.25M11.5 8l-1.25 1.25" />
+            <path d="M6.15 6.4C6.35 5.35 7.05 4.8 8.1 4.8c1.2 0 2 .65 2 1.65 0 .9-.55 1.35-1.2 1.75-.65.4-.9.75-.9 1.45M8 11.35h.01" />
         ) : kind === 'completed' ? (
-            <path d="m4.75 8 2.1 2.1 4.4-4.7" />
+            <path d="m4.75 8.15 2.25 2.1 4.4-4.55" />
         ) : kind === 'canceled' ? (
-            <path d="m5 5 6 6M11 5l-6 6" />
+            <path d="m5.1 5.1 5.8 5.8M10.9 5.1l-5.8 5.8" />
         ) : kind === 'duplicate' ? (
-            // Linear separates Duplicate from Canceled by a single slash rather than a cross; mapping both onto the
-            // cross made an issue closed as a duplicate look like one the team decided against.
-            <path d="m5 11 6-6" />
+            <path d="M6.25 5.25h4.5v4.5h-4.5zM5.25 6.25v4.5h4.5" />
         ) : undefined;
 
     return (
@@ -43,22 +39,31 @@ export function LinearStatusIcon({
             {...properties}
         >
             {kind === 'backlog' && (
-                <circle
-                    cx="8"
-                    cy="8"
-                    r="6"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeDasharray="1.4 1.742"
-                    strokeDashoffset="0.7"
-                />
+                <>
+                    <rect
+                        x="2"
+                        y="2"
+                        width="12"
+                        height="12"
+                        rx="3.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                    />
+                    <path
+                        d="M5 5.5h6M5 8h6M5 10.5h4"
+                        stroke="currentColor"
+                        strokeWidth="1.25"
+                        strokeLinecap="round"
+                    />
+                </>
             )}
             {kind === 'unstarted' && (
-                <circle
-                    cx="8"
-                    cy="8"
-                    r="5.75"
+                <rect
+                    x="2"
+                    y="2"
+                    width="12"
+                    height="12"
+                    rx="3.5"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="1.5"
@@ -66,14 +71,23 @@ export function LinearStatusIcon({
             )}
             {kind === 'started' && (
                 <>
-                    <path d="M8 8V4A4 4 0 0 1 8 12Z" fill="currentColor" />
-                    <circle
-                        cx="8"
-                        cy="8"
-                        r="5.75"
+                    <rect
+                        x="2"
+                        y="2"
+                        width="12"
+                        height="12"
+                        rx="3.5"
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="1.5"
+                    />
+                    <path
+                        d="M5 8h6M9 5.75 11.25 8 9 10.25"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                     />
                 </>
             )}
@@ -100,7 +114,15 @@ export function LinearStatusIcon({
                             </g>
                         </mask>
                     </defs>
-                    <circle cx="8" cy="8" r="6" fill="currentColor" mask={`url(#${maskId})`} />
+                    <rect
+                        x="2"
+                        y="2"
+                        width="12"
+                        height="12"
+                        rx="3.5"
+                        fill="currentColor"
+                        mask={`url(#${maskId})`}
+                    />
                 </>
             )}
         </svg>

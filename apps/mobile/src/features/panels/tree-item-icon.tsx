@@ -94,15 +94,14 @@ type LinearStatusKind =
     'backlog' | 'canceled' | 'completed' | 'duplicate' | 'started' | 'triage' | 'unstarted';
 
 const LINEAR_CUTOUTS: Partial<Record<LinearStatusKind, string>> = {
-    triage: 'M4.5 8h2.75M4.5 8l1.25-1.25M4.5 8l1.25 1.25M11.5 8H8.75M11.5 8l-1.25-1.25M11.5 8l-1.25 1.25',
-    completed: 'm4.75 8 2.1 2.1 4.4-4.7',
-    canceled: 'm5 5 6 6M11 5l-6 6',
-    duplicate: 'm5 11 6-6',
+    triage: 'M6.15 6.4C6.35 5.35 7.05 4.8 8.1 4.8c1.2 0 2 .65 2 1.65 0 .9-.55 1.35-1.2 1.75-.65.4-.9.75-.9 1.45M8 11.35h.01',
+    completed: 'm4.75 8.15 2.25 2.1 4.4-4.55',
+    canceled: 'm5.1 5.1 5.8 5.8M10.9 5.1l-5.8 5.8',
+    duplicate: 'M6.25 5.25h4.5v4.5h-4.5zM5.25 6.25v4.5h4.5',
 };
 
 /**
- * Port of Desktop's `LinearStatusIcon`, itself adapted from the MIT-licensed vscode-fe-helper sidebar reference.
- * https://github.com/tjx666/vscode-fe-helper/blob/main/src/sidebar/linearStatusIcon.ts
+ * Mirrors Desktop's Caxri-owned Linear workflow glyphs.
  */
 const LinearStatusGlyph = ({ color, kind, size }: GlyphProperties & { kind: LinearStatusKind }) => {
     const cutout = LINEAR_CUTOUTS[kind];
@@ -110,20 +109,55 @@ const LinearStatusGlyph = ({ color, kind, size }: GlyphProperties & { kind: Line
     return (
         <Svg fill="none" height={size} viewBox="0 0 16 16" width={size}>
             {kind === 'backlog' ? (
-                <SvgCircle
-                    cx="8"
-                    cy="8"
-                    r="6"
+                <>
+                    <Rect
+                        height="12"
+                        rx="3.5"
+                        stroke={color}
+                        strokeWidth="1.5"
+                        width="12"
+                        x="2"
+                        y="2"
+                    />
+                    <Path
+                        d="M5 5.5h6M5 8h6M5 10.5h4"
+                        stroke={color}
+                        strokeLinecap="round"
+                        strokeWidth="1.25"
+                    />
+                </>
+            ) : null}
+            {kind === 'unstarted' ? (
+                <Rect
+                    height="12"
+                    rx="3.5"
                     stroke={color}
-                    strokeDasharray="1.4 1.742"
-                    strokeDashoffset="0.7"
                     strokeWidth="1.5"
+                    width="12"
+                    x="2"
+                    y="2"
                 />
             ) : null}
-            {kind === 'unstarted' || kind === 'started' ? (
-                <SvgCircle cx="8" cy="8" r="5.75" stroke={color} strokeWidth="1.5" />
+            {kind === 'started' ? (
+                <>
+                    <Rect
+                        height="12"
+                        rx="3.5"
+                        stroke={color}
+                        strokeWidth="1.5"
+                        width="12"
+                        x="2"
+                        y="2"
+                    />
+                    <Path
+                        d="M5 8h6M9 5.75 11.25 8 9 10.25"
+                        stroke={color}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.5"
+                    />
+                </>
             ) : null}
-            {kind === 'started' ? <Path d="M8 8V4A4 4 0 0 1 8 12Z" fill={color} /> : null}
             {cutout ? (
                 <>
                     <Defs>
@@ -147,7 +181,15 @@ const LinearStatusGlyph = ({ color, kind, size }: GlyphProperties & { kind: Line
                             </G>
                         </Mask>
                     </Defs>
-                    <SvgCircle cx="8" cy="8" fill={color} mask={`url(#${maskId})`} r="6" />
+                    <Rect
+                        fill={color}
+                        height="12"
+                        mask={`url(#${maskId})`}
+                        rx="3.5"
+                        width="12"
+                        x="2"
+                        y="2"
+                    />
                 </>
             ) : null}
         </Svg>

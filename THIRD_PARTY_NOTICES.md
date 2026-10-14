@@ -48,6 +48,12 @@ The `@yutengjing/vscode-icons` source code is licensed under the MIT License; th
 
 The bundled icon assets are (c) the vscode-icons project, licensed under the Creative Commons Attribution-ShareAlike 4.0 International License. The vendored license text is in `licenses/VSCODE_ICONS_ASSETS_LICENSE.txt`; the upstream source is <https://github.com/vscode-icons/vscode-icons>.
 
+## VS Code Codicons
+
+Caxri includes the `archive`, `diff-multiple`, `discard`, `repo`, `sync`, and `worktree` glyphs from Microsoft's VS Code Codicons. Caxri converted the upstream SVG glyphs into inline React components; the component wrappers and `currentColor` integration are Caxri modifications.
+
+The upstream source is <https://github.com/microsoft/vscode-codicons>. Licensed under the Creative Commons Attribution 4.0 International License (<https://creativecommons.org/licenses/by/4.0/>). The complete license text and warranty disclaimer are in `licenses/VSCODE_CODICONS_LICENSE.txt`.
+
 ## Lobe Icons
 
 Caxri bundles Claude Code, Codex, Grok, and OpenCode SVG assets from `@lobehub/icons-static-svg`. Color assets preserve their authored palette; monochrome assets are rendered as theme-colored masks.

@@ -134,12 +134,13 @@ describe('Desktop Agent Chat labels over the shared English rules', () => {
         const snapshot = {
             ...emptyAgentChatSnapshot('chat'),
             status: 'ready' as const,
-            activeTurnId: 'turn-1',
+            activeTurnId: 'turn-0',
         };
         const english = agentChatActivity(snapshot, 'Codex', {}, translateIn('en'));
         const chinese = agentChatActivity(snapshot, 'Codex', {}, translateIn('zh-CN'));
         expect(english?.kind).toBe('working');
-        expect(chinese?.text).not.toBe(english?.text);
+        expect(english?.text).toBe('Mapping the terrain…');
+        expect(chinese?.text).toBe('勘探思路地形…');
         expect(agentChatItemStatusLabel('declined', translateIn('en'))).toBe('Declined');
         expect(agentChatItemStatusLabel('declined', translateIn('zh-CN'))).not.toBe('Declined');
     });
