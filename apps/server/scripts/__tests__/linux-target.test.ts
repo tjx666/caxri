@@ -19,7 +19,11 @@ async function fixtureFile(path: string, contents: string): Promise<void> {
 }
 
 async function runtimeTarball(root: string, hasLicense: boolean): Promise<LinuxRuntimeSource> {
-    const prefix = 'node-v24.20.0-linux-x64';
+    /**
+     * Keeps extraction fixtures from becoming a second source for the repository toolchain version.
+     */
+    const fixtureVersion = '0.0.0-test';
+    const prefix = `node-v${fixtureVersion}-linux-x64`;
     const staging = join(root, 'staging');
     await fixtureFile(join(staging, prefix, 'bin', 'node'), 'matching node runtime');
     if (hasLicense) await fixtureFile(join(staging, prefix, 'LICENSE'), 'matching node license');
@@ -32,7 +36,7 @@ async function runtimeTarball(root: string, hasLicense: boolean): Promise<LinuxR
         member: `${prefix}/bin/node`,
         sha256,
         tarballPath,
-        url: `https://nodejs.org/dist/v24.20.0/${prefix}.tar.gz`,
+        url: `https://nodejs.org/dist/v${fixtureVersion}/${prefix}.tar.gz`,
     };
 }
 
