@@ -232,11 +232,15 @@ Run removal from another associated checkout:
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts remove feat/example
 ```
 
-The command refuses dirty or untracked files, unpushed commits, an active dev process, the primary
-checkout, and a worktree holding the desktop lease. It preserves the Git branch and deletes the
-isolated profile by default. Add `--preserve-profile` only when the profile is intentionally kept
-for manual recovery; preserved profiles are marked so orphan cleanup will not delete them. Never
-force-remove, auto-push, or delete a remote branch.
+The command refuses dirty or untracked files, commits that are neither retained on `origin` nor
+already present in `origin/main`, an active dev process, the primary checkout, and a worktree
+holding the desktop lease. Squash-merged branches are accepted only when merging their final tree
+into `origin/main` would leave main unchanged; reverted, conflicting, or genuinely unique content
+still blocks removal. The check is local and deliberately does not fetch while holding the shared
+repository lock, so fetch first when the remote-tracking refs may be stale. Removal preserves the
+Git branch and deletes the isolated profile by default. Add `--preserve-profile` only when the
+profile is intentionally kept for manual recovery; preserved profiles are marked so orphan cleanup
+will not delete them. Never force-remove, auto-push, or delete a remote branch.
 
 Preview profiles that have no Git worktree admin identity with:
 

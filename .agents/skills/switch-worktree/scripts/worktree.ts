@@ -40,6 +40,7 @@ import {
     stopWorktreeProcesses,
 } from './worktree-processes';
 import { finishProfileRemoval, prepareProfileRemoval } from './worktree-profile-removal';
+import { isWorktreeHeadPreserved } from './worktree-removal-safety';
 
 const SEMANTIC_BRANCH = /^(?:feat|fix|refactor|perf|docs|test|chore)\/[a-z0-9][a-z0-9._/-]*$/;
 
@@ -591,29 +592,6 @@ export async function doctorWorktree(cwd: string, target?: string): Promise<Doct
     return { errors, status, valid: errors.length === 0, warnings };
 }
 
-async function unpushedCommitCount(worktree: WorktreeRecord): Promise<number> {
-    if (!worktree.branch) return 1;
-    try {
-        const output = await runCapture(
-            'git',
-            ['rev-list', '--count', '@{upstream}..HEAD'],
-            worktree.path,
-        );
-        return Number(output.trim());
-    } catch {
-        try {
-            const output = await runCapture(
-                'git',
-                ['rev-list', '--count', 'origin/main..HEAD'],
-                worktree.path,
-            );
-            return Number(output.trim());
-        } catch {
-            return 1;
-        }
-    }
-}
-
 export async function removeWorktree(
     options: RemoveOptions,
 ): Promise<{ path: string; profileKept: boolean }> {
@@ -639,9 +617,9 @@ export async function removeWorktree(
         ) {
             throw new CommandError(`Refusing to remove dirty worktree: ${worktree.path}`);
         }
-        if ((await unpushedCommitCount(worktree)) > 0) {
+        if (!(await isWorktreeHeadPreserved(worktree))) {
             throw new CommandError(
-                `Refusing to remove worktree with unpushed commits: ${worktree.path}`,
+                `Refusing to remove worktree whose changes are not preserved on origin: ${worktree.path}`,
             );
         }
         const identity = await worktreeIdentity(worktree.path, false);
