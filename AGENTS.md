@@ -84,8 +84,9 @@ directories.
   question tool after the agent explains why the current worktree cannot own the change. Do not
   modify code directly on `main` or an unrelated task's branch unless the user explicitly requests
   it.
-- Before the public release, the maintainer iterates through coding agents and wants proactive
-  delivery: an implementation or bug-fix request that lands in a task worktree delegates the whole
+- Before the owner declares the first public compatibility release, the maintainer wants proactive
+  delivery from coding agents: an implementation or bug-fix request that lands in a task worktree
+  delegates the whole
   loop (commit, push, PR, CI repair, merge, issue closeout, primary-checkout sync) as defined in
   `switch-worktree`'s default delivery flow. Do not stop at a green local check to ask whether to
   open or merge the PR; only an explicit analysis-only, local-only, or no-merge instruction narrows
@@ -221,24 +222,24 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
   hide, or regress its launch, input, resume, surface switch, suspension, or restore paths. For
   example, a Chat-only Fork action is fine, but a shared Agent menu change that breaks
   `claude --resume` in a PTY is a bug. See [ADR 0015](docs/adr/0015-chat-primary-agent-surface.md).
-- Until Caxri has a public release, optimize for the current architecture instead of preserving
-  compatibility with previous local builds. Do not add protocol adapters, legacy Host controls,
-  dual-read/write paths, or migration UI only to keep an unpublished build running. Fail clearly
-  and direct the operator to a documented reset or reinstall workflow.
+- Until the owner declares Caxri's first compatibility release, optimize for the current architecture
+  instead of preserving compatibility with previous local builds. Do not add protocol adapters,
+  legacy Host controls, dual-read/write paths, or migration UI only to keep an unpublished build
+  running. Fail clearly and direct the operator to a documented reset or reinstall workflow.
 - Database schema migrations remain allowed during active development so the current working data
   can evolve safely and upgrade behavior stays exercised. Do not treat schema migrations as a
   reason to preserve unrelated runtime, Host protocol, CLI, or UI compatibility layers.
 - Before the public compatibility commitment, the owner may declare an explicit clean-install
   cutoff. Never infer this cutoff or delete local data without explicit user authorization.
-- After a public release, backward compatibility becomes a product contract. Removing migrations
-  or compatibility paths then requires an explicit release policy, a supported upgrade path, and
-  validation against already released versions.
+- After the owner explicitly declares a compatibility release, backward compatibility becomes a
+  product contract. Removing migrations or compatibility paths then requires an explicit release
+  policy, a supported upgrade path, and validation against already released versions.
 - Repository visibility is not a release. The source being publicly readable does not trigger any
-  rule above that depends on a public release, does not create existing users to support, and does
-  not change the iteration strategy. The compatibility contract starts at the first published
-  release the owner declares, not at the moment the repository becomes readable. Never add a
-  compatibility layer, migration UI, deprecation path, or contributor-facing process because the
-  repository is public.
+  rule above that depends on a compatibility release, does not create existing users to support,
+  and does not change the iteration strategy. The compatibility contract starts at the first
+  release the owner explicitly declares as its baseline, not at the moment the repository becomes
+  readable or a development artifact is published. Never add a compatibility layer, migration UI,
+  deprecation path, or contributor-facing process because the repository is public.
 
 ## Skill routing
 
