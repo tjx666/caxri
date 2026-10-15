@@ -692,7 +692,7 @@ describe('switch-worktree safe removal', () => {
         await git(created.path, 'commit', '-m', 'unpushed');
         await expect(
             removeWorktree({ cwd: fixture.root, preserveProfile: false, target: created.path }),
-        ).rejects.toThrow('unpushed commits');
+        ).rejects.toThrow('changes are not preserved on origin');
         await git(created.path, 'push', '-u', 'origin', 'chore/remove-guards');
 
         const context = await repoContext(fixture.root);
