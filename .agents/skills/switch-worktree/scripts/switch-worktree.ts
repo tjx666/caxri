@@ -15,6 +15,7 @@ import {
     switchWorktree,
 } from './worktree';
 import { listOrphanedProcesses } from './worktree-orphans';
+import { pruneOrphanProfiles } from './worktree-profile-prune';
 
 const USAGE = `Usage: switch-worktree <command> [options]
 
@@ -26,21 +27,25 @@ Commands:
   dev                                  Start Caxri with this checkout's isolated profile
   stop                                 Stop only the processes this checkout started
   orphans                              Report unsupervised dev processes in every checkout
-  remove <branch|path> [--clean-profile]
-                                       Safely remove a checkout and preserve its branch
+  remove <branch|path> [--preserve-profile]
+                                       Safely remove a checkout and its profile; preserve its branch
+  prune-profiles [--apply]             Preview or delete profiles with no registered worktree
   desktop --label <name> -- <command>  Hold the repository-wide desktop lease
 
 Options:
+  --apply                              Apply prune-profiles deletion (default: preview)
+  --preserve-profile                   Keep a removed worktree's isolated profile
   --json                               Emit stable JSON for command results
   --help                               Show this message`;
 
 interface ParsedArguments {
+    apply: boolean;
     base?: string;
-    cleanProfile: boolean;
     command?: string;
     json: boolean;
     label?: string;
     operands: string[];
+    preserveProfile: boolean;
     trailing: string[];
 }
 
@@ -55,12 +60,21 @@ function applyToken(
     result: ParsedArguments,
 ): number {
     switch (value) {
+        case '--apply': {
+            result.apply = true;
+            return index;
+        }
         case '--json': {
             result.json = true;
             return index;
         }
-        case '--clean-profile': {
-            result.cleanProfile = true;
+        case '--clean-profile':
+            throw new CommandError(
+                'Unknown option: --clean-profile (profile cleanup is now the default)',
+                2,
+            );
+        case '--preserve-profile': {
+            result.preserveProfile = true;
             return index;
         }
         case '--base':
@@ -92,10 +106,11 @@ function parseArguments(argv: string[]): ParsedArguments {
     const separator = argv.indexOf('--');
     const regular = separator === -1 ? argv : argv.slice(0, separator);
     const result: ParsedArguments = {
-        cleanProfile: false,
+        apply: false,
         command: regular.shift(),
         json: false,
         operands: [],
+        preserveProfile: false,
         trailing: separator === -1 ? [] : argv.slice(separator + 1),
     };
     for (let index = 0; index < regular.length; index += 1) {
@@ -299,11 +314,17 @@ export async function runCli(argv: string[]): Promise<void> {
         }
         case 'remove': {
             const result = await removeWorktree({
-                cleanProfile: arguments_.cleanProfile,
                 cwd: process.cwd(),
+                preserveProfile: arguments_.preserveProfile,
                 target: oneOperand(arguments_)!,
             });
             print(arguments_.json ? result : result.path, arguments_.json);
+            return;
+        }
+        case 'prune-profiles': {
+            if (arguments_.operands.length > 0)
+                throw new CommandError('prune-profiles does not accept a target', 2);
+            print(await pruneOrphanProfiles(process.cwd(), arguments_.apply), arguments_.json);
             return;
         }
         case 'desktop':
