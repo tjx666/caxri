@@ -1,5 +1,9 @@
 # Caxri contributor guide
 
+Caxri is an open-source project. Its code, documentation, GitHub collaboration surfaces, Actions
+output, and Releases are public by default. Its current license is source-available rather than
+OSI-approved, so keep that legal distinction explicit in licensing claims.
+
 This file is the always-on standing orders. Task procedures, architecture contracts, and toolchain
 recipes live in `.agents/skills/`: load the owning skill instead of restating it here.
 
@@ -131,13 +135,13 @@ directories.
   titles, bodies, and comments use Simplified Chinese; keep their code, identifiers, paths, and
   commands in English. Contributor issue tracking lives in GitHub issues (`gh issue`); do not file
   repository work in Linear.
-- Caxri is publicly readable, so write every tracked file, commit message, issue, and CI artifact
-  for a public audience. Never commit a private
+- Caxri is an open-source project, so write every tracked file, commit message, issue, and CI
+  artifact for a public audience. Never commit a private
   organization, repository, ticket identifier, tracker URL, internal hostname, internal file path,
   real person, home path carrying a real account name, or credential: not in a fixture, not in a
   comment, not in Chinese. Reference an upstream only after verifying it resolves without
   authentication. History cannot be cleaned retroactively once published, so prevention is the only
-  lever: `open-source-readiness`.
+  lever. Apply `oss-confidentiality` to content and `open-source-readiness` to publication mechanics.
 - Never write an em-dash (U+2014) in contributor prose: docs, skills, and code comments. Use a
   colon, semicolon, comma, period, or parentheses instead. Product copy (UI strings, Agent prompts)
   is out of scope; do not rewrite its punctuation as a side effect of a style rule. `bun run
@@ -256,7 +260,8 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
 | Vitest unit/integration regressions                       | `unit-testing`          |
 | Playwright Electron workflows                             | `e2e-testing`           |
 | Terminal interaction reports, CDP, owned process stop     | `debug`                 |
-| Fixtures, sample data, or anything a public reader sees   | `open-source-readiness` |
+| Public-content confidentiality review                     | `oss-confidentiality`   |
+| Publication, history, Actions, and Release exposure audit | `open-source-readiness` |
 | Isolated worktrees and desktop lease                      | `switch-worktree`       |
 | GitHub issues                                             | `file-issue`            |
 | Commits                                                   | `commit`                |

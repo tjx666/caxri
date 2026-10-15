@@ -1,59 +1,19 @@
 ---
 name: open-source-readiness
-description: Keep Caxri safe to publish and publicly readable. Use when writing fixtures, test data, sample paths, docs, or log/artifact plumbing; when a change would embed a real person, employer, private repository, ticket, host, or machine path; when auditing what the repository exposes publicly; or when changing publication or release boundaries.
+description: Audit and control Caxri's public exposure across Git history, GitHub data, Actions retention, Source Maps, packages, Releases, and repository visibility. Use for publication and release boundaries or whole-repository exposure audits; use oss-confidentiality for the content boundary of an individual public write.
 ---
 
 # Open Source Readiness
 
-Caxri is publicly readable. Treat every tracked file, commit message, issue, and CI artifact as
-public before writing it, because publication is too late to take any of them back.
+Caxri is an open-source project. This skill owns publication mechanics: what Git history, GitHub
+data, Actions output, packages, Releases, and repository visibility expose and how to audit them.
 
 That last clause is the whole reason this skill exists. It is not caution; it is a measured
 property of GitHub, recorded under [Why prevention is the only lever](#why-prevention-is-the-only-lever).
 
-## The rule
-
-Write nothing into a tracked file that you would have to remove before publishing.
-
-A reference is safe when an anonymous visitor can already reach the same thing. A reference is not
-safe merely because it looks harmless, is inside a test, is in a comment, or is written in Chinese.
-
-### Never write
-
-- **A private organization, repository, or project name.** Including in a URL, a Git remote fixture,
-  a worktree name, or a branch name.
-- **A real ticket identifier**, and especially a ticket URL: the slug in a tracker URL usually
-  carries the ticket's title, which is the part outsiders cannot otherwise read.
-- **An internal hostname**: preview deployments, staging, dashboards, admin panels, internal
-  gateways. Platform preview URLs encode the owning team's slug.
-- **An internal file path that implies internal structure**, and never one described as holding
-  credentials. Naming a secrets file is a disclosure even when its contents are absent.
-- **An absolute path containing a real account name**, whether the developer's or anyone else's.
-- **A real person's name, handle, or email**, outside the repository's own authorship metadata.
-- **A credential of any kind**, including one that is expired, revoked, or "just a test key".
-- **Non-public implementation behavior of an external service.** Do not record private filtering,
-  scoring, moderation, or data-handling rules. Document only publicly documented behavior, the
-  minimum authenticated request/response contract required by Caxri, and Caxri's local fail-closed
-  behavior.
-
-### Write instead
-
-| Instead of              | Use                                                       |
-| ----------------------- | --------------------------------------------------------- |
-| A private repository    | `owner/project`, `owner/example`                          |
-| A real ticket           | `TASK-123`, and a tracker URL only if the host is generic |
-| An internal host        | `example.internal`, `preview.example.com`                 |
-| A developer's home path | `/Users/me/...`, or an existing neighbour's placeholder   |
-| A real name             | `octocat`, or the role (`the maintainer`, `the reviewer`) |
-
-Keep substitutions **the same byte length** when a test asserts on offsets, column numbers, or
-wrapped-line positions. Terminal link and hard-wrap fixtures do assert on those; changing a string's
-length there silently moves the assertion instead of failing it.
-
-Naming an upstream that is genuinely public is fine and often necessary: a public npm package, a
-public repository, a public product URL, a published CLI's documented commands. **Verify rather than
-assume**: check the package on the registry, or fetch the repository and confirm it resolves without
-authentication. Over-correcting a public dependency into a fake one makes the code wrong.
+Before writing or publishing any individual item, Call the Skill tool with "oss-confidentiality".
+Its red lines, leak vectors, safe substitutions, and metadata review are authoritative for whether
+content may enter a public Caxri surface.
 
 ## Logs, diagnostics, and CI artifacts
 

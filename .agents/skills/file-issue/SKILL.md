@@ -26,8 +26,9 @@ change, state that explicitly instead of inventing a visual claim.
 - **问题**: every issue starts here. For a bug: observed behavior, expected behavior, and
   reproduction steps or the triggering condition. For an enhancement: the friction or gap, from
   the user's perspective.
-- **诊断** (bug): root cause if known, citing the load-bearing code as `path/to/file.ts:42` or
-  symbol names. State clearly when the cause is a hypothesis, not confirmed.
+- **诊断** (bug): root cause if known, citing the load-bearing code as
+  `apps/desktop/src/main/index.ts:42` or symbol names. State clearly when the cause is a hypothesis,
+  not confirmed.
 - **目标** (enhancement): the end state in one or two sentences: what works afterwards that
   doesn't today.
 - **UX 设计**: describe the user scenario, entry point, interaction flow, visible states, copy,
@@ -100,6 +101,9 @@ to load-bearing ones; broad file inventories go stale.
 
 ## Mechanics
 
+- Before creating, editing, or commenting on an issue, Call the Skill tool with
+  "oss-confidentiality" and review the title, body, comment, links, and attached artifacts as public
+  content. Describe a removed private value generically instead of repeating it in the issue.
 - Write the title, section headings, body prose, and follow-up issue comments in Simplified
   Chinese. Keep code, identifiers, paths, commands, enum values, and quoted upstream errors in
   English. This applies to every issue comment, not only comments created during filing.

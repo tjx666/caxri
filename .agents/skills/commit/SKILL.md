@@ -92,9 +92,11 @@ fully handling it, use `Refs #123` instead of a closing keyword.
 ## Validate and commit
 
 Call the Skill tool with "quality-check", then Call the Skill tool with "unit-testing" or
-"e2e-testing" when that owning testing discipline applies to the changed files. Re-inspect the
-staged diff, then commit it. Repeat the stage, validate, and commit sequence for every planned
-commit. Never amend or rewrite existing commits unless the user explicitly requests it.
+"e2e-testing" when that owning testing discipline applies to the changed files. Call the Skill tool
+with "oss-confidentiality" after staging and review both the staged diff and proposed commit message
+as public content. Then commit it. Repeat the stage, validate, confidentiality review, and commit
+sequence for every planned commit. Never amend or rewrite existing commits unless the user
+explicitly requests it.
 
 Afterward, verify:
 

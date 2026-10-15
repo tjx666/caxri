@@ -46,9 +46,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    and merge the validated head. Rebase a running or green head only for an actual conflict, an
    explicit freshness requirement, or concrete evidence that the integration changed semantics.
    Local ancestry alone is not a post-CI blocker.
-4. Push only when authorized. If rebasing rewrote an already published branch, refresh its remote
-   object ID and verify no unincorporated remote commit exists. Update it only when the
-   authorization covers the rewrite, using an exact
+4. Before the first push, Call the Skill tool with "oss-confidentiality" and review the diff,
+   commits, branch name, and intended public artifacts. Push only when authorized. If rebasing
+   rewrote an already published branch, refresh its remote object ID and verify no unincorporated
+   remote commit exists. Update it only when the authorization covers the rewrite, using an exact
    `--force-with-lease=refs/heads/<branch>:<observed-oid>` lease. Never use bare `--force`, and
    stop if the lease rejects the update.
    For an ordinary non-force push from a linked worktree, make the destination auditable with
@@ -67,7 +68,9 @@ or cancels the delivery, or a concrete blocker requires their input.
    repository already requires for each one, plus a reverse-state reminder for a diff that adds a
    one-way user action. Before the PR is ready, resolve every listed proof row to `done` or
    `waived: <reason>`; a row left `PENDING` is unproven, not passing. Use `--json` when scripting
-   the body instead of reading it by eye. Read back the resulting PR.
+   the body instead of reading it by eye. After the final PR title and body are assembled but before
+   creating or updating the PR, Call the Skill tool with "oss-confidentiality" and review that
+   metadata, its links, and its referenced artifacts as public content. Read back the resulting PR.
 6. Treat queued or failed required checks, unresolved conflicts, unresolved surface-matrix proof
    rows, and active review findings as real readiness blockers, unless the diff qualifies for
    [Fast merge without CI](#fast-merge-without-ci) or a failed case qualifies for the CI-only parity
