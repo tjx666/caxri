@@ -1,20 +1,9 @@
-import type { ViewCatalogSnapshot } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
 
-import { executeCommand, isCommandAvailable } from '../../commands/execute';
-import { ShortcutBadge } from '../../components/shortcut-badge';
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from '../../components/ui/command';
+import { isCommandAvailable } from '../../commands/execute';
+import { CommandItem } from '../../components/ui/command';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { useTranslation } from '../../i18n';
-import { commandCategory, commandDescription, commandTitle } from '../../lib/command-labels';
-import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useIsLocalOnlyAvailable, useIsRemote } from '../../stores/environment';
@@ -29,7 +18,6 @@ import {
 } from '../session/session-commands';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { canRestartResumeAgent } from '../terminal/agent-restart-commands';
-import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
 import { useActivePaneTab } from '../workbench/pane-actions';
 import type { CommandTitleContext } from './command-palette-commands';
 import {
@@ -38,81 +26,12 @@ import {
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
     isCommandVisibleInPalette,
-    paletteCommandTitle,
 } from './command-palette-commands';
+import type { CommandPaletteEntry } from './command-palette-results';
+import { CommandPaletteResults } from './command-palette-results';
+import { commandItemMetaClassName, CommandRow, DynamicCommandRow } from './command-row';
 
 const NO_RECORDS: never[] = [];
-
-const commandItemMetaClassName = 'inline-flex flex-none items-center gap-2 text-[11px] text-muted';
-
-/**
- * Every command already carries a plain-language `description` in the shared catalog (e.g. Screencast Mode's explains
- * it overlays clicks/keystrokes without hiding anything), but nothing in the palette ever rendered it. Showing it as a
- * secondary line benefits every command, not just the ones whose title alone is ambiguous.
- */
-function CommandRow({
-    command,
-    titleContext,
-}: {
-    command: (typeof commandDefinitions)[number];
-    titleContext: CommandTitleContext;
-}) {
-    const { t } = useTranslation();
-    const shortcut = useCommandShortcut(command.id);
-    return (
-        <CommandItem
-            value={getStaticCommandPaletteValue(command, t, titleContext)}
-            onSelect={() => {
-                setPaletteOpen(false);
-                executeCommand(command.id);
-            }}
-        >
-            <span className="flex min-w-0 flex-col gap-0.5">
-                <span>{paletteCommandTitle(command, titleContext, t)}</span>
-                <span className="truncate text-[11px] text-muted">
-                    {commandDescription(command, t)}
-                </span>
-            </span>
-            <small className={commandItemMetaClassName}>
-                {commandCategory(command.category, t)}
-                {shortcut && (
-                    <ShortcutBadge
-                        compact
-                        keyClassName="group-data-[selected=true]:bg-[var(--selection)]"
-                        shortcut={shortcut}
-                    />
-                )}
-            </small>
-        </CommandItem>
-    );
-}
-
-function DynamicCommandRow({
-    catalog,
-    command,
-}: {
-    catalog: ViewCatalogSnapshot;
-    command: { id: string; title: string; description?: string };
-}) {
-    const { t } = useTranslation();
-    return (
-        <CommandItem
-            value={getDynamicCommandPaletteValue(command, t)}
-            onSelect={() => {
-                setPaletteOpen(false);
-                didExecuteViewCatalogCommand(catalog, command.id);
-            }}
-        >
-            <span className="flex min-w-0 flex-col gap-0.5">
-                <span>{commandTitle(command, t)}</span>
-                {command.description && (
-                    <span className="truncate text-[11px] text-muted">{command.description}</span>
-                )}
-            </span>
-            <small className={commandItemMetaClassName}>{t('palette.source.extension')}</small>
-        </CommandItem>
-    );
-}
 
 /**
  * The palette is mounted for the app's lifetime, so only its open flag is read here. Base UI's Portal renders nothing
@@ -197,76 +116,98 @@ function CommandPaletteBody() {
         agentChatPermissionModes: isCommandAvailable('agentChat.changePermissionMode'),
         agentChatPlanMode: isCommandAvailable('agentChat.togglePlanMode'),
     };
+    const projectEntries: CommandPaletteEntry[] = projectResults.map((project) => {
+        const value = `${project.displayTitle} Project ${project.rootPath}`;
+        return {
+            id: `project:${project.id}`,
+            value,
+            content: (
+                <CommandItem
+                    value={value}
+                    onSelect={() => {
+                        onOpenChange(false);
+                        selectProject(project.id);
+                    }}
+                >
+                    <span>{project.displayTitle}</span>
+                    <small className={commandItemMetaClassName}>
+                        {t('palette.source.project')}
+                    </small>
+                </CommandItem>
+            ),
+        };
+    });
+    const sessionEntries: CommandPaletteEntry[] = sessions.map((session) => {
+        const project = projects.find((item) => item.id === session.projectId);
+        /**
+         * Cmdk selects by value, so the ID distinguishes Sessions with identical titles and Projects.
+         */
+        const value = `${sessionTitleForDisplay(session.displayTitle, t)} Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`;
+        return {
+            id: `session:${session.id}`,
+            value,
+            content: (
+                <CommandItem
+                    value={value}
+                    onSelect={() => {
+                        onOpenChange(false);
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
+                        void didSelectSession(session.id);
+                    }}
+                >
+                    <span>{sessionTitleForDisplay(session.displayTitle, t)}</span>
+                    <small className={commandItemMetaClassName}>
+                        {project?.displayTitle ?? t('palette.source.session')}
+                    </small>
+                </CommandItem>
+            ),
+        };
+    });
+    const staticEntries: CommandPaletteEntry[] = commandDefinitions
+        .filter(
+            (command) =>
+                !command.requiresArguments && isCommandVisibleInPalette(command, whenContext),
+        )
+        .map((command) => {
+            const value = getStaticCommandPaletteValue(command, t, titleContext);
+            return {
+                id: `command:${command.id}`,
+                value,
+                content: <CommandRow command={command} titleContext={titleContext} value={value} />,
+            };
+        });
+    const extensionEntries: CommandPaletteEntry[] = getPaletteExtensionCommands(catalog).map(
+        (command) => {
+            const value = getDynamicCommandPaletteValue(command, t);
+            return {
+                id: `extension:${command.id}`,
+                value,
+                content: <DynamicCommandRow catalog={catalog!} command={command} value={value} />,
+            };
+        },
+    );
     return (
         <>
             <DialogTitle className="sr-only">{t('palette.title')}</DialogTitle>
-            <Command label={t('palette.title')} className="w-full">
-                <CommandInput autoFocus placeholder={t('palette.searchPlaceholder')} />
-                <CommandList>
-                    <CommandEmpty>{t('palette.empty')}</CommandEmpty>
-                    <CommandGroup heading={t('palette.group.projects')}>
-                        {projectResults.map((project) => (
-                            <CommandItem
-                                key={project.id}
-                                value={`Project ${project.displayTitle} ${project.rootPath}`}
-                                onSelect={() => {
-                                    onOpenChange(false);
-                                    selectProject(project.id);
-                                }}
-                            >
-                                <span>{project.displayTitle}</span>
-                                <small className={commandItemMetaClassName}>
-                                    {t('palette.source.project')}
-                                </small>
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
-                    <CommandGroup heading={t('palette.group.sessions')}>
-                        {sessions.map((session) => {
-                            const project = projects.find((item) => item.id === session.projectId);
-                            return (
-                                <CommandItem
-                                    key={session.id}
-                                    // `cmdk` tracks the selected row by `value`, not by React key, so two
-                                    // sessions sharing a title and project (e.g. two "Untitled" sessions
-                                    // in one worktree) would both render as selected. The id keeps every
-                                    // value unique without changing what the search matches on.
-                                    value={`Session ${sessionTitleForDisplay(session.displayTitle, t)} ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`}
-                                    onSelect={() => {
-                                        onOpenChange(false);
-                                        // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
-                                        void didSelectSession(session.id);
-                                    }}
-                                >
-                                    <span>{sessionTitleForDisplay(session.displayTitle, t)}</span>
-                                    <small className={commandItemMetaClassName}>
-                                        {project?.displayTitle ?? t('palette.source.session')}
-                                    </small>
-                                </CommandItem>
-                            );
-                        })}
-                    </CommandGroup>
-                    <CommandGroup heading={t('palette.group.commands')}>
-                        {commandDefinitions.map((command) =>
-                            command.requiresArguments ||
-                            !isCommandVisibleInPalette(command, whenContext) ? null : (
-                                <CommandRow
-                                    key={command.id}
-                                    command={command}
-                                    titleContext={titleContext}
-                                />
-                            ),
-                        )}
-                        {getPaletteExtensionCommands(catalog).map((command) => (
-                            <DynamicCommandRow
-                                key={command.id}
-                                catalog={catalog!}
-                                command={command}
-                            />
-                        ))}
-                    </CommandGroup>
-                </CommandList>
-            </Command>
+            <CommandPaletteResults
+                groups={[
+                    {
+                        id: 'projects',
+                        heading: t('palette.group.projects'),
+                        entries: projectEntries,
+                    },
+                    {
+                        id: 'sessions',
+                        heading: t('palette.group.sessions'),
+                        entries: sessionEntries,
+                    },
+                    {
+                        id: 'commands',
+                        heading: t('palette.group.commands'),
+                        entries: [...staticEntries, ...extensionEntries],
+                    },
+                ]}
+            />
         </>
     );
 }
