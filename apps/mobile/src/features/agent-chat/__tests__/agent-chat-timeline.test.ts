@@ -29,7 +29,7 @@ const ids = (timeline: Timeline): string[] =>
     buildAgentChatTimeline(timeline).map((entry) => entry.id);
 
 describe('buildAgentChatTimeline', () => {
-    it('summarizes settled work and keeps work still running as its own rows', () => {
+    it('groups ordinary work from its first running frame', () => {
         const [work] = buildAgentChatTimeline({
             items: [
                 command('c1', 'completed'),
@@ -48,19 +48,19 @@ describe('buildAgentChatTimeline', () => {
         });
         expect(work).toMatchObject({ kind: 'work', id: 'work:c1' });
         if (work.kind !== 'work') throw new Error('expected a work entry');
-        expect(work.summarized.map((item) => item.id)).toEqual(['c1', 'c2']);
-        expect(work.rows.map((item) => item.id)).toEqual(['c3', 'r1']);
+        expect(work.summarized.map((item) => item.id)).toEqual(['c1', 'c2', 'c3', 'r1']);
+        expect(work.rows).toEqual([]);
     });
 
-    it('leaves a single settled tool call as a row rather than a one-item summary', () => {
+    it('keeps a single tool call in its summary after it settles', () => {
         const [work] = buildAgentChatTimeline({
             items: [command('c1', 'declined')],
             turns: [{ id: 't1', status: 'running' }],
             activeTurnId: 't1',
         });
         if (work.kind !== 'work') throw new Error('expected a work entry');
-        expect(work.summarized).toEqual([]);
-        expect(work.rows.map((item) => item.id)).toEqual(['c1']);
+        expect(work.summarized.map((item) => item.id)).toEqual(['c1']);
+        expect(work.rows).toEqual([]);
     });
 
     it('folds a finished turn behind its Worked for row, with artifacts under the final reply', () => {
@@ -135,6 +135,22 @@ describe('buildAgentChatTimeline', () => {
                 new Set(['t2']),
             ).map((entry) => entry.id),
         ).toEqual(['u-t1', 'turn:t1', 'a-t1', 'u-t2', 'turn:t2', 'work:c-t2', 'a-t2']);
+    });
+
+    it('preserves the full system output and gives completed compaction its own event kind', () => {
+        const output = 'Example hook output. '.repeat(50);
+        const entries = buildAgentChatTimeline({
+            items: [
+                { id: 'output', type: 'notice', kind: 'output', message: output },
+                { id: 'compact', type: 'notice', kind: 'compacted' },
+            ],
+            turns: [],
+        });
+        expect(entries[0]).toMatchObject({
+            kind: 'message',
+            message: { summary: output.slice(0, 240), detail: output },
+        });
+        expect(entries[1]).toMatchObject({ kind: 'message', message: { kind: 'compacted' } });
     });
 
     it('keeps a static row before the reply when a finished turn had nothing to fold', () => {

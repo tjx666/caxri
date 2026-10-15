@@ -4,29 +4,11 @@ import type {
     AgentChatTaskSnapshot,
     AgentUsageReadout,
 } from '@caxri/protocol';
-import { formatTokens } from '@caxri/protocol';
+import { formatTokens, isAgentChatSubagentItem } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import { agentUsageCostLabel } from '../status-bar/agent-usage-label';
-
-/**
- * Tool names whose row starts a subagent, compared without case or separators: Claude Code's `Task` and `Agent`, and
- * Codex's collab `spawnAgent` (also seen as `spawn_agent`).
- */
-const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task', 'agent', 'spawnagent']);
-
-function normalizedToolName(name: string): string {
-    return name.toLowerCase().replaceAll(/[^a-z]/gu, '');
-}
-
-/**
- * Whether a timeline row started a subagent. Such a row stays openable even when the live task list no longer knows it
- * (a resumed conversation), because `agentChat.readTask` rebuilds a subagent from the item that started it.
- */
-export function isAgentChatSubagentItem(item: AgentChatItem): boolean {
-    return item.type === 'toolCall' && SUBAGENT_TOOL_NAMES.has(normalizedToolName(item.name));
-}
 
 /**
  * Whether a work row's subagent or background shell still runs, which keeps the row out of a `Ran N commands` summary

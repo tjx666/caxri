@@ -353,6 +353,11 @@ record is the source of truth.
   it, and stops a provider whose stdin backlog passes 8 MiB rather than buffering without bound.
 - Items a turn left open (an interrupted command, a cut-off message) are closed as `interrupted`
   when the turn ends or the process exits.
+- A turn stopped through Caxri carries `interruptionReason: user` and reads "Stopped by you" on
+  Desktop and Mobile. Intent is bound to the exact active turn, including a Stop timeout that must
+  close the provider. A normal successful completion that races Stop stays completed. Provider
+  exits and reconstructed native history have no Caxri attribution and keep the ordinary "Stopped"
+  label; the field does not infer a cause from an error message.
 - An item's optional `createdAt` is when it began. Server Core stamps an item on its first live
   upsert (`stampNewItems` in `apps/server/src/domains/agent-chat/chat-projection.ts`) and the
   reducer keeps it across later upserts that omit it. A history replay is not stamped with the read

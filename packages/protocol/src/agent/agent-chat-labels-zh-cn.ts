@@ -56,6 +56,8 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.fold.durationMinutesSeconds': '{{minutes}}分钟 {{seconds}}秒',
     'agentChat.fold.durationUnderOneSecond': '<1秒',
     'agentChat.fold.stoppedAfter': '{{duration}} 后停止',
+    'agentChat.fold.stoppedByYouAfter': '{{duration}} 后由你停止',
+    'agentChat.fold.stoppedByYou': '由你停止',
     'agentChat.fold.failedAfter': '{{duration}} 后失败',
     'agentChat.fold.worked': '已完成工作',
     'agentChat.fold.stopped': '已停止',

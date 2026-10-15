@@ -40,6 +40,20 @@ const thought = (id: string, turnId?: string): AgentChatItem => ({
 });
 
 describe('agentChatTurnLabel', () => {
+    it('attributes a known Caxri Stop while leaving an unknown interruption unchanged', () => {
+        expect(agentChatTurnLabel({ status: 'interrupted', interruptionReason: 'user' })).toBe(
+            'Stopped by you',
+        );
+        expect(
+            agentChatTurnLabel({
+                status: 'interrupted',
+                interruptionReason: 'user',
+                durationMs: 3_000,
+            }),
+        ).toBe('Stopped by you after 3s');
+        expect(agentChatTurnLabel({ status: 'interrupted' })).toBe('Stopped');
+    });
+
     it('names how the turn ended', () => {
         expect(agentChatTurnLabel({ status: 'completed', durationMs: 45_000 })).toBe(
             'Worked for 45s',
@@ -49,6 +63,11 @@ describe('agentChatTurnLabel', () => {
         );
         expect(agentChatTurnLabel({ status: 'failed' })).toBe('Failed');
         expect(agentChatTurnLabel({ status: 'completed', durationMs: 400 })).toBe('Worked');
+        expect(agentChatTurnLabel({ status: 'completed', durationMs: 2_999 })).toBe('Worked');
+        expect(agentChatTurnLabel({ status: 'completed', durationMs: 3_000 })).toBe(
+            'Worked for 3s',
+        );
+        expect(agentChatTurnLabel({ status: 'failed', durationMs: 300 })).toBe('Failed after <1s');
     });
 });
 
@@ -145,7 +164,7 @@ describe('describeAgentChatWork', () => {
 });
 
 describe('agentChatWorkDuration', () => {
-    it('times commands and other tools only once a second has passed', () => {
+    it('shows successful durations from three seconds and all known failure durations', () => {
         const command = {
             id: 'c',
             type: 'command',
@@ -154,11 +173,19 @@ describe('agentChatWorkDuration', () => {
             output: '',
         } as const;
         expect(agentChatWorkDuration({ ...command, durationMs: 300 })).toBeNull();
-        expect(agentChatWorkDuration({ ...command, durationMs: 1_200 })).toBe('1s');
+        expect(agentChatWorkDuration({ ...command, durationMs: 2_999 })).toBeNull();
+        expect(agentChatWorkDuration({ ...command, durationMs: 3_000 })).toBe('3s');
+        expect(agentChatWorkDuration({ ...command, status: 'failed', durationMs: 300 })).toBe(
+            '<1s',
+        );
+        expect(agentChatWorkDuration({ ...command, status: 'interrupted', durationMs: 0 })).toBe(
+            '<1s',
+        );
         expect(agentChatWorkDuration(command)).toBeNull();
         const tool = { id: 't', type: 'toolCall', name: 'webSearch', status: 'completed' } as const;
         expect(agentChatWorkDuration({ ...tool, durationMs: 300 })).toBeNull();
-        expect(agentChatWorkDuration({ ...tool, durationMs: 2_000 })).toBe('2s');
+        expect(agentChatWorkDuration({ ...tool, durationMs: 2_000 })).toBeNull();
+        expect(agentChatWorkDuration({ ...tool, status: 'failed', durationMs: 1_200 })).toBe('1s');
     });
 });
 
@@ -258,16 +285,17 @@ describe('splitAgentChatWork', () => {
         expect(ids(split)).toEqual({ summarized: ['a', 'c'], rows: ['b'] });
     });
 
-    it('keeps a thought and a lone call as rows', () => {
+    it('groups the first tool immediately while keeping reasoning-only work readable', () => {
         const split = splitAgentChatWork([thought, ran('a', 'completed')]);
-        expect(ids(split)).toEqual({ summarized: [], rows: ['t', 'a'] });
+        expect(ids(split)).toEqual({ summarized: ['t', 'a'], rows: [] });
+        expect(ids(splitAgentChatWork([thought]))).toEqual({ summarized: [], rows: ['t'] });
     });
 
-    it('summarizes two settled calls and keeps running work as a live row', () => {
+    it('keeps new running calls in the same group before and after completion', () => {
         const items = [thought, ran('a', 'completed'), ran('b', 'completed'), ran('c', 'running')];
         expect(ids(splitAgentChatWork(items))).toEqual({
-            summarized: ['t', 'a', 'b'],
-            rows: ['c'],
+            summarized: ['t', 'a', 'b', 'c'],
+            rows: [],
         });
     });
 });

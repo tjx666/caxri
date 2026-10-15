@@ -17,7 +17,7 @@ import {
 } from './agent-chat-expansion';
 import { AgentChatFindQueryContext, isAgentChatTurnFoldMatch } from './agent-chat-find';
 import type { AgentChatTurnSubagent } from './agent-chat-tasks';
-import { agentChatTurnSubagents, isAgentChatTaskItemRunning } from './agent-chat-tasks';
+import { agentChatTurnSubagents } from './agent-chat-tasks';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import { agentChatTurnTimeTooltip, agentChatTurnTone } from './agent-chat-timeline';
 import {
@@ -243,8 +243,10 @@ export function AgentChatTurnFold({
                             container: container.current,
                             element,
                             itemId,
-                            keys: agentChatRevealItemKeys(entry, itemId, (item) =>
-                                isAgentChatTaskItemRunning(links?.tasksByItem, item),
+                            keys: agentChatRevealItemKeys(
+                                entry,
+                                itemId,
+                                (item) => links?.tasksByItem.has(item.id) === true,
                             ),
                         });
                     })

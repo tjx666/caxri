@@ -107,16 +107,21 @@ describe('agentChatRevealItemKeys', () => {
         ],
     };
 
-    it('opens the summary group a settled subagent row joined', () => {
-        expect(agentChatRevealItemKeys(entry, 's1', () => false)).toEqual([
-            'turn:t1',
-            agentChatSummaryExpansionKey([command('c1'), spawn('s1'), command('c2')]),
-        ]);
+    it('keeps independent subagent rows directly openable after completion', () => {
+        expect(agentChatRevealItemKeys(entry, 's1', () => false)).toEqual(['turn:t1']);
+        expect(agentChatRevealItemKeys(entry, 's2', () => false)).toEqual(['turn:t1']);
     });
 
-    it('opens only the fold for a row still running or standing alone', () => {
-        const isLive = (item: AgentChatWorkItem) => item.id === 's1';
-        expect(agentChatRevealItemKeys(entry, 's1', isLive)).toEqual(['turn:t1']);
-        expect(agentChatRevealItemKeys(entry, 's2', () => false)).toEqual(['turn:t1']);
+    it('anchors a summary to the whole work run even when the first item is independent', () => {
+        const anchored = {
+            ...entry,
+            entries: [
+                { kind: 'work' as const, id: 'work:s1', items: [spawn('s1'), command('c1')] },
+            ],
+        };
+        expect(agentChatRevealItemKeys(anchored, 'c1', () => false)).toEqual([
+            'turn:t1',
+            'summary:s1',
+        ]);
     });
 });

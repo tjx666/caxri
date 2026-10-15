@@ -8,6 +8,7 @@ import {
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
     agentChatWorkKind,
+    isAgentChatWorkRunning,
     summarizeAgentChatWork,
 } from '@caxri/protocol';
 
@@ -109,15 +110,15 @@ const AgentChatWorkRow = memo(
 );
 
 /**
- * A run of Chat work in one card, split the way Desktop splits it: settled work behind one summary row (`Ran 3
- * commands, read 2 files`, with a failure glyph when any step failed or was declined), and each step still running as
- * its own live row below it. A row opens its detail in a sheet.
+ * Chat work in a stable summary, with live and failure status visible while folded. A row opens its detail in a sheet.
  */
 export const AgentChatWorkGroup = ({
+    id,
     rows,
     summarized,
     theme,
 }: {
+    id: string;
     rows: readonly AgentChatWorkItem[];
     summarized: readonly AgentChatWorkItem[];
     theme: MobileTheme;
@@ -141,8 +142,12 @@ export const AgentChatWorkGroup = ({
                 {first ? (
                     <ConversationToolGroupView
                         count={summarized.length}
+                        duration={
+                            summarized.length === 1 ? agentChatWorkDuration(first, t) : undefined
+                        }
                         failure={agentChatWorkGroupFailure(summarized)}
-                        id={first.id}
+                        id={id}
+                        isRunning={summarized.some(isAgentChatWorkRunning)}
                         kind={agentChatWorkKind(summarized) ?? null}
                         summary={summarizeAgentChatWork(summarized, t)}
                         testID={`agent-chat-work-group-${first.id}`}

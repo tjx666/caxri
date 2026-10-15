@@ -19,6 +19,7 @@ export interface AgentChatSubscriptionEvent {
 const MAX_HELD_PATCHES = 200;
 
 const POLL_INTERVAL_MS = 2_500;
+const TEXT_FLUSH_MS = 32;
 
 /**
  * Keeps one phone copy of a Chat current. The first read follows the subscription ACK; patches that arrive during a
@@ -55,16 +56,29 @@ export const startAgentChatReader = ({
     let handle: AgentChatSubscription | null = null;
     let poll: ReturnType<typeof setInterval> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let textTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const publish = (next: AgentChatSnapshot): void => {
+    const flushText = (): void => {
+        if (textTimer !== null) clearTimeout(textTimer);
+        textTimer = null;
+        if (isActive && snapshot) onSnapshot(snapshot);
+    };
+
+    /**
+     * Apply revisions immediately, but paint text-only bursts together. The first item and every state/outcome patch
+     * flush immediately, so buffering cannot delay the first character or leave trailing text behind a stopped turn.
+     */
+    const publish = (next: AgentChatSnapshot, isTextOnly = false): void => {
         snapshot = next;
-        if (isActive) onSnapshot(next);
+        if (!isActive) return;
+        if (!isTextOnly) flushText();
+        else textTimer ??= setTimeout(flushText, TEXT_FLUSH_MS);
     };
 
     /**
      * Folds patches onto the current copy. Returns false when the chain broke and a read is needed.
      */
-    const canApplyPatches = (patches: readonly AgentChatPatch[]): boolean => {
+    const canApplyPatches = (patches: readonly AgentChatPatch[], canBufferText = true): boolean => {
         if (!snapshot) return false;
         let next = snapshot;
         for (const patch of patches) {
@@ -76,7 +90,14 @@ export const startAgentChatReader = ({
             }
             next = applied;
         }
-        if (next !== snapshot) publish(next);
+        if (next !== snapshot)
+            publish(
+                next,
+                canBufferText &&
+                    patches.every((patch) =>
+                        patch.operations.every((operation) => operation.op === 'appendText'),
+                    ),
+            );
         return true;
     };
 
@@ -104,9 +125,12 @@ export const startAgentChatReader = ({
             if (!isCurrent()) return;
             const replay = takeHeld();
             if (!snapshot || result.revision >= snapshot.revision) publish(result);
-            if (replay.isOverflow || !canApplyPatches(replay.patches)) isReadAgain = true;
+            if (replay.isOverflow || !canApplyPatches(replay.patches, false)) isReadAgain = true;
         } catch {
-            if (isCurrent()) onError();
+            if (isCurrent()) {
+                if (textTimer !== null) flushText();
+                onError();
+            }
         }
         if (isCurrent() && hasQueuedRead()) await drainReads();
     };
@@ -203,5 +227,6 @@ export const startAgentChatReader = ({
         if (handle) release(handle);
         if (poll !== null) clearInterval(poll);
         if (retryTimer !== null) clearTimeout(retryTimer);
+        if (textTimer !== null) clearTimeout(textTimer);
     };
 };

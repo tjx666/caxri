@@ -1,5 +1,5 @@
 import type { AgentChatItem, AgentChatTask } from '@caxri/protocol';
-import { agentChatTasksByItem } from '@caxri/protocol';
+import { agentChatTasksByItem, isAgentChatSubagentItem } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
@@ -10,7 +10,6 @@ import {
     agentChatTaskLinkForItem,
     agentChatTaskUsageSummary,
     agentChatTurnSubagents,
-    isAgentChatSubagentItem,
     isAgentChatTaskItemRunning,
 } from '../agent-chat-tasks';
 

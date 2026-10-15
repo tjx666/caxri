@@ -41,7 +41,6 @@ import {
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { CodeView } from '../../components/markdown/code-view';
-import { Tooltip } from '../../components/ui/tooltip';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { useTranslation } from '../../i18n';
 import { McpConnectorIcon } from '../../icons/mcp-connector-icon';
@@ -55,9 +54,10 @@ import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
 import { AgentChatTaskOpenButton } from './agent-chat-task-open-button';
-import { agentChatTaskActivity, isAgentChatTaskItemRunning } from './agent-chat-tasks';
+import { agentChatTaskActivity } from './agent-chat-tasks';
 import { agentChatWorkSummaryGlyph, describeAgentChatWorkRow } from './agent-chat-timeline';
 import { AgentChatToolArguments } from './agent-chat-tool-arguments';
+import { AgentChatWorkFileLink } from './agent-chat-work-file-link';
 import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { useAgentChatMcpServer } from './hooks/use-agent-chat-mcp-server';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-agent-chat-task-link';
@@ -451,7 +451,7 @@ const AgentChatWorkRow = memo(
                         <span className="shrink-0">{verb}</span>
                         {subject &&
                             (path && onOpenFile && !isRunning ? (
-                                <WorkFileLink
+                                <AgentChatWorkFileLink
                                     path={path}
                                     subject={subject}
                                     onOpenFile={onOpenFile}
@@ -469,34 +469,6 @@ const AgentChatWorkRow = memo(
         );
     },
 );
-
-/**
- * The file a work row names, underlined like a link and opening in the editor. It sits above the row's stretched
- * toggle, so clicking the name opens the file while the rest of the row still expands it. Its underline, not a dimmer
- * text, sets it apart from the row's muted verb, and it brightens with the underline on hover; the full path is one
- * hover away.
- */
-function WorkFileLink({
-    path,
-    subject,
-    onOpenFile,
-}: {
-    path: string;
-    subject: string;
-    onOpenFile: (target: string) => void;
-}) {
-    return (
-        <Tooltip content={path}>
-            <button
-                className="relative min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-inherit underline decoration-current/40 underline-offset-2 hover:text-foreground hover:decoration-current focus-visible:outline focus-visible:outline-accent"
-                type="button"
-                onClick={() => onOpenFile(path)}
-            >
-                {subject}
-            </button>
-        </Tooltip>
-    );
-}
 
 /**
  * The rows of an expanded work group, scrolling past `WORK_LIST_CLASS_NAME`'s height with a fade on whichever edge
@@ -531,13 +503,15 @@ function WorkList({ children }: { children: ReactNode }) {
 }
 
 /**
- * Settled work as one summary row (`Ran 3 commands, read 2 files`) that lists each piece when expanded.
+ * Ordinary work as one stable summary row (`Ran 3 commands, read 2 files`) that lists each piece when expanded.
  */
 function AgentChatWorkSummary({
     items,
+    anchorItems,
     onOpenFile,
 }: {
     items: readonly AgentChatWorkItem[];
+    anchorItems: readonly AgentChatWorkItem[];
     onOpenFile?: (target: string) => void;
 }) {
     const { t } = useTranslation();
@@ -548,10 +522,21 @@ function AgentChatWorkSummary({
         <DisclosureRow
             containedItems={items}
             disclosureKind="agent-chat-work-group"
-            expansionKey={agentChatSummaryExpansionKey(items)}
+            expansionKey={agentChatSummaryExpansionKey(anchorItems)}
             glyph={<WorkGlyph kind={glyph.kind} mcpToolName={glyph.mcpToolName} />}
             title={<span className="min-w-0 truncate">{summary}</span>}
-            trailing={failureStatus && <AgentChatStatusGlyph status={failureStatus} />}
+            trailing={
+                <>
+                    {items.some(isAgentChatWorkRunning) && (
+                        <AgentChatStatusGlyph status="running" />
+                    )}
+                    {items.length === 1 && items[0] ? (
+                        <AgentChatWorkTrailing item={items[0]} />
+                    ) : (
+                        failureStatus && <AgentChatStatusGlyph status={failureStatus} />
+                    )}
+                </>
+            }
         >
             <WorkList>
                 {items.map((item) => (
@@ -563,9 +548,7 @@ function AgentChatWorkSummary({
 }
 
 /**
- * A run of consecutive work. Settled tool calls collapse into a summary row; a lone call, a thought, and anything still
- * running render as their own rows (see `splitAgentChatWork`). A row whose subagent or background shell still runs
- * counts as running even after its tool call returned, so its live status and Open button stay in view.
+ * A stable summary from the first ordinary tool call. Independent tasks retain their own live rows and Open buttons.
  */
 export function AgentChatWorkGroup({
     items,
@@ -575,13 +558,18 @@ export function AgentChatWorkGroup({
     onOpenFile?: (target: string) => void;
 }) {
     const links = useContext(AgentChatTaskLinksContext);
-    const { summarized, rows } = splitAgentChatWork(items, (item) =>
-        isAgentChatTaskItemRunning(links?.tasksByItem, item),
+    const { summarized, rows } = splitAgentChatWork(
+        items,
+        (item) => links?.tasksByItem.has(item.id) === true,
     );
     return (
         <div className="flex flex-col">
             {summarized.length > 0 && (
-                <AgentChatWorkSummary items={summarized} onOpenFile={onOpenFile} />
+                <AgentChatWorkSummary
+                    anchorItems={items}
+                    items={summarized}
+                    onOpenFile={onOpenFile}
+                />
             )}
             {rows.map((item) => (
                 <AgentChatWorkRow item={item} key={item.id} onOpenFile={onOpenFile} />

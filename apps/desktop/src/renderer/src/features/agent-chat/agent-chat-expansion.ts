@@ -89,7 +89,7 @@ export function agentChatRevealItemKeys(
         if (child.kind !== 'work' || child.items.every((item) => item.id !== itemId)) continue;
         const { summarized } = splitAgentChatWork(child.items, isLive);
         if (summarized.some((item) => item.id === itemId))
-            keys.push(agentChatSummaryExpansionKey(summarized));
+            keys.push(agentChatSummaryExpansionKey(child.items));
     }
     return keys;
 }

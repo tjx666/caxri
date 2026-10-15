@@ -55,6 +55,7 @@ function harness() {
         ack: () => ack.resolve({ unsubscribe: async () => {} }),
         emit: (event: AgentChatSubscriptionEvent) => emit(event),
         latest: () => onSnapshot.mock.calls.at(-1)?.[0],
+        onSnapshot,
         read,
         reads,
         stop,
@@ -63,6 +64,37 @@ function harness() {
 
 describe('Agent Chat reader', () => {
     afterEach(() => vi.useRealTimers());
+
+    it('buffers text bursts without delaying the first text or the terminal patch', async () => {
+        vi.useFakeTimers();
+        const chat = harness();
+        chat.ack();
+        await vi.advanceTimersByTimeAsync(0);
+        chat.reads[0]?.resolve(snapshot(1));
+        await vi.advanceTimersByTimeAsync(0);
+        const initialCalls = chat.onSnapshot.mock.calls.length;
+        chat.emit({ kind: 'agentChat.patch', patch: append(1, ' one') });
+        chat.emit({ kind: 'agentChat.patch', patch: append(2, ' two') });
+        expect(chat.onSnapshot).toHaveBeenCalledTimes(initialCalls);
+        await vi.advanceTimersByTimeAsync(32);
+        expect(textOf(chat.latest())).toBe('Hi one two');
+        expect(chat.onSnapshot).toHaveBeenCalledTimes(initialCalls + 1);
+        chat.emit({ kind: 'agentChat.patch', patch: append(3, ' final') });
+        chat.emit({
+            kind: 'agentChat.patch',
+            patch: {
+                terminalId: 'terminal-1',
+                baseRevision: 4,
+                revision: 5,
+                operations: [{ op: 'state', state: { activeTurnId: null } }],
+            },
+        });
+        expect(textOf(chat.latest())).toBe('Hi one two final');
+        expect(chat.latest()?.revision).toBe(5);
+        chat.stop();
+        await vi.advanceTimersByTimeAsync(32);
+        expect(chat.latest()?.revision).toBe(5);
+    });
 
     it('reads after the ACK and streams patches onto that read', async () => {
         const chat = harness();
@@ -73,6 +105,7 @@ describe('Agent Chat reader', () => {
         chat.reads[0]?.resolve(snapshot(1));
         await flush();
         chat.emit({ kind: 'agentChat.patch', patch: append(1, ' there') });
+        await new Promise((resolve) => setTimeout(resolve, 40));
         expect(textOf(chat.latest())).toBe('Hi there');
         expect(chat.latest()?.revision).toBe(2);
         chat.stop();
