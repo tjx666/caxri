@@ -123,6 +123,11 @@ const PROSE_PATH =
     /(?:~\/|\.{1,2}\/|\/)?(?:[\w.@+-]+\/)*[\w.@+-]*\w\.[A-Za-z][\w-]{0,15}(?::\d+(?::\d+|-\d+)?|#L\d+(?:-L?\d+)?)?/gu;
 
 /**
+ * Quoted rooted paths may contain spaces, such as an application data directory.
+ */
+const QUOTED_PROSE_PATH = /(["'])(?<path>(?:~\/|\.{1,2}\/|\/)[^"'\r\n<>]+)\1/gu;
+
+/**
  * Characters that, next to a run, mean it is a fragment of a longer token: a URL (`https://a.dev/x.ts`), an email, or a
  * dotted identifier. A trailing `.` is allowed only when nothing word-like follows it, so a sentence may end on a
  * path.
@@ -155,14 +160,27 @@ export interface ProseFileReference {
  */
 export function proseFileReferences(text: string): ProseFileReference[] {
     const references: ProseFileReference[] = [];
+    for (const match of text.matchAll(QUOTED_PROSE_PATH)) {
+        const value = match.groups?.path;
+        if (!value || !fileReferenceTarget(value.replaceAll(' ', '_'))) continue;
+        const file = fileLinkTarget(value)?.replace(/:(\d+)-(\d+)$/u, '#L$1-L$2');
+        if (file) references.push({ index: match.index + 1, text: value, file });
+    }
     for (const match of text.matchAll(PROSE_PATH)) {
         const value = match[0];
         const index = match.index;
+        if (
+            references.some(
+                (reference) =>
+                    index >= reference.index && index < reference.index + reference.text.length,
+            )
+        )
+            continue;
         if (index > 0 && INNER_BEFORE.test(text[index - 1] ?? '')) continue;
         if (INNER_AFTER.test(text.slice(index + value.length))) continue;
         if (!value.includes('/') && !/[:#]/u.test(value)) continue;
         const file = fileReferenceTarget(value);
         if (file) references.push({ index, text: value, file });
     }
-    return references;
+    return references.toSorted((left, right) => left.index - right.index);
 }
