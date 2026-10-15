@@ -47,6 +47,14 @@ files across five nested directories, expands `src/features` in both source and 
 then measures exactly one Session-card click. Readiness requires the target Session, Terminal, and
 Files surface to be visible, two presented frames, and no pending measured request.
 
+The same command also measures six alternating switches between two Agent Chat Sessions. Each
+Session contains three synthetic table replies. A Chat sample ends only after the target Session's
+own latest user message and all three reply tables are visible, followed by two presentation
+frames. It prints `CAXRI_AGENT_CHAT_SWITCH_BENCHMARK` and writes
+`test-results/receipts/agent-chat-switch.json`, including individual scenario receipts, median, and
+p95. These timings establish a baseline; they do not inherit the Shell scenario's calibrated
+latency budget. The fixture uses a repository-owned fake Codex and never invokes a host provider.
+
 The budgets below were calibrated from three local profiling runs before and after removing the
 duplicate post-selection refresh on 2026-08-31. Before the repair, every run issued one
 `session.select` plus two full `app.bootstrap` reads; those reads took `7.2–7.5 ms` in total. After
