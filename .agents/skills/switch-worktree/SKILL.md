@@ -120,6 +120,11 @@ Never switch branches in the primary checkout.
 
 ## Inspect and diagnose
 
+Use absolute file paths when reading a worktree, especially through bounded tool previews. Some
+preview hooks resolve relative paths against the primary checkout despite the command's working
+directory. If a preview names another checkout, repeat the bounded read with the absolute worktree
+path before drawing conclusions or making changes.
+
 ```bash
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts list --json
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts doctor [branch-or-path] --json

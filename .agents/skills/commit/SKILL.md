@@ -49,6 +49,10 @@ For partially staged files, pause concurrent writers and isolate unstaged change
 commit hooks, which may restage whole files. Verify the committed tree before restoring those changes;
 resolve any restore conflicts without discarding work.
 
+The repository's `lint:staged` entry point must include `--no-stash`. All worktrees share Git's
+stash stack, so commit hooks must not use lint-staged's default stash backup. Preserve partially
+staged work with an explicit file copy and restore it after verifying the committed tree.
+
 ## Write messages
 
 Write commit messages in English using a GitHub-recognized semantic type:
