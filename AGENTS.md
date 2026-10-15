@@ -130,8 +130,8 @@ directories.
   titles, bodies, and comments use Simplified Chinese; keep their code, identifiers, paths, and
   commands in English. Contributor issue tracking lives in GitHub issues (`gh issue`); do not file
   repository work in Linear.
-- Caxri is private today and will most likely be published, so write every tracked file, commit
-  message, issue, and CI artifact as if it were already public. Never commit a private
+- Caxri is publicly readable, so write every tracked file, commit message, issue, and CI artifact
+  for a public audience. Never commit a private
   organization, repository, ticket identifier, tracker URL, internal hostname, internal file path,
   real person, home path carrying a real account name, or credential: not in a fixture, not in a
   comment, not in Chinese. Reference an upstream only after verifying it resolves without
