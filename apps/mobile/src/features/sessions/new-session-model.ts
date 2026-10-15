@@ -1,6 +1,8 @@
 import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
 import { canUseAgentChat } from '@caxri/protocol';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import type { MobileConnectionStatus } from '../connection/connection-state';
 import type { MobileWriteFailure } from '../connection/mobile-write-failure';
 
@@ -104,10 +106,14 @@ export const newSessionDefaultSurface = (
 export const newSessionSurfaceDescription = (
     surface: TerminalSurface,
     defaultSurface: TerminalSurface | null,
+    t: Translate = translate,
 ): string => {
-    const description =
-        surface === 'chat' ? 'Replies as readable messages' : "The Agent's own terminal screen";
-    return surface === defaultSurface ? `${description} · Default` : description;
+    const description = t(
+        surface === 'chat' ? 'sessions.new.chatDescription' : 'sessions.new.terminalDescription',
+    );
+    return surface === defaultSurface
+        ? t('sessions.new.defaultSuffix', { description })
+        : description;
 };
 
 /**
@@ -182,57 +188,59 @@ export const canCreateNewSession = ({
  * Availability is read only while connected. Offline, before any answer arrived, the read is held back rather than in
  * flight, so "Checking availability…" would never resolve; say what the reader has to do instead.
  */
-export const newSessionAgentReason = ({
-    agent,
-    isConnected,
-    isError,
-    isLoading,
-}: {
-    agent: { available: boolean; reason?: string } | undefined;
-    isConnected: boolean;
-    isError: boolean;
-    isLoading: boolean;
-}): string | undefined => {
-    if (isError) return 'Availability unknown.';
-    if (!agent && !isConnected) return 'Reconnect to check availability.';
-    if (isLoading) return 'Checking availability…';
+export const newSessionAgentReason = (
+    {
+        agent,
+        isConnected,
+        isError,
+        isLoading,
+    }: {
+        agent: { available: boolean; reason?: string } | undefined;
+        isConnected: boolean;
+        isError: boolean;
+        isLoading: boolean;
+    },
+    t: Translate = translate,
+): string | undefined => {
+    if (isError) return t('sessions.new.availabilityUnknown');
+    if (!agent && !isConnected) return t('sessions.new.availabilityReconnect');
+    if (isLoading) return t('sessions.new.availabilityChecking');
     if (agent?.available) return undefined;
-    return agent?.reason ?? 'Not available on this computer.';
+    return agent?.reason ?? t('sessions.new.unavailable');
 };
 
 /**
  * Plain wording for a Session create the Server explicitly refused, by error code. The Server's own message is
  * diagnostic text written for logs, so it never reaches this screen.
  */
-const NEW_SESSION_REJECTION_MESSAGES: Readonly<Record<string, string>> = {
-    CAPACITY: 'Caxri is busy right now. Try again in a moment.',
-    CONFLICT: 'Something changed on your computer while this Session was being created. Try again.',
-    FORBIDDEN: 'This device no longer has permission to create Sessions in this Project.',
-    NOT_FOUND: 'This Project is no longer available on your computer. Pick another Project.',
-    VALIDATION: "Caxri couldn't start this Agent in this Project. Pick another Agent or Project.",
+const NEW_SESSION_REJECTION_MESSAGES: Readonly<Partial<Record<string, TranslationKey>>> = {
+    CAPACITY: 'sessions.new.rejectedCapacity',
+    CONFLICT: 'sessions.new.rejectedConflict',
+    FORBIDDEN: 'sessions.new.rejectedForbidden',
+    NOT_FOUND: 'sessions.new.rejectedNotFound',
+    VALIDATION: 'sessions.new.rejectedValidation',
 };
 
 /**
  * The create state after `mobile.session.create` failed, from {@link MobileWriteFailure}: an explicit refusal or no
  * connection can be retried at once, while any other failure may already have created the Session.
  */
-export const newSessionCreateFailure = (failure: MobileWriteFailure): NewSessionCreateState => {
+export const newSessionCreateFailure = (
+    failure: MobileWriteFailure,
+    t: Translate = translate,
+): NewSessionCreateState => {
     switch (failure.kind) {
-        case 'rejected':
-            return {
-                kind: 'failed',
-                message:
-                    NEW_SESSION_REJECTION_MESSAGES[failure.code] ??
-                    "Caxri couldn't create the Session. Try again.",
-            };
+        case 'rejected': {
+            const key = NEW_SESSION_REJECTION_MESSAGES[failure.code];
+            return { kind: 'failed', message: t(key ?? 'sessions.new.rejectedGeneric') };
+        }
         case 'offline':
-            return { kind: 'failed', message: 'Reconnect to Caxri before creating a Session.' };
+            return { kind: 'failed', message: t('sessions.new.createOffline') };
         case 'unknown':
             return {
                 kind: 'uncertain',
                 checkedSessions: false,
-                message:
-                    'Caxri did not confirm whether the Session was created. Check Sessions before trying again.',
+                message: t('sessions.new.createUncertain'),
             };
     }
 };

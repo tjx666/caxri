@@ -77,6 +77,15 @@ content, Project path, source, logs, and environment values. The runner writes t
 cleanup path for `passed`, `failed`, and pre-launch `blocked` outcomes so a failed round can still be
 finalized honestly.
 
+### Per-case motion and app language
+
+A case definition in `scripts/mobile-android-cases.ts` may declare `motion: 'live'` to turn the round's reduced
+motion off for that case alone, so a recording shows real animation (the shimmer case does). It may declare
+`appLocale: 'zh-CN'` to render the app in Chinese: the runner sets Android 13+'s per-app language with
+`cmd locale set-app-locales com.caxri.mobile --locales zh-CN`, reads it back with `get-app-locales`, and clears it in
+cleanup before the package data reset (`scripts/mobile-acceptance-locale.ts`). Changing the emulator's system locale
+needs root and a framework restart, so it is not used. Both options accept only a disposable `emulator-N` serial.
+
 ## Inspect and interact without leaking content
 
 Use Caxri's semantic helper. It first proves that Caxri owns the foreground Activity, then emits only
@@ -91,6 +100,14 @@ bun run --cwd apps/mobile android:device tap \
 Never upload `uiautomator dump` XML. Raw trees can contain pairing data, visible text, Session names,
 Terminal output, and accessibility descriptions. Prefer semantic identifiers over coordinates; use
 coordinates only after a sanitized inspection proves one unambiguous target.
+`uiautomator dump` waits for an idle screen and, when none comes, exits 0 without writing its file,
+so the helper fails as `driver-failed`. A running Chat turn never idles even under reduced motion:
+the activity line's elapsed time and native spinner keep changing. Read semantics before the turn
+starts or after it ends (or while it waits on the user), and follow a running turn with
+`mobileRegionFingerprint` and framebuffer captures instead (`MOB-CHAT-13` measures the slot with
+a short turn first). A running background task's sheet and detail redraw their elapsed time every second, so they
+never idle either: `MOB-CHAT-16` finds Stop there by its theme color with `mobileColorBounds`, re-reads it until two
+reads agree (the sheet grows as output arrives), and reads semantics again once the task has stopped.
 On Android 36, deprecated `uiautomator runtest` can abort before executing a test and still print
 `OK (1 test)`; the observed abort was `android.test.RepetitiveTest` resolution failure. Never
 treat that line or a zero ADB exit status as a native assertion. Use the foreground-checked
@@ -109,6 +126,10 @@ and uninstall it in cleanup after every outcome. Never select the fixture IME on
 native-only draft remains an execution failure.
 After installing the fixture, discover it with `ime list -a -s`: plain `ime list -s` lists enabled
 methods only, so it hides the newly installed fixture until `ime enable` runs.
+The fixture IME draws no keyboard, yet `dumpsys input_method` still reports `mInputShown=true` while
+a field is focused, and the IME does not consume Back. While it is selected, never send Back to
+close a keyboard: the key reaches the app and leaves the screen (`hideChatKeyboard` checks
+`default_input_method` first).
 Before diagnosing a missing `testID`, verify the expected screen with a stable route marker. Start
 swipes inside the content area, away from Android's Back gesture edges, and check the route again.
 An identifier existing in source does not prove that the current Agent, device role, and segment

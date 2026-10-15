@@ -1,3 +1,4 @@
+import { agentChatLabelsEn } from '@caxri/protocol';
 import { commands } from '@desktop-shared/i18n/en/commands';
 
 import { agentActions } from './agent-actions';
@@ -45,6 +46,7 @@ export const enResources = {
     ...agentActions,
     ...agentActivity,
     ...agentChat,
+    ...agentChatLabelsEn,
     ...agentCommander,
     ...agentInbox,
     ...agentStatus,

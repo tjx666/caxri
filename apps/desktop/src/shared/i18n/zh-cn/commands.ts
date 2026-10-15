@@ -1,5 +1,6 @@
+import type { TranslatedNamespace } from '@caxri/protocol';
+
 import type { commands as source } from '../en/commands';
-import type { TranslatedNamespace } from '../translated-namespace';
 import { commandDescriptions } from './commands-descriptions';
 
 export const commands: TranslatedNamespace<typeof source> = {

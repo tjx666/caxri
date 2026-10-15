@@ -5,7 +5,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import type { MobileCommanderInboxItem } from '@caxri/protocol';
 import { ExternalLink, MessageSquareReply } from 'lucide-react-native';
 
-import { openExternalLink } from '../../lib/open-external-link';
+import { useTranslation } from '../../i18n';
+import { openLink } from '../../lib/open-link';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from '../conversation/conversation-markdown';
 import { commanderInboxCardModel, commanderInboxReplyBody } from './commander-inbox-model';
@@ -35,8 +36,9 @@ export const CommanderInboxCard = ({
     readAt: number;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [isComposing, setComposing] = useState(false);
-    const model = commanderInboxCardModel(item, readAt);
+    const model = commanderInboxCardModel(item, readAt, t);
     const pullRequestUrl = item.pullRequest?.url;
     return (
         <View
@@ -51,13 +53,10 @@ export const CommanderInboxCard = ({
                 <Text style={[styles.meta, { color: theme.muted }]}>{model.kindLabel}</Text>
                 {pullRequestUrl && model.pullRequestLabel ? (
                     <Pressable
-                        accessibilityHint="Opens the pull request in the browser."
+                        accessibilityHint={t('inbox.openPullRequestHint')}
                         accessibilityRole="link"
                         hitSlop={8}
-                        onPress={() => {
-                            // eslint-disable-next-line no-void -- openExternalLink reports a refused link itself.
-                            void openExternalLink(pullRequestUrl);
-                        }}
+                        onPress={() => openLink(pullRequestUrl)}
                         style={styles.link}
                     >
                         <Text style={[styles.meta, { color: theme.primary }]}>
@@ -74,9 +73,7 @@ export const CommanderInboxCard = ({
             </View>
             {item.body ? <ConversationMarkdown text={item.body} theme={theme} /> : null}
             {item.isBodyClipped ? (
-                <Text style={[styles.meta, { color: theme.muted }]}>
-                    Shortened on the phone. The full text is on your computer.
-                </Text>
+                <Text style={[styles.meta, { color: theme.muted }]}>{t('inbox.bodyClipped')}</Text>
             ) : null}
             {item.options.length > 0 ? (
                 <View style={styles.options}>
@@ -108,7 +105,9 @@ export const CommanderInboxCard = ({
                     testID={`commander-inbox-reply-${item.id}`}
                 >
                     <MessageSquareReply color={theme.primary} size={16} />
-                    <Text style={[styles.actionText, { color: theme.primary }]}>Reply</Text>
+                    <Text style={[styles.actionText, { color: theme.primary }]}>
+                        {t('inbox.reply')}
+                    </Text>
                 </Pressable>
             )}
         </View>
@@ -126,28 +125,39 @@ const CommanderInboxReplies = ({
     item: MobileCommanderInboxItem;
     replyState: ReturnType<typeof commanderInboxCardModel>['replyState'];
     theme: MobileTheme;
-}) => (
-    <View style={[styles.replies, { borderColor: theme.border }]}>
-        {item.earlierReplyCount > 0 ? (
-            <Text style={[styles.meta, { color: theme.muted }]}>
-                {`${item.earlierReplyCount} earlier ${item.earlierReplyCount === 1 ? 'reply' : 'replies'}`}
-            </Text>
-        ) : null}
-        {item.replies.map((reply) => (
-            <Text key={reply.sequence} style={[styles.reply, { color: theme.text }]}>
-                {reply.body}
-            </Text>
-        ))}
-        {replyState ? (
-            <Text
-                style={[styles.meta, { color: replyState.isRead ? theme.success : theme.muted }]}
-                testID={`commander-inbox-reply-state-${item.id}`}
-            >
-                {replyState.label}
-            </Text>
-        ) : null}
-    </View>
-);
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={[styles.replies, { borderColor: theme.border }]}>
+            {item.earlierReplyCount > 0 ? (
+                <Text style={[styles.meta, { color: theme.muted }]}>
+                    {t(
+                        item.earlierReplyCount === 1
+                            ? 'inbox.earlierRepliesOne'
+                            : 'inbox.earlierRepliesOther',
+                        { count: item.earlierReplyCount },
+                    )}
+                </Text>
+            ) : null}
+            {item.replies.map((reply) => (
+                <Text key={reply.sequence} style={[styles.reply, { color: theme.text }]}>
+                    {reply.body}
+                </Text>
+            ))}
+            {replyState ? (
+                <Text
+                    style={[
+                        styles.meta,
+                        { color: replyState.isRead ? theme.success : theme.muted },
+                    ]}
+                    testID={`commander-inbox-reply-state-${item.id}`}
+                >
+                    {replyState.label}
+                </Text>
+            ) : null}
+        </View>
+    );
+};
 
 /**
  * The in-place reply composer of one card. It owns the draft, so Cancel discards it.
@@ -169,6 +179,7 @@ const CommanderInboxReplyComposer = ({
     onSend: (itemId: string, body: string) => Promise<boolean>;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [draft, setDraft] = useState('');
     const body = commanderInboxReplyBody(draft);
     const send = async (): Promise<void> => {
@@ -177,13 +188,13 @@ const CommanderInboxReplyComposer = ({
     return (
         <View style={styles.composer}>
             <TextInput
-                accessibilityLabel={`Reply to ${item.title}`}
+                accessibilityLabel={t('inbox.replyTo', { title: item.title })}
                 autoFocus
                 editable={!isSending}
                 multiline
                 onChangeText={setDraft}
                 onFocus={onComposerFocus}
-                placeholder="Reply to the Commander"
+                placeholder={t('inbox.replyPlaceholder')}
                 placeholderTextColor={theme.muted}
                 style={[
                     styles.input,
@@ -213,7 +224,9 @@ const CommanderInboxReplyComposer = ({
                     style={styles.action}
                     testID={`commander-inbox-reply-cancel-${item.id}`}
                 >
-                    <Text style={[styles.actionText, { color: theme.muted }]}>Cancel</Text>
+                    <Text style={[styles.actionText, { color: theme.muted }]}>
+                        {t('common.cancel')}
+                    </Text>
                 </Pressable>
                 <Pressable
                     accessibilityRole="button"
@@ -236,7 +249,7 @@ const CommanderInboxReplyComposer = ({
                         <ActivityIndicator color={theme.primaryForeground} size="small" />
                     ) : (
                         <Text style={[styles.actionText, { color: theme.primaryForeground }]}>
-                            Send
+                            {t('inbox.send')}
                         </Text>
                     )}
                 </Pressable>

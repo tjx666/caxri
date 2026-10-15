@@ -4,6 +4,7 @@ import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
+import { executeMobileChatBrowserScenario } from './mobile-agent-chat-browser-scenario';
 import { executeMobileChatComposerScenario } from './mobile-agent-chat-composer-scenario';
 import {
     executeMobileChatMissingImageScenario,
@@ -25,6 +26,15 @@ import {
     executeMobileChatModelScenario,
     executeMobileClaudeModelScenario,
 } from './mobile-agent-chat-model-scenario';
+import {
+    executeMobileChatChineseScenario,
+    executeMobileChatSkillsQuestionScenario,
+} from './mobile-agent-chat-skills-scenario';
+import {
+    executeMobileChatHistoryTasksScenario,
+    executeMobileChatPinScrollScenario,
+    executeMobileChatShimmerScenario,
+} from './mobile-agent-chat-timeline-scenario';
 import {
     androidBounds,
     mobileSemantics,
@@ -410,6 +420,18 @@ export async function executeMobileAgentChatCase(
             return executeMobileClaudeModelScenario(environment, artifacts);
         case 'MOB-CHAT-12':
             return executeMobileChatImageStripScenario(environment, artifacts);
+        case 'MOB-CHAT-13':
+            return executeMobileChatPinScrollScenario(environment, artifacts);
+        case 'MOB-CHAT-14':
+            return executeMobileChatSkillsQuestionScenario(environment, artifacts);
+        case 'MOB-CHAT-15':
+            return executeMobileChatShimmerScenario(environment, artifacts);
+        case 'MOB-CHAT-16':
+            return executeMobileChatHistoryTasksScenario(environment, artifacts);
+        case 'MOB-CHAT-17':
+            return executeMobileChatBrowserScenario(environment, artifacts);
+        case 'MOB-CHAT-18':
+            return executeMobileChatChineseScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

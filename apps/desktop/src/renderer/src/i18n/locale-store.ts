@@ -1,5 +1,5 @@
 import type { AppLocale } from '@caxri/protocol';
-import { resolveAppLocale } from '@desktop-shared/i18n/locale';
+import { resolveAppLocale } from '@caxri/protocol';
 
 import { createStore } from '../lib/store';
 import { systemLanguages } from './locale';

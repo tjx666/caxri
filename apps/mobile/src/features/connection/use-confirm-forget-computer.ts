@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import { useMobileClient } from './mobile-client-provider';
 
 /**
@@ -9,21 +10,22 @@ import { useMobileClient } from './mobile-client-provider';
  */
 export const useConfirmForgetComputer = (hostDisplayName: string): (() => void) => {
     const { forgetDevice } = useMobileClient();
+    const { t } = useTranslation();
     return useCallback(() => {
         Alert.alert(
-            'Forget this computer?',
-            `This phone stops connecting to ${hostDisplayName}. Pair again from Desktop to reconnect.`,
+            t('connection.forget.title'),
+            t('connection.forget.message', { host: hostDisplayName }),
             [
-                { style: 'cancel', text: 'Cancel' },
+                { style: 'cancel', text: t('common.cancel') },
                 {
                     onPress: () => {
                         // eslint-disable-next-line no-void -- Forgetting redirects to pairing on success.
                         void forgetDevice();
                     },
                     style: 'destructive',
-                    text: 'Forget',
+                    text: t('connection.forget.confirm'),
                 },
             ],
         );
-    }, [forgetDevice, hostDisplayName]);
+    }, [forgetDevice, hostDisplayName, t]);
 };

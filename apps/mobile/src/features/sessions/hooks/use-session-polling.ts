@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+import type { Translate } from '../../../i18n';
+import { translate, useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { DashboardSubscriptionMode } from '../dashboard-query';
 import {
@@ -36,18 +38,22 @@ export const allMobileSessions = (sections: MobileSessionSections): MobileSessio
 
 export const flattenMobileSessionSections = (
     sections: MobileSessionSections,
+    t: Translate = translate,
 ): SessionListEntry[] => {
     const result: SessionListEntry[] = [];
-    const append = (label: string, sessions: MobileSessionItem[]): void => {
+    /**
+     * `group` keeps the header ID stable across languages; only the label is translated.
+     */
+    const append = (group: string, label: string, sessions: MobileSessionItem[]): void => {
         if (sessions.length === 0) return;
         result.push(
-            { id: `header:${label}`, label, type: 'header' },
+            { id: `header:${group}`, label, type: 'header' },
             ...sessions.map((session) => ({ id: session.id, session, type: 'session' as const })),
         );
     };
-    append('NEEDS ATTENTION', sections.needsAttention);
-    append('RUNNING', sections.running);
-    append('RECENT', sections.recent);
+    append('NEEDS ATTENTION', t('sessions.list.needsAttention'), sections.needsAttention);
+    append('RUNNING', t('sessions.list.running'), sections.running);
+    append('RECENT', t('sessions.list.recent'), sections.recent);
     return result;
 };
 
@@ -84,6 +90,7 @@ export const useSessionPolling = (isVisible = true) => {
         subscriptionAvailable,
     } = useMobileClient();
     const queryClient = useQueryClient();
+    const { t } = useTranslation();
     const { save: saveDashboard, saved } = useSavedDashboard(connectionScopeKey);
     const queryKey = useMemo(
         () => dashboardQueryKey(connectionScopeKey ?? 'unpaired'),
@@ -212,8 +219,8 @@ export const useSessionPolling = (isVisible = true) => {
             setFrozenSections((current) => current ?? sections);
         },
         deviceRole: snapshot?.deviceRole ?? null,
-        entries: useMemo(() => flattenMobileSessionSections(sections), [sections]),
-        error: query.isError ? 'Unable to load Sessions.' : null,
+        entries: useMemo(() => flattenMobileSessionSections(sections, t), [sections, t]),
+        error: query.isError ? t('sessions.list.loadFailed') : null,
         finishListInteraction,
         hasLoaded,
         hostDisplayName: snapshot?.hostDisplayName ?? 'Caxri',

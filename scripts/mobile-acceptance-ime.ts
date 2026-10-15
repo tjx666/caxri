@@ -1,6 +1,8 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { writeMobileAcceptanceReceipt } from './mobile-acceptance-runtime';
 
 export const MOBILE_FIXTURE_IME_ID = 'caxri.acceptance.ime/.FixtureIme';
 const packageId = 'caxri.acceptance.ime';
@@ -139,4 +141,38 @@ export async function cleanupFixtureImeWithRetry(cleanup: () => Promise<void>): 
             );
         }
     }
+}
+
+/**
+ * Records in a case's device receipt that the batch restored the fixture IME. A case without a receipt never reached
+ * the device, so there is nothing to mark.
+ */
+export async function markMobileFixtureImeRestored(
+    receiptPath: string,
+    expected: { caseId: string; sourceCommit: string },
+): Promise<void> {
+    let source: string;
+    try {
+        source = await readFile(receiptPath, 'utf8');
+    } catch (error) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
+            return;
+        throw error;
+    }
+    const receipt = JSON.parse(source) as {
+        caseId: string;
+        cleanup: { fixtureIme?: string };
+        sourceCommit: string;
+    };
+    if (
+        receipt.caseId !== expected.caseId ||
+        receipt.sourceCommit !== expected.sourceCommit ||
+        receipt.cleanup.fixtureIme !== 'pending'
+    ) {
+        throw new Error('The fixture IME cleanup receipt does not match the current case');
+    }
+    await writeMobileAcceptanceReceipt(receiptPath, {
+        ...receipt,
+        cleanup: { ...receipt.cleanup, fixtureIme: 'restored' },
+    });
 }

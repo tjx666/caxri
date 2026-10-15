@@ -1,6 +1,5 @@
+import { interpolate, resolveAppLocale } from '@caxri/protocol';
 import { desktop as enDesktop } from '@desktop-shared/i18n/en/desktop';
-import { interpolate } from '@desktop-shared/i18n/interpolate';
-import { resolveAppLocale } from '@desktop-shared/i18n/locale';
 import { desktop as zhCNDesktop } from '@desktop-shared/i18n/zh-cn/desktop';
 import { en as lobeEn } from '@lobehub/ui/i18n';
 import { describe, expect, it } from 'vitest';

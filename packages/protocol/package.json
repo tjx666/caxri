@@ -22,6 +22,7 @@
     },
     "dependencies": {
         "@caxri/utils": "workspace:*",
+        "fuse.js": "^7.5.0",
         "zod": "catalog:"
     },
     "engines": {

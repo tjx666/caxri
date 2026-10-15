@@ -7,6 +7,8 @@ import type {
     AgentChatFileChange,
 } from './agent-chat-diff.js';
 import { agentChatDiffLines, agentChatDiffLinesStat } from './agent-chat-diff.js';
+import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { translateAgentChatLabel } from './agent-chat-labels.js';
 import type { AgentChatTrackerArtifact } from './agent-chat-trackers.js';
 import { collectAgentChatTrackers } from './agent-chat-trackers.js';
 
@@ -104,11 +106,15 @@ export function agentChatEditedFilesStat(files: readonly AgentChatDiffStat[]): A
  */
 export function agentChatEditedFilesTitle(
     files: ReadonlyArray<Pick<AgentChatEditedFile, 'kind' | 'path'>>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
     const only = files.at(0);
-    if (!only || files.length !== 1) return `Edited ${files.length} files`;
-    const verb = only.kind === 'add' ? 'Created' : only.kind === 'delete' ? 'Deleted' : 'Edited';
-    return `${verb} ${pathBasename(only.path)}`;
+    if (!only || files.length !== 1)
+        return t('agentChat.artifacts.editedFiles', { count: files.length });
+    const name = pathBasename(only.path);
+    if (only.kind === 'add') return t('agentChat.artifacts.createdFile', { name });
+    if (only.kind === 'delete') return t('agentChat.artifacts.deletedFile', { name });
+    return t('agentChat.artifacts.editedFile', { name });
 }
 
 /**

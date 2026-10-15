@@ -2,8 +2,8 @@ import type {
     RemoteConnectionPhase,
     RemoteFailureReason,
     SshEnvironmentState,
+    TranslationParameters,
 } from '@caxri/protocol';
-import type { TranslationParameters } from '@desktop-shared/i18n/interpolate';
 
 import type { TranslationKey } from '../../i18n';
 

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ChevronRight, CircleStop, CircleX } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles } from '../conversation/conversation-styles';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
@@ -26,6 +27,7 @@ export const AgentChatTurnFold = ({
     onToggle: (turnId: string) => void;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const tone = agentChatTurnTone(entry.status);
     const color = theme[tone];
     const ToneIcon = tone === 'danger' ? CircleX : tone === 'warning' ? CircleStop : undefined;
@@ -52,9 +54,7 @@ export const AgentChatTurnFold = ({
         >
             {entry.fold ? (
                 <Pressable
-                    accessibilityHint={
-                        isExpanded ? 'Hides the work in this turn' : 'Shows the work in this turn'
-                    }
+                    accessibilityHint={t(isExpanded ? 'chat.turn.hideWork' : 'chat.turn.showWork')}
                     accessibilityLabel={entry.label}
                     accessibilityRole="button"
                     accessibilityState={{ expanded: isExpanded }}

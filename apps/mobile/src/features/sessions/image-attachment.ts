@@ -1,18 +1,20 @@
 import { MAX_AGENT_CHAT_THUMBNAIL_LENGTH } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 const CHUNK_LENGTH = 24_000;
 const MAX_BASE64_LENGTH = 4 * 1_024 * 1_024;
 
-export function splitMobileImage(base64: string): string[] {
+export function splitMobileImage(base64: string, t: Translate = translate): string[] {
     const encoded = base64.replace(/^data:image\/jpeg;base64,/u, '').replaceAll(/\s+/gu, '');
     if (encoded.length === 0 || encoded.length > MAX_BASE64_LENGTH)
-        throw new Error('Images can be at most 3 MB after compression.');
-    if (!/^[A-Za-z0-9+/]+={0,2}$/u.test(encoded))
-        throw new Error('This image could not be prepared for upload.');
+        throw new Error(t('sessions.image.tooLarge'));
+    if (!/^[A-Za-z0-9+/]+={0,2}$/u.test(encoded)) throw new Error(t('sessions.image.invalid'));
     const chunks: string[] = [];
     for (let offset = 0; offset < encoded.length; offset += CHUNK_LENGTH)
         chunks.push(encoded.slice(offset, offset + CHUNK_LENGTH));
-    if (chunks.length > 192) throw new Error('Image requires too many upload chunks.');
+    if (chunks.length > 192) throw new Error(t('sessions.image.tooManyChunks'));
     return chunks;
 }
 

@@ -1,5 +1,8 @@
 import type { MethodResult } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 export type MobileSession = MethodResult<'mobile.dashboard'>['sessions'][number];
 export type MobileTerminal = NonNullable<MobileSession['primaryTerminal']>;
 
@@ -20,20 +23,20 @@ export interface MobileSessionSections {
     truncated: boolean;
 }
 
-const labelForState = (state: MobileSession['lastActivityState']): string => {
+const labelForState = (state: MobileSession['lastActivityState'], t: Translate): string => {
     switch (state) {
         case 'waiting':
-            return 'Waiting for you';
+            return t('sessions.state.waiting');
         case 'running':
-            return 'Working';
+            return t('sessions.state.working');
         case 'failed':
-            return 'Failed';
+            return t('sessions.state.failed');
         case 'completed':
-            return 'Completed';
+            return t('sessions.state.completed');
         case 'idle':
-            return 'Idle';
+            return t('sessions.state.idle');
         case 'unknown':
-            return 'Unknown';
+            return t('sessions.state.unknown');
     }
 };
 
@@ -48,11 +51,14 @@ const groupForSession = (session: MobileSession): MobileSessionGroup => {
     return 'recent';
 };
 
-export const buildMobileSessionSections = (input: {
-    sessions: MobileSession[];
-    total: number;
-    truncated: boolean;
-}): MobileSessionSections => {
+export const buildMobileSessionSections = (
+    input: {
+        sessions: MobileSession[];
+        total: number;
+        truncated: boolean;
+    },
+    t: Translate = translate,
+): MobileSessionSections => {
     const result: MobileSessionSections = {
         needsAttention: [],
         running: [],
@@ -69,7 +75,7 @@ export const buildMobileSessionSections = (input: {
         const item: MobileSessionItem = {
             ...session,
             group,
-            stateLabel: labelForState(session.lastActivityState),
+            stateLabel: labelForState(session.lastActivityState, t),
         };
         if (group === 'needs-attention') result.needsAttention.push(item);
         else if (group === 'running') result.running.push(item);

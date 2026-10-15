@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import * as Clipboard from 'expo-clipboard';
 
+import { translate } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
 import type { LiveTerminalState } from './control-availability';
@@ -33,12 +34,11 @@ const MAX_PENDING_OUTPUT_BYTES = 4 * 1_024 * 1_024;
 
 const controlError = (error: unknown): string => {
     if (error instanceof MobileGatewayRequestError) {
-        if (error.code === 'FORBIDDEN')
-            return 'This device cannot control the Terminal. Pair it again with control access.';
-        if (error.code === 'CONFLICT') return 'The Terminal changed. Reopen it before sending.';
+        if (error.code === 'FORBIDDEN') return translate('terminal.error.forbidden');
+        if (error.code === 'CONFLICT') return translate('terminal.error.conflict');
         return error.message;
     }
-    return "Couldn't confirm delivery. Check the Terminal before sending again.";
+    return translate('terminal.error.deliveryUnconfirmed');
 };
 
 const unsubscribeQuietly = async (handle: { unsubscribe(): Promise<void> }): Promise<void> => {
@@ -387,7 +387,7 @@ export const useLiveTerminal = ({
         const bytes = ctrl ? controlByteFor(text) : text;
         if (ctrl) setCtrl(false);
         if (bytes === null) {
-            setError('That Ctrl key combination is not supported.');
+            setError(translate('terminal.error.ctrlUnsupported'));
             return inputChain.current;
         }
         const previous = inputChain.current;
@@ -402,7 +402,7 @@ export const useLiveTerminal = ({
         const next = pressTerminalKey(ctrl, key);
         setCtrl(next.ctrl);
         if (key !== 'ctrl' && next.bytes === null) {
-            setError('That Ctrl key combination is not supported.');
+            setError(translate('terminal.error.ctrlUnsupported'));
             return;
         }
         if (next.bytes) await sendInput(next.bytes);
@@ -412,7 +412,7 @@ export const useLiveTerminal = ({
             const value = await Clipboard.getStringAsync();
             if (value) await sendInput(value);
         } catch {
-            setError('Unable to read the clipboard.');
+            setError(translate('terminal.error.clipboard'));
         }
     };
     const takeOver = async (): Promise<void> => {
@@ -531,7 +531,7 @@ export const useLiveTerminal = ({
             case 'error': {
                 invalidateWebview();
                 setState('error');
-                setError('The Terminal display could not render.');
+                setError(translate('terminal.error.render'));
             }
         }
     };

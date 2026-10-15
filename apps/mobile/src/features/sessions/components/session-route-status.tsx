@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { router } from 'expo-router';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 
 const styles = StyleSheet.create({
@@ -29,34 +30,37 @@ export const SessionRouteStatus = ({
     isOffline: boolean;
     onRetry: () => Promise<unknown>;
     theme: MobileTheme;
-}) => (
-    <View style={styles.root} testID="session-route-status">
-        {isLoading && !error && !isOffline ? <ActivityIndicator color={theme.primary} /> : null}
-        <Text
-            accessibilityRole={error ? 'alert' : 'text'}
-            style={[styles.body, { color: theme.muted }]}
-        >
-            {error ?? (isOffline ? 'Reconnect to open this Session.' : 'Opening Session…')}
-        </Text>
-        {error ? (
-            <Pressable
-                accessibilityRole="button"
-                onPress={onRetry}
-                style={styles.retry}
-                testID="session-route-retry"
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.root} testID="session-route-status">
+            {isLoading && !error && !isOffline ? <ActivityIndicator color={theme.primary} /> : null}
+            <Text
+                accessibilityRole={error ? 'alert' : 'text'}
+                style={[styles.body, { color: theme.muted }]}
             >
-                <Text style={{ color: theme.primary }}>Retry</Text>
-            </Pressable>
-        ) : null}
-        {hasBack && (error || isOffline) ? (
-            <Pressable
-                accessibilityRole="button"
-                onPress={() => router.dismissTo(`/h/${encodeURIComponent(hostId)}`)}
-                style={styles.retry}
-                testID="session-route-back"
-            >
-                <Text style={{ color: theme.primary }}>Back to Sessions</Text>
-            </Pressable>
-        ) : null}
-    </View>
-);
+                {error ?? t(isOffline ? 'sessions.route.reconnect' : 'sessions.route.opening')}
+            </Text>
+            {error ? (
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={onRetry}
+                    style={styles.retry}
+                    testID="session-route-retry"
+                >
+                    <Text style={{ color: theme.primary }}>{t('common.retry')}</Text>
+                </Pressable>
+            ) : null}
+            {hasBack && (error || isOffline) ? (
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={() => router.dismissTo(`/h/${encodeURIComponent(hostId)}`)}
+                    style={styles.retry}
+                    testID="session-route-back"
+                >
+                    <Text style={{ color: theme.primary }}>{t('sessions.backToSessions')}</Text>
+                </Pressable>
+            ) : null}
+        </View>
+    );
+};

@@ -1,5 +1,5 @@
 // oxlint-disable typescript/require-await -- Async domain fakes preserve the production Promise boundary.
-import type { AgentChatSnapshot, Principal } from '@caxri/protocol';
+import type { AgentChatHistoryPage, AgentChatSnapshot, Principal } from '@caxri/protocol';
 import { vi } from 'vitest';
 
 import type { ServerDomainService } from '../../domain-service';
@@ -43,6 +43,10 @@ export function domainFixture(options: {
     snapshot?: AgentChatSnapshot;
     terminals?: number;
     original?: string;
+    /**
+     * What Core's `agentChat.readHistory` returns.
+     */
+    history?: AgentChatHistoryPage;
 }) {
     const request = vi.fn<(method: string, parameters?: unknown) => Promise<unknown>>(
         async (method) => {
@@ -65,6 +69,7 @@ export function domainFixture(options: {
             if (method === 'agentChat.read') return options.snapshot ?? chatSnapshot('ready');
             if (method === 'mobile.session.projectRootInternal') return { rootPath: '/work/demo' };
             if (method === 'mobile.image.readInternal') return ['T1JJRw==', 'VEhVTUI='];
+            if (method === 'agentChat.readHistory' && options.history) return options.history;
             if (method === 'agentChat.readImage')
                 return options.original === undefined
                     ? null

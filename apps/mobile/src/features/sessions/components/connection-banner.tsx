@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileConnectionStatus } from '../../connection/connection-state';
 import { connectionBannerCopy } from '../session-notices';
@@ -19,7 +20,8 @@ export const ConnectionBanner = ({
     status: Extract<MobileConnectionStatus, 'stale' | 'unverified'>;
     theme: MobileTheme;
 }) => {
-    const copy = connectionBannerCopy(status, isSavedCopyLabeled);
+    const { t } = useTranslation();
+    const copy = connectionBannerCopy(status, isSavedCopyLabeled, t);
     return (
         <View
             style={[styles.banner, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -36,7 +38,9 @@ export const ConnectionBanner = ({
                     style={styles.retry}
                     testID="connection-retry-button"
                 >
-                    <Text style={[styles.retryLabel, { color: theme.primary }]}>Retry</Text>
+                    <Text style={[styles.retryLabel, { color: theme.primary }]}>
+                        {t('common.retry')}
+                    </Text>
                 </Pressable>
             ) : null}
         </View>

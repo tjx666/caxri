@@ -4,6 +4,7 @@ import type { AgentChatEditedFile } from '@caxri/protocol';
 import {
     agentChatEditedFileLines,
     agentChatEditedFilesStat,
+    agentChatEditedFilesTitle,
     projectDisplayPath,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
@@ -20,13 +21,12 @@ import { parentDirectoryPath } from '../../lib/file-path';
 import { cn } from '../../lib/utilities';
 import { openFileForSession } from '../editor/document-commands';
 import { usePaneViewSession } from '../workbench/pane-view-session';
+import { AgentChatDiff } from './agent-chat-file-changes';
 import {
     AGENT_CHAT_COLLAPSED_FILE_ROWS,
-    agentChatLocalizedEditedFilesTitle,
     agentChatLocalizedFileListToggle,
     agentChatVisibleEditedFiles,
-} from './agent-chat-diff-labels';
-import { AgentChatDiff } from './agent-chat-file-changes';
+} from './agent-chat-file-list-fold';
 import { AgentChatTurnUndoButton } from './agent-chat-turn-undo-button';
 import { useAgentChatTurnReviewOpener } from './hooks/use-agent-chat-task-link';
 
@@ -158,7 +158,7 @@ export function AgentChatTurnChanges({
     const detailId = useId();
     const displayPath = (path: string): string => projectDisplayPath(path, session?.rootPath);
     const stat = agentChatEditedFilesStat(files);
-    const title = agentChatLocalizedEditedFilesTitle(files, t);
+    const title = agentChatEditedFilesTitle(files, t);
     const isAllExpanded = files.every((file) => expanded.has(file.path));
     /**
      * The hover preview only stands in for the diffs while they are hidden. A click on the counts discloses them in

@@ -13,6 +13,7 @@ import {
 import { IconButton } from '../../../components/icon-button';
 import { PopoverMenu } from '../../../components/popover-menu';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileConnectionStatus } from '../../connection/connection-state';
 import type { useSessionPolling } from '../hooks/use-session-polling';
@@ -116,10 +117,14 @@ export const SessionHomeHeader = ({
     status: MobileConnectionStatus;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const menuAnchor = useRef<View>(null);
     const menu = usePopoverAnchor(menuAnchor);
     const { close: closeMenu } = menu;
-    const projectChoices: ProjectChoice[] = [{ id: null, displayTitle: 'All' }, ...projects];
+    const projectChoices: ProjectChoice[] = [
+        { id: null, displayTitle: t('sessions.home.allProjects') },
+        ...projects,
+    ];
     const renderProject = useCallback(
         ({ item }: { item: ProjectChoice }) => {
             const isSelected = activeProjectId === item.id;
@@ -153,7 +158,11 @@ export const SessionHomeHeader = ({
             <View style={styles.header}>
                 <View style={styles.headingRow}>
                     <View
-                        accessibilityLabel={status === 'connected' ? 'Connected' : 'Not connected'}
+                        accessibilityLabel={t(
+                            status === 'connected'
+                                ? 'sessions.home.connected'
+                                : 'sessions.home.notConnected',
+                        )}
                         accessible
                         style={[
                             styles.connectionDot,
@@ -173,8 +182,8 @@ export const SessionHomeHeader = ({
                 </View>
                 <View collapsable={false} ref={menuAnchor}>
                     <IconButton
-                        accessibilityHint="Opens computer actions."
-                        accessibilityLabel="Computer menu"
+                        accessibilityHint={t('sessions.home.computerMenuHint')}
+                        accessibilityLabel={t('sessions.home.computerMenu')}
                         expanded={menu.isOpen}
                         icon={EllipsisVertical}
                         onPress={menu.open}
@@ -184,7 +193,7 @@ export const SessionHomeHeader = ({
                 </View>
             </View>
             <PopoverMenu
-                closeLabel="Close computer menu"
+                closeLabel={t('sessions.home.closeComputerMenu')}
                 onClose={closeMenu}
                 placement={menu.placement}
                 theme={theme}
@@ -192,7 +201,7 @@ export const SessionHomeHeader = ({
                 {onAddProject ? (
                     <MenuAction
                         icon={FolderPlus}
-                        label="Add Project"
+                        label={t('sessions.home.addProject')}
                         onPress={() => {
                             closeMenu();
                             onAddProject();
@@ -204,7 +213,7 @@ export const SessionHomeHeader = ({
                 {onOpenInbox ? (
                     <MenuAction
                         icon={Inbox}
-                        label="Needs you"
+                        label={t('sessions.home.needsYou')}
                         onPress={() => {
                             closeMenu();
                             onOpenInbox();
@@ -215,7 +224,7 @@ export const SessionHomeHeader = ({
                 ) : null}
                 <MenuAction
                     icon={Archive}
-                    label="Archived Sessions"
+                    label={t('sessions.home.archivedSessions')}
                     onPress={() => {
                         closeMenu();
                         onOpenArchived();
@@ -225,7 +234,7 @@ export const SessionHomeHeader = ({
                 />
                 <MenuAction
                     icon={Settings}
-                    label="Settings"
+                    label={t('sessions.home.settings')}
                     onPress={() => {
                         closeMenu();
                         onOpenSettings();
@@ -236,7 +245,7 @@ export const SessionHomeHeader = ({
                 <MenuAction
                     icon={Unlink}
                     isDestructive
-                    label="Forget This Computer"
+                    label={t('sessions.home.forgetComputer')}
                     onPress={() => {
                         closeMenu();
                         onForgetComputer();

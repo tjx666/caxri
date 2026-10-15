@@ -8,18 +8,21 @@ import {
 } from '../../agent/agent-chat-contract.js';
 import { applyAgentChatPatch } from '../../agent/agent-chat-reducer.js';
 import {
+    clipAgentChatCommandsForMobile,
     clipAgentChatItemForMobile,
     clipAgentChatPatchForMobile,
     clipAgentChatQueueForMobile,
     MOBILE_AGENT_CHAT_CLIP_MARKER,
+    MOBILE_AGENT_CHAT_COMMAND_ARGUMENT_HINT_MAX_LENGTH,
+    MOBILE_AGENT_CHAT_COMMAND_DESCRIPTION_MAX_LENGTH,
     MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH,
     MOBILE_AGENT_CHAT_MAX_BYTES,
     MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS,
     MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH,
     mobileAgentChatMethods,
+    mobileDashboardSessionSchema,
     windowAgentChatSnapshotForMobile,
-} from '../mobile-agent-chat-contract.js';
-import { mobileDashboardSessionSchema } from '../mobile-contract.js';
+} from '../mobile-contract.js';
 import { mobileImageReadInternalParametersSchema } from '../mobile-image-contract.js';
 
 const message = (id: string, text: string, turnId = 'turn-1'): AgentChatItem => ({
@@ -200,8 +203,8 @@ describe('mobile Agent Chat projection', () => {
         );
     });
 
-    it('keeps Desktop-only tasks out of the phone projection but sends the queue', () => {
-        const desktopOnly = {
+    it('sends the background tasks and the queue to the phone', () => {
+        const desktopState = {
             tasks: [
                 {
                     id: 'task-1',
@@ -217,10 +220,10 @@ describe('mobile Agent Chat projection', () => {
         };
         const windowed = windowAgentChatSnapshotForMobile({
             ...snapshot([message('item-1', 'Hi')]),
-            ...desktopOnly,
+            ...desktopState,
             operation: 'compacting',
         });
-        expect(windowed).not.toHaveProperty('tasks');
+        expect(windowed.tasks).toEqual(desktopState.tasks);
         expect(windowed.queue).toEqual([{ id: 'q-1', text: 'next' }]);
         expect(windowed.queuePaused).toBe(true);
         expect(windowed.operation).toBe('compacting');
@@ -228,12 +231,13 @@ describe('mobile Agent Chat projection', () => {
             terminalId: 'terminal-1',
             baseRevision: 7,
             revision: 8,
-            operations: [{ op: 'state', state: { ...desktopOnly, status: 'ready' } }],
+            operations: [{ op: 'state', state: { ...desktopState, status: 'ready' } }],
         });
         expect(patch?.operations).toEqual([
             {
                 op: 'state',
                 state: {
+                    tasks: desktopState.tasks,
                     queue: [{ id: 'q-1', text: 'next' }],
                     queueLength: 1,
                     queuePaused: true,
@@ -293,6 +297,46 @@ describe('mobile Agent Chat projection', () => {
         expect(state?.queueLength).toBe(20);
         expect(agentChatPatchSchema.safeParse(patch).success).toBe(true);
         expect(patch && applyAgentChatPatch(snapshot([]), patch)?.queueLength).toBe(20);
+    });
+
+    it('shortens command descriptions and hints but keeps every command name', () => {
+        const commands = Array.from({ length: 200 }, (_, index) => ({
+            name: `skill-${index}`,
+            description: 'd'.repeat(500),
+            argumentHint: 'a'.repeat(200),
+        }));
+        const clipped = clipAgentChatCommandsForMobile([...commands, { name: 'review' }]);
+        expect(clipped).toHaveLength(201);
+        expect(clipped[0]?.description).toHaveLength(
+            MOBILE_AGENT_CHAT_COMMAND_DESCRIPTION_MAX_LENGTH,
+        );
+        expect(clipped[0]?.description?.endsWith(MOBILE_AGENT_CHAT_CLIP_MARKER)).toBe(true);
+        expect(clipped[0]?.argumentHint).toHaveLength(
+            MOBILE_AGENT_CHAT_COMMAND_ARGUMENT_HINT_MAX_LENGTH,
+        );
+        expect(clipped.at(-1)).toEqual({ name: 'review' });
+        expect(
+            clipAgentChatCommandsForMobile([{ name: 'compact', description: 'Compact' }]),
+        ).toEqual([{ name: 'compact', description: 'Compact' }]);
+
+        const windowed = windowAgentChatSnapshotForMobile({
+            ...snapshot([message('m-1', 'hello')]),
+            commands,
+        });
+        expect(windowed.commands).toEqual(clipAgentChatCommandsForMobile(commands));
+        expect(windowed.items).toHaveLength(1);
+
+        const patch = clipAgentChatPatchForMobile({
+            terminalId: 'terminal-1',
+            baseRevision: 7,
+            revision: 8,
+            operations: [{ op: 'state', state: { commands } }],
+        });
+        const operation = patch?.operations[0];
+        expect(operation?.op === 'state' ? operation.state.commands : undefined).toEqual(
+            clipAgentChatCommandsForMobile(commands),
+        );
+        expect(agentChatPatchSchema.safeParse(patch).success).toBe(true);
     });
 
     it('refuses a patch that cannot fit one frame', () => {

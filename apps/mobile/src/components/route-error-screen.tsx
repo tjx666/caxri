@@ -4,6 +4,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import type { ErrorBoundaryProps } from 'expo-router';
 
+import { useTranslation } from '../i18n';
 import { useMobileTheme } from '../theme/use-mobile-theme';
 import { ActionButton } from './action-button';
 
@@ -14,19 +15,19 @@ import { ActionButton } from './action-button';
  */
 export const RouteErrorScreen = ({ retry }: ErrorBoundaryProps) => {
     const theme = useMobileTheme();
+    const { t } = useTranslation();
     return (
         <SafeAreaProvider>
             <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
                 <View style={styles.content} testID="route-error-screen">
                     <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
-                        Something went wrong
+                        {t('components.routeError.title')}
                     </Text>
                     <Text style={[styles.body, { color: theme.muted }]}>
-                        This screen stopped unexpectedly. Your Sessions on the computer are not
-                        affected.
+                        {t('components.routeError.body')}
                     </Text>
                     <ActionButton
-                        accessibilityHint="Reloads this screen."
+                        accessibilityHint={t('components.routeError.retryHint')}
                         onPress={() => {
                             // eslint-disable-next-line no-void -- A failed retry renders this screen again.
                             void retry();
@@ -34,7 +35,7 @@ export const RouteErrorScreen = ({ retry }: ErrorBoundaryProps) => {
                         testID="route-error-retry"
                         theme={theme}
                     >
-                        Try again
+                        {t('components.tryAgain')}
                     </ActionButton>
                 </View>
             </SafeAreaView>

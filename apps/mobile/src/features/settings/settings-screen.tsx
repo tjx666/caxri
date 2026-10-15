@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft, Unlink } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import { useMobileClient } from '../connection/mobile-client-provider';
@@ -15,7 +16,7 @@ import { useConfirmForgetComputer } from '../connection/use-confirm-forget-compu
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import { MobileUpdateSettingsRow } from '../update/mobile-update-settings-row';
 import { useMobileUpdate } from '../update/use-mobile-update';
-import { connectionStatusLabel, DEVICE_ROLE_DETAILS } from './settings-model';
+import { connectionStatusLabel, deviceRoleDetails } from './settings-model';
 
 const Section = ({
     children,
@@ -75,11 +76,12 @@ const Row = ({
 export const SettingsScreen = () => {
     const router = useRouter();
     const theme = useMobileTheme();
+    const { t } = useTranslation();
     const { status } = useMobileClient();
     const { sessions } = useHostSessions();
     const mobileUpdate = useMobileUpdate();
     const { update } = mobileUpdate;
-    const role = sessions.deviceRole ? DEVICE_ROLE_DETAILS[sessions.deviceRole] : null;
+    const role = sessions.deviceRole ? deviceRoleDetails(sessions.deviceRole, t) : null;
     const confirmForget = useConfirmForgetComputer(sessions.hostDisplayName);
     return (
         <SafeAreaView
@@ -89,7 +91,7 @@ export const SettingsScreen = () => {
         >
             <View style={styles.header}>
                 <IconButton
-                    accessibilityLabel="Back"
+                    accessibilityLabel={t('settings.back')}
                     icon={ChevronLeft}
                     onPress={() => router.back()}
                     size={24}
@@ -97,43 +99,43 @@ export const SettingsScreen = () => {
                     theme={theme}
                 />
                 <Text accessibilityRole="header" style={[styles.heading, { color: theme.text }]}>
-                    Settings
+                    {t('settings.title')}
                 </Text>
             </View>
             <ScrollView contentContainerStyle={styles.content}>
-                <Section theme={theme} title="COMPUTER">
+                <Section theme={theme} title={t('settings.section.computer')}>
                     <Row
-                        label="Name"
+                        label={t('settings.name')}
                         testID="settings-computer-name"
                         theme={theme}
                         value={sessions.hostDisplayName}
                     />
                     <Row
                         isLast
-                        label="Status"
+                        label={t('settings.status')}
                         testID="settings-connection-status"
                         theme={theme}
-                        value={connectionStatusLabel(status)}
+                        value={connectionStatusLabel(status, t)}
                         valueColor={status === 'connected' ? theme.success : theme.muted}
                     />
                 </Section>
-                <Section theme={theme} title="THIS DEVICE">
+                <Section theme={theme} title={t('settings.section.thisDevice')}>
                     <Row
                         detail={role?.description}
                         isLast
-                        label="Access"
+                        label={t('settings.access')}
                         testID="settings-access-level"
                         theme={theme}
-                        value={role?.label ?? 'Unknown'}
+                        value={role?.label ?? t('settings.unknown')}
                     />
                 </Section>
-                <Section theme={theme} title="ABOUT">
+                <Section theme={theme} title={t('settings.section.about')}>
                     <Row
                         isLast={!update}
-                        label="Version"
+                        label={t('settings.version')}
                         testID="settings-app-version"
                         theme={theme}
-                        value={Constants.expoConfig?.version ?? 'Unknown'}
+                        value={Constants.expoConfig?.version ?? t('settings.unknown')}
                     />
                     {update ? (
                         <MobileUpdateSettingsRow
@@ -143,7 +145,7 @@ export const SettingsScreen = () => {
                     ) : null}
                 </Section>
                 <Pressable
-                    accessibilityHint="Asks for confirmation before removing this pairing."
+                    accessibilityHint={t('settings.forgetComputerHint')}
                     accessibilityRole="button"
                     onPress={confirmForget}
                     style={({ pressed }) => [
@@ -157,7 +159,7 @@ export const SettingsScreen = () => {
                 >
                     <Unlink color={theme.danger} size={18} />
                     <Text style={[styles.forgetText, { color: theme.danger }]}>
-                        Forget this computer
+                        {t('settings.forgetComputer')}
                     </Text>
                 </Pressable>
             </ScrollView>

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Platform, Pressable, Text, View } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
@@ -9,13 +10,13 @@ import { FlashList } from '@shopify/flash-list';
 import { ArrowDown } from 'lucide-react-native';
 
 import { NoticeBanner } from '../../components/notice-banner';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { PANEL_ENTER_MS, segmentEnterOffset } from '../sessions/hooks/use-segment-entering';
 import { ConversationEntry } from './conversation-entry';
 import type { ConversationEntry as GroupedEntry } from './conversation-model';
 import {
-    CONVERSATION_FOLLOW_THRESHOLD,
     CONVERSATION_SEND_FOLLOW_HOLD_MS,
     followConversationToLatest,
     groupConversationItems,
@@ -23,6 +24,11 @@ import {
     isNewConversationSend,
     shouldShowConversationJump,
 } from './conversation-model';
+import {
+    conversationTurnSpacerHeight,
+    createConversationFollower,
+    latestConversationTurnStart,
+} from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
 import type { ConversationTimelineState } from './use-conversation-timeline';
 
@@ -42,49 +48,56 @@ const ConversationHistory = ({
     olderCursor?: string;
     theme: MobileTheme;
     truncated: boolean;
-}) => (
-    <View style={styles.history}>
-        {historyExpired ? (
-            <Text
-                accessibilityRole="alert"
-                style={[styles.historyText, { color: theme.muted }]}
-                testID="conversation-history-expired"
-            >
-                Conversation history changed on your computer. Showing the latest messages.
-            </Text>
-        ) : null}
-        {olderCursor ? (
-            <Pressable
-                accessibilityRole="button"
-                disabled={isLoadingOlder}
-                onPress={onLoadOlder}
-                style={[styles.button, { backgroundColor: theme.surface }]}
-                testID="conversation-load-earlier"
-            >
-                <Text style={[styles.buttonText, { color: theme.text }]}>
-                    {isLoadingOlder ? 'Loading earlier messages…' : 'Load earlier messages'}
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.history}>
+            {historyExpired ? (
+                <Text
+                    accessibilityRole="alert"
+                    style={[styles.historyText, { color: theme.muted }]}
+                    testID="conversation-history-expired"
+                >
+                    {t('conversation.historyExpired')}
                 </Text>
-            </Pressable>
-        ) : null}
-        {truncated ? (
-            <Text
-                style={[styles.historyText, { color: theme.muted }]}
-                testID="conversation-history-truncated"
-            >
-                Earlier messages are available on your computer.
-            </Text>
-        ) : null}
-        {error ? (
-            <Text
-                accessibilityRole="alert"
-                style={[styles.historyText, { color: theme.danger }]}
-                testID="conversation-history-error"
-            >
-                {error}
-            </Text>
-        ) : null}
-    </View>
-);
+            ) : null}
+            {olderCursor ? (
+                <Pressable
+                    accessibilityRole="button"
+                    disabled={isLoadingOlder}
+                    onPress={onLoadOlder}
+                    style={[styles.button, { backgroundColor: theme.surface }]}
+                    testID="conversation-load-earlier"
+                >
+                    <Text style={[styles.buttonText, { color: theme.text }]}>
+                        {t(
+                            isLoadingOlder
+                                ? 'conversation.loadingEarlier'
+                                : 'conversation.loadEarlier',
+                        )}
+                    </Text>
+                </Pressable>
+            ) : null}
+            {truncated ? (
+                <Text
+                    style={[styles.historyText, { color: theme.muted }]}
+                    testID="conversation-history-truncated"
+                >
+                    {t('conversation.earlierOnComputer')}
+                </Text>
+            ) : null}
+            {error ? (
+                <Text
+                    accessibilityRole="alert"
+                    style={[styles.historyText, { color: theme.danger }]}
+                    testID="conversation-history-error"
+                >
+                    {error}
+                </Text>
+            ) : null}
+        </View>
+    );
+};
 
 const ConversationStatus = ({
     historyExpired,
@@ -99,16 +112,15 @@ const ConversationStatus = ({
     status: ConversationTimelineState['status'] | 'empty';
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const message = {
-        loading: 'Loading Conversation…',
+        loading: t('conversation.loading'),
         available: '',
         unsupported: '',
         missing: '',
-        empty: canSend
-            ? 'No messages yet. Send a message to start the Conversation.'
-            : 'No messages yet.',
-        error: 'Unable to load Conversation.',
-        stale: 'Reconnect to update Conversation.',
+        empty: t(canSend ? 'conversation.emptyCanSend' : 'conversation.empty'),
+        error: t('conversation.loadFailed'),
+        stale: t('conversation.reconnectToUpdate'),
     }[status];
     return (
         <View style={styles.status} testID={`conversation-status-${status}`}>
@@ -118,7 +130,7 @@ const ConversationStatus = ({
                     style={[styles.statusText, { color: theme.muted }]}
                     testID="conversation-history-expired"
                 >
-                    Conversation history changed on your computer. Showing the latest messages.
+                    {t('conversation.historyExpired')}
                 </Text>
             ) : null}
             <Text style={[styles.statusText, { color: theme.muted }]}>{message}</Text>
@@ -129,11 +141,36 @@ const ConversationStatus = ({
                     style={[styles.button, { backgroundColor: theme.surface }]}
                     testID="conversation-retry"
                 >
-                    <Text style={[styles.buttonText, { color: theme.text }]}>Retry</Text>
+                    <Text style={[styles.buttonText, { color: theme.text }]}>
+                        {t('common.retry')}
+                    </Text>
                 </Pressable>
             ) : null}
         </View>
     );
+};
+
+/**
+ * `startRenderingFromBottom` opens the list at its end. FlashList's own `autoscrollToBottomThreshold` is not used: it
+ * scrolls to the end on every data change while the reader is near it, including mid-drag, so a streamed reply kept
+ * snapping a reader who had started scrolling up back down. `createConversationFollower` follows instead.
+ */
+const MAINTAIN_VISIBLE_CONTENT_POSITION = { startRenderingFromBottom: true } as const;
+
+const conversationEntryKey = (entry: { id: string }): string => entry.id;
+
+/**
+ * The content's bottom padding sits between the rows and the turn spacer, so the spacer leaves it out.
+ */
+const CONTENT_BOTTOM_INSET = styles.listContent.paddingBottom;
+
+/**
+ * The empty space after the rows that lets the latest turn rest at the top of the viewport. Its height is a shared
+ * value, so resizing it never re-renders the list.
+ */
+const ConversationTurnSpacer = ({ height }: { height: SharedValue<number> }) => {
+    const style = useAnimatedStyle(() => ({ height: height.get() }));
+    return <Animated.View pointerEvents="none" style={style} testID="conversation-turn-spacer" />;
 };
 
 /**
@@ -146,12 +183,18 @@ const ConversationStatus = ({
  * Positioning outlasts a tab switch's entering animation, so a list opened by a tab switch plays that motion itself
  * when it is revealed. Only the wrapper's opacity and transform animate; the list's own layout and measurement are
  * untouched.
+ *
+ * With `isTurnStart`, the list pins the latest turn the way Desktop's Agent Chat does: a spacer after the rows keeps
+ * that turn's first row at the top of the viewport when the list is at its end, so a sent message rises to the top and
+ * its reply fills in below it. The spacer is re-measured whenever the content or the viewport changes size; it lives in
+ * the footer, outside the rows FlashList measures, so resizing it never changes the measurement it was computed from.
  */
 export const ConversationList = <Entry extends { id: string }>({
     entries,
     enterFrom,
     followKey,
     isConnected,
+    isTurnStart,
     onRetry,
     renderEntry,
     theme,
@@ -159,7 +202,7 @@ export const ConversationList = <Entry extends { id: string }>({
 }: {
     /**
      * The rows to draw, already grouped by the caller: a terminal Agent's grouped tool calls, or an Agent Chat's
-     * timeline entries.
+     * timeline entries. Keep unchanged rows the same objects across updates so FlashList can skip redrawing them.
      */
     entries: readonly Entry[];
     enterFrom: -1 | 0 | 1 | null;
@@ -169,48 +212,111 @@ export const ConversationList = <Entry extends { id: string }>({
      */
     followKey?: number;
     isConnected: boolean;
+    /**
+     * Marks the rows that start a turn (the user's messages). When set, the latest turn rests at the top of the
+     * viewport at the list's end; when unset, the list simply ends at its last row. Keep it a stable function.
+     */
+    isTurnStart?: (entry: Entry) => boolean;
     onRetry: () => void;
     renderEntry: (entry: Entry) => ReactNode;
     theme: MobileTheme;
     timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
 }) => {
+    const { t } = useTranslation();
     const list = useRef<FlashListRef<Entry>>(null);
     const [isAtBottom, setIsAtBottom] = useState(true);
-    const isAtBottomReference = useRef(true);
     const viewportHeight = useRef(0);
     const isPositionedReference = useRef(false);
     const followHoldUntil = useRef(0);
+    const [follower] = useState(() =>
+        createConversationFollower({ nextFrame: requestAnimationFrame }),
+    );
+    useEffect(
+        () =>
+            follower.connect(() => {
+                list.current?.scrollToEnd({ animated: false });
+            }),
+        [follower],
+    );
+    const spacerHeight = useSharedValue(0);
+    const appliedSpacerHeight = useRef(0);
+    /**
+     * The latest props the layout callbacks read, so those callbacks (and the list props built from them) stay stable.
+     */
+    const latest = useRef({ entries, isTurnStart, timeline });
+    useLayoutEffect(() => {
+        latest.current = { entries, isTurnStart, timeline };
+    });
     const revealProgress = useSharedValue(0);
     const enterOffset = enterFrom === null ? 0 : segmentEnterOffset(enterFrom);
     const revealStyle = useAnimatedStyle(() => ({
         opacity: revealProgress.get(),
         transform: [{ translateX: (1 - revealProgress.get()) * enterOffset }],
     }));
-    const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
-        // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
-        if (!isPositionedReference.current) return;
-        const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-        const distance = contentSize.height - layoutMeasurement.height - contentOffset.y;
-        const isFollowing = isConversationFollowing(
-            distance,
-            layoutMeasurement.height,
-            Date.now(),
-            followHoldUntil.current,
-        );
-        isAtBottomReference.current = isFollowing;
-        setIsAtBottom(isFollowing);
-    }, []);
     /**
-     * `autoscrollToBottomThreshold` follows new content only; a viewport that shrinks under a docked card or the
-     * keyboard would otherwise leave a reader who was at the end looking at older rows.
+     * Sizes the turn spacer from the latest turn's measured rows. A row FlashList has not laid out yet keeps the
+     * current spacer; the next content size change measures again.
      */
-    const onViewportLayout = useCallback((event: LayoutChangeEvent): void => {
-        const { height } = event.nativeEvent.layout;
-        const hasShrunk = height < viewportHeight.current;
-        viewportHeight.current = height;
-        if (hasShrunk && isPositionedReference.current && isAtBottomReference.current)
-            list.current?.scrollToEnd({ animated: false });
-    }, []);
+    const measureSpacer = useCallback((): void => {
+        const { entries: rows, isTurnStart: startsTurn } = latest.current;
+        const reference = list.current;
+        if (!startsTurn || !reference || viewportHeight.current <= 0) return;
+        const index = latestConversationTurnStart(rows, startsTurn);
+        let height = 0;
+        if (index !== -1) {
+            const layout = reference.getLayout(index);
+            if (!layout) return;
+            height = conversationTurnSpacerHeight({
+                bottomInset: CONTENT_BOTTOM_INSET,
+                contentHeight: reference.getChildContainerDimensions().height,
+                turnTop: layout.y,
+                viewportHeight: viewportHeight.current,
+            });
+        }
+        if (height === appliedSpacerHeight.current) return;
+        appliedSpacerHeight.current = height;
+        spacerHeight.set(height);
+    }, [spacerHeight]);
+    /**
+     * Re-measures the spacer and, while the list follows, returns to the end on the next frame.
+     */
+    const pin = useCallback((): void => {
+        measureSpacer();
+        follower.request();
+    }, [follower, measureSpacer]);
+    const onScroll = useCallback(
+        (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+            // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
+            if (!isPositionedReference.current) return;
+            const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+            const distance = contentSize.height - layoutMeasurement.height - contentOffset.y;
+            const isNearEnd = isConversationFollowing(
+                distance,
+                layoutMeasurement.height,
+                Date.now(),
+                followHoldUntil.current,
+            );
+            setIsAtBottom(follower.recordScroll(isNearEnd));
+        },
+        [follower],
+    );
+    const onScrollBeginDrag = useCallback((): void => {
+        followHoldUntil.current = 0;
+        follower.beginDrag();
+    }, [follower]);
+    /**
+     * A viewport that shrinks under a docked card or the keyboard moves the end, and so does one that grows back; both
+     * also change how much room the latest turn has.
+     */
+    const onViewportLayout = useCallback(
+        (event: LayoutChangeEvent): void => {
+            const { height } = event.nativeEvent.layout;
+            if (height === viewportHeight.current) return;
+            viewportHeight.current = height;
+            pin();
+        },
+        [pin],
+    );
     const onLoad = useCallback((): void => {
         const reveal = (): void => {
             isPositionedReference.current = true;
@@ -218,6 +324,7 @@ export const ConversationList = <Entry extends { id: string }>({
                 enterFrom === null ? 1 : withTiming(1, { duration: PANEL_ENTER_MS }),
             );
         };
+        measureSpacer();
         /**
          * FlashList resolves `scrollToEnd` before its native scroll, which it defers by one task; reveal one frame
          * after that task has run.
@@ -226,7 +333,7 @@ export const ConversationList = <Entry extends { id: string }>({
         void Promise.resolve(list.current?.scrollToEnd({ animated: false })).finally(() => {
             setTimeout(() => requestAnimationFrame(reveal), 0);
         });
-    }, [enterFrom, revealProgress]);
+    }, [enterFrom, measureSpacer, revealProgress]);
     const renderItem = useCallback(
         ({ item }: ListRenderItemInfo<Entry>) => (
             <View style={styles.entry}>{renderEntry(item)}</View>
@@ -234,8 +341,11 @@ export const ConversationList = <Entry extends { id: string }>({
         [renderEntry],
     );
     const jumpToLatest = useCallback((): void => {
+        follower.follow();
+        setIsAtBottom(true);
+        measureSpacer();
         list.current?.scrollToEnd({ animated: true });
-    }, []);
+    }, [follower, measureSpacer]);
     const lastFollowKey = useRef(followKey);
     useEffect(() => {
         const previous = lastFollowKey.current;
@@ -244,13 +354,49 @@ export const ConversationList = <Entry extends { id: string }>({
         followConversationToLatest({
             follow: () => {
                 followHoldUntil.current = Date.now() + CONVERSATION_SEND_FOLLOW_HOLD_MS;
-                isAtBottomReference.current = true;
-                setIsAtBottom(true);
             },
             nextFrame: requestAnimationFrame,
             scrollToEnd: jumpToLatest,
         });
     }, [followKey, jumpToLatest]);
+    const onLoadOlder = useCallback((): void => {
+        // eslint-disable-next-line no-void -- The timeline hook owns the bounded page request.
+        void latest.current.timeline.loadOlder();
+    }, []);
+    const onStartReached = useCallback((): void => {
+        const { timeline: current } = latest.current;
+        if (isPositionedReference.current && current.olderCursor && !current.isLoadingOlder) {
+            // eslint-disable-next-line no-void -- The timeline hook serializes older-page reads.
+            void current.loadOlder();
+        }
+    }, []);
+    const header = useMemo(
+        () => (
+            <ConversationHistory
+                error={timeline.error}
+                historyExpired={timeline.historyExpired}
+                isLoadingOlder={timeline.isLoadingOlder}
+                onLoadOlder={onLoadOlder}
+                olderCursor={timeline.olderCursor}
+                theme={theme}
+                truncated={timeline.truncated}
+            />
+        ),
+        [
+            onLoadOlder,
+            theme,
+            timeline.error,
+            timeline.historyExpired,
+            timeline.isLoadingOlder,
+            timeline.olderCursor,
+            timeline.truncated,
+        ],
+    );
+    const hasTurnSpacer = isTurnStart !== undefined;
+    const footer = useMemo(
+        () => (hasTurnSpacer ? <ConversationTurnSpacer height={spacerHeight} /> : null),
+        [hasTurnSpacer, spacerHeight],
+    );
     return (
         <View style={styles.root} testID="conversation-view">
             {/*
@@ -260,8 +406,8 @@ export const ConversationList = <Entry extends { id: string }>({
             <SavedCopyNote savedAt={timeline.savedAt} testID="conversation-saved" theme={theme} />
             {isConnected && timeline.status === 'stale' ? (
                 <NoticeBanner
-                    actionLabel="Retry"
-                    message="This Conversation could not be updated. Showing the last loaded messages."
+                    actionLabel={t('common.retry')}
+                    message={t('conversation.staleNotice')}
                     onAction={onRetry}
                     testID="conversation-status-stale"
                     theme={theme}
@@ -278,38 +424,18 @@ export const ConversationList = <Entry extends { id: string }>({
                      */
                     keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
                     keyboardShouldPersistTaps="handled"
-                    keyExtractor={(entry) => entry.id}
-                    ListHeaderComponent={
-                        <ConversationHistory
-                            error={timeline.error}
-                            historyExpired={timeline.historyExpired}
-                            isLoadingOlder={timeline.isLoadingOlder}
-                            onLoadOlder={() => {
-                                // eslint-disable-next-line no-void -- The timeline hook owns the bounded page request.
-                                void timeline.loadOlder();
-                            }}
-                            olderCursor={timeline.olderCursor}
-                            theme={theme}
-                            truncated={timeline.truncated}
-                        />
-                    }
-                    maintainVisibleContentPosition={{
-                        autoscrollToBottomThreshold: CONVERSATION_FOLLOW_THRESHOLD,
-                        animateAutoScrollToBottom: false,
-                        startRenderingFromBottom: true,
-                    }}
+                    keyExtractor={conversationEntryKey}
+                    ListFooterComponent={footer}
+                    ListHeaderComponent={header}
+                    maintainVisibleContentPosition={MAINTAIN_VISIBLE_CONTENT_POSITION}
+                    onContentSizeChange={pin}
                     onLoad={onLoad}
+                    onMomentumScrollBegin={follower.beginMomentum}
+                    onMomentumScrollEnd={follower.endMomentum}
                     onScroll={onScroll}
-                    onStartReached={() => {
-                        if (
-                            isPositionedReference.current &&
-                            timeline.olderCursor &&
-                            !timeline.isLoadingOlder
-                        ) {
-                            // eslint-disable-next-line no-void -- The timeline hook serializes older-page reads.
-                            void timeline.loadOlder();
-                        }
-                    }}
+                    onScrollBeginDrag={onScrollBeginDrag}
+                    onScrollEndDrag={follower.endDrag}
+                    onStartReached={onStartReached}
                     onStartReachedThreshold={0.25}
                     ref={list}
                     renderItem={renderItem}
@@ -319,7 +445,7 @@ export const ConversationList = <Entry extends { id: string }>({
             </Animated.View>
             {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (
                 <Pressable
-                    accessibilityLabel="Jump to latest"
+                    accessibilityLabel={t('conversation.jumpToLatest')}
                     accessibilityRole="button"
                     onPress={jumpToLatest}
                     style={[
@@ -359,7 +485,8 @@ export const ConversationView = ({
     theme: MobileTheme;
     timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
 }) => {
-    const entries = useMemo(() => groupConversationItems(timeline.items), [timeline.items]);
+    const { t } = useTranslation();
+    const entries = useMemo(() => groupConversationItems(timeline.items, t), [timeline.items, t]);
     const renderEntry = useCallback(
         (entry: GroupedEntry) => <ConversationEntry entry={entry} theme={theme} />,
         [theme],

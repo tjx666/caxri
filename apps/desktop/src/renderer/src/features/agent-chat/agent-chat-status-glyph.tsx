@@ -1,11 +1,10 @@
 import type { AgentChatItemStatus, AgentChatStatusTone } from '@caxri/protocol';
-import { agentChatItemStatusTone } from '@caxri/protocol';
+import { agentChatItemStatusLabel, agentChatItemStatusTone } from '@caxri/protocol';
 import { Check, Circle, CircleSlash, CircleX } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { agentChatItemStatusLabel } from './agent-chat-presentation';
 
 const toneClassName: Record<AgentChatStatusTone, string> = {
     danger: 'text-danger',

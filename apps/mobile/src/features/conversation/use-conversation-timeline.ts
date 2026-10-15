@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useReadCache } from '../read-cache/read-cache-context';
 import {
@@ -128,7 +129,7 @@ export const useConversationTimeline = ({
             onError: () =>
                 update((current) => ({
                     ...current,
-                    error: 'Unable to load Conversation.',
+                    error: translate('conversation.loadFailed'),
                     status: current.items.length > 0 ? 'stale' : 'error',
                 })),
         });
@@ -226,7 +227,7 @@ export const useConversationTimeline = ({
                 ...current,
                 state:
                     current.sessionId === sessionId && current.state.olderCursor === before
-                        ? { ...current.state, error: 'Unable to load earlier messages.' }
+                        ? { ...current.state, error: translate('conversation.loadEarlierFailed') }
                         : current.state,
             }));
         } finally {

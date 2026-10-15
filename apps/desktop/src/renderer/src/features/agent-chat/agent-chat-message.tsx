@@ -3,6 +3,7 @@ import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import type { MarkdownBlockOptions } from '@caxri/markdown';
 import { createStreamingMarkdownParser, createStreamingMarkdownRepair } from '@caxri/markdown';
 import type { AgentChatItem, AgentChatTurnArtifacts } from '@caxri/protocol';
+import { agentChatNoticeMessage } from '@caxri/protocol';
 import { CircleAlert } from 'lucide-react';
 
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
@@ -12,7 +13,6 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageTime } from './agent-chat-message-time';
-import { agentChatNoticeMessage } from './agent-chat-presentation';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
 import { useAgentChatReplyMenu } from './hooks/use-agent-chat-reply-menu';

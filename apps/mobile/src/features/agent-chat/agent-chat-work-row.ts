@@ -6,6 +6,9 @@ import {
     isAgentChatWorkRunning,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 /**
  * What one Chat work row shows and announces. The rules mirror Desktop's work row: the verb is present tense while the
  * item runs, including a command still waiting for approval (`Running echo approved`), and the settled verb after (`Ran
@@ -35,9 +38,10 @@ export interface AgentChatWorkRowPresentation {
 
 export function agentChatWorkRowPresentation(
     item: AgentChatWorkItem,
+    t: Translate = translate,
 ): AgentChatWorkRowPresentation {
-    const presentation = describeAgentChatWork(item);
-    const verb = agentChatWorkVerb(item, presentation);
+    const presentation = describeAgentChatWork(item, t);
+    const verb = agentChatWorkVerb(item, presentation, t);
     const isRunning = isAgentChatWorkRunning(item);
     const isSettledCommand = item.type === 'command' && !isRunning;
     const isBackground = isSettledCommand && item.background === true;
@@ -46,15 +50,17 @@ export function agentChatWorkRowPresentation(
             ? item.exitCode
             : undefined;
     const facts = [
-        ...(isBackground ? ['Background'] : []),
-        ...(failedExitCode === undefined ? [] : [`Exit ${failedExitCode}`]),
+        ...(isBackground ? [t('chat.work.background')] : []),
+        ...(failedExitCode === undefined ? [] : [t('chat.work.exit', { code: failedExitCode })]),
         ...(item.type === 'reasoning' || item.status === 'running' || item.status === 'completed'
             ? []
-            : [agentChatItemStatusLabel(item.status)]),
+            : [agentChatItemStatusLabel(item.status, t)]),
     ];
     const title = presentation.subject ? `${verb} ${presentation.subject}` : verb;
     return {
-        accessibilityLabel: [title, ...facts, 'Open detail'].map((part) => `${part}.`).join(' '),
+        accessibilityLabel: [title, ...facts, t('chat.work.openDetail')]
+            .map((part) => `${part}.`)
+            .join(' '),
         background: isBackground,
         ...(failedExitCode !== undefined && { failedExitCode }),
         isCodeSubject: presentation.isCodeSubject,

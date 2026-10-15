@@ -1,4 +1,4 @@
-import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+import type { TranslatedNamespace } from '@caxri/protocol';
 
 import type { agentCommander as source } from '../en/agent-commander';
 
@@ -192,11 +192,6 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.inbox.merge': '合并',
     'agentCommander.inbox.mergeTooltip': '合并 Commander 已验证的提交',
     'agentCommander.inbox.reply': '回复',
-    'agentCommander.inbox.kind.decision': '决策',
-    'agentCommander.inbox.kind.hands': '待你操作',
-    'agentCommander.inbox.kind.merge': 'Pull Request',
-    'agentCommander.inbox.replyState.read': 'Commander 已读',
-    'agentCommander.inbox.replyState.delivered': '已送达 Commander',
 
     // Inbox merge readiness
     'agentCommander.mergeState.changedSinceVerified': '验证后已变更',

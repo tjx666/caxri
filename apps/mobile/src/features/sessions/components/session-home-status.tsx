@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileConnectionStatus } from '../../connection/connection-state';
 import { allMobileSessions } from '../hooks/use-session-polling';
@@ -54,46 +55,60 @@ export const SessionHomeStatus = ({
     savedAt: number | null;
     sections: MobileSessionSections;
     theme: MobileTheme;
-}) => (
-    <>
-        {savedAt === null ? null : (
-            <View style={[styles.limit, { borderColor: theme.border }]} testID="session-list-saved">
-                <Text style={[styles.limitText, { color: theme.muted }]}>
-                    Showing Sessions {savedAgeLabel(savedAt, now)}.
-                </Text>
-            </View>
-        )}
-        {isSessionListErrorShown({ error, hasLoaded, isConnectionNoticeShown }) ? (
-            <View
-                style={[
-                    styles.banner,
-                    { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-            >
-                <Text accessibilityRole="alert" style={[styles.bannerText, { color: theme.text }]}>
-                    {error} Showing the last known state.
-                </Text>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: isLoading }}
-                    disabled={isLoading}
-                    onPress={onRetry}
-                    style={styles.retry}
-                    testID="session-list-retry"
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            {savedAt === null ? null : (
+                <View
+                    style={[styles.limit, { borderColor: theme.border }]}
+                    testID="session-list-saved"
                 >
-                    <Text style={[styles.retryText, { color: theme.primary }]}>Retry</Text>
-                </Pressable>
-            </View>
-        ) : null}
-        {sections.truncated ? (
-            <View style={[styles.limit, { borderColor: theme.border }]}>
-                <Text style={[styles.limitText, { color: theme.muted }]}>
-                    Showing {allMobileSessions(sections).length} of {sections.total} Sessions
-                </Text>
-            </View>
-        ) : null}
-    </>
-);
+                    <Text style={[styles.limitText, { color: theme.muted }]}>
+                        {t('sessions.home.savedCopy', { saved: savedAgeLabel(savedAt, now, t) })}
+                    </Text>
+                </View>
+            )}
+            {isSessionListErrorShown({ error, hasLoaded, isConnectionNoticeShown }) ? (
+                <View
+                    style={[
+                        styles.banner,
+                        { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                >
+                    <Text
+                        accessibilityRole="alert"
+                        style={[styles.bannerText, { color: theme.text }]}
+                    >
+                        {t('sessions.home.listError', { error: error ?? '' })}
+                    </Text>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: isLoading }}
+                        disabled={isLoading}
+                        onPress={onRetry}
+                        style={styles.retry}
+                        testID="session-list-retry"
+                    >
+                        <Text style={[styles.retryText, { color: theme.primary }]}>
+                            {t('common.retry')}
+                        </Text>
+                    </Pressable>
+                </View>
+            ) : null}
+            {sections.truncated ? (
+                <View style={[styles.limit, { borderColor: theme.border }]}>
+                    <Text style={[styles.limitText, { color: theme.muted }]}>
+                        {t('sessions.home.truncated', {
+                            shown: allMobileSessions(sections).length,
+                            total: sections.total,
+                        })}
+                    </Text>
+                </View>
+            ) : null}
+        </>
+    );
+};
 
 export const SessionHomeEmpty = ({
     activeProjectId,
@@ -114,7 +129,8 @@ export const SessionHomeEmpty = ({
     status: MobileConnectionStatus;
     theme: MobileTheme;
 }) => {
-    const state = describeSessionHomeEmptyState({ activeProjectId, error, hasLoaded, status });
+    const { t } = useTranslation();
+    const state = describeSessionHomeEmptyState({ activeProjectId, error, hasLoaded, status }, t);
     const action = state.action === 'new' ? onNewSession : onRetry;
     return (
         <View style={styles.empty} testID={state.testID}>
@@ -144,7 +160,7 @@ export const SessionHomeEmpty = ({
                     }
                 >
                     <Text style={[styles.retryText, { color: theme.primary }]}>
-                        {state.action === 'retry' ? 'Retry' : 'New Session'}
+                        {t(state.action === 'retry' ? 'common.retry' : 'sessions.new.title')}
                     </Text>
                 </Pressable>
             ) : null}

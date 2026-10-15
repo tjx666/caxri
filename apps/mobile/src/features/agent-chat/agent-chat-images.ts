@@ -1,5 +1,8 @@
 import type { AgentChatImageMediaType, MethodResult } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 type ImageChunk = MethodResult<'mobile.agentChat.readImage'>;
 
 export interface AgentChatImageData {
@@ -77,6 +80,7 @@ export const clampZoomPan = (translation: number, scale: number, viewport: numbe
 export const agentChatViewerContent = (
     original: { uri: string | null; isMissing: boolean; isError: boolean },
     thumbnailUri: string | null,
+    t: Translate = translate,
 ): {
     imageUri: string | null;
     isPreview: boolean;
@@ -90,9 +94,9 @@ export const agentChatViewerContent = (
         placeholderUri: original.uri === null && !original.isMissing ? thumbnailUri : null,
         message:
             preview === null && original.isMissing
-                ? 'This image is no longer available.'
+                ? t('chat.image.unavailable')
                 : original.isError
-                  ? 'The image could not be loaded.'
+                  ? t('chat.image.loadFailed')
                   : null,
     };
 };
@@ -158,25 +162,25 @@ export const agentChatViewerPosition = (index: number, count: number): string | 
  * image and decrement the previous one, offered only toward an image that exists, and the hint names those gestures
  * instead of the sighted swipes.
  */
-export const agentChatViewerAccessibility = (neighbors: {
-    next: boolean;
-    previous: boolean;
-}): {
+export const agentChatViewerAccessibility = (
+    neighbors: {
+        next: boolean;
+        previous: boolean;
+    },
+    t: Translate = translate,
+): {
     actions: Array<{ name: 'increment' | 'decrement'; label: string }>;
     hint: string;
     role: 'adjustable' | 'image';
 } => {
     const actions = [
-        ...(neighbors.next ? [{ name: 'increment' as const, label: 'Next image' }] : []),
-        ...(neighbors.previous ? [{ name: 'decrement' as const, label: 'Previous image' }] : []),
+        ...(neighbors.next ? [{ name: 'increment' as const, label: t('chat.image.next') }] : []),
+        ...(neighbors.previous
+            ? [{ name: 'decrement' as const, label: t('chat.image.previous') }]
+            : []),
     ];
-    if (actions.length === 0)
-        return { actions, hint: 'Pinch or double-tap to zoom.', role: 'image' };
-    return {
-        actions,
-        hint: 'Swipe up or down to see the next or previous image. Pinch or double-tap to zoom.',
-        role: 'adjustable',
-    };
+    if (actions.length === 0) return { actions, hint: t('chat.image.zoomHint'), role: 'image' };
+    return { actions, hint: t('chat.image.zoomHintPaged'), role: 'adjustable' };
 };
 
 /**

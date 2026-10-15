@@ -1,9 +1,12 @@
 import { pathBasename } from '@caxri/utils';
 
 import type { AgentChatItem, AgentChatTurn } from './agent-chat-contract.js';
+import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { translateAgentChatLabel } from './agent-chat-labels.js';
 import type { AgentToolKind, AgentToolPresentation } from './agent-tool-presentation.js';
 import {
     agentToolActiveLabel,
+    agentToolLabel,
     agentToolOutcomeLabel,
     describeAgentTool,
     formatNoticeableDuration,
@@ -23,20 +26,27 @@ export type AgentChatWorkItem = Extract<
  * `Worked for 2m 1s`, or how a turn that did not complete ended. A turn under a second reads as plain `Worked`, as a
  * work row drops its sub-second duration: `<1s` is noise.
  */
-export function agentChatTurnLabel(turn: Pick<AgentChatTurn, 'durationMs' | 'status'>): string {
-    const duration = formatNoticeableDuration(turn.durationMs);
-    const verb =
+export function agentChatTurnLabel(
+    turn: Pick<AgentChatTurn, 'durationMs' | 'status'>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    const duration = formatNoticeableDuration(turn.durationMs, t);
+    if (duration)
+        return t(
+            turn.status === 'interrupted'
+                ? 'agentChat.fold.stoppedAfter'
+                : turn.status === 'failed'
+                  ? 'agentChat.fold.failedAfter'
+                  : 'agentChat.fold.workedFor',
+            { duration },
+        );
+    return t(
         turn.status === 'interrupted'
-            ? 'Stopped after'
+            ? 'agentChat.fold.stopped'
             : turn.status === 'failed'
-              ? 'Failed after'
-              : 'Worked for';
-    if (duration) return `${verb} ${duration}`;
-    return turn.status === 'interrupted'
-        ? 'Stopped'
-        : turn.status === 'failed'
-          ? 'Failed'
-          : 'Worked';
+              ? 'agentChat.fold.failed'
+              : 'agentChat.fold.worked',
+    );
 }
 
 const REASONING_TITLE = /^\*\*([^*\n]+)\*\*[ \t]*$/gmu;
@@ -57,21 +67,28 @@ export function agentChatReasoningTitle(text: string): { title?: string; body: s
 }
 
 /**
- * The kind, verb, and subject a work row shows. Commands and file changes are first-class items rather than named
- * tools, so they are described here; every other tool goes through the shared provider tool table. A settled item that
- * did not complete names its outcome in the verb (`Failed to edit`), so the title tells the truth on its own.
+ * The kind, verb, and subject a work row shows, in the reader's language. Commands and file changes are first-class
+ * items rather than named tools, so they are described here; every other tool goes through the shared provider tool
+ * table. A settled item that did not complete names its outcome in the verb (`Failed to edit`), so the title tells the
+ * truth on its own.
  */
-export function describeAgentChatWork(item: AgentChatWorkItem): AgentToolPresentation {
-    const presentation = describeAgentChatWorkAction(item);
+export function describeAgentChatWork(
+    item: AgentChatWorkItem,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): AgentToolPresentation {
+    const action = describeAgentChatWorkAction(item, t);
+    const presentation = { ...action, label: agentToolLabel(action.label, t) };
     if (item.type === 'reasoning' || item.status === 'running') return presentation;
-    return { ...presentation, label: agentToolOutcomeLabel(presentation, item.status) };
+    return { ...presentation, label: agentToolOutcomeLabel(presentation, item.status, t) };
 }
 
 /**
- * The work row's presentation before its outcome is applied, with English labels. Desktop translates this at display
- * time, so it is exported alongside the English `describeAgentChatWork` the phone reads.
+ * The work row's presentation before its outcome is applied, with the English label the tool table names it by.
  */
-export function describeAgentChatWorkAction(item: AgentChatWorkItem): AgentToolPresentation {
+function describeAgentChatWorkAction(
+    item: AgentChatWorkItem,
+    t: AgentChatLabelTranslate,
+): AgentToolPresentation {
     switch (item.type) {
         case 'reasoning': {
             const { title } = agentChatReasoningTitle(item.text);
@@ -96,11 +113,19 @@ export function describeAgentChatWorkAction(item: AgentChatWorkItem): AgentToolP
         case 'fileChange': {
             const first = item.changes.at(0);
             const isCreate = item.changes.every((change) => change.kind === 'add');
-            const more = item.changes.length > 1 ? ` +${item.changes.length - 1} more` : '';
+            const name = first && pathBasename(first.path);
             return {
                 kind: isCreate ? 'write' : 'edit',
                 label: isCreate ? 'Created' : 'Edited',
-                ...(first && { subject: `${pathBasename(first.path)}${more}` }),
+                ...(name !== undefined && {
+                    subject:
+                        item.changes.length > 1
+                            ? t('agentChat.tool.moreFiles', {
+                                  name,
+                                  count: item.changes.length - 1,
+                              })
+                            : name,
+                }),
                 isCodeSubject: true,
                 ...(first && item.changes.length === 1 && { path: first.path }),
             };
@@ -117,17 +142,22 @@ export const isAgentChatWorkRunning = (item: AgentChatWorkItem): boolean =>
  */
 export function agentChatWorkVerb(
     item: AgentChatWorkItem,
-    presentation: Pick<AgentToolPresentation, 'kind' | 'label'> = describeAgentChatWork(item),
+    presentation?: Pick<AgentToolPresentation, 'kind' | 'label'>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
-    return isAgentChatWorkRunning(item) ? agentToolActiveLabel(presentation) : presentation.label;
+    const described = presentation ?? describeAgentChatWork(item, t);
+    return isAgentChatWorkRunning(item) ? agentToolActiveLabel(described, t) : described.label;
 }
 
 /**
  * The duration a work row shows: only once it is noticeable. A row of `<1s` labels says nothing a reader can act on.
  */
-export function agentChatWorkDuration(item: AgentChatWorkItem): string | null {
+export function agentChatWorkDuration(
+    item: AgentChatWorkItem,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string | null {
     return item.type === 'command' || item.type === 'toolCall'
-        ? formatNoticeableDuration(item.durationMs)
+        ? formatNoticeableDuration(item.durationMs, t)
         : null;
 }
 
@@ -178,15 +208,20 @@ export function agentChatWorkGroupFailure(
  * when it is all the group holds. Items that failed or were declined are counted at the end (`, 1 failed`), so a
  * collapsed group never reads as a clean run.
  */
-export function summarizeAgentChatWork(items: readonly AgentChatWorkItem[]): string {
+export function summarizeAgentChatWork(
+    items: readonly AgentChatWorkItem[],
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
     const tools = agentChatWorkSummaryTools(items);
     if (tools.length === 0)
-        return items.some((item) => item.type === 'reasoning' && item.streaming)
-            ? 'Thinking'
-            : 'Thought';
+        return t(
+            items.some((item) => item.type === 'reasoning' && item.streaming)
+                ? 'agentChat.tool.label.thinking'
+                : 'agentChat.tool.label.thought',
+        );
     const failed = items.filter((item) => isAgentChatWorkUnsuccessful(item)).length;
-    const summary = summarizeAgentToolGroup(tools);
-    return failed > 0 ? `${summary}, ${failed} failed` : summary;
+    const summary = summarizeAgentToolGroup(tools, t);
+    return failed > 0 ? t('agentChat.workGroup.withFailures', { summary, count: failed }) : summary;
 }
 
 /**

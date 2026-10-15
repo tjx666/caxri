@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { AgentChatQueueError, AgentChatQueueRowAction } from './agent-chat-queue';
 import {
-    AGENT_CHAT_QUEUE_EDIT_ALERTS,
-    AGENT_CHAT_QUEUE_ERRORS,
+    agentChatQueueEditAlert,
     agentChatQueueEntries,
+    agentChatQueueErrorMessage,
     agentChatQueueHeader,
     currentQueueError,
     didRunOptimisticQueueAction,
@@ -26,6 +27,7 @@ export const useAgentChatQueueActions = (
     onEdit: (text: string) => void,
 ) => {
     const { pending, removeQueued, resumeQueue, sendQueuedNow, snapshot, takeQueued } = chat;
+    const { t } = useTranslation();
     const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
     const [storedError, setError] = useState<AgentChatQueueError | null>(null);
     const [isResuming, setResuming] = useState(false);
@@ -42,7 +44,7 @@ export const useAgentChatQueueActions = (
         () => agentChatQueueEntries(queue, isTurnRunning, livePendingIds, pending.queue),
         [isTurnRunning, livePendingIds, pending.queue, queue],
     );
-    const header = agentChatQueueHeader(snapshot, isTurnRunning, entries.length);
+    const header = agentChatQueueHeader(snapshot, isTurnRunning, entries.length, t);
 
     const hide = useCallback((id: string): void => {
         setPendingIds((current) => new Set([...current, id]));
@@ -67,15 +69,16 @@ export const useAgentChatQueueActions = (
                 ],
                 reportError: (message, failure) => {
                     if (action === 'edit' && (failure === 'gone' || failure === 'tooLong')) {
-                        const { title, message: detail } = AGENT_CHAT_QUEUE_EDIT_ALERTS[failure];
+                        const { title, message: detail } = agentChatQueueEditAlert(failure, t);
                         Alert.alert(title, detail);
                         return;
                     }
                     setError(message === null ? null : { id, message });
                 },
                 reveal,
+                t,
             }),
-        [hide, removeQueued, reveal, sendQueuedNow, takeForEdit],
+        [hide, removeQueued, reveal, sendQueuedNow, t, takeForEdit],
     );
     const remove = useCallback((id: string): Promise<boolean> => run('remove', id), [run]);
     const sendNow = useCallback((id: string): Promise<boolean> => run('sendNow', id), [run]);
@@ -86,11 +89,11 @@ export const useAgentChatQueueActions = (
         try {
             await resumeQueue();
         } catch {
-            setError({ message: AGENT_CHAT_QUEUE_ERRORS.resume });
+            setError({ message: agentChatQueueErrorMessage('resume', t) });
         } finally {
             setResuming(false);
         }
-    }, [resumeQueue]);
+    }, [resumeQueue, t]);
 
     return { edit, entries, error: error?.message, header, isResuming, remove, resume, sendNow };
 };

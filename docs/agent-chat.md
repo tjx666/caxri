@@ -416,7 +416,8 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
 ended` count expands the ended ones. When the last task ends, the strip collapses to that `N
 ended` row for the work that ended since the latest turn started, with a Dismiss button, instead
   of vanishing before the user sees how it ended; the next turn or Dismiss clears it
-  (`agentChatTaskStripView` in `agent-chat-tasks.ts`). A finished task stays reachable from its
+  (`agentChatTaskStripView` in `packages/protocol/src/agent/agent-chat-tasks.ts`, shared with the
+  phone; see [Mobile](#mobile)). A finished task stays reachable from its
   timeline row.
 
 ## Follow-up queue
@@ -842,6 +843,23 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   `packages/protocol/src/mobile/mobile-agent-chat-contract.ts`: messages, reasoning, and output keep
   their tail behind a `…` marker, so streamed `appendText` deltas still continue the phone's copy;
   diffs keep their head under one budget per file change.
+- Earlier messages. Scrolling to the top of the phone's Chat, or tapping `Load earlier messages`,
+  reads the page before the oldest item the phone holds (`beforeItemId`) through
+  `mobile.agentChat.readHistory`, a read every role may call. The Server first pages the projection
+  items older than the phone's window (a cursor inside the projection after its first item), then
+  forwards to `agentChat.readHistory` (archive, then the provider's record). Either page is cut by
+  `windowAgentChatHistoryPageForMobile`: each item clipped like the window's, the newest that fit
+  48 KiB kept with their turns, and `hasMore` set when it dropped any, so the oldest item kept is the
+  next cursor and nothing is skipped. The phone holds the pages in memory with the history model
+  Desktop uses (`packages/protocol/src/agent/agent-chat-history.ts`): an item a later window evicts
+  stays once reading started (`retainEvictedAgentChatItems`), a page for a replaced `historyId` is
+  dropped and a new `historyId` starts over, and an item both a page and the window hold shows once.
+  Turn folds and artifacts build over the merged list
+  (`apps/mobile/src/features/agent-chat/agent-chat-older-history.ts`), and the read cache still
+  saves only the window. `Earlier messages are available on your computer.` appears only once
+  nothing more loads and the history is still cut (the archive or transcript ends). A thumbnail of
+  a message outside the projection falls back to its original from the provider's record, since
+  Core keeps no thumbnail lookup for archived items.
 - The `{kind:'agentChat',terminalId}` subscription forwards each `agentChat.patch` after the
   subscribe ACK, shortened the same way. A patch that still does not fit one frame becomes a
   content-free `agentChat.changed`, and the phone re-reads. The phone folds patches with the
@@ -863,7 +881,8 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   Project relative and leaves a path outside it absolute (`projectDisplayPath`). A finished turn ends under its final reply with its artifacts
   (`collectAgentChatTurnArtifacts`): the edited-files card, which expands to every file's diff but
   offers no Undo or Review, since the phone neither writes the files back nor opens a side tab, and
-  a card per pull request, issue, or acceptance report that opens the page in the browser. When the
+  a card per pull request, issue, or acceptance report that opens the page in the phone's
+  [in-app browser](mobile/design.md#in-app-browser). When the
   window cut older items (`truncated`), the oldest turn in it may be missing its start, so it shows
   no artifacts rather than an incomplete summary. The phone folds a finished turn as Desktop does
   (`foldAgentChatTurn`): its work and commentary sit behind a `Worked for X`, `Failed after X`, or
@@ -877,6 +896,15 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   `apps/mobile/src/features/agent-chat/agent-chat-timeline.ts` and its renderers; the generic row,
   group, sheet, and list primitives stay in `features/conversation`, shared with a terminal
   Agent's Conversation.
+- The phone's Chat list pins a sent message the way Desktop does (`agentChatTurnSpacerHeight`):
+  the shared list takes an `isTurnStart` marker (user messages and messages still on their way)
+  and keeps a spacer after the rows, sized from FlashList's measured layout
+  (`conversationTurnSpacerHeight` in `features/conversation/conversation-scroll.ts`), so at the
+  end the latest turn rests 16 points below the top and its reply fills in below it. The spacer's
+  height is a Reanimated shared value in the list footer, so resizing it neither re-renders the list
+  nor changes the measurement it came from. A streamed patch rebuilds the timeline, but
+  `stabilizeAgentChatEntries` hands back the previous object for every unchanged row and the row
+  components are memoized, so only the rows a patch touched redraw while the reader scrolls.
 - The composer shows the model and effort the next turn uses, with the same names as the Desktop
   model menu (`agentChatModelLabel` in `packages/protocol`). Tapping it opens a sheet with the
   `Model` and `Reasoning effort` lists; a choice applies on tap through
@@ -900,10 +928,23 @@ planMode }`. A Codex switch during a turn says it applies to the next turn. "Use
   default" stays on Desktop. Without `control` access, or offline, the level is a plain label; the
   saved copy keeps it so it still shows offline.
 - Roles: `view` reads; `reply` also sends, deletes, steers with, or resumes queued messages, switches the model, effort, and ultracode, and retries a failed Chat; `control` also answers
-  approvals and questions, switches the permission level and plan mode, and stops a turn. Mutations resolve the Terminal through the device's
+  approvals and questions, switches the permission level and plan mode, and stops a turn or a background task. Mutations resolve the Terminal through the device's
   granted Projects, refuse a non-Chat Terminal with `CONFLICT`, and go through Core's mutation
   admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
   `mode: 'resume'`).
+- Requests. The phone docks one pending approval or question at a time above its composer
+  (`agentChatRequestDock`), with `1 of N` while others wait; the dock takes at most 80% of the Chat
+  so the timeline keeps room. A card keeps its title and buttons fixed and scrolls only its middle:
+  an approval's text, or a question's options. A question shows its tabs (`Q1 Q2 Q3` and `2 of 3`),
+  header, and text clamped to three lines with Show more above compact option rows (a radio glyph,
+  two lines of description, and Desktop's `Recommended` badge from `agentChatQuestionOption`).
+  A typed answer starts as an `Other…` row that opens a field whose return key answers. A tap on an
+  option answers, so one question with options has no Submit; a typed answer shows Submit, and
+  several questions step with Back, Next, and Submit (`agentChatQuestionFooter`). While the
+  keyboard is up the header hides and the question clamps to two lines, and while the typed answer
+  has the keyboard the options step aside. Code lives in
+  `apps/mobile/src/features/agent-chat/agent-chat-question-form.tsx` and
+  `agent-chat-request-flow.ts`.
 - Images. A `reply` or `control` phone attaches up to 20 images (20 MB together) from the library, camera, or
   clipboard when the provider has `capabilities.chatImages`; Grok Build's composer has no attach
   button. The phone compresses each to a JPEG (at most 3 MB) and also makes the thumbnail Desktop
@@ -941,6 +982,26 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   computer; that refusal, and an entry that left the queue first, show as an alert, because the
   row is already gone from the card. While a turn runs the Send button wears the queue glyph and the placeholder reads
   `Queue a follow-up`.
+- Background work. The snapshot and `state` patches carry the Chat's `tasks` as a bounded copy
+  (`clipAgentChatTasksForMobile`: every running task up to 24, the newest started kept, and the 10
+  that ended most recently, with titles and command lines cut to 300 characters and summaries to
+  200). Above its composer the phone shows a one-row `Background work` pill (`2 running · 1 ended`)
+  by Desktop's strip rule (`agentChatTaskStripView`, shared from
+  `packages/protocol/src/agent/agent-chat-tasks.ts` with the elapsed time and Stop rules), so a
+  Chat without tasks (Grok Build) shows none, and once nothing runs the pill keeps the work that
+  ended during the latest turn behind a Dismiss button. Tapping it opens a sheet listing running
+  and ended tasks with their glyph, title (a command line in monospace), elapsed time, and status;
+  a task opens its detail in the same sheet: the command, the provider's summary, and a shell's
+  output tail or a subagent's latest message. A background command row's detail shows the same
+  live section for the task it started. The detail reads `mobile.agentChat.readTask`, which
+  forwards `agentChat.readTask` and cuts the reply to one frame
+  (`clipAgentChatTaskSnapshotForMobile`: the output's last 24 KiB, measured as sent, and a
+  subagent's newest items), every 1.5 s while the task runs and the app is in the foreground,
+  instead of subscribing to `agentChat.taskPatch`. A `control` device gets Stop beside each running
+  task the provider can stop (`mobile.agentChat.stopTask`, forwarded to `agentChat.stopTask`),
+  which shows `Stopping…` until the Chat reports the task ended. A saved copy shows no pill, since
+  its tasks may have ended long ago. Code lives in
+  `apps/mobile/src/features/agent-chat/agent-chat-task-strip.tsx` and `agent-chat-tasks.ts`.
 - Optimistic sends. Desktop and the phone share the placement and settlement rules in
   `packages/protocol/src/agent/agent-chat-pending.ts`: a sent message shows at once where it lands
   (the timeline when it starts or steers a turn, the queue otherwise) until the projection shows a
@@ -948,15 +1009,26 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   accepted. The phone also settles on the bounded copies it receives, matching the part a clipped
   text kept. A pending queue row on the phone offers no actions until Core has queued it. Slash
   commands, edits, and rewinds on Desktop still wait for Core, since Core can refuse them.
-- Slash commands: typing `/` at the start of the phone's Chat draft lists the snapshot's `commands`
-  whose name contains what follows (at most six rows; no list when the provider reported none).
-  A command without `argumentHint` runs when tapped; one with arguments fills the draft with
-  `/name` for the user to finish. Submitting a draft that names a listed command calls
+- Slash commands and skills: typing `/` or `$` at the start of the phone's Chat draft opens the
+  same menu as Desktop: the snapshot's `commands` under Commands, then the skills discovered for the
+  Chat's Terminal under Skills, matched on name and description with `searchAgentActions` and led by
+  the group the sigil names (a scrolling list of about six visible rows). Skills come from
+  `mobile.agent.actions` with the typed name as `query`, asked only while the draft is a bare
+  invocation and the phone is connected and in the foreground; Server Core ranks the Terminal's
+  whole action list with the same search before keeping its top 40, so a skill past the first page
+  is still found. The menu shows `Loading skills…` until the first answer, and a quiet note when the
+  Agent is not running (`UNAVAILABLE`). A skill the provider already lists as a command keeps its
+  command row. A command without `argumentHint` runs when tapped; one with arguments, and every
+  skill, fills the draft with the invocation and a space for the user to finish. The phone's copy of
+  `commands` keeps every name but cuts descriptions to 120 and argument hints to 60 characters
+  (`clipAgentChatCommandsForMobile`), so Claude Code's full skill list does not crowd the transcript
+  out of the 48 KiB window. Submitting a draft that names a listed command calls
   `mobile.agentChat.runCommand`, which forwards `agentChat.runCommand` after the same checks as
   `send`, with its arguments held to the 16 KiB a phone may send; during a turn Core queues the
-  command; like Desktop's, the command waits for Core instead of showing optimistically. Draft parsing (`agentChatSlashQuery`, `parseAgentChatCommand`) lives in
-  `packages/protocol/src/agent/agent-chat-commands.ts`, shared with Desktop. `$` skills stay a
-  Desktop menu.
+  command; like Desktop's, the command waits for Core instead of showing optimistically. Draft parsing and the menu model (`agentChatSlashQuery`, `parseAgentChatCommand`,
+  `agentChatMenuActions`, `agentChatDraftMatches`, `completeAgentChatAction`) live in
+  `packages/protocol/src/agent/agent-chat-commands.ts`, shared with Desktop; the ranking
+  (`searchAgentActions`) lives beside it in `agent-action-search.ts`.
 
 ## Images and slash commands
 
@@ -1400,6 +1472,6 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
 plan mode, reasoning effort picker, and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
-Chat shows no plan or context usage yet, does not list `$` skills, does not show background tasks,
+Chat shows no plan or context usage yet,
 cannot edit or fork from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

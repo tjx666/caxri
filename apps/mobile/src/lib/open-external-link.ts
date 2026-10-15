@@ -1,6 +1,7 @@
 import { Alert, Linking } from 'react-native';
 
-export const OPEN_LINK_FAILED_TITLE = "Couldn't open link";
+import type { Translate } from '../i18n';
+import { translate } from '../i18n';
 
 /**
  * Opens a web link in the system browser and tells the reader when the system refuses it, instead of a tap that
@@ -11,14 +12,19 @@ export const openExternalLink = async (
     {
         open = (target: string) => Linking.openURL(target),
         report = (title: string, message: string) => Alert.alert(title, message),
+        t = translate,
     }: {
         open?: (target: string) => Promise<unknown>;
         report?: (title: string, message: string) => void;
+        t?: Translate;
     } = {},
 ): Promise<void> => {
     try {
         await open(url);
     } catch {
-        report(OPEN_LINK_FAILED_TITLE, `No app on this device could open ${url}.`);
+        report(
+            t('components.openLinkFailed.title'),
+            t('components.openLinkFailed.message', { url }),
+        );
     }
 };

@@ -1,5 +1,5 @@
-import type { TranslationParameters } from '@desktop-shared/i18n/interpolate';
-import { interpolate } from '@desktop-shared/i18n/interpolate';
+import type { TranslationParameters } from '@caxri/protocol';
+import { interpolate } from '@caxri/protocol';
 
 import { useLocaleStore } from './locale-store';
 import type { TranslationKey } from './resources';

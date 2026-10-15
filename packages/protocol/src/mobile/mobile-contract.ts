@@ -46,6 +46,7 @@ import { mobileUpdateMethods } from './mobile-update-contract.js';
 export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceRoleSchema } from './device-role.js';
 export * from './mobile-agent-chat-contract.js';
+export * from './mobile-agent-chat-state-clip.js';
 export * from './mobile-attention-contract.js';
 export * from './mobile-changes-contract.js';
 export * from './mobile-commander-inbox-contract.js';
@@ -237,8 +238,25 @@ export const mobileProjectAddResultSchema = z.strictObject({
     project: mobileProjectSummarySchema,
 });
 
+/**
+ * Most Agent actions one `mobile.agent.actions` reply carries; a phone menu shows a handful, and a full skill list
+ * would not fit one gateway frame.
+ */
+export const MOBILE_AGENT_ACTIONS_MAX = 40;
+
+/**
+ * Optional search the Server ranks the Terminal's whole action list by (`searchAgentActions`, the same ranking as the
+ * Desktop picker) before keeping the first {@link MOBILE_AGENT_ACTIONS_MAX}, so a skill past the cut is still found. It
+ * is the typed name, with or without its `/` or `$` sigil.
+ */
+export const mobileAgentActionsParametersSchema = z.strictObject({
+    sessionId: identifierSchema,
+    terminalId: identifierSchema,
+    query: z.string().max(64).optional(),
+});
+
 export const mobileAgentActionsResultSchema = z.strictObject({
-    actions: z.array(agentActionSchema).max(40),
+    actions: z.array(agentActionSchema).max(MOBILE_AGENT_ACTIONS_MAX),
     truncated: z.boolean(),
 });
 
@@ -310,7 +328,7 @@ export const mobileMethods = {
     },
     'mobile.agent.actions': {
         ...commandPolicy('server', 'read', ['sessions.read']),
-        params: z.strictObject({ sessionId: identifierSchema, terminalId: identifierSchema }),
+        params: mobileAgentActionsParametersSchema,
         result: mobileAgentActionsResultSchema,
     },
     'mobile.attention.list': {

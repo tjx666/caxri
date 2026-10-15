@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { useTranslation } from '../../i18n';
 import { savedAgeLabel } from '../sessions/session-row-model';
 
 const SAVED_AGE_TICK_MS = 30_000;
@@ -22,5 +23,6 @@ export const useSavedClock = (savedAt: number | null): number => {
  */
 export const useSavedAge = (savedAt: number | null): string | null => {
     const now = useSavedClock(savedAt);
-    return savedAt === null ? null : savedAgeLabel(savedAt, now);
+    const { t } = useTranslation();
+    return savedAt === null ? null : savedAgeLabel(savedAt, now, t);
 };

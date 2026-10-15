@@ -2,10 +2,11 @@ import { useCallback } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from './changes-diff-stat';
 import type { ChangedFile, ChangesViewState } from './changes-model';
-import { changePathParts, changeStatusLabel, hasMultipleRepositories } from './changes-model';
+import { changedFileLabel, changePathParts, hasMultipleRepositories } from './changes-model';
 import { changesStyles as styles } from './changes-styles';
 
 /**
@@ -35,10 +36,11 @@ const ChangeFileRow = ({
     showRepoName: boolean;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { directory, filename } = changePathParts(file.path);
     return (
         <Pressable
-            accessibilityLabel={`${filename}, ${changeStatusLabel[file.status]}${file.originalPath ? ` from ${file.originalPath}` : ''}, directory ${directory || 'root'}, repository ${file.repositoryName}, ${file.additions} lines added, ${file.deletions} lines removed`}
+            accessibilityLabel={changedFileLabel(file, t)}
             accessibilityRole="button"
             onPress={() => onOpen(file)}
             style={[styles.fileRow, { borderColor: theme.border }]}
@@ -91,27 +93,32 @@ const ChangesStatus = ({
     onRefresh: () => void;
     theme: MobileTheme;
     title?: string;
-}) => (
-    <View style={styles.state} testID={`changes-${kind}`}>
-        {kind === 'loading' ? <ActivityIndicator color={theme.primary} /> : null}
-        {title ? <Text style={[styles.stateTitle, { color: theme.text }]}>{title}</Text> : null}
-        <Text
-            accessibilityRole={kind === 'error' ? 'alert' : undefined}
-            style={[styles.stateBody, { color: kind === 'error' ? theme.danger : theme.muted }]}
-        >
-            {message}
-        </Text>
-        {kind === 'error' ? (
-            <Pressable
-                accessibilityRole="button"
-                onPress={onRefresh}
-                style={[styles.commit, { borderColor: theme.border }]}
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.state} testID={`changes-${kind}`}>
+            {kind === 'loading' ? <ActivityIndicator color={theme.primary} /> : null}
+            {title ? <Text style={[styles.stateTitle, { color: theme.text }]}>{title}</Text> : null}
+            <Text
+                accessibilityRole={kind === 'error' ? 'alert' : undefined}
+                style={[styles.stateBody, { color: kind === 'error' ? theme.danger : theme.muted }]}
             >
-                <Text style={[styles.commitText, { color: theme.primary }]}>Retry</Text>
-            </Pressable>
-        ) : null}
-    </View>
-);
+                {message}
+            </Text>
+            {kind === 'error' ? (
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={onRefresh}
+                    style={[styles.commit, { borderColor: theme.border }]}
+                >
+                    <Text style={[styles.commitText, { color: theme.primary }]}>
+                        {t('common.retry')}
+                    </Text>
+                </Pressable>
+            ) : null}
+        </View>
+    );
+};
 
 export const ChangesListContent = ({
     onOpenFile,
@@ -124,6 +131,7 @@ export const ChangesListContent = ({
     state: ChangesViewState;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { snapshot } = state;
     const showRepoName = hasMultipleRepositories(snapshot?.files ?? []);
     const renderItem = useCallback(
@@ -147,7 +155,7 @@ export const ChangesListContent = ({
             return (
                 <ChangesStatus
                     kind="stale-empty"
-                    message="Reconnect to review changes."
+                    message={t('changes.reconnectToReview')}
                     onRefresh={onRefresh}
                     theme={theme}
                 />
@@ -156,7 +164,7 @@ export const ChangesListContent = ({
             return (
                 <ChangesStatus
                     kind="loading"
-                    message="Loading changes…"
+                    message={t('changes.loading')}
                     onRefresh={onRefresh}
                     theme={theme}
                 />
@@ -164,7 +172,7 @@ export const ChangesListContent = ({
         return (
             <ChangesStatus
                 kind="error"
-                message="Unable to load changes."
+                message={t('changes.loadFailed')}
                 onRefresh={onRefresh}
                 theme={theme}
             />
@@ -174,12 +182,12 @@ export const ChangesListContent = ({
         return (
             <ChangesStatus
                 kind="empty"
-                title={snapshot.isRepository ? 'No changes' : 'No Git repository'}
-                message={
-                    snapshot.isRepository
-                        ? "This Session's worktree is clean."
-                        : 'Open a Session in a Git Project to review changes.'
-                }
+                title={t(
+                    snapshot.isRepository ? 'changes.emptyTitle' : 'changes.noRepositoryTitle',
+                )}
+                message={t(
+                    snapshot.isRepository ? 'changes.emptyBody' : 'changes.noRepositoryBody',
+                )}
                 onRefresh={onRefresh}
                 theme={theme}
             />
@@ -194,7 +202,7 @@ export const ChangesListContent = ({
             ListFooterComponent={
                 snapshot.truncated ? (
                     <Text style={[styles.stale, { color: theme.muted }]}>
-                        Showing the first {snapshot.files.length} changes.
+                        {t('changes.truncated', { count: snapshot.files.length })}
                     </Text>
                 ) : null
             }

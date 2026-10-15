@@ -1,10 +1,8 @@
-import type { AppLocale } from '@caxri/protocol';
+import type { AppLocale, TranslationParameters } from '@caxri/protocol';
+import { interpolate, resolveAppLocale } from '@caxri/protocol';
 
 import { commands as enCommands } from '../shared/i18n/en/commands';
 import { desktop as enDesktop } from '../shared/i18n/en/desktop';
-import type { TranslationParameters } from '../shared/i18n/interpolate';
-import { interpolate } from '../shared/i18n/interpolate';
-import { resolveAppLocale } from '../shared/i18n/locale';
 import { commands as zhCNCommands } from '../shared/i18n/zh-cn/commands';
 import { desktop as zhCNDesktop } from '../shared/i18n/zh-cn/desktop';
 

@@ -1,20 +1,24 @@
 import type { AgentChatWorkItem, AppLocale } from '@caxri/protocol';
-import { emptyAgentChatSnapshot } from '@caxri/protocol';
+import {
+    agentChatActivity,
+    agentChatApprovalChoices,
+    agentChatChangeKindLabel,
+    agentChatEditedFilesTitle,
+    agentChatItemStatusLabel,
+    agentChatRequestTitle,
+    agentChatTurnLabel,
+    agentChatWaitingText,
+    describeAgentChatWork,
+    emptyAgentChatSnapshot,
+    summarizeAgentChatWork,
+} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate, useLocaleStore } from '../../../i18n';
 import {
-    agentChatLocalizedChangeKindLabel,
-    agentChatLocalizedEditedFilesTitle,
     agentChatLocalizedFileListToggle,
     agentChatVisibleEditedFiles,
-} from '../agent-chat-diff-labels';
-import { agentChatActivity, agentChatItemStatusLabel } from '../agent-chat-presentation';
-import {
-    agentChatTurnLabel,
-    describeAgentChatWork,
-    summarizeAgentChatWork,
-} from '../agent-chat-timeline';
+} from '../agent-chat-file-list-fold';
 import { trackerExcerptText, trackerReferenceText } from '../agent-chat-tracker-labels';
 
 const translateIn =
@@ -24,7 +28,7 @@ const translateIn =
         return translate(...parameters);
     };
 
-describe('Desktop Agent Chat labels over the shared English rules', () => {
+describe('Desktop Agent Chat labels through the shared protocol catalog', () => {
     it("writes a turn duration in the language's own units, as the Codex app does", () => {
         const zh = translateIn('zh-CN');
         expect(agentChatTurnLabel({ status: 'completed', durationMs: 93_000 }, zh)).toBe(
@@ -61,11 +65,11 @@ describe('Desktop Agent Chat labels over the shared English rules', () => {
 
     it('titles edited files and names a change kind in the active language', () => {
         const en = translateIn('en');
-        expect(agentChatLocalizedEditedFilesTitle([{ path: '/p/a.svg', kind: 'add' }], en)).toBe(
+        expect(agentChatEditedFilesTitle([{ path: '/p/a.svg', kind: 'add' }], en)).toBe(
             'Created a.svg',
         );
         expect(
-            agentChatLocalizedEditedFilesTitle(
+            agentChatEditedFilesTitle(
                 [
                     { path: '/p/a', kind: 'update' },
                     { path: '/p/b', kind: 'delete' },
@@ -73,12 +77,9 @@ describe('Desktop Agent Chat labels over the shared English rules', () => {
                 en,
             ),
         ).toBe('Edited 2 files');
-        expect(agentChatLocalizedChangeKindLabel('update', en)).toBe('Modified');
+        expect(agentChatChangeKindLabel('update', en)).toBe('Modified');
         expect(
-            agentChatLocalizedEditedFilesTitle(
-                [{ path: '/p/a.svg', kind: 'add' }],
-                translateIn('zh-CN'),
-            ),
+            agentChatEditedFilesTitle([{ path: '/p/a.svg', kind: 'add' }], translateIn('zh-CN')),
         ).not.toBe('Created a.svg');
     });
 
@@ -143,5 +144,23 @@ describe('Desktop Agent Chat labels over the shared English rules', () => {
         expect(chinese?.text).toBe('勘探思路地形…');
         expect(agentChatItemStatusLabel('declined', translateIn('en'))).toBe('Declined');
         expect(agentChatItemStatusLabel('declined', translateIn('zh-CN'))).not.toBe('Declined');
+    });
+
+    it('words request cards and the waiting line in the active language', () => {
+        const zh = translateIn('zh-CN');
+        const request = { id: 'r', kind: 'command' as const, command: 'make' };
+        expect(agentChatApprovalChoices(request, zh).map(({ label }) => label)).toEqual([
+            '运行',
+            '在此对话中始终允许',
+            '拒绝',
+        ]);
+        expect(
+            agentChatRequestTitle(
+                { id: 'r', kind: 'tool', name: 'Edit', summary: '/work/src/app.ts' },
+                'Codex',
+                zh,
+            ),
+        ).toBe('允许编辑 app.ts？');
+        expect(agentChatWaitingText([], zh)).toBe('等待你的回答');
     });
 });

@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 
-import type { AppLocale } from '@caxri/protocol';
-import type { TranslationParameters } from '@desktop-shared/i18n/interpolate';
-import { interpolate } from '@desktop-shared/i18n/interpolate';
+import type { AppLocale, TranslationParameters } from '@caxri/protocol';
+import { interpolate } from '@caxri/protocol';
 import type { TranslationKey as LobeTranslationKey } from '@lobehub/ui/i18n';
 import { useTranslation as useLobeTranslation } from '@lobehub/ui/i18n';
 

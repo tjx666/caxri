@@ -13,11 +13,15 @@ import {
 } from '@caxri/protocol';
 
 import { HighlightedCode } from '../../components/highlighted-code';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from '../conversation/conversation-markdown';
 import { ConversationDetailSheet } from '../conversation/conversation-tool-detail';
 import { codeLanguage } from '../panels/file-language';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
+import { AgentChatTaskDetailBody } from './agent-chat-task-detail';
+import { useAgentChatTaskLink } from './agent-chat-task-links';
+import { useAgentChatTaskStop } from './use-agent-chat-task-detail';
 
 /**
  * A code block in the detail sheet: syntax colored, selectable, and capped in height so a long output scrolls inside
@@ -52,8 +56,12 @@ const Output = ({
     text: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const output = text.replace(/\n+$/u, '');
-    if (!output) return <Text style={[styles.note, { color: theme.muted }]}>No output</Text>;
+    if (!output)
+        return (
+            <Text style={[styles.note, { color: theme.muted }]}>{t('chat.tasks.noOutput')}</Text>
+        );
     return <CodeBlock code={output} language={language} theme={theme} />;
 };
 
@@ -71,9 +79,10 @@ export const AgentChatWorkDetail = ({
     onClose: () => void;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     if (!item) return null;
-    const presentation = describeAgentChatWork(item);
-    const verb = agentChatWorkVerb(item, presentation);
+    const presentation = describeAgentChatWork(item, t);
+    const verb = agentChatWorkVerb(item, presentation, t);
     const title =
         item.type === 'command' && item.description
             ? item.description
@@ -88,23 +97,53 @@ export const AgentChatWorkDetail = ({
             title={title}
         >
             <View style={styles.body}>
-                <AgentChatWorkDetailBody item={item} theme={theme} />
+                <AgentChatWorkDetailBody item={item} onClose={onClose} theme={theme} />
             </View>
         </ConversationDetailSheet>
     );
 };
 
+/**
+ * The live side of a background command: the task it became, with its status, Stop, and output tail kept current, as
+ * the Background work sheet shows it. Absent once the Chat no longer lists the task, which leaves the output the row
+ * captured before it moved to the background.
+ */
+const BackgroundTask = ({ itemId, theme }: { itemId: string; theme: MobileTheme }) => {
+    const link = useAgentChatTaskLink(itemId);
+    const stopper = useAgentChatTaskStop(link?.terminalId ?? '');
+    const { t } = useTranslation();
+    if (!link) return null;
+    return (
+        <View style={styles.backgroundTask}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                {t('chat.work.backgroundOutput')}
+            </Text>
+            <AgentChatTaskDetailBody
+                canControl={link.canControl}
+                stopper={stopper}
+                task={link.task}
+                terminalId={link.terminalId}
+                theme={theme}
+            />
+        </View>
+    );
+};
+
 const AgentChatWorkDetailBody = ({
     item,
+    onClose,
     theme,
 }: {
     item: AgentChatWorkItem;
+    onClose: () => void;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     switch (item.type) {
         case 'reasoning': {
             return (
                 <ConversationMarkdown
+                    onBeforeOpenLink={onClose}
                     text={agentChatReasoningTitle(item.text).body}
                     theme={theme}
                 />
@@ -130,13 +169,16 @@ const AgentChatWorkDetailBody = ({
                                 { color: item.exitCode === 0 ? theme.muted : theme.danger },
                             ]}
                         >
-                            Exit code {item.exitCode}
+                            {t('chat.work.exitCode', { code: item.exitCode })}
                         </Text>
                     )}
                     {item.background ? (
-                        <Text style={[styles.note, { color: theme.muted }]}>
-                            Moved to the background; the Agent is told when it finishes.
-                        </Text>
+                        <>
+                            <Text style={[styles.note, { color: theme.muted }]}>
+                                {t('chat.work.movedToBackground')}
+                            </Text>
+                            <BackgroundTask itemId={item.id} theme={theme} />
+                        </>
                     ) : null}
                 </>
             );
@@ -180,6 +222,8 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
     },
     note: { fontSize: 13, lineHeight: 18 },
+    backgroundTask: { gap: 4, paddingTop: 6 },
+    sectionTitle: { fontSize: 14, fontWeight: '700' },
     summary: { fontFamily: 'monospace', fontSize: 12, lineHeight: 18 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

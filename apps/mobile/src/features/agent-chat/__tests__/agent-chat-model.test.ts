@@ -4,8 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import { mobileTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
 import {
-    AGENT_CHAT_HANDED_OFF_BANNER,
-    AGENT_CHAT_HANDED_OFF_NOTICE,
     agentChatApprovalFiles,
     agentChatApprovalRows,
     agentChatComposerAvailability,
@@ -14,6 +12,8 @@ import {
     agentChatComposerSubmission,
     agentChatDisabledReason,
     agentChatEmptyMessage,
+    agentChatHandedOffBanner,
+    agentChatHandedOffNotice,
     agentChatImageCounts,
     agentChatImagesUnsupportedReason,
     agentChatProviderId,
@@ -25,7 +25,23 @@ import {
     isAgentChatHandedOff,
     isAgentChatStopping,
     isAgentChatTerminal,
+    shouldShowAgentChatStaleNotice,
 } from '../agent-chat-model';
+
+describe('shouldShowAgentChatStaleNotice', () => {
+    it('reports only a failed read, not a Chat another screen covers', () => {
+        expect(shouldShowAgentChatStaleNotice({ error: 'failed', status: 'stale' }, true)).toBe(
+            true,
+        );
+        // The in-app browser covering the Chat stops observing it without any read failing.
+        expect(shouldShowAgentChatStaleNotice({ error: null, status: 'stale' }, true)).toBe(false);
+        // Offline, the connection banner explains the stale copy.
+        expect(shouldShowAgentChatStaleNotice({ error: 'failed', status: 'stale' }, false)).toBe(
+            false,
+        );
+        expect(shouldShowAgentChatStaleNotice({ error: null, status: 'ready' }, true)).toBe(false);
+    });
+});
 
 const base: AgentChatSnapshot = {
     terminalId: 'terminal-1',
@@ -299,12 +315,12 @@ describe('Agent Chat model', () => {
         /**
          * The notice names the Chat where the detached PTY chip names the Terminal; the rest of the sentence is shared.
          */
-        expect(AGENT_CHAT_HANDED_OFF_NOTICE).toBe('Chat was handed off on your computer');
-        expect(AGENT_CHAT_HANDED_OFF_BANNER).toBe(
+        expect(agentChatHandedOffNotice()).toBe('Chat was handed off on your computer');
+        expect(agentChatHandedOffBanner()).toBe(
             'Chat was handed off on your computer. Resume it there to continue.',
         );
         expect(mobileTerminalExitPresentation('detached').label).toBe(
-            AGENT_CHAT_HANDED_OFF_NOTICE.replace('Chat', 'Terminal'),
+            agentChatHandedOffNotice().replace('Chat', 'Terminal'),
         );
     });
 

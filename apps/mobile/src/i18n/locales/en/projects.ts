@@ -1,0 +1,16 @@
+export const projects = {
+    'projects.add': 'Add',
+    'projects.addAsProject': 'Add {{name}} as a Project',
+    'projects.addCurrent': 'Add “{{name}}”',
+    'projects.addError': 'Unable to add this folder',
+    'projects.adding': 'Adding…',
+    'projects.footerHint': 'Open a folder to add it, or tap Add beside one.',
+    'projects.gitRepositoryLabel': '{{name}}, Git repository',
+    'projects.home': 'Home',
+    'projects.listError': 'Unable to list this folder.',
+    'projects.noFolders': 'No folders here.',
+    'projects.openFolderHint': 'Opens this folder.',
+    'projects.title': 'Add Project',
+    'projects.truncated': 'Showing the first {{count}} folders.',
+    'projects.upOneFolder': 'Up one folder',
+} as const;

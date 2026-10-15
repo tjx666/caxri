@@ -1,6 +1,8 @@
 import type {
+    AgentChatHistoryPage,
     AgentChatImageMediaType,
     AgentChatSnapshot,
+    AgentChatTaskSnapshot,
     Principal,
     ServerOperationRequest,
     ServerRequest,
@@ -9,7 +11,9 @@ import {
     agentChatMethods,
     canMobileAgentChatSend,
     CaxriError,
+    clipAgentChatTaskSnapshotForMobile,
     MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH,
+    windowAgentChatHistoryPageForMobile,
     windowAgentChatSnapshotForMobile,
 } from '@caxri/protocol';
 
@@ -32,8 +36,15 @@ export const isMobileAgentChatRequest = (
 /**
  * A read needs no mutation authority; the access controller invokes it without serializing behind a revoke.
  */
+const mobileAgentChatReads: ReadonlySet<MobileAgentChatRequest['method']> = new Set([
+    'mobile.agentChat.read',
+    'mobile.agentChat.readImage',
+    'mobile.agentChat.readTask',
+    'mobile.agentChat.readHistory',
+]);
+
 export const isMobileAgentChatRead = (request: MobileAgentChatRequest): boolean =>
-    request.method === 'mobile.agentChat.read' || request.method === 'mobile.agentChat.readImage';
+    mobileAgentChatReads.has(request.method);
 
 /**
  * Forwards a Server operation through Core's mutation admission, the same path a Desktop request takes.
@@ -134,11 +145,51 @@ async function readOriginal(
 
 const THUMBNAIL_PATTERN = /^data:(image\/(?:png|jpeg|gif|webp));base64,(.*)$/su;
 
-function thumbnailOf(snapshot: AgentChatSnapshot, itemId: string, index: number): ImageData | null {
+/**
+ * The thumbnail a projection item carries, `null` when it has none, or `undefined` when the item already left the
+ * projection (a message the phone read through `mobile.agentChat.readHistory`).
+ */
+function thumbnailOf(
+    snapshot: AgentChatSnapshot,
+    itemId: string,
+    index: number,
+): ImageData | null | undefined {
     const item = snapshot.items.find((candidate) => candidate.id === itemId);
-    const thumbnail = item?.type === 'userMessage' ? item.images?.[index]?.thumbnail : undefined;
+    if (!item) return undefined;
+    const thumbnail = item.type === 'userMessage' ? item.images?.[index]?.thumbnail : undefined;
     const match = thumbnail ? THUMBNAIL_PATTERN.exec(thumbnail) : null;
     return match ? { mediaType: match[1] as AgentChatImageMediaType, data: match[2] } : null;
+}
+
+/**
+ * The page of history before `beforeItemId` as Core holds it, before it is cut to one mobile frame. The phone's window
+ * shows only the newest part of the projection, so its first cursor usually names an item inside the projection, which
+ * `agentChat.readHistory` does not page from (it starts at the projection's first item). Those projection items are
+ * paged here, oldest-last; once the cursor reaches the projection's first item, or an archived or recorded item, Core's
+ * own history paging takes over.
+ */
+async function agentChatHistoryPageBefore(
+    domainService: ServerDomainService,
+    terminalId: string,
+    beforeItemId: string,
+): Promise<AgentChatHistoryPage> {
+    const snapshot = await domainService.request('agentChat.read', { terminalId });
+    const end = snapshot.items.findIndex((item) => item.id === beforeItemId);
+    if (end <= 0)
+        return domainService.request('agentChat.readHistory', { terminalId, beforeItemId });
+    const items = snapshot.items.slice(0, end);
+    const turnIds = new Set(items.map((item) => item.turnId));
+    return {
+        historyId: snapshot.historyId ?? '',
+        items,
+        turns: snapshot.turns.filter((turn) => turnIds.has(turn.id)),
+        /**
+         * The mobile window keeps the newest of these and sets `hasMore` when it drops any; past the projection, more
+         * follows exactly when the projection itself is truncated.
+         */
+        hasMore: snapshot.truncated === true,
+        truncated: false,
+    };
 }
 
 /**
@@ -153,6 +204,8 @@ export async function invokeMobileAgentChatRequest(
     reauthorize: () => unknown,
 ): Promise<
     | AgentChatSnapshot
+    | AgentChatHistoryPage
+    | AgentChatTaskSnapshot
     | (ImageData & { chunkIndex: number; chunkCount: number })
     | { text: string }
     | null
@@ -172,16 +225,32 @@ export async function invokeMobileAgentChatRequest(
             reauthorize();
             return windowAgentChatSnapshotForMobile(snapshot, projectRoot);
         }
+        case 'mobile.agentChat.readHistory': {
+            const [page, projectRoot] = await Promise.all([
+                agentChatHistoryPageBefore(domainService, terminalId, request.params.beforeItemId),
+                agentChatProjectRoot(domainService, principal, terminal.sessionId),
+            ]);
+            reauthorize();
+            return windowAgentChatHistoryPageForMobile(page, projectRoot);
+        }
         case 'mobile.agentChat.readImage': {
             const { itemId, index, variant, chunkIndex } = request.params;
-            const image =
+            /**
+             * Core keeps no lookup for an older message's thumbnail, so a thumbnail of an item outside the projection
+             * falls back to the original from the provider's record; slower, but the image still shows.
+             */
+            const thumbnail =
                 variant === 'thumbnail'
                     ? thumbnailOf(
                           await domainService.request('agentChat.read', { terminalId }),
                           itemId,
                           index,
                       )
-                    : await readOriginal(domainService, { terminalId, itemId, index });
+                    : undefined;
+            const image =
+                thumbnail === undefined
+                    ? await readOriginal(domainService, { terminalId, itemId, index })
+                    : thumbnail;
             reauthorize();
             if (!image) return null;
             const chunkCount = Math.max(
@@ -236,6 +305,28 @@ export async function invokeMobileAgentChatRequest(
         }
         case 'mobile.agentChat.interrupt': {
             await forward({ method: 'agentChat.interrupt', params: { terminalId } });
+            return null;
+        }
+        /**
+         * The Background work sheet's detail and Stop. Core resolves the task within this Chat, so a task id from
+         * another Chat fails there with `NOT_FOUND`; a subagent's rows name files like the Chat's own.
+         */
+        case 'mobile.agentChat.readTask': {
+            const [task, projectRoot] = await Promise.all([
+                domainService.request('agentChat.readTask', {
+                    terminalId,
+                    taskId: request.params.taskId,
+                }),
+                agentChatProjectRoot(domainService, principal, terminal.sessionId),
+            ]);
+            reauthorize();
+            return clipAgentChatTaskSnapshotForMobile(task, projectRoot);
+        }
+        case 'mobile.agentChat.stopTask': {
+            await forward({
+                method: 'agentChat.stopTask',
+                params: { terminalId, taskId: request.params.taskId },
+            });
             return null;
         }
         case 'mobile.agentChat.respond': {

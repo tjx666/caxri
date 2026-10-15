@@ -1,21 +1,29 @@
 import { z } from 'zod';
 
 import type {
+    AgentChatHistoryPage,
     AgentChatItem,
     AgentChatPatch,
     AgentChatPatchOperation,
     AgentChatSnapshot,
 } from '../agent/agent-chat-contract.js';
 import {
+    agentChatHistoryPageSchema,
     agentChatImageMediaTypeSchema,
     agentChatSnapshotSchema,
     MAX_AGENT_CHAT_IMAGES,
 } from '../agent/agent-chat-contract.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
+import type { AgentChatTaskSnapshot } from '../agent/agent-chat-task-contract.js';
+import { agentChatTaskSnapshotSchema } from '../agent/agent-chat-task-contract.js';
 import { identifierSchema } from '../domain/identifiers.js';
 import { projectDisplayPath } from '../domain/project-path.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import {
+    clipAgentChatStateForMobile,
+    MOBILE_AGENT_CHAT_CLIP_MARKER,
+} from './mobile-agent-chat-state-clip.js';
 import { mobileAttachmentIdSchema } from './mobile-image-contract.js';
 
 /**
@@ -31,12 +39,6 @@ export const MOBILE_AGENT_CHAT_MAX_BYTES = 48 * 1_024;
  */
 export const MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH = 4_000;
 
-/**
- * Marks where the phone's copy of an item was shortened. Visible in the transcript so a clipped reply never reads as
- * the whole reply.
- */
-export const MOBILE_AGENT_CHAT_CLIP_MARKER = '…';
-
 const MOBILE_AGENT_CHAT_SEND_MAX_BYTES = 16 * 1_024;
 
 /**
@@ -51,14 +53,6 @@ export const canMobileAgentChatSend = (text: string): boolean =>
  * series of replies that each fit one gateway frame.
  */
 export const MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH = 45_000;
-
-/**
- * The phone shows the follow-up queue as a short read-only list above its composer, so it receives at most this many
- * queued messages, each cut to a one-glance preview. The whole queue (up to `MAX_AGENT_CHAT_QUEUE` messages of
- * `MAX_AGENT_CHAT_QUEUE_TEXT_LENGTH` text) could exceed a frame on its own; these bounds keep it to a few KiB.
- */
-export const MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS = 10;
-export const MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH = 200;
 
 const keepTail = (text: string, limit = MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH): string =>
     text.length <= limit ? text : `${MOBILE_AGENT_CHAT_CLIP_MARKER}${text.slice(-limit)}`;
@@ -153,14 +147,31 @@ const byteLength = (value: unknown): number =>
     new TextEncoder().encode(JSON.stringify(value)).length;
 
 /**
+ * How many of `items` (from the end) fit `budget` bytes, newest first, as the index of the oldest one kept.
+ */
+function newestFittingStart(items: readonly AgentChatItem[], budget: number): number {
+    let remaining = budget;
+    let start = items.length;
+    while (start > 0) {
+        const cost = byteLength(items[start - 1]) + 1;
+        if (cost > remaining) break;
+        remaining -= cost;
+        start -= 1;
+    }
+    return start;
+}
+
+/**
  * The newest part of a Chat projection that fits one mobile frame. Older items are dropped first and `truncated` is
- * set, the same signal the Desktop projection uses for history it no longer holds.
+ * set, the same signal the Desktop projection uses for history it no longer holds. The phone reads what this window
+ * dropped, and everything older, a page at a time through `mobile.agentChat.readHistory`, each page cut by
+ * {@link windowAgentChatHistoryPageForMobile}.
  */
 export function windowAgentChatSnapshotForMobile(
     full: AgentChatSnapshot,
     projectRoot?: string,
 ): AgentChatSnapshot {
-    const snapshot = withoutDesktopOnlyState(full);
+    const snapshot = clipAgentChatStateForMobile(full);
     const items = snapshot.items.map((item) => clipAgentChatItemForMobile(item, projectRoot));
     const activeTurnIds = (kept: readonly AgentChatItem[]) =>
         new Set([
@@ -168,14 +179,7 @@ export function windowAgentChatSnapshotForMobile(
             ...(snapshot.activeTurnId ? [snapshot.activeTurnId] : []),
         ]);
     const shell: AgentChatSnapshot = { ...snapshot, items: [], turns: [] };
-    let budget = MOBILE_AGENT_CHAT_MAX_BYTES - byteLength(shell);
-    let start = items.length;
-    while (start > 0) {
-        const cost = byteLength(items[start - 1]) + 1;
-        if (cost > budget) break;
-        budget -= cost;
-        start -= 1;
-    }
+    const start = newestFittingStart(items, MOBILE_AGENT_CHAT_MAX_BYTES - byteLength(shell));
     const kept = items.slice(start);
     const turnIds = activeTurnIds(kept);
     const turns = snapshot.turns.filter((turn) => turnIds.has(turn.id));
@@ -193,53 +197,36 @@ export function windowAgentChatSnapshotForMobile(
     return windowed;
 }
 
-const previewText = (text: string): string =>
-    text.length <= MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH
-        ? text
-        : `${text.slice(0, MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH)}${MOBILE_AGENT_CHAT_CLIP_MARKER}`;
-
-type AgentChatQueue = NonNullable<AgentChatSnapshot['queue']>;
-
 /**
- * The phone's copy of the follow-up queue: the first queued messages, in send order, each with a text preview and its
- * image count. Deterministic, so the snapshot window and later `state` patches agree.
+ * The newest part of a history page (from `agentChat.readHistory`, or a slice of the projection older than the phone's
+ * window) that fits one mobile frame, each item clipped like the window's. When items are dropped `hasMore` is set and
+ * the oldest item kept becomes the phone's next cursor, so nothing is skipped: the dropped items arrive on the next
+ * page. The page keeps only the turns its items reference.
  */
-export function clipAgentChatQueueForMobile(queue: AgentChatQueue): AgentChatQueue {
-    return queue.slice(0, MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS).map((message) => ({
-        ...message,
-        text: previewText(message.text),
-        ...(message.command && {
-            command: {
-                name: message.command.name,
-                ...(message.command.arguments !== undefined && {
-                    arguments: previewText(message.command.arguments),
-                }),
-            },
-        }),
-    }));
-}
-
-/**
- * Background tasks and MCP server icons are Desktop surfaces the phone does not render yet, so they stay on the
- * computer (an inline icon would also spend the phone's frame budget on nothing it shows). The follow-up queue travels
- * as a bounded preview (see {@link clipAgentChatQueueForMobile}) with its paused flag and its real length, which the
- * preview alone cannot tell once the queue outgrows it.
- */
-function withoutDesktopOnlyState<
-    State extends Pick<
-        Partial<AgentChatSnapshot>,
-        'mcpServers' | 'queue' | 'queueLength' | 'tasks'
-    >,
->(state: State): State {
-    if (!state.tasks && !state.queue && !state.mcpServers) return state;
-    const rest = { ...state };
-    delete rest.tasks;
-    delete rest.mcpServers;
-    if (rest.queue) {
-        rest.queueLength = rest.queue.length;
-        rest.queue = clipAgentChatQueueForMobile(rest.queue);
+export function windowAgentChatHistoryPageForMobile(
+    page: AgentChatHistoryPage,
+    projectRoot?: string,
+): AgentChatHistoryPage {
+    const items = page.items.map((item) => clipAgentChatItemForMobile(item, projectRoot));
+    const shell: AgentChatHistoryPage = { ...page, items: [], turns: [] };
+    const start = newestFittingStart(items, MOBILE_AGENT_CHAT_MAX_BYTES - byteLength(shell));
+    const referencedTurns = (kept: readonly AgentChatItem[]) => {
+        const turnIds = new Set(kept.map((item) => item.turnId));
+        return page.turns.filter((turn) => turnIds.has(turn.id));
+    };
+    const windowed: AgentChatHistoryPage = {
+        ...page,
+        items: items.slice(start),
+        turns: referencedTurns(items.slice(start)),
+        hasMore: page.hasMore || start > 0,
+    };
+    // Turns are small but unbounded by the budget above; drop the oldest items again if they tipped it.
+    while (windowed.items.length > 1 && byteLength(windowed) > MOBILE_AGENT_CHAT_MAX_BYTES) {
+        windowed.items = windowed.items.slice(1);
+        windowed.turns = referencedTurns(windowed.items);
+        windowed.hasMore = true;
     }
-    return rest;
+    return windowed;
 }
 
 function clipOperation(
@@ -254,7 +241,7 @@ function clipOperation(
             };
         }
         case 'state': {
-            return { op: 'state', state: withoutDesktopOnlyState(operation.state) };
+            return { op: 'state', state: clipAgentChatStateForMobile(operation.state) };
         }
         default: {
             return operation;
@@ -277,6 +264,47 @@ export function clipAgentChatPatchForMobile(
     return byteLength(clipped) <= MOBILE_AGENT_CHAT_MAX_BYTES ? clipped : undefined;
 }
 
+/**
+ * The most of a background shell's output tail one `mobile.agentChat.readTask` reply carries, measured as it travels
+ * (JSON-escaped UTF-8), so a terminal full of escape codes or wide characters still fits the frame.
+ */
+export const MOBILE_AGENT_CHAT_TASK_OUTPUT_MAX_BYTES = 24 * 1_024;
+
+/**
+ * The newest part of one task's projection that fits one mobile frame: a shell's output keeps its tail within
+ * {@link MOBILE_AGENT_CHAT_TASK_OUTPUT_MAX_BYTES}, and a subagent's conversation keeps its newest items, each shortened
+ * like the Chat's own, with `truncated` set once older ones are dropped.
+ */
+export function clipAgentChatTaskSnapshotForMobile(
+    full: AgentChatTaskSnapshot,
+    projectRoot?: string,
+): AgentChatTaskSnapshot {
+    let output = full.output;
+    if (output !== undefined) {
+        let limit = MOBILE_AGENT_CHAT_TASK_OUTPUT_MAX_BYTES;
+        output = keepTail(output, limit);
+        while (byteLength(output) > MOBILE_AGENT_CHAT_TASK_OUTPUT_MAX_BYTES) {
+            limit = Math.floor(limit * 0.75);
+            output = keepTail(output, limit);
+        }
+    }
+    const shell: AgentChatTaskSnapshot = {
+        ...full,
+        items: [],
+        ...(output !== undefined && { output }),
+    };
+    const items = full.items.map((item) => clipAgentChatItemForMobile(item, projectRoot));
+    let budget = MOBILE_AGENT_CHAT_MAX_BYTES - byteLength(shell);
+    let start = items.length;
+    while (start > 0) {
+        const cost = byteLength(items[start - 1]) + 1;
+        if (cost > budget) break;
+        budget -= cost;
+        start -= 1;
+    }
+    return { ...shell, items: items.slice(start), truncated: full.truncated || start > 0 };
+}
+
 const terminalTarget = { terminalId: identifierSchema };
 
 /**
@@ -292,6 +320,20 @@ export const mobileAgentChatMethods = {
         ...commandPolicy('server', 'read', ['sessions.read']),
         params: z.strictObject(terminalTarget),
         result: agentChatSnapshotSchema,
+    },
+    /**
+     * The page of history right before `beforeItemId`, the oldest item the phone holds (its window's first item, or the
+     * first item of the last page read), cut to one mobile frame by `windowAgentChatHistoryPageForMobile`. The Server
+     * pages first through the projection items older than the phone's window, then forwards to `agentChat.readHistory`.
+     * Item ids are the cursor, so a page never repeats or skips an item the window moved past.
+     */
+    'mobile.agentChat.readHistory': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({
+            ...terminalTarget,
+            beforeItemId: agentChatMethods['agentChat.readHistory'].params.shape.beforeItemId,
+        }),
+        result: agentChatHistoryPageSchema,
     },
     /**
      * Sends a message, steering a running turn. Images do not travel inline, since one may be larger than a frame: the
@@ -353,6 +395,25 @@ export const mobileAgentChatMethods = {
     'mobile.agentChat.interrupt': {
         ...commandPolicy('server', 'control', ['terminals.steer']),
         params: z.strictObject(terminalTarget),
+        result: z.null(),
+    },
+    /**
+     * One background task's detail for the phone's Background work sheet: a shell's output tail or a subagent's newest
+     * messages, forwarded to `agentChat.readTask` and cut to one frame (`clipAgentChatTaskSnapshotForMobile`). The
+     * phone polls it while the detail is open instead of subscribing to `agentChat.taskPatch`.
+     */
+    'mobile.agentChat.readTask': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: agentChatMethods['agentChat.readTask'].params,
+        result: agentChatTaskSnapshotSchema,
+    },
+    /**
+     * Stops one running background task without ending the turn or the Chat, the Desktop strip's Stop. Control access,
+     * like `mobile.agentChat.interrupt`.
+     */
+    'mobile.agentChat.stopTask': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: agentChatMethods['agentChat.stopTask'].params,
         result: z.null(),
     },
     'mobile.agentChat.respond': {

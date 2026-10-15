@@ -1,42 +1,56 @@
 import type { MobileDeviceRole } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { MobileConnectionStatus } from '../connection/connection-state';
 
-export const DEVICE_ROLE_DETAILS: Record<MobileDeviceRole, { label: string; description: string }> =
-    {
-        view: {
-            label: 'View',
-            description: 'Read Sessions, Terminal previews, changes, and files.',
-        },
-        reply: {
-            label: 'Reply',
-            description: 'View, plus reply to Agents and mark Sessions read.',
-        },
-        control: {
-            label: 'Control',
-            description:
-                'Reply, plus start, rename, and archive Sessions, take over Terminals, and add Projects.',
-        },
-    };
+/**
+ * The role's name and the capability it adds over the role below it.
+ */
+export const deviceRoleDetails = (
+    role: MobileDeviceRole,
+    t: Translate = translate,
+): { label: string; description: string } => {
+    switch (role) {
+        case 'view':
+            return {
+                label: t('settings.role.view'),
+                description: t('settings.role.viewDescription'),
+            };
+        case 'reply':
+            return {
+                label: t('settings.role.reply'),
+                description: t('settings.role.replyDescription'),
+            };
+        case 'control':
+            return {
+                label: t('settings.role.control'),
+                description: t('settings.role.controlDescription'),
+            };
+    }
+};
 
-export const connectionStatusLabel = (status: MobileConnectionStatus): string => {
+export const connectionStatusLabel = (
+    status: MobileConnectionStatus,
+    t: Translate = translate,
+): string => {
     switch (status) {
         case 'connected':
-            return 'Connected';
+            return t('settings.status.connected');
         case 'booting':
         case 'connecting':
-            return 'Connecting…';
+            return t('settings.status.connecting');
         case 'stale':
-            return 'Reconnecting…';
+            return t('settings.status.reconnecting');
         case 'unverified':
-            return 'Pairing not verified';
+            return t('settings.status.unverified');
         case 'revoked':
-            return 'Access revoked';
+            return t('settings.status.revoked');
         case 'version-mismatch':
-            return 'Update required';
+            return t('settings.status.updateRequired');
         case 'storage-error':
-            return 'Saved connection unavailable';
+            return t('settings.status.storageError');
         case 'unpaired':
-            return 'Not paired';
+            return t('settings.status.notPaired');
     }
 };

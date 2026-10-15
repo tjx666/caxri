@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useIsFocused } from 'expo-router';
 
+import { useTranslation } from '../../../i18n';
 import type { useMobileTheme } from '../../../theme/use-mobile-theme';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionAttention } from '../hooks/use-session-attention';
@@ -30,6 +31,7 @@ export const SessionsScreenDetail = ({
     routeSessionId: string | null;
     theme: ReturnType<typeof useMobileTheme>;
 }) => {
+    const { t } = useTranslation();
     const { hostId, sessions, ui } = useHostSessions();
     const { selectSession } = sessions;
 
@@ -106,7 +108,9 @@ export const SessionsScreenDetail = ({
         );
     return (
         <View style={styles.detailEmpty}>
-            <Text style={[styles.emptyBody, { color: theme.muted }]}>Select a Session</Text>
+            <Text style={[styles.emptyBody, { color: theme.muted }]}>
+                {t('sessions.detail.selectSession')}
+            </Text>
         </View>
     );
 };

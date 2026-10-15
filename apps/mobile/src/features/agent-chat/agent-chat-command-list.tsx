@@ -1,131 +1,212 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { AgentChatCommand } from '@caxri/protocol';
+import type { AgentAction } from '@caxri/protocol';
+import { agentChatMenuGroupHeading } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
-import type { AgentChatCommandMenu } from './agent-chat-commands';
+import type { AgentChatSkillNotice } from './agent-chat-commands';
+import { MOBILE_AGENT_CHAT_COMMAND_ROWS } from './agent-chat-commands';
+
+const ROW_HEIGHT = 48;
 
 const styles = StyleSheet.create({
-    list: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-    row: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 12, paddingVertical: 6 },
+    list: {
+        borderRadius: 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        maxHeight: ROW_HEIGHT * MOBILE_AGENT_CHAT_COMMAND_ROWS,
+        overflow: 'hidden',
+    },
+    heading: {
+        fontSize: 12,
+        fontWeight: '600',
+        paddingHorizontal: 12,
+        paddingTop: 8,
+        paddingBottom: 2,
+        textTransform: 'uppercase',
+    },
+    row: {
+        justifyContent: 'center',
+        minHeight: ROW_HEIGHT,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
     name: { fontSize: 15, fontWeight: '600' },
     detail: { fontSize: 13 },
-    note: { fontSize: 13, lineHeight: 18 },
+    notice: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: 8,
+        minHeight: ROW_HEIGHT,
+        paddingHorizontal: 12,
+    },
+    noticeText: { fontSize: 13 },
 });
 
-const AgentChatCommandRow = ({
-    command,
+const rowHint = (action: AgentAction, t: Translate): string =>
+    action.kind !== 'command'
+        ? t('chat.commands.skillHint')
+        : t(action.argumentHint ? 'chat.commands.commandArgumentsHint' : 'chat.commands.runHint');
+
+const AgentChatMenuRow = ({
+    action,
+    hasDivider,
     index,
     isEnabled,
     onChoose,
     theme,
 }: {
-    command: AgentChatCommand;
+    action: AgentAction;
+    hasDivider: boolean;
     index: number;
     isEnabled: boolean;
-    onChoose: (command: AgentChatCommand) => void;
+    onChoose: (action: AgentAction) => void;
     theme: MobileTheme;
-}) => (
-    <Pressable
-        accessibilityHint={
-            command.argumentHint === undefined
-                ? 'Runs the command now.'
-                : 'Adds the command to your message so you can type its arguments.'
-        }
-        accessibilityLabel={`/${command.name}${command.description ? `, ${command.description}` : ''}`}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !isEnabled }}
-        disabled={!isEnabled}
-        onPress={() => onChoose(command)}
-        style={({ pressed }) => [
-            styles.row,
-            index > 0 && { borderColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth },
-            pressed && { backgroundColor: theme.elevated },
-        ]}
-        testID={`agent-chat-command-${index}`}
-    >
-        <Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>
-            {`/${command.name}`}
-            {command.argumentHint ? (
-                <Text style={{ color: theme.muted, fontWeight: '400' }}>
-                    {` ${command.argumentHint}`}
+}) => {
+    const { t } = useTranslation();
+    return (
+        <Pressable
+            accessibilityHint={rowHint(action, t)}
+            accessibilityLabel={`${action.invocation}${action.description ? `, ${action.description}` : ''}`}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !isEnabled }}
+            disabled={!isEnabled}
+            onPress={() => onChoose(action)}
+            style={({ pressed }) => [
+                styles.row,
+                hasDivider && {
+                    borderColor: theme.border,
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                },
+                pressed && { backgroundColor: theme.elevated },
+            ]}
+            testID={`agent-chat-command-${index}`}
+        >
+            <Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>
+                {action.invocation}
+                {action.argumentHint ? (
+                    <Text style={{ color: theme.muted, fontWeight: '400' }}>
+                        {` ${action.argumentHint}`}
+                    </Text>
+                ) : null}
+            </Text>
+            {action.description ? (
+                <Text numberOfLines={1} style={[styles.detail, { color: theme.muted }]}>
+                    {action.description}
                 </Text>
             ) : null}
-        </Text>
-        {command.description ? (
-            <Text numberOfLines={1} style={[styles.detail, { color: theme.muted }]}>
-                {command.description}
-            </Text>
-        ) : null}
-    </Pressable>
-);
+        </Pressable>
+    );
+};
 
 /**
- * The provider's slash commands matching the `/name` typed at the start of a Chat draft (`agentChatCommandMenu`), or
- * nothing when no list should show. A row shows the name with its argument placeholder and the provider's description,
- * like Desktop's command menu. Past the row cap a last row asks the user to keep typing; with no match the list stays
- * open on Desktop's `No matching command or skill`, which turns into the send-as-text confirmation after a first Send.
+ * The menu above the Chat input while the draft is a bare `/name` or `$name`, like Desktop's command menu: the
+ * provider's commands under Commands and the discovered skills under Skills, in the order `agentChatMenuMatches` ranks
+ * them. A row shows the invocation with its argument placeholder and its description. `notice` is a quiet status line
+ * about skills (still loading, or the Agent is not running). With no match the menu stays open on Desktop's `No
+ * matching command or skill`, which turns into the send-as-text confirmation after a first Send. The list scrolls past
+ * a few rows so it stays above the keyboard; nothing renders when no menu should show and there is no notice.
  */
 export const AgentChatCommandList = ({
     confirmsSendAsText,
     isEnabled,
-    menu,
+    matches,
+    notice,
     onChoose,
     theme,
 }: {
     /**
-     * A first Send on a draft no command matches was held; a second Send on the same draft sends it as text.
+     * A first Send on a `/name` nothing matches was held; a second Send on the same draft sends it as text.
      */
     confirmsSendAsText: boolean;
     isEnabled: boolean;
-    menu: AgentChatCommandMenu | undefined;
-    onChoose: (command: AgentChatCommand) => void;
+    matches: readonly AgentAction[] | undefined;
+    notice: AgentChatSkillNotice | undefined;
+    onChoose: (action: AgentAction) => void;
     theme: MobileTheme;
 }) => {
-    if (!menu) return null;
-    const note =
-        menu.matches.length === 0
-            ? confirmsSendAsText
-                ? 'No such command. Tap Send again to send as text.'
-                : 'No matching command or skill'
-            : menu.hasMore
-              ? 'Keep typing to narrow'
-              : undefined;
+    const { t } = useTranslation();
+    if (notice === undefined && matches === undefined) return null;
+    const rows = matches ?? [];
+    const missNote =
+        notice === undefined && matches?.length === 0
+            ? t(confirmsSendAsText ? 'chat.commands.sendAsText' : 'chat.commands.noMatch')
+            : undefined;
     return (
         <View
-            accessibilityLabel="Commands"
+            accessibilityLabel={t('chat.commands.label')}
             style={[styles.list, { backgroundColor: theme.surface, borderColor: theme.border }]}
             testID="agent-chat-command-list"
         >
-            {menu.matches.map((command, index) => (
-                <AgentChatCommandRow
-                    command={command}
-                    index={index}
-                    isEnabled={isEnabled}
-                    key={command.name}
-                    onChoose={onChoose}
-                    theme={theme}
-                />
-            ))}
-            {note ? (
-                <View
-                    style={[
-                        styles.row,
-                        menu.matches.length > 0 && {
-                            borderColor: theme.border,
-                            borderTopWidth: StyleSheet.hairlineWidth,
-                        },
-                    ]}
-                >
-                    <Text
+            <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- `agentChatDraftMatches` caps the filtered menu at 50 rows. */}
+                {rows.map((action, index) => {
+                    const heading = agentChatMenuGroupHeading(rows, index);
+                    return (
+                        <View key={`${action.kind}:${action.invocation}`}>
+                            {heading ? (
+                                <Text
+                                    accessibilityRole="header"
+                                    style={[
+                                        styles.heading,
+                                        { color: theme.muted },
+                                        index > 0 && {
+                                            borderColor: theme.border,
+                                            borderTopWidth: StyleSheet.hairlineWidth,
+                                        },
+                                    ]}
+                                >
+                                    {t(
+                                        heading === 'Commands'
+                                            ? 'chat.commands.commands'
+                                            : 'chat.commands.skills',
+                                    )}
+                                </Text>
+                            ) : null}
+                            <AgentChatMenuRow
+                                action={action}
+                                hasDivider={heading === undefined}
+                                index={index}
+                                isEnabled={isEnabled}
+                                onChoose={onChoose}
+                                theme={theme}
+                            />
+                        </View>
+                    );
+                })}
+                {missNote ? (
+                    <View style={styles.notice}>
+                        <Text
+                            accessibilityLiveRegion="polite"
+                            style={[styles.noticeText, { color: theme.muted }]}
+                            testID="agent-chat-command-note"
+                        >
+                            {missNote}
+                        </Text>
+                    </View>
+                ) : null}
+                {notice ? (
+                    <View
                         accessibilityLiveRegion="polite"
-                        style={[styles.note, { color: theme.muted }]}
-                        testID="agent-chat-command-note"
+                        style={[
+                            styles.notice,
+                            rows.length > 0 && {
+                                borderColor: theme.border,
+                                borderTopWidth: StyleSheet.hairlineWidth,
+                            },
+                        ]}
+                        testID="agent-chat-skill-notice"
                     >
-                        {note}
-                    </Text>
-                </View>
-            ) : null}
+                        {notice.isLoading ? (
+                            <ActivityIndicator color={theme.muted} size="small" />
+                        ) : null}
+                        <Text style={[styles.noticeText, { color: theme.muted }]}>
+                            {notice.text}
+                        </Text>
+                    </View>
+                ) : null}
+            </ScrollView>
         </View>
     );
 };

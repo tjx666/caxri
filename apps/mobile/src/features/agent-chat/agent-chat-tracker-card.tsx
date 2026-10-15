@@ -14,7 +14,9 @@ import {
     ListChecks,
 } from 'lucide-react-native';
 
-import { openExternalLink } from '../../lib/open-external-link';
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
+import { openLink } from '../../lib/open-link';
 import type { MobileTheme } from '../../theme/tokens';
 
 interface MarkProperties {
@@ -61,16 +63,26 @@ const KIND_ICON: Record<AgentChatTrackerArtifact['kind'], ComponentType<LucidePr
     acceptance: ListChecks,
 };
 
-const KIND_LABEL: Record<AgentChatTrackerArtifact['kind'], string> = {
-    pull: 'pull request',
-    issue: 'issue',
-    acceptance: 'acceptance report',
-};
+const ACTION_LABEL = {
+    created: {
+        pull: 'chat.tracker.createdPull',
+        issue: 'chat.tracker.createdIssue',
+        acceptance: 'chat.tracker.createdAcceptance',
+    },
+    updated: {
+        pull: 'chat.tracker.updatedPull',
+        issue: 'chat.tracker.updatedIssue',
+        acceptance: 'chat.tracker.updatedAcceptance',
+    },
+} as const satisfies Record<
+    AgentChatTrackerArtifact['action'],
+    Record<AgentChatTrackerArtifact['kind'], TranslationKey>
+>;
 
 /**
  * A pull request, issue, or acceptance report the Agent created or edited this turn, as Desktop's tracker card: the
  * tracker's mark in a tile, the title beside its reference, the body's first line, and what was done to it with an
- * external arrow, since a tap opens the page in the browser.
+ * external arrow, since a tap opens the page in the in-app browser.
  */
 export const AgentChatTrackerCard = ({
     artifact,
@@ -79,22 +91,25 @@ export const AgentChatTrackerCard = ({
     artifact: AgentChatTrackerArtifact;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const Mark = PROVIDER_MARK[artifact.provider];
     const KindIcon = KIND_ICON[artifact.kind];
-    const label = `${artifact.action === 'created' ? 'Created' : 'Updated'} ${KIND_LABEL[artifact.kind]}`;
+    const label = t(ACTION_LABEL[artifact.action][artifact.kind]);
     // An acceptance round ingested without a readable title names the report rather than promoting `Round N`.
     const title =
-        artifact.title ?? (artifact.kind === 'acceptance' ? 'Acceptance report' : undefined);
+        artifact.title ??
+        (artifact.kind === 'acceptance' ? t('chat.tracker.acceptanceTitle') : undefined);
     const reference = trackerReferenceText(artifact);
     const excerpt = trackerExcerptText(artifact);
     return (
         <Pressable
-            accessibilityLabel={`${label}: ${title ?? reference}, ${reference}. Open in browser`}
+            accessibilityLabel={t('chat.tracker.cardLabel', {
+                action: label,
+                reference,
+                title: title ?? reference,
+            })}
             accessibilityRole="link"
-            onPress={() => {
-                // eslint-disable-next-line no-void -- openExternalLink reports a refused link itself.
-                void openExternalLink(artifact.url);
-            }}
+            onPress={() => openLink(artifact.url)}
             style={({ pressed }) => [
                 styles.card,
                 {

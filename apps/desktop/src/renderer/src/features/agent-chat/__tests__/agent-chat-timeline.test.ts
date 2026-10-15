@@ -1,9 +1,9 @@
 import type { AgentChatItem, AgentChatTurn } from '@caxri/protocol';
+import { agentChatTurnLabel } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 import {
-    agentChatTurnLabel,
     agentChatTurnTimeTooltip,
     agentChatTurnTone,
     buildAgentChatTimeline,
@@ -264,19 +264,6 @@ describe('buildAgentChatTimeline', () => {
             't1',
         );
         expect(shape(streaming)).toEqual(['u', 'a2']);
-    });
-});
-
-describe('agentChatTurnLabel', () => {
-    it('names how the turn ended', () => {
-        expect(agentChatTurnLabel({ status: 'completed', durationMs: 45_000 })).toBe(
-            'Worked for 45s',
-        );
-        expect(agentChatTurnLabel({ status: 'interrupted', durationMs: 3000 })).toBe(
-            'Stopped after 3s',
-        );
-        expect(agentChatTurnLabel({ status: 'failed' })).toBe('Failed');
-        expect(agentChatTurnLabel({ status: 'completed', durationMs: 400 })).toBe('Worked');
     });
 });
 

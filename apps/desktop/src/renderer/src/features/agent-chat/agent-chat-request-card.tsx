@@ -1,7 +1,11 @@
 import { useRef, useState } from 'react';
 
 import type { AgentChatItem, AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
-import { AGENT_CHAT_EXIT_PLAN_TOOL } from '@caxri/protocol';
+import {
+    AGENT_CHAT_EXIT_PLAN_TOOL,
+    agentChatApprovalChoices,
+    agentChatRequestTitle,
+} from '@caxri/protocol';
 
 import { useColorizedCode } from '../../components/markdown/use-colorized-code';
 import { Button } from '../../components/ui/button';
@@ -13,10 +17,6 @@ import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMessage } from './agent-chat-message';
 import { agentChatCommandCwd } from './agent-chat-presentation';
 import { AgentChatQuestionForm } from './agent-chat-question-form';
-import {
-    agentChatLocalizedApprovalChoices,
-    agentChatLocalizedRequestTitle,
-} from './agent-chat-request-labels';
 import {
     AGENT_CHAT_APPROVAL_ATTRIBUTE,
     useAgentChatApprovalKeys,
@@ -93,8 +93,7 @@ export function AgentChatRequestCard({
         const focused = document.activeElement;
         if (focused === document.body || cardReference.current?.contains(focused)) onAnswered();
     };
-    const choices =
-        request.kind === 'question' ? [] : agentChatLocalizedApprovalChoices(request, t);
+    const choices = request.kind === 'question' ? [] : agentChatApprovalChoices(request, t);
     useAgentChatApprovalKeys(cardReference, {
         isEnabled: choices.length > 0 && !isAnswering,
         onDecision: (decision) => {
@@ -107,7 +106,7 @@ export function AgentChatRequestCard({
     const command = request.kind === 'command' ? request.command : undefined;
     // Painted with the editor's colors like the command on a work row, so the approval reads the same as the run.
     const { html: commandHtml } = useColorizedCode(command ?? '', 'shell', Boolean(command));
-    const title = agentChatLocalizedRequestTitle(request, providerName, t);
+    const title = agentChatRequestTitle(request, providerName, t);
     return (
         <section
             ref={cardReference}

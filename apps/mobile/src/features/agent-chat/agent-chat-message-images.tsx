@@ -4,6 +4,7 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-nat
 
 import { ImageIcon } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { AgentChatImageViewer } from './agent-chat-image-viewer';
 import { useAgentChatImage } from './use-agent-chat-image';
@@ -23,6 +24,7 @@ const Thumbnail = ({
     terminalId: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const thumbnail = useAgentChatImage({ terminalId, itemId, index, variant: 'thumbnail' });
     // A resumed conversation knows the image but not its preview, so the tile shows the original, as Desktop does.
     const original = useAgentChatImage(
@@ -32,8 +34,8 @@ const Thumbnail = ({
     const uri = thumbnail.uri ?? original.uri;
     return (
         <Pressable
-            accessibilityHint="Opens the image at full size."
-            accessibilityLabel={`Attachment ${index + 1}`}
+            accessibilityHint={t('chat.image.openHint')}
+            accessibilityLabel={t('chat.attachment', { number: index + 1 })}
             accessibilityRole="imagebutton"
             onPress={onOpen}
             style={[

@@ -23,6 +23,8 @@ const mobileGatewayMethodsByRole = {
         'mobile.dashboard',
         'mobile.agentChat.read',
         'mobile.agentChat.readImage',
+        'mobile.agentChat.readTask',
+        'mobile.agentChat.readHistory',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.changes.list',
@@ -37,6 +39,8 @@ const mobileGatewayMethodsByRole = {
         'mobile.dashboard',
         'mobile.agentChat.read',
         'mobile.agentChat.readImage',
+        'mobile.agentChat.readTask',
+        'mobile.agentChat.readHistory',
         /**
          * Sending is a reply device's whole job; Retry only resumes a failed Chat so that reply can be delivered.
          */
@@ -79,6 +83,8 @@ const mobileGatewayMethodsByRole = {
         'mobile.dashboard',
         'mobile.agentChat.read',
         'mobile.agentChat.readImage',
+        'mobile.agentChat.readTask',
+        'mobile.agentChat.readHistory',
         'mobile.agentChat.send',
         'mobile.agentChat.retry',
         'mobile.agentChat.configure',
@@ -92,6 +98,10 @@ const mobileGatewayMethodsByRole = {
          */
         'mobile.agentChat.respond',
         'mobile.agentChat.interrupt',
+        /**
+         * Stopping a background task is Stop for one piece of the Agent's work, so it carries Stop's grant.
+         */
+        'mobile.agentChat.stopTask',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.changes.list',

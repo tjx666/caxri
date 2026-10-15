@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { KeyboardAvoidingView, Platform, Text } from 'react-native';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { AgentChatComposer } from '../../agent-chat/agent-chat-composer';
 import { useSessionAgentChat } from '../../agent-chat/use-session-agent-chat';
@@ -77,6 +78,7 @@ export const SessionDetail = ({
     wideChanges: boolean;
     wideBackgroundSegment: 'conversation' | 'terminal';
 }) => {
+    const { t } = useTranslation();
     const changes = useChangesList(isVisible, session.id);
     const panels = useSessionPanels(session.id);
     /**
@@ -135,7 +137,7 @@ export const SessionDetail = ({
                     ]}
                     testID="conversation-fallback-banner"
                 >
-                    Conversation view isn't available for this Agent. Showing the Terminal.
+                    {t('sessions.detail.conversationFallback')}
                 </Text>
             ) : null}
             <SessionDetailBody

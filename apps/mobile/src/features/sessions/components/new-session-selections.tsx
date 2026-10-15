@@ -5,6 +5,7 @@ import type { TerminalKind } from '@caxri/protocol';
 import { Folder, FolderPlus, MessagesSquare, Search, SquareTerminal } from 'lucide-react-native';
 
 import { AgentGlyph } from '../../../components/agent-icon';
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { mobileAgentDisplayName } from '../agent-display-name';
 import type { NewSessionViewState } from '../hooks/use-new-session';
@@ -25,14 +26,18 @@ const NewSessionAgentChoice = ({
     state: NewSessionViewState;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const agent = state.agents.find((candidate) => candidate.kind === kind);
     const disabled = !agent?.available || state.isAvailabilityError || state.isAvailabilityLoading;
-    const reason = newSessionAgentReason({
-        agent,
-        isConnected: state.status === 'connected',
-        isError: state.isAvailabilityError,
-        isLoading: state.isAvailabilityLoading,
-    });
+    const reason = newSessionAgentReason(
+        {
+            agent,
+            isConnected: state.status === 'connected',
+            isError: state.isAvailabilityError,
+            isLoading: state.isAvailabilityLoading,
+        },
+        t,
+    );
     return (
         <NewSessionChoice
             detail={reason}
@@ -58,15 +63,18 @@ const NewSessionSurfaceGroup = ({
     state: NewSessionViewState;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     if (state.selectedSurface === null) return null;
     return (
         <View accessibilityRole="radiogroup" style={styles.group}>
-            <Text style={[styles.groupLabel, { color: theme.muted }]}>Open as</Text>
+            <Text style={[styles.groupLabel, { color: theme.muted }]}>
+                {t('sessions.new.openAs')}
+            </Text>
             <View style={styles.agentGrid}>
                 <NewSessionChoice
-                    detail={newSessionSurfaceDescription('chat', state.defaultSurface)}
+                    detail={newSessionSurfaceDescription('chat', state.defaultSurface, t)}
                     isCompact
-                    label="Chat"
+                    label={t('sessions.new.surfaceChat')}
                     leading={<MessagesSquare color={theme.muted} size={18} />}
                     onPress={() => state.setNewSessionSurface('chat')}
                     selected={state.selectedSurface === 'chat'}
@@ -74,9 +82,9 @@ const NewSessionSurfaceGroup = ({
                     theme={theme}
                 />
                 <NewSessionChoice
-                    detail={newSessionSurfaceDescription('pty', state.defaultSurface)}
+                    detail={newSessionSurfaceDescription('pty', state.defaultSurface, t)}
                     isCompact
-                    label="Terminal"
+                    label={t('sessions.new.surfaceTerminal')}
                     leading={<SquareTerminal color={theme.muted} size={18} />}
                     onPress={() => state.setNewSessionSurface('pty')}
                     selected={state.selectedSurface === 'pty'}
@@ -106,6 +114,7 @@ export const NewSessionSelections = ({
     theme: MobileTheme;
 }) => {
     const [query, setQuery] = useState('');
+    const { t } = useTranslation();
     if (state.projects.length === 0) return null;
     const needle = query.trim().toLocaleLowerCase();
     const projects = needle
@@ -118,7 +127,9 @@ export const NewSessionSelections = ({
     return (
         <>
             <View accessibilityRole="radiogroup" style={styles.group}>
-                <Text style={[styles.groupLabel, { color: theme.muted }]}>Agent</Text>
+                <Text style={[styles.groupLabel, { color: theme.muted }]}>
+                    {t('sessions.new.agentGroup')}
+                </Text>
                 <View style={styles.agentGrid}>
                     {NEW_SESSION_AGENT_ORDER.map((kind) => (
                         <NewSessionAgentChoice key={kind} kind={kind} state={state} theme={theme} />
@@ -132,14 +143,16 @@ export const NewSessionSelections = ({
                         testID="new-session-agent-retry"
                     >
                         <Text style={[styles.secondaryText, { color: theme.primary }]}>
-                            Retry Agent availability
+                            {t('sessions.new.retryAvailability')}
                         </Text>
                     </Pressable>
                 ) : null}
             </View>
             <NewSessionSurfaceGroup state={state} theme={theme} />
             <View accessibilityRole="radiogroup" style={styles.group}>
-                <Text style={[styles.groupLabel, { color: theme.muted }]}>Project</Text>
+                <Text style={[styles.groupLabel, { color: theme.muted }]}>
+                    {t('sessions.new.projectGroup')}
+                </Text>
                 {state.projects.length > PROJECT_FILTER_THRESHOLD ? (
                     <View
                         style={[
@@ -149,11 +162,11 @@ export const NewSessionSelections = ({
                     >
                         <Search color={theme.muted} size={18} />
                         <TextInput
-                            accessibilityLabel="Filter Projects"
+                            accessibilityLabel={t('sessions.new.filterProjects')}
                             autoCapitalize="none"
                             autoCorrect={false}
                             onChangeText={setQuery}
-                            placeholder="Filter Projects"
+                            placeholder={t('sessions.new.filterProjects')}
                             placeholderTextColor={theme.muted}
                             style={[styles.filterInput, { color: theme.text }]}
                             testID="new-session-project-filter"
@@ -188,7 +201,7 @@ export const NewSessionSelections = ({
                     >
                         <FolderPlus color={theme.primary} size={18} />
                         <Text style={[styles.choiceTitle, { color: theme.primary }]}>
-                            Add Project
+                            {t('sessions.home.addProject')}
                         </Text>
                     </Pressable>
                 ) : null}

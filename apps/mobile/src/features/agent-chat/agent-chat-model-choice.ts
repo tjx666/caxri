@@ -1,6 +1,9 @@
 import type { AgentChatModelRequest, AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatEffortLabel, agentChatModelLabel, findAgentChatModel } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 type ModelSnapshot = Pick<
     AgentChatSnapshot,
     'activeTurnId' | 'effort' | 'model' | 'models' | 'ultracode'
@@ -25,15 +28,25 @@ export interface AgentChatModelTrigger {
 export const agentChatModelTrigger = (
     snapshot: ModelSnapshot | undefined,
     canConfigure: boolean,
+    t: Translate = translate,
 ): AgentChatModelTrigger | undefined => {
     const label = agentChatModelLabel(snapshot);
     if (!label) return undefined;
+    // `agentChatModelLabel` speaks English: it names an unreported model "Default" and its effort in English.
+    const model = snapshot?.model ? label.model : t('chat.model.default');
+    const effort =
+        label.effort && snapshot?.effort ? agentChatEffortLabel(snapshot.effort, t) : label.effort;
     const isUltracode = snapshot?.ultracode === true;
     return {
-        ...label,
+        model,
+        ...(effort && { effort }),
         isUltracode,
         isInteractive: canConfigure && (snapshot?.models?.length ?? 0) > 0,
-        accessibilityLabel: `Model: ${label.model}${label.effort ? `, ${label.effort} effort` : ''}${isUltracode ? ', ultracode on' : ''}`,
+        accessibilityLabel: [
+            t('chat.model.triggerLabel', { model }),
+            effort ? t('chat.model.triggerEffort', { effort }) : '',
+            isUltracode ? t('chat.model.triggerUltracode') : '',
+        ].join(''),
     };
 };
 
@@ -43,12 +56,13 @@ export const agentChatModelTrigger = (
  */
 export const agentChatUltracodeToggle = (
     snapshot: Pick<AgentChatSnapshot, 'ultracode'> | undefined,
+    t: Translate = translate,
 ): { label: string; description: string; isOn: boolean } | undefined =>
     snapshot?.ultracode === undefined
         ? undefined
         : {
               label: 'Ultracode',
-              description: 'Multi-agent workflows at any effort',
+              description: t('chat.model.ultracodeDescription'),
               isOn: snapshot.ultracode,
           };
 
@@ -73,6 +87,7 @@ export interface AgentChatEffortOption {
  */
 export const agentChatModelOptions = (
     snapshot: ModelSnapshot | undefined,
+    t: Translate = translate,
 ): { models: AgentChatModelOption[]; efforts: AgentChatEffortOption[] } => {
     const models = snapshot?.models ?? [];
     const current = findAgentChatModel(models, snapshot?.model);
@@ -85,7 +100,7 @@ export const agentChatModelOptions = (
         })),
         efforts: (current?.efforts ?? []).map((effort) => ({
             value: effort,
-            label: agentChatEffortLabel(effort),
+            label: agentChatEffortLabel(effort, t),
             isDefault: effort === current?.defaultEffort,
             isSelected: effort === snapshot?.effort,
         })),
@@ -96,27 +111,33 @@ export const agentChatModelOptions = (
  * A running turn keeps the model it started with (`docs/agent-chat.md`), so the sheet says when a choice takes effect
  * instead of letting the reader think the current reply changed models.
  */
-export const agentChatModelSheetNote = (snapshot: ModelSnapshot | undefined): string | undefined =>
-    snapshot?.activeTurnId ? 'Applies to the next turn.' : undefined;
+export const agentChatModelSheetNote = (
+    snapshot: ModelSnapshot | undefined,
+    t: Translate = translate,
+): string | undefined => (snapshot?.activeTurnId ? t('chat.model.appliesNextTurn') : undefined);
 
 /**
  * Efforts belong to a model, and Core validates an effort against the model in use. Claude Code names its model only
  * once the first turn starts, so a new Chat asks for a model before it can offer efforts.
  */
-export const agentChatEffortHint = (snapshot: ModelSnapshot | undefined): string | undefined =>
+export const agentChatEffortHint = (
+    snapshot: ModelSnapshot | undefined,
+    t: Translate = translate,
+): string | undefined =>
     (snapshot?.models?.length ?? 0) > 0 && !findAgentChatModel(snapshot?.models, snapshot?.model)
-        ? 'Choose a model to see its reasoning efforts.'
+        ? t('chat.model.chooseModelForEffort')
         : undefined;
 
 /**
  * The sheet's message for a failed switch, naming what the reader tried to change.
  */
-export const agentChatConfigureFailureMessage = (change: AgentChatModelRequest): string => {
-    if (change.model !== undefined) return 'Unable to switch the model. Try again.';
-    if (change.effort !== undefined) return 'Unable to switch the reasoning effort. Try again.';
-    return change.ultracode
-        ? 'Unable to turn on Ultracode. Try again.'
-        : 'Unable to turn off Ultracode. Try again.';
+export const agentChatConfigureFailureMessage = (
+    change: AgentChatModelRequest,
+    t: Translate = translate,
+): string => {
+    if (change.model !== undefined) return t('chat.model.switchModelFailed');
+    if (change.effort !== undefined) return t('chat.model.switchEffortFailed');
+    return t(change.ultracode ? 'chat.model.ultracodeOnFailed' : 'chat.model.ultracodeOffFailed');
 };
 
 /**

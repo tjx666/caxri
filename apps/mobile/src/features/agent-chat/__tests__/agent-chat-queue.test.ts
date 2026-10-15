@@ -2,9 +2,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-    AGENT_CHAT_QUEUE_ERRORS,
     agentChatQueueCardLayout,
     agentChatQueueEntries,
+    agentChatQueueErrorMessage,
     agentChatQueueFailure,
     agentChatQueueHeader,
     agentChatQueueRowHints,
@@ -79,8 +79,8 @@ describe('agentChatQueueHeader', () => {
 });
 
 describe('currentQueueError', () => {
-    const removeError = { id: 'a', message: AGENT_CHAT_QUEUE_ERRORS.remove };
-    const resumeError = { message: AGENT_CHAT_QUEUE_ERRORS.resume };
+    const removeError = { id: 'a', message: agentChatQueueErrorMessage('remove') };
+    const resumeError = { message: agentChatQueueErrorMessage('resume') };
 
     it('keeps an error while its row is still queued, as the same object', () => {
         expect(currentQueueError(removeError, queue)).toBe(removeError);
@@ -134,13 +134,13 @@ describe('didRunOptimisticQueueAction', () => {
         await expect(remove.run('remove')).resolves.toBe(false);
         expect(remove.hidden.has('a')).toBe(false);
         expect(remove.reportError).toHaveBeenLastCalledWith(
-            AGENT_CHAT_QUEUE_ERRORS.remove,
+            agentChatQueueErrorMessage('remove'),
             'other',
         );
         const steer = harness(failing);
         await steer.run('sendNow');
         expect(steer.reportError).toHaveBeenLastCalledWith(
-            AGENT_CHAT_QUEUE_ERRORS.sendNow,
+            agentChatQueueErrorMessage('sendNow'),
             'other',
         );
     });
@@ -152,18 +152,24 @@ describe('didRunOptimisticQueueAction', () => {
             });
         const gone = refusing('CONFLICT');
         await expect(gone.run('edit')).resolves.toBe(false);
-        expect(gone.reportError).toHaveBeenLastCalledWith(AGENT_CHAT_QUEUE_ERRORS.edit, 'gone');
+        expect(gone.reportError).toHaveBeenLastCalledWith(
+            agentChatQueueErrorMessage('edit'),
+            'gone',
+        );
         const tooLong = refusing('VALIDATION');
         await tooLong.run('edit');
         expect(tooLong.reportError).toHaveBeenLastCalledWith(
-            AGENT_CHAT_QUEUE_ERRORS.edit,
+            agentChatQueueErrorMessage('edit'),
             'tooLong',
         );
         const offline = harness(async () => {
             throw new Error('offline');
         });
         await offline.run('edit');
-        expect(offline.reportError).toHaveBeenLastCalledWith(AGENT_CHAT_QUEUE_ERRORS.edit, 'other');
+        expect(offline.reportError).toHaveBeenLastCalledWith(
+            agentChatQueueErrorMessage('edit'),
+            'other',
+        );
         expect(offline.hidden.has('a')).toBe(false);
     });
 });

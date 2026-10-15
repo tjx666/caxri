@@ -1,4 +1,4 @@
-import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+import type { TranslatedNamespace } from '@caxri/protocol';
 
 import type { agentActions as source } from '../en/agent-actions';
 

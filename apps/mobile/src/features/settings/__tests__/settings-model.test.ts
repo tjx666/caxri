@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { connectionStatusLabel, DEVICE_ROLE_DETAILS } from '../settings-model';
+import { connectionStatusLabel, deviceRoleDetails } from '../settings-model';
 
 describe('settings model', () => {
     it('names every role with the capability it adds', () => {
-        expect(Object.keys(DEVICE_ROLE_DETAILS)).toEqual(['view', 'reply', 'control']);
-        expect(DEVICE_ROLE_DETAILS.control.description).toContain('rename, and archive Sessions');
+        expect(deviceRoleDetails('view').label).toBe('View');
+        expect(deviceRoleDetails('reply').label).toBe('Reply');
+        expect(deviceRoleDetails('control').description).toContain('rename, and archive Sessions');
     });
 
     it('labels connection states for people, not for the state machine', () => {

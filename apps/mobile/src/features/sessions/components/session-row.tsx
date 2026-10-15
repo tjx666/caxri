@@ -2,9 +2,15 @@ import { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AgentAvatar } from '../../../components/agent-icon';
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
-import { sessionAgeLabel, sessionAgentLabel, sessionStateLabel } from '../session-row-model';
+import {
+    sessionAgeLabel,
+    sessionAgentLabel,
+    sessionStateLabel,
+    sessionTitleForDisplay,
+} from '../session-row-model';
 import { SessionStatusGlyph } from './session-status-glyph';
 
 const styles = StyleSheet.create({
@@ -53,15 +59,17 @@ export const SessionRow = ({
     showProject: boolean;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
+    const title = sessionTitleForDisplay(session.displayTitle, t);
     const handlePress = useCallback(() => onPress(session.id), [onPress, session.id]);
-    const age = sessionAgeLabel(session.lastOpenedAt, now);
-    const stateLabel = sessionStateLabel(session.stateLabel, savedAt, now);
+    const age = sessionAgeLabel(session.lastOpenedAt, now, t);
+    const stateLabel = sessionStateLabel(session.stateLabel, savedAt, now, t);
     return (
         <Pressable
-            accessibilityHint="Opens this Session."
-            accessibilityLabel={`${session.displayTitle}, ${sessionAgentLabel(session)}, ${stateLabel}`}
+            accessibilityHint={t('sessions.row.openHint')}
+            accessibilityLabel={`${title}, ${sessionAgentLabel(session, t)}, ${stateLabel}`}
             accessibilityActions={
-                onLongPress ? [{ name: 'longpress', label: 'Session actions' }] : undefined
+                onLongPress ? [{ name: 'longpress', label: t('sessions.row.actions') }] : undefined
             }
             accessibilityRole="button"
             accessibilityState={{ selected }}
@@ -87,7 +95,7 @@ export const SessionRow = ({
                         { color: theme.text },
                     ]}
                 >
-                    {session.displayTitle}
+                    {title}
                 </Text>
                 <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
                     {showProject ? `${session.projectTitle} · ${age}` : age}

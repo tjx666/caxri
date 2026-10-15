@@ -15,6 +15,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android.ts';
+import { seedMobileChangesFixture } from './mobile-changes-fixture.ts';
 import type { ScenarioEnvironment } from './mobile-conversation-scenarios.ts';
 import {
     capture,
@@ -64,8 +65,8 @@ const SETTLE_MS = 800;
 async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[]) {
     const { serial } = environment;
     const fixture = await createMobileAcceptanceFixture({
-        changes: 'standard',
         mode: 'conversation',
+        seedProject: (root) => seedMobileChangesFixture(root, 'standard'),
         serial,
     });
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;

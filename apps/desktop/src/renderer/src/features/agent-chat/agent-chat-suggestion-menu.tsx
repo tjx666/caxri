@@ -1,10 +1,10 @@
 import type { AgentAction } from '@caxri/protocol';
+import { agentChatMenuGroupHeading } from '@caxri/protocol';
 import { noop } from 'es-toolkit';
 
 import { SuggestionList } from '../../components/suggestion-list';
 import { useTranslation } from '../../i18n';
 import type { SuggestionOption } from '../../lib/suggestion-options';
-import { agentChatMenuGroupHeading } from './agent-chat-slash-commands';
 import { agentChatSuggestionFooter } from './agent-chat-suggestions';
 
 interface SuggestionMenuState {

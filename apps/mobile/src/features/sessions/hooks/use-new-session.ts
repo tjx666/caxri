@@ -4,6 +4,7 @@ import type { MethodResult } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 
+import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { classifyMobileWriteFailure } from '../../connection/mobile-write-failure';
 import { useHostSessions } from '../components/host-sessions-provider';
@@ -24,6 +25,7 @@ import { activeProjectFilter } from '../project-filter';
 
 export const useNewSession = () => {
     const router = useRouter();
+    const { t } = useTranslation();
     const { connectionScopeKey, isForeground, request, status } = useMobileClient();
     const {
         hostId,
@@ -122,7 +124,7 @@ export const useNewSession = () => {
                 });
             } catch (error) {
                 setNewSessionCreateState(
-                    newSessionCreateFailure(classifyMobileWriteFailure(error)),
+                    newSessionCreateFailure(classifyMobileWriteFailure(error), t),
                 );
                 return;
             }
@@ -165,6 +167,7 @@ export const useNewSession = () => {
         setNewSessionProjectId,
         setProjectId,
         setSegment,
+        t,
     ]);
 
     return {

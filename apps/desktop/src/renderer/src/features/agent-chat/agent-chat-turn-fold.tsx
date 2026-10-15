@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { use, useId, useMemo, useRef, useState } from 'react';
 
+import { agentChatTurnLabel } from '@caxri/protocol';
 import { Bot, ChevronRight, CircleStop, CircleX } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
@@ -18,11 +19,7 @@ import { AgentChatFindQueryContext, isAgentChatTurnFoldMatch } from './agent-cha
 import type { AgentChatTurnSubagent } from './agent-chat-tasks';
 import { agentChatTurnSubagents, isAgentChatTaskItemRunning } from './agent-chat-tasks';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
-import {
-    agentChatTurnLabel,
-    agentChatTurnTimeTooltip,
-    agentChatTurnTone,
-} from './agent-chat-timeline';
+import { agentChatTurnTimeTooltip, agentChatTurnTone } from './agent-chat-timeline';
 import {
     useAgentChatExpansion,
     useAgentChatRevealWorkItem,

@@ -6,12 +6,15 @@ import {
     agentChatFileChangesStat,
     agentChatOutputLanguage,
     agentChatReasoningTitle,
+    agentChatTaskGlyphStatus,
     agentChatToolCallArguments,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
+    agentToolActiveLabel,
     isAgentChatWorkRunning,
     splitAgentChatWork,
     stripLineNumberGutter,
+    summarizeAgentChatWork,
     unwrapShellCommand,
 } from '@caxri/protocol';
 import {
@@ -52,18 +55,9 @@ import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
 import { AgentChatTaskOpenButton } from './agent-chat-task-open-button';
-import {
-    agentChatTaskActivity,
-    agentChatTaskGlyphStatus,
-    isAgentChatTaskItemRunning,
-} from './agent-chat-tasks';
-import {
-    agentChatWorkSummaryGlyph,
-    describeAgentChatWork,
-    summarizeAgentChatWork,
-} from './agent-chat-timeline';
+import { agentChatTaskActivity, isAgentChatTaskItemRunning } from './agent-chat-tasks';
+import { agentChatWorkSummaryGlyph, describeAgentChatWorkRow } from './agent-chat-timeline';
 import { AgentChatToolArguments } from './agent-chat-tool-arguments';
-import { agentChatToolActiveLabel } from './agent-chat-tool-labels';
 import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { useAgentChatMcpServer } from './hooks/use-agent-chat-mcp-server';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-agent-chat-task-link';
@@ -301,7 +295,7 @@ function WorkDetail({
             return (
                 <>
                     {(item.description !== undefined ||
-                        describeAgentChatWork(item).kind !== 'command' ||
+                        describeAgentChatWorkRow(item).kind !== 'command' ||
                         command.length > COMMAND_TITLE_LENGTH ||
                         command.includes('\n')) && (
                         <CodeView
@@ -334,7 +328,7 @@ function WorkDetail({
             const language = agentChatOutputLanguage(item);
             const output = item.output ?? '';
             const argumentsText = agentChatToolCallArguments(item);
-            const { kind } = describeAgentChatWork(item);
+            const { kind } = describeAgentChatWorkRow(item);
             return (
                 <>
                     {argumentsText && <AgentChatToolArguments text={argumentsText} />}
@@ -399,8 +393,9 @@ function FileChangeStat({ item }: { item: Extract<AgentChatWorkItem, { type: 'fi
  * A work row's trailing state: the diff stat, a task's elapsed time and status, or the item's own outcome and duration.
  */
 function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?: AgentChatTask }) {
+    const { t } = useTranslation();
     const status = item.type === 'reasoning' ? undefined : item.status;
-    const duration = task ? undefined : agentChatWorkDuration(item);
+    const duration = task ? undefined : agentChatWorkDuration(item, t);
     return (
         <>
             {item.type === 'fileChange' && <FileChangeStat item={item} />}
@@ -431,12 +426,12 @@ function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?:
 const AgentChatWorkRow = memo(
     ({ item, onOpenFile }: { item: AgentChatWorkItem; onOpenFile?: (target: string) => void }) => {
         const { t } = useTranslation();
-        const presentation = describeAgentChatWork(item, t);
+        const presentation = describeAgentChatWorkRow(item, t);
         const isRunning = isAgentChatWorkRunning(item);
         const link = useAgentChatTaskLink(item);
         const task = link?.task;
         const taskActivity = task && agentChatTaskActivity(task, t);
-        const verb = isRunning ? agentChatToolActiveLabel(presentation, t) : presentation.label;
+        const verb = isRunning ? agentToolActiveLabel(presentation, t) : presentation.label;
         const { path, subject } = presentation;
         return (
             <DisclosureRow

@@ -24,6 +24,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import type { LucideProps } from 'lucide-react-native';
 
+import { useTranslation } from '../i18n';
 import type { MobileTheme } from '../theme/tokens';
 
 const OPEN_MS = 260;
@@ -175,7 +176,8 @@ export const SheetAction = ({
 
 /**
  * The explicit way out of a `BottomSheet` menu, for users who do not know the backdrop or Back dismisses it. A sheet
- * whose choices apply as they are tapped labels it `Done`, since there is nothing left to cancel.
+ * whose choices apply as they are tapped labels it `Done`, since there is nothing left to cancel. `label` selects the
+ * meaning; the visible text follows the active locale.
  */
 export const SheetCancel = ({
     label = 'Cancel',
@@ -187,19 +189,24 @@ export const SheetCancel = ({
     onPress: () => void;
     testID: string;
     theme: MobileTheme;
-}) => (
-    <Pressable
-        accessibilityRole="button"
-        onPress={onPress}
-        style={({ pressed }) => [
-            styles.cancel,
-            { backgroundColor: theme.elevated, opacity: pressed ? 0.7 : 1 },
-        ]}
-        testID={testID}
-    >
-        <Text style={[styles.cancelText, { color: theme.text }]}>{label}</Text>
-    </Pressable>
-);
+}) => {
+    const { t } = useTranslation();
+    return (
+        <Pressable
+            accessibilityRole="button"
+            onPress={onPress}
+            style={({ pressed }) => [
+                styles.cancel,
+                { backgroundColor: theme.elevated, opacity: pressed ? 0.7 : 1 },
+            ]}
+            testID={testID}
+        >
+            <Text style={[styles.cancelText, { color: theme.text }]}>
+                {t(label === 'Done' ? 'components.done' : 'common.cancel')}
+            </Text>
+        </Pressable>
+    );
+};
 
 const styles = StyleSheet.create({
     root: { flex: 1, justifyContent: 'flex-end' },

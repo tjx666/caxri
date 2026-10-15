@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text } from 'react-native';
 import type { FileEntry } from '@caxri/protocol';
 import { ChevronRight } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { FileTypeIcon } from './file-type-icon';
 import { panelsStyles as styles } from './panels-styles';
@@ -24,6 +25,7 @@ export const FilesBreadcrumb = ({
     segments: FileEntry[];
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const scroll = useRef<ScrollView>(null);
     return (
         <ScrollView
@@ -41,7 +43,9 @@ export const FilesBreadcrumb = ({
                     <Fragment key={entry.path}>
                         {index > 0 ? <ChevronRight color={theme.muted} size={14} /> : null}
                         <Pressable
-                            accessibilityLabel={isCurrent ? undefined : `Open ${entry.name}`}
+                            accessibilityLabel={
+                                isCurrent ? undefined : t('panels.openFolder', { name: entry.name })
+                            }
                             accessibilityRole={isCurrent ? 'text' : 'button'}
                             disabled={isCurrent}
                             hitSlop={{ bottom: 10, top: 10 }}

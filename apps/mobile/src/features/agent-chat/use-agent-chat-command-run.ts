@@ -1,15 +1,16 @@
 import { useState } from 'react';
 
-import type { AgentChatCommand } from '@caxri/protocol';
+import type { AgentAction } from '@caxri/protocol';
 
+import { useTranslation } from '../../i18n';
 import { agentChatCommandChoice } from './agent-chat-commands';
 import type { AgentChatController } from './use-agent-chat';
 
 /**
- * Runs a listed slash command from the phone's Chat composer, as Desktop's composer does. Unlike a message, a command
- * waits for Server Core (it can be refused, and it shows nothing optimistically), so the composer stays busy until it
- * lands. It clears only the draft: images stay for the next message, and during a turn Core queues the command rather
- * than steering with it.
+ * Runs a listed slash command, or completes a skill, from the phone's Chat composer menu, as Desktop's composer does.
+ * Unlike a message, a command waits for Server Core (it can be refused, and it shows nothing optimistically), so the
+ * composer stays busy until it lands. It clears only the draft: images stay for the next message, and during a turn
+ * Core queues the command rather than steering with it.
  */
 export const useAgentChatCommandRun = ({
     chat,
@@ -20,6 +21,7 @@ export const useAgentChatCommandRun = ({
     onDraftChange: (draft: string) => void;
     reportError: (message: string | null) => void;
 }) => {
+    const { t } = useTranslation();
     const [isRunning, setRunning] = useState(false);
     const run = async (command: { name: string; arguments?: string }): Promise<void> => {
         reportError(null);
@@ -28,16 +30,17 @@ export const useAgentChatCommandRun = ({
             await chat.runCommand(command);
             onDraftChange('');
         } catch {
-            reportError(`/${command.name} could not run`);
+            reportError(t('chat.commands.runFailed', { name: command.name }));
         } finally {
             setRunning(false);
         }
     };
     /**
-     * A command without arguments runs as soon as it is chosen from the list; one with arguments goes to the draft.
+     * A command without arguments runs as soon as it is chosen from the menu; one with arguments, or a skill, goes to
+     * the draft.
      */
-    const choose = (command: AgentChatCommand): void => {
-        const choice = agentChatCommandChoice(command);
+    const choose = (action: AgentAction): void => {
+        const choice = agentChatCommandChoice(action);
         if (choice.kind === 'complete') onDraftChange(choice.draft);
         // eslint-disable-next-line no-void -- The composer reports a failed command itself.
         else void run(choice.command);

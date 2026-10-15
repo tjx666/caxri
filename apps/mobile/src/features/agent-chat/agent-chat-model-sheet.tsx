@@ -5,6 +5,7 @@ import type { AgentChatModelRequest } from '@caxri/protocol';
 import { ChevronDown } from 'lucide-react-native';
 
 import { BottomSheet, SheetCancel } from '../../components/bottom-sheet';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import {
     agentChatEffortHint,
@@ -48,10 +49,11 @@ const AgentChatModelSheet = ({
     selection: ModelSelection;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { busy, error, snapshot } = selection;
-    const { efforts, models } = agentChatModelOptions(snapshot);
-    const ultracode = agentChatUltracodeToggle(snapshot);
-    const effortHint = agentChatEffortHint(snapshot);
+    const { efforts, models } = agentChatModelOptions(snapshot, t);
+    const ultracode = agentChatUltracodeToggle(snapshot, t);
+    const effortHint = agentChatEffortHint(snapshot, t);
     const isDisabled = busy !== null || disabledReason !== undefined;
     const select = (change: AgentChatModelRequest, isSelected: boolean): void => {
         // eslint-disable-next-line no-void -- `didConfigure` reports its own failure in the sheet.
@@ -59,7 +61,7 @@ const AgentChatModelSheet = ({
     };
     return (
         <BottomSheet
-            closeLabel="Close model and effort"
+            closeLabel={t('chat.model.close')}
             maxHeight="80%"
             onClose={onClose}
             testID="agent-chat-model-sheet"
@@ -68,7 +70,7 @@ const AgentChatModelSheet = ({
             {(dismiss) => (
                 <>
                     <ScrollView style={sheetStyles.scroll}>
-                        <SheetSectionLabel label="Model" theme={theme} />
+                        <SheetSectionLabel label={t('chat.model.model')} theme={theme} />
                         {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- A provider lists a handful of models, and the efforts follow them in the same scroll. */}
                         {models.map((model) => (
                             <SheetOptionRow
@@ -84,7 +86,10 @@ const AgentChatModelSheet = ({
                             />
                         ))}
                         {effortHint || efforts.length > 0 ? (
-                            <SheetSectionLabel label="Reasoning effort" theme={theme} />
+                            <SheetSectionLabel
+                                label={t('chat.model.reasoningEffort')}
+                                theme={theme}
+                            />
                         ) : null}
                         {effortHint ? (
                             <Text style={[sheetStyles.hint, { color: theme.muted }]}>
@@ -101,7 +106,7 @@ const AgentChatModelSheet = ({
                                 onPress={() => select({ effort: effort.value }, effort.isSelected)}
                                 testID={`agent-chat-effort-${effort.value}`}
                                 theme={theme}
-                                trailing={effort.isDefault ? 'Default' : undefined}
+                                trailing={effort.isDefault ? t('chat.model.default') : undefined}
                             />
                         ))}
                         {ultracode ? (
@@ -120,7 +125,7 @@ const AgentChatModelSheet = ({
                     <SheetMessages
                         disabledReason={disabledReason}
                         error={error}
-                        note={agentChatModelSheetNote(snapshot)}
+                        note={agentChatModelSheetNote(snapshot, t)}
                         testIDPrefix="agent-chat-model"
                         theme={theme}
                     />
@@ -153,9 +158,10 @@ export const AgentChatModelButton = ({
     disabledReason: string | undefined;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [isOpen, setOpen] = useState(false);
     const selection = useAgentChatModelSelection(chat, disabledReason);
-    const trigger = agentChatModelTrigger(selection.snapshot, disabledReason === undefined);
+    const trigger = agentChatModelTrigger(selection.snapshot, disabledReason === undefined, t);
     if (!trigger) return null;
     const content = (
         <>
@@ -204,7 +210,7 @@ export const AgentChatModelButton = ({
     return (
         <>
             <Pressable
-                accessibilityHint="Chooses the model and reasoning effort for the next turn."
+                accessibilityHint={t('chat.model.triggerHint')}
                 accessibilityLabel={trigger.accessibilityLabel}
                 accessibilityRole="button"
                 hitSlop={TRIGGER_HIT_SLOP}

@@ -29,6 +29,7 @@ import {
     Wrench,
 } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles as styles } from './conversation-styles';
 
@@ -95,12 +96,13 @@ export const ConversationStatusGlyph = ({
     status: AgentChatItemStatus;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const Icon = STATUS_ICONS[status];
     if (!Icon) return null;
     const tone = agentChatItemStatusTone(status);
     return (
         <Icon
-            accessibilityLabel={agentChatItemStatusLabel(status)}
+            accessibilityLabel={agentChatItemStatusLabel(status, t)}
             color={tone === 'danger' ? theme.danger : theme.warning}
             size={15}
         />

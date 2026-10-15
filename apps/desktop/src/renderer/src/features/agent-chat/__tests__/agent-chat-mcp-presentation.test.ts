@@ -2,7 +2,7 @@ import type { AgentChatWorkItem } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { agentChatMcpIconCandidates, isDarkBackground } from '../agent-chat-mcp-icons';
-import { agentChatWorkSummaryGlyph, describeAgentChatWork } from '../agent-chat-timeline';
+import { agentChatWorkSummaryGlyph, describeAgentChatWorkRow } from '../agent-chat-timeline';
 import { agentChatToolArgumentEntries } from '../agent-chat-tool-argument-entries';
 
 const toolCall = (
@@ -20,18 +20,20 @@ const shell = (id: string): AgentChatWorkItem => ({
 
 describe('MCP tool rows', () => {
     it('reads as the tool, without the server prefix', () => {
-        expect(describeAgentChatWork(toolCall('mcp__exa__web_search_exa'))).toMatchObject({
+        expect(describeAgentChatWorkRow(toolCall('mcp__exa__web_search_exa'))).toMatchObject({
             kind: 'mcp',
             label: 'Web search exa',
         });
-        expect(describeAgentChatWork(toolCall('exa/web_fetch_exa'))).toMatchObject({
+        expect(describeAgentChatWorkRow(toolCall('exa/web_fetch_exa'))).toMatchObject({
             kind: 'mcp',
             label: 'Web fetch exa',
         });
-        expect(describeAgentChatWork(toolCall('exa/web_fetch_exa', 'failed')).label).toBe(
+        expect(describeAgentChatWorkRow(toolCall('exa/web_fetch_exa', 'failed')).label).toBe(
             'Failed: Web fetch exa',
         );
-        expect(describeAgentChatWork(toolCall('mcp__exa__web_search_exa')).subject).toBeUndefined();
+        expect(
+            describeAgentChatWorkRow(toolCall('mcp__exa__web_search_exa')).subject,
+        ).toBeUndefined();
     });
 
     it('leads a summary with its first kind and names the first MCP call', () => {

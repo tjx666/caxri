@@ -14,9 +14,9 @@ dispatcher also grants only the capabilities for that role.
 
 | Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                     |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, and `mobile.agentChat.readImage`                                                                  |
+| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, `mobile.agentChat.readHistory`, `mobile.agentChat.readImage`, and `mobile.agentChat.readTask`     |
 | `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, `mobile.agentChat.retry`, `mobile.agentChat.{removeQueued,sendQueuedNow,resumeQueue}`, `mobile.agentChat.takeQueued`, and `mobile.agentChat.runCommand` |
-| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, and `mobile.commanderInbox.{list,reply}`                                                          |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, `mobile.agentChat.stopTask`, and `mobile.commanderInbox.{list,reply}`                             |
 
 `mobile.agentChat.configure` carries one field-level rule: a `reply` device may switch the model,
 effort, and ultracode, but a `permissionMode` or `planMode` change needs `control`, because a

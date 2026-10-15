@@ -14,6 +14,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import { seedMobileChangesFixture } from './mobile-changes-fixture';
 
 interface UiAuditScenarioEnvironment {
     artifactManifestPath: string;
@@ -368,8 +369,8 @@ export async function executeMobileUiAuditScenario(
     artifacts: string[],
 ): Promise<void> {
     const fixture = await createMobileAcceptanceFixture({
-        changes: 'standard',
         mode: 'conversation',
+        seedProject: (root) => seedMobileChangesFixture(root, 'standard'),
         serial: environment.serial,
     });
     try {

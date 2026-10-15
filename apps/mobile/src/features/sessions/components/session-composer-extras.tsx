@@ -12,6 +12,7 @@ import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanim
 
 import { RotateCw, X } from 'lucide-react-native';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { insertComposerSuggestion } from '../composer-suggestions';
 import type { useComposerSuggestions } from '../hooks/use-composer-suggestions';
@@ -85,6 +86,7 @@ export const SessionComposerAttachments = ({
     images: Images;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const strip = useRef<ScrollView>(null);
     const shownCount = useRef(images.attachments.length);
     if (images.attachments.length === 0) return null;
@@ -110,6 +112,7 @@ export const SessionComposerAttachments = ({
                     attachment,
                     index,
                     images.attachments.length,
+                    t,
                 );
                 return (
                     <Animated.View
@@ -136,14 +139,14 @@ export const SessionComposerAttachments = ({
                                         testID={`session-image-status-${index}`}
                                     >
                                         {attachment.state === 'preparing'
-                                            ? 'Preparing…'
+                                            ? t('sessions.image.preparing')
                                             : `${Math.round(attachment.progress * 100)}%`}
                                     </Text>
                                 </View>
                             ) : null}
                             {attachment.state === 'failed' ? (
                                 <Pressable
-                                    accessibilityHint="Shows why the upload failed, with Retry and Remove."
+                                    accessibilityHint={t('sessions.image.failedHint')}
                                     accessibilityLabel={label}
                                     accessibilityRole="button"
                                     onPress={() => images.explainFailure(attachment.id)}
@@ -154,13 +157,15 @@ export const SessionComposerAttachments = ({
                                         style={[styles.scrimText, { color: theme.text }]}
                                         testID={`session-image-status-${index}`}
                                     >
-                                        Retry
+                                        {t('common.retry')}
                                     </Text>
                                 </Pressable>
                             ) : null}
                         </View>
                         <Pressable
-                            accessibilityLabel={`Remove image ${index + 1}`}
+                            accessibilityLabel={t('sessions.image.removeLabel', {
+                                index: index + 1,
+                            })}
                             accessibilityRole="button"
                             onPress={() => images.remove(attachment.id)}
                             style={styles.remove}
@@ -192,32 +197,39 @@ export const SessionComposerSuggestions = ({
     suggestions: Suggestions;
     theme: MobileTheme;
     updateDraft: (value: string) => void;
-}) => (
-    <>
-        {suggestions.trigger ? (
-            <View testID="session-composer-suggestions">
-                {suggestions.items.slice(0, 10).map((item, index) => (
-                    <Pressable
-                        accessibilityLabel={`Insert ${item}`}
-                        accessibilityRole="button"
-                        key={item}
-                        onPress={() =>
-                            updateDraft(
-                                insertComposerSuggestion(draft, suggestions.trigger.token, item),
-                            )
-                        }
-                        style={{ minHeight: 44, justifyContent: 'center', padding: 8 }}
-                        testID={`session-composer-suggestion-${index}`}
-                    >
-                        <Text style={{ color: theme.text }}>{item}</Text>
-                    </Pressable>
-                ))}
-                {suggestions.isError ? (
-                    <Text accessibilityRole="alert" style={{ color: theme.danger }}>
-                        Suggestions are unavailable. You can still type the command or path.
-                    </Text>
-                ) : null}
-            </View>
-        ) : null}
-    </>
-);
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            {suggestions.trigger ? (
+                <View testID="session-composer-suggestions">
+                    {suggestions.items.slice(0, 10).map((item, index) => (
+                        <Pressable
+                            accessibilityLabel={t('sessions.composer.insertSuggestion', { item })}
+                            accessibilityRole="button"
+                            key={item}
+                            onPress={() =>
+                                updateDraft(
+                                    insertComposerSuggestion(
+                                        draft,
+                                        suggestions.trigger.token,
+                                        item,
+                                    ),
+                                )
+                            }
+                            style={{ minHeight: 44, justifyContent: 'center', padding: 8 }}
+                            testID={`session-composer-suggestion-${index}`}
+                        >
+                            <Text style={{ color: theme.text }}>{item}</Text>
+                        </Pressable>
+                    ))}
+                    {suggestions.isError ? (
+                        <Text accessibilityRole="alert" style={{ color: theme.danger }}>
+                            {t('sessions.composer.suggestionsUnavailable')}
+                        </Text>
+                    ) : null}
+                </View>
+            ) : null}
+        </>
+    );
+};

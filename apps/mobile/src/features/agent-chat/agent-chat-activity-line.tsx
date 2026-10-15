@@ -7,6 +7,7 @@ import { formatNoticeableDuration } from '@caxri/protocol';
 import { MessageCircleQuestionMark } from 'lucide-react-native';
 
 import { ShimmerText } from '../../components/shimmer-text';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 
 const ELAPSED_TICK_MS = 1000;
@@ -17,12 +18,13 @@ const ELAPSED_TICK_MS = 1000;
  * negative span reads as nothing rather than a wrong figure.
  */
 const ElapsedTime = ({ startedAt, theme }: { startedAt: number; theme: MobileTheme }) => {
+    const { t } = useTranslation();
     const [now, setNow] = useState(Date.now);
     useEffect(() => {
         const timer = setInterval(() => setNow(Date.now()), ELAPSED_TICK_MS);
         return () => clearInterval(timer);
     }, []);
-    const label = formatNoticeableDuration(now - startedAt);
+    const label = formatNoticeableDuration(now - startedAt, t);
     return label ? (
         <Text style={[styles.elapsed, { color: theme.muted }]} testID="agent-chat-activity-elapsed">
             {label}

@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { MobilePairingError } from '../connection/mobile-gateway-client';
 import { pairingErrorMessage } from './pairing-error';
 
@@ -49,11 +51,11 @@ export const pairingLinkFromRouteParameters = (parameters: PairingRouteParameter
 /**
  * Keeps malformed links in the pairing error UI instead of throwing during render.
  */
-export const readPairingRoute = (parameters: PairingRouteParameters) => {
+export const readPairingRoute = (parameters: PairingRouteParameters, t: Translate = translate) => {
     try {
         return { link: pairingLinkFromRouteParameters(parameters), error: undefined };
     } catch (error) {
-        return { link: undefined, error: pairingErrorMessage(error) };
+        return { link: undefined, error: pairingErrorMessage(error, t) };
     }
 };
 
@@ -67,12 +69,14 @@ export const startPairingRoute = ({
     cancel,
     onSuccess,
     onError,
+    t = translate,
 }: {
     link: string;
     pair: (link: string) => Promise<void>;
     cancel: () => void;
     onSuccess: () => void;
     onError: (message: string) => void;
+    t?: Translate;
 }): (() => void) => {
     let isCurrent = true;
     let isPending = true;
@@ -83,7 +87,7 @@ export const startPairingRoute = ({
             if (isCurrent) onSuccess();
         } catch (error) {
             isPending = false;
-            if (isCurrent) onError(pairingErrorMessage(error));
+            if (isCurrent) onError(pairingErrorMessage(error, t));
         }
     };
     // eslint-disable-next-line no-void -- The route owns this bounded operation and its cleanup.

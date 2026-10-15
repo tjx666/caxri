@@ -9,6 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { agentChatPendingView } from '@caxri/protocol';
 
+import { translate } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useReadCache } from '../read-cache/read-cache-context';
 import {
@@ -68,11 +69,16 @@ const useAgentChatPending = (key: string | null, snapshot: AgentChatSnapshot | u
     useEffect(() => {
         if (key !== null) agentChatPendingStore.prune(key, snapshot);
     }, [key, snapshot]);
-    const view = useMemo(
-        () => agentChatPendingView(state.messages, state.answers, snapshot),
-        [snapshot, state.answers, state.messages],
+    /**
+     * One object per input change, so the Chat's timeline entries (which depend on it) are not rebuilt every render.
+     */
+    return useMemo(
+        () => ({
+            ...agentChatPendingView(state.messages, state.answers, snapshot),
+            sendCount: state.sendCount,
+        }),
+        [snapshot, state.answers, state.messages, state.sendCount],
     );
-    return { ...view, sendCount: state.sendCount };
 };
 
 const initialState = (): AgentChatState => ({
@@ -140,7 +146,8 @@ export const useAgentChat = ({
             onError: () =>
                 update((current) => ({
                     ...current,
-                    error: 'Unable to load this Chat.',
+                    // Translated when the read fails, so a locale change never resubscribes the reader.
+                    error: translate('chat.loadFailed'),
                     status: current.snapshot ? 'stale' : 'error',
                 })),
         });

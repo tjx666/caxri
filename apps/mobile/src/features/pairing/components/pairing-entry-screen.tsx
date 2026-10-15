@@ -5,11 +5,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { ActionButton } from '../../../components/action-button';
+import { useTranslation } from '../../../i18n';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 
 export const PairingEntryScreen = () => {
     const theme = useMobileTheme();
+    const { t } = useTranslation();
     const { retryCredentialLoad, status } = useMobileClient();
     if (status === 'storage-error')
         return (
@@ -24,18 +26,18 @@ export const PairingEntryScreen = () => {
                             accessibilityRole="header"
                             style={[styles.title, { color: theme.text }]}
                         >
-                            Could not read this device's pairing
+                            {t('pairing.storageError.title')}
                         </Text>
                         <Text style={[styles.description, { color: theme.muted }]}>
-                            Your saved pairing is still on this device. Try reading it again.
+                            {t('pairing.storageError.description')}
                         </Text>
                         <ActionButton
-                            accessibilityHint="Reads the saved pairing again."
+                            accessibilityHint={t('pairing.storageError.retryHint')}
                             onPress={retryCredentialLoad}
                             testID="credential-storage-retry"
                             theme={theme}
                         >
-                            Try again
+                            {t('components.tryAgain')}
                         </ActionButton>
                     </View>
                 </View>
@@ -54,7 +56,7 @@ export const PairingEntryScreen = () => {
                 <View style={styles.frame}>
                     <View
                         accessible
-                        accessibilityLabel="Caxri mobile companion"
+                        accessibilityLabel={t('pairing.brandLabel')}
                         style={styles.brand}
                     >
                         <View style={[styles.mark, { backgroundColor: theme.primary }]}>
@@ -70,52 +72,52 @@ export const PairingEntryScreen = () => {
                             accessibilityRole="header"
                             style={[styles.title, { color: theme.text }]}
                         >
-                            {wasRevoked ? 'Pairing revoked' : 'Pair with Caxri'}
+                            {t(wasRevoked ? 'pairing.revokedTitle' : 'pairing.pairTitle')}
                         </Text>
                         <Text style={[styles.description, { color: theme.muted }]}>
-                            {wasRevoked
-                                ? 'This device was removed in Caxri. Pair it again to reconnect.'
-                                : 'Connect to Caxri running on your computer.'}
+                            {t(
+                                wasRevoked
+                                    ? 'pairing.revokedDescription'
+                                    : 'pairing.connectDescription',
+                            )}
                         </Text>
                     </View>
 
                     <View style={styles.actions}>
                         <View
                             accessible
-                            accessibilityLabel={
-                                wasRevoked
-                                    ? 'Pairing revoked. Pair this device with Caxri again.'
-                                    : 'Not connected. Pair this device with Caxri on your computer.'
-                            }
+                            accessibilityLabel={t(
+                                wasRevoked ? 'pairing.revokedLabel' : 'pairing.notConnectedLabel',
+                            )}
                             style={styles.status}
                             testID="pairing-status"
                         >
                             <View style={[styles.statusDot, { backgroundColor: theme.muted }]} />
                             <Text style={[styles.statusText, { color: theme.muted }]}>
-                                {wasRevoked ? 'Pair again' : 'Not connected'}
+                                {t(wasRevoked ? 'pairing.pairAgain' : 'pairing.notConnected')}
                             </Text>
                         </View>
                         <ActionButton
                             navigates
-                            accessibilityHint="Opens the camera to scan a pairing code shown by Caxri on your computer."
+                            accessibilityHint={t('pairing.scanHint')}
                             onPress={() => router.push('/pair/scan')}
                             testID="pairing-scan-button"
                             theme={theme}
                         >
-                            Scan pairing code
+                            {t('pairing.scanCode')}
                         </ActionButton>
                         <ActionButton
                             navigates
-                            accessibilityHint="Reads a Caxri pairing link from the clipboard."
+                            accessibilityHint={t('pairing.pasteHint')}
                             onPress={() => router.push('/pair/paste')}
                             testID="pairing-paste-button"
                             theme={theme}
                             variant="secondary"
                         >
-                            Paste pairing link
+                            {t('pairing.pasteLink')}
                         </ActionButton>
                         <Text style={[styles.footnote, { color: theme.muted }]}>
-                            On your computer, open Settings → Mobile and turn on Mobile access.
+                            {t('pairing.footnote')}
                         </Text>
                     </View>
                 </View>

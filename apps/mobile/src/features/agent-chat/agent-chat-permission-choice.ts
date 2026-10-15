@@ -12,6 +12,9 @@ import {
     isAgentChatPermissionNextTurnOnly,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 type PermissionSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'permissionMode' | 'planMode'>;
 
 /**
@@ -38,19 +41,23 @@ export const agentChatPermissionTrigger = (
     snapshot: PermissionSnapshot | undefined,
     provider: AgentProvider | undefined,
     canConfigure: boolean,
+    t: Translate = translate,
 ): AgentChatPermissionTrigger | undefined => {
     if (!snapshot || !provider || !('permissionMode' in snapshot || 'planMode' in snapshot))
         return undefined;
     const label = snapshot.permissionMode
-        ? agentChatPermissionModeLabel(snapshot.permissionMode, provider)
-        : 'Custom';
+        ? agentChatPermissionModeLabel(snapshot.permissionMode, provider, t)
+        : t('chat.permission.custom');
     const isPlanMode = snapshot.planMode === true;
     return {
         label,
         isFullAccess: snapshot.permissionMode === 'fullAccess',
         isPlanMode,
         isInteractive: canConfigure,
-        accessibilityLabel: `Permissions: ${label}${isPlanMode ? ', plan mode on' : ''}`,
+        accessibilityLabel: t(
+            isPlanMode ? 'chat.permission.triggerLabelPlan' : 'chat.permission.triggerLabel',
+            { label },
+        ),
     };
 };
 
@@ -82,6 +89,7 @@ const permissionOptionTestID = (value: AgentChatPermissionMode | 'custom'): stri
 export const agentChatPermissionOptions = (
     snapshot: Pick<AgentChatSnapshot, 'permissionMode'> | undefined,
     provider: AgentProvider,
+    t: Translate = translate,
 ): AgentChatPermissionOption[] => {
     const current = snapshot?.permissionMode;
     const custom: AgentChatPermissionOption[] =
@@ -89,8 +97,8 @@ export const agentChatPermissionOptions = (
             ? [
                   {
                       value: 'custom',
-                      label: 'Custom (from launch settings)',
-                      description: 'Launch settings decide; choose a level to override them',
+                      label: t('chat.permission.customRow'),
+                      description: t('chat.permission.customRowDescription'),
                       isSelected: true,
                       isFullAccess: false,
                       testID: permissionOptionTestID('custom'),
@@ -100,10 +108,10 @@ export const agentChatPermissionOptions = (
     return [
         ...custom,
         ...agentChatPermissionModes(provider).map((mode) => {
-            const description = agentChatPermissionModeDescription(provider, mode);
+            const description = agentChatPermissionModeDescription(provider, mode, t);
             return {
                 value: mode,
-                label: agentChatPermissionModeLabel(mode, provider),
+                label: agentChatPermissionModeLabel(mode, provider, t),
                 ...(description && { description }),
                 isSelected: mode === current,
                 isFullAccess: mode === 'fullAccess',
@@ -120,12 +128,13 @@ export const agentChatPermissionOptions = (
 export const agentChatPlanModeToggle = (
     snapshot: Pick<AgentChatSnapshot, 'planMode'> | undefined,
     provider: AgentProvider,
+    t: Translate = translate,
 ): { label: string; description: string; isOn: boolean } | undefined =>
     snapshot?.planMode === undefined || !canAgentChatPlan(provider)
         ? undefined
         : {
-              label: 'Plan mode',
-              description: 'Plans first and changes nothing until you approve',
+              label: t('chat.permission.planMode'),
+              description: t('chat.permission.planModeDescription'),
               isOn: snapshot.planMode,
           };
 
@@ -136,17 +145,19 @@ export const agentChatPlanModeToggle = (
 export const agentChatPermissionSheetNote = (
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId'> | undefined,
     provider: AgentProvider,
+    t: Translate = translate,
 ): string | undefined =>
     snapshot?.activeTurnId && isAgentChatPermissionNextTurnOnly(provider)
-        ? 'Applies to the next turn.'
+        ? t('chat.permission.appliesNextTurn')
         : undefined;
 
 /**
  * The sheet's message for a failed switch, naming what the reader tried to change.
  */
-export const agentChatPermissionFailureMessage = (change: AgentChatPermissionRequest): string => {
-    if (change.permissionMode !== undefined) return 'Unable to change permissions. Try again.';
-    return change.planMode
-        ? 'Unable to turn on plan mode. Try again.'
-        : 'Unable to turn off plan mode. Try again.';
+export const agentChatPermissionFailureMessage = (
+    change: AgentChatPermissionRequest,
+    t: Translate = translate,
+): string => {
+    if (change.permissionMode !== undefined) return t('chat.permission.changeFailed');
+    return t(change.planMode ? 'chat.permission.planOnFailed' : 'chat.permission.planOffFailed');
 };

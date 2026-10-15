@@ -1,6 +1,7 @@
 import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { setLocale } from '../../../i18n/locale-store';
 import { mobileAgentDisplayName } from '../agent-display-name';
 import type { MobileSessionItem } from '../session-model';
 import {
@@ -10,7 +11,20 @@ import {
     sessionAgentLabel,
     sessionStateLabel,
     sessionStatusGlyphKind,
+    sessionTitleForDisplay,
 } from '../session-row-model';
+
+describe('sessionTitleForDisplay', () => {
+    afterEach(() => setLocale('en'));
+
+    it('translates only the stored placeholder of an unnamed Session', () => {
+        setLocale('zh-CN');
+        expect(sessionTitleForDisplay('Untitled')).toBe('未命名');
+        expect(sessionTitleForDisplay('Fix login')).toBe('Fix login');
+        setLocale('en');
+        expect(sessionTitleForDisplay('Untitled')).toBe('Untitled');
+    });
+});
 
 describe('Session row labels', () => {
     it('shows human Agent names without provider jargon', () => {

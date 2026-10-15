@@ -26,6 +26,7 @@ import {
 } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatQueueHeader, AgentChatQueueRow } from './agent-chat-queue';
 import { agentChatQueueCardLayout, agentChatQueueRowHints } from './agent-chat-queue';
@@ -36,7 +37,6 @@ import { useIsKeyboardShown } from './use-keyboard-shown';
 const MONOSPACE = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 const STEER_HIT_SLOP = { bottom: 8, left: 8, right: 4, top: 8 } as const;
 const DELETE_ACTION_WIDTH = 84;
-const DELETE_LABEL = 'Delete queued message';
 
 /**
  * About four rows; a longer queue scrolls inside the card so the Chat above keeps its room.
@@ -65,61 +65,63 @@ const QueueHeader = ({
     onToggle: () => void;
     showsToggle: boolean;
     theme: MobileTheme;
-}) => (
-    <View style={styles.header}>
-        {header.isPaused ? <Pause color={theme.warning} size={14} strokeWidth={2.25} /> : null}
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
-            {header.title}
-        </Text>
-        <View style={[styles.count, { backgroundColor: theme.elevated }]}>
-            <Text
-                accessibilityLabel={`${header.count} queued`}
-                style={[styles.countText, { color: theme.muted }]}
-                testID="agent-chat-queue-count"
-            >
-                {header.count}
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.header}>
+            {header.isPaused ? <Pause color={theme.warning} size={14} strokeWidth={2.25} /> : null}
+            <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+                {header.title}
             </Text>
+            <View style={[styles.count, { backgroundColor: theme.elevated }]}>
+                <Text
+                    accessibilityLabel={t('chat.queue.countLabel', { count: header.count })}
+                    style={[styles.countText, { color: theme.muted }]}
+                    testID="agent-chat-queue-count"
+                >
+                    {header.count}
+                </Text>
+            </View>
+            <Text numberOfLines={1} style={[styles.detail, { color: theme.muted }]}>
+                {header.detail ?? ''}
+            </Text>
+            {canAct && header.isPaused ? (
+                <Pressable
+                    accessibilityLabel={t('chat.queue.resumeLabel')}
+                    accessibilityRole="button"
+                    accessibilityState={{ busy: isResuming, disabled: isResuming }}
+                    disabled={isResuming}
+                    onPress={onResume}
+                    style={({ pressed }) => [styles.resume, { opacity: pressed ? 0.6 : 1 }]}
+                    testID="agent-chat-queue-resume"
+                >
+                    {isResuming ? (
+                        <ActivityIndicator color={theme.primary} size="small" />
+                    ) : (
+                        <Play color={theme.primary} size={14} strokeWidth={2.5} />
+                    )}
+                    <Text style={[styles.resumeText, { color: theme.primary }]}>
+                        {t('chat.queue.resume')}
+                    </Text>
+                </Pressable>
+            ) : null}
+            {showsToggle ? (
+                <IconButton
+                    accessibilityLabel={t(
+                        isExpanded ? 'chat.queue.hideRows' : 'chat.queue.showRows',
+                    )}
+                    color={theme.muted}
+                    expanded={isExpanded}
+                    icon={isExpanded ? ChevronDown : ChevronUp}
+                    onPress={onToggle}
+                    size={18}
+                    testID="agent-chat-queue-toggle"
+                    theme={theme}
+                />
+            ) : null}
         </View>
-        <Text numberOfLines={1} style={[styles.detail, { color: theme.muted }]}>
-            {header.detail ?? ''}
-        </Text>
-        {canAct && header.isPaused ? (
-            <Pressable
-                accessibilityLabel="Resume queue"
-                accessibilityRole="button"
-                accessibilityState={{ busy: isResuming, disabled: isResuming }}
-                disabled={isResuming}
-                onPress={onResume}
-                style={({ pressed }) => [styles.resume, { opacity: pressed ? 0.6 : 1 }]}
-                testID="agent-chat-queue-resume"
-            >
-                {isResuming ? (
-                    <ActivityIndicator color={theme.primary} size="small" />
-                ) : (
-                    <Play color={theme.primary} size={14} strokeWidth={2.5} />
-                )}
-                <Text style={[styles.resumeText, { color: theme.primary }]}>Resume</Text>
-            </Pressable>
-        ) : null}
-        {showsToggle ? (
-            <IconButton
-                accessibilityLabel={isExpanded ? 'Hide queued messages' : 'Show queued messages'}
-                color={theme.muted}
-                expanded={isExpanded}
-                icon={isExpanded ? ChevronDown : ChevronUp}
-                onPress={onToggle}
-                size={18}
-                testID="agent-chat-queue-toggle"
-                theme={theme}
-            />
-        ) : null}
-    </View>
-);
-
-/**
- * Desktop's reason a message with images has no Edit, shown when the disabled button is tapped.
- */
-const IMAGES_UNSUPPORTED = 'Messages with images cannot be edited';
+    );
+};
 
 /**
  * A queued row's Send now (or Steer) and Edit buttons, for a device that may act on the queue. Delete lives in the
@@ -140,13 +142,16 @@ const QueueRowActions = ({
     onSendNow: (id: string) => Promise<boolean>;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const isSteer = entry.sendNowLabel === 'Steer';
-    const hints = agentChatQueueRowHints(entry, IMAGES_UNSUPPORTED);
+    // Desktop's reason a message with images has no Edit, shown when the disabled button is tapped.
+    const imagesUnsupported = t('chat.queue.imagesUnsupported');
+    const hints = agentChatQueueRowHints(entry, imagesUnsupported, t);
     return (
         <>
             <Pressable
                 accessibilityHint={hints.sendNow}
-                accessibilityLabel={isSteer ? 'Steer now' : 'Send now'}
+                accessibilityLabel={t(isSteer ? 'chat.queue.steerNow' : 'chat.queue.sendNow')}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: !canSendNow }}
                 disabled={!canSendNow}
@@ -173,14 +178,14 @@ const QueueRowActions = ({
             </Pressable>
             <IconButton
                 accessibilityHint={hints.edit}
-                accessibilityLabel="Edit queued message"
+                accessibilityLabel={t('chat.queue.editMessage')}
                 color={theme.muted}
                 disabled={isPending || !entry.canEdit}
                 icon={Pencil}
                 onDisabledPress={
                     isPending
                         ? undefined
-                        : () => Alert.alert("This message can't be edited", IMAGES_UNSUPPORTED)
+                        : () => Alert.alert(t('chat.queue.cannotEdit'), imagesUnsupported)
                 }
                 onPress={() => {
                     // eslint-disable-next-line no-void -- The queue card reports a failed edit itself.
@@ -214,6 +219,8 @@ const QueueRow = ({
     onSendNow: (id: string) => Promise<boolean>;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
+    const deleteLabel = t('chat.queue.deleteMessage');
     const swipeableReference = useRef<SwipeableMethods>(null);
     const remove = useCallback(async (): Promise<void> => {
         // A failed delete brings the row back with the card's error; close it so the row reads normally again.
@@ -222,7 +229,7 @@ const QueueRow = ({
     const renderRightActions = useCallback(
         () => (
             <Pressable
-                accessibilityLabel={DELETE_LABEL}
+                accessibilityLabel={deleteLabel}
                 accessibilityRole="button"
                 onPress={remove}
                 style={({ pressed }) => [
@@ -233,11 +240,11 @@ const QueueRow = ({
             >
                 <Trash2 color={theme.primaryForeground} size={20} strokeWidth={2.25} />
                 <Text style={[styles.swipeActionText, { color: theme.primaryForeground }]}>
-                    Delete
+                    {t('chat.queue.delete')}
                 </Text>
             </Pressable>
         ),
-        [remove, theme],
+        [deleteLabel, remove, t, theme],
     );
     const isPending = entry.isPending === true;
     // A message still on its way holds every action until Server Core lists it, as on Desktop.
@@ -259,7 +266,7 @@ const QueueRow = ({
                 testID={isPending ? 'agent-chat-queue-item-pending' : 'agent-chat-queue-item'}
             >
                 <View
-                    accessibilityActions={canAct ? [{ name: 'delete', label: DELETE_LABEL }] : []}
+                    accessibilityActions={canAct ? [{ name: 'delete', label: deleteLabel }] : []}
                     accessible
                     onAccessibilityAction={({ nativeEvent }) => {
                         // eslint-disable-next-line no-void -- The queue card reports a failed delete itself.
@@ -290,7 +297,9 @@ const QueueRow = ({
                         </View>
                     ) : null}
                     {isPending ? (
-                        <Text style={[styles.imagesText, { color: theme.muted }]}>Sending…</Text>
+                        <Text style={[styles.imagesText, { color: theme.muted }]}>
+                            {t('chat.sending')}
+                        </Text>
                     ) : null}
                 </View>
                 {canActOnQueue ? (
@@ -330,6 +339,7 @@ export const AgentChatQueueList = ({
 }) => {
     const { edit, entries, error, header, isResuming, remove, resume, sendNow } =
         useAgentChatQueueActions(chat, onEdit);
+    const { t } = useTranslation();
     const isComposing = useIsKeyboardShown();
     const [isExpanded, setExpanded] = useState(false);
     // Each time the keyboard goes down the card is whole again, so the next time the user types it starts collapsed.
@@ -353,7 +363,7 @@ export const AgentChatQueueList = ({
     if (!header) return null;
     return (
         <View
-            accessibilityLabel="Queued messages"
+            accessibilityLabel={t('chat.queue.label')}
             style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
             testID="agent-chat-queue"
         >

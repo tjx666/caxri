@@ -7,6 +7,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { useConfirmForgetComputer } from '../../connection/use-confirm-forget-computer';
@@ -85,6 +86,7 @@ export const SessionHome = ({
     theme: MobileTheme;
 }) => {
     const { status } = useMobileClient();
+    const { t } = useTranslation();
     const router = useRouter();
     const { hostId, listScrollOffsetRef, sessions, setProjectId, setSegment, ui } =
         useHostSessions();
@@ -342,8 +344,8 @@ export const SessionHome = ({
                 </View>
             )}
             <Pressable
-                accessibilityHint="Opens the New Session screen."
-                accessibilityLabel="New Session"
+                accessibilityHint={t('sessions.home.newSessionHint')}
+                accessibilityLabel={t('sessions.new.title')}
                 accessibilityRole="button"
                 onPress={onNewSession}
                 style={
@@ -360,7 +362,7 @@ export const SessionHome = ({
                 />
                 {layout === 'phone' ? null : (
                     <Text style={[styles.tabletNewText, { color: theme.primary }]}>
-                        New Session
+                        {t('sessions.new.title')}
                     </Text>
                 )}
             </Pressable>

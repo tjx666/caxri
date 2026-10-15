@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import type { AgentTurnReviewTab } from '@caxri/protocol';
 import {
     agentChatChangeDecoration,
+    agentChatChangeKindLabel,
     agentChatEditedFilesStat,
     projectDisplayPath,
 } from '@caxri/protocol';
@@ -15,7 +16,6 @@ import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import { usePaneViewSession } from '../workbench/pane-view-session';
-import { agentChatLocalizedChangeKindLabel } from './agent-chat-diff-labels';
 import { AgentChatDiff } from './agent-chat-file-changes';
 import {
     AgentChatReviewCommentCard,
@@ -120,7 +120,7 @@ export function AgentChatTurnReviewTab({ tab }: { tab: AgentTurnReviewTab }) {
                                     decoration={agentChatChangeDecoration(file.kind)}
                                 />
                                 <span className="sr-only">
-                                    {agentChatLocalizedChangeKindLabel(file.kind, t)}
+                                    {agentChatChangeKindLabel(file.kind, t)}
                                 </span>
                                 <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
                                     {path}

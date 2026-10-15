@@ -1,3 +1,5 @@
+import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { translateAgentChatLabel } from './agent-chat-labels.js';
 import { describeShellCommand } from './agent-shell-command.js';
 
 /**
@@ -274,53 +276,78 @@ function describeShellAction(command: string): AgentToolPresentation | null {
 }
 
 /**
- * Present-tense verbs for work still in progress (`Running git status`), per kind. MCP and unknown tools keep their
- * label, which names the server or tool rather than an action.
+ * The catalog key of each English label in the tool table above, so a surface can show the label in the reader's
+ * language while the presentation itself (stored in snapshots and sent to every client) stays English source data. A
+ * label outside this table (an MCP server, an unknown tool's own name, or a Computer Use step's title) is an identifier
+ * and stays as is.
  */
-const ACTIVE_LABELS: Partial<Record<AgentToolKind, string>> = {
-    agent: 'Running agent',
-    command: 'Running',
-    edit: 'Editing',
-    image: 'Viewing image',
-    list: 'Listing',
-    manage: 'Managing agent',
-    plan: 'Updating plan',
-    question: 'Asking',
-    read: 'Reading',
-    search: 'Searching',
-    skill: 'Using skill',
-    stop: 'Stopping',
-    thought: 'Thinking',
-    wait: 'Waiting for agents',
-    web: 'Browsing',
-    write: 'Writing',
+const TOOL_LABEL_KEYS: Readonly<Record<string, AgentChatLabelKey>> = {
+    'Ran': 'agentChat.tool.label.ran',
+    'Checked output': 'agentChat.tool.label.checkedOutput',
+    'Sent input': 'agentChat.tool.label.sentInput',
+    'Stopped': 'agentChat.tool.label.stopped',
+    'Read': 'agentChat.tool.label.read',
+    'Listed': 'agentChat.tool.label.listed',
+    'Listed files': 'agentChat.tool.label.listedFiles',
+    'Edited': 'agentChat.tool.label.edited',
+    'Created': 'agentChat.tool.label.created',
+    'Patched': 'agentChat.tool.label.patched',
+    'Wrote': 'agentChat.tool.label.wrote',
+    'Searched': 'agentChat.tool.label.searched',
+    'Found files': 'agentChat.tool.label.foundFiles',
+    'Looked up tools': 'agentChat.tool.label.lookedUpTools',
+    'Fetched': 'agentChat.tool.label.fetched',
+    'Searched the web': 'agentChat.tool.label.searchedWeb',
+    'Ran agent': 'agentChat.tool.label.ranAgent',
+    'Started agent': 'agentChat.tool.label.startedAgent',
+    'Messaged agent': 'agentChat.tool.label.messagedAgent',
+    'Closed agent': 'agentChat.tool.label.closedAgent',
+    'Stopped agent': 'agentChat.tool.label.stoppedAgent',
+    'Waited for agents': 'agentChat.tool.label.waitedForAgents',
+    'Agent finished': 'agentChat.tool.label.agentFinished',
+    'Updated plan': 'agentChat.tool.label.updatedPlan',
+    'Proposed plan': 'agentChat.tool.label.proposedPlan',
+    'Used skill': 'agentChat.tool.label.usedSkill',
+    'Asked': 'agentChat.tool.label.asked',
+    'Viewed image': 'agentChat.tool.label.viewedImage',
+    'Thought': 'agentChat.tool.label.thought',
+    'Thinking': 'agentChat.tool.label.thinking',
+    'Used the browser': 'agentChat.tool.label.usedBrowser',
+    'Used Computer Use': 'agentChat.tool.label.usedComputerUse',
 };
-
-export const agentToolActiveLabel = (presentation: Pick<AgentToolPresentation, 'kind' | 'label'>) =>
-    ACTIVE_LABELS[presentation.kind] ?? presentation.label;
 
 /**
- * Base-form verbs for a tool that did not complete (`Failed to edit`), per kind. MCP and unknown tools have none: their
- * label names the server or tool rather than an action.
+ * A tool presentation's past-tense label (`Edited`) in the reader's language. A label the table does not know, or one
+ * already translated, is returned unchanged, so applying this twice is harmless.
  */
-const BASE_VERBS: Partial<Record<AgentToolKind, string>> = {
-    agent: 'run agent',
-    command: 'run',
-    edit: 'edit',
-    image: 'view image',
-    list: 'list',
-    manage: 'manage agent',
-    plan: 'update plan',
-    question: 'ask',
-    read: 'read',
-    search: 'search',
-    skill: 'use skill',
-    stop: 'stop',
-    thought: 'think',
-    wait: 'wait for agents',
-    web: 'browse',
-    write: 'write',
-};
+export function agentToolLabel(
+    label: string,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    const key = Object.hasOwn(TOOL_LABEL_KEYS, label) ? TOOL_LABEL_KEYS[label] : undefined;
+    return key ? t(key) : label;
+}
+
+/**
+ * Tool kinds that name an action. `mcp` and `other` name a server or tool instead and keep their label, and a Computer
+ * Use step's label is the title the Agent wrote for it.
+ */
+export type AgentToolActionKind = Exclude<AgentToolKind, 'browser' | 'computer' | 'mcp' | 'other'>;
+
+export const isAgentToolActionKind = (kind: AgentToolKind): kind is AgentToolActionKind =>
+    kind !== 'browser' && kind !== 'computer' && kind !== 'mcp' && kind !== 'other';
+
+/**
+ * The present-tense verb for work still in progress (`Running git status`). MCP and unknown tools keep their label,
+ * which names the server or tool rather than an action.
+ */
+export const agentToolActiveLabel = (
+    presentation: Pick<AgentToolPresentation, 'kind' | 'label'>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string =>
+    isAgentToolActionKind(presentation.kind)
+        ? t(`agentChat.tool.active.${presentation.kind}`)
+        : agentToolLabel(presentation.label, t);
 
 /**
  * How a settled tool call ended, as far as its row title is concerned.
@@ -335,54 +362,31 @@ export type AgentToolOutcome = 'completed' | 'declined' | 'failed' | 'interrupte
 export const agentToolOutcomeLabel = (
     presentation: Pick<AgentToolPresentation, 'kind' | 'label'>,
     outcome: AgentToolOutcome,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string => {
-    const verb = BASE_VERBS[presentation.kind];
+    const { kind } = presentation;
+    const label = agentToolLabel(presentation.label, t);
+    const verb = isAgentToolActionKind(kind) ? t(`agentChat.tool.verb.${kind}`) : undefined;
     switch (outcome) {
         case 'completed': {
-            return presentation.label;
+            return label;
         }
         case 'failed': {
-            return verb ? `Failed to ${verb}` : `Failed: ${presentation.label}`;
+            return verb
+                ? t('agentChat.tool.failedTo', { verb })
+                : t('agentChat.tool.failedNamed', { label });
         }
         case 'declined': {
-            return verb ? `Not allowed to ${verb}` : `Not allowed: ${presentation.label}`;
+            return verb
+                ? t('agentChat.tool.notAllowedTo', { verb })
+                : t('agentChat.tool.notAllowedNamed', { label });
         }
         case 'interrupted': {
-            // `Stopped stopping` reads as a typo; an interrupted stop request says what happened instead.
-            if (presentation.kind === 'stop') return 'Stop request interrupted';
-            const active = ACTIVE_LABELS[presentation.kind];
-            return active
-                ? `Stopped ${active.charAt(0).toLowerCase()}${active.slice(1)}`
-                : `Stopped: ${presentation.label}`;
+            return isAgentToolActionKind(kind)
+                ? t(`agentChat.tool.stopped.${kind}`)
+                : t('agentChat.tool.stoppedNamed', { label });
         }
     }
-};
-
-const plural = (count: number, singular: string, pluralForm = `${singular}s`): string =>
-    `${count} ${count === 1 ? singular : pluralForm}`;
-
-const GROUP_PHRASES: Record<AgentToolKind, (count: number) => string> = {
-    command: (count) => `ran ${plural(count, 'command')}`,
-    read: (count) => `read ${plural(count, 'file')}`,
-    list: (count) => `listed ${plural(count, 'folder')}`,
-    edit: (count) => `edited ${plural(count, 'file')}`,
-    write: (count) => `wrote ${plural(count, 'file')}`,
-    search: (count) => `ran ${plural(count, 'search', 'searches')}`,
-    web: (count) => `browsed ${plural(count, 'page')}`,
-    agent: (count) => `ran ${plural(count, 'agent')}`,
-    // Counts calls, not agents: messaging one agent twice must not read as two agents.
-    manage: () => 'managed agents',
-    browser: (count) => `ran ${plural(count, 'browser step')}`,
-    computer: (count) => `ran ${plural(count, 'Computer Use step')}`,
-    plan: () => 'updated the plan',
-    skill: (count) => `used ${plural(count, 'skill')}`,
-    mcp: (count) => `called ${plural(count, 'MCP tool')}`,
-    question: (count) => `asked ${plural(count, 'question')}`,
-    image: (count) => `viewed ${plural(count, 'image')}`,
-    stop: (count) => `stopped ${plural(count, 'process', 'processes')}`,
-    thought: () => 'thought',
-    wait: () => 'waited for agents',
-    other: (count) => `used ${plural(count, 'tool')}`,
 };
 
 /**
@@ -397,26 +401,38 @@ export const agentToolKindCounts = (tools: ReadonlyArray<Pick<ToolCall, 'name' |
     return [...counts].map(([kind, count]) => ({ kind, count }));
 };
 
+/**
+ * `Ran 3 commands, read 2 files`: one phrase per kind, in the order the Agent first used it.
+ */
 export const summarizeAgentToolGroup = (
     tools: ReadonlyArray<Pick<ToolCall, 'name' | 'summary'>>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string => {
     const phrase = agentToolKindCounts(tools)
-        .map(({ kind, count }) => GROUP_PHRASES[kind](count))
-        .join(', ');
+        .map(({ kind, count }) =>
+            t(`agentChat.tool.group.${kind}${count === 1 ? 'One' : 'Other'}`, { count }),
+        )
+        .join(t('agentChat.tool.groupSeparator'));
     return phrase.charAt(0).toUpperCase() + phrase.slice(1);
 };
 
 /**
- * A short elapsed time for a finished Agent turn or tool call: `<1s`, `45s`, `2m`, `2m 1s`. Rounds to whole seconds
- * because the reader compares turns, not milliseconds. Returns `null` when no duration was recorded.
+ * A short elapsed time for a finished Agent turn or tool call: `<1s`, `45s`, `2m`, `2m 1s` (`2 分钟 1 秒` in Chinese, as
+ * the Codex app writes it). Rounds to whole seconds because the reader compares turns, not milliseconds. Returns `null`
+ * when no duration was recorded.
  */
-export function formatShortDuration(durationMs: number | undefined): string | null {
+export function formatShortDuration(
+    durationMs: number | undefined,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string | null {
     if (durationMs === undefined) return null;
-    const seconds = Math.round(durationMs / 1000);
-    if (seconds < 1) return '<1s';
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    return seconds % 60 === 0 ? `${minutes}m` : `${minutes}m ${seconds % 60}s`;
+    const total = Math.round(durationMs / 1000);
+    if (total < 1) return t('agentChat.fold.durationUnderOneSecond');
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    if (minutes === 0) return t('agentChat.fold.durationSeconds', { seconds });
+    if (seconds === 0) return t('agentChat.fold.durationMinutes', { minutes });
+    return t('agentChat.fold.durationMinutesSeconds', { minutes, seconds });
 }
 
 /**
@@ -429,7 +445,10 @@ const NOTICEABLE_DURATION_MS = 1000;
  * a work row, a running turn, or a background task took drops sub-second times through this, so a row of `<1s` labels
  * never says something a reader cannot act on.
  */
-export function formatNoticeableDuration(durationMs: number | undefined): string | null {
+export function formatNoticeableDuration(
+    durationMs: number | undefined,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string | null {
     if (durationMs === undefined || durationMs < NOTICEABLE_DURATION_MS) return null;
-    return formatShortDuration(durationMs);
+    return formatShortDuration(durationMs, t);
 }

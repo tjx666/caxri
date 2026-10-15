@@ -155,7 +155,11 @@ export async function runSubagent(
  */
 const MAX_OUTPUT_DELTAS = 10_000;
 
-export async function runBackgroundCommand(io: FakeCodexIo, turn: FakeTurn, isFlood: boolean) {
+export async function runBackgroundCommand(
+    io: FakeCodexIo,
+    turn: FakeTurn,
+    { isFlood, tickMs }: { isFlood: boolean; tickMs: number },
+) {
     const processId = String(tasks.nextProcessId++);
     const command = {
         type: 'commandExecution',
@@ -195,7 +199,7 @@ export async function runBackgroundCommand(io: FakeCodexIo, turn: FakeTurn, isFl
         terminal.timer = setInterval(() => {
             tick += 1;
             emit(`tick ${tick}\n`);
-        }, 30);
+        }, tickMs);
     }
     await io.streamMessage(turn, 'The dev server is running in the background.', 0);
 }

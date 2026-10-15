@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { OPEN_LINK_FAILED_TITLE, openExternalLink } from './open-external-link';
+import { openExternalLink } from './open-external-link';
 
 vi.mock('react-native', () => ({ Alert: { alert: vi.fn() }, Linking: { openURL: vi.fn() } }));
 
@@ -12,7 +12,7 @@ describe('openExternalLink', () => {
             report,
         });
         expect(report).toHaveBeenCalledWith(
-            OPEN_LINK_FAILED_TITLE,
+            "Couldn't open link",
             'No app on this device could open https://example.com/issue/1.',
         );
     });

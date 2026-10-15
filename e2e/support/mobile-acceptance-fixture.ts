@@ -98,7 +98,11 @@ interface CreateMobileAcceptanceFixtureInput {
      * The provider an `agent-chat` fixture opens its Chat with. Defaults to Codex.
      */
     chatProvider?: 'claude' | 'codex';
-    changes?: MobileChangesFixtureKind;
+    /**
+     * Writes synthetic files into the allowed Project root before Caxri launches, such as `seedMobileChangesFixture`
+     * for Changes.
+     */
+    seedProject?: (root: string) => Promise<void>;
     dropSubmitAcknowledgement?: boolean;
     delayPairingResult?: boolean;
     isolatedProjectHome?: boolean;
@@ -107,8 +111,8 @@ interface CreateMobileAcceptanceFixtureInput {
 export async function createMobileAcceptanceFixture(
     input: CreateMobileAcceptanceFixtureInput,
 ): Promise<MobileAcceptanceFixture> {
-    if (input.mode === 'journey' && input.changes)
-        throw new Error('Journey Changes must be seeded after the synthetic Agent action');
+    if (input.mode === 'journey' && input.seedProject)
+        throw new Error('A journey seeds its Project after the synthetic Agent action');
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-mobile-acceptance-'));
     const userData = join(testDirectory, 'user-data');
     const allowedRoot = join(testDirectory, 'allowed-project');
@@ -133,9 +137,9 @@ export async function createMobileAcceptanceFixture(
               ]
             : []),
     ]);
-    if (input.changes) {
+    if (input.seedProject) {
         try {
-            await seedMobileChangesFixture(allowedRoot, input.changes);
+            await input.seedProject(allowedRoot);
         } catch (error) {
             await rm(testDirectory, { force: true, recursive: true });
             throw error;

@@ -1,3 +1,6 @@
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
+
 type DiffLineKind = 'header' | 'hunk' | 'context' | 'added' | 'removed' | 'meta';
 
 export interface DiffLine {
@@ -45,12 +48,15 @@ export interface ChangesViewState {
     snapshot: ChangesSnapshot | null;
 }
 
-export const changeStatusLabel: Record<ChangedFile['status'], string> = {
-    M: 'Modified',
-    A: 'Added',
-    D: 'Deleted',
-    R: 'Renamed',
+const changeStatusKey: Record<ChangedFile['status'], TranslationKey> = {
+    M: 'changes.status.modified',
+    A: 'changes.status.added',
+    D: 'changes.status.deleted',
+    R: 'changes.status.renamed',
 };
+
+const changeStatusLabel = (status: ChangedFile['status'], t: Translate = translate): string =>
+    t(changeStatusKey[status]);
 
 const hunkHeader = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 
@@ -138,11 +144,41 @@ export const changePathParts = (path: string): { directory: string; filename: st
 export const hasMultipleRepositories = (files: ChangedFile[]): boolean =>
     new Set(files.map((file) => file.repositoryId)).size > 1;
 
-export const changedFilesSummary = (count: number): string =>
-    `${count} ${count === 1 ? 'file' : 'files'} changed`;
+export const changedFilesSummary = (count: number, t: Translate = translate): string =>
+    t(count === 1 ? 'changes.filesChangedOne' : 'changes.filesChangedOther', { count });
 
 /**
  * The summary in words with exact counts, for the screen reader; the visible summary uses compact counts.
  */
-export const changesSummaryLabel = (count: number, additions: number, deletions: number): string =>
-    `${count} ${count === 1 ? 'file' : 'files'} changed, ${additions} ${additions === 1 ? 'line' : 'lines'} added, ${deletions} removed`;
+export const changesSummaryLabel = (
+    count: number,
+    additions: number,
+    deletions: number,
+    t: Translate = translate,
+): string =>
+    t('changes.summaryLabel', {
+        added: t(additions === 1 ? 'changes.linesAddedOne' : 'changes.linesAddedOther', {
+            count: additions,
+        }),
+        files: changedFilesSummary(count, t),
+        removed: t('changes.linesRemoved', { count: deletions }),
+    });
+
+/**
+ * The screen reader's description of one changed-file row: name, change kind, rename source, folder, repository, and
+ * exact line counts.
+ */
+export const changedFileLabel = (file: ChangedFile, t: Translate = translate): string => {
+    const { directory, filename } = changePathParts(file.path);
+    const parameters = {
+        additions: file.additions ?? 0,
+        deletions: file.deletions ?? 0,
+        directory: directory || t('changes.rootDirectory'),
+        filename,
+        repository: file.repositoryName,
+        status: changeStatusLabel(file.status, t),
+    };
+    return file.originalPath
+        ? t('changes.fileRowRenamedLabel', { ...parameters, originalPath: file.originalPath })
+        : t('changes.fileRowLabel', parameters);
+};

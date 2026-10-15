@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { panelsStyles as styles } from './panels-styles';
 
@@ -18,19 +19,24 @@ export const PanelStatus = ({
     onRetry?: () => void;
     testID?: string;
     theme: MobileTheme;
-}) => (
-    <View style={styles.status} testID={testID}>
-        {isLoading ? <ActivityIndicator color={theme.muted} /> : null}
-        {message ? (
-            <Text style={[styles.statusText, { color: theme.muted }]}>{message}</Text>
-        ) : null}
-        {onRetry ? (
-            <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
-                <Text style={[styles.retry, { color: theme.primary }]}>Retry</Text>
-            </Pressable>
-        ) : null}
-    </View>
-);
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.status} testID={testID}>
+            {isLoading ? <ActivityIndicator color={theme.muted} /> : null}
+            {message ? (
+                <Text style={[styles.statusText, { color: theme.muted }]}>{message}</Text>
+            ) : null}
+            {onRetry ? (
+                <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
+                    <Text style={[styles.retry, { color: theme.primary }]}>
+                        {t('common.retry')}
+                    </Text>
+                </Pressable>
+            ) : null}
+        </View>
+    );
+};
 
 /**
  * A Panels read that has no data yet is either in flight or held back because the phone is offline or backgrounded.
@@ -42,13 +48,11 @@ export const PendingPanelStatus = ({
 }: {
     fetchStatus: 'fetching' | 'idle' | 'paused';
     theme: MobileTheme;
-}) =>
-    fetchStatus === 'fetching' ? (
+}) => {
+    const { t } = useTranslation();
+    return fetchStatus === 'fetching' ? (
         <PanelStatus isLoading theme={theme} />
     ) : (
-        <PanelStatus
-            message="Reconnect to browse this Project."
-            testID="panels-offline"
-            theme={theme}
-        />
+        <PanelStatus message={t('panels.offline')} testID="panels-offline" theme={theme} />
     );
+};

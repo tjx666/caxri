@@ -4,12 +4,14 @@ import { Pressable, Text, View } from 'react-native';
 import type { AgentTimelineItem, AgentToolKind } from '@caxri/protocol';
 import {
     agentToolActiveLabel,
+    agentToolLabel,
     agentToolOutcomeLabel,
     describeAgentTool,
     formatNoticeableDuration,
 } from '@caxri/protocol';
 
 import { ShimmerText } from '../../components/shimmer-text';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles as styles } from './conversation-styles';
 import { ConversationStatusGlyph, ConversationToolIcon } from './conversation-tool-icon';
@@ -110,17 +112,18 @@ export const ConversationToolRow = ({
     theme: MobileTheme;
     tool: ToolCall;
 }) => {
+    const { t } = useTranslation();
     const presentation = describeAgentTool(tool);
     const isRunning = tool.status === 'running';
     const verb = isRunning
-        ? agentToolActiveLabel(presentation)
+        ? agentToolActiveLabel(presentation, t)
         : tool.status === 'failed'
-          ? agentToolOutcomeLabel(presentation, 'failed')
-          : presentation.label;
-    const duration = formatNoticeableDuration(tool.durationMs);
+          ? agentToolOutcomeLabel(presentation, 'failed', t)
+          : agentToolLabel(presentation.label, t);
+    const duration = formatNoticeableDuration(tool.durationMs, t);
     return (
         <ConversationToolRowView
-            accessibilityLabel={`${verb} ${presentation.subject ?? ''}. Open detail.`}
+            accessibilityLabel={`${verb} ${presentation.subject ?? ''}. ${t('conversation.tool.openDetail')}`}
             isCodeSubject={presentation.isCodeSubject}
             isRunning={isRunning}
             kind={presentation.kind}

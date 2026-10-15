@@ -44,7 +44,12 @@ Session, Terminal, and tool name, and every grant/revoke logs its own reason.
 
 `/` suggestions use the running provider's Server-discovered command and skill list; `@` suggestions
 use bounded Project file-name search. Selecting an item inserts its invocation or relative path
-into the draft. A paired `reply` or `control` device may attach up to three compressed JPEGs from
+into the draft. An Agent Chat's composer instead opens Desktop's Chat menu for a draft that is a bare
+`/name` or `$name`: the provider's commands under Commands and the Terminal's discovered skills
+under Skills, where the skills come from `mobile.agent.actions` with the typed name as `query` so
+Server Core ranks the whole list before its 40-action cut. Tapping a command without arguments runs
+it; tapping any other row fills the draft with its invocation. See
+[Agent Chat](../agent-chat.md) for the full contract. A paired `reply` or `control` device may attach up to three compressed JPEGs from
 the library, camera, or clipboard. The app sends bounded chunks through the encrypted gateway;
 Server Core writes a file only after all chunks arrive and validates its type and size. The Agent
 receives temporary image paths with the submitted prompt. Attachment IDs enter the durable
@@ -132,7 +137,14 @@ the retained items and their pagination cursor.
 The app renders Agent messages as native Markdown without remote images, user messages as bubbles,
 consecutive tools as collapsible groups, and turn boundaries with duration when present. A tool
 row opens its bounded detail. The virtualized list loads older pages and follows new content only
-when the reader is near the bottom; otherwise it offers **Jump to latest**. Loading, empty, error,
+when the reader is near the bottom; otherwise it offers **Jump to latest**. Following is the list's
+own (`createConversationFollower` in `conversation-scroll.ts`), not FlashList's autoscroll: a drag
+stops following at once, content that changes during a drag or its momentum never scrolls under
+the finger, and only the reader's touch can leave the end, so a scroll event that lags behind new
+content does not. Only a momentum that follows the reader's drag counts as touch: Android also
+reports an animated programmatic scroll such as Jump to latest as momentum. When the touch settles near the end after content changed, the list catches up
+once; scrolls requested within one frame collapse into one. An Agent Chat also pins its latest
+sent message to the top of the viewport; see [Agent Chat: Mobile](../agent-chat.md#mobile). Loading, empty, error,
 and stale states remain visible. `unsupported` and `missing` automatically select the Terminal
 with an explanation. The reader may also select Terminal directly.
 

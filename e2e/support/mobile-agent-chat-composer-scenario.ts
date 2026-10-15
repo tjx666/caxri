@@ -5,14 +5,16 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     agentText,
+    chatTimelineFrame,
     hasCheck,
     sendFromPhone,
+    swipeTimelineTowardEarlier,
+    typeChatDraft,
     waitForCheck,
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
 import {
     adbShell,
-    androidBounds,
     mobileSemantics,
     observeMobileNode,
     startMobileFramebufferRecording,
@@ -32,20 +34,6 @@ const LONG_QUEUED_MESSAGE =
     'files changed. Keep the public names unchanged and leave the docs alone for now, we will review them together ' +
     'tomorrow morning.';
 
-/**
- * Types `text` into the Chat composer as one draft. `input text` reads `%s` as a space; the text holds only letters,
- * spaces, commas, and periods, so the device shell passes it unchanged.
- */
-async function typeDraft(serial: string, text: string): Promise<void> {
-    await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
-    await adbShell(serial, ['input', 'text', text.replaceAll(' ', '%s')]);
-    const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
-        kind: 'equals',
-        value: text,
-    });
-    if (!draft.exists || !draft.textMatches) throw new Error('Chat draft did not match');
-}
-
 const findItem = (
     snapshot: AgentChatSnapshot,
     isMatch: (item: ChatSnapshotItem) => boolean,
@@ -56,25 +44,10 @@ const findItem = (
  * from the bottom.
  */
 async function scrollAwayFromLatest(serial: string): Promise<void> {
-    const viewport = (await mobileSemantics(serial)).find(
-        ({ checkId }) => checkId === 'conversation-view',
-    );
-    const frame = viewport && androidBounds(viewport.bounds);
-    if (!frame) throw new Error('Chat scroll viewport is unavailable');
-    const x = Math.floor((frame.left + frame.right) / 2);
-    const upper = frame.top + Math.floor((frame.bottom - frame.top) * 0.25);
-    const lower = frame.top + Math.floor((frame.bottom - frame.top) * 0.8);
+    const frame = await chatTimelineFrame(serial);
     for (let attempt = 0; attempt < 4; attempt += 1) {
         // eslint-disable-next-line no-await-in-loop -- each gesture moves the same virtual list further.
-        await adbShell(serial, [
-            'input',
-            'swipe',
-            String(x),
-            String(upper),
-            String(x),
-            String(lower),
-            '300',
-        ]);
+        await swipeTimelineTowardEarlier(serial, frame);
         // eslint-disable-next-line no-await-in-loop -- the button follows the settled scroll position.
         if (hasCheck(await mobileSemantics(serial), 'conversation-jump-latest')) return;
     }
@@ -229,7 +202,7 @@ export async function executeMobileChatComposerScenario(
         await sendFromPhone(serial, 'ask');
         await waitForCheck(serial, 'agent-chat-question-0-option-1');
         // The Steer button (#1812) shows beside Queue once there is a draft during the turn.
-        await typeDraft(serial, LONG_QUEUED_MESSAGE);
+        await typeChatDraft(serial, LONG_QUEUED_MESSAGE);
         await waitForCheck(serial, 'agent-chat-steer');
         await capture(environment, 'steer-and-queue', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-composer-send');
@@ -257,8 +230,8 @@ export async function executeMobileChatComposerScenario(
             () => chat.read(),
             (snapshot) => (snapshot.queue?.length ?? 0) === 1,
         );
+        // One question: the tap on an option sends it; the card shows no Submit.
         await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
-        await tapMobileCheckByBounds(serial, 'agent-chat-question-submit');
         await waitForMobile(
             () => chat.read(),
             (snapshot) =>

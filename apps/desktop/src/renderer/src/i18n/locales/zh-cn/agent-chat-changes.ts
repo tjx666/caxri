@@ -1,4 +1,4 @@
-import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+import type { TranslatedNamespace } from '@caxri/protocol';
 
 import type { agentChatChanges as source } from '../en/agent-chat-changes';
 
@@ -15,15 +15,8 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.changes.openInEditor': '在编辑器中打开',
     'agentChat.changes.openPathInEditor': '在编辑器中打开 {{path}}',
     'agentChat.changes.truncated': '已截断',
-    'agentChat.diff.kind.add': '已添加',
-    'agentChat.diff.kind.delete': '已删除',
-    'agentChat.diff.kind.update': '已修改',
 
     // Turn changes card
-    'agentChat.artifacts.editedFiles': '编辑了 {{count}} 个文件',
-    'agentChat.artifacts.createdFile': '创建了 {{name}}',
-    'agentChat.artifacts.deletedFile': '删除了 {{name}}',
-    'agentChat.artifacts.editedFile': '编辑了 {{name}}',
     'agentChat.changes.showFileChanges': '显示更改：{{path}}，{{stat}}',
     'agentChat.changes.hideFileChanges': '隐藏更改：{{path}}，{{stat}}',
     'agentChat.changes.viewAllWithStat': '查看更改，{{stat}}',

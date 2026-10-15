@@ -3,17 +3,14 @@ import { useState } from 'react';
 
 import { Slider as SliderPrimitive } from '@base-ui/react/slider';
 import type { AgentChatModel, AgentChatModelRequest } from '@caxri/protocol';
+import { agentChatEffortLabel } from '@caxri/protocol';
 import { ChevronRight, RotateCcw, Workflow, Zap } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import {
-    agentChatEffortDisplayName,
-    agentChatEffortReset,
-    agentChatEffortStop,
-} from './agent-chat-model-selection';
+import { agentChatEffortReset, agentChatEffortStop } from './agent-chat-model-selection';
 
 /**
  * A mode toggle the panel's header offers: Fast mode or Claude Code's ultracode.
@@ -101,7 +98,7 @@ export function AgentChatEffortPanel({
                 >
                     {shownEffort && efforts.length > 0 && (
                         <span className="text-[15px] leading-5 font-semibold text-accent">
-                            {agentChatEffortDisplayName(t, shownEffort)}
+                            {agentChatEffortLabel(shownEffort, t)}
                         </span>
                     )}
                     <span
@@ -262,9 +259,7 @@ function EffortSlider({
                 <SliderPrimitive.Thumb
                     className="size-7 rounded-full bg-foreground shadow-[0_1px_4px_var(--shadow)] outline-none has-focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)]"
                     getAriaLabel={() => t('agentChat.model.reasoningEffort')}
-                    getAriaValueText={(_, value) =>
-                        agentChatEffortDisplayName(t, efforts[value] ?? '')
-                    }
+                    getAriaValueText={(_, value) => agentChatEffortLabel(efforts[value] ?? '', t)}
                 />
             </SliderPrimitive.Control>
         </SliderPrimitive.Root>

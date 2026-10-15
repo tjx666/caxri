@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useTranslation } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { commanderInboxReplyErrorMessage } from './commander-inbox-model';
 
@@ -98,6 +99,7 @@ export const useCommanderInbox = () => {
  * Sends one reply at a time. The caller keeps its draft until `send` resolves true, so a failed reply loses nothing.
  */
 export const useCommanderInboxReply = (onSent: () => void) => {
+    const { t } = useTranslation();
     const { request } = useMobileClient();
     const [pendingId, setPendingId] = useState<string | null>(null);
     const [error, setError] = useState<{ itemId: string; message: string } | null>(null);
@@ -110,13 +112,13 @@ export const useCommanderInboxReply = (onSent: () => void) => {
                 onSent();
                 return true;
             } catch (error_) {
-                setError({ itemId, message: commanderInboxReplyErrorMessage(error_) });
+                setError({ itemId, message: commanderInboxReplyErrorMessage(error_, t) });
                 return false;
             } finally {
                 setPendingId(null);
             }
         },
-        [onSent, request],
+        [onSent, request, t],
     );
     return { error, pendingId, send };
 };

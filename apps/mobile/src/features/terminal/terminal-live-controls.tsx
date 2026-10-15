@@ -4,6 +4,7 @@ import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { ArrowDown, Keyboard, RotateCw, X } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import type { TerminalKey } from './key-input';
 import type { MobileTerminalExitPresentation } from './terminal-exit-presentation';
@@ -25,36 +26,39 @@ export const TerminalKeyboardInput = ({
 }: {
     inputReference: React.RefObject<TextInputHandle | null>;
     terminal: LiveTerminal;
-}) => (
-    <TextInput
-        ref={inputReference}
-        accessibilityLabel="Terminal keyboard"
-        autoCapitalize="none"
-        autoComplete="off"
-        autoCorrect={false}
-        caretHidden
-        contextMenuHidden
-        editable={terminal.canControl}
-        keyboardType={Platform.OS === 'android' ? 'visible-password' : 'ascii-capable'}
-        onChangeText={(text) => {
-            // eslint-disable-next-line no-void -- The hook reports delivery failures in the Terminal status.
-            if (text) void terminal.typeText(text);
-        }}
-        onKeyPress={({ nativeEvent }) => {
-            // eslint-disable-next-line no-void -- The hook reports delivery failures in the Terminal status.
-            if (nativeEvent.key === 'Backspace') void terminal.typeText('\u{7F}');
-        }}
-        onSubmitEditing={() => {
-            // eslint-disable-next-line no-void -- The hook reports delivery failures in the Terminal status.
-            void terminal.typeText('\r');
-        }}
-        spellCheck={false}
-        style={styles.hiddenInput}
-        submitBehavior="submit"
-        testID="terminal-input"
-        value=""
-    />
-);
+}) => {
+    const { t } = useTranslation();
+    return (
+        <TextInput
+            ref={inputReference}
+            accessibilityLabel={t('terminal.keyboardInput')}
+            autoCapitalize="none"
+            autoComplete="off"
+            autoCorrect={false}
+            caretHidden
+            contextMenuHidden
+            editable={terminal.canControl}
+            keyboardType={Platform.OS === 'android' ? 'visible-password' : 'ascii-capable'}
+            onChangeText={(text) => {
+                // eslint-disable-next-line no-void -- The hook reports delivery failures in the Terminal status.
+                if (text) void terminal.typeText(text);
+            }}
+            onKeyPress={({ nativeEvent }) => {
+                // eslint-disable-next-line no-void -- The hook reports delivery failures in the Terminal status.
+                if (nativeEvent.key === 'Backspace') void terminal.typeText('\u{7F}');
+            }}
+            onSubmitEditing={() => {
+                // eslint-disable-next-line no-void -- The hook reports delivery failures in the Terminal status.
+                void terminal.typeText('\r');
+            }}
+            spellCheck={false}
+            style={styles.hiddenInput}
+            submitBehavior="submit"
+            testID="terminal-input"
+            value=""
+        />
+    );
+};
 
 /**
  * Status that must interrupt the screen floats as a compact chip over the Terminal instead of stacking rows under it.
@@ -80,16 +84,20 @@ export const TerminalStatusChip = ({
     terminal: LiveTerminal;
     theme: MobileTheme;
 }) => {
-    const stopped = exitPresentation ?? { label: 'Terminal has stopped', tone: 'muted' as const };
+    const { t } = useTranslation();
+    const stopped = exitPresentation ?? {
+        label: t('terminal.exit.stopped'),
+        tone: 'muted' as const,
+    };
     const label =
         terminal.error ??
         {
-            loading: 'Loading Terminal…',
-            ready: role === 'control' ? null : 'View only on this device',
-            stale: isConnected ? 'Terminal updates paused · showing the last frame' : null,
+            loading: t('terminal.loading'),
+            ready: role === 'control' ? null : t('terminal.viewOnly'),
+            stale: isConnected ? t('terminal.stale') : null,
             stopped: stopped.label,
-            unavailable: 'Terminal is unavailable',
-            error: 'Unable to load the Terminal',
+            unavailable: t('terminal.unavailable'),
+            error: t('terminal.loadFailed'),
         }[terminal.state];
     if (!label) return null;
     const isError =
@@ -119,7 +127,7 @@ export const TerminalStatusChip = ({
             </Text>
             {terminal.state === 'error' ? (
                 <IconButton
-                    accessibilityLabel="Retry Terminal"
+                    accessibilityLabel={t('terminal.retry')}
                     icon={RotateCw}
                     onPress={terminal.retry}
                     size={18}
@@ -143,12 +151,13 @@ export const TerminalFloatingActions = ({
     terminal: LiveTerminal;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const canTakeOver = terminal.canControl && terminal.hasSize;
     return (
         <View pointerEvents="box-none" style={styles.floating}>
             {terminal.atBottom ? null : (
                 <Pressable
-                    accessibilityLabel="Jump to latest Terminal output"
+                    accessibilityLabel={t('terminal.jumpToLatest')}
                     accessibilityRole="button"
                     onPress={terminal.jump}
                     style={[
@@ -171,12 +180,12 @@ export const TerminalFloatingActions = ({
                         style={[styles.takeOverCaption, { backgroundColor: theme.elevated }]}
                     >
                         <Text style={[styles.takeOverCaptionText, { color: theme.muted }]}>
-                            Temporarily resizes the Terminal on your computer
+                            {t('terminal.takeOverCaption')}
                         </Text>
                     </View>
                     <Pressable
-                        accessibilityHint="Sizes the shared Terminal for this phone and opens the keyboard."
-                        accessibilityLabel="Take over Terminal"
+                        accessibilityHint={t('terminal.takeOverHint')}
+                        accessibilityLabel={t('terminal.takeOverLabel')}
                         accessibilityRole="button"
                         accessibilityState={{ disabled: !canTakeOver }}
                         disabled={!canTakeOver}
@@ -189,7 +198,7 @@ export const TerminalFloatingActions = ({
                     >
                         <Keyboard color={theme.primaryForeground} size={18} strokeWidth={2.25} />
                         <Text style={[styles.floatingLabel, { color: theme.primaryForeground }]}>
-                            Take over
+                            {t('terminal.takeOver')}
                         </Text>
                     </Pressable>
                 </View>
@@ -211,6 +220,7 @@ export const TerminalControlBar = ({
     terminal: LiveTerminal;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const onKey = (key: TerminalKey): void => {
         // eslint-disable-next-line no-void -- The hook owns the visible error state for failed input.
         void terminal.pressKey(key);
@@ -228,7 +238,7 @@ export const TerminalControlBar = ({
                 theme={theme}
             />
             <IconButton
-                accessibilityLabel="Show or hide keyboard"
+                accessibilityLabel={t('terminal.toggleKeyboard')}
                 icon={Keyboard}
                 onPress={onToggleKeyboard}
                 size={20}
@@ -236,8 +246,8 @@ export const TerminalControlBar = ({
                 theme={theme}
             />
             <IconButton
-                accessibilityHint="Returns the Terminal to your computer's size."
-                accessibilityLabel="Release Terminal"
+                accessibilityHint={t('terminal.releaseHint')}
+                accessibilityLabel={t('terminal.release')}
                 icon={X}
                 onPress={() => {
                     // eslint-disable-next-line no-void -- The hook reports release failures in the UI.

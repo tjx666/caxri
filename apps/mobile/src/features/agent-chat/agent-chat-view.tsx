@@ -1,10 +1,8 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import type { ListRenderItemInfo } from 'react-native';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { AgentChatRequest } from '@caxri/protocol';
 import {
     agentChatActivity,
     agentChatDockedPlan,
@@ -13,40 +11,44 @@ import {
 } from '@caxri/protocol';
 
 import { NoticeBanner } from '../../components/notice-banner';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
 import { ConversationList } from '../conversation/conversation-view';
-import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { AgentChatActivityLine } from './agent-chat-activity-line';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import {
-    AGENT_CHAT_HANDED_OFF_BANNER,
     agentChatComposerAvailability,
     agentChatEmptyMessage,
+    agentChatHandedOffBanner,
     agentChatImageCounts,
     agentChatRequestBlockedReason,
     isAgentChatFailureRetryable,
+    shouldShowAgentChatStaleNotice,
 } from './agent-chat-model';
 import { AgentChatPlanCard } from './agent-chat-plan-card';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatRequestCard } from './agent-chat-request-card';
+import { agentChatRequestDock } from './agent-chat-request-flow';
+import { createAgentChatEntryStabilizer } from './agent-chat-stable-entries';
+import { AgentChatTaskStrip } from './agent-chat-task-strip';
 import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
 import {
     buildAgentChatTimeline,
+    isAgentChatTurnStart,
     toggleAgentChatTurn,
     withAgentChatPendingEntries,
 } from './agent-chat-timeline';
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
 import type { AgentChatController } from './use-agent-chat';
+import { useAgentChatHistory } from './use-agent-chat-history';
 
 /**
  * About three lines of the timeline, kept visible however much is docked above the composer.
  */
 const TIMELINE_MIN_HEIGHT = 96;
-
-const noOlderPage = async (): Promise<void> => {};
 
 const AgentChatBody = ({
     canSend,
@@ -68,7 +70,15 @@ const AgentChatBody = ({
     provider: string;
     theme: MobileTheme;
 }) => {
-    const { pending, snapshot } = chat;
+    const { t } = useTranslation();
+    const { pending } = chat;
+    /**
+     * The window with the older pages the reader loaded in front of it; turn folds and artifacts build over both.
+     */
+    const { snapshot, timeline } = useAgentChatHistory(
+        chat.snapshot,
+        isConnected && chat.status === 'ready' && chat.savedAt === undefined,
+    );
     const { retryConnection } = useMobileClient();
     /**
      * The finished turns the user unfolded, by turn id. The list owns it so FlashList can recycle a row for any turn.
@@ -79,25 +89,17 @@ const AgentChatBody = ({
         [],
     );
     const built = useMemo(
-        () => (snapshot ? buildAgentChatTimeline(snapshot, expandedTurnIds) : []),
-        [expandedTurnIds, snapshot],
+        () => (snapshot ? buildAgentChatTimeline(snapshot, expandedTurnIds, t) : []),
+        [expandedTurnIds, snapshot, t],
     );
-    const entries = useMemo(() => withAgentChatPendingEntries(built, pending), [built, pending]);
     /**
-     * The Chat reads one bounded window, so the list's history header only says whether older messages were cut.
+     * Every streamed patch rebuilds the timeline; the stabilizer hands back last render's object for each unchanged row
+     * so only the rows a patch touched redraw.
      */
-    const truncated = snapshot?.truncated ?? false;
-    const timeline = useMemo<ConversationTimelineState & { loadOlder: () => Promise<void> }>(
-        () => ({
-            error: null,
-            historyExpired: false,
-            isLoadingOlder: false,
-            items: [],
-            loadOlder: noOlderPage,
-            status: 'available',
-            truncated,
-        }),
-        [truncated],
+    const [stabilizeEntries] = useState(() => createAgentChatEntryStabilizer<TimelineEntry>());
+    const entries = useMemo(
+        () => stabilizeEntries(withAgentChatPendingEntries(built, pending, t)),
+        [built, pending, stabilizeEntries, t],
     );
     const renderEntry = useCallback(
         (entry: TimelineEntry) => (
@@ -134,6 +136,7 @@ const AgentChatBody = ({
                     enterFrom={enterFrom}
                     followKey={pending.sendCount}
                     isConnected={isConnected}
+                    isTurnStart={isAgentChatTurnStart}
                     onRetry={chat.refresh}
                     renderEntry={renderEntry}
                     theme={theme}
@@ -145,7 +148,7 @@ const AgentChatBody = ({
         return (
             <View style={styles.status} testID="agent-chat-status-error">
                 <Text style={[styles.statusText, { color: theme.muted }]}>
-                    Unable to load this Chat.
+                    {t('chat.loadFailed')}
                 </Text>
                 <Pressable
                     accessibilityRole="button"
@@ -153,7 +156,9 @@ const AgentChatBody = ({
                     style={[styles.bannerButton, { backgroundColor: theme.surface }]}
                     testID="agent-chat-reload"
                 >
-                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>Retry</Text>
+                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>
+                        {t('common.retry')}
+                    </Text>
                 </Pressable>
             </View>
         );
@@ -164,16 +169,18 @@ const AgentChatBody = ({
         return (
             <View style={styles.status} testID="agent-chat-status-offline">
                 <Text style={[styles.statusText, { color: theme.muted }]}>
-                    Reconnect to load this Chat.
+                    {t('chat.reconnectToLoad')}
                 </Text>
                 <Pressable
-                    accessibilityHint="Reconnects to Caxri on your computer."
+                    accessibilityHint={t('chat.reconnectHint')}
                     accessibilityRole="button"
                     onPress={retryConnection}
                     style={[styles.bannerButton, { backgroundColor: theme.surface }]}
                     testID="agent-chat-reconnect"
                 >
-                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>Retry</Text>
+                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>
+                        {t('common.retry')}
+                    </Text>
                 </Pressable>
             </View>
         );
@@ -182,19 +189,28 @@ const AgentChatBody = ({
             <View style={styles.status} testID="agent-chat-status-loading">
                 <ActivityIndicator color={theme.muted} />
                 <Text style={[styles.statusText, { color: theme.muted }]}>
-                    {snapshot ? `Starting ${provider}…` : 'Loading Chat…'}
+                    {snapshot ? t('chat.starting', { provider }) : t('chat.loading')}
                 </Text>
             </View>
         );
     return (
         <View style={styles.status} testID="agent-chat-status-empty">
             <Text style={[styles.statusText, { color: theme.muted }]}>
-                {agentChatEmptyMessage({ canSend, isHandedOff, provider })}
+                {agentChatEmptyMessage({ canSend, isHandedOff, provider }, t)}
             </Text>
         </View>
     );
 };
 
+/**
+ * The pending requests docked above the composer, one card at a time (`agentChatRequestDock`), so a phone never scrolls
+ * several whole cards as one block and loses a question's title. The dock is capped at 80% of the Chat, like the Chat's
+ * sheets, so the timeline keeps the sent message in view; inside it the card's options or approval text scroll while
+ * its title and buttons stay put. A 60% cap left a two-option question on a phone with one and a sliver of rows.
+ *
+ * Every request's card stays mounted, the ones not shown hidden: an answered card waits hidden while its answer is on
+ * its way, so a refused answer brings it back with its choices and the card's own error instead of a blank card.
+ */
 const AgentChatRequests = ({
     blockedReason,
     chat,
@@ -206,40 +222,38 @@ const AgentChatRequests = ({
     provider: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { pending, respond, snapshot } = chat;
-    const items = snapshot?.items;
     const { answeredRequestIds } = pending;
-    const renderRequest = useCallback(
-        ({ item }: ListRenderItemInfo<AgentChatRequest>) => (
-            // An answered card stays mounted but hidden while its answer is on its way, so a refused answer brings it
-            // back with its choices and the card's own error instead of a blank card.
-            <View style={answeredRequestIds.has(item.id) ? styles.hidden : null}>
-                <AgentChatRequestCard
-                    blockedReason={blockedReason}
-                    items={items ?? []}
-                    onRespond={respond}
-                    provider={provider}
-                    request={item}
-                    theme={theme}
-                />
-            </View>
-        ),
-        [answeredRequestIds, blockedReason, items, provider, respond, theme],
-    );
     const requests = snapshot?.requests ?? [];
     if (requests.length === 0) return null;
-    const isAllAnswered = requests.every((request) => answeredRequestIds.has(request.id));
+    const dock = agentChatRequestDock(requests, answeredRequestIds, t);
     return (
-        <FlatList
-            contentContainerStyle={styles.requests}
-            data={requests}
-            extraData={answeredRequestIds}
-            keyboardShouldPersistTaps="handled"
-            keyExtractor={(request) => request.id}
-            renderItem={renderRequest}
-            style={[styles.dock, { borderColor: theme.border }, isAllAnswered && styles.hidden]}
+        <View
+            style={[
+                styles.dock,
+                { borderColor: theme.border },
+                dock.currentId === undefined && styles.hidden,
+            ]}
             testID="agent-chat-requests"
-        />
+        >
+            {requests.map((request) => (
+                <View
+                    key={request.id}
+                    style={request.id === dock.currentId ? styles.dockCard : styles.hidden}
+                >
+                    <AgentChatRequestCard
+                        blockedReason={blockedReason}
+                        items={snapshot?.items ?? []}
+                        onRespond={respond}
+                        positionLabel={dock.positionLabel}
+                        provider={provider}
+                        request={request}
+                        theme={theme}
+                    />
+                </View>
+            ))}
+        </View>
     );
 };
 
@@ -252,8 +266,9 @@ const AgentChatActivity = ({
     provider: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { snapshot } = chat;
-    const activity = agentChatActivity(snapshot, provider);
+    const activity = agentChatActivity(snapshot, provider, {}, t);
     // A saved copy's activity is however the Chat stood when it was saved, not what it is doing now. Starting has its
     // own status in the body.
     if (!activity || activity.kind === 'starting' || chat.savedAt !== undefined) return null;
@@ -298,6 +313,7 @@ export const AgentChatView = ({
     provider: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [isRestarting, setRestarting] = useState(false);
     const [restartError, setRestartError] = useState<string | null>(null);
     const { snapshot } = chat;
@@ -313,9 +329,7 @@ export const AgentChatView = ({
         try {
             await chat.restart();
         } catch {
-            setRestartError(
-                `${sentenceStartProvider(provider)} could not be restarted. Try again.`,
-            );
+            setRestartError(t('chat.restartFailed', { provider: sentenceStartProvider(provider) }));
         } finally {
             setRestarting(false);
         }
@@ -330,30 +344,28 @@ export const AgentChatView = ({
     /**
      * Deleting, steering with, or resuming a queued message needs what sending needs, so the card follows the composer.
      */
-    const canActOnQueue = agentChatComposerAvailability({
-        deviceRole,
-        isConnected,
-        isHandedOff,
-        snapshot,
-    }).isEnabled;
+    const canActOnQueue = agentChatComposerAvailability(
+        { deviceRole, isConnected, isHandedOff, snapshot },
+        t,
+    ).isEnabled;
     const blockedReason = useMemo(
-        () => agentChatRequestBlockedReason({ deviceRole, isConnected }),
-        [deviceRole, isConnected],
+        () => agentChatRequestBlockedReason({ deviceRole, isConnected }, t),
+        [deviceRole, isConnected, t],
     );
 
     return (
         <View style={styles.root} testID="agent-chat">
             {failure ? (
                 <NoticeBanner
-                    actionLabel={canRetryFailure ? 'Retry' : undefined}
+                    actionLabel={canRetryFailure ? t('common.retry') : undefined}
                     isBusy={isRestarting}
                     message={
                         restartError ??
-                        agentChatFailureMessage(failure.reason, {
-                            canRetry,
-                            providerName: provider,
-                            surface: 'mobile',
-                        })
+                        agentChatFailureMessage(
+                            failure.reason,
+                            { canRetry, providerName: provider, surface: 'mobile' },
+                            t,
+                        )
                     }
                     onAction={() => {
                         // eslint-disable-next-line no-void -- The banner reports a failed restart itself.
@@ -366,16 +378,16 @@ export const AgentChatView = ({
             ) : null}
             {isHandedOff ? (
                 <NoticeBanner
-                    message={AGENT_CHAT_HANDED_OFF_BANNER}
+                    message={agentChatHandedOffBanner(t)}
                     testID="agent-chat-handed-off"
                     theme={theme}
                     tone="muted"
                 />
             ) : null}
-            {isConnected && chat.status === 'stale' ? (
+            {shouldShowAgentChatStaleNotice(chat, isConnected) ? (
                 <NoticeBanner
-                    actionLabel="Retry"
-                    message="This Chat could not be updated. Showing the last loaded messages."
+                    actionLabel={t('common.retry')}
+                    message={t('chat.stale')}
                     onAction={chat.refresh}
                     testID="agent-chat-stale"
                     theme={theme}
@@ -402,6 +414,12 @@ export const AgentChatView = ({
                     theme={theme}
                 />
             ) : null}
+            <AgentChatTaskStrip
+                chat={chat}
+                deviceRole={deviceRole}
+                isConnected={isConnected}
+                theme={theme}
+            />
             <AgentChatRequests
                 blockedReason={blockedReason}
                 chat={chat}
@@ -438,8 +456,8 @@ const styles = StyleSheet.create({
     bannerButtonText: { fontSize: 14, fontWeight: '700' },
     status: { alignItems: 'center', flex: 1, gap: 12, justifyContent: 'center', padding: 24 },
     statusText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
-    dock: { borderTopWidth: 1, flexGrow: 0, flexShrink: 1, maxHeight: '55%' },
-    requests: { gap: 8, padding: 12 },
+    dock: { borderTopWidth: 1, flexShrink: 1, maxHeight: '80%', padding: 12 },
+    dockCard: { flexShrink: 1 },
     hidden: { display: 'none' },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

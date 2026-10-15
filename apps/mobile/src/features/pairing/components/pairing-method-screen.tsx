@@ -11,6 +11,7 @@ import { ChevronLeft } from 'lucide-react-native';
 
 import { ActionButton } from '../../../components/action-button';
 import { IconButton } from '../../../components/icon-button';
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useMobileClient } from '../../connection/mobile-client-provider';
@@ -24,28 +25,31 @@ const PairingError = ({
     error: string;
     onScanAgain?: () => void;
     theme: MobileTheme;
-}) => (
-    <View style={styles.errorBlock}>
-        <Text
-            accessibilityRole="alert"
-            style={[styles.error, { color: theme.danger }]}
-            testID="pairing-error"
-        >
-            {error}
-        </Text>
-        {onScanAgain ? (
-            <ActionButton
-                accessibilityHint="Allows the camera to scan the pairing code again."
-                onPress={onScanAgain}
-                testID="pairing-scan-retry-button"
-                theme={theme}
-                variant="secondary"
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.errorBlock}>
+            <Text
+                accessibilityRole="alert"
+                style={[styles.error, { color: theme.danger }]}
+                testID="pairing-error"
             >
-                Scan again
-            </ActionButton>
-        ) : null}
-    </View>
-);
+                {error}
+            </Text>
+            {onScanAgain ? (
+                <ActionButton
+                    accessibilityHint={t('pairing.scanAgainHint')}
+                    onPress={onScanAgain}
+                    testID="pairing-scan-retry-button"
+                    theme={theme}
+                    variant="secondary"
+                >
+                    {t('pairing.scanAgain')}
+                </ActionButton>
+            ) : null}
+        </View>
+    );
+};
 
 /**
  * The camera renders only once access is granted; until then the screen asks for it and keeps paste reachable.
@@ -63,6 +67,7 @@ const ScanControls = ({
     requestPermission: () => unknown;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     if (!permission) return null;
     if (permission.granted)
         return (
@@ -84,7 +89,7 @@ const ScanControls = ({
         return (
             <>
                 <ActionButton
-                    accessibilityHint="Opens this app's system settings, where camera access can be turned back on."
+                    accessibilityHint={t('pairing.openSettingsHint')}
                     onPress={() => {
                         // eslint-disable-next-line no-void -- Opening system Settings has no in-app result to await.
                         void Linking.openSettings();
@@ -92,27 +97,25 @@ const ScanControls = ({
                     testID="pairing-camera-settings-button"
                     theme={theme}
                 >
-                    Open Settings to allow camera access
+                    {t('pairing.openSettings')}
                 </ActionButton>
                 <Text style={[styles.fallback, { color: theme.muted }]}>
-                    Camera access is optional. You can choose a screenshot of the code, or go back
-                    and paste the pairing link instead.
+                    {t('pairing.cameraOptional')}
                 </Text>
             </>
         );
     return (
         <>
             <ActionButton
-                accessibilityHint="Requests camera access to scan a Caxri pairing code."
+                accessibilityHint={t('pairing.allowCameraHint')}
                 onPress={requestPermission}
                 testID="pairing-camera-permission-button"
                 theme={theme}
             >
-                Allow camera access
+                {t('pairing.allowCamera')}
             </ActionButton>
             <Text style={[styles.fallback, { color: theme.muted }]}>
-                Camera access is optional. You can choose a screenshot of the code, or go back and
-                paste the pairing link instead.
+                {t('pairing.cameraOptional')}
             </Text>
         </>
     );
@@ -124,6 +127,7 @@ interface PairingMethodScreenProperties {
 
 export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) => {
     const theme = useMobileTheme();
+    const { t } = useTranslation();
     const { cancelPairing, pair: pairWithClient } = useMobileClient();
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
     const [busy, setBusy] = useState(false);
@@ -150,7 +154,7 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                 await pairWithClient(source);
                 if (mounted.current) router.replace('/sessions');
             } catch (pairingError) {
-                if (mounted.current) setError(pairingErrorMessage(pairingError));
+                if (mounted.current) setError(pairingErrorMessage(pairingError, t));
             } finally {
                 if (mounted.current) {
                     pairing.current = false;
@@ -158,17 +162,17 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                 }
             }
         },
-        [pairWithClient],
+        [pairWithClient, t],
     );
 
     const paste = useCallback(async (): Promise<void> => {
         const source = await Clipboard.getStringAsync();
         if (!source) {
-            setError('Your clipboard does not contain a Caxri pairing link.');
+            setError(t('pairing.clipboardEmpty'));
             return;
         }
         await pair(source);
-    }, [pair]);
+    }, [pair, t]);
 
     const scan = useCallback(
         (source: string): void => {
@@ -195,17 +199,16 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
             // An image the decoder cannot read is reported the same way as one without a code.
         }
         if (!source) {
-            setError('No pairing code was found in that image.');
+            setError(t('pairing.noCodeInImage'));
             return;
         }
         await pair(source);
-    }, [pair]);
+    }, [pair, t]);
 
-    const title = method === 'scan' ? 'Scan pairing code' : 'Paste pairing link';
-    const description =
-        method === 'scan'
-            ? 'Point the camera at the code shown in Caxri Settings.'
-            : 'Use the short-lived link copied from Caxri Settings.';
+    const title = t(method === 'scan' ? 'pairing.scanCode' : 'pairing.pasteLink');
+    const description = t(
+        method === 'scan' ? 'pairing.scanDescription' : 'pairing.pasteDescription',
+    );
 
     return (
         <SafeAreaView
@@ -217,8 +220,8 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                 <View style={styles.frame}>
                     <View style={styles.header}>
                         <IconButton
-                            accessibilityHint="Returns to the pairing method choices."
-                            accessibilityLabel="Back"
+                            accessibilityHint={t('pairing.backHint')}
+                            accessibilityLabel={t('components.back')}
                             icon={ChevronLeft}
                             onPress={() => {
                                 cancelPairing();
@@ -249,34 +252,34 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                         ) : null}
                         {method === 'scan' ? (
                             <ActionButton
-                                accessibilityHint="Opens your photos to read a Caxri pairing code from a saved image."
+                                accessibilityHint={t('pairing.choosePhotoHint')}
                                 onPress={scanPhoto}
                                 testID="pairing-scan-photo-button"
                                 theme={theme}
                                 variant="secondary"
                             >
-                                Choose from Photos
+                                {t('pairing.choosePhoto')}
                             </ActionButton>
                         ) : null}
                         {method === 'paste' ? (
                             <ActionButton
-                                accessibilityHint="Reads and uses the Caxri pairing link from the clipboard."
+                                accessibilityHint={t('pairing.pasteAndPairHint')}
                                 onPress={paste}
                                 testID="pairing-paste-confirm-button"
                                 theme={theme}
                             >
-                                Paste and pair
+                                {t('pairing.pasteAndPair')}
                             </ActionButton>
                         ) : null}
                         {busy ? (
                             <View
                                 accessible
-                                accessibilityLabel="Pairing with Caxri"
+                                accessibilityLabel={t('pairing.inProgressLabel')}
                                 style={styles.progress}
                             >
                                 <ActivityIndicator color={theme.primary} />
                                 <Text style={[styles.progressText, { color: theme.muted }]}>
-                                    Pairing…
+                                    {t('pairing.inProgress')}
                                 </Text>
                             </View>
                         ) : null}

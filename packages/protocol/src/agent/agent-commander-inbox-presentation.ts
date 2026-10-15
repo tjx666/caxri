@@ -1,17 +1,16 @@
+import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { translateAgentChatLabel } from './agent-chat-labels.js';
 import type { CommanderInboxKind } from './agent-commander-inbox-contract.js';
 
 /**
  * Presentation rules every Commander Inbox surface shares (the Desktop "Needs you" column and the phone's "Needs you"
  * screen), so the same item reads the same way on both.
  */
-const KIND_LABELS: Record<CommanderInboxKind, string> = {
-    decision: 'Decision',
-    hands: 'Your action',
-    merge: 'Pull request',
-};
-
-export function commanderInboxKindLabel(kind: CommanderInboxKind): string {
-    return KIND_LABELS[kind];
+export function commanderInboxKindLabel(
+    kind: CommanderInboxKind,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    return t(`agentCommander.inbox.kind.${kind}`);
 }
 
 /**
@@ -38,13 +37,16 @@ export function orderCommanderInboxItems<T extends { kind: CommanderInboxKind }>
  * Whether the Commander has read the owner's latest reply, so a sent answer never looks lost while the Commander is
  * busy. Undefined until the owner replied.
  */
-export function commanderInboxReplyState(item: {
-    acknowledgedSequence: number;
-    replies: ReadonlyArray<{ sequence: number }>;
-}): { isRead: boolean; label: string } | undefined {
+export function commanderInboxReplyState(
+    item: {
+        acknowledgedSequence: number;
+        replies: ReadonlyArray<{ sequence: number }>;
+    },
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): { isRead: boolean; label: string } | undefined {
     const latest = item.replies.at(-1);
     if (!latest) return undefined;
     return item.acknowledgedSequence >= latest.sequence
-        ? { isRead: true, label: 'Read by Commander' }
-        : { isRead: false, label: 'Delivered to Commander' };
+        ? { isRead: true, label: t('agentCommander.inbox.replyState.read') }
+        : { isRead: false, label: t('agentCommander.inbox.replyState.delivered') };
 }

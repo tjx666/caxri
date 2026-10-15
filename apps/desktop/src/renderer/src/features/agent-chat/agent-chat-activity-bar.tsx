@@ -9,7 +9,8 @@ import { cn } from '../../lib/utilities';
 import { useClockTick } from './hooks/use-clock-tick';
 
 function ElapsedTime({ startedAt }: { startedAt: number }) {
-    const label = formatNoticeableDuration(useClockTick('second') - startedAt);
+    const { t } = useTranslation();
+    const label = formatNoticeableDuration(useClockTick('second') - startedAt, t);
     return label ? <span className="shrink-0 tabular-nums">{label}</span> : null;
 }
 

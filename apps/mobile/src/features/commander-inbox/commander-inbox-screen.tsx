@@ -19,6 +19,7 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import { CommanderInboxCard } from './commander-inbox-card';
@@ -35,18 +36,20 @@ const InboxStatus = ({
     state: CommanderInboxScreenState;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     if (state.kind === 'loading')
         return (
             <View style={styles.status} testID="commander-inbox-loading">
                 <ActivityIndicator color={theme.primary} />
             </View>
         );
-    const message =
+    const message = t(
         state.kind === 'offline'
-            ? 'Reconnect to see what needs you.'
+            ? 'inbox.offline'
             : state.kind === 'error'
-              ? 'Unable to load what needs you.'
-              : 'Nothing needs you right now.';
+              ? 'inbox.loadFailed'
+              : 'inbox.empty',
+    );
     return (
         <View style={styles.status} testID={`commander-inbox-${state.kind}`}>
             <Text
@@ -65,7 +68,9 @@ const InboxStatus = ({
                     style={[styles.retry, { borderColor: theme.border }]}
                     testID="commander-inbox-retry"
                 >
-                    <Text style={[styles.retryText, { color: theme.primary }]}>Retry</Text>
+                    <Text style={[styles.retryText, { color: theme.primary }]}>
+                        {t('common.retry')}
+                    </Text>
                 </Pressable>
             ) : null}
         </View>
@@ -77,6 +82,7 @@ const InboxStatus = ({
  * mirrors the Desktop column of the same name in the Agent Commander window.
  */
 export const CommanderInboxScreen = () => {
+    const { t } = useTranslation();
     const router = useRouter();
     const theme = useMobileTheme();
     const { isObservable, query, refresh } = useCommanderInbox();
@@ -132,7 +138,7 @@ export const CommanderInboxScreen = () => {
             >
                 <View style={styles.header}>
                     <IconButton
-                        accessibilityLabel="Back"
+                        accessibilityLabel={t('inbox.back')}
                         icon={ChevronLeft}
                         onPress={() => router.back()}
                         size={24}
@@ -143,7 +149,7 @@ export const CommanderInboxScreen = () => {
                         accessibilityRole="header"
                         style={[styles.heading, { color: theme.text }]}
                     >
-                        Needs you
+                        {t('inbox.title')}
                     </Text>
                 </View>
                 {isStale || hasRefreshError ? (
@@ -158,9 +164,7 @@ export const CommanderInboxScreen = () => {
                         ]}
                         testID="commander-inbox-stale"
                     >
-                        {isStale
-                            ? 'Connection lost. Showing the last known items.'
-                            : 'Unable to refresh. Showing the last known items.'}
+                        {t(isStale ? 'inbox.staleNotice' : 'inbox.refreshFailed')}
                     </Text>
                 ) : null}
                 <FlatList
@@ -175,7 +179,10 @@ export const CommanderInboxScreen = () => {
                     ListFooterComponent={
                         query.data?.truncated ? (
                             <Text style={[styles.statusText, { color: theme.muted }]}>
-                                {`Showing ${items.length} of ${query.data.total}. The rest are on your computer.`}
+                                {t('inbox.truncated', {
+                                    shown: items.length,
+                                    total: query.data.total,
+                                })}
                             </Text>
                         ) : null
                     }

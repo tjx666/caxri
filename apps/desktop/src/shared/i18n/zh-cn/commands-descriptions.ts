@@ -1,5 +1,6 @@
+import type { TranslatedNamespace } from '@caxri/protocol';
+
 import type { commandDescriptions as source } from '../en/commands-descriptions';
-import type { TranslatedNamespace } from '../translated-namespace';
 
 export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.project.create': '将一个文件夹添加为项目',

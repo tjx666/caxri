@@ -1,6 +1,8 @@
 import type { MobileUpdateRecoveryPayload } from '@caxri/mobile-transport';
 import type { MobileUpdateBundle, MobileUpdatePrepareResult } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { notifyListeners } from '../../lib/notify-listeners';
 import type { MobileConnectionStatus } from '../connection/connection-state';
 
@@ -63,12 +65,15 @@ export const mobileUpdateBannerKind = (input: {
 export const mobileUpdateSizeLabel = (sizeBytes: number): string =>
     `${Math.max(1, Math.round(sizeBytes / (1_024 * 1_024)))} MB`;
 
-export const mobileUpdateStatusLabel = (phase: MobileUpdatePhase): string | undefined => {
+export const mobileUpdateStatusLabel = (
+    phase: MobileUpdatePhase,
+    t: Translate = translate,
+): string | undefined => {
     switch (phase.kind) {
         case 'downloading':
-            return `Downloading ${Math.floor(phase.fraction * 100)}%`;
+            return t('update.downloading', { percent: Math.floor(phase.fraction * 100) });
         case 'installing':
-            return 'Opening installer…';
+            return t('update.openingInstaller');
         case 'failed':
             return phase.message;
         case 'idle':
@@ -80,13 +85,16 @@ const mobileUpdateBannerDetail = (
     kind: Exclude<MobileUpdateBannerKind, 'mismatch'>,
     phase: MobileUpdatePhase,
     update: MobileUpdateBundle | undefined,
+    t: Translate,
 ): string => {
-    const status = mobileUpdateStatusLabel(phase);
+    const status = mobileUpdateStatusLabel(phase, t);
     if (status) return status;
-    if (kind === 'unreachable') return "Couldn't reach your computer for the update.";
-    if (kind !== 'available' || !update)
-        return 'This computer runs a newer Caxri. Update this app to reconnect.';
-    return `Version ${update.version} from your computer · ${mobileUpdateSizeLabel(update.sizeBytes)}`;
+    if (kind === 'unreachable') return t('update.unreachable');
+    if (kind !== 'available' || !update) return t('update.requiredDetail');
+    return t('update.availableDetail', {
+        size: mobileUpdateSizeLabel(update.sizeBytes),
+        version: update.version,
+    });
 };
 
 export interface MobileUpdateBannerView {
@@ -94,7 +102,7 @@ export interface MobileUpdateBannerView {
      * `null` while nothing can be done: recovery is still asking, or an install is downloading or opening.
      */
     action: 'install' | 'retry-check' | null;
-    actionLabel: 'Retry' | 'Update';
+    actionLabel: string;
     /**
      * Only an optional update offers "Later"; a required one is the app's only way to reconnect.
      */
@@ -105,13 +113,14 @@ export interface MobileUpdateBannerView {
     detail: string;
     isFailure: boolean;
     isRequired: boolean;
-    title: 'Update available' | 'Update required';
+    title: string;
 }
 
 export const mobileUpdateBannerView = (
     kind: Exclude<MobileUpdateBannerKind, 'mismatch'>,
     phase: MobileUpdatePhase,
     update: MobileUpdateBundle | undefined,
+    t: Translate = translate,
 ): MobileUpdateBannerView => {
     const isRequired = kind !== 'available';
     const isFailure = phase.kind === 'failed' || kind === 'unreachable';
@@ -119,12 +128,12 @@ export const mobileUpdateBannerView = (
         kind === 'checking' || phase.kind === 'downloading' || phase.kind === 'installing';
     return {
         action: isBusy ? null : kind === 'unreachable' ? 'retry-check' : 'install',
-        actionLabel: isFailure ? 'Retry' : 'Update',
+        actionLabel: t(isFailure ? 'common.retry' : 'update.action'),
         canDismiss: !isRequired,
-        detail: mobileUpdateBannerDetail(kind, phase, update),
+        detail: mobileUpdateBannerDetail(kind, phase, update, t),
         isFailure,
         isRequired,
-        title: isRequired ? 'Update required' : 'Update available',
+        title: t(isRequired ? 'update.required' : 'update.available'),
     };
 };
 
@@ -154,11 +163,13 @@ class MobileUpdateInstallError extends Error {
 
 /**
  * Prepare → download → verify → install. The MD5 comes from the sealed channel, so a truncated or corrupted HTTP body
- * is discarded before the installer ever sees it.
+ * is discarded before the installer ever sees it. A failure message is translated when it happens and stays in that
+ * language until the next attempt.
  */
 export const installMobileUpdate = async (
     ports: MobileUpdateInstallPorts,
     report: (phase: MobileUpdatePhase) => void,
+    t: Translate = translate,
 ): Promise<void> => {
     try {
         report({ kind: 'downloading', fraction: 0 });
@@ -176,7 +187,7 @@ export const installMobileUpdate = async (
         });
         if (file.sizeBytes !== prepared.bundle.sizeBytes || file.md5 !== prepared.bundle.md5) {
             file.discard();
-            throw new MobileUpdateInstallError('The download was incomplete. Try again.');
+            throw new MobileUpdateInstallError(t('update.downloadIncomplete'));
         }
         report({ kind: 'installing' });
         await ports.launchInstaller(file.contentUri);
@@ -184,10 +195,7 @@ export const installMobileUpdate = async (
     } catch (error) {
         report({
             kind: 'failed',
-            message:
-                error instanceof MobileUpdateInstallError
-                    ? error.message
-                    : 'Update failed. Check that this phone can reach your computer, then try again.',
+            message: error instanceof MobileUpdateInstallError ? error.message : t('update.failed'),
         });
     }
 };

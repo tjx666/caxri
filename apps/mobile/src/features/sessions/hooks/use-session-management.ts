@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 
+import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { useHostSessions } from '../components/host-sessions-provider';
 import { sessionManagementErrorMessage } from '../session-management-model';
@@ -13,6 +14,7 @@ type Action = 'archive' | 'rename' | 'restore';
 export const useSessionManagement = () => {
     const { request } = useMobileClient();
     const { sessions } = useHostSessions();
+    const { t } = useTranslation();
     const [pending, setPending] = useState<{ action: Action; sessionId: string } | null>(null);
     const [error, setError] = useState<string | null>(null);
     const run = useCallback(
@@ -43,9 +45,9 @@ export const useSessionManagement = () => {
                 'rename',
                 sessionId,
                 () => request('mobile.session.rename', { sessionId, displayTitle }),
-                'Unable to rename this Session',
+                t('sessions.manage.renameFailed'),
             ),
-        [request, run],
+        [request, run, t],
     );
     const archive = useCallback(
         (sessionId: string) =>
@@ -53,9 +55,9 @@ export const useSessionManagement = () => {
                 'archive',
                 sessionId,
                 () => request('mobile.session.archive', { sessionId }),
-                'Unable to archive this Session',
+                t('sessions.manage.archiveFailed'),
             ),
-        [request, run],
+        [request, run, t],
     );
     const restore = useCallback(
         (sessionId: string) =>
@@ -63,9 +65,9 @@ export const useSessionManagement = () => {
                 'restore',
                 sessionId,
                 () => request('mobile.session.restore', { sessionId }),
-                'Unable to restore this Session',
+                t('sessions.manage.restoreFailed'),
             ),
-        [request, run],
+        [request, run, t],
     );
     const clearError = useCallback(() => setError(null), []);
     return { archive, clearError, error, pending, rename, restore };

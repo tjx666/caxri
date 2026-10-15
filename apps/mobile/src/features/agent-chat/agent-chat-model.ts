@@ -7,6 +7,8 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, sentenceStartProvider } from '@caxri/protocol';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
 import type { MobileWriteFailure } from '../connection/mobile-write-failure';
 import { mobileAgentDisplayName } from '../sessions/agent-display-name';
 import type { MobileTerminal } from '../sessions/session-model';
@@ -26,9 +28,12 @@ export const isAgentChatTerminal = (
  */
 export const agentChatProviderName = (
     terminal: Pick<MobileTerminal, 'kind' | 'provider'> | undefined,
+    t: Translate = translate,
 ): string => {
     const provider = terminal?.provider ?? terminal?.kind;
-    return provider && provider !== 'shell' ? mobileAgentDisplayName(provider) : 'the Agent';
+    return provider && provider !== 'shell'
+        ? mobileAgentDisplayName(provider)
+        : t('chat.providerFallback');
 };
 
 /**
@@ -57,8 +62,10 @@ export const canAttachAgentChatImages = (
 /**
  * Why a Chat composer's attach button is disabled for a provider that takes no images in a Chat (Grok Build).
  */
-export const agentChatImagesUnsupportedReason = (provider: string): string =>
-    `${sentenceStartProvider(provider)} Chat does not accept images`;
+export const agentChatImagesUnsupportedReason = (
+    provider: string,
+    t: Translate = translate,
+): string => t('chat.imagesUnsupported', { provider: sentenceStartProvider(provider) });
 
 /**
  * Whether Retry can fix a failure from the phone. A missing or outdated provider fails the same way again until someone
@@ -105,65 +112,70 @@ export const isAgentChatHandedOff = (
  * computer", `terminal-exit-presentation.ts`) with the surface the phone's tab names. The phone has no Resume action
  * for either: the Session resumes on the computer.
  */
-export const AGENT_CHAT_HANDED_OFF_NOTICE = 'Chat was handed off on your computer';
+export const agentChatHandedOffNotice = (t: Translate = translate): string =>
+    t('chat.handedOffNotice');
 
 /**
  * The handed-off banner: the notice plus the way back, said once here so the body and composer need not repeat it.
  */
-export const AGENT_CHAT_HANDED_OFF_BANNER = `${AGENT_CHAT_HANDED_OFF_NOTICE}. Resume it there to continue.`;
+export const agentChatHandedOffBanner = (t: Translate = translate): string =>
+    t('chat.handedOffBanner', { notice: agentChatHandedOffNotice(t) });
+
+/**
+ * Whether the Chat shows its "could not be updated" notice: only after a read actually failed. A Chat the phone stops
+ * observing (a screen such as the in-app browser covers it, or another tab shows) also reads as `stale` and keeps its
+ * last copy, but nothing failed, and the notice would flash on it while the covering screen slides in. While the phone
+ * is disconnected the app-wide connection banner explains the stale copy instead.
+ */
+export const shouldShowAgentChatStaleNotice = (
+    chat: { error: string | null; status: string },
+    isConnected: boolean,
+): boolean => isConnected && chat.status === 'stale' && chat.error !== null;
 
 /**
  * The body copy for a Chat with no items. Neither a handed-off Chat (whose banner already says how to continue) nor a
  * device that cannot message the Chat is invited to send one.
  */
-export const agentChatEmptyMessage = ({
-    canSend,
-    isHandedOff,
-    provider,
-}: {
-    canSend: boolean;
-    isHandedOff: boolean;
-    provider: string;
-}): string => {
-    if (isHandedOff) return 'No messages to show.';
-    return canSend
-        ? `No messages yet. Send a message to start working with ${provider}.`
-        : 'No messages yet.';
+export const agentChatEmptyMessage = (
+    {
+        canSend,
+        isHandedOff,
+        provider,
+    }: {
+        canSend: boolean;
+        isHandedOff: boolean;
+        provider: string;
+    },
+    t: Translate = translate,
+): string => {
+    if (isHandedOff) return t('chat.emptyHandedOff');
+    return canSend ? t('chat.emptyReady', { provider }) : t('chat.empty');
 };
+
+type DisabledReasonKind = 'access' | 'offline' | 'handedOff' | 'failed';
 
 const DISABLED_REASONS = {
     send: {
-        access: 'Reply access is required to message this Chat.',
-        offline: 'Reconnect to send messages.',
-        handedOff: 'Resume the Chat on your computer to send messages.',
-        failed: 'Retry the Chat before sending a message.',
+        access: 'chat.disabled.send.access',
+        offline: 'chat.disabled.send.offline',
+        handedOff: 'chat.disabled.send.handedOff',
+        failed: 'chat.disabled.send.failed',
     },
     configure: {
-        access: 'Reply access is required to change the model.',
-        offline: 'Reconnect to change the model.',
-        handedOff: 'Resume the Chat on your computer to change the model.',
-        failed: 'Retry the Chat before changing the model.',
+        access: 'chat.disabled.configure.access',
+        offline: 'chat.disabled.configure.offline',
+        handedOff: 'chat.disabled.configure.handedOff',
+        failed: 'chat.disabled.configure.failed',
     },
     permission: {
-        access: 'Control access is required to change permissions.',
-        offline: 'Reconnect to change permissions.',
-        handedOff: 'Resume the Chat on your computer to change permissions.',
-        failed: 'Retry the Chat before changing permissions.',
+        access: 'chat.disabled.permission.access',
+        offline: 'chat.disabled.permission.offline',
+        handedOff: 'chat.disabled.permission.handedOff',
+        failed: 'chat.disabled.permission.failed',
     },
-} as const;
+} as const satisfies Record<string, Record<DisabledReasonKind, TranslationKey>>;
 
-/**
- * Why this device cannot send to the Chat, `configure` its model, or change its `permission` level right now, or
- * `undefined` when it can. The actions share one precedence and differ in what the reason names, and the permission
- * level needs `control` access, as answering approvals does, where the others need `reply`.
- */
-export const agentChatDisabledReason = ({
-    action = 'send',
-    deviceRole,
-    isConnected,
-    isHandedOff,
-    snapshot,
-}: {
+interface DisabledReasonInput {
     action?: 'send' | 'configure' | 'permission';
     deviceRole: 'view' | 'reply' | 'control' | null;
     isConnected: boolean;
@@ -172,15 +184,35 @@ export const agentChatDisabledReason = ({
      */
     isHandedOff: boolean;
     snapshot: AgentChatSnapshot | undefined;
-}): string | undefined => {
-    const reasons = DISABLED_REASONS[action];
+}
+
+const agentChatDisabledReasonKind = ({
+    action = 'send',
+    deviceRole,
+    isConnected,
+    isHandedOff,
+    snapshot,
+}: DisabledReasonInput): DisabledReasonKind | undefined => {
     const hasAccess =
         deviceRole === 'control' || (deviceRole === 'reply' && action !== 'permission');
-    if (!hasAccess) return reasons.access;
-    if (!isConnected) return reasons.offline;
-    if (isHandedOff) return reasons.handedOff;
-    if (snapshot?.status === 'failed') return reasons.failed;
+    if (!hasAccess) return 'access';
+    if (!isConnected) return 'offline';
+    if (isHandedOff) return 'handedOff';
+    if (snapshot?.status === 'failed') return 'failed';
     return undefined;
+};
+
+/**
+ * Why this device cannot send to the Chat, `configure` its model, or change its `permission` level right now, or
+ * `undefined` when it can. The actions share one precedence and differ in what the reason names, and the permission
+ * level needs `control` access, as answering approvals does, where the others need `reply`.
+ */
+export const agentChatDisabledReason = (
+    input: DisabledReasonInput,
+    t: Translate = translate,
+): string | undefined => {
+    const kind = agentChatDisabledReasonKind(input);
+    return kind === undefined ? undefined : t(DISABLED_REASONS[input.action ?? 'send'][kind]);
 };
 
 /**
@@ -202,36 +234,41 @@ export const agentChatImageCounts = (
  * twice is noise. Access and connection keep {@link agentChatDisabledReason}'s precedence.
  */
 export const agentChatComposerAvailability = (
-    input: Omit<Parameters<typeof agentChatDisabledReason>[0], 'action'>,
+    input: Omit<DisabledReasonInput, 'action'>,
+    t: Translate = translate,
 ): { isEnabled: boolean; reason?: string } => {
-    const reason = agentChatDisabledReason(input);
-    if (reason === undefined) return { isEnabled: true };
-    const isBannerOwned =
-        reason === DISABLED_REASONS.send.handedOff || reason === DISABLED_REASONS.send.failed;
-    return isBannerOwned ? { isEnabled: false } : { isEnabled: false, reason };
+    const kind = agentChatDisabledReasonKind(input);
+    if (kind === undefined) return { isEnabled: true };
+    const isBannerOwned = kind === 'handedOff' || kind === 'failed';
+    return isBannerOwned
+        ? { isEnabled: false }
+        : { isEnabled: false, reason: t(DISABLED_REASONS.send[kind]) };
 };
 
 /**
  * What a device without control access sees on a pending request it cannot answer, Chat or Terminal alike, with the way
  * to get that access.
  */
-export const REQUEST_CONTROL_ACCESS_MESSAGE =
-    'This device cannot answer requests. Pair it again on your computer with control access.';
+export const requestControlAccessMessage = (t: Translate = translate): string =>
+    t('chat.requestControlAccess');
 
 /**
  * Why this device cannot answer a pending request, or `undefined` when it can. Answering needs control access and a
  * live connection, mirroring the composer's "Reconnect to send messages.".
  */
-export const agentChatRequestBlockedReason = ({
-    deviceRole,
-    isConnected,
-}: {
-    deviceRole: 'view' | 'reply' | 'control' | null;
-    isConnected: boolean;
-}): { kind: 'access' | 'offline'; message: string } | undefined => {
+export const agentChatRequestBlockedReason = (
+    {
+        deviceRole,
+        isConnected,
+    }: {
+        deviceRole: 'view' | 'reply' | 'control' | null;
+        isConnected: boolean;
+    },
+    t: Translate = translate,
+): { kind: 'access' | 'offline'; message: string } | undefined => {
     if (deviceRole !== 'control')
-        return { kind: 'access', message: REQUEST_CONTROL_ACCESS_MESSAGE };
-    if (!isConnected) return { kind: 'offline', message: 'Reconnect to answer.' };
+        return { kind: 'access', message: requestControlAccessMessage(t) };
+    if (!isConnected) return { kind: 'offline', message: t('chat.requestOffline') };
     return undefined;
 };
 
@@ -269,17 +306,20 @@ export const agentChatComposerSubmission = ({
  * What the composer's button says and does. A pending Stop keeps its button even if the user starts typing, so the
  * state does not flicker back to Send while the turn is still ending.
  */
-export const agentChatComposerButton = ({
-    isRunning,
-    isStopAction,
-    isStopping,
-    provider,
-}: {
-    isRunning: boolean;
-    isStopAction: boolean;
-    isStopping: boolean;
-    provider: string;
-}): {
+export const agentChatComposerButton = (
+    {
+        isRunning,
+        isStopAction,
+        isStopping,
+        provider,
+    }: {
+        isRunning: boolean;
+        isStopAction: boolean;
+        isStopping: boolean;
+        provider: string;
+    },
+    t: Translate = translate,
+): {
     kind: 'send' | 'stop';
     label: string;
     testID: 'agent-chat-composer-send' | 'agent-chat-composer-stop';
@@ -287,12 +327,14 @@ export const agentChatComposerButton = ({
     if (isStopAction || isStopping)
         return {
             kind: 'stop',
-            label: isStopping ? `Stopping ${provider}` : `Stop ${provider}`,
+            label: t(isStopping ? 'chat.composer.stoppingProvider' : 'chat.composer.stopProvider', {
+                provider,
+            }),
             testID: 'agent-chat-composer-stop',
         };
     return {
         kind: 'send',
-        label: isRunning ? 'Queue message' : 'Send message',
+        label: t(isRunning ? 'chat.composer.queueMessage' : 'chat.composer.sendMessage'),
         testID: 'agent-chat-composer-send',
     };
 };
@@ -302,16 +344,21 @@ export const agentChatComposerButton = ({
  * phone, is "not sent"; any other failure may have reached the Agent, so the reader checks the Chat before repeating a
  * message the Agent may already be working on. Same contract as the Terminal composer's `unknown` delivery.
  */
-export const agentChatSendFailureMessage = (failure: MobileWriteFailure): string => {
+export const agentChatSendFailureMessage = (
+    failure: MobileWriteFailure,
+    t: Translate = translate,
+): string => {
     switch (failure.kind) {
         case 'rejected':
-            return failure.code === 'FORBIDDEN'
-                ? 'This device no longer has access to this Chat. Your message was not sent.'
-                : 'Your message was not sent. Try again.';
+            return t(
+                failure.code === 'FORBIDDEN'
+                    ? 'chat.sendFailure.forbidden'
+                    : 'chat.sendFailure.rejected',
+            );
         case 'offline':
-            return 'Your message was not sent. Reconnect to Caxri and try again.';
+            return t('chat.sendFailure.offline');
         case 'unknown':
-            return "Couldn't confirm delivery. Check the Chat before sending again.";
+            return t('chat.sendFailure.unknown');
     }
 };
 
