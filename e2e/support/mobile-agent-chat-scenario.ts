@@ -80,7 +80,8 @@ const PIXEL =
 
 /**
  * `MOB-CHAT-01`: a phone reads and drives a Codex Chat end to end. Each phone action is proven against the Server's own
- * Chat projection, and the screenshots cover the empty, streamed, approval, question, failed, and offline states.
+ * Chat projection, and the screenshots cover empty, streamed, compacted, approval, question, failed, and offline
+ * states.
  */
 async function executeMobileAgentChatScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -106,6 +107,35 @@ async function executeMobileAgentChatScenario(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
         );
+        await sendFromPhone(serial, '/compact');
+        const compacted = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                snapshot.items.some(
+                    (item) => item.type === 'notice' && item.kind === 'compacted',
+                ) && !snapshot.activeTurnId,
+        );
+        const compactNotice = compacted.items.findLast(
+            (item) => item.type === 'notice' && item.kind === 'compacted',
+        );
+        if (!compactNotice) throw new Error('The native compaction did not finish');
+        await waitForCheck(serial, `conversation-event-${compactNotice.id}`);
+        await capture(environment, 'context-compacted', artifacts);
+        await sendFromPhone(serial, 'bigdiffwrap');
+        const changed = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                snapshot.items.some((item) => item.type === 'fileChange') && !snapshot.activeTurnId,
+        );
+        const fileChange = changed.items.findLast((item) => item.type === 'fileChange');
+        if (!fileChange) throw new Error('The wrapped diff fixture did not finish');
+        await tapMobileCheckByBounds(serial, `agent-chat-work-group-${fileChange.id}`);
+        await waitForCheck(serial, `agent-chat-work-${fileChange.id}`);
+        await tapMobileCheckByBounds(serial, `agent-chat-work-${fileChange.id}`);
+        await waitForCheck(serial, 'conversation-tool-detail');
+        await capture(environment, 'wrapped-file-diff', artifacts);
+        await tapMobileCheckByBounds(serial, 'tool-detail-close');
+        await waitForNoCheck(serial, 'conversation-tool-detail');
         // An image-only message from the desktop: the phone fetches its thumbnail, which the Chat window leaves out.
         await chat.send({
             text: '',

@@ -274,7 +274,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
     } else if (text.includes('bigdiff')) {
-        await runBigDiff(io, turn);
+        await runBigDiff(io, turn, text.includes('wrap'));
     } else if (text.includes('browsestep')) {
         await runBrowserStep(io, turn);
     } else if (text.includes('explore')) {

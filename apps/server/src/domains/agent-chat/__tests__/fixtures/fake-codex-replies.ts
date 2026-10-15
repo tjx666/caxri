@@ -173,21 +173,24 @@ export async function runWebLink(io: FakeCodexIo, turn: FakeTurn, text: string) 
 }
 
 /**
- * `bigdiff`: one file change of 6,000 added lines, so the Chat's diff view has to bound what it renders.
+ * `bigdiff`: 6,000 added lines for bounded rendering; `bigdiffwrap`: one long, indented line for narrow-screen
+ * wrapping.
  */
-export async function runBigDiff(io: FakeCodexIo, turn: FakeTurn) {
-    const lineCount = 6000;
-    const lines = Array.from(
-        { length: lineCount },
-        (_, index) => `+generated line ${String(index + 1).padStart(5, '0')}`,
-    );
+export async function runBigDiff(io: FakeCodexIo, turn: FakeTurn, isWrapped = false) {
+    const lineCount = isWrapped ? 1 : 6000;
+    const lines = isWrapped
+        ? [`+    ${'A harmless wrapping fixture. '.repeat(32)}`]
+        : Array.from(
+              { length: lineCount },
+              (_, index) => `+generated line ${String(index + 1).padStart(5, '0')}`,
+          );
     io.completeItem(turn, {
         type: 'fileChange',
         id: crypto.randomUUID(),
         status: 'completed',
         changes: [
             {
-                path: path.join(process.cwd(), 'generated.txt'),
+                path: isWrapped ? 'src/wrapped.ts' : path.join(process.cwd(), 'generated.txt'),
                 kind: { type: 'update', move_path: null },
                 diff: [`@@ -0,0 +1,${lineCount} @@`, ...lines, ''].join('\n'),
             },
