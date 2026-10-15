@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useSavedAge } from './use-saved-age';
 
@@ -20,11 +21,14 @@ export const SavedCopyNote = ({
     testID: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const age = useSavedAge(savedAt ?? null);
     if (age === null) return null;
     return (
         <View style={styles.note} testID={testID}>
-            <Text style={[styles.text, { color: theme.muted }]}>Showing messages {age}.</Text>
+            <Text style={[styles.text, { color: theme.muted }]}>
+                {t('sessions.savedCopy.messages', { saved: age })}
+            </Text>
         </View>
     );
 };

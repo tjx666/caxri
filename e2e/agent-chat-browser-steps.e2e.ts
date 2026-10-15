@@ -57,9 +57,14 @@ test('a Claude Code Chrome call reads as a titled browser step', async ({}, test
             name: /^Open https:\/\/example\.test\/settings/u,
         });
         await openStep.click();
+        // A JSON object argument reads as a name and value list, not one line of JSON.
+        await expect(chat.getByRole('term').filter({ hasText: /^url$/u })).toBeVisible();
         await expect(
-            chat.getByText('{"url":"https://example.test/settings","tabId":1}'),
+            chat
+                .getByRole('definition')
+                .filter({ hasText: /^https:\/\/example\.test\/settings$/u }),
         ).toBeVisible();
+        await expect(chat.getByRole('definition').filter({ hasText: /^1$/u })).toBeVisible();
         await expect(chat.getByText('Navigated to https://example.test/settings')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-browser-steps.png') });
     } finally {

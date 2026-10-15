@@ -2,7 +2,7 @@ import type { AgentChatModel, AgentChatModelRequest, AgentChatSnapshot } from '@
 import { agentChatEffortLabel, findAgentChatModel } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
-import { isTranslationKey, translate } from '../../i18n';
+import { translate } from '../../i18n';
 
 /**
  * The toast title for a failed switch, naming what the user tried to change.
@@ -19,15 +19,6 @@ export function agentChatConfigureFailureMessage(change: AgentChatModelRequest):
             ? 'agentChat.model.ultracodeOnFailed'
             : 'agentChat.model.ultracodeOffFailed',
     );
-}
-
-/**
- * The display name of one effort level. The known levels are translated; an effort id the protocol does not name keeps
- * `agentChatEffortLabel`'s capitalized fallback.
- */
-export function agentChatEffortDisplayName(t: Translate, effort: string): string {
-    const key = `agentChat.model.effort.${effort}`;
-    return isTranslationKey(key) ? t(key) : agentChatEffortLabel(effort);
 }
 
 /**
@@ -65,9 +56,7 @@ export function agentChatModelTriggerText(
 ): { modelName: string; effortName: string | undefined; ariaLabel: string } {
     const modelName = snapshot?.model ? label.model : t('agentChat.model.default');
     const effortName =
-        label.effort && snapshot?.effort
-            ? agentChatEffortDisplayName(t, snapshot.effort)
-            : label.effort;
+        label.effort && snapshot?.effort ? agentChatEffortLabel(snapshot.effort, t) : label.effort;
     const ariaLabel = [
         t('agentChat.model.triggerLabel', { model: modelName }),
         effortName ? t('agentChat.model.triggerEffort', { effort: effortName }) : '',

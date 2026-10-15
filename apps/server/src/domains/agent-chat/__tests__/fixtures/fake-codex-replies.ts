@@ -1,9 +1,11 @@
 /**
  * Deterministic Codex replies for Chat rendering coverage: `table` streams the transcript's Markdown, `codeblocks`
- * streams fenced code in several languages, and `testrun` finishes a multi-step turn whose command fails with a
- * non-zero exit code.
+ * streams fenced code in several languages, `testrun` finishes a multi-step turn whose command fails with a non-zero
+ * exit code, `longstream` thinks quietly and then streams a long reply at a reader's pace, and `weblink` answers with a
+ * Markdown link to the web page the message names, and `bigdiff` changes one file by 6,000 lines.
  */
 import crypto from 'node:crypto';
+import path from 'node:path';
 import process from 'node:process';
 
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
@@ -110,4 +112,86 @@ export async function runTestCommands(io: FakeCodexIo, turn: FakeTurn) {
     ran('npm test', '1 failing\n  total() adds the items\n', 1);
     ran('git status --short', ' M src/total.ts\n', 0);
     await io.streamMessage(turn, 'One test fails in `src/total.ts`; the rest pass.', 0);
+}
+
+/**
+ * How long the `longstream` turn holds a quiet thought before its reply starts. A phone Acceptance case reads the
+ * pinned layout through UIAutomator in this window, which a streaming reply would keep from settling.
+ */
+const LONG_STREAM_PAUSE_MS = 8_000;
+
+/**
+ * The pause between the `longstream` reply's words: about 30 seconds for the whole reply, long enough to scroll away
+ * while it still grows.
+ */
+const LONG_STREAM_WORD_MS = 50;
+
+const LONG_STREAM_REPLY = Array.from(
+    { length: 40 },
+    (_, index) =>
+        `Paragraph ${String(index + 1).padStart(2, '0')}: the reply keeps growing below the message while the reader looks elsewhere.`,
+).join('\n\n');
+
+function delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * The `longstream` turn: a titled thought, a quiet pause, then forty numbered paragraphs streamed word by word.
+ * `turn/interrupt` stops it during the pause or the reply.
+ */
+export async function runLongStream(io: FakeCodexIo, turn: FakeTurn) {
+    io.completeItem(turn, {
+        type: 'reasoning',
+        id: crypto.randomUUID(),
+        summary: ['**Drafting a long reply**\n\nThink before writing.'],
+        content: [],
+    });
+    const deadline = Date.now() + LONG_STREAM_PAUSE_MS;
+    // eslint-disable-next-line no-await-in-loop -- the pause polls so an interrupt ends it promptly
+    while (!turn.interrupted && Date.now() < deadline) await delay(100);
+    if (turn.interrupted) return;
+    await io.streamMessage(turn, LONG_STREAM_REPLY, LONG_STREAM_WORD_MS);
+}
+
+/**
+ * The text of the `weblink` reply's only link, long enough to wrap so a tap at its center lands on the link.
+ */
+export const FAKE_CODEX_WEB_LINK_LABEL =
+    'Open the Acceptance fixture page in the in-app browser to check its toolbar';
+
+/**
+ * The `weblink` reply: a Markdown link, and nothing else, to the first `http(s)` URL in the message.
+ */
+export async function runWebLink(io: FakeCodexIo, turn: FakeTurn, text: string) {
+    const url = /https?:\/\/\S+/u.exec(text)?.[0];
+    await io.streamMessage(
+        turn,
+        url ? `[${FAKE_CODEX_WEB_LINK_LABEL}](${url})` : 'The message named no web page.',
+        0,
+    );
+}
+
+/**
+ * `bigdiff`: one file change of 6,000 added lines, so the Chat's diff view has to bound what it renders.
+ */
+export async function runBigDiff(io: FakeCodexIo, turn: FakeTurn) {
+    const lineCount = 6000;
+    const lines = Array.from(
+        { length: lineCount },
+        (_, index) => `+generated line ${String(index + 1).padStart(5, '0')}`,
+    );
+    io.completeItem(turn, {
+        type: 'fileChange',
+        id: crypto.randomUUID(),
+        status: 'completed',
+        changes: [
+            {
+                path: path.join(process.cwd(), 'generated.txt'),
+                kind: { type: 'update', move_path: null },
+                diff: [`@@ -0,0 +1,${lineCount} @@`, ...lines, ''].join('\n'),
+            },
+        ],
+    });
+    await io.streamMessage(turn, 'Generated a large file.', 0);
 }

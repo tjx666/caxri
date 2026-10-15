@@ -108,10 +108,32 @@ The implemented device grants, method matrix, and cancellation behavior are docu
 /h/[hostId]/s/[sessionId] Session screen (segment: conversation | terminal | changes | panels)
 /h/[hostId]/new           New Session
 /h/[hostId]/add-project   Add Project (control devices only)
+/browser?url=…            In-app browser, over whatever opened it
 ```
 
 Routes carry `hostId` from the start even though only one host is supported, so multiple hosts can be
 added without moving screens. Query keys include the same host identity.
+
+### In-app browser
+
+Every link the phone renders (Markdown links in Agent replies, pull request, issue, and acceptance
+report cards, the Commander inbox's pull request chip) goes through `openLink`
+(`apps/mobile/src/lib/open-link.ts`). An `http` or `https` link opens the in-app browser, modeled on
+X's: the page fills the screen and a floating toolbar at the bottom offers Close, a pill naming the
+page (its title, else its host, with a lock for `https`) whose menu copies the link, shares it, or
+opens it in the system browser, Back while the page has history, and Reload (Stop while loading).
+Android Back walks the page's history before closing. Closing returns to the same scroll position,
+because the route is pushed over the screen that opened it. Any other scheme, including one a page
+navigates to, goes to the app the system assigns. The WebView keeps its own cookies, so a sign-in
+persists, but it has no bridge into the app: no injected script and no message handler. A
+private repository page therefore needs one sign-in inside the browser.
+
+A page that fails to load shows the app's own error message under the same toolbar, so Reload stays
+a tap away. Every WebView starts with network loads blocked (`patches/react-native-webview.patch`),
+which keeps the Terminal's inline document offline; a WebView given an `http` or `https` source
+lifts that block before loading, so only the in-app browser reaches the network. Behind the page
+the WebView paints white, as a browser does, rather than the app's dark theme, so a page that sets
+no background of its own keeps its default dark text readable.
 
 ## Session home
 
@@ -270,7 +292,9 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   tapping a row opens its bounded detail. A tool still running stays out of the group as its own
   row: it keeps its glyph (no spinner) and reads as one line, the present-tense verb and subject
   (`Running pnpm test`), under a highlight that sweeps across it every 2.2 s, Desktop's
-  `.activity-shimmer`. Reduced motion leaves the line static.
+  `.activity-shimmer`. The phone draws the same gradient (an SVG linear gradient masked to the
+  glyphs with `@react-native-masked-view/masked-view`), so the band fades smoothly instead of in
+  visible steps. Reduced motion leaves the line static.
 - Tool detail opens in a bottom sheet capped at 65% of the screen height. Its title and `Close` stay
   in place while long output scrolls inside the sheet (`MOB-MOTION-03`).
 - A terminal Agent's thinking is hidden. A turn divider shows the turn's duration (`Worked for 2m
@@ -285,13 +309,17 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   change's detail lists each file with its colored status letter, `+N -M`, and a diff that scrolls
   sideways. A finished turn ends under its final reply with what it left behind: an `Edited
 <file>` or `Edited N files` card that expands to every file's diff, and a card for each pull
-  request, issue, or acceptance report the Agent filed that opens it in the browser. Its work and
+  request, issue, or acceptance report the Agent filed that opens it in the in-app browser. Its work and
   commentary fold behind a `Worked for X`, `Failed after X` (danger), or `Stopped after X`
   (warning) row over a hairline, placed where the work began; a tap anywhere on its full-width,
   `48dp` row shows or hides them, and a
   running turn never folds. The Agent's plan
   is a one-row card above the composer (`Plan`, the current step, a segment per step, `2/5`) that
-  expands to its steps. The line above the composer says what the Chat is doing with Desktop's
+  expands to its steps. Below it a `48dp` `Background work` pill counts the subagents and
+  background shells (`2 running · 1 ended`) and opens a sheet listing each with its glyph, title,
+  elapsed time, and status glyph; a task opens its command and live output tail in the same sheet,
+  and a control device gets `Stop` beside each running task the provider can stop. A Chat without
+  tasks shows no pill. The line above the composer says what the Chat is doing with Desktop's
   words under the same sweep (`Mapping the terrain…`, `Compacting context…`) and, after a second, how long
   the turn has run; waiting on the user shows a still question glyph in the warning color instead.
 - Content the Agent's harness injects as a user turn (background task notifications, slash-command
@@ -432,14 +460,20 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
   scroll position.
 - Use system safe areas on every edge. Primary actions never sit under gesture or navigation insets.
 
+## Language
+
+The app renders in English or Simplified Chinese, following the phone's system language with
+Desktop's rule; there is no in-app language switch. Every visible string, accessibility label, and
+Chat presentation label goes through the shared resources; see [Internationalization](../i18n.md#mobile).
+
 ## Type and spacing
 
 - Body text starts at `15sp`; core body copy uses `16sp / 24sp`.
 - Screen titles use `22sp`; detail titles use `17sp`; metadata uses `13sp`; compact state labels use
   `11–12sp`. Never disable system font scaling.
-- Interactive targets are at least `48dp`, except key-bar keys at `44dp`; primary actions use
-  `52–56dp`. The composer's Send and Stop are `52dp`; approval, question, and request buttons and
-  their options are `48dp`.
+- Interactive targets are at least `48dp`, except key-bar keys and a Chat question's option rows
+  at `44dp`; primary actions use `52–56dp`. The composer's Send and Stop are `52dp`; approval,
+  question, and request buttons are `48dp`.
 - Base spacing is `4dp`; common gaps are `8`, `12`, `16`, `24`, and `32dp`.
 
 ## Color and state

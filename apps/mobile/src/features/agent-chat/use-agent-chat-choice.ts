@@ -12,6 +12,8 @@ import {
     isAgentChatSelectionSettled,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import type { AgentChatConfigureError } from './agent-chat-model-choice';
 import {
     agentChatConfigureFailureMessage,
@@ -55,7 +57,7 @@ const useAgentChatChoice = <
     baselineOf: (reported: AgentChatSnapshot | undefined) => Baseline;
     chat: Pick<AgentChatController, 'configure' | 'snapshot' | 'status'>;
     disabledReason: string | undefined;
-    failureMessage: (change: Change) => string;
+    failureMessage: (change: Change, t: Translate) => string;
     isSettled: (
         pending: PendingChoice<Change, Baseline>,
         reported: AgentChatSnapshot | undefined,
@@ -65,6 +67,7 @@ const useAgentChatChoice = <
         pending: PendingChoice<Change, Baseline> | undefined,
     ) => AgentChatSnapshot;
 }) => {
+    const { t } = useTranslation();
     const reported = chat.snapshot;
     const [pending, setPending] = useState<PendingChoice<Change, Baseline>>();
     const [busy, setBusy] = useState<Change | null>(null);
@@ -106,7 +109,7 @@ const useAgentChatChoice = <
              * Recorded against the scope the request was sent under: if the Chat's choice or connection changed while
              * it was on its way, the failure is already stale and the sheet shows the current state instead.
              */
-            setError({ message: failureMessage(change), scope });
+            setError({ message: failureMessage(change, t), scope });
         } finally {
             setBusy((current) => (current === change ? null : current));
         }

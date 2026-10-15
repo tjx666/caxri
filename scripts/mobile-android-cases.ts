@@ -1,5 +1,10 @@
 export type MobileAndroidMediaType = 'screenshot' | 'video';
 
+/**
+ * The app languages an Android case can run under; the app follows the system language otherwise.
+ */
+export type MobileAndroidAppLocale = 'zh-CN';
+
 const androidCases = {
     'MOB-ATTN-01': {
         desktopProfile: 'managed-by-isolated-e2e',
@@ -241,6 +246,44 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-image-strip',
     },
+    'MOB-CHAT-13': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-pin-and-scroll',
+    },
+    'MOB-CHAT-14': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-skills-and-question',
+    },
+    'MOB-CHAT-15': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        motion: 'live',
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-shimmer',
+    },
+    'MOB-CHAT-16': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-history-and-tasks',
+    },
+    'MOB-CHAT-17': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-in-app-browser',
+    },
+    'MOB-CHAT-18': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-chinese-locale',
+    },
     'MOB-CONV-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
@@ -418,8 +461,17 @@ const androidCases = {
 } as const satisfies Record<
     string,
     {
+        /**
+         * The per-app language the runner sets on the disposable emulator for this case alone and resets afterwards.
+         */
+        appLocale?: MobileAndroidAppLocale;
         desktopProfile: 'managed-by-isolated-e2e' | 'not-required';
         media: readonly MobileAndroidMediaType[];
+        /**
+         * `live` turns the batch's reduced motion off for this case alone, so a recording shows real animation.
+         * UIAutomator cannot read a screen that keeps animating, so such a case avoids semantics while it moves.
+         */
+        motion?: 'live';
         recordingOwner: 'adapter' | 'scenario';
         scenario: string;
     }
@@ -430,8 +482,10 @@ export type MobileAndroidAcceptanceScenario =
     (typeof androidCases)[MobileAndroidAcceptanceCaseId]['scenario'];
 
 export function mobileAndroidAcceptanceCase(caseId: string): {
+    appLocale?: MobileAndroidAppLocale;
     desktopProfile: 'managed-by-isolated-e2e' | 'not-required';
     media: MobileAndroidMediaType[];
+    motion?: 'live';
     recordingOwner: 'adapter' | 'scenario';
     scenario: MobileAndroidAcceptanceScenario;
 } {
@@ -440,8 +494,10 @@ export function mobileAndroidAcceptanceCase(caseId: string): {
     }
     const definition = androidCases[caseId as MobileAndroidAcceptanceCaseId];
     return {
+        ...('appLocale' in definition && { appLocale: definition.appLocale }),
         desktopProfile: definition.desktopProfile,
         media: [...definition.media],
+        ...('motion' in definition && { motion: definition.motion }),
         recordingOwner: definition.recordingOwner,
         scenario: definition.scenario,
     };
@@ -501,71 +557,4 @@ export function parseMobileAndroidCaseIds(
         seen.add(caseId);
         return caseId as MobileAndroidAcceptanceCaseId;
     });
-}
-
-interface AndroidDisplayStateSource {
-    density: string;
-    fontScale: string;
-    rotation: string;
-    size: string;
-}
-
-export interface AndroidDisplayState {
-    density: { override?: number; physical: number };
-    fontScale: number;
-    rotation: number;
-    size: {
-        override?: { height: number; width: number };
-        physical: { height: number; width: number };
-    };
-}
-
-function requiredNumber(source: string, pattern: RegExp, field: string): number {
-    const value = pattern.exec(source)?.[1];
-    if (!value) throw new Error(`Android ${field} state is unavailable`);
-    return Number(value);
-}
-
-function size(source: string, label: 'Override' | 'Physical') {
-    const match = new RegExp(String.raw`${label} size: (\d+)x(\d+)`, 'u').exec(source);
-    if (!match) return;
-    return { height: Number(match[2]), width: Number(match[1]) };
-}
-
-/**
- * Android 36 no longer publishes `SurfaceOrientation` in `dumpsys input`. Its fallback must stay bound to the active
- * primary internal viewport because the same output also contains inactive virtual viewports with stale orientation.
- */
-function rotation(source: string): number {
-    const legacy = /SurfaceOrientation:\s*(\d+)/u.exec(source)?.[1];
-    const activeViewportLine = source
-        .split(/\r?\n/u)
-        .find(
-            (line) =>
-                line.includes('Viewport INTERNAL:') &&
-                line.includes('displayId=0,') &&
-                line.includes('isActive=[1]'),
-        );
-    const activeViewport = activeViewportLine
-        ? /orientation=(\d+)/u.exec(activeViewportLine)?.[1]
-        : undefined;
-    const value = legacy ?? activeViewport;
-    if (!value) throw new Error('Android rotation state is unavailable');
-    return Number(value);
-}
-
-export function parseAndroidDisplayState(source: AndroidDisplayStateSource): AndroidDisplayState {
-    const physicalSize = size(source.size, 'Physical');
-    if (!physicalSize) throw new Error('Android physical display size is unavailable');
-    const overrideDensity = /Override density: (\d+)/u.exec(source.density)?.[1];
-    const overrideSize = size(source.size, 'Override');
-    return {
-        density: {
-            ...(overrideDensity && { override: Number(overrideDensity) }),
-            physical: requiredNumber(source.density, /Physical density: (\d+)/u, 'density'),
-        },
-        fontScale: requiredNumber(source.fontScale, /(\d+(?:\.\d+)?)/u, 'font scale'),
-        rotation: rotation(source.rotation),
-        size: { ...(overrideSize && { override: overrideSize }), physical: physicalSize },
-    };
 }

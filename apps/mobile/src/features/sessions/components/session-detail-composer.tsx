@@ -5,15 +5,16 @@ import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
+import { useTranslation } from '../../../i18n';
 import { formatByteSize } from '../../../lib/format-size';
 import type { MobileTheme } from '../../../theme/tokens';
+import { mobileAgentDisplayName } from '../agent-display-name';
 import { useComposerSuggestions } from '../hooks/use-composer-suggestions';
 import { useImageAttachments } from '../hooks/use-image-attachments';
 import { useSessionComposer } from '../hooks/use-session-composer';
 import type { ComposerDelivery } from '../session-composer-state';
 import { composerDeliveryFeedback } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
-import { sessionAgentLabel } from '../session-row-model';
 import { ImageSourceSheet } from './image-source-sheet';
 import { SessionComposerAttachments, SessionComposerSuggestions } from './session-composer-extras';
 import { sessionDetailStyles as styles } from './session-detail-styles';
@@ -37,6 +38,7 @@ const SessionComposerInput = ({
     theme: MobileTheme;
     updateDraft: (value: string) => void;
 }) => {
+    const { t } = useTranslation();
     const inputReference = useRef<TextInput>(null);
     useEffect(() => {
         if (!focusComposer || !isVisible || !inputReference.current) return;
@@ -44,17 +46,23 @@ const SessionComposerInput = ({
         if (inputReference.current.isFocused()) onComposerFocused?.();
     }, [focusComposer, isVisible, onComposerFocused]);
 
-    const agentName = sessionAgentLabel(session);
-    const recipient = ['No Agent', 'Shell'].includes(agentName) ? 'Agent' : agentName;
-    const placeholder =
+    const kind = session.primaryTerminal?.kind;
+    // A Shell or a Session without an Agent has no name worth addressing, so the copy says "Agent".
+    const recipient =
+        kind && kind !== 'shell'
+            ? mobileAgentDisplayName(kind)
+            : t('sessions.composer.genericAgent');
+    const placeholder = t(
         session.lastActivityState === 'running'
-            ? `Reply while ${recipient} works`
-            : `Message ${recipient}`;
+            ? 'sessions.composer.replyWhileWorking'
+            : 'sessions.composer.messageAgent',
+        { agent: recipient },
+    );
 
     return (
         <TextInput
-            accessibilityLabel="Message Agent"
-            accessibilityHint="Return inserts a new line. Use Send message to submit."
+            accessibilityLabel={t('sessions.composer.inputLabel')}
+            accessibilityHint={t('sessions.composer.inputHint')}
             editable={delivery.kind !== 'sending' && delivery.kind !== 'stopping'}
             multiline
             numberOfLines={6}
@@ -95,11 +103,12 @@ const SessionComposerActionButton = ({
     submit: () => Promise<void>;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const isBusy = delivery.kind === 'sending' || delivery.kind === 'stopping';
     const Icon = showStop ? Square : ArrowUp;
     return (
         <Pressable
-            accessibilityLabel={showStop ? 'Stop Agent' : 'Send message'}
+            accessibilityLabel={t(showStop ? 'sessions.composer.stop' : 'sessions.composer.send')}
             accessibilityRole="button"
             accessibilityState={{ disabled: !canSubmit, busy: isBusy }}
             disabled={!canSubmit}
@@ -147,6 +156,7 @@ export const SessionDetailComposer = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const images = useImageAttachments(session.id);
     const [isChoosingImage, setChoosingImage] = useState(false);
     const { byteLength, canSubmit, delivery, disabledReason, showStop, submit, updateDraft } =
@@ -163,7 +173,7 @@ export const SessionDetailComposer = ({
             session,
         });
     const suggestions = useComposerSuggestions(draft, session);
-    const feedback = composerDeliveryFeedback(delivery);
+    const feedback = composerDeliveryFeedback(delivery, t);
     /**
      * The limit only matters near it; showing `0/16384 B` on every idle composer was noise.
      */
@@ -186,9 +196,9 @@ export const SessionDetailComposer = ({
                     <View style={styles.attachSlot}>
                         <IconButton
                             accessibilityHint={
-                                images.canAdd ? undefined : 'Up to 3 images per message.'
+                                images.canAdd ? undefined : t('sessions.composer.imageLimit')
                             }
-                            accessibilityLabel="Attach image"
+                            accessibilityLabel={t('sessions.composer.attachImage')}
                             color={theme.muted}
                             disabled={!images.canAdd}
                             icon={Paperclip}

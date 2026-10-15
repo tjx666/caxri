@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 
 import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol';
+import {
+    agentChatTaskGlyphStatus,
+    canStopAgentChatTask,
+    isAgentChatTaskTitleCommand,
+} from '@caxri/protocol';
 import { ArrowLeft, RotateCcw, Square } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
@@ -19,12 +24,9 @@ import { revealAgentChat } from './agent-chat-task-opener';
 import { AgentChatTaskOutput } from './agent-chat-task-output';
 import {
     agentChatTaskActivity,
-    agentChatTaskGlyphStatus,
     agentChatTaskIdentity,
     agentChatTaskKind,
     agentChatTaskUsageSummary,
-    canStopAgentChatTask,
-    isAgentChatTaskTitleCommand,
 } from './agent-chat-tasks';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 
 import { parseMarkdownBlocks } from '@caxri/markdown';
 import type { CommanderInboxItem } from '@caxri/protocol';
-import { commanderInboxReplyState } from '@caxri/protocol';
+import { commanderInboxKindLabel, commanderInboxReplyState } from '@caxri/protocol';
 import { ExternalLink, GitMerge, MessageSquareReply, SquareArrowOutUpRight } from 'lucide-react';
 
 import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
@@ -13,11 +13,7 @@ import { useTranslation } from '../../i18n';
 import { localizedRelativeTime } from '../../lib/relative-time';
 import { cn } from '../../lib/utilities';
 import { openCommanderPullRequest, revealCommanderSession } from './commander-commands';
-import {
-    commanderInboxKindText,
-    commanderInboxMergeState,
-    commanderInboxReplyText,
-} from './commander-inbox';
+import { commanderInboxMergeState } from './commander-inbox';
 import {
     answerCommanderInboxItem,
     dismissCommanderInboxItem,
@@ -46,7 +42,7 @@ export function CommanderInboxCard({
 }) {
     const { locale, t } = useTranslation();
     const blocks = useMemo(() => parseMarkdownBlocks(item.body), [item.body]);
-    const replyState = commanderInboxReplyState(item);
+    const replyState = commanderInboxReplyState(item, t);
     return (
         <li
             className={cn(
@@ -78,7 +74,7 @@ export function CommanderInboxCard({
                 </span>
             </div>
             <div className="flex min-w-0 items-center gap-1 text-[11px] text-muted">
-                <span>{commanderInboxKindText(item.kind, t)}</span>
+                <span>{commanderInboxKindLabel(item.kind, t)}</span>
                 {item.pullRequest && (
                     <>
                         <span aria-hidden="true">·</span>
@@ -133,7 +129,7 @@ export function CommanderInboxCard({
                                 replyState.isRead ? 'text-success' : 'text-muted',
                             )}
                         >
-                            {commanderInboxReplyText(replyState, t)}
+                            {replyState.label}
                         </li>
                     )}
                 </ul>

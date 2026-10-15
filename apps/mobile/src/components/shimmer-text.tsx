@@ -1,8 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import type { LayoutChangeEvent, StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
-import type { SharedValue } from 'react-native-reanimated';
 import Animated, {
     cancelAnimation,
     Easing,
@@ -12,8 +11,16 @@ import Animated, {
     withRepeat,
     withTiming,
 } from 'react-native-reanimated';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-import { SHIMMER_SWEEP_MS, shimmerBandLayers, shimmerWindowOffset } from './shimmer-text-geometry';
+import MaskedView from '@react-native-masked-view/masked-view';
+
+import {
+    SHIMMER_GRADIENT_SCALE,
+    SHIMMER_GRADIENT_STOPS,
+    SHIMMER_SWEEP_MS,
+    shimmerGradientOffset,
+} from './shimmer-text-geometry';
 
 interface TextSize {
     height: number;
@@ -21,51 +28,12 @@ interface TextSize {
 }
 
 /**
- * One window of the band: a clip that slides with the peak over a copy of the text in the highlight color, which slides
- * back by the same amount so its glyphs stay over the resting text.
- */
-const ShimmerBand = ({
-    color,
-    halfWidth,
-    opacity,
-    progress,
-    size,
-    text,
-    textStyle,
-}: {
-    color: string;
-    halfWidth: number;
-    opacity: number;
-    progress: SharedValue<number>;
-    size: TextSize;
-    text: string;
-    textStyle: StyleProp<TextStyle>;
-}) => {
-    const { height, width } = size;
-    const windowStyle = useAnimatedStyle(() => ({
-        transform: [{ translateX: shimmerWindowOffset(progress.get(), width, halfWidth) }],
-    }));
-    const copyStyle = useAnimatedStyle(() => ({
-        transform: [{ translateX: -shimmerWindowOffset(progress.get(), width, halfWidth) }],
-    }));
-    return (
-        <Animated.View
-            style={[styles.window, { height, opacity, width: halfWidth * 2 }, windowStyle]}
-        >
-            <Animated.View style={[{ height, width }, copyStyle]}>
-                <Text numberOfLines={1} style={[textStyle, { color, width }]}>
-                    {text}
-                </Text>
-            </Animated.View>
-        </Animated.View>
-    );
-};
-
-/**
  * Live one-line text with a highlight sweeping across it, the phone's form of Desktop's `.activity-shimmer`: running
- * work keeps its glyph and marks progress on its words instead of swapping in a spinner. The text stays one line and
- * ellipsizes like any label; the band paints exact copies of that line, so it never reveals clipped text. Reduced
- * motion leaves the text static, and the loop stops when the text unmounts.
+ * work keeps its glyph and marks progress on its words instead of swapping in a spinner. The resting text renders
+ * normally; over it, a real linear gradient of the highlight color slides inside a mask cut from an identical copy of
+ * the line, so the band fades per pixel instead of in visible steps and never paints outside the glyphs. The text stays
+ * one line and ellipsizes like any label. Reduced motion leaves the text static, and the loop stops when the text
+ * unmounts.
  */
 export const ShimmerText = ({
     children,
@@ -91,10 +59,13 @@ export const ShimmerText = ({
     const isReducedMotion = useReducedMotion();
     const [size, setSize] = useState<TextSize | null>(null);
     const progress = useSharedValue(0);
+    // SVG references the gradient by id; React's ids contain colons, which `url(#...)` does not accept.
+    const gradientId = `shimmer${useId().replaceAll(/[^\w-]/g, '')}`;
     /**
      * The measured text while the band runs; `null` before the first layout and under reduced motion.
      */
     const bandSize = !isReducedMotion && size !== null && size.width > 0 ? size : null;
+    const bandWidth = bandSize?.width ?? 0;
     const isAnimated = bandSize !== null;
     useEffect(() => {
         if (!isAnimated) return;
@@ -108,13 +79,15 @@ export const ShimmerText = ({
         );
         return () => cancelAnimation(progress);
     }, [isAnimated, progress]);
+    const gradientStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: shimmerGradientOffset(progress.get(), bandWidth) }],
+    }));
     const onLayout = useCallback((event: LayoutChangeEvent): void => {
         const { height, width } = event.nativeEvent.layout;
         setSize((current) =>
             current?.height === height && current.width === width ? current : { height, width },
         );
     }, []);
-    const layers = useMemo(() => (size ? shimmerBandLayers(size.width) : []), [size]);
     return (
         <View style={[styles.root, style]}>
             <Text
@@ -126,25 +99,47 @@ export const ShimmerText = ({
                 {children}
             </Text>
             {bandSize ? (
-                <View
+                <MaskedView
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
+                    maskElement={
+                        // The mask is the same line at the measured width, so its glyphs land exactly on the text's.
+                        <Text
+                            numberOfLines={1}
+                            style={[textStyle, styles.mask, { width: bandSize.width }]}
+                        >
+                            {children}
+                        </Text>
+                    }
                     pointerEvents="none"
                     style={StyleSheet.absoluteFill}
                 >
-                    {layers.map((layer) => (
-                        <ShimmerBand
-                            color={highlightColor}
-                            halfWidth={layer.halfWidth}
-                            key={layer.halfWidth}
-                            opacity={layer.opacity}
-                            progress={progress}
-                            size={bandSize}
-                            text={children}
-                            textStyle={textStyle}
-                        />
-                    ))}
-                </View>
+                    <Animated.View
+                        style={[
+                            {
+                                height: bandSize.height,
+                                width: bandSize.width * SHIMMER_GRADIENT_SCALE,
+                            },
+                            gradientStyle,
+                        ]}
+                    >
+                        <Svg height="100%" width="100%">
+                            <Defs>
+                                <LinearGradient id={gradientId} x1="0" x2="1" y1="0" y2="0">
+                                    {SHIMMER_GRADIENT_STOPS.map((stop) => (
+                                        <Stop
+                                            key={stop.offset}
+                                            offset={stop.offset}
+                                            stopColor={highlightColor}
+                                            stopOpacity={stop.opacity}
+                                        />
+                                    ))}
+                                </LinearGradient>
+                            </Defs>
+                            <Rect fill={`url(#${gradientId})`} height="100%" width="100%" />
+                        </Svg>
+                    </Animated.View>
+                </MaskedView>
             ) : null}
         </View>
     );
@@ -152,9 +147,12 @@ export const ShimmerText = ({
 
 const styles = StyleSheet.create({
     /**
+     * Any opaque color: a mask uses only the glyphs' alpha.
+     */
+    mask: { color: '#000' },
+    /**
      * Sizes the text to its words (up to the space it gets), so the band sweeps the label rather than empty row space.
      */
     root: { alignItems: 'flex-start', flexShrink: 1, minWidth: 0 },
-    window: { left: 0, overflow: 'hidden', position: 'absolute', top: 0 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

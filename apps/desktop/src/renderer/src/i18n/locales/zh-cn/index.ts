@@ -1,4 +1,5 @@
-import type { TranslatedNamespace } from '@desktop-shared/i18n/translated-namespace';
+import type { TranslatedNamespace } from '@caxri/protocol';
+import { agentChatLabelsZhCN } from '@caxri/protocol';
 import { commands } from '@desktop-shared/i18n/zh-cn/commands';
 
 import type { enResources } from '../en';
@@ -47,6 +48,7 @@ export const zhCNResources: TranslatedNamespace<typeof enResources> = {
     ...agentActions,
     ...agentActivity,
     ...agentChat,
+    ...agentChatLabelsZhCN,
     ...agentCommander,
     ...agentInbox,
     ...agentStatus,

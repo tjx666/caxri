@@ -195,11 +195,6 @@ export const agentCommander = {
     'agentCommander.inbox.merge': 'Merge',
     'agentCommander.inbox.mergeTooltip': 'Merge the commit the Commander verified',
     'agentCommander.inbox.reply': 'Reply',
-    'agentCommander.inbox.kind.decision': 'Decision',
-    'agentCommander.inbox.kind.hands': 'Your action',
-    'agentCommander.inbox.kind.merge': 'Pull request',
-    'agentCommander.inbox.replyState.read': 'Read by Commander',
-    'agentCommander.inbox.replyState.delivered': 'Delivered to Commander',
 
     // Inbox merge readiness
     'agentCommander.mergeState.changedSinceVerified': 'Changed since verified',

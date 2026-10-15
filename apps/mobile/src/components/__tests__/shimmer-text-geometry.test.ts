@@ -1,26 +1,30 @@
 import { describe, expect, it } from 'vitest';
 
-import { shimmerBandLayers, shimmerCoverage, shimmerWindowOffset } from '../shimmer-text-geometry';
+import {
+    SHIMMER_GRADIENT_SCALE,
+    SHIMMER_GRADIENT_STOPS,
+    shimmerGradientOffset,
+} from '../shimmer-text-geometry';
+
+const peakOffset = SHIMMER_GRADIENT_STOPS.find((stop) => stop.opacity === 1)?.offset ?? 0;
+
+/**
+ * Where the highlight's peak sits relative to the text's left edge, in text widths.
+ */
+const peakPosition = (progress: number, width: number) =>
+    (shimmerGradientOffset(progress, width) + peakOffset * SHIMMER_GRADIENT_SCALE * width) / width;
 
 describe('shimmer geometry', () => {
-    it('steps the band down linearly from full highlight at the peak to none at its edge', () => {
-        const layers = shimmerBandLayers(200);
-        // The band reaches 0.3 of the width (60 points) to either side, as Desktop's gradient does.
-        expect(layers[0]?.halfWidth).toBe(60);
-        expect(shimmerCoverage(layers, 0)).toBeCloseTo(1);
-        expect(shimmerCoverage(layers, 20)).toBeCloseTo(0.75);
-        expect(shimmerCoverage(layers, 35)).toBeCloseTo(0.5);
-        expect(shimmerCoverage(layers, 50)).toBeCloseTo(0.25);
-        expect(shimmerCoverage(layers, 61)).toBe(0);
-    });
-
     it('sweeps the peak from half a width before the text to half a width past it', () => {
-        const halfWidth = Math.max(...shimmerBandLayers(100).map((layer) => layer.halfWidth));
-        expect(shimmerWindowOffset(0, 100, halfWidth) + halfWidth).toBe(-50);
-        expect(shimmerWindowOffset(1, 100, halfWidth) + halfWidth).toBe(150);
+        expect(peakPosition(0, 100)).toBeCloseTo(-0.5);
+        expect(peakPosition(0.5, 100)).toBeCloseTo(0.5);
+        expect(peakPosition(1, 100)).toBeCloseTo(1.5);
     });
 
-    it('draws nothing before the text has a width', () => {
-        expect(shimmerBandLayers(0)).toEqual([]);
+    it('fades the highlight to nothing 0.3 of a width to either side of the peak, as Desktop does', () => {
+        const edges = SHIMMER_GRADIENT_STOPS.filter((stop) => stop.offset > 0 && stop.offset < 1);
+        const reach = edges.map((stop) => (stop.offset - peakOffset) * SHIMMER_GRADIENT_SCALE);
+        expect(reach[0]).toBeCloseTo(-0.3);
+        expect(reach.at(-1)).toBeCloseTo(0.3);
     });
 });

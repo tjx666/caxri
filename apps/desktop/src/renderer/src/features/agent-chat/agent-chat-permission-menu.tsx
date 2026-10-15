@@ -1,5 +1,9 @@
 import type { AgentChatPermissionMode, AgentProvider } from '@caxri/protocol';
-import { agentChatPermissionModes } from '@caxri/protocol';
+import {
+    agentChatPermissionModeDescription,
+    agentChatPermissionModeLabel,
+    agentChatPermissionModes,
+} from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     BotMessageSquare,
@@ -31,12 +35,7 @@ import { cn } from '../../lib/utilities';
 import { useProjectById, useSessionById, useTerminal } from '../../stores/selectors';
 import { setAgentChatProjectDefault } from './agent-chat-commands';
 import type { AgentChatProjectDefaultItem } from './agent-chat-permissions';
-import {
-    AGENT_CHAT_CUSTOM_PERMISSION,
-    agentChatPermissionModeHint,
-    agentChatPermissionModeName,
-    agentChatPermissionView,
-} from './agent-chat-permissions';
+import { AGENT_CHAT_CUSTOM_PERMISSION, agentChatPermissionView } from './agent-chat-permissions';
 import { useAgentChatComposerMenu } from './hooks/use-agent-chat-composer-command';
 import type { useAgentChatPermissionSelection } from './hooks/use-agent-chat-permission-selection';
 
@@ -278,7 +277,7 @@ function AgentChatPermissionMenuItems({
                             />
                             <span className="flex min-w-0 flex-col">
                                 <span className="truncate">
-                                    {agentChatPermissionModeName(mode, provider)}
+                                    {agentChatPermissionModeLabel(mode, provider, t)}
                                 </span>
                                 <span
                                     className={cn(
@@ -286,7 +285,7 @@ function AgentChatPermissionMenuItems({
                                         !isWarning && 'text-muted',
                                     )}
                                 >
-                                    {agentChatPermissionModeHint(provider, mode)}
+                                    {agentChatPermissionModeDescription(provider, mode, t)}
                                 </span>
                             </span>
                         </MenuRadioItem>

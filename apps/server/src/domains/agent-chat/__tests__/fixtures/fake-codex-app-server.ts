@@ -12,6 +12,9 @@
  *   its result reports the browser surface.
  * - `ask`: a question; the reply quotes the chosen answer.
  * - `slow`: a titled thought, a running command, and a long streamed reply that `turn/interrupt` can stop.
+ * - `longstream`: a titled thought, a quiet pause of a few seconds, then a reply of forty numbered paragraphs streamed
+ *   over about 30 seconds, which `turn/interrupt` can stop.
+ * - `weblink`: a reply that only links the message's first `http(s)` URL; matched before any keyword the URL may hold.
  * - `fail`: a failed turn with a provider error.
  * - `crash`: the process exits mid-turn, after saving the turn's user message as an interrupted turn.
  * - `table`: a reply exercising the transcript's Markdown: headings, nested and task lists, cited files, a quote, a
@@ -25,7 +28,8 @@
  *   With `hold`, the child keeps streaming until `turn/interrupt` stops it and the parent turn ends right away. With
  *   `browsestep`, the child runs the `browsestep` steps first.
  * - `background`: a unified-exec command (with a `processId`) that outlives its turn, streaming output until
- *   `thread/backgroundTerminals/terminate` stops it. With `flood`, it emits Codex's 10,000 output deltas at once.
+ *   `thread/backgroundTerminals/terminate` stops it. With `flood`, it emits Codex's 10,000 output deltas at once; with
+ *   `quiet`, it prints one line a second instead of one every 30 ms, so a phone screen showing it can settle.
  * - `vanish`: every background terminal disappears from `thread/backgroundTerminals/list` without a notification.
  * - `unannounced`: a background terminal only `thread/backgroundTerminals/list` reports.
  * - Anything else: reasoning, a plan, and a streamed reply quoting the message.
@@ -49,7 +53,6 @@
  * `thread/goal/*` keeps a thread goal that starts its own turns while active (`fake-codex-goals.ts`).
  */
 import crypto from 'node:crypto';
-import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 
@@ -74,7 +77,14 @@ import {
     runBrowserStep,
 } from './fake-codex-mcp-calls.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
-import { runCodeBlocks, runMarkdownTable, runTestCommands } from './fake-codex-replies.ts';
+import {
+    runBigDiff,
+    runCodeBlocks,
+    runLongStream,
+    runMarkdownTable,
+    runTestCommands,
+    runWebLink,
+} from './fake-codex-replies.ts';
 import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind.ts';
 import {
     didHandleTaskRequest,
@@ -242,6 +252,10 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     }
     if (imageCount > 0) {
         await streamMessage(turn, `Received ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 0);
+    } else if (text.includes('weblink')) {
+        await runWebLink(io, turn, text);
+    } else if (text.includes('longstream')) {
+        await runLongStream(io, turn);
     } else if (text.includes('subagent')) {
         await runSubagent(io, turn, {
             isHeld: text.includes('hold'),
@@ -254,7 +268,10 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         startUnannouncedTerminal(turn);
         await streamMessage(turn, 'Done.', 0);
     } else if (text.includes('background')) {
-        await runBackgroundCommand(io, turn, text.includes('flood'));
+        await runBackgroundCommand(io, turn, {
+            isFlood: text.includes('flood'),
+            tickMs: text.includes('quiet') ? 1_000 : 30,
+        });
     } else if (text.includes('approve')) {
         await runApprovalCommand(io, turn);
     } else if (text.includes('artifacts')) {
@@ -264,24 +281,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
     } else if (text.includes('bigdiff')) {
-        const lineCount = 6000;
-        const lines = Array.from(
-            { length: lineCount },
-            (_, index) => `+generated line ${String(index + 1).padStart(5, '0')}`,
-        );
-        completeItem(turn, {
-            type: 'fileChange',
-            id: crypto.randomUUID(),
-            status: 'completed',
-            changes: [
-                {
-                    path: path.join(process.cwd(), 'generated.txt'),
-                    kind: { type: 'update', move_path: null },
-                    diff: [`@@ -0,0 +1,${lineCount} @@`, ...lines, ''].join('\n'),
-                },
-            ],
-        });
-        await streamMessage(turn, 'Generated a large file.', 0);
+        await runBigDiff(io, turn);
     } else if (text.includes('browsestep')) {
         await runBrowserStep(io, turn);
     } else if (text.includes('explore')) {

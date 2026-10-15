@@ -6,6 +6,7 @@ import { agentToolKindCounts, formatNoticeableDuration } from '@caxri/protocol';
 import { useRecyclingState } from '@shopify/flash-list';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import type { ConversationEntry } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
@@ -47,12 +48,18 @@ export const ConversationToolGroupView = ({
     testID: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [expanded, setExpanded] = useRecyclingState(false, [id]);
     const Chevron = expanded ? ChevronDown : ChevronRight;
     return (
         <View>
             <Pressable
-                accessibilityLabel={`${summary}. ${count} tool calls.`}
+                accessibilityLabel={`${summary}. ${t(
+                    count === 1
+                        ? 'conversation.tool.callCountOne'
+                        : 'conversation.tool.callCountOther',
+                    { count },
+                )}`}
                 accessibilityRole="button"
                 accessibilityState={{ expanded }}
                 onPress={() => setExpanded((current) => !current)}
@@ -94,12 +101,13 @@ export const ConversationToolGroup = ({
     onToolPress: (tool: ToolCall) => void;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const kinds = agentToolKindCounts(group.tools);
     return (
         <View style={[styles.toolGroup, { borderColor: theme.border }]}>
             <ConversationToolGroupView
                 count={group.tools.length}
-                duration={formatNoticeableDuration(group.durationMs)}
+                duration={formatNoticeableDuration(group.durationMs, t)}
                 failure={
                     group.tools.some((tool) => tool.status === 'failed') ? 'failed' : undefined
                 }

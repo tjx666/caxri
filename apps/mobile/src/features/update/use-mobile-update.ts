@@ -5,6 +5,7 @@ import type { MobileUpdateBundle } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 
+import { useTranslation } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { MobileUpdateRecoveryRejectedError } from '../connection/recover-mobile-update';
 import { downloadMobileUpdate, launchMobileUpdateInstaller } from './mobile-update-native';
@@ -45,6 +46,7 @@ export interface MobileUpdate {
  */
 export const useMobileUpdate = (): MobileUpdate => {
     const { connectionScopeKey, isForeground, recoverUpdate, request, status } = useMobileClient();
+    const { t } = useTranslation();
     const canUpdate = Platform.OS === 'android' && !__DEV__;
     const isRecovering = canUpdate && recoverUpdate !== null;
     const check = useQuery({
@@ -93,8 +95,9 @@ export const useMobileUpdate = (): MobileUpdate => {
                         : request('mobile.update.prepare'),
             },
             mobileUpdateStore.setPhase,
+            t,
         );
-    }, [recoverUpdate, request]);
+    }, [recoverUpdate, request, t]);
     const { refetch } = check;
     const retryCheck = useCallback(() => {
         // eslint-disable-next-line no-void -- The query result drives the banner; a failed retry shows up there.

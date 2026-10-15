@@ -6,6 +6,8 @@ import {
     orderCommanderInboxItems,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { sessionAgeLabel } from '../sessions/session-row-model';
 
 export interface CommanderInboxCardModel {
@@ -29,16 +31,18 @@ export interface CommanderInboxCardModel {
 export const commanderInboxCardModel = (
     item: MobileCommanderInboxItem,
     readAt: number,
+    t: Translate = translate,
 ): CommanderInboxCardModel => {
-    const age = sessionAgeLabel(item.updatedAt, readAt);
+    const age = sessionAgeLabel(item.updatedAt, readAt, t);
     return {
-        ageLabel: age === 'now' ? 'now' : `${age} ago`,
-        kindLabel: commanderInboxKindLabel(item.kind),
+        // Under a minute `sessionAgeLabel` already reads `now`, which takes no `ago`.
+        ageLabel: readAt - item.updatedAt < 60_000 ? age : t('inbox.ageAgo', { age }),
+        kindLabel: commanderInboxKindLabel(item.kind, t),
         ...(item.pullRequest && {
             pullRequestLabel: `${item.pullRequest.repo}#${item.pullRequest.number}`,
         }),
-        ...(commanderInboxReplyState(item) && { replyState: commanderInboxReplyState(item) }),
-        ...(item.staleReason === 'headMoved' && { staleLabel: 'Changed since verified' }),
+        ...(commanderInboxReplyState(item, t) && { replyState: commanderInboxReplyState(item, t) }),
+        ...(item.staleReason === 'headMoved' && { staleLabel: t('inbox.changedSinceVerified') }),
     };
 };
 
@@ -92,5 +96,7 @@ export const commanderInboxScreenState = ({
     return isError ? { kind: 'error' } : { kind: 'loading' };
 };
 
-export const commanderInboxReplyErrorMessage = (error: unknown): string =>
-    error instanceof Error && error.message ? error.message : 'Unable to send the reply.';
+export const commanderInboxReplyErrorMessage = (
+    error: unknown,
+    t: Translate = translate,
+): string => (error instanceof Error && error.message ? error.message : t('inbox.replyFailed'));

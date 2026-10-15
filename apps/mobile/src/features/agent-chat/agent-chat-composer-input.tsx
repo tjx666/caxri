@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { TextInput } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 
@@ -28,33 +29,42 @@ export const AgentChatComposerInput = ({
     onDraftChange: (draft: string) => void;
     provider: string;
     theme: MobileTheme;
-}) => (
-    <TextInput
-        accessibilityHint={`Return inserts a new line. Use ${isRunning ? 'Queue' : 'Send'} message to submit.`}
-        accessibilityLabel={`Message ${provider}`}
-        editable={isEditable}
-        multiline
-        numberOfLines={6}
-        onChangeText={onDraftChange}
-        onFocus={() => {
-            if (focusComposer) onComposerFocused?.();
-        }}
-        ref={inputReference}
-        // Desktop's wording without its ⌘Enter hint, kept to one line so the input does not grow mid-turn.
-        placeholder={isRunning ? 'Queue a follow-up' : `Message ${provider}`}
-        placeholderTextColor={theme.muted}
-        scrollEnabled
-        submitBehavior="newline"
-        style={[
-            styles.composer,
-            {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-                color: theme.text,
-            },
-        ]}
-        testID="agent-chat-composer-input"
-        textAlignVertical="top"
-        value={draft}
-    />
-);
+}) => {
+    const { t } = useTranslation();
+    return (
+        <TextInput
+            accessibilityHint={t(
+                isRunning ? 'chat.composer.inputHintQueue' : 'chat.composer.inputHintSend',
+            )}
+            accessibilityLabel={t('chat.composer.messageProvider', { provider })}
+            editable={isEditable}
+            multiline
+            numberOfLines={6}
+            onChangeText={onDraftChange}
+            onFocus={() => {
+                if (focusComposer) onComposerFocused?.();
+            }}
+            ref={inputReference}
+            // Desktop's wording without its ⌘Enter hint, kept to one line so the input does not grow mid-turn.
+            placeholder={
+                isRunning
+                    ? t('chat.composer.queuePlaceholder')
+                    : t('chat.composer.messageProvider', { provider })
+            }
+            placeholderTextColor={theme.muted}
+            scrollEnabled
+            submitBehavior="newline"
+            style={[
+                styles.composer,
+                {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    color: theme.text,
+                },
+            ]}
+            testID="agent-chat-composer-input"
+            textAlignVertical="top"
+            value={draft}
+        />
+    );
+};

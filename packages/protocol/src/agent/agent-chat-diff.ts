@@ -1,5 +1,7 @@
 import type { GitFileStatus } from '../domain/git.js';
 import type { AgentChatItem, AgentChatItemStatus } from './agent-chat-contract.js';
+import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { translateAgentChatLabel } from './agent-chat-labels.js';
 
 export type AgentChatFileChange = Extract<AgentChatItem, { type: 'fileChange' }>['changes'][number];
 
@@ -229,18 +231,14 @@ export function agentChatChangeDecoration(
     }
 }
 
-const CHANGE_KIND_LABEL: Record<AgentChatFileChange['kind'], string> = {
-    add: 'Added',
-    delete: 'Deleted',
-    update: 'Modified',
-};
-
 /**
- * The change kind in words, for the accessible name the status letter alone does not give. English, for the phone;
- * Desktop translates it.
+ * The change kind in words, for the accessible name the status letter alone does not give.
  */
-export function agentChatChangeKindLabel(kind: AgentChatFileChange['kind']): string {
-    return CHANGE_KIND_LABEL[kind];
+export function agentChatChangeKindLabel(
+    kind: AgentChatFileChange['kind'],
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    return t(`agentChat.diff.kind.${kind}`);
 }
 
 /**

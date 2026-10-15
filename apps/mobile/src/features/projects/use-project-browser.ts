@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
 
+import { useTranslation } from '../../i18n';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import type { ProjectBrowserLevel } from './project-browser-model';
@@ -15,6 +16,7 @@ import {
 export const useProjectBrowser = () => {
     const { connectionScopeKey, isForeground, request, status } = useMobileClient();
     const { sessions, setNewSessionProjectId } = useHostSessions();
+    const { t } = useTranslation();
     const [stack, setStack] = useState<ProjectBrowserLevel[]>([PROJECT_BROWSER_HOME]);
     const [addingPath, setAddingPath] = useState<string | null>(null);
     const [addError, setAddError] = useState<string | null>(null);
@@ -41,13 +43,13 @@ export const useProjectBrowser = () => {
                 setNewSessionProjectId(project.id);
                 return true;
             } catch (error) {
-                setAddError(error instanceof Error ? error.message : 'Unable to add this folder');
+                setAddError(error instanceof Error ? error.message : t('projects.addError'));
                 return false;
             } finally {
                 setAddingPath(null);
             }
         },
-        [request, sessions, setNewSessionProjectId],
+        [request, sessions, setNewSessionProjectId, t],
     );
     const enter = useCallback(
         (next: ProjectBrowserLevel) =>

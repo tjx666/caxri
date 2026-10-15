@@ -13,8 +13,13 @@ import {
 } from '../.agents/skills/acceptance/scripts/case-lifecycle';
 import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
 import { repoContext, withRepoLock } from '../.agents/skills/switch-worktree/scripts/repo';
-import { cleanupFixtureImeWithRetry, prepareMobileFixtureIme } from './mobile-acceptance-ime';
-import { withMobileReducedMotion } from './mobile-acceptance-motion';
+import {
+    cleanupFixtureImeWithRetry,
+    markMobileFixtureImeRestored,
+    prepareMobileFixtureIme,
+} from './mobile-acceptance-ime';
+import { prepareMobileAppLocale } from './mobile-acceptance-locale';
+import { prepareMobileLiveMotion, withMobileReducedMotion } from './mobile-acceptance-motion';
 import type { MobileAcceptanceArtifact } from './mobile-acceptance-runtime';
 import {
     assertMobileAcceptanceSourceIdentity,
@@ -335,8 +340,24 @@ async function executeCase(
     let isLifecycleReady = false;
     let isCleanupCompleted = false;
     let recording: Awaited<ReturnType<typeof startMobileAcceptanceRecording>> | undefined;
+    /**
+     * Restores of this case's own device settings, newest first, run before the app data is cleared.
+     */
+    const caseSettingRestores: Array<() => void> = [];
     try {
         adbRun(['shell', 'pm', 'clear', 'com.caxri.mobile']);
+        // The same commands later restore the settings during cleanup, which may use the cleanup reserve.
+        const deviceCommands = {
+            readDevice: adbRead,
+            runDevice: (arguments_: string[]) => adbRun(arguments_, overallDeadlineMs),
+        };
+        // Both settings are read when the app starts, so they land after the clear and before the scenario launches it.
+        if (definition.motion === 'live')
+            caseSettingRestores.unshift(prepareMobileLiveMotion(serial, deviceCommands));
+        if (definition.appLocale)
+            caseSettingRestores.unshift(
+                prepareMobileAppLocale(serial, deviceCommands, definition.appLocale),
+            );
         await markCaseLifecycleReady(reportDirectory, { caseId, launchId });
         isLifecycleReady = true;
         if (definition.media.includes('video') && definition.recordingOwner === 'adapter') {
@@ -428,6 +449,13 @@ async function executeCase(
         } catch (error) {
             failure ??= error;
         }
+        for (const restore of caseSettingRestores) {
+            try {
+                restore();
+            } catch (error) {
+                failure ??= error;
+            }
+        }
         try {
             adbRun(['shell', 'pm', 'clear', 'com.caxri.mobile'], overallDeadlineMs);
             isCleanupCompleted = true;
@@ -468,37 +496,6 @@ async function executeCase(
         },
     );
     if (failure) throw failure instanceof Error ? failure : new Error('Android Acceptance failed');
-}
-
-async function markFixtureImeRestored(
-    caseId: MobileAndroidAcceptanceCaseId,
-    sourceCommit: string,
-): Promise<void> {
-    const path = join(reportDirectory, 'assets', `${caseId}-mobile-device.json`);
-    let source: string;
-    try {
-        source = await readFile(path, 'utf8');
-    } catch (error) {
-        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
-            return;
-        throw error;
-    }
-    const receipt = JSON.parse(source) as {
-        caseId: string;
-        cleanup: { fixtureIme?: string };
-        sourceCommit: string;
-    };
-    if (
-        receipt.caseId !== caseId ||
-        receipt.sourceCommit !== sourceCommit ||
-        receipt.cleanup.fixtureIme !== 'pending'
-    ) {
-        throw new Error('The fixture IME cleanup receipt does not match the current case');
-    }
-    await writeMobileAcceptanceReceipt(path, {
-        ...receipt,
-        cleanup: { ...receipt.cleanup, fixtureIme: 'restored' },
-    });
 }
 
 async function recordSetupBlockedCase(
@@ -679,7 +676,10 @@ await withRepoLock(
             await cleanupFixtureImeWithRetry(cleanupFixtureIme);
             for (const caseId of attemptedCaseIds) {
                 // eslint-disable-next-line no-await-in-loop -- the cleanup marker follows the same frozen case order.
-                await markFixtureImeRestored(caseId, sourceCommit);
+                await markMobileFixtureImeRestored(
+                    join(reportDirectory, 'assets', `${caseId}-mobile-device.json`),
+                    { caseId, sourceCommit },
+                );
             }
         } catch (error) {
             imeCleanupFailure = error;

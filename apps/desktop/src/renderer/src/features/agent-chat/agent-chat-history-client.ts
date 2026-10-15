@@ -1,16 +1,15 @@
-import type { AgentChatSnapshot } from '@caxri/protocol';
-import type { QueryClient } from '@tanstack/react-query';
-
-import { caxri } from '../../lib/caxri';
-import { caxriQueryKey, isQueryMethod, queryClient } from '../../queries/client';
-import type { AgentChatOlderHistory } from './agent-chat-history';
+import type { AgentChatOlderHistory, AgentChatSnapshot } from '@caxri/protocol';
 import {
     agentChatHistoryCursor,
     emptyAgentChatOlderHistory,
     hasOlderAgentChatHistory,
     prependAgentChatHistoryPage,
     retainEvictedAgentChatItems,
-} from './agent-chat-history';
+} from '@caxri/protocol';
+import type { QueryClient } from '@tanstack/react-query';
+
+import { caxri } from '../../lib/caxri';
+import { caxriQueryKey, isQueryMethod, queryClient } from '../../queries/client';
 
 /**
  * Where the history a Chat pane read back is cached: beside the projection, one entry per `historyId`, so a replaced

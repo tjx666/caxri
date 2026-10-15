@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { notifyListeners } from '../../lib/notify-listeners';
 
 /**
@@ -137,6 +139,7 @@ export const completeImageAttachment = (
 export const expireImageAttachments = (
     attachments: readonly ImageAttachment[],
     now: number,
+    t: Translate = translate,
 ): readonly ImageAttachment[] =>
     attachments.some(
         (item) =>
@@ -153,7 +156,7 @@ export const expireImageAttachments = (
                         uri: item.uri,
                         progress: 0,
                         state: 'failed' as const,
-                        error: 'This image expired on your computer. Remove it and attach it again.',
+                        error: t('sessions.image.expired'),
                     }
                   : item,
           )
@@ -186,10 +189,11 @@ export const imageAttachmentsWithReturned = (
  */
 export const imageAttachmentWaitReason = (
     attachments: readonly ImageAttachment[],
+    t: Translate = translate,
 ): string | null => {
-    if (attachments.some((item) => item.state === 'failed'))
-        return "An image didn't upload. Tap it to retry or remove it.";
-    if (attachments.some((item) => item.state !== 'ready')) return 'Waiting for images to upload…';
+    if (attachments.some((item) => item.state === 'failed')) return t('sessions.image.waitFailed');
+    if (attachments.some((item) => item.state !== 'ready'))
+        return t('sessions.image.waitUploading');
     return null;
 };
 
@@ -200,15 +204,19 @@ export const imageAttachmentAccessibilityLabel = (
     attachment: Pick<ImageAttachment, 'progress' | 'state'>,
     index: number,
     count: number,
+    t: Translate = translate,
 ): string => {
-    const position = `Image ${index + 1} of ${count}`;
+    const position = t('sessions.image.position', { count, index: index + 1 });
     switch (attachment.state) {
         case 'preparing':
-            return `${position}, preparing`;
+            return t('sessions.image.positionPreparing', { position });
         case 'uploading':
-            return `${position}, uploading ${Math.round(attachment.progress * 100)}%`;
+            return t('sessions.image.positionUploading', {
+                percent: Math.round(attachment.progress * 100),
+                position,
+            });
         case 'failed':
-            return `${position}, upload failed`;
+            return t('sessions.image.positionFailed', { position });
         case 'ready':
             return position;
     }
@@ -247,9 +255,13 @@ export const imageAttachmentBudgetNote = (
     attachments: ReadonlyArray<Pick<ImageAttachment, 'base64Length' | 'id'>>,
     maxBase64Length: number,
     maxBytes: number,
+    t: Translate = translate,
 ): string | null => {
     const used = imageAttachmentsBase64Length(attachments);
     if (used < maxBase64Length * IMAGE_BUDGET_NOTE_RATIO) return null;
     const usedBytes = Math.min(used * BASE64_BYTES_PER_CHARACTER, maxBytes);
-    return `Images use ${formatMegabytes(usedBytes)} of ${formatMegabytes(maxBytes)} MB.`;
+    return t('sessions.image.budget', {
+        max: formatMegabytes(maxBytes),
+        used: formatMegabytes(usedBytes),
+    });
 };

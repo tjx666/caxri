@@ -45,9 +45,8 @@ export const PopoverMenu = ({
                     {
                         backgroundColor: theme.surface,
                         borderColor: theme.border,
-                        right: placement.right,
-                        top: placement.top,
                     },
+                    placement,
                 ]}
             >
                 {children}

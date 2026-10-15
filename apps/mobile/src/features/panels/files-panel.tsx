@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
 import { HighlightedCode } from '../../components/highlighted-code';
 import { IconButton } from '../../components/icon-button';
+import { useTranslation } from '../../i18n';
 import { formatByteSize } from '../../lib/format-size';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
@@ -34,12 +35,20 @@ const FileRow = memo(
         onOpen: (entry: FileEntry) => void;
         theme: MobileTheme;
     }) => {
+        const { t } = useTranslation();
         const isFolder = isDirectory(entry);
         const isBroken = isBrokenSymlink(entry);
         const isDimmed = entry.gitIgnored ?? isBroken;
         return (
             <Pressable
-                accessibilityLabel={`${entry.name}, ${isFolder ? 'folder' : 'file'}${isBroken ? ', broken link' : ''}`}
+                accessibilityLabel={t(
+                    isBroken
+                        ? 'panels.entryBrokenLink'
+                        : isFolder
+                          ? 'panels.entryFolder'
+                          : 'panels.entryFile',
+                    { name: entry.name },
+                )}
                 accessibilityRole="button"
                 disabled={isBroken}
                 onPress={() => onOpen(entry)}
@@ -89,6 +98,7 @@ const FilePreview = ({
     sessionId: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { request } = useMobileClient();
     const file = useFileRead(sessionId, entry.path);
     const language = fileLanguage(entry.name);
@@ -119,9 +129,11 @@ const FilePreview = ({
             await file.refetch();
         } catch (error) {
             setSaveError(
-                error instanceof MobileGatewayRequestError && error.code === 'CONFLICT'
-                    ? 'This file changed on your computer. Discard and reload before editing again.'
-                    : 'Unable to save this file. Try again.',
+                t(
+                    error instanceof MobileGatewayRequestError && error.code === 'CONFLICT'
+                        ? 'panels.saveConflict'
+                        : 'panels.saveFailed',
+                ),
             );
         } finally {
             setSaving(false);
@@ -136,9 +148,9 @@ const FilePreview = ({
             onBack(depth);
             return;
         }
-        Alert.alert('Discard unsaved changes?', undefined, [
-            { text: 'Keep editing', style: 'cancel' },
-            { text: 'Discard', style: 'destructive', onPress: () => onBack(depth) },
+        Alert.alert(t('panels.discardTitle'), undefined, [
+            { text: t('panels.keepEditing'), style: 'cancel' },
+            { text: t('panels.discard'), style: 'destructive', onPress: () => onBack(depth) },
         ]);
     };
     const body = (() => {
@@ -147,7 +159,7 @@ const FilePreview = ({
         if (file.isError)
             return (
                 <PanelStatus
-                    message="Unable to open this file."
+                    message={t('panels.openFileFailed')}
                     onRetry={() => {
                         // eslint-disable-next-line no-void -- The query renders its own error state.
                         void file.refetch();
@@ -158,7 +170,7 @@ const FilePreview = ({
         if (file.data.status !== 'available')
             return (
                 <PanelStatus
-                    message="This file is too large or not text. Open it on your computer."
+                    message={t('panels.fileUnavailable')}
                     testID="files-preview-unavailable"
                     theme={theme}
                 />
@@ -171,7 +183,7 @@ const FilePreview = ({
                         {/* Distinct keys prevent the disabled Save native view from becoming Edit after a write. */}
                         {draft === null ? (
                             <Pressable
-                                accessibilityLabel="Edit file"
+                                accessibilityLabel={t('panels.editFile')}
                                 accessibilityRole="button"
                                 key="edit"
                                 onPress={() => {
@@ -181,12 +193,12 @@ const FilePreview = ({
                                 style={styles.fileAction}
                                 testID="files-edit"
                             >
-                                <Text style={{ color: theme.primary }}>Edit</Text>
+                                <Text style={{ color: theme.primary }}>{t('panels.edit')}</Text>
                             </Pressable>
                         ) : (
                             <>
                                 <Pressable
-                                    accessibilityLabel="Save file"
+                                    accessibilityLabel={t('panels.saveFile')}
                                     accessibilityRole="button"
                                     accessibilityState={{ disabled: saving }}
                                     disabled={saving}
@@ -197,16 +209,18 @@ const FilePreview = ({
                                     style={styles.fileAction}
                                     testID="files-save"
                                 >
-                                    <Text style={{ color: theme.primary }}>Save</Text>
+                                    <Text style={{ color: theme.primary }}>{t('panels.save')}</Text>
                                 </Pressable>
                                 <Pressable
-                                    accessibilityLabel="Discard changes"
+                                    accessibilityLabel={t('panels.discardChanges')}
                                     accessibilityRole="button"
                                     onPress={discard}
                                     style={styles.fileAction}
                                     testID="files-discard"
                                 >
-                                    <Text style={{ color: theme.muted }}>Discard</Text>
+                                    <Text style={{ color: theme.muted }}>
+                                        {t('panels.discard')}
+                                    </Text>
                                 </Pressable>
                             </>
                         )}
@@ -235,7 +249,7 @@ const FilePreview = ({
                     </ScrollView>
                 ) : (
                     <TextInput
-                        accessibilityLabel="File contents"
+                        accessibilityLabel={t('panels.fileContents')}
                         autoCapitalize="none"
                         multiline
                         onChangeText={setDraft}
@@ -257,7 +271,7 @@ const FilePreview = ({
         <View style={styles.root}>
             <View style={[styles.crumbs, { borderColor: theme.border }]}>
                 <IconButton
-                    accessibilityLabel="Back to folder"
+                    accessibilityLabel={t('panels.backToFolder')}
                     icon={ChevronLeft}
                     onPress={() => confirmBack()}
                     testID="files-preview-back"
@@ -289,6 +303,7 @@ export const FilesPanel = ({
     sessionId: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [stack, setStack] = useState<FileEntry[]>([]);
     const [preview, setPreview] = useState<FileEntry | null>(null);
     const directory = stack.at(-1);
@@ -322,7 +337,7 @@ export const FilesPanel = ({
             {directory ? (
                 <View style={[styles.crumbs, { borderColor: theme.border }]}>
                     <IconButton
-                        accessibilityLabel="Up one folder"
+                        accessibilityLabel={t('panels.upOneFolder')}
                         icon={ChevronLeft}
                         onPress={() => setStack((current) => current.slice(0, -1))}
                         testID="files-up"
@@ -343,7 +358,7 @@ export const FilesPanel = ({
                         <PendingPanelStatus fetchStatus={listing.fetchStatus} theme={theme} />
                     ) : listing.isError ? (
                         <PanelStatus
-                            message="Unable to list this folder."
+                            message={t('panels.listFailed')}
                             onRetry={() => {
                                 // eslint-disable-next-line no-void -- The query renders its own error state.
                                 void listing.refetch();
@@ -353,7 +368,7 @@ export const FilesPanel = ({
                         />
                     ) : (
                         <PanelStatus
-                            message="This folder is empty."
+                            message={t('panels.folderEmpty')}
                             testID="files-empty"
                             theme={theme}
                         />
@@ -361,10 +376,7 @@ export const FilesPanel = ({
                 }
                 ListFooterComponent={
                     listing.data?.truncated ? (
-                        <PanelStatus
-                            message="Showing the first entries. Open the rest on your computer."
-                            theme={theme}
-                        />
+                        <PanelStatus message={t('panels.listTruncated')} theme={theme} />
                     ) : null
                 }
                 onRefresh={() => {

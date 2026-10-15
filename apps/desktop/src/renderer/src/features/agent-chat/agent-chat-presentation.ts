@@ -1,19 +1,10 @@
-import type {
-    AgentChatItem,
-    AgentChatItemStatus,
-    AgentChatSnapshot,
-    ProcessState,
-} from '@caxri/protocol';
-import { projectRelativePath } from '@caxri/protocol';
+import type { AgentChatSnapshot, ProcessState } from '@caxri/protocol';
+import { agentChatFailureMessage, projectRelativePath } from '@caxri/protocol';
 
-import type { Translate, TranslationKey } from '../../i18n';
+import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { SuggestionMenuKeyAction } from '../../lib/suggestion-options';
 import { getTerminalExitPresentation } from '../terminal/terminal-exit-presentation';
-import {
-    agentChatLocalizedFailureMessage,
-    agentChatLocalizedWaitingText,
-} from './agent-chat-request-labels';
 
 /**
  * Whether the composer accepts a message. A stopped Chat resumes its Agent Session on the next message, a starting one
@@ -146,7 +137,11 @@ export function agentChatRecoveryNotice(
     if (snapshot.failure.reason === 'conversation_in_use')
         return {
             kind: 'inUse',
-            message: agentChatLocalizedFailureMessage('conversation_in_use', providerName, t),
+            message: agentChatFailureMessage(
+                'conversation_in_use',
+                { providerName, surface: 'desktop' },
+                t,
+            ),
             // The provider's own detail only restates the heading, so the body names the way out instead.
             detail: t('agentChat.timeline.inUseDetail'),
             recovery,
@@ -154,109 +149,24 @@ export function agentChatRecoveryNotice(
     if (snapshot.failure.reason === 'resume_failed')
         return {
             kind: 'failed',
-            message: agentChatLocalizedFailureMessage('resume_failed', providerName, t),
+            message: agentChatFailureMessage(
+                'resume_failed',
+                { providerName, surface: 'desktop' },
+                t,
+            ),
             detail: agentChatResumeFailureDetail(providerName, t),
             recovery,
             canOpenAsTerminal: true,
         };
     return {
         kind: 'failed',
-        message: agentChatLocalizedFailureMessage(snapshot.failure.reason, providerName, t),
+        message: agentChatFailureMessage(
+            snapshot.failure.reason,
+            { providerName, surface: 'desktop' },
+            t,
+        ),
         ...(snapshot.failure.detail && { detail: snapshot.failure.detail }),
         recovery,
-    };
-}
-
-/**
- * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
- * in it, as Claude Code's spinner does; the words never claim a specific step. These Caxri-owned phrase keys stay in
- * the same order as the protocol fallback, so every client picks the same position.
- */
-const WORKING_PHRASES: readonly TranslationKey[] = [
-    'agentChat.timeline.working.phrase01',
-    'agentChat.timeline.working.phrase02',
-    'agentChat.timeline.working.phrase03',
-    'agentChat.timeline.working.phrase04',
-    'agentChat.timeline.working.phrase05',
-    'agentChat.timeline.working.phrase06',
-    'agentChat.timeline.working.phrase07',
-    'agentChat.timeline.working.phrase08',
-    'agentChat.timeline.working.phrase09',
-    'agentChat.timeline.working.phrase10',
-    'agentChat.timeline.working.phrase11',
-    'agentChat.timeline.working.phrase12',
-    'agentChat.timeline.working.phrase13',
-    'agentChat.timeline.working.phrase14',
-    'agentChat.timeline.working.phrase15',
-    'agentChat.timeline.working.phrase16',
-    'agentChat.timeline.working.phrase17',
-    'agentChat.timeline.working.phrase18',
-    'agentChat.timeline.working.phrase19',
-    'agentChat.timeline.working.phrase20',
-    'agentChat.timeline.working.phrase21',
-    'agentChat.timeline.working.phrase22',
-    'agentChat.timeline.working.phrase23',
-    'agentChat.timeline.working.phrase24',
-    'agentChat.timeline.working.phrase25',
-    'agentChat.timeline.working.phrase26',
-    'agentChat.timeline.working.phrase27',
-    'agentChat.timeline.working.phrase28',
-];
-
-/**
- * One phrase per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
- */
-function agentChatWorkingVerb(turnId: string, t: Translate = translate): string {
-    let hash = 0;
-    for (const character of turnId) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) >>> 0;
-    return t(
-        WORKING_PHRASES[hash % WORKING_PHRASES.length] ?? 'agentChat.timeline.working.working',
-    );
-}
-
-export type AgentChatActivity =
-    | { kind: 'starting'; text: string }
-    | { kind: 'working'; text: string; startedAt: number | undefined }
-    | { kind: 'compacting'; text: string; isStoppable: boolean }
-    | { kind: 'waiting'; text: string };
-
-/**
- * What the Chat is doing right now, for the status line on the composer. A pending request means the turn is blocked on
- * the user, not working, so it says so instead of animating, and says whether it waits on an approval or an answer.
- * Compacting the context names itself instead of a playful verb, so a `/compact` the user asked for visibly runs; it
- * can happen inside a turn (automatic compaction), which Esc still stops. Before the projection is first read, a Chat
- * that already has a conversation is loading it, not starting its Agent, so it says so (`hasConversation` is whether
- * the Terminal is bound to an Agent Session).
- */
-export function agentChatActivity(
-    snapshot:
-        | Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'operation' | 'requests' | 'turns'>
-        | undefined,
-    providerName: string,
-    { hasConversation = false }: { hasConversation?: boolean } = {},
-    t: Translate = translate,
-): AgentChatActivity | undefined {
-    if (!snapshot && hasConversation)
-        return { kind: 'starting', text: t('agentChat.timeline.loadingConversation') };
-    if (!snapshot || snapshot.status === 'starting')
-        return {
-            kind: 'starting',
-            text: t('agentChat.timeline.starting', { provider: providerName }),
-        };
-    const turnId = snapshot.activeTurnId;
-    if (turnId && snapshot.requests.length > 0)
-        return { kind: 'waiting', text: agentChatLocalizedWaitingText(snapshot.requests, t) };
-    if (snapshot.operation === 'compacting')
-        return {
-            kind: 'compacting',
-            text: t('agentChat.timeline.compacting'),
-            isStoppable: Boolean(turnId),
-        };
-    if (!turnId) return undefined;
-    return {
-        kind: 'working',
-        text: `${agentChatWorkingVerb(turnId, t)}…`,
-        startedAt: snapshot.turns.find((turn) => turn.id === turnId)?.startedAt,
     };
 }
 
@@ -519,13 +429,6 @@ export function agentChatEscapeAction(
     return state.isEditing ? 'cancelEdit' : undefined;
 }
 
-export function agentChatItemStatusLabel(
-    status: AgentChatItemStatus,
-    t: Translate = translate,
-): string {
-    return t(`agentChat.tool.status.${status}`);
-}
-
 /**
  * The caption under a user message in the timeline. A message reaches the timeline only once it was delivered (a
  * pending follow-up waits in the queue cards above the composer), so a queued one is now an ordinary message and a
@@ -536,34 +439,6 @@ export function agentChatDeliveryCaption(
     t: Translate = translate,
 ): string | undefined {
     return delivery === 'steered' ? t('agentChat.message.steered') : undefined;
-}
-
-/**
- * A notice's text. The provider's own message is transcript content and stays as reported; only the words Caxri puts
- * around it are translated.
- */
-export function agentChatNoticeMessage(
-    item: Extract<AgentChatItem, { type: 'notice' }>,
-    t: Translate = translate,
-): string {
-    switch (item.kind) {
-        case 'compacted': {
-            return t('agentChat.message.contextCompacted');
-        }
-        case 'retrying': {
-            return item.message
-                ? t('agentChat.message.retryingWith', { message: item.message })
-                : t('agentChat.message.retrying');
-        }
-        case 'error': {
-            return item.message ?? t('agentChat.message.agentError');
-        }
-        case 'answered': {
-            return item.message
-                ? t('agentChat.message.answeredWith', { message: item.message })
-                : t('agentChat.message.answered');
-        }
-    }
 }
 
 /**

@@ -6,6 +6,9 @@ import type {
     AgentChatPlan,
     AgentChatSnapshot,
 } from './agent-chat-contract.js';
+import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { translateAgentChatLabel } from './agent-chat-labels.js';
+import { agentChatLabelsEn } from './agent-chat-labels-en.js';
 import type { AgentChatRequest } from './agent-chat-requests.js';
 
 /**
@@ -36,6 +39,31 @@ export interface AgentChatFailureMessageOptions {
     canRetry?: boolean;
 }
 
+const DESKTOP_FAILURE_KEYS: Record<AgentChatFailureReason, AgentChatLabelKey> = {
+    conversation_in_use: 'agentChat.failure.conversationInUse',
+    executable_not_found: 'agentChat.failure.executableNotFound',
+    handshake_failed: 'agentChat.failure.handshakeFailed',
+    process_exited: 'agentChat.failure.processExited',
+    resume_failed: 'agentChat.failure.resumeFailed',
+    spawn_failed: 'agentChat.failure.spawnFailed',
+    unsupported_version: 'agentChat.failure.unsupportedVersion',
+};
+
+/**
+ * The phone's copy where it differs from Desktop's; `process_exited` depends on reply access and `resume_failed` reads
+ * the same on both.
+ */
+const MOBILE_FAILURE_KEYS: Record<
+    Exclude<AgentChatFailureReason, 'process_exited' | 'resume_failed'>,
+    AgentChatLabelKey
+> = {
+    conversation_in_use: 'agentChat.failure.mobile.conversationInUse',
+    executable_not_found: 'agentChat.failure.mobile.executableNotFound',
+    handshake_failed: 'agentChat.failure.mobile.handshakeFailed',
+    spawn_failed: 'agentChat.failure.mobile.spawnFailed',
+    unsupported_version: 'agentChat.failure.mobile.unsupportedVersion',
+};
+
 /**
  * User-facing copy for each closed failure reason; provider text never selects the message. Desktop copy names the next
  * step on the same machine (Retry, the terminal, the PATH). The phone's copy says the provider runs "on your computer",
@@ -44,67 +72,29 @@ export interface AgentChatFailureMessageOptions {
 export function agentChatFailureMessage(
     reason: AgentChatFailureReason,
     { canRetry = true, providerName, surface }: AgentChatFailureMessageOptions,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
-    return surface === 'desktop'
-        ? desktopFailureMessage(reason, providerName)
-        : mobileFailureMessage(reason, providerName, canRetry);
-}
-
-function desktopFailureMessage(reason: AgentChatFailureReason, provider: string): string {
+    if (surface === 'desktop') return t(DESKTOP_FAILURE_KEYS[reason], { provider: providerName });
     switch (reason) {
-        case 'executable_not_found': {
-            return `${provider} is not installed or is not on your PATH. Install it, then retry.`;
-        }
-        case 'spawn_failed': {
-            return `${provider} could not be started. Retry, or check that the ${provider} CLI runs in a terminal.`;
-        }
-        case 'handshake_failed': {
-            return `${provider} started but did not respond. Retry, or update the ${provider} CLI.`;
-        }
         case 'process_exited': {
-            return `${provider} stopped unexpectedly. Retry to resume the conversation.`;
+            return t(
+                canRetry
+                    ? 'agentChat.failure.processExited'
+                    : 'agentChat.failure.mobile.processExitedNoRetry',
+                { provider: sentenceStartProvider(providerName) },
+            );
         }
         case 'resume_failed': {
-            return 'The previous conversation could not be resumed.';
+            return t('agentChat.failure.resumeFailed');
         }
-        case 'conversation_in_use': {
-            return `This conversation is open in another ${provider} app or window.`;
-        }
+        case 'conversation_in_use':
         case 'unsupported_version': {
-            return `This ${provider} version does not support Chat. Update the ${provider} CLI.`;
+            return t(MOBILE_FAILURE_KEYS[reason], { provider: providerName });
         }
-    }
-}
-
-function mobileFailureMessage(
-    reason: AgentChatFailureReason,
-    provider: string,
-    canRetry: boolean,
-): string {
-    const subject = sentenceStartProvider(provider);
-    switch (reason) {
-        case 'executable_not_found': {
-            return `${subject} is not installed or is not on your computer's PATH. Install it on your computer.`;
-        }
-        case 'spawn_failed': {
-            return `${subject} could not be started on your computer.`;
-        }
-        case 'handshake_failed': {
-            return `${subject} started but did not respond.`;
-        }
-        case 'process_exited': {
-            return canRetry
-                ? `${subject} stopped unexpectedly. Retry to resume the conversation.`
-                : `${subject} stopped unexpectedly. Reply access is required to retry.`;
-        }
-        case 'resume_failed': {
-            return 'The previous conversation could not be resumed.';
-        }
-        case 'conversation_in_use': {
-            return `This conversation is open in another ${provider} app or window on your computer.`;
-        }
-        case 'unsupported_version': {
-            return `This ${provider} version does not support Chat. Update it on your computer.`;
+        default: {
+            return t(MOBILE_FAILURE_KEYS[reason], {
+                provider: sentenceStartProvider(providerName),
+            });
         }
     }
 }
@@ -187,47 +177,25 @@ export function agentChatNextUnansweredQuestion(
 
 /**
  * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
- * in it, as Claude Code's spinner does; the words never claim a specific step. These Caxri-owned phrases stay in the
- * same order as Desktop's translated list, so every client picks the same position.
+ * in it, as Claude Code's spinner does; the words never claim a specific step. The phrases are Caxri's own, numbered in
+ * the catalog so every client and language picks the same position.
  */
-const WORKING_PHRASES = [
-    'Mapping the terrain',
-    'Following a bright thread',
-    'Sorting the puzzle pieces',
-    'Checking the compass',
-    'Turning the problem around',
-    'Turning another page',
-    'Sketching a few routes',
-    'Listening for the signal',
-    'Clearing a little fog',
-    'Taking the scenic route',
-    'Reading between the lines',
-    'Tuning the workshop',
-    'Finding the loose thread',
-    'Looking under the hood',
-    'Trying another angle',
-    'Letting the pieces settle',
-    'Peeking behind the curtain',
-    'Walking through the maze',
-    'Sharpening the outline',
-    'Following the breadcrumbs',
-    'Checking the other pocket',
-    'Giving the idea a spin',
-    'Looking for the quiet clue',
-    'Moving the lantern closer',
-    'Bringing the edges together',
-    'Taking one more pass',
-    'Getting the bearings',
-    'Bringing it into focus',
-] as const;
+const WORKING_VERB_KEYS = Object.keys(agentChatLabelsEn).filter((key): key is AgentChatLabelKey =>
+    key.startsWith('agentChat.timeline.working.phrase'),
+);
 
 /**
  * One phrase per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
  */
-export function agentChatWorkingVerb(turnId: string): string {
+export function agentChatWorkingVerb(
+    turnId: string,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
     let hash = 0;
     for (const character of turnId) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) >>> 0;
-    return WORKING_PHRASES[hash % WORKING_PHRASES.length] ?? 'Working';
+    return t(
+        WORKING_VERB_KEYS[hash % WORKING_VERB_KEYS.length] ?? 'agentChat.timeline.working.working',
+    );
 }
 
 export type AgentChatActivity =
@@ -250,19 +218,28 @@ export function agentChatActivity(
         | undefined,
     providerName: string,
     { hasConversation = false }: { hasConversation?: boolean } = {},
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): AgentChatActivity | undefined {
-    if (!snapshot && hasConversation) return { kind: 'starting', text: 'Loading conversation…' };
+    if (!snapshot && hasConversation)
+        return { kind: 'starting', text: t('agentChat.timeline.loadingConversation') };
     if (!snapshot || snapshot.status === 'starting')
-        return { kind: 'starting', text: `Starting ${providerName}…` };
+        return {
+            kind: 'starting',
+            text: t('agentChat.timeline.starting', { provider: providerName }),
+        };
     const turnId = snapshot.activeTurnId;
     if (turnId && snapshot.requests.length > 0)
-        return { kind: 'waiting', text: agentChatWaitingText(snapshot.requests) };
+        return { kind: 'waiting', text: agentChatWaitingText(snapshot.requests, t) };
     if (snapshot.operation === 'compacting')
-        return { kind: 'compacting', text: 'Compacting context…', isStoppable: Boolean(turnId) };
+        return {
+            kind: 'compacting',
+            text: t('agentChat.timeline.compacting'),
+            isStoppable: Boolean(turnId),
+        };
     if (!turnId) return undefined;
     return {
         kind: 'working',
-        text: `${agentChatWorkingVerb(turnId)}…`,
+        text: `${agentChatWorkingVerb(turnId, t)}…`,
         startedAt: snapshot.turns.find((turn) => turn.id === turnId)?.startedAt,
     };
 }
@@ -321,39 +298,37 @@ export function agentChatItemStatusTone(status: AgentChatItemStatus): AgentChatS
     }
 }
 
-export function agentChatItemStatusLabel(status: AgentChatItemStatus): string {
-    switch (status) {
-        case 'running': {
-            return 'Running';
-        }
-        case 'completed': {
-            return 'Completed';
-        }
-        case 'failed': {
-            return 'Failed';
-        }
-        case 'declined': {
-            return 'Declined';
-        }
-        case 'interrupted': {
-            return 'Interrupted';
-        }
-    }
+export function agentChatItemStatusLabel(
+    status: AgentChatItemStatus,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    return t(`agentChat.tool.status.${status}`);
 }
 
-export function agentChatNoticeMessage(item: Extract<AgentChatItem, { type: 'notice' }>): string {
+/**
+ * A notice's text. The provider's own message is transcript content and stays as reported; only the words Caxri puts
+ * around it are translated.
+ */
+export function agentChatNoticeMessage(
+    item: Extract<AgentChatItem, { type: 'notice' }>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
     switch (item.kind) {
         case 'compacted': {
-            return 'Context compacted';
+            return t('agentChat.message.contextCompacted');
         }
         case 'retrying': {
-            return item.message ? `Retrying: ${item.message}` : 'Retrying';
+            return item.message
+                ? t('agentChat.message.retryingWith', { message: item.message })
+                : t('agentChat.message.retrying');
         }
         case 'error': {
-            return item.message ?? 'The Agent reported an error';
+            return item.message ?? t('agentChat.message.agentError');
         }
         case 'answered': {
-            return item.message ? `Answered: ${item.message}` : 'Answered';
+            return item.message
+                ? t('agentChat.message.answeredWith', { message: item.message })
+                : t('agentChat.message.answered');
         }
     }
 }

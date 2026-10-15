@@ -7,6 +7,8 @@ import * as Crypto from 'expo-crypto';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
+import type { Translate } from '../../../i18n';
+import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import {
     CHAT_THUMBNAIL_QUALITIES,
@@ -39,7 +41,12 @@ const newAttachmentId = (): string => `image_${encodeHex(Crypto.getRandomBytes(1
  * A small JPEG of the prepared image for a Chat message's preview. The Server carries the thumbnail but cannot make
  * one, so the phone renders it here, lowering the quality until it fits the projection's thumbnail limit.
  */
-const renderChatThumbnail = async (uri: string, width: number, height: number): Promise<string> => {
+const renderChatThumbnail = async (
+    uri: string,
+    width: number,
+    height: number,
+    t: Translate,
+): Promise<string> => {
     for (const compress of CHAT_THUMBNAIL_QUALITIES) {
         const context = ImageManipulator.ImageManipulator.manipulate(uri);
         context.resize(chatThumbnailSize(width, height));
@@ -54,13 +61,15 @@ const renderChatThumbnail = async (uri: string, width: number, height: number): 
         if (thumbnail.base64 && isWithinChatThumbnailLimit(thumbnail.base64))
             return thumbnail.base64;
     }
-    throw new Error('Unable to prepare a preview of this image.');
+    throw new Error(t('sessions.image.previewFailed'));
 };
 
 export type ImageSource = 'library' | 'camera' | 'clipboard';
 
-const failureMessage = (error: unknown): string =>
-    error instanceof Error && error.message.length > 0 ? error.message : 'Upload failed.';
+const failureMessage = (error: unknown, t: Translate): string =>
+    error instanceof Error && error.message.length > 0
+        ? error.message
+        : t('sessions.image.uploadFailed');
 
 /**
  * The pending images of one composer. They live in `imageAttachmentStore` rather than component state, so leaving the
@@ -91,6 +100,7 @@ export const useImageAttachments = (
     } = {},
 ) => {
     const { connectionScopeKey, request } = useMobileClient();
+    const { t } = useTranslation();
     const key = imageAttachmentKey(connectionScopeKey, surface, sessionId);
     const subscribe = useCallback(
         (listener: () => void) => imageAttachmentStore.subscribe(key, listener),
@@ -102,17 +112,23 @@ export const useImageAttachments = (
         imageAttachmentStore.update(key, change);
     // Pending images outlive the composer; one the Server has deleted since must not look ready on return.
     useEffect(() => {
-        imageAttachmentStore.update(key, (current) => expireImageAttachments(current, Date.now()));
-    }, [key]);
+        imageAttachmentStore.update(key, (current) =>
+            expireImageAttachments(current, Date.now(), t),
+        );
+    }, [key, t]);
 
     const upload = async (item: ImageAttachment) => {
         try {
-            if (!item.base64)
-                throw new Error('This image is no longer available. Attach it again.');
+            if (!item.base64) throw new Error(t('sessions.image.unavailable'));
             const parts = [
-                { id: item.id, chunks: splitMobileImage(item.base64) },
+                { id: item.id, chunks: splitMobileImage(item.base64, t) },
                 ...(item.thumbnail?.base64
-                    ? [{ id: item.thumbnail.id, chunks: splitMobileImage(item.thumbnail.base64) }]
+                    ? [
+                          {
+                              id: item.thumbnail.id,
+                              chunks: splitMobileImage(item.thumbnail.base64, t),
+                          },
+                      ]
                     : []),
             ];
             const total = parts.reduce((sum, part) => sum + part.chunks.length, 0);
@@ -147,7 +163,7 @@ export const useImageAttachments = (
             update((current) =>
                 patchImageAttachment(current, item.id, {
                     state: 'failed',
-                    error: failureMessage(error),
+                    error: failureMessage(error, t),
                 }),
             );
         }
@@ -173,19 +189,19 @@ export const useImageAttachments = (
                 compress: 0.75,
                 base64: true,
             });
-            if (!image.base64) throw new Error('Unable to prepare this image.');
+            if (!image.base64) throw new Error(t('sessions.image.prepareFailed'));
             uri = image.uri;
             base64 = image.base64;
             size = { width: image.width, height: image.height };
         }
-        splitMobileImage(base64);
+        splitMobileImage(base64, t);
         return {
             uri,
             base64,
             ...(withThumbnail && {
                 thumbnail: {
                     id: newAttachmentId(),
-                    base64: await renderChatThumbnail(uri, size.width, size.height),
+                    base64: await renderChatThumbnail(uri, size.width, size.height, t),
                 },
             }),
         };
@@ -198,7 +214,7 @@ export const useImageAttachments = (
             let picked: { uri: string; width: number; height: number; base64?: string };
             if (source === 'clipboard') {
                 const image = await Clipboard.getImageAsync({ format: 'jpeg', jpegQuality: 0.75 });
-                if (!image) throw new Error('The clipboard has no image.');
+                if (!image) throw new Error(t('sessions.image.clipboardEmpty'));
                 picked = {
                     uri: image.data,
                     base64: image.data.replace(/^data:image\/jpeg;base64,/u, ''),
@@ -253,8 +269,8 @@ export const useImageAttachments = (
         } catch (error) {
             update((current) => removeImageAttachment(current, id));
             Alert.alert(
-                'Unable to attach image',
-                error instanceof Error ? error.message : 'Try another image.',
+                t('sessions.image.attachFailedTitle'),
+                error instanceof Error ? error.message : t('sessions.image.attachFailedBody'),
             );
         }
     };
@@ -301,7 +317,7 @@ export const useImageAttachments = (
         /**
          * Why Send waits on the images, or `null` once they are all uploaded.
          */
-        waitReason: imageAttachmentWaitReason(attachments),
+        waitReason: imageAttachmentWaitReason(attachments, t),
         remove,
         retry,
         /**
@@ -310,17 +326,25 @@ export const useImageAttachments = (
         explainFailure: (id: string) => {
             const item = imageAttachmentStore.get(key).find((candidate) => candidate.id === id);
             if (!item) return;
-            Alert.alert('Image upload failed', item.error ?? 'Upload failed.', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Remove', style: 'destructive', onPress: () => remove(id) },
-                {
-                    text: 'Retry',
-                    onPress: () => {
-                        // eslint-disable-next-line no-void -- A failed retry marks the image failed again.
-                        void retry(id);
+            Alert.alert(
+                t('sessions.image.uploadFailedTitle'),
+                item.error ?? t('sessions.image.uploadFailed'),
+                [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    {
+                        text: t('sessions.image.remove'),
+                        style: 'destructive',
+                        onPress: () => remove(id),
                     },
-                },
-            ]);
+                    {
+                        text: t('common.retry'),
+                        onPress: () => {
+                            // eslint-disable-next-line no-void -- A failed retry marks the image failed again.
+                            void retry(id);
+                        },
+                    },
+                ],
+            );
         },
         clear: () => update(() => []),
         /**

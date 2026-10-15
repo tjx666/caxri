@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatModel } from '../agent-chat-contract.js';
+import { agentChatLabelsZhCN } from '../agent-chat-labels-zh-cn.js';
 import type { AgentChatPendingSelection } from '../agent-chat-models.js';
 import {
     agentChatEffortLabel,
@@ -183,6 +184,9 @@ describe('agentChatModelLabel', () => {
     it('labels known efforts and capitalizes unknown ones', () => {
         expect(agentChatEffortLabel('max')).toBe('Max');
         expect(agentChatEffortLabel('turbo')).toBe('Turbo');
+        const chinese = (key: keyof typeof agentChatLabelsZhCN) => agentChatLabelsZhCN[key];
+        expect(agentChatEffortLabel('medium', chinese)).toBe('中');
+        expect(agentChatEffortLabel('turbo', chinese)).toBe('Turbo');
     });
 });
 

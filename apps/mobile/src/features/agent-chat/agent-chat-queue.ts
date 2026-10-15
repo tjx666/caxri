@@ -1,6 +1,9 @@
 import type { AgentChatQueueEntry, AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatQueueEntry } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
+
 type AgentChatQueue = NonNullable<AgentChatSnapshot['queue']>;
 
 /**
@@ -37,12 +40,15 @@ export const agentChatQueueEntries = (
 ];
 
 export interface AgentChatQueueHeader {
-    title: 'Queued' | 'Queue paused';
+    /**
+     * `Queued`, or `Queue paused` while Stop holds the queue.
+     */
+    title: string;
     count: number;
     /**
      * Desktop's sub-caption: when the queue will send, or `undefined` while nothing holds it back.
      */
-    detail: 'sends after this turn' | 'sends nothing until you resume' | undefined;
+    detail: string | undefined;
     isPaused: boolean;
 }
 
@@ -55,6 +61,7 @@ export const agentChatQueueHeader = (
     snapshot: Pick<AgentChatSnapshot, 'queue' | 'queueLength' | 'queuePaused'> | undefined,
     isTurnRunning: boolean,
     visibleCount: number,
+    t: Translate = translate,
 ): AgentChatQueueHeader | undefined => {
     const previewLength = snapshot?.queue?.length ?? 0;
     const count =
@@ -62,22 +69,19 @@ export const agentChatQueueHeader = (
     if (count === 0) return undefined;
     if (snapshot?.queuePaused)
         return {
-            title: 'Queue paused',
+            title: t('chat.queue.paused'),
             count,
-            detail: 'sends nothing until you resume',
+            detail: t('chat.queue.pausedDetail'),
             isPaused: true,
         };
     return {
-        title: 'Queued',
+        title: t('chat.queue.queued'),
         count,
-        detail: isTurnRunning ? 'sends after this turn' : undefined,
+        detail: isTurnRunning ? t('chat.queue.queuedDetail') : undefined,
         isPaused: false,
     };
 };
 
-/**
- * What a failed queue action says, in Desktop's words.
- */
 /**
  * How much of the queue card shows. While the user types, the keyboard and composer already take most of the screen, so
  * the card shrinks to its one-line header (`Queued 3`) with an expand toggle and the timeline keeps its room; with the
@@ -101,27 +105,36 @@ export const agentChatQueueCardLayout = ({
 export const agentChatQueueRowHints = (
     entry: AgentChatQueueRow,
     imagesUnsupported: string,
+    t: Translate = translate,
 ): { sendNow: string | undefined; edit: string | undefined } => {
     if (entry.isPending) {
-        const waiting = 'Available once the message is queued.';
+        const waiting = t('chat.queue.pendingHint');
         return { sendNow: waiting, edit: waiting };
     }
     const sendNow = entry.canSendNow
         ? entry.sendNowLabel === 'Steer'
-            ? 'Adds this message to the running turn now.'
+            ? t('chat.queue.steerHint')
             : undefined
-        : 'A command waits for the running turn to end.';
+        : t('chat.queue.commandWaits');
     return { sendNow, edit: entry.canEdit ? undefined : imagesUnsupported };
 };
 
-export const AGENT_CHAT_QUEUE_ERRORS = {
-    remove: 'Unable to remove the queued message. Try again.',
-    sendNow: 'Unable to send the queued message. Try again.',
-    edit: 'Unable to edit the queued message. Try again.',
-    resume: 'Unable to resume the queue. Try again.',
+export type AgentChatQueueRowAction = 'remove' | 'sendNow' | 'edit';
+
+const QUEUE_ERRORS = {
+    remove: 'chat.queue.error.remove',
+    sendNow: 'chat.queue.error.sendNow',
+    edit: 'chat.queue.error.edit',
+    resume: 'chat.queue.error.resume',
 } as const;
 
-export type AgentChatQueueRowAction = 'remove' | 'sendNow' | 'edit';
+/**
+ * What a failed queue action says, in Desktop's words.
+ */
+export const agentChatQueueErrorMessage = (
+    action: AgentChatQueueRowAction | 'resume',
+    t: Translate = translate,
+): string => t(QUEUE_ERRORS[action]);
 
 /**
  * Why a failed row action failed, when the reason changes what the phone says. `gone`: the message left the queue first
@@ -144,16 +157,13 @@ export const agentChatQueueFailure = (
  * too, and the queue may now be empty, so an inline error would explain nothing on screen; the phone shows these in an
  * alert instead, so the reader learns why nothing came back to the composer.
  */
-export const AGENT_CHAT_QUEUE_EDIT_ALERTS = {
-    gone: {
-        title: 'Message already left the queue',
-        message: 'It was sent or removed before it could come back for editing.',
-    },
-    tooLong: {
-        title: 'Edit this message on your computer',
-        message: 'It is longer than a message the phone can send.',
-    },
-} as const;
+export const agentChatQueueEditAlert = (
+    failure: 'gone' | 'tooLong',
+    t: Translate = translate,
+): { title: string; message: string } =>
+    failure === 'gone'
+        ? { title: t('chat.queue.goneTitle'), message: t('chat.queue.goneMessage') }
+        : { title: t('chat.queue.tooLongTitle'), message: t('chat.queue.tooLongMessage') };
 
 /**
  * Runs one row action optimistically: the row disappears at once, because Delete, Steer, and Edit all take it out of
@@ -168,6 +178,7 @@ export const didRunOptimisticQueueAction = async ({
     perform,
     reportError,
     reveal,
+    t = translate,
 }: {
     action: AgentChatQueueRowAction;
     hide: (id: string) => void;
@@ -175,6 +186,7 @@ export const didRunOptimisticQueueAction = async ({
     perform: (id: string) => Promise<void>;
     reportError: (message: string | null, failure?: AgentChatQueueFailure) => void;
     reveal: (id: string) => void;
+    t?: Translate;
 }): Promise<boolean> => {
     reportError(null);
     hide(id);
@@ -187,7 +199,7 @@ export const didRunOptimisticQueueAction = async ({
             error instanceof Error && 'code' in error && typeof error.code === 'string'
                 ? error.code
                 : undefined;
-        reportError(AGENT_CHAT_QUEUE_ERRORS[action], agentChatQueueFailure(action, code));
+        reportError(agentChatQueueErrorMessage(action, t), agentChatQueueFailure(action, code));
         return false;
     }
 };

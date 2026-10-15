@@ -1,6 +1,13 @@
 import { useId, useState } from 'react';
 
 import type { AgentChatTask } from '@caxri/protocol';
+import {
+    agentChatTaskGlyphStatus,
+    agentChatTasksLatestEnd,
+    agentChatTaskStripView,
+    canStopAgentChatTask,
+    isAgentChatTaskTitleCommand,
+} from '@caxri/protocol';
 import { Square, X } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
@@ -16,13 +23,6 @@ import {
 } from './agent-chat-commands';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
-import {
-    agentChatTaskGlyphStatus,
-    agentChatTasksLatestEnd,
-    agentChatTaskStripView,
-    canStopAgentChatTask,
-    isAgentChatTaskTitleCommand,
-} from './agent-chat-tasks';
 
 const TASK_ENTRY_CLASS_NAME =
     'flex min-w-0 flex-1 items-center gap-2 rounded border-0 bg-transparent px-2 py-0.5 text-left text-muted';

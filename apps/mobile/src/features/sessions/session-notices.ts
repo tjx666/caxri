@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { MobileConnectionStatus } from '../connection/connection-state';
 
 /**
@@ -15,19 +17,24 @@ export const isConnectionBannerShown = (
 export const connectionBannerCopy = (
     status: 'stale' | 'unverified',
     isSavedCopyLabeled: boolean,
+    t: Translate = translate,
 ): { title: string; body: string; accessibilityLabel: string } => {
     if (status === 'unverified') {
-        const body = 'If this device was revoked on your computer, forget it and pair again.';
+        const body = t('sessions.banner.unverifiedBody');
         return {
-            title: 'Pairing could not be verified',
+            title: t('sessions.banner.unverifiedTitle'),
             body,
-            accessibilityLabel: `This pairing could not be verified. ${body}`,
+            accessibilityLabel: t('sessions.banner.unverifiedAccessibility', { body }),
         };
     }
-    const body = isSavedCopyLabeled
-        ? 'Replies are paused until Caxri reconnects.'
-        : 'Showing the last known state. Replies are paused.';
-    return { title: 'Reconnecting…', body, accessibilityLabel: `Connection interrupted. ${body}` };
+    const body = t(
+        isSavedCopyLabeled ? 'sessions.banner.staleSavedBody' : 'sessions.banner.staleBody',
+    );
+    return {
+        title: t('sessions.banner.staleTitle'),
+        body,
+        accessibilityLabel: t('sessions.banner.staleAccessibility', { body }),
+    };
 };
 
 /**

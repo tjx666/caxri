@@ -1,8 +1,9 @@
-import { use, useState } from 'react';
+import { memo, use, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from './conversation-markdown';
 import type { ConversationEntry as Entry } from './conversation-model';
@@ -38,11 +39,16 @@ const ConversationTurnDivider = ({
     </View>
 );
 
-export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: MobileTheme }) => {
+/**
+ * Memoized so a streamed update redraws only the rows whose entry object changed; callers keep unchanged entries the
+ * same objects across updates.
+ */
+export const ConversationEntry = memo(({ entry, theme }: { entry: Entry; theme: MobileTheme }) => {
+    const { t } = useTranslation();
     const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
     const renderUserAttachments = use(ConversationUserAttachments);
     if (entry.type === 'turnBoundary') {
-        const divider = conversationTurnDivider(entry);
+        const divider = conversationTurnDivider(entry, t);
         return (
             <ConversationTurnDivider
                 label={divider.label}
@@ -89,4 +95,4 @@ export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: Mobil
             />
         </View>
     );
-};
+});

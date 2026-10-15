@@ -8,6 +8,20 @@ export const appLocales = ['en', 'zh-CN'] as const;
 export type AppLocale = (typeof appLocales)[number];
 
 /**
+ * Resolves a language preference to the locale Caxri renders in. `null` (the default) follows the system: any Chinese
+ * preference selects Simplified Chinese because it is the only Chinese translation shipped, and every other language
+ * falls back to English. Desktop Main, the Renderer, and the phone share this so every surface agrees.
+ */
+export function resolveAppLocale(
+    preference: AppLocale | null | undefined,
+    systemLanguages: readonly string[],
+): AppLocale {
+    if (preference) return preference;
+    const primary = systemLanguages.at(0)?.toLowerCase();
+    return primary?.startsWith('zh') ? 'zh-CN' : 'en';
+}
+
+/**
  * The interface language setting, kept beside the main catalog so `settingsSpec` stays within the source-size ratchet.
  * `settingsSpec` spreads it first, so Language leads the General category.
  */

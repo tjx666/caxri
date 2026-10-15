@@ -11,6 +11,7 @@ import {
 } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffRow } from '../changes/changes-diff-row';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
@@ -43,6 +44,7 @@ export const AgentChatFileDiff = ({
     theme: MobileTheme;
     truncated: boolean;
 }) => {
+    const { t } = useTranslation();
     const [isExpanded, setExpanded] = useState(initiallyExpanded);
     const stat = useMemo(() => agentChatDiffLinesStat(lines), [lines]);
     const rows = useMemo(() => (isExpanded ? agentChatChangeRows(lines) : []), [isExpanded, lines]);
@@ -51,7 +53,15 @@ export const AgentChatFileDiff = ({
     return (
         <View style={[styles.file, { borderColor: theme.border }]}>
             <Pressable
-                accessibilityLabel={`${isExpanded ? 'Hide' : 'Show'} diff: ${path}, ${agentChatChangeKindLabel(kind)}, ${stat.additions} lines added, ${stat.deletions} removed`}
+                accessibilityLabel={t(
+                    isExpanded ? 'chat.changes.hideDiff' : 'chat.changes.showDiff',
+                    {
+                        additions: stat.additions,
+                        deletions: stat.deletions,
+                        kind: agentChatChangeKindLabel(kind, t),
+                        path,
+                    },
+                )}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isExpanded }}
                 onPress={() => setExpanded((current) => !current)}
@@ -73,7 +83,9 @@ export const AgentChatFileDiff = ({
                     {filename}
                 </Text>
                 {truncated ? (
-                    <Text style={[styles.meta, { color: theme.muted }]}>Truncated</Text>
+                    <Text style={[styles.meta, { color: theme.muted }]}>
+                        {t('chat.changes.truncated')}
+                    </Text>
                 ) : null}
                 <Text style={styles.meta}>
                     <ChangesDiffStat
@@ -98,7 +110,9 @@ export const AgentChatFileDiff = ({
                         </View>
                     </ScrollView>
                 ) : (
-                    <Text style={[styles.empty, { color: theme.muted }]}>No diff</Text>
+                    <Text style={[styles.empty, { color: theme.muted }]}>
+                        {t('chat.changes.noDiff')}
+                    </Text>
                 )
             ) : null}
         </View>

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
     mobileAndroidAcceptanceCase,
-    parseAndroidDisplayState,
     parseMobileAndroidCaseIds,
     shouldCaptureAdapterScreenshot,
     shouldCollectAndroidVideo,
@@ -127,6 +126,30 @@ describe('mobile Android Acceptance cases', () => {
         );
     });
 
+    it('applies a live-motion or app-language override only to the case that declares it', () => {
+        expect(mobileAndroidAcceptanceCase('MOB-CHAT-15')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot', 'video'],
+            motion: 'live',
+            recordingOwner: 'scenario',
+            scenario: 'agent-chat-shimmer',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-CHAT-18')).toEqual({
+            appLocale: 'zh-CN',
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot'],
+            recordingOwner: 'scenario',
+            scenario: 'agent-chat-chinese-locale',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-CHAT-13')).not.toHaveProperty('motion');
+        expect(mobileAndroidAcceptanceCase('MOB-CHAT-13')).not.toHaveProperty('appLocale');
+        expect(
+            parseMobileAndroidCaseIds(
+                'MOB-CHAT-13,MOB-CHAT-14,MOB-CHAT-15,MOB-CHAT-16,MOB-CHAT-17,MOB-CHAT-18',
+            ),
+        ).toHaveLength(6);
+    });
+
     it('accepts a stable ordered subset without duplicates', () => {
         expect(parseMobileAndroidCaseIds('MOB-FDN-01,MOB-COMPOSER-01')).toEqual([
             'MOB-FDN-01',
@@ -188,36 +211,5 @@ describe('mobile Android Acceptance cases', () => {
         expect(shouldCollectAndroidVideo('MOB-E2E-01', true)).toBe(true);
         expect(shouldCollectAndroidVideo('MOB-CROSS-01', false)).toBe(false);
         expect(shouldCollectAndroidVideo('MOB-CROSS-01', true)).toBe(true);
-    });
-
-    it('normalizes physical and override display state for exact restoration', () => {
-        expect(
-            parseAndroidDisplayState({
-                density: 'Physical density: 420\nOverride density: 320',
-                fontScale: '1.0',
-                rotation: 'SurfaceOrientation: 1',
-                size: 'Physical size: 1080x2400\nOverride size: 1600x2560',
-            }),
-        ).toEqual({
-            density: { override: 320, physical: 420 },
-            fontScale: 1,
-            rotation: 1,
-            size: {
-                override: { height: 2560, width: 1600 },
-                physical: { height: 2400, width: 1080 },
-            },
-        });
-    });
-
-    it('reads rotation from the active Android 36 internal viewport', () => {
-        expect(
-            parseAndroidDisplayState({
-                density: 'Physical density: 420',
-                fontScale: '1.0',
-                rotation:
-                    'Viewport INTERNAL: displayId=0, orientation=1, logicalFrame=[0, 0, 2400, 1080], isActive=[1]',
-                size: 'Physical size: 1080x2400',
-            }).rotation,
-        ).toBe(1);
     });
 });

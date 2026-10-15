@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { mobileUpdateSizeLabel, mobileUpdateStatusLabel } from './mobile-update-state';
 import type { MobileUpdate } from './use-mobile-update';
@@ -15,11 +16,12 @@ export const MobileUpdateSettingsRow = ({
     mobileUpdate: MobileUpdate & { update: NonNullable<MobileUpdate['update']> };
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const isBusy = phase.kind === 'downloading' || phase.kind === 'installing';
-    const status = mobileUpdateStatusLabel(phase);
+    const status = mobileUpdateStatusLabel(phase, t);
     return (
         <Pressable
-            accessibilityHint="Downloads the new version from your computer and opens the Android installer."
+            accessibilityHint={t('update.settingsRowHint')}
             accessibilityRole="button"
             accessibilityState={{ busy: isBusy, disabled: isBusy }}
             disabled={isBusy}
@@ -32,7 +34,9 @@ export const MobileUpdateSettingsRow = ({
         >
             <View style={styles.main}>
                 <Text style={[styles.label, { color: theme.primary }]}>
-                    {phase.kind === 'failed' ? 'Retry update' : `Update to ${update.version}`}
+                    {phase.kind === 'failed'
+                        ? t('update.retryUpdate')
+                        : t('update.updateTo', { version: update.version })}
                 </Text>
                 <Text style={[styles.value, { color: theme.muted }]}>
                     {mobileUpdateSizeLabel(update.sizeBytes)}

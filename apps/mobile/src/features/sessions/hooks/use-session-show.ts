@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { DashboardSubscriptionMode } from '../dashboard-query';
 import {
@@ -14,6 +15,7 @@ import { sessionShowRefresh } from '../session-show-refresh';
 import { allMobileSessions } from './use-session-polling';
 
 export const useSessionShow = (sessionId: string | null, shouldFetch: boolean) => {
+    const { t } = useTranslation();
     const {
         connectionEpoch,
         connectionScopeKey,
@@ -116,17 +118,20 @@ export const useSessionShow = (sessionId: string | null, shouldFetch: boolean) =
         () =>
             query.data
                 ? (allMobileSessions(
-                      buildMobileSessionSections({
-                          sessions: [query.data.session],
-                          total: 1,
-                          truncated: false,
-                      }),
+                      buildMobileSessionSections(
+                          {
+                              sessions: [query.data.session],
+                              total: 1,
+                              truncated: false,
+                          },
+                          t,
+                      ),
                   )[0] ?? null)
                 : null,
-        [query.data],
+        [query.data, t],
     );
     return {
-        error: query.isError ? 'Unable to open this Session.' : null,
+        error: query.isError ? t('sessions.show.openFailed') : null,
         isLoading: query.isPending || query.isFetching,
         /**
          * A disabled query stays pending forever; while the phone is offline that would read as an endless "Opening".

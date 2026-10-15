@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { MobileConnectionStatus } from '../connection/connection-state';
 
 interface SessionHomeEmptyState {
@@ -9,58 +11,61 @@ interface SessionHomeEmptyState {
     titleRole?: 'alert' | 'header';
 }
 
-export const describeSessionHomeEmptyState = ({
-    activeProjectId,
-    error,
-    hasLoaded,
-    status,
-}: {
-    activeProjectId: string | null;
-    error: string | null;
-    hasLoaded: boolean;
-    status: MobileConnectionStatus;
-}): SessionHomeEmptyState => {
+export const describeSessionHomeEmptyState = (
+    {
+        activeProjectId,
+        error,
+        hasLoaded,
+        status,
+    }: {
+        activeProjectId: string | null;
+        error: string | null;
+        hasLoaded: boolean;
+        status: MobileConnectionStatus;
+    },
+    t: Translate = translate,
+): SessionHomeEmptyState => {
     if (hasLoaded)
         return {
             action: 'new',
-            body: activeProjectId
-                ? 'Choose another Project or start a Session here.'
-                : 'Start one here or on your computer.',
+            body: t(activeProjectId ? 'sessions.home.emptyProjectBody' : 'sessions.home.emptyBody'),
             showSpinner: false,
             testID: 'session-list-empty',
-            title: activeProjectId ? 'No Sessions in this Project' : 'No Sessions yet',
+            title: t(
+                activeProjectId ? 'sessions.home.emptyProjectTitle' : 'sessions.home.emptyTitle',
+            ),
         };
     if (status === 'version-mismatch')
         return {
             action: null,
             // The banner above says which side to update; this body must stay true for either answer.
-            body: 'Sessions appear once this app and Caxri on your computer match.',
+            body: t('sessions.home.versionMismatchBody'),
             showSpinner: false,
             testID: 'session-list-version-mismatch',
-            title: 'Update required',
+            title: t('sessions.home.versionMismatchTitle'),
             titleRole: 'header',
         };
     if (status === 'unverified')
         return {
             action: null,
-            body: 'Retry the connection, or forget this device and pair again.',
+            body: t('sessions.home.unverifiedBody'),
             showSpinner: false,
             testID: 'session-list-unverified',
-            title: 'Sessions unavailable',
+            title: t('sessions.home.unverifiedTitle'),
             titleRole: 'header',
         };
     if (error)
         return {
             action: 'retry',
-            body: 'Check the connection to your computer, then try again.',
+            body: t('sessions.home.errorBody'),
             showSpinner: false,
             testID: 'session-list-error',
-            title: 'Unable to load Sessions',
+            title: t('sessions.home.errorTitle'),
             titleRole: 'alert',
         };
     return {
         action: null,
-        body: 'Loading Sessions…',
+        body: t('sessions.home.loading'),
         showSpinner: true,
         testID: 'session-list-loading',
         title: null,

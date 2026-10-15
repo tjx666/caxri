@@ -7,6 +7,7 @@ import { router, useFocusEffect } from 'expo-router';
 
 import { ActionButton } from '../../../components/action-button';
 import { LoadingScreen } from '../../../components/loading-screen';
+import { useTranslation } from '../../../i18n';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { PairingRouteParameters } from '../pairing-link-route';
@@ -18,10 +19,11 @@ interface PairingLinkScreenProperties {
 
 export const PairingLinkScreen = ({ parameters }: PairingLinkScreenProperties) => {
     const theme = useMobileTheme();
+    const { t } = useTranslation();
     const client = useMobileClient();
     const { cancelPairing, pair, isForeground } = client;
     const isReady = client.status !== 'booting';
-    const { link, error: parameterError } = readPairingRoute(parameters);
+    const { link, error: parameterError } = readPairingRoute(parameters, t);
     const [error, setError] = useState<string>();
     const operations = useRef({ pair, cancelPairing });
     /**
@@ -42,16 +44,19 @@ export const PairingLinkScreen = ({ parameters }: PairingLinkScreenProperties) =
                 cancel: () => operations.current.cancelPairing(),
                 onSuccess: () => router.replace('/sessions'),
                 onError: setError,
+                t,
             });
-        }, [isForeground, link, parameterError, isReady]),
+        }, [isForeground, link, parameterError, isReady, t]),
     );
 
     if (!error)
         return (
             <LoadingScreen
-                label={
-                    client.status === 'booting' ? 'Opening pairing link…' : 'Pairing with Caxri…'
-                }
+                label={t(
+                    client.status === 'booting'
+                        ? 'pairing.openingLink'
+                        : 'pairing.pairingWithCaxri',
+                )}
             />
         );
 
@@ -63,7 +68,7 @@ export const PairingLinkScreen = ({ parameters }: PairingLinkScreenProperties) =
             <View style={styles.content}>
                 <View style={styles.copy}>
                     <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
-                        Pairing failed
+                        {t('pairing.failedTitle')}
                     </Text>
                     <Text
                         accessibilityRole="alert"
@@ -74,13 +79,13 @@ export const PairingLinkScreen = ({ parameters }: PairingLinkScreenProperties) =
                     </Text>
                 </View>
                 <ActionButton
-                    accessibilityHint="Returns to the pairing method choices."
+                    accessibilityHint={t('pairing.backHint')}
                     onPress={() => router.replace('/')}
                     testID="pairing-link-back-button"
                     theme={theme}
                     variant="secondary"
                 >
-                    Choose another pairing method
+                    {t('pairing.chooseAnotherMethod')}
                 </ActionButton>
             </View>
         </SafeAreaView>

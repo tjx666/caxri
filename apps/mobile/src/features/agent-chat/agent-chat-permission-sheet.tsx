@@ -5,6 +5,7 @@ import type { AgentChatPermissionMode, AgentProvider } from '@caxri/protocol';
 import { ChevronDown, ShieldAlert, ShieldCheck } from 'lucide-react-native';
 
 import { BottomSheet, SheetCancel } from '../../components/bottom-sheet';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import {
     agentChatPermissionOptions,
@@ -43,13 +44,14 @@ const AgentChatPermissionSheet = ({
     selection: PermissionSelection;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { busy, error, snapshot } = selection;
-    const options = agentChatPermissionOptions(snapshot, provider);
-    const planMode = agentChatPlanModeToggle(snapshot, provider);
+    const options = agentChatPermissionOptions(snapshot, provider, t);
+    const planMode = agentChatPlanModeToggle(snapshot, provider, t);
     const isDisabled = busy !== null || disabledReason !== undefined;
     return (
         <BottomSheet
-            closeLabel="Close permissions"
+            closeLabel={t('chat.permission.close')}
             maxHeight="80%"
             onClose={onClose}
             testID="agent-chat-permission-sheet"
@@ -63,7 +65,10 @@ const AgentChatPermissionSheet = ({
                 return (
                     <>
                         <ScrollView style={sheetStyles.scroll}>
-                            <SheetSectionLabel label="Permissions" theme={theme} />
+                            <SheetSectionLabel
+                                label={t('chat.permission.permissions')}
+                                theme={theme}
+                            />
                             {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- A provider offers at most five levels. */}
                             {options.map((option) => (
                                 <SheetOptionRow
@@ -106,7 +111,7 @@ const AgentChatPermissionSheet = ({
                         <SheetMessages
                             disabledReason={disabledReason}
                             error={error}
-                            note={agentChatPermissionSheetNote(snapshot, provider)}
+                            note={agentChatPermissionSheetNote(snapshot, provider, t)}
                             testIDPrefix="agent-chat-permission"
                             theme={theme}
                         />
@@ -142,12 +147,14 @@ export const AgentChatPermissionButton = ({
     provider: AgentProvider | undefined;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [isOpen, setOpen] = useState(false);
     const selection = useAgentChatPermissionSelection(chat, disabledReason);
     const trigger = agentChatPermissionTrigger(
         selection.snapshot,
         provider,
         disabledReason === undefined,
+        t,
     );
     if (!trigger || !provider) return null;
     const Icon = trigger.isFullAccess ? ShieldAlert : ShieldCheck;
@@ -169,7 +176,7 @@ export const AgentChatPermissionButton = ({
                     style={[sheetStyles.triggerCaption, { color: theme.text }]}
                     testID="agent-chat-permission-plan"
                 >
-                    Plan
+                    {t('chat.permission.plan')}
                 </Text>
             ) : null}
             {trigger.isInteractive ? <ChevronDown color={theme.muted} size={14} /> : null}
@@ -202,7 +209,7 @@ export const AgentChatPermissionButton = ({
     return (
         <>
             <Pressable
-                accessibilityHint="Chooses what the Agent may do without asking."
+                accessibilityHint={t('chat.permission.triggerHint')}
                 accessibilityLabel={trigger.accessibilityLabel}
                 accessibilityRole="button"
                 hitSlop={TRIGGER_HIT_SLOP}

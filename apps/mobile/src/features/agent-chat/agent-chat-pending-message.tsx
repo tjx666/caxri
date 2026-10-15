@@ -1,6 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { Image, StyleSheet, Text, View } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles } from '../conversation/conversation-styles';
 
@@ -21,41 +22,44 @@ export const AgentChatPendingMessage = ({
     imageUris: readonly string[];
     text: string;
     theme: MobileTheme;
-}) => (
-    <View
-        accessibilityState={{ busy: true }}
-        style={[conversationStyles.message, conversationStyles.userRow, styles.pending]}
-        testID={`agent-chat-pending-${id}`}
-    >
-        {imageUris.length > 0 ? (
-            <View style={styles.images}>
-                {imageUris.map((uri, index) => (
-                    <Image
-                        accessibilityLabel={`Attachment ${index + 1}`}
-                        key={uri}
-                        resizeMode="cover"
-                        source={{ uri }}
-                        style={[styles.thumbnail, { borderColor: theme.border }]}
-                    />
-                ))}
-            </View>
-        ) : null}
-        {text.length > 0 ? (
-            <View style={[conversationStyles.userBubble, { backgroundColor: theme.surface }]}>
-                <Text selectable style={[conversationStyles.userText, { color: theme.text }]}>
-                    {text}
-                </Text>
-            </View>
-        ) : null}
-        <Text
-            accessibilityLiveRegion="polite"
-            style={[styles.caption, { color: theme.muted }]}
-            testID="agent-chat-pending-sending"
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View
+            accessibilityState={{ busy: true }}
+            style={[conversationStyles.message, conversationStyles.userRow, styles.pending]}
+            testID={`agent-chat-pending-${id}`}
         >
-            Sending…
-        </Text>
-    </View>
-);
+            {imageUris.length > 0 ? (
+                <View style={styles.images}>
+                    {imageUris.map((uri, index) => (
+                        <Image
+                            accessibilityLabel={t('chat.attachment', { number: index + 1 })}
+                            key={uri}
+                            resizeMode="cover"
+                            source={{ uri }}
+                            style={[styles.thumbnail, { borderColor: theme.border }]}
+                        />
+                    ))}
+                </View>
+            ) : null}
+            {text.length > 0 ? (
+                <View style={[conversationStyles.userBubble, { backgroundColor: theme.surface }]}>
+                    <Text selectable style={[conversationStyles.userText, { color: theme.text }]}>
+                        {text}
+                    </Text>
+                </View>
+            ) : null}
+            <Text
+                accessibilityLiveRegion="polite"
+                style={[styles.caption, { color: theme.muted }]}
+                testID="agent-chat-pending-sending"
+            >
+                {t('chat.sending')}
+            </Text>
+        </View>
+    );
+};
 
 const styles = StyleSheet.create({
     pending: { opacity: 0.6 },

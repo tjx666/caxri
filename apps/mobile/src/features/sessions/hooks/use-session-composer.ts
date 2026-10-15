@@ -4,6 +4,8 @@ import { encodeHex } from '@caxri/mobile-transport';
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 import * as Crypto from 'expo-crypto';
 
+import type { Translate } from '../../../i18n';
+import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import {
@@ -17,18 +19,18 @@ import {
 } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
 
-const submitFailureMessage = (error: MobileGatewayRequestError): string => {
+const submitFailureMessage = (error: MobileGatewayRequestError, t: Translate): string => {
     switch (error.code) {
         case 'FORBIDDEN':
-            return 'This device no longer has access to this Agent. Your message was kept.';
+            return t('sessions.composer.submitForbidden');
         case 'NOT_FOUND':
-            return 'The Agent target changed. Refresh the Session before sending again.';
+            return t('sessions.composer.submitNotFound');
         case 'UNAVAILABLE':
-            return 'The Agent is unavailable. Your message was kept.';
+            return t('sessions.composer.submitUnavailable');
         case 'CONFLICT':
-            return 'This send attempt conflicted with another request. Your message was kept.';
+            return t('sessions.composer.submitConflict');
         default:
-            return 'The message was not sent. Your draft was kept.';
+            return t('sessions.composer.submitFailed');
     }
 };
 
@@ -67,6 +69,7 @@ export const useSessionComposer = ({
     session: MobileSessionItem;
 }) => {
     const { request } = useMobileClient();
+    const { t } = useTranslation();
     const stateKey = `${hostId}\u{0}${session.id}`;
     const subscribe = useCallback(
         (listener: () => void) => sessionComposerDeliveryStore.subscribe(stateKey, listener),
@@ -95,10 +98,12 @@ export const useSessionComposer = ({
         attachmentIds.length === 0 &&
         !hasPendingAttachment;
     const targetReason = isShowStop
-        ? stopDisabledReason(session, isConnected, deviceRole)
-        : composerDisabledReason(session, isConnected, deviceRole);
+        ? stopDisabledReason(session, isConnected, deviceRole, t)
+        : composerDisabledReason(session, isConnected, deviceRole, t);
     const inputError =
-        draft.trim().length === 0 ? null : composerTextError(draft, MOBILE_AGENT_SUBMIT_MAX_BYTES);
+        draft.trim().length === 0
+            ? null
+            : composerTextError(draft, MOBILE_AGENT_SUBMIT_MAX_BYTES, t);
     const disabledReason = targetReason ?? attachmentWaitReason ?? inputError;
     const canSubmit =
         !isBusy &&
@@ -134,7 +139,7 @@ export const useSessionComposer = ({
                 sessionComposerDeliveryStore.set(
                     stateKey,
                     error instanceof MobileGatewayRequestError
-                        ? { kind: 'stop-failed', message: 'The Agent was not stopped. Try again.' }
+                        ? { kind: 'stop-failed', message: t('sessions.composer.stopFailed') }
                         : { kind: 'stop-unknown' },
                 );
             }
@@ -178,9 +183,9 @@ export const useSessionComposer = ({
             sessionComposerDeliveryStore.set(
                 stateKey,
                 error instanceof MobileGatewayRequestError
-                    ? { kind: 'failed', message: submitFailureMessage(error) }
+                    ? { kind: 'failed', message: submitFailureMessage(error, t) }
                     : error instanceof Error && error.message === 'Caxri is reconnecting.'
-                      ? { kind: 'failed', message: 'Reconnect to Caxri before sending again.' }
+                      ? { kind: 'failed', message: t('sessions.composer.reconnectToResend') }
                       : { kind: 'unknown', mutationId, text: attemptKey },
             );
         }
@@ -195,6 +200,7 @@ export const useSessionComposer = ({
         session,
         isShowStop,
         stateKey,
+        t,
     ]);
 
     return {

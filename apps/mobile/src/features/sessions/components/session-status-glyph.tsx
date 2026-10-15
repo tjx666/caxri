@@ -2,6 +2,7 @@ import { ActivityIndicator, View } from 'react-native';
 
 import { CircleAlert, LoaderCircle } from 'lucide-react-native';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
 import { sessionStatusGlyphKind } from '../session-row-model';
@@ -29,12 +30,13 @@ export const SessionStatusGlyph = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const stateLabel = label ?? session.stateLabel;
     switch (sessionStatusGlyphKind(session, isSaved)) {
         case 'attention':
             return (
                 <View
-                    accessibilityLabel={`Needs attention: ${stateLabel}`}
+                    accessibilityLabel={t('sessions.status.needsAttention', { state: stateLabel })}
                     accessible
                     style={{
                         backgroundColor: theme.warning,

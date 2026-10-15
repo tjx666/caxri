@@ -10,11 +10,12 @@ import { ArchiveRestore, ChevronLeft } from 'lucide-react-native';
 
 import { AgentAvatar } from '../../../components/agent-icon';
 import { IconButton } from '../../../components/icon-button';
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useArchivedSessions } from '../hooks/use-archived-sessions';
 import { useSessionManagement } from '../hooks/use-session-management';
-import { archivedAgeLabel } from '../session-row-model';
+import { archivedAgeLabel, sessionTitleForDisplay } from '../session-row-model';
 import { useHostSessions } from './host-sessions-provider';
 
 type ArchivedSession = MethodResult<'mobile.session.archived'>['sessions'][number];
@@ -33,40 +34,47 @@ const ArchivedRow = ({
     onRestore: (sessionId: string) => void;
     session: ArchivedSession;
     theme: MobileTheme;
-}) => (
-    <View style={styles.row} testID={`archived-session-${session.id}`}>
-        <AgentAvatar kind={session.agentKind} theme={theme} />
-        <View style={styles.copy}>
-            <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
-                {session.displayTitle}
-            </Text>
-            <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
-                {`${session.projectTitle} · ${archivedAgeLabel(session.archivedAt, now)}`}
-            </Text>
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.row} testID={`archived-session-${session.id}`}>
+            <AgentAvatar kind={session.agentKind} theme={theme} />
+            <View style={styles.copy}>
+                <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
+                    {sessionTitleForDisplay(session.displayTitle, t)}
+                </Text>
+                <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
+                    {`${session.projectTitle} · ${archivedAgeLabel(session.archivedAt, now, t)}`}
+                </Text>
+            </View>
+            {canRestore ? (
+                <Pressable
+                    accessibilityLabel={t('sessions.archived.restoreLabel', {
+                        title: sessionTitleForDisplay(session.displayTitle, t),
+                    })}
+                    accessibilityRole="button"
+                    accessibilityState={{ busy: isRestoring, disabled: isRestoring }}
+                    disabled={isRestoring}
+                    onPress={() => onRestore(session.id)}
+                    style={({ pressed }) => [
+                        styles.restore,
+                        { borderColor: theme.primary, opacity: pressed ? 0.6 : 1 },
+                    ]}
+                    testID={`archived-session-restore-${session.id}`}
+                >
+                    {isRestoring ? (
+                        <ActivityIndicator color={theme.primary} size="small" />
+                    ) : (
+                        <ArchiveRestore color={theme.primary} size={16} />
+                    )}
+                    <Text style={[styles.restoreText, { color: theme.primary }]}>
+                        {t('sessions.archived.restore')}
+                    </Text>
+                </Pressable>
+            ) : null}
         </View>
-        {canRestore ? (
-            <Pressable
-                accessibilityLabel={`Restore ${session.displayTitle}`}
-                accessibilityRole="button"
-                accessibilityState={{ busy: isRestoring, disabled: isRestoring }}
-                disabled={isRestoring}
-                onPress={() => onRestore(session.id)}
-                style={({ pressed }) => [
-                    styles.restore,
-                    { borderColor: theme.primary, opacity: pressed ? 0.6 : 1 },
-                ]}
-                testID={`archived-session-restore-${session.id}`}
-            >
-                {isRestoring ? (
-                    <ActivityIndicator color={theme.primary} size="small" />
-                ) : (
-                    <ArchiveRestore color={theme.primary} size={16} />
-                )}
-                <Text style={[styles.restoreText, { color: theme.primary }]}>Restore</Text>
-            </Pressable>
-        ) : null}
-    </View>
-);
+    );
+};
 
 /**
  * Lists this device's archived Sessions, newest first. Restoring needs Control access; View and Reply devices can still
@@ -74,6 +82,7 @@ const ArchivedRow = ({
  */
 export const ArchivedSessionsScreen = () => {
     const router = useRouter();
+    const { t } = useTranslation();
     const theme = useMobileTheme();
     const { sessions } = useHostSessions();
     const archived = useArchivedSessions();
@@ -113,7 +122,7 @@ export const ArchivedSessionsScreen = () => {
         >
             <View style={styles.header}>
                 <IconButton
-                    accessibilityLabel="Back"
+                    accessibilityLabel={t('sessions.archived.back')}
                     icon={ChevronLeft}
                     onPress={() => router.back()}
                     size={24}
@@ -121,7 +130,7 @@ export const ArchivedSessionsScreen = () => {
                     theme={theme}
                 />
                 <Text accessibilityRole="header" style={[styles.heading, { color: theme.text }]}>
-                    Archived Sessions
+                    {t('sessions.home.archivedSessions')}
                 </Text>
             </View>
             {management.error ? (
@@ -143,9 +152,11 @@ export const ArchivedSessionsScreen = () => {
                             <ActivityIndicator color={theme.muted} />
                         ) : (
                             <Text style={[styles.emptyText, { color: theme.muted }]}>
-                                {archived.isError
-                                    ? 'Unable to load archived Sessions.'
-                                    : 'No archived Sessions.'}
+                                {t(
+                                    archived.isError
+                                        ? 'sessions.archived.loadFailed'
+                                        : 'sessions.archived.empty',
+                                )}
                             </Text>
                         )}
                     </View>
@@ -153,7 +164,10 @@ export const ArchivedSessionsScreen = () => {
                 ListFooterComponent={
                     archived.data?.truncated ? (
                         <Text style={[styles.emptyText, { color: theme.muted }]}>
-                            Showing the {list.length} most recent of {archived.data.total}.
+                            {t('sessions.archived.truncated', {
+                                shown: list.length,
+                                total: archived.data.total,
+                            })}
                         </Text>
                     ) : null
                 }

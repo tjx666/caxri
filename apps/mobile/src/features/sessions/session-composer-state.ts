@@ -1,3 +1,5 @@
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { formatByteSize } from '../../lib/format-size';
 import { notifyListeners } from '../../lib/notify-listeners';
 import type { MobileSessionItem } from './session-model';
@@ -47,27 +49,28 @@ export const composerMutationIdForAttempt = (
 
 export const composerDeliveryFeedback = (
     delivery: ComposerDelivery,
+    t: Translate = translate,
 ): { message: string; isError: boolean } | null => {
     switch (delivery.kind) {
         case 'sending':
-            return { message: 'Sending…', isError: false };
+            return { message: t('sessions.composer.sending'), isError: false };
         case 'accepted':
-            return { message: 'Delivered to the Terminal.', isError: false };
+            return { message: t('sessions.composer.delivered'), isError: false };
         case 'failed':
         case 'stop-failed':
             return { message: delivery.message, isError: true };
         case 'unknown':
             return {
-                message: "Couldn't confirm delivery. Check the Terminal before sending again.",
+                message: t('sessions.composer.deliveryUnknown'),
                 isError: true,
             };
         case 'stopping':
-            return { message: 'Stopping Agent…', isError: false };
+            return { message: t('sessions.composer.stopping'), isError: false };
         case 'stopped':
-            return { message: 'Stop signal sent.', isError: false };
+            return { message: t('sessions.composer.stopSent'), isError: false };
         case 'stop-unknown':
             return {
-                message: "Couldn't confirm whether the Agent stopped. Check the Terminal.",
+                message: t('sessions.composer.stopUnknown'),
                 isError: true,
             };
         case 'idle':
@@ -102,11 +105,15 @@ export const reconcileStopWithSession = (
         ? { kind: 'stopped' }
         : delivery;
 
-export const composerTextError = (draft: string, maxBytes: number): string | null => {
-    if (draft.trim().length === 0) return 'Write a message to send.';
-    if (hasInvalidControlCharacter(draft)) return 'Remove control characters before sending.';
+export const composerTextError = (
+    draft: string,
+    maxBytes: number,
+    t: Translate = translate,
+): string | null => {
+    if (draft.trim().length === 0) return t('sessions.composer.emptyDraft');
+    if (hasInvalidControlCharacter(draft)) return t('sessions.composer.controlCharacters');
     if (composerByteLength(draft) > maxBytes)
-        return `Messages can be at most ${formatByteSize(maxBytes)}.`;
+        return t('sessions.composer.tooLong', { size: formatByteSize(maxBytes) });
     return null;
 };
 
@@ -114,16 +121,15 @@ export const composerDisabledReason = (
     session: MobileSessionItem,
     isConnected: boolean,
     deviceRole: 'view' | 'reply' | 'control' | null,
+    t: Translate = translate,
 ): string | null => {
-    if (!isConnected) return 'Reconnect to Caxri before sending.';
-    if (deviceRole !== 'reply' && deviceRole !== 'control')
-        return 'This device can only view Sessions.';
+    if (!isConnected) return t('sessions.composer.reconnectToSend');
+    if (deviceRole !== 'reply' && deviceRole !== 'control') return t('sessions.composer.viewOnly');
     if (!session.primaryAgentTerminalId || !session.primaryTerminal)
-        return 'This Session has no available primary Agent.';
+        return t('sessions.composer.noPrimaryAgent');
     if (session.primaryTerminal.lastProcessState !== 'running')
-        return 'The primary Agent is not running.';
-    if (!session.primaryAgentEndpoint)
-        return 'The current Agent target is unavailable. Refresh the Session.';
+        return t('sessions.composer.agentNotRunning');
+    if (!session.primaryAgentEndpoint) return t('sessions.composer.targetUnavailable');
     return null;
 };
 
@@ -131,13 +137,14 @@ export const stopDisabledReason = (
     session: MobileSessionItem,
     isConnected: boolean,
     deviceRole: 'view' | 'reply' | 'control' | null,
+    t: Translate = translate,
 ): string | null => {
-    if (!isConnected) return 'Reconnect to Caxri before stopping the Agent.';
-    if (deviceRole !== 'control') return 'Control access is required to stop the Agent.';
+    if (!isConnected) return t('sessions.composer.reconnectToStop');
+    if (deviceRole !== 'control') return t('sessions.composer.stopNeedsControl');
     if (!session.primaryAgentEndpoint || !session.primaryAgentTerminalId)
-        return 'The current Agent target is unavailable. Refresh the Session.';
+        return t('sessions.composer.targetUnavailable');
     if (session.primaryTerminal?.lastProcessState !== 'running')
-        return 'The primary Agent is not running.';
+        return t('sessions.composer.agentNotRunning');
     return null;
 };
 

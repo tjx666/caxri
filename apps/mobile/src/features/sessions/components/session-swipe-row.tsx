@@ -6,6 +6,7 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 
 import { Archive } from 'lucide-react-native';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { SwipeRow } from '../open-swipe-row';
 
@@ -53,6 +54,7 @@ export const SessionSwipeRow = ({
     sessionId: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const swipeableReference = useRef<SwipeableMethods>(null);
     const handleOpenStart = useCallback((): void => {
         if (swipeableReference.current) onOpenStart(swipeableReference.current);
@@ -78,7 +80,7 @@ export const SessionSwipeRow = ({
     const renderRightActions = useCallback(
         () => (
             <Pressable
-                accessibilityLabel="Archive Session"
+                accessibilityLabel={t('sessions.actions.archiveSession')}
                 accessibilityRole="button"
                 accessibilityState={{ busy, disabled: busy }}
                 disabled={busy}
@@ -95,13 +97,13 @@ export const SessionSwipeRow = ({
                     <>
                         <Archive color={theme.primaryForeground} size={20} strokeWidth={2.25} />
                         <Text style={[styles.actionText, { color: theme.primaryForeground }]}>
-                            Archive
+                            {t('sessions.actions.archive')}
                         </Text>
                     </>
                 )}
             </Pressable>
         ),
-        [archive, busy, sessionId, theme],
+        [archive, busy, sessionId, t, theme],
     );
     return (
         <ReanimatedSwipeable

@@ -1,9 +1,10 @@
+import type { AgentAction } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
     agentChatCommandChoice,
-    agentChatCommandMenu,
-    MOBILE_AGENT_CHAT_COMMAND_ROWS,
+    agentChatMenuMatches,
+    agentChatSkillNotice,
     shouldHoldAgentChatSendAsText,
 } from '../agent-chat-commands';
 
@@ -13,88 +14,125 @@ const commands = [
     { name: 'mcp:list' },
 ];
 
-const names = (draft: string, list = commands) =>
-    agentChatCommandMenu(draft, list)?.matches.map(({ name }) => name);
+const skill = (invocation: string, description?: string): AgentAction => ({
+    invocation,
+    kind: 'skill',
+    ...(description && { description }),
+    requiresArguments: false,
+    source: 'project',
+});
 
-describe('agentChatCommandMenu', () => {
-    it('lists every command for a bare slash and narrows by name while the user types', () => {
-        expect(names('/')).toEqual(['compact', 'review', 'mcp:list']);
-        expect(names('/REV')).toEqual(['review']);
-        expect(names('/mcp:')).toEqual(['mcp:list']);
+const invocations = (actions: readonly AgentAction[]) => actions.map((action) => action.invocation);
+
+describe('agentChatMenuMatches', () => {
+    it('lists commands then skills for a bare slash and narrows while the user types', () => {
+        const todo = [skill('$todo-sweep')];
+        expect(invocations(agentChatMenuMatches('/', commands, todo) ?? [])).toEqual([
+            '/compact',
+            '/review',
+            '/mcp:list',
+            '$todo-sweep',
+        ]);
+        expect(invocations(agentChatMenuMatches('/REV', commands, undefined) ?? [])).toEqual([
+            '/review',
+        ]);
+        expect(invocations(agentChatMenuMatches('/mcp:', commands, undefined) ?? [])[0]).toBe(
+            '/mcp:list',
+        );
     });
 
-    it('shows no list mid-sentence, past the name, for skills, or without commands', () => {
-        expect(agentChatCommandMenu('fix /rev', commands)).toBeUndefined();
-        expect(agentChatCommandMenu('/review src', commands)).toBeUndefined();
-        expect(agentChatCommandMenu('$review', commands)).toBeUndefined();
-        expect(agentChatCommandMenu('/', [])).toBeUndefined();
-        expect(agentChatCommandMenu('/', undefined)).toBeUndefined();
+    it('finds a skill by name or description, and leads with skills after `$`', () => {
+        const skills = [
+            skill('$todo-sweep', 'Find stale TODOs'),
+            skill('$commit', 'Compact commits'),
+        ];
+        expect(invocations(agentChatMenuMatches('/to', commands, skills) ?? [])).toEqual([
+            '$todo-sweep',
+        ]);
+        expect(invocations(agentChatMenuMatches('$com', commands, skills) ?? [])).toEqual([
+            '$commit',
+            '/compact',
+        ]);
+        expect(invocations(agentChatMenuMatches('/summarize', commands, skills) ?? [])).toEqual([
+            '/compact',
+        ]);
     });
 
-    it('keeps the list open with no matches so a typo reads as a miss', () => {
-        expect(agentChatCommandMenu('/zzz', commands)).toEqual({ matches: [], hasMore: false });
+    it('keeps the command row when the provider already lists a skill as a command', () => {
+        expect(
+            agentChatMenuMatches('/review', commands, [skill('/review', 'Skill copy')])?.map(
+                ({ kind, invocation }) => `${kind}:${invocation}`,
+            ),
+        ).toEqual(['command:/review']);
     });
 
-    it('caps the list so it fits above the keyboard and says more are hidden', () => {
-        const many = Array.from({ length: 20 }, (_, index) => ({ name: `c${index}` }));
-        const menu = agentChatCommandMenu('/', many);
-        expect(menu?.matches).toHaveLength(MOBILE_AGENT_CHAT_COMMAND_ROWS);
-        expect(menu?.hasMore).toBe(true);
-        const exact = many.slice(0, MOBILE_AGENT_CHAT_COMMAND_ROWS);
-        expect(agentChatCommandMenu('/', exact)?.hasMore).toBe(false);
+    it('shows no menu mid-sentence, past the name, or with nothing to offer', () => {
+        expect(agentChatMenuMatches('fix /rev', commands, undefined)).toBeUndefined();
+        expect(agentChatMenuMatches('/review src', commands, undefined)).toBeUndefined();
+        expect(agentChatMenuMatches('/', undefined, undefined)).toBeUndefined();
+        expect(agentChatMenuMatches('/', [], [])).toBeUndefined();
+    });
+
+    it('keeps the menu open with no matches so a typo reads as a miss', () => {
+        expect(agentChatMenuMatches('/zzz', commands, undefined)).toEqual([]);
+        expect(agentChatMenuMatches('$zzz', undefined, [skill('$todo-sweep')])).toEqual([]);
+    });
+});
+
+describe('agentChatSkillNotice', () => {
+    it('reports loading, then a quiet note for a stopped Agent, then nothing', () => {
+        expect(agentChatSkillNotice({ isPending: true, isUnavailable: false })).toEqual({
+            text: 'Loading skills…',
+            isLoading: true,
+        });
+        expect(agentChatSkillNotice({ isPending: false, isUnavailable: true })).toEqual({
+            text: 'Skills appear once the Agent is running',
+            isLoading: false,
+        });
+        expect(agentChatSkillNotice({ isPending: false, isUnavailable: false })).toBeUndefined();
     });
 });
 
 describe('shouldHoldAgentChatSendAsText', () => {
+    const hold = (draft: string, confirmedDraft?: string) =>
+        shouldHoldAgentChatSendAsText({
+            confirmedDraft,
+            draft,
+            matches: agentChatMenuMatches(draft, commands, undefined),
+        });
+
     it('holds the first send of an unknown command and lets the second through', () => {
-        expect(
-            shouldHoldAgentChatSendAsText({ commands, confirmedDraft: undefined, draft: '/zzz' }),
-        ).toBe(true);
-        expect(
-            shouldHoldAgentChatSendAsText({ commands, confirmedDraft: '/zzz', draft: '/zzz' }),
-        ).toBe(false);
-        expect(
-            shouldHoldAgentChatSendAsText({ commands, confirmedDraft: '/zz', draft: '/zzz' }),
-        ).toBe(true);
+        expect(hold('/zzz')).toBe(true);
+        expect(hold('/zzz', '/zzz')).toBe(false);
+        expect(hold('/zzz', '/zz')).toBe(true);
     });
 
-    it('never holds a listed command, ordinary text, or a provider without commands', () => {
+    it('never holds a listed command, ordinary text, a skill, or a provider without commands', () => {
+        expect(hold('/compact')).toBe(false);
+        expect(hold('hello')).toBe(false);
+        expect(hold('/zzz now')).toBe(false);
+        expect(hold('$zzz')).toBe(false);
         expect(
             shouldHoldAgentChatSendAsText({
-                commands,
-                confirmedDraft: undefined,
-                draft: '/compact',
-            }),
-        ).toBe(false);
-        expect(
-            shouldHoldAgentChatSendAsText({ commands, confirmedDraft: undefined, draft: 'hello' }),
-        ).toBe(false);
-        expect(
-            shouldHoldAgentChatSendAsText({
-                commands,
-                confirmedDraft: undefined,
-                draft: '/zzz now',
-            }),
-        ).toBe(false);
-        expect(
-            shouldHoldAgentChatSendAsText({
-                commands: [],
                 confirmedDraft: undefined,
                 draft: '/zzz',
+                matches: agentChatMenuMatches('/zzz', [], undefined),
             }),
         ).toBe(false);
     });
 });
 
 describe('agentChatCommandChoice', () => {
-    it('runs a command without arguments and completes one that takes them', () => {
-        expect(agentChatCommandChoice(commands[0])).toEqual({
+    it('runs a command without arguments and completes one that takes them or a skill', () => {
+        const [compact, review] = agentChatMenuMatches('/', commands, undefined) ?? [];
+        expect(agentChatCommandChoice(compact)).toEqual({
             kind: 'run',
             command: { name: 'compact' },
         });
-        expect(agentChatCommandChoice(commands[1])).toEqual({
+        expect(agentChatCommandChoice(review)).toEqual({ kind: 'complete', draft: '/review ' });
+        expect(agentChatCommandChoice(skill('$todo-sweep'))).toEqual({
             kind: 'complete',
-            draft: '/review ',
+            draft: '$todo-sweep ',
         });
     });
 });

@@ -1,5 +1,6 @@
 import { Pressable, Text } from 'react-native';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { NewSessionViewState } from '../hooks/use-new-session';
 import { newSessionStyles as styles } from './new-session-styles';
@@ -11,6 +12,7 @@ export const NewSessionCreateRecovery = ({
     state: NewSessionViewState;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const createdSessionId =
         state.createState.kind === 'partial' ? state.createState.sessionId : null;
     return (
@@ -23,7 +25,7 @@ export const NewSessionCreateRecovery = ({
                     testID="new-session-open-created"
                 >
                     <Text style={[styles.secondaryText, { color: theme.primary }]}>
-                        Open created Session
+                        {t('sessions.new.openCreated')}
                     </Text>
                 </Pressable>
             ) : null}
@@ -35,7 +37,7 @@ export const NewSessionCreateRecovery = ({
                     testID="new-session-check-sessions"
                 >
                     <Text style={[styles.secondaryText, { color: theme.primary }]}>
-                        Check Sessions
+                        {t('sessions.new.checkSessions')}
                     </Text>
                 </Pressable>
             ) : null}
@@ -47,7 +49,7 @@ export const NewSessionCreateRecovery = ({
                     testID="new-session-checked-try-again"
                 >
                     <Text style={[styles.secondaryText, { color: theme.primary }]}>
-                        I checked Sessions — try again
+                        {t('sessions.new.checkedTryAgain')}
                     </Text>
                 </Pressable>
             ) : null}

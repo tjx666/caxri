@@ -4,6 +4,7 @@ import { Fragment, useId, useMemo, useState } from 'react';
 import type { AgentChatDiffLine, AgentChatFileChange, AgentChatItemStatus } from '@caxri/protocol';
 import {
     agentChatChangeDecoration,
+    agentChatChangeKindLabel,
     agentChatDiffLines,
     agentChatDiffLinesStat,
     canOpenAgentChatChange,
@@ -22,7 +23,6 @@ import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { didOpenEditorTabForSession, openFileForSession } from '../editor/document-commands';
 import { usePaneViewSession } from '../workbench/pane-view-session';
-import { agentChatLocalizedChangeKindLabel } from './agent-chat-diff-labels';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
 import {
     agentChatChangeDiffTabPath,
@@ -257,7 +257,7 @@ function FileChangeBlock({
                     />
                     <GitFileStatusLetter className="text-[11px]" decoration={decoration} />
                 </button>
-                <span className="sr-only">{agentChatLocalizedChangeKindLabel(change.kind, t)}</span>
+                <span className="sr-only">{agentChatChangeKindLabel(change.kind, t)}</span>
                 {canOpen ? (
                     <Tooltip content={t('agentChat.changes.openInEditor')}>
                         <button

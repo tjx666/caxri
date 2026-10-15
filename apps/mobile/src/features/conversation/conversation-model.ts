@@ -1,6 +1,8 @@
 import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
 import { agentChatTurnLabel, summarizeAgentToolGroup } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import { agentChatTurnTone } from '../agent-chat/agent-chat-timeline';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
@@ -13,10 +15,11 @@ type TurnBoundary = Extract<AgentTimelineItem, { type: 'turnBoundary' }>;
  */
 export const conversationTurnDivider = (
     boundary: Pick<TurnBoundary, 'durationMs' | 'outcome'>,
+    t: Translate = translate,
 ): { label: string; tone: 'danger' | 'muted' | 'warning' } => {
     const status = boundary.outcome ?? 'completed';
     return {
-        label: agentChatTurnLabel({ durationMs: boundary.durationMs, status }),
+        label: agentChatTurnLabel({ durationMs: boundary.durationMs, status }, t),
         tone: agentChatTurnTone(status),
     };
 };
@@ -35,7 +38,7 @@ export type ConversationEntry =
     | AgentTimelineItem
     | { id: string; type: 'toolGroup'; tools: ToolCall[]; summary: string; durationMs?: number };
 
-const toolGroup = (tools: ToolCall[]): ConversationEntry => {
+const toolGroup = (tools: ToolCall[], t: Translate): ConversationEntry => {
     if (tools.length === 1) return tools[0];
     const durationMs = tools.every((tool) => tool.durationMs !== undefined)
         ? tools.reduce((total, tool) => total + (tool.durationMs ?? 0), 0)
@@ -44,7 +47,7 @@ const toolGroup = (tools: ToolCall[]): ConversationEntry => {
         id: `tools:${tools[0].id}`,
         type: 'toolGroup',
         tools,
-        summary: summarizeAgentToolGroup(tools),
+        summary: summarizeAgentToolGroup(tools, t),
         durationMs,
     };
 };
@@ -54,12 +57,15 @@ const toolGroup = (tools: ToolCall[]): ConversationEntry => {
  * own row after it, as Desktop's Agent Chat keeps live work out of its summaries, so the step in progress stays
  * readable.
  */
-export const groupConversationItems = (items: AgentTimelineItem[]): ConversationEntry[] => {
+export const groupConversationItems = (
+    items: AgentTimelineItem[],
+    t: Translate = translate,
+): ConversationEntry[] => {
     const entries: ConversationEntry[] = [];
     let tools: ToolCall[] = [];
     const flushTools = (): void => {
         const settled = tools.filter((tool) => tool.status !== 'running');
-        if (settled.length > 0) entries.push(toolGroup(settled));
+        if (settled.length > 0) entries.push(toolGroup(settled, t));
         entries.push(...tools.filter((tool) => tool.status === 'running'));
         tools = [];
     };
@@ -163,10 +169,10 @@ export const isConversationObservableThroughBlur = (
 ): boolean => isObservable || !isStaleAfterBlur;
 
 /**
- * FlashList measures autoscroll thresholds in viewport lengths; share that unit with the Jump control.
- * https://github.com/Shopify/flash-list/blob/v2.0.2/src/recyclerview/hooks/useBoundDetection.ts
+ * How close to the end, in viewport lengths, still counts as following the end (`conversation-scroll.ts`); the Jump
+ * control appears beyond it.
  */
-export const CONVERSATION_FOLLOW_THRESHOLD = 0.1;
+const CONVERSATION_FOLLOW_THRESHOLD = 0.1;
 
 export const shouldFollowConversation = (
     distanceFromBottom: number,

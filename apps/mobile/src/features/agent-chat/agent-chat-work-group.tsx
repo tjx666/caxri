@@ -11,6 +11,7 @@ import {
     summarizeAgentChatWork,
 } from '@caxri/protocol';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
 import { conversationStyles } from '../conversation/conversation-styles';
@@ -34,11 +35,12 @@ const WorkFacts = ({
     row: AgentChatWorkRowPresentation;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const stat = useMemo(
         () => (item.type === 'fileChange' ? agentChatFileChangesStat(item.changes) : undefined),
         [item],
     );
-    const duration = agentChatWorkDuration(item);
+    const duration = agentChatWorkDuration(item, t);
     return (
         <>
             {stat ? (
@@ -52,12 +54,12 @@ const WorkFacts = ({
             ) : null}
             {row.background ? (
                 <Text style={[styles.tag, { backgroundColor: theme.surface, color: theme.muted }]}>
-                    Background
+                    {t('chat.work.background')}
                 </Text>
             ) : null}
             {row.failedExitCode === undefined ? null : (
                 <Text style={[styles.exit, { color: theme.danger }]}>
-                    Exit {row.failedExitCode}
+                    {t('chat.work.exit', { code: row.failedExitCode })}
                 </Text>
             )}
             {item.type === 'reasoning' ? null : (
@@ -87,7 +89,8 @@ const AgentChatWorkRow = memo(
         onPress: (item: AgentChatWorkItem) => void;
         theme: MobileTheme;
     }) => {
-        const row = agentChatWorkRowPresentation(item);
+        const { t } = useTranslation();
+        const row = agentChatWorkRowPresentation(item, t);
         return (
             <ConversationToolRowView
                 accessibilityLabel={row.accessibilityLabel}
@@ -119,6 +122,7 @@ export const AgentChatWorkGroup = ({
     summarized: readonly AgentChatWorkItem[];
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     /**
      * Held by id so an open sheet follows the item as its output streams in.
      */
@@ -140,7 +144,7 @@ export const AgentChatWorkGroup = ({
                         failure={agentChatWorkGroupFailure(summarized)}
                         id={first.id}
                         kind={agentChatWorkKind(summarized) ?? null}
-                        summary={summarizeAgentChatWork(summarized)}
+                        summary={summarizeAgentChatWork(summarized, t)}
                         testID={`agent-chat-work-group-${first.id}`}
                         theme={theme}
                     >

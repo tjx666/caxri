@@ -1,69 +1,88 @@
-import type { AgentChatCommand } from '@caxri/protocol';
-import { agentChatSlashQuery } from '@caxri/protocol';
+import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
+import {
+    agentChatDraftMatches,
+    agentChatMenuActions,
+    agentChatSlashQuery,
+    completeAgentChatAction,
+} from '@caxri/protocol';
 
-import { isComposerActionMatch } from '../sessions/composer-suggestions';
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 
 /**
- * The list sits above the input inside the keyboard-shrunk screen, so it stays short; past this many matches a last row
- * asks the user to keep typing to narrow it.
+ * Rows the menu shows before it scrolls. It sits above the input inside the keyboard-shrunk screen, so it stays short;
+ * typing more of the name narrows it.
  */
 export const MOBILE_AGENT_CHAT_COMMAND_ROWS = 6;
 
 /**
- * The command list for a draft that is still a bare `/name`: the first matches, whether more were cut (`hasMore`, shown
- * as a `Keep typing to narrow` row), and an empty `matches` when nothing matches, shown as Desktop's `No matching
- * command or skill` row so a typo reads as a miss instead of the list silently vanishing.
+ * The menu rows for a draft, as on Desktop: the provider's commands, then the skills discovered for the Agent's
+ * Terminal, ranked by name and description (`agentChatDraftMatches`) and led by the group the typed sigil names. A
+ * skill the provider already lists as a command keeps its runnable command row. `undefined` when no menu should show:
+ * the draft is not a bare invocation, or there is no command or skill to offer. An empty list keeps the menu open on
+ * Desktop's `No matching command or skill`, so a typo reads as a miss instead of the menu silently vanishing.
  */
-export interface AgentChatCommandMenu {
-    matches: readonly AgentChatCommand[];
-    hasMore: boolean;
-}
-
-/**
- * The command list a draft opens, or `undefined` when no list should show: the draft is not a command at its start, the
- * user typed past the name, or the provider reported no commands. Unlike Desktop, the phone lists commands only after
- * `/`; `$` skills stay a Desktop menu.
- */
-export function agentChatCommandMenu(
+export function agentChatMenuMatches(
     draft: string,
     commands: readonly AgentChatCommand[] | undefined,
-): AgentChatCommandMenu | undefined {
-    if (!draft.startsWith('/') || !commands?.length) return undefined;
-    const query = agentChatSlashQuery(draft);
-    if (query === undefined) return undefined;
-    const matches = commands.filter((command) => isComposerActionMatch(`/${command.name}`, query));
-    return {
-        matches: matches.slice(0, MOBILE_AGENT_CHAT_COMMAND_ROWS),
-        hasMore: matches.length > MOBILE_AGENT_CHAT_COMMAND_ROWS,
-    };
+    skills: readonly AgentAction[] | undefined,
+): AgentAction[] | undefined {
+    if (agentChatSlashQuery(draft) === undefined) return undefined;
+    const actions = agentChatMenuActions(commands, skills);
+    return actions.length === 0 ? undefined : agentChatDraftMatches(actions, draft);
 }
 
 /**
- * Whether a send of `draft` is held for confirmation instead of going out, as Desktop's first Enter on a list with no
- * match is: a mistyped `/command` is not sent to the Agent as prose by surprise. `confirmedDraft` is the draft a first
- * tap was held for; a second tap on the same draft sends it as text.
+ * Whether a send of `draft` is held for confirmation instead of going out, as Desktop's first Enter on a menu with no
+ * match is: a mistyped `/command` is not sent to the Agent as prose by surprise. `matches` is the menu's rows
+ * (`agentChatMenuMatches`), and `confirmedDraft` the draft a first tap was held for; a second tap on the same draft
+ * sends it as text. A `$skill` is ordinary text to the provider, so it is never held.
  */
 export function shouldHoldAgentChatSendAsText({
-    commands,
     confirmedDraft,
     draft,
+    matches,
 }: {
-    commands: readonly AgentChatCommand[] | undefined;
     confirmedDraft: string | undefined;
     draft: string;
+    matches: readonly AgentAction[] | undefined;
 }): boolean {
-    return agentChatCommandMenu(draft, commands)?.matches.length === 0 && confirmedDraft !== draft;
+    return draft.startsWith('/') && matches?.length === 0 && confirmedDraft !== draft;
 }
 
 /**
- * What choosing a listed command does. A command without an argument hint runs at once, as on Desktop; one that takes
- * arguments fills the draft with `/name ` so the user types them and submits.
+ * The line the menu shows about skills, or `undefined` once discovery has answered. Skills are discovered from the
+ * running Agent, so a stopped one (`UNAVAILABLE`) gets a quiet note instead of an error, and the first discovery takes
+ * a moment.
+ */
+export interface AgentChatSkillNotice {
+    text: string;
+    isLoading: boolean;
+}
+
+export function agentChatSkillNotice(
+    state: {
+        isPending: boolean;
+        isUnavailable: boolean;
+    },
+    t: Translate = translate,
+): AgentChatSkillNotice | undefined {
+    if (state.isUnavailable) return { text: t('chat.commands.skillsNeedAgent'), isLoading: false };
+    return state.isPending
+        ? { text: t('chat.commands.loadingSkills'), isLoading: true }
+        : undefined;
+}
+
+/**
+ * What choosing a menu row does. A provider command without an argument hint runs at once, as on Desktop; one that
+ * takes arguments, and every skill, fills the draft with the invocation and a space so the user types what to ask
+ * (`completeAgentChatAction`).
  */
 export type AgentChatCommandChoice =
     { kind: 'run'; command: { name: string } } | { kind: 'complete'; draft: string };
 
-export function agentChatCommandChoice(command: AgentChatCommand): AgentChatCommandChoice {
-    return command.argumentHint === undefined
-        ? { kind: 'run', command: { name: command.name } }
-        : { kind: 'complete', draft: `/${command.name} ` };
+export function agentChatCommandChoice(action: AgentAction): AgentChatCommandChoice {
+    return action.kind === 'command' && !action.argumentHint
+        ? { kind: 'run', command: { name: action.invocation.slice(1) } }
+        : { kind: 'complete', draft: completeAgentChatAction(action) };
 }

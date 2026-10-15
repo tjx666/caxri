@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { AgentChatView } from '../../agent-chat/agent-chat-view';
 import type { SessionAgentChat } from '../../agent-chat/use-session-agent-chat';
@@ -130,6 +131,7 @@ export const SessionDetailBody = ({
     wideBackgroundSegment: 'conversation' | 'terminal';
     wideChanges: boolean;
 }) => {
+    const { t } = useTranslation();
     const segmentEntering = useSegmentEntering(segment, segments);
     const { bodyEntering, conversationEnterFrom } = conversationAwareEntering(
         segment,
@@ -155,7 +157,7 @@ export const SessionDetailBody = ({
         />
     ) : (
         <View style={styles.placeholder} testID="terminal-unavailable">
-            <Text style={{ color: theme.muted }}>No active Terminal for this Session.</Text>
+            <Text style={{ color: theme.muted }}>{t('sessions.detail.noTerminal')}</Text>
         </View>
     );
     const attention = (shouldFallbackToTerminal: boolean, canOpenTerminal: boolean) => (

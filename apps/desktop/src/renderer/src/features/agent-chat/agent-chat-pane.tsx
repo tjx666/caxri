@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
+import { agentChatActivity } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
@@ -28,7 +29,6 @@ import { AgentChatMessageRail } from './agent-chat-message-rail';
 import { AgentChatDayBreak } from './agent-chat-message-time';
 import { AgentChatPendingTimeline } from './agent-chat-pending-timeline';
 import {
-    agentChatActivity,
     agentChatEmptyHint,
     agentChatEmptyMessage,
     agentChatRecoveryNotice,
@@ -334,9 +334,12 @@ export function AgentChatPane({
             />
             <AgentChatComposer
                 activeTurnId={snapshot?.activeTurnId}
-                activity={agentChatActivity(snapshot, providerName, {
-                    hasConversation: Boolean(terminal?.agentSessionId),
-                })}
+                activity={agentChatActivity(
+                    snapshot,
+                    providerName,
+                    { hasConversation: Boolean(terminal?.agentSessionId) },
+                    t,
+                )}
                 canOpenContext={canOpenContext}
                 canSaveProjectDefault={canSaveProjectDefault}
                 sendBlock={agentChatSendBlock(snapshot, processState)}

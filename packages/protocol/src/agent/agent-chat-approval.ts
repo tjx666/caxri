@@ -1,6 +1,8 @@
 import type { AgentChatItem } from './agent-chat-contract.js';
+import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { translateAgentChatLabel } from './agent-chat-labels.js';
 import type { AgentChatRequest } from './agent-chat-requests.js';
-import { agentToolActiveLabel, describeAgentTool } from './agent-tool-presentation.js';
+import { describeAgentTool, isAgentToolActionKind } from './agent-tool-presentation.js';
 
 /**
  * An approval request: everything a provider asks before acting, as opposed to a question it asks the user.
@@ -26,36 +28,37 @@ export function isAgentChatApprovalRequest(
 /**
  * The standing-approval button's label for its scope: a Chat remembers it for the Chat, a Terminal Agent's attention
  * request for the Session. Shared so the Desktop Chat, the Mobile Chat, and the Mobile Terminal attention card read the
- * same.
+ * same. The one-time buttons of an approval whose action is not known beyond "use this tool", such as a Terminal
+ * Agent's permission request, read `agentChat.approval.allow` and `agentChat.approval.deny`; a Chat names the outcome
+ * instead (`Run`, `Apply Changes`), see {@link agentChatApprovalChoices}.
  */
-export function agentApprovalAlwaysAllowLabel(scope: 'Chat' | 'Session'): string {
-    return `Always Allow in This ${scope}`;
+export function agentApprovalAlwaysAllowLabel(
+    scope: 'Chat' | 'Session',
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    return t(
+        scope === 'Chat'
+            ? 'agentChat.approval.alwaysAllow'
+            : 'agentChat.approval.alwaysAllowSession',
+    );
 }
-
-/**
- * The one-time allow and deny labels for an approval whose action is not known beyond "use this tool", such as a
- * Terminal Agent's permission request. A Chat names the outcome instead (`Run`, `Apply Changes`); see
- * {@link agentChatApprovalChoices}.
- */
-export const AGENT_APPROVAL_ALLOW_LABEL = 'Allow';
-export const AGENT_APPROVAL_DENY_LABEL = 'Deny';
 
 /**
  * What accepting does, named by the outcome the user gets rather than the protocol verb: a command runs, a file change
  * is applied, plan mode ends, and any other tool (or a command's network access) is allowed.
  */
-function acceptLabel(request: AgentChatApprovalRequest): string {
+function acceptLabelKey(request: AgentChatApprovalRequest): AgentChatLabelKey {
     switch (request.kind) {
         case 'command': {
-            return request.networkHost ? AGENT_APPROVAL_ALLOW_LABEL : 'Run';
+            return request.networkHost ? 'agentChat.approval.allow' : 'agentChat.approval.run';
         }
         case 'fileChange': {
-            return 'Apply Changes';
+            return 'agentChat.approval.applyChanges';
         }
         case 'tool': {
             return request.name === AGENT_CHAT_EXIT_PLAN_TOOL
-                ? 'Start Building'
-                : AGENT_APPROVAL_ALLOW_LABEL;
+                ? 'agentChat.approval.startBuilding'
+                : 'agentChat.approval.allow';
         }
     }
 }
@@ -67,12 +70,16 @@ function acceptLabel(request: AgentChatApprovalRequest): string {
  */
 export function agentChatApprovalChoices(
     request: AgentChatApprovalRequest,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): Array<{ decision: AgentChatApprovalDecision; label: string }> {
     const isPlan = request.kind === 'tool' && request.name === AGENT_CHAT_EXIT_PLAN_TOOL;
     const choices: Array<{ decision: AgentChatApprovalDecision; label: string }> = [
-        { decision: 'accept', label: acceptLabel(request) },
-        { decision: 'acceptForSession', label: agentApprovalAlwaysAllowLabel('Chat') },
-        { decision: 'decline', label: isPlan ? 'Keep Planning' : AGENT_APPROVAL_DENY_LABEL },
+        { decision: 'accept', label: t(acceptLabelKey(request)) },
+        { decision: 'acceptForSession', label: agentApprovalAlwaysAllowLabel('Chat', t) },
+        {
+            decision: 'decline',
+            label: t(isPlan ? 'agentChat.approval.keepPlanning' : 'agentChat.approval.deny'),
+        },
     ];
     const allowed = request.decisions;
     return choices.filter((choice) => !allowed || allowed.includes(choice.decision));
@@ -88,42 +95,55 @@ const REQUEST_TITLE_SUBJECT_LENGTH = 60;
  * app.ts?`, `Allow create_issue from github?`. A long or multi-line subject is left to the card body; a tool the shared
  * table does not know keeps its name.
  */
-function agentChatToolRequestTitle(request: { name: string; summary?: string }): string {
+function agentChatToolRequestTitle(
+    request: { name: string; summary?: string },
+    t: AgentChatLabelTranslate,
+): string {
     const presentation = describeAgentTool(request);
     if (presentation.kind === 'mcp' && presentation.subject)
-        return `Allow ${presentation.subject} from ${presentation.label}?`;
-    const subject = presentation.subject;
-    if (!subject || presentation.kind === 'other') return `Allow ${request.name}?`;
-    const gerund = agentToolActiveLabel(presentation);
-    const action = `${gerund.charAt(0).toLowerCase()}${gerund.slice(1)}`;
+        return t('agentChat.request.title.mcp', {
+            server: presentation.label,
+            subject: presentation.subject,
+        });
+    const { kind, subject } = presentation;
+    if (!subject || !isAgentToolActionKind(kind))
+        return t('agentChat.request.title.tool', { name: request.name });
+    const action = t(`agentChat.request.action.${kind}`);
     return subject.length <= REQUEST_TITLE_SUBJECT_LENGTH && !subject.includes('\n')
-        ? `Allow ${action} ${subject}?`
-        : `Allow ${action}?`;
+        ? t('agentChat.request.title.actionSubject', { action, subject })
+        : t('agentChat.request.title.action', { action });
 }
 
 /**
  * The approval or question card's heading. `providerName` is the provider catalog's display name, which a question
  * names as the one asking.
  */
-export function agentChatRequestTitle(request: AgentChatRequest, providerName: string): string {
+export function agentChatRequestTitle(
+    request: AgentChatRequest,
+    providerName: string,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
     switch (request.kind) {
         case 'command': {
             return request.networkHost
-                ? `Allow network access to ${request.networkHost}?`
-                : 'Run this command?';
+                ? t('agentChat.request.title.network', { host: request.networkHost })
+                : t('agentChat.request.title.command');
         }
         case 'fileChange': {
-            return 'Apply these file changes?';
+            return t('agentChat.request.title.fileChange');
         }
         case 'tool': {
             return request.name === AGENT_CHAT_EXIT_PLAN_TOOL
-                ? 'Start with this plan?'
-                : agentChatToolRequestTitle(request);
+                ? t('agentChat.request.title.plan')
+                : agentChatToolRequestTitle(request, t);
         }
         case 'question': {
             return request.questions.length === 1
-                ? `${providerName} has a question`
-                : `${providerName} has ${request.questions.length} questions`;
+                ? t('agentChat.request.title.questionOne', { provider: providerName })
+                : t('agentChat.request.title.questionOther', {
+                      count: request.questions.length,
+                      provider: providerName,
+                  });
         }
     }
 }
@@ -132,11 +152,16 @@ export function agentChatRequestTitle(request: AgentChatRequest, providerName: s
  * What a turn blocked on the user is waiting for: an approval of something the Agent wants to do, or an answer to its
  * question. The first pending request decides, since that is the card the user sees first.
  */
-export function agentChatWaitingText(requests: readonly AgentChatRequest[]): string {
+export function agentChatWaitingText(
+    requests: readonly AgentChatRequest[],
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
     const first = requests.at(0);
-    return first && isAgentChatApprovalRequest(first)
-        ? 'Waiting for your approval'
-        : 'Waiting for your answer';
+    return t(
+        first && isAgentChatApprovalRequest(first)
+            ? 'agentChat.waiting.approval'
+            : 'agentChat.waiting.answer',
+    );
 }
 
 /**

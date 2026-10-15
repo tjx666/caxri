@@ -6,12 +6,11 @@ import type {
     AgentActionsSettings,
     AgentProvider,
 } from '@caxri/protocol';
-import { mergeAgentActions, resolveRecentAgentActions } from '@caxri/protocol';
+import { mergeAgentActions, resolveRecentAgentActions, searchAgentActions } from '@caxri/protocol';
 
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../queries/client';
 import { useSettings, useTerminal } from '../../stores/selectors';
-import { searchAgentActions } from './agent-action-search';
 
 interface RecentOverride {
     provider: AgentProvider;

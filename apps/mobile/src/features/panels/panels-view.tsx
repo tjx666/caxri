@@ -1,5 +1,6 @@
 import { Text, View } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { FilesPanel } from './files-panel';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
@@ -20,6 +21,7 @@ const PanelBody = ({
     theme: MobileTheme;
     view: PanelView;
 }) => {
+    const { t } = useTranslation();
     switch (view.kind) {
         case 'files':
             return (
@@ -35,7 +37,7 @@ const PanelBody = ({
         default:
             return (
                 <PanelStatus
-                    message={`${view.title} is only available on your computer.`}
+                    message={t('panels.viewOnComputerOnly', { title: view.title })}
                     theme={theme}
                 />
             );
@@ -59,13 +61,14 @@ export const ProjectPanelView = ({
     sessionId: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { query } = panels;
     if (query.isPending)
         return <PendingPanelStatus fetchStatus={query.fetchStatus} theme={theme} />;
     if (query.isError)
         return (
             <PanelStatus
-                message="Unable to load this view."
+                message={t('panels.loadFailed')}
                 onRetry={() => {
                     // eslint-disable-next-line no-void -- The query renders its own error state.
                     void query.refetch();
@@ -78,7 +81,7 @@ export const ProjectPanelView = ({
     if (!panel)
         return (
             <PanelStatus
-                message="This view is not available on your phone. Choose another tab."
+                message={t('panels.viewUnavailable')}
                 testID="panel-missing"
                 theme={theme}
             />

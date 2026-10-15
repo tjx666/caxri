@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    AGENT_APPROVAL_ALLOW_LABEL,
-    AGENT_APPROVAL_DENY_LABEL,
     agentApprovalAlwaysAllowLabel,
     agentChatAnsweredNotice,
     agentChatApprovalChoices,
@@ -131,8 +129,6 @@ describe('shared approval labels', () => {
     it('scopes the standing approval to a Chat or a Session with the same wording', () => {
         expect(agentApprovalAlwaysAllowLabel('Chat')).toBe('Always Allow in This Chat');
         expect(agentApprovalAlwaysAllowLabel('Session')).toBe('Always Allow in This Session');
-        expect(AGENT_APPROVAL_ALLOW_LABEL).toBe('Allow');
-        expect(AGENT_APPROVAL_DENY_LABEL).toBe('Deny');
     });
 });
 

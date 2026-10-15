@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { X } from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
+import { useTranslation } from '../../../i18n';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useNewSession } from '../hooks/use-new-session';
 import { NewSessionFooter } from './new-session-footer';
@@ -14,6 +15,7 @@ import { newSessionStyles as styles } from './new-session-styles';
 
 export const NewSessionScreen = () => {
     const router = useRouter();
+    const { t } = useTranslation();
     const theme = useMobileTheme();
     const state = useNewSession();
     return (
@@ -24,7 +26,7 @@ export const NewSessionScreen = () => {
         >
             <View style={styles.header}>
                 <IconButton
-                    accessibilityLabel="Back to Sessions"
+                    accessibilityLabel={t('sessions.backToSessions')}
                     icon={X}
                     onPress={() => router.back()}
                     size={24}
@@ -32,7 +34,7 @@ export const NewSessionScreen = () => {
                     theme={theme}
                 />
                 <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
-                    New Session
+                    {t('sessions.new.title')}
                 </Text>
             </View>
             <ScrollView contentContainerStyle={styles.content} style={styles.scroll}>

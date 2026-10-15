@@ -2,9 +2,10 @@ import type { ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { AgentTimelineItem, AgentToolKind } from '@caxri/protocol';
-import { describeAgentTool } from '@caxri/protocol';
+import { agentToolLabel, describeAgentTool } from '@caxri/protocol';
 
 import { BottomSheet } from '../../components/bottom-sheet';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles as styles } from './conversation-styles';
 import { ConversationToolIcon } from './conversation-tool-icon';
@@ -26,35 +27,40 @@ export const ConversationDetailSheet = ({
     onClose: () => void;
     theme: MobileTheme;
     title: string;
-}) => (
-    <BottomSheet
-        closeLabel="Close tool detail"
-        maxHeight="65%"
-        onClose={onClose}
-        testID="conversation-tool-detail"
-        theme={theme}
-    >
-        {(dismiss) => (
-            <View style={styles.detailContent}>
-                <View style={styles.detailHeader}>
-                    <ConversationToolIcon kind={kind} theme={theme} />
-                    <Text numberOfLines={2} style={[styles.detailTitle, { color: theme.text }]}>
-                        {title}
-                    </Text>
-                    <Pressable
-                        accessibilityRole="button"
-                        onPress={dismiss}
-                        style={styles.detailCloseButton}
-                        testID="tool-detail-close"
-                    >
-                        <Text style={[styles.detailClose, { color: theme.primary }]}>Close</Text>
-                    </Pressable>
+}) => {
+    const { t } = useTranslation();
+    return (
+        <BottomSheet
+            closeLabel={t('conversation.tool.closeDetail')}
+            maxHeight="65%"
+            onClose={onClose}
+            testID="conversation-tool-detail"
+            theme={theme}
+        >
+            {(dismiss) => (
+                <View style={styles.detailContent}>
+                    <View style={styles.detailHeader}>
+                        <ConversationToolIcon kind={kind} theme={theme} />
+                        <Text numberOfLines={2} style={[styles.detailTitle, { color: theme.text }]}>
+                            {title}
+                        </Text>
+                        <Pressable
+                            accessibilityRole="button"
+                            onPress={dismiss}
+                            style={styles.detailCloseButton}
+                            testID="tool-detail-close"
+                        >
+                            <Text style={[styles.detailClose, { color: theme.primary }]}>
+                                {t('common.close')}
+                            </Text>
+                        </Pressable>
+                    </View>
+                    <ScrollView testID="tool-detail-scroll">{children}</ScrollView>
                 </View>
-                <ScrollView testID="tool-detail-scroll">{children}</ScrollView>
-            </View>
-        )}
-    </BottomSheet>
-);
+            )}
+        </BottomSheet>
+    );
+};
 
 export const ConversationToolDetail = ({
     onClose,
@@ -65,6 +71,7 @@ export const ConversationToolDetail = ({
     theme: MobileTheme;
     tool: ToolCall | null;
 }) => {
+    const { t } = useTranslation();
     if (!tool) return null;
     const presentation = describeAgentTool(tool);
     return (
@@ -72,7 +79,7 @@ export const ConversationToolDetail = ({
             kind={presentation.kind}
             onClose={onClose}
             theme={theme}
-            title={presentation.label}
+            title={agentToolLabel(presentation.label, t)}
         >
             {tool.summary === tool.name ? null : (
                 <Text
@@ -86,7 +93,7 @@ export const ConversationToolDetail = ({
                 </Text>
             )}
             <Text selectable style={[styles.detailBody, { color: theme.text }]}>
-                {tool.detail ?? 'No further detail is available.'}
+                {tool.detail ?? t('conversation.tool.noDetail')}
             </Text>
         </ConversationDetailSheet>
     );

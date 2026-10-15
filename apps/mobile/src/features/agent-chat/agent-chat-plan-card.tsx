@@ -6,6 +6,7 @@ import type { AgentChatPlan } from '@caxri/protocol';
 import { agentChatPlanProgress } from '@caxri/protocol';
 import { Check, ChevronDown, Circle, CircleDot, ListTodo } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 
 /**
@@ -22,24 +23,37 @@ const StepGlyph = ({
     status: AgentChatPlan['steps'][number]['status'];
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     switch (status) {
         case 'completed': {
-            return <Check accessibilityLabel="Completed" color={theme.success} size={14} />;
+            return (
+                <Check
+                    accessibilityLabel={t('chat.plan.completed')}
+                    color={theme.success}
+                    size={14}
+                />
+            );
         }
         case 'inProgress': {
             return isTurnRunning ? (
                 <ActivityIndicator
-                    accessibilityLabel="In progress"
+                    accessibilityLabel={t('chat.plan.inProgress')}
                     color={theme.muted}
                     size="small"
                     style={styles.spinner}
                 />
             ) : (
-                <CircleDot accessibilityLabel="In progress" color={theme.muted} size={14} />
+                <CircleDot
+                    accessibilityLabel={t('chat.plan.inProgress')}
+                    color={theme.muted}
+                    size={14}
+                />
             );
         }
         case 'pending': {
-            return <Circle accessibilityLabel="Pending" color={theme.muted} size={14} />;
+            return (
+                <Circle accessibilityLabel={t('chat.plan.pending')} color={theme.muted} size={14} />
+            );
         }
     }
 };
@@ -58,6 +72,7 @@ export const AgentChatPlanCard = ({
     plan: AgentChatPlan;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [isExpanded, setExpanded] = useState(false);
     const { completed, current, total } = agentChatPlanProgress(plan);
     const isDone = total > 0 && completed === total;
@@ -67,7 +82,11 @@ export const AgentChatPlanCard = ({
             testID="agent-chat-plan"
         >
             <Pressable
-                accessibilityLabel={`Plan: ${completed} of ${total} steps done${current ? `. Current step: ${current}` : ''}`}
+                accessibilityLabel={
+                    current
+                        ? t('chat.plan.progressCurrent', { completed, current, total })
+                        : t('chat.plan.progress', { completed, total })
+                }
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isExpanded }}
                 onPress={() => setExpanded((expanded) => !expanded)}
@@ -75,7 +94,7 @@ export const AgentChatPlanCard = ({
                 testID="agent-chat-plan-toggle"
             >
                 <ListTodo color={theme.muted} size={14} />
-                <Text style={[styles.label, { color: theme.text }]}>Plan</Text>
+                <Text style={[styles.label, { color: theme.text }]}>{t('chat.plan.title')}</Text>
                 <Text numberOfLines={1} style={[styles.current, { color: theme.muted }]}>
                     {!isExpanded && current ? current : ''}
                 </Text>

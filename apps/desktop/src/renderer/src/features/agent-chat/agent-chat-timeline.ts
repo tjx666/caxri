@@ -11,25 +11,18 @@ import {
     agentChatMcpToolTitle,
     agentChatWorkSummaryTools,
     agentToolKindCounts,
+    agentToolOutcomeLabel,
     collectAgentChatTurnArtifacts,
-    describeAgentChatWorkAction,
+    describeAgentChatWork,
     describeAgentTool,
     foldAgentChatTurn,
-    formatNoticeableDuration,
     isAgentChatItemVisible,
-    isAgentChatWorkUnsuccessful,
     parseAgentMcpToolName,
 } from '@caxri/protocol';
-import { pathBasename } from '@caxri/utils';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import { agentChatMessageFullTime } from './agent-chat-time';
-import {
-    agentChatToolGroupSummary,
-    agentChatToolLabel,
-    agentChatToolOutcomeLabel,
-} from './agent-chat-tool-labels';
 
 /**
  * One rendered row of the Chat timeline. Consecutive work collapses into one `work` entry, and a finished turn folds
@@ -113,51 +106,6 @@ function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): Flat
     }
     flush();
     return entries;
-}
-
-/**
- * A finished turn's duration in the active language's units, `2m 1s` or `2 分钟 1 秒` as the Codex app writes it, rounded
- * to whole seconds like `formatShortDuration`; `undefined` under a second.
- */
-function agentChatTurnDuration(
-    durationMs: number | undefined,
-    t: Translate = translate,
-): string | undefined {
-    if (durationMs === undefined || formatNoticeableDuration(durationMs) === null) return undefined;
-    const total = Math.round(durationMs / 1000);
-    const minutes = Math.floor(total / 60);
-    const seconds = total % 60;
-    if (minutes === 0) return t('agentChat.fold.durationSeconds', { seconds });
-    if (seconds === 0) return t('agentChat.fold.durationMinutes', { minutes });
-    return t('agentChat.fold.durationMinutesSeconds', { minutes, seconds });
-}
-
-/**
- * `Worked for 2m 1s`, or how a turn that did not complete ended, in the active language; the phone reads the English
- * `agentChatTurnLabel` in `@caxri/protocol`. A turn under a second reads as plain `Worked`, as a work row drops its
- * sub-second duration: `<1s` is noise.
- */
-export function agentChatTurnLabel(
-    turn: Pick<AgentChatTurn, 'durationMs' | 'status'>,
-    t: Translate = translate,
-): string {
-    const duration = agentChatTurnDuration(turn.durationMs, t);
-    if (duration)
-        return t(
-            turn.status === 'interrupted'
-                ? 'agentChat.fold.stoppedAfter'
-                : turn.status === 'failed'
-                  ? 'agentChat.fold.failedAfter'
-                  : 'agentChat.fold.workedFor',
-            { duration },
-        );
-    return t(
-        turn.status === 'interrupted'
-            ? 'agentChat.fold.stopped'
-            : turn.status === 'failed'
-              ? 'agentChat.fold.failed'
-              : 'agentChat.fold.worked',
-    );
 }
 
 /**
@@ -330,38 +278,21 @@ export function agentChatTimelineEntryKey(entry: AgentChatTimelineEntry): string
 }
 
 /**
- * The kind, verb, and subject a work row shows, in the active language. The rules live in `@caxri/protocol`
- * (`describeAgentChatWorkAction`), shared with the phone; this translates the English verb and the file count. A
- * settled item that did not complete names its outcome in the verb (`Failed to edit`), so the title tells the truth on
- * its own.
+ * A work row's kind, verb, and subject on Desktop, in the active language: the shared `describeAgentChatWork`, except
+ * that an MCP tool call reads as its tool (`Web search exa`), the way the Codex app names it beside the server's icon;
+ * the icon, not an `exa` prefix, says which server answered. The shared presentation keeps the server name for the
+ * phone and the CLI, which show no server icon.
  */
-export function describeAgentChatWork(
+export function describeAgentChatWorkRow(
     item: AgentChatWorkItem,
     t: Translate = translate,
 ): AgentToolPresentation {
-    const action = mcpToolAction(item) ?? describeAgentChatWorkAction(item);
-    const first = item.type === 'fileChange' ? item.changes.at(0) : undefined;
-    const presentation = {
-        ...action,
-        label: agentChatToolLabel(action.label, t),
-        ...(item.type === 'fileChange' &&
-            first &&
-            item.changes.length > 1 && {
-                subject: t('agentChat.tool.moreFiles', {
-                    name: pathBasename(first.path),
-                    count: item.changes.length - 1,
-                }),
-            }),
-    };
-    if (item.type === 'reasoning' || item.status === 'running') return presentation;
-    return { ...presentation, label: agentChatToolOutcomeLabel(presentation, item.status, t) };
+    const mcp = mcpToolAction(item);
+    if (!mcp || item.type !== 'toolCall') return describeAgentChatWork(item, t);
+    if (item.status === 'running') return mcp;
+    return { ...mcp, label: agentToolOutcomeLabel(mcp, item.status, t) };
 }
 
-/**
- * An MCP tool call reads as its tool (`Web search exa`), the way the Codex app names it beside the server's icon; the
- * icon, not a `exa` prefix, says which server answered. The shared presentation keeps the server name for the phone and
- * the CLI, which show no server icon.
- */
 function mcpToolAction(item: AgentChatWorkItem): AgentToolPresentation | undefined {
     if (item.type !== 'toolCall') return undefined;
     const mcp = parseAgentMcpToolName(item.name);
@@ -385,26 +316,4 @@ export function agentChatWorkSummaryGlyph(items: readonly AgentChatWorkItem[]): 
             ? tools.find((tool) => describeAgentTool(tool).kind === 'mcp')?.name
             : undefined;
     return { kind, ...(mcpToolName && { mcpToolName }) };
-}
-
-/**
- * `Ran 3 commands, read 2 files` for a group in the active language, counting each changed file as one edit; the phone
- * reads the English `summarizeAgentChatWork` in `@caxri/protocol`. Reasoning only names the group when it is all the
- * group holds. Items that failed or were declined are counted at the end (`, 1 failed`), so a collapsed group never
- * reads as a clean run.
- */
-export function summarizeAgentChatWork(
-    items: readonly AgentChatWorkItem[],
-    t: Translate = translate,
-): string {
-    const tools = agentChatWorkSummaryTools(items);
-    if (tools.length === 0)
-        return t(
-            items.some((item) => item.type === 'reasoning' && item.streaming)
-                ? 'agentChat.tool.label.thinking'
-                : 'agentChat.tool.label.thought',
-        );
-    const failed = items.filter((item) => isAgentChatWorkUnsuccessful(item)).length;
-    const summary = agentChatToolGroupSummary(tools, t);
-    return failed > 0 ? t('agentChat.workGroup.withFailures', { summary, count: failed }) : summary;
 }

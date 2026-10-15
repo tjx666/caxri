@@ -5,10 +5,12 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { Archive, Pencil } from 'lucide-react-native';
 
 import { BottomSheet, SheetAction, SheetCancel } from '../../../components/bottom-sheet';
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { useSessionManagement } from '../hooks/use-session-management';
 import { sessionRenameDraft } from '../session-management-model';
 import type { MobileSessionItem } from '../session-model';
+import { sessionTitleForDisplay } from '../session-row-model';
 
 /**
  * Long-press actions for one Session row. Rename swaps the sheet body for an inline text field instead of stacking a
@@ -47,6 +49,7 @@ const SessionActionsBody = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [mode, setMode] = useState<'menu' | 'rename'>('menu');
     const [draft, setDraft] = useState(session.displayTitle);
     const isBusy = management.pending?.sessionId === session.id;
@@ -56,7 +59,7 @@ const SessionActionsBody = ({
     };
     return (
         <BottomSheet
-            closeLabel="Close Session actions"
+            closeLabel={t('sessions.actions.close')}
             onClose={onClose}
             testID="session-actions-sheet"
             theme={theme}
@@ -64,7 +67,9 @@ const SessionActionsBody = ({
             {(dismiss) => (
                 <>
                     <Text numberOfLines={3} style={[styles.title, { color: theme.text }]}>
-                        {mode === 'rename' ? 'Rename Session' : session.displayTitle}
+                        {mode === 'rename'
+                            ? t('sessions.actions.renameTitle')
+                            : sessionTitleForDisplay(session.displayTitle, t)}
                     </Text>
                     <Text numberOfLines={1} style={[styles.subtitle, { color: theme.muted }]}>
                         {session.projectTitle}
@@ -74,7 +79,7 @@ const SessionActionsBody = ({
                             <SheetAction
                                 busy={false}
                                 icon={Pencil}
-                                label="Rename"
+                                label={t('sessions.actions.rename')}
                                 onPress={() => setMode('rename')}
                                 testID="session-action-rename"
                                 theme={theme}
@@ -82,7 +87,7 @@ const SessionActionsBody = ({
                             <SheetAction
                                 busy={isBusy && management.pending?.action === 'archive'}
                                 icon={Archive}
-                                label="Archive"
+                                label={t('sessions.actions.archive')}
                                 onPress={() => {
                                     // eslint-disable-next-line no-void -- The hook renders archive failures.
                                     void management.archive(session.id).then((done) => {
@@ -101,7 +106,7 @@ const SessionActionsBody = ({
                     ) : (
                         <View style={styles.rename}>
                             <TextInput
-                                accessibilityLabel="Session name"
+                                accessibilityLabel={t('sessions.actions.nameLabel')}
                                 autoFocus
                                 maxLength={200}
                                 onChangeText={setDraft}
@@ -109,7 +114,7 @@ const SessionActionsBody = ({
                                     // eslint-disable-next-line no-void -- The hook renders rename failures.
                                     void submitRename();
                                 }}
-                                placeholder="Session name"
+                                placeholder={t('sessions.actions.nameLabel')}
                                 placeholderTextColor={theme.muted}
                                 returnKeyType="done"
                                 selectTextOnFocus
@@ -132,7 +137,7 @@ const SessionActionsBody = ({
                                     testID="session-rename-cancel"
                                 >
                                     <Text style={[styles.buttonText, { color: theme.text }]}>
-                                        Cancel
+                                        {t('common.cancel')}
                                     </Text>
                                 </Pressable>
                                 <Pressable
@@ -164,7 +169,7 @@ const SessionActionsBody = ({
                                                 { color: theme.primaryForeground },
                                             ]}
                                         >
-                                            Save
+                                            {t('sessions.actions.save')}
                                         </Text>
                                     )}
                                 </Pressable>

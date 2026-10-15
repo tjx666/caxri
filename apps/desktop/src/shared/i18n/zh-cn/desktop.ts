@@ -1,5 +1,6 @@
+import type { TranslatedNamespace } from '@caxri/protocol';
+
 import type { desktop as source } from '../en/desktop';
-import type { TranslatedNamespace } from '../translated-namespace';
 
 export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.menu.project': '项目',

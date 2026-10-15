@@ -11,6 +11,7 @@ import {
 import { useRecyclingState } from '@shopify/flash-list';
 import { ChevronDown, FileDiff } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
 import { conversationStyles } from '../conversation/conversation-styles';
@@ -53,14 +54,18 @@ const AgentChatEditedFiles = ({
     theme: MobileTheme;
     turnId: string;
 }) => {
+    const { t } = useTranslation();
     // The timeline's FlashList recycles this row for another turn; keyed by turn, the card opens folded there.
     const [isExpanded, setExpanded] = useRecyclingState(false, [turnId]);
     const stat = agentChatEditedFilesStat(files);
-    const title = agentChatEditedFilesTitle(files);
+    const title = agentChatEditedFilesTitle(files, t);
     return (
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Pressable
-                accessibilityLabel={`${title}. ${isExpanded ? 'Hide' : 'View'} changes, ${stat.additions} lines added, ${stat.deletions} removed`}
+                accessibilityLabel={t(
+                    isExpanded ? 'chat.changes.hideChanges' : 'chat.changes.viewChanges',
+                    { additions: stat.additions, deletions: stat.deletions, title },
+                )}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isExpanded }}
                 onPress={() => setExpanded((current) => !current)}

@@ -16,6 +16,8 @@ import { AgentGlyph } from '../../../components/agent-icon';
 import { IconButton } from '../../../components/icon-button';
 import { PopoverMenu } from '../../../components/popover-menu';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
+import type { Translate, TranslationKey } from '../../../i18n';
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import { isAgentChatTerminal } from '../../agent-chat/agent-chat-model';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
@@ -23,7 +25,7 @@ import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
 import { useSavedClock } from '../../read-cache/use-saved-age';
 import type { MobileSessionItem } from '../session-model';
-import { sessionStateLabel } from '../session-row-model';
+import { sessionStateLabel, sessionTitleForDisplay } from '../session-row-model';
 import type { SESSION_SEGMENTS, SessionSegment } from '../session-ui-state';
 import {
     isPanelSessionSegment,
@@ -42,24 +44,29 @@ const tabLabelEntering = FadeIn.duration(160).delay(60);
 
 const fixedSegmentPresentation: Record<
     (typeof SESSION_SEGMENTS)[number],
-    { icon: LucideIcon; label: string }
+    { icon: LucideIcon; labelKey: TranslationKey }
 > = {
-    conversation: { icon: MessagesSquare, label: 'Conversation' },
-    terminal: { icon: SquareTerminal, label: 'Terminal' },
-    changes: { icon: FileDiff, label: 'Changes' },
+    conversation: { icon: MessagesSquare, labelKey: 'sessions.segment.conversation' },
+    terminal: { icon: SquareTerminal, labelKey: 'sessions.segment.terminal' },
+    changes: { icon: FileDiff, labelKey: 'sessions.segment.changes' },
 };
 
 const segmentPresentation = (
     segment: SessionSegment,
     panels: readonly Panel[] | undefined,
     isChat: boolean,
+    t: Translate,
 ): { icon: LucideIcon; label: string } => {
     // A Chat's conversation tab carries the Desktop name for that surface.
-    if (segment === 'conversation' && isChat) return { icon: MessagesSquare, label: 'Chat' };
-    if (!isPanelSessionSegment(segment)) return fixedSegmentPresentation[segment];
+    if (segment === 'conversation' && isChat)
+        return { icon: MessagesSquare, label: t('sessions.segment.chat') };
+    if (!isPanelSessionSegment(segment)) {
+        const { icon, labelKey } = fixedSegmentPresentation[segment];
+        return { icon, label: t(labelKey) };
+    }
     const panel = panels?.find((candidate) => candidate.id === panelIdOfSegment(segment));
     // A view whose title has not loaded yet is still just a view; do not name the internal grouping.
-    return { icon: panelIcon(panel?.icon), label: panel?.title ?? 'View' };
+    return { icon: panelIcon(panel?.icon), label: panel?.title ?? t('sessions.segment.view') };
 };
 
 /**
@@ -96,7 +103,8 @@ const SessionSegmentTab = ({
     selected: boolean;
     theme: MobileTheme;
 }) => {
-    const { icon: Icon, label } = segmentPresentation(option, panels, isChat);
+    const { t } = useTranslation();
+    const { icon: Icon, label } = segmentPresentation(option, panels, isChat, t);
     /**
      * A zero badge reads as a value to act on; an empty Changes tab says the same thing without the noise.
      */
@@ -107,7 +115,7 @@ const SessionSegmentTab = ({
             accessibilityLabel={[
                 label,
                 ...(count === null ? [] : [String(count)]),
-                ...(isAwaitingAnswer ? ['waiting for your answer'] : []),
+                ...(isAwaitingAnswer ? [t('sessions.segment.awaitingAnswer')] : []),
             ].join(', ')}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
@@ -186,6 +194,7 @@ export const SessionDetailHeader = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const menuAnchor = useRef<View>(null);
     const menu = usePopoverAnchor(menuAnchor);
     const { close: closeMenu } = menu;
@@ -200,20 +209,22 @@ export const SessionDetailHeader = ({
             setMarkReadError(null);
         } catch (error) {
             setMarkReadError(
-                error instanceof MobileGatewayRequestError && error.code === 'FORBIDDEN'
-                    ? 'This device cannot mark Sessions as read. Pair it again on your computer to grant control.'
-                    : 'Unable to mark this Session as read.',
+                t(
+                    error instanceof MobileGatewayRequestError && error.code === 'FORBIDDEN'
+                        ? 'sessions.detail.markReadForbidden'
+                        : 'sessions.detail.markReadFailed',
+                ),
             );
         }
-    }, [closeMenu, onMarkRead]);
+    }, [closeMenu, onMarkRead, t]);
     return (
         <>
             <View style={[styles.header, { borderColor: theme.border }]}>
                 <View style={styles.headerLine}>
                     {onBack ? (
                         <IconButton
-                            accessibilityHint="Returns to the Session list."
-                            accessibilityLabel="Back to Sessions"
+                            accessibilityHint={t('sessions.detail.backHint')}
+                            accessibilityLabel={t('sessions.backToSessions')}
                             icon={ChevronLeft}
                             onPress={onBack}
                             size={26}
@@ -225,9 +236,11 @@ export const SessionDetailHeader = ({
                         <AgentGlyph kind={session.primaryTerminal?.kind} size={18} theme={theme} />
                         {/* A long title is cut to one line; tapping it reveals the rest, so it is announced as a toggle. */}
                         <Text
-                            accessibilityHint={
-                                isTitleExpanded ? 'Shortens the title.' : 'Shows the full title.'
-                            }
+                            accessibilityHint={t(
+                                isTitleExpanded
+                                    ? 'sessions.detail.collapseTitleHint'
+                                    : 'sessions.detail.expandTitleHint',
+                            )}
                             accessibilityRole="button"
                             accessibilityState={{ expanded: isTitleExpanded }}
                             numberOfLines={isTitleExpanded ? 3 : 1}
@@ -235,18 +248,18 @@ export const SessionDetailHeader = ({
                             style={[styles.title, { color: theme.text }]}
                             testID="session-detail-title"
                         >
-                            {session.displayTitle}
+                            {sessionTitleForDisplay(session.displayTitle, t)}
                         </Text>
                         <SessionStatusGlyph
                             isSaved={savedAt !== null}
-                            label={sessionStateLabel(session.stateLabel, savedAt, now)}
+                            label={sessionStateLabel(session.stateLabel, savedAt, now, t)}
                             session={session}
                             theme={theme}
                         />
                     </View>
                     <View collapsable={false} ref={menuAnchor}>
                         <IconButton
-                            accessibilityLabel="Session menu"
+                            accessibilityLabel={t('sessions.detail.menu')}
                             expanded={menu.isOpen}
                             icon={EllipsisVertical}
                             onPress={menu.open}
@@ -256,7 +269,7 @@ export const SessionDetailHeader = ({
                     </View>
                 </View>
                 <PopoverMenu
-                    closeLabel="Close Session menu"
+                    closeLabel={t('sessions.detail.closeMenu')}
                     onClose={closeMenu}
                     placement={menu.placement}
                     theme={theme}
@@ -276,12 +289,12 @@ export const SessionDetailHeader = ({
                                 { color: isConnected ? theme.text : theme.muted },
                             ]}
                         >
-                            Mark read
+                            {t('sessions.detail.markRead')}
                         </Text>
                     </Pressable>
                     {!isConnected ? (
                         <Text style={[styles.sendState, { color: theme.muted }]}>
-                            Reconnect to mark read.
+                            {t('sessions.detail.markReadReconnect')}
                         </Text>
                     ) : null}
                 </PopoverMenu>

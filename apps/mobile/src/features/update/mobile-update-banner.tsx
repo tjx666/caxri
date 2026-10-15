@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { mobileUpdateBannerKind, mobileUpdateBannerView } from './mobile-update-state';
@@ -10,22 +11,24 @@ import { useMobileUpdate } from './use-mobile-update';
  * A version mismatch with no build to offer: the phone is newer than Desktop, recovery is unavailable, or Desktop ships
  * no APK. Nothing on the phone can fix it, so the row only explains.
  */
-const MobileVersionMismatchBanner = ({ theme }: { theme: MobileTheme }) => (
-    <View
-        style={[styles.banner, { backgroundColor: theme.surface, borderColor: theme.border }]}
-        testID="mobile-version-mismatch"
-    >
-        <View style={styles.copy}>
-            <Text accessibilityRole="alert" style={[styles.title, { color: theme.text }]}>
-                Update required
-            </Text>
-            <Text style={[styles.body, { color: theme.muted }]}>
-                This app and Caxri on your computer use different versions. Update both to the
-                latest build.
-            </Text>
+const MobileVersionMismatchBanner = ({ theme }: { theme: MobileTheme }) => {
+    const { t } = useTranslation();
+    return (
+        <View
+            style={[styles.banner, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            testID="mobile-version-mismatch"
+        >
+            <View style={styles.copy}>
+                <Text accessibilityRole="alert" style={[styles.title, { color: theme.text }]}>
+                    {t('update.required')}
+                </Text>
+                <Text style={[styles.body, { color: theme.muted }]}>
+                    {t('update.mismatchBody')}
+                </Text>
+            </View>
         </View>
-    </View>
-);
+    );
+};
 
 const MobileUpdateActions = ({
     actionLabel,
@@ -40,28 +43,33 @@ const MobileUpdateActions = ({
      */
     onDismiss?: () => void;
     theme: MobileTheme;
-}) => (
-    <>
-        {onDismiss ? (
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            {onDismiss ? (
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={onDismiss}
+                    style={styles.action}
+                    testID="mobile-update-later"
+                >
+                    <Text style={[styles.actionLabel, { color: theme.muted }]}>
+                        {t('update.later')}
+                    </Text>
+                </Pressable>
+            ) : null}
             <Pressable
                 accessibilityRole="button"
-                onPress={onDismiss}
+                onPress={onAction}
                 style={styles.action}
-                testID="mobile-update-later"
+                testID="mobile-update-install"
             >
-                <Text style={[styles.actionLabel, { color: theme.muted }]}>Later</Text>
+                <Text style={[styles.actionLabel, { color: theme.primary }]}>{actionLabel}</Text>
             </Pressable>
-        ) : null}
-        <Pressable
-            accessibilityRole="button"
-            onPress={onAction}
-            style={styles.action}
-            testID="mobile-update-install"
-        >
-            <Text style={[styles.actionLabel, { color: theme.primary }]}>{actionLabel}</Text>
-        </Pressable>
-    </>
-);
+        </>
+    );
+};
 
 /**
  * Offers the newer Android build bundled with the paired Desktop. While connected it stays out of the way: one row,
@@ -71,6 +79,7 @@ const MobileUpdateActions = ({
  */
 export const MobileUpdateBanner = ({ theme }: { theme: MobileTheme }) => {
     const { status } = useMobileClient();
+    const { t } = useTranslation();
     const {
         canRetryCheck,
         dismiss,
@@ -93,7 +102,7 @@ export const MobileUpdateBanner = ({ theme }: { theme: MobileTheme }) => {
     });
     if (!kind) return null;
     if (kind === 'mismatch') return <MobileVersionMismatchBanner theme={theme} />;
-    const view = mobileUpdateBannerView(kind, phase, update);
+    const view = mobileUpdateBannerView(kind, phase, update, t);
     return (
         <View
             style={[styles.banner, { backgroundColor: theme.surface, borderColor: theme.border }]}

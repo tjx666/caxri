@@ -2,6 +2,7 @@ import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
+import { FAKE_CODEX_WEB_LINK_LABEL } from './fixtures/fake-codex-replies';
 
 describe('AgentChatService with a fake Codex app-server', () => {
     it('streams a turn into a projection every Client converges on, and binds the thread on its first turn', async () => {
@@ -162,6 +163,29 @@ describe('AgentChatService with a fake Codex app-server', () => {
             name: 'browserUse',
             status: 'completed',
         });
+    });
+
+    it('answers weblink with only a Markdown link to the named page', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'weblink http://10.0.2.2:8123/page' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items.at(-1)).toMatchObject({
+            type: 'agentMessage',
+            text: `[${FAKE_CODEX_WEB_LINK_LABEL}](http://10.0.2.2:8123/page)`,
+        });
+    });
+
+    it('holds a quiet thought before the longstream reply, which an interrupt ends', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'longstream' });
+        const thinking = await until((snapshot) =>
+            snapshot.items.some((item) => item.type === 'reasoning'),
+        );
+        expect(thinking.activeTurnId).toBeDefined();
+        expect(thinking.items.some((item) => item.type === 'agentMessage')).toBe(false);
+        await service.interrupt(terminal.id);
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'interrupted');
+        expect(done.items.some((item) => item.type === 'agentMessage')).toBe(false);
     });
 
     it('resumes the bound thread with its history after the process stops', async () => {

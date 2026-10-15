@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, Folder, FolderGit2, Plus, X } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import { addProjectStyles as styles } from './add-project-styles';
@@ -30,12 +31,17 @@ const FolderRow = memo(
         onOpen: (level: { name: string; path: string }) => void;
         theme: MobileTheme;
     }) => {
+        const { t } = useTranslation();
         const Icon = entry.isGitRepository ? FolderGit2 : Folder;
         return (
             <View style={styles.row}>
                 <Pressable
-                    accessibilityHint={entry.hasChildren ? 'Opens this folder.' : undefined}
-                    accessibilityLabel={`${entry.name}${entry.isGitRepository ? ', Git repository' : ''}`}
+                    accessibilityHint={entry.hasChildren ? t('projects.openFolderHint') : undefined}
+                    accessibilityLabel={
+                        entry.isGitRepository
+                            ? t('projects.gitRepositoryLabel', { name: entry.name })
+                            : entry.name
+                    }
                     accessibilityRole="button"
                     disabled={!entry.hasChildren}
                     onPress={() => onOpen({ name: entry.name, path: entry.relativePath })}
@@ -50,7 +56,7 @@ const FolderRow = memo(
                 </Pressable>
                 {canAddProjectBrowserEntry(entry) ? (
                     <Pressable
-                        accessibilityLabel={`Add ${entry.name} as a Project`}
+                        accessibilityLabel={t('projects.addAsProject', { name: entry.name })}
                         accessibilityRole="button"
                         disabled={isAdding}
                         onPress={() => {
@@ -65,7 +71,9 @@ const FolderRow = memo(
                         ) : (
                             <Plus color={theme.primary} size={16} />
                         )}
-                        <Text style={[styles.addPillText, { color: theme.primary }]}>Add</Text>
+                        <Text style={[styles.addPillText, { color: theme.primary }]}>
+                            {t('projects.add')}
+                        </Text>
                     </Pressable>
                 ) : null}
             </View>
@@ -81,48 +89,51 @@ const AddProjectFooter = ({
     browser: ReturnType<typeof useProjectBrowser>;
     onAdd: (path: string) => Promise<void>;
     theme: MobileTheme;
-}) => (
-    <View style={[styles.footer, { borderColor: theme.border }]}>
-        {browser.addError ? (
-            <Text
-                accessibilityRole="alert"
-                style={[styles.error, { color: theme.danger }]}
-                testID="add-project-error"
-            >
-                {browser.addError}
-            </Text>
-        ) : null}
-        {canAddProjectBrowserLevel(browser.level) ? (
-            <Pressable
-                accessibilityRole="button"
-                disabled={browser.addingPath !== null || !browser.isConnected}
-                onPress={() => {
-                    const { path } = browser.level;
-                    // eslint-disable-next-line no-void -- The hook renders add failures.
-                    if (path !== null) void onAdd(path);
-                }}
-                style={[
-                    styles.primary,
-                    {
-                        backgroundColor: theme.primary,
-                        opacity: browser.addingPath === null ? 1 : 0.6,
-                    },
-                ]}
-                testID="add-project-add-current"
-            >
-                <Text style={[styles.primaryText, { color: theme.primaryForeground }]}>
-                    {browser.addingPath === browser.level.path
-                        ? 'Adding…'
-                        : `Add “${browser.level.name}”`}
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={[styles.footer, { borderColor: theme.border }]}>
+            {browser.addError ? (
+                <Text
+                    accessibilityRole="alert"
+                    style={[styles.error, { color: theme.danger }]}
+                    testID="add-project-error"
+                >
+                    {browser.addError}
                 </Text>
-            </Pressable>
-        ) : (
-            <Text style={[styles.hint, { color: theme.muted }]}>
-                Open a folder to add it, or tap Add beside one.
-            </Text>
-        )}
-    </View>
-);
+            ) : null}
+            {canAddProjectBrowserLevel(browser.level) ? (
+                <Pressable
+                    accessibilityRole="button"
+                    disabled={browser.addingPath !== null || !browser.isConnected}
+                    onPress={() => {
+                        const { path } = browser.level;
+                        // eslint-disable-next-line no-void -- The hook renders add failures.
+                        if (path !== null) void onAdd(path);
+                    }}
+                    style={[
+                        styles.primary,
+                        {
+                            backgroundColor: theme.primary,
+                            opacity: browser.addingPath === null ? 1 : 0.6,
+                        },
+                    ]}
+                    testID="add-project-add-current"
+                >
+                    <Text style={[styles.primaryText, { color: theme.primaryForeground }]}>
+                        {browser.addingPath === browser.level.path
+                            ? t('projects.adding')
+                            : t('projects.addCurrent', { name: browser.level.name })}
+                    </Text>
+                </Pressable>
+            ) : (
+                <Text style={[styles.hint, { color: theme.muted }]}>
+                    {t('projects.footerHint')}
+                </Text>
+            )}
+        </View>
+    );
+};
 
 /**
  * Browses folders under the computer's home directory and adds one as a Project granted to this device. The Server owns
@@ -131,6 +142,7 @@ const AddProjectFooter = ({
 export const AddProjectScreen = () => {
     const router = useRouter();
     const theme = useMobileTheme();
+    const { t } = useTranslation();
     const browser = useProjectBrowser();
     const { add, addingPath, enter } = browser;
     const addAndClose = useCallback(
@@ -160,7 +172,9 @@ export const AddProjectScreen = () => {
         >
             <View style={styles.header}>
                 <IconButton
-                    accessibilityLabel={browser.canGoUp ? 'Up one folder' : 'Close'}
+                    accessibilityLabel={t(
+                        browser.canGoUp ? 'projects.upOneFolder' : 'common.close',
+                    )}
                     icon={browser.canGoUp ? ChevronLeft : X}
                     onPress={browser.canGoUp ? browser.up : () => router.back()}
                     size={24}
@@ -169,10 +183,12 @@ export const AddProjectScreen = () => {
                 />
                 <View style={styles.headerCopy}>
                     <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
-                        Add Project
+                        {t('projects.title')}
                     </Text>
                     <Text numberOfLines={1} style={[styles.subtitle, { color: theme.muted }]}>
-                        {browser.level.path === null ? 'Home' : `~/${browser.level.path}`}
+                        {browser.level.path === null
+                            ? t('projects.home')
+                            : `~/${browser.level.path}`}
                     </Text>
                 </View>
             </View>
@@ -186,9 +202,11 @@ export const AddProjectScreen = () => {
                             <ActivityIndicator color={theme.muted} />
                         ) : (
                             <Text style={[styles.emptyText, { color: theme.muted }]}>
-                                {browser.listing.isError
-                                    ? 'Unable to list this folder.'
-                                    : 'No folders here.'}
+                                {t(
+                                    browser.listing.isError
+                                        ? 'projects.listError'
+                                        : 'projects.noFolders',
+                                )}
                             </Text>
                         )}
                     </View>
@@ -196,7 +214,7 @@ export const AddProjectScreen = () => {
                 ListFooterComponent={
                     browser.listing.data?.truncated ? (
                         <Text style={[styles.emptyText, { color: theme.muted }]}>
-                            Showing the first {entries.length} folders.
+                            {t('projects.truncated', { count: entries.length })}
                         </Text>
                     ) : null
                 }

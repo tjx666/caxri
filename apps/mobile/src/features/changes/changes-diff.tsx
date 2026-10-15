@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { ChevronLeft } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffLines } from './changes-diff-lines';
 import { changesStyles as styles } from './changes-styles';
@@ -28,11 +29,12 @@ export const ChangesDiff = ({
     state: ChangesDiffState;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     return (
         <View style={styles.root} testID="changes-diff-view">
             <View style={[styles.detailToolbar, { borderColor: theme.border }]}>
                 <Pressable
-                    accessibilityLabel="Back to changed files"
+                    accessibilityLabel={t('changes.backToFiles')}
                     accessibilityRole="button"
                     onPress={onBack}
                     style={styles.back}
@@ -47,14 +49,14 @@ export const ChangesDiff = ({
             {state.isLoading ? (
                 <View style={styles.state} testID="changes-diff-loading">
                     <ActivityIndicator color={theme.primary} />
-                    <Text style={[styles.stateBody, { color: theme.muted }]}>Loading diff…</Text>
+                    <Text style={[styles.stateBody, { color: theme.muted }]}>
+                        {t('changes.diffLoading')}
+                    </Text>
                 </View>
             ) : state.stale ? (
                 <View style={styles.state} testID="changes-diff-stale">
                     <Text style={[styles.stateBody, { color: theme.muted }]}>
-                        {state.isDisconnected
-                            ? 'Reconnect to review this diff.'
-                            : 'This diff is no longer current. Refresh changes and open the file again.'}
+                        {t(state.isDisconnected ? 'changes.diffReconnect' : 'changes.diffOutdated')}
                     </Text>
                 </View>
             ) : state.error ? (
@@ -63,21 +65,23 @@ export const ChangesDiff = ({
                         accessibilityRole="alert"
                         style={[styles.stateBody, { color: theme.danger }]}
                     >
-                        Unable to load this diff.
+                        {t('changes.diffLoadFailed')}
                     </Text>
                     <Pressable
-                        accessibilityLabel="Retry diff"
+                        accessibilityLabel={t('changes.diffRetry')}
                         accessibilityRole="button"
                         onPress={onRetry}
                         style={styles.commit}
                     >
-                        <Text style={[styles.commitText, { color: theme.primary }]}>Retry</Text>
+                        <Text style={[styles.commitText, { color: theme.primary }]}>
+                            {t('common.retry')}
+                        </Text>
                     </Pressable>
                 </View>
             ) : state.unavailable ? (
                 <View style={styles.state} testID="changes-too-large">
                     <Text style={[styles.stateBody, { color: theme.muted }]}>
-                        This file is too large or not text. Review it on your computer.
+                        {t('changes.diffUnavailable')}
                     </Text>
                 </View>
             ) : (

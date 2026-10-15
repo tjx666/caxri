@@ -18,6 +18,8 @@ import {
     splitAgentChatWork,
 } from '@caxri/protocol';
 
+import type { Translate } from '../../i18n';
+import { translate } from '../../i18n';
 import type { DiffLine } from '../changes/changes-model';
 
 /**
@@ -78,6 +80,7 @@ const isWorkItem = (item: AgentChatItem): item is AgentChatWorkItem => WORK_TYPE
 
 const toMessage = (
     item: Extract<AgentChatItem, { type: 'agentMessage' | 'notice' | 'userMessage' }>,
+    t: Translate,
 ): AgentChatMessageEntry => {
     switch (item.type) {
         case 'userMessage':
@@ -89,7 +92,7 @@ const toMessage = (
                 id: item.id,
                 type: 'systemEvent',
                 kind: 'caveat',
-                summary: agentChatNoticeMessage(item).slice(0, 240),
+                summary: agentChatNoticeMessage(item, t).slice(0, 240),
                 ...(item.kind === 'error' && { status: 'failed' as const }),
             };
         }
@@ -99,7 +102,7 @@ const toMessage = (
 /**
  * Visible items as entries, consecutive work grouped into one `work` entry.
  */
-function groupEntries(visible: readonly AgentChatItem[]): AgentChatTimelineEntry[] {
+function groupEntries(visible: readonly AgentChatItem[], t: Translate): AgentChatTimelineEntry[] {
     const entries: AgentChatTimelineEntry[] = [];
     let work: AgentChatWorkItem[] = [];
     const flush = (): void => {
@@ -114,7 +117,7 @@ function groupEntries(visible: readonly AgentChatItem[]): AgentChatTimelineEntry
             continue;
         }
         flush();
-        entries.push({ kind: 'message', id: item.id, message: toMessage(item) });
+        entries.push({ kind: 'message', id: item.id, message: toMessage(item, t) });
     }
     flush();
     return entries;
@@ -130,6 +133,7 @@ function finishedTurnEntries(
     turn: AgentChatTurn,
     artifacts: AgentChatTurnArtifacts | undefined,
     isExpanded: boolean,
+    t: Translate,
 ): AgentChatTimelineEntry[] {
     const finalReplyId = agentChatFinalReplyId(visible);
     const parts = foldAgentChatTurn(visible, finalReplyId);
@@ -139,7 +143,7 @@ function finishedTurnEntries(
         kind: 'turn',
         id: `turn:${turn.id}`,
         turnId: turn.id,
-        label: agentChatTurnLabel(turn),
+        label: agentChatTurnLabel(turn, t),
         status: turn.status,
         ...(fold && { fold }),
     });
@@ -151,11 +155,11 @@ function finishedTurnEntries(
     for (const part of parts) {
         if (part.kind === 'fold') {
             entries.push(row(isExpanded ? 'expanded' : 'collapsed'));
-            if (isExpanded) entries.push(...groupEntries(part.items));
+            if (isExpanded) entries.push(...groupEntries(part.items, t));
             continue;
         }
         if (!hasFold && part.item.id === finalReplyId) entries.push(row(undefined));
-        entries.push(...groupEntries([part.item]));
+        entries.push(...groupEntries([part.item], t));
         if (part.item.id === finalReplyId) entries.push(...artifactsEntry);
     }
     if (!hasFold && finalReplyId === undefined) entries.push(row(undefined));
@@ -175,6 +179,7 @@ export function buildAgentChatTimeline(
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'> &
         Partial<Pick<AgentChatSnapshot, 'truncated'>>,
     expandedTurnIds: ReadonlySet<string> = new Set(),
+    t: Translate = translate,
 ): AgentChatTimelineEntry[] {
     const { activeTurnId, items, turns } = snapshot;
     const finished = new Map(
@@ -199,8 +204,9 @@ export function buildAgentChatTimeline(
                       turn,
                       isComplete ? collectAgentChatTurnArtifacts(turn.id, segment) : undefined,
                       expandedTurnIds.has(turn.id),
+                      t,
                   )
-                : groupEntries(visible)),
+                : groupEntries(visible, t)),
         );
         start = end;
     }
@@ -280,13 +286,14 @@ export function withAgentChatPendingEntries(
         notices: readonly AgentChatItem[];
         timeline: ReadonlyArray<{ id: string; text: string; imageUris: readonly string[] }>;
     },
+    t: Translate = translate,
 ): readonly AgentChatTimelineEntry[] {
     if (pending.notices.length === 0 && pending.timeline.length === 0) return entries;
     return [
         ...entries,
         ...pending.notices.flatMap((notice): AgentChatTimelineEntry[] =>
             notice.type === 'notice'
-                ? [{ kind: 'message', id: `pending:${notice.id}`, message: toMessage(notice) }]
+                ? [{ kind: 'message', id: `pending:${notice.id}`, message: toMessage(notice, t) }]
                 : [],
         ),
         ...pending.timeline.map((message): AgentChatTimelineEntry => ({
@@ -296,4 +303,15 @@ export function withAgentChatPendingEntries(
             imageUris: message.imageUris,
         })),
     ];
+}
+
+/**
+ * Whether a row starts a turn: the user's message, or one still on its way. The list keeps the latest one at the top of
+ * the viewport at its end, as Desktop's Chat rests a sent message.
+ */
+export function isAgentChatTurnStart(entry: AgentChatTimelineEntry): boolean {
+    return (
+        entry.kind === 'pending' ||
+        (entry.kind === 'message' && entry.message.type === 'userMessage')
+    );
 }

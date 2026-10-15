@@ -1,8 +1,7 @@
 import type { AgentChatTask } from '@caxri/protocol';
-import { isCaxriError, parseAgentTaskTab } from '@caxri/protocol';
+import { findAgentChatTask, isCaxriError, parseAgentTaskTab } from '@caxri/protocol';
 
 import { useCaxriQuery } from '../../../queries/client';
-import { findAgentChatTask } from '../agent-chat-tasks';
 
 /**
  * One task's live projection for its tab: the task's own conversation or output (`agentChat.readTask`, kept current by

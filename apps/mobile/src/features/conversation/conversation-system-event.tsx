@@ -17,6 +17,8 @@ import {
     SquareTerminal,
 } from 'lucide-react-native';
 
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles as styles } from './conversation-styles';
 
@@ -44,11 +46,19 @@ const eventIcon = (
     return { Icon: Info, color: theme.muted };
 };
 
-const eventLabel: Record<SystemEvent['kind'], string> = {
-    bashCommand: 'Shell command',
-    caveat: 'Note',
-    slashCommand: 'Command',
-    taskNotification: 'Background task',
+const eventLabel: Record<SystemEvent['kind'], TranslationKey> = {
+    bashCommand: 'conversation.event.bashCommand',
+    caveat: 'conversation.event.caveat',
+    slashCommand: 'conversation.event.slashCommand',
+    taskNotification: 'conversation.event.taskNotification',
+};
+
+const eventStatusLabel: Record<NonNullable<SystemEvent['status']>, TranslationKey> = {
+    completed: 'conversation.event.statusCompleted',
+    failed: 'conversation.event.statusFailed',
+    killed: 'conversation.event.statusKilled',
+    running: 'conversation.event.statusRunning',
+    unknown: 'conversation.event.statusUnknown',
 };
 
 /**
@@ -62,6 +72,7 @@ export const ConversationSystemEvent = ({
     event: SystemEvent;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     // The Conversation's FlashList recycles this row for another event, which starts folded. `isTruncated` is measured
     // from the text itself, so it follows the new text without a reset.
     const [isExpanded, setExpanded] = useRecyclingState(false, [event.id]);
@@ -77,7 +88,7 @@ export const ConversationSystemEvent = ({
     return (
         <View style={styles.message} testID={`conversation-event-${event.id}`}>
             <Pressable
-                accessibilityLabel={`${eventLabel[event.kind]}${event.status ? `, ${event.status}` : ''}: ${event.summary}`}
+                accessibilityLabel={`${t(eventLabel[event.kind])}${event.status ? `, ${t(eventStatusLabel[event.status])}` : ''}: ${event.summary}`}
                 accessibilityRole={canExpand ? 'button' : 'text'}
                 accessibilityState={canExpand ? { expanded: isExpanded } : undefined}
                 disabled={!canExpand}

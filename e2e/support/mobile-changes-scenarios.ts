@@ -17,6 +17,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import { assertMobileComposerDraft } from './mobile-unicode-input';
 
@@ -189,8 +190,8 @@ export async function executeMobileChangesScenario(
 ): Promise<void> {
     const isLimits = environment.caseId === 'MOB-CHANGES-02';
     const fixture = await createMobileAcceptanceFixture({
-        changes: isLimits ? 'limits' : 'standard',
         mode: environment.caseId === 'MOB-CHANGES-04' ? 'waiting' : 'conversation',
+        seedProject: (root) => seedMobileChangesFixture(root, isLimits ? 'limits' : 'standard'),
         serial: environment.serial,
     });
     let originalDisplay: Awaited<ReturnType<typeof mobileDisplayState>> | undefined;

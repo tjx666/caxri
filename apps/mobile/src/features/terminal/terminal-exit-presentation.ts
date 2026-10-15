@@ -1,5 +1,8 @@
 import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
 
+import type { Translate, TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
+
 export interface MobileTerminalExitPresentation {
     label: string;
     tone: 'muted' | 'danger';
@@ -10,12 +13,11 @@ export interface MobileTerminalExitPresentation {
  * (`apps/desktop/src/renderer/src/features/terminal/terminal-exit-presentation.ts`) so a failed Terminal reads the same
  * cause on both surfaces instead of a Runtime-authored string.
  */
-const FAILURE_REASON_LABELS: Record<TerminalFailureReason, string> = {
-    working_directory_unavailable: 'Working directory no longer exists',
-    executable_not_found: 'Agent CLI executable was not found',
-    spawn_failed: 'Terminal process could not be started',
-    agent_session_unavailable:
-        'Original Agent Session could not be restored; check provider state or start fresh',
+const FAILURE_REASON_LABELS: Record<TerminalFailureReason, TranslationKey> = {
+    working_directory_unavailable: 'terminal.exit.failure.workingDirectoryUnavailable',
+    executable_not_found: 'terminal.exit.failure.executableNotFound',
+    spawn_failed: 'terminal.exit.failure.spawnFailed',
+    agent_session_unavailable: 'terminal.exit.failure.agentSessionUnavailable',
 };
 
 /**
@@ -30,25 +32,26 @@ const FAILURE_REASON_LABELS: Record<TerminalFailureReason, string> = {
 export const mobileTerminalExitPresentation = (
     state: Exclude<ProcessState, 'running' | 'starting'>,
     failureReason?: TerminalFailureReason,
+    t: Translate = translate,
 ): MobileTerminalExitPresentation => {
     switch (state) {
         case 'stopped':
-            return { label: 'Terminal has stopped', tone: 'muted' };
+            return { label: t('terminal.exit.stopped'), tone: 'muted' };
         case 'dead':
-            return { label: 'Terminal stopped unexpectedly', tone: 'danger' };
+            return { label: t('terminal.exit.dead'), tone: 'danger' };
         case 'failed':
             return {
-                label: failureReason
-                    ? FAILURE_REASON_LABELS[failureReason]
-                    : 'Terminal exited with an error',
+                label: t(
+                    failureReason ? FAILURE_REASON_LABELS[failureReason] : 'terminal.exit.failed',
+                ),
                 tone: 'danger',
             };
         case 'interrupted':
-            return { label: 'Terminal is restoring on your computer', tone: 'muted' };
+            return { label: t('terminal.exit.interrupted'), tone: 'muted' };
         case 'suspended':
-            return { label: 'Terminal is paused on your computer', tone: 'muted' };
+            return { label: t('terminal.exit.suspended'), tone: 'muted' };
         case 'detached':
-            return { label: 'Terminal was handed off on your computer', tone: 'muted' };
+            return { label: t('terminal.exit.detached'), tone: 'muted' };
     }
 };
 
@@ -57,7 +60,8 @@ export const mobileTerminalExitPresentation = (
  */
 export const primaryTerminalExitPresentation = (
     terminal: { lastProcessState: ProcessState; failureReason?: TerminalFailureReason } | undefined,
+    t: Translate = translate,
 ): MobileTerminalExitPresentation | undefined =>
     terminal && terminal.lastProcessState !== 'running' && terminal.lastProcessState !== 'starting'
-        ? mobileTerminalExitPresentation(terminal.lastProcessState, terminal.failureReason)
+        ? mobileTerminalExitPresentation(terminal.lastProcessState, terminal.failureReason, t)
         : undefined;

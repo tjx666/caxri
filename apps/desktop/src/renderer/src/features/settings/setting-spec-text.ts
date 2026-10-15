@@ -6,8 +6,7 @@ import type {
     settingsSpec,
     StringSettingSpec,
 } from '@caxri/protocol';
-import { settingsSpecByKey } from '@caxri/protocol';
-import { resolveAppLocale } from '@desktop-shared/i18n/locale';
+import { resolveAppLocale, settingsSpecByKey } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { isTranslationKey } from '../../i18n';

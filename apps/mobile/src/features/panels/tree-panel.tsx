@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { MethodResult } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
@@ -31,6 +32,7 @@ const TreeChildren = ({
     theme: MobileTheme;
     viewId: string;
 }) => {
+    const { t } = useTranslation();
     const children = useTreeChildren(sessionId, viewId, parentHandle);
     if (children.isPending)
         return depth === 0 ? (
@@ -46,11 +48,7 @@ const TreeChildren = ({
             children.error.code === 'CONFLICT';
         return (
             <PanelStatus
-                message={
-                    isOtherSession
-                        ? 'Open this Session on your computer to view its details here.'
-                        : 'Unable to load this view.'
-                }
+                message={t(isOtherSession ? 'panels.treeOtherSession' : 'panels.loadFailed')}
                 onRetry={() => {
                     // eslint-disable-next-line no-void -- The query renders its own error state.
                     void children.refetch();
@@ -61,7 +59,9 @@ const TreeChildren = ({
         );
     }
     if (depth === 0 && children.data.items.length === 0)
-        return <PanelStatus message="Nothing to show." testID="tree-panel-empty" theme={theme} />;
+        return (
+            <PanelStatus message={t('panels.treeEmpty')} testID="tree-panel-empty" theme={theme} />
+        );
     return (
         <>
             {children.data.items.map((item) => (

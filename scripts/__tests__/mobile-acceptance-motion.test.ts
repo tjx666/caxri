@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { prepareMobileReducedMotion } from '../mobile-acceptance-motion';
+import { prepareMobileLiveMotion, prepareMobileReducedMotion } from '../mobile-acceptance-motion';
 
 describe('mobile acceptance reduced motion', () => {
     it('removes transition animations for the batch and restores the previous scale once', () => {
@@ -35,6 +35,21 @@ describe('mobile acceptance reduced motion', () => {
                 readDevice: () => '1.0',
                 runDevice: () => {},
             }),
-        ).toThrow('Reduced motion requires an explicit disposable emulator');
+        ).toThrow('Motion settings require an explicit disposable emulator');
+    });
+
+    it('turns animations on for one live-motion case and returns to the batch setting', () => {
+        const actions: string[] = [];
+        const restore = prepareMobileLiveMotion('emulator-5554', {
+            readDevice: () => '0\n',
+            runDevice: (arguments_) => actions.push(arguments_.join(' ')),
+        });
+        restore();
+        restore();
+
+        expect(actions).toEqual([
+            'shell settings put global transition_animation_scale 1',
+            'shell settings put global transition_animation_scale 0',
+        ]);
     });
 });

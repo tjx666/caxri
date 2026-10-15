@@ -1,13 +1,16 @@
 import type { KeyboardEvent } from 'react';
 
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
-import { AGENT_CHAT_GOAL_COMMAND, agentChatDraftWithReturnedMessage } from '@caxri/protocol';
+import {
+    AGENT_CHAT_GOAL_COMMAND,
+    agentChatDraftWithReturnedMessage,
+    completeAgentChatAction,
+} from '@caxri/protocol';
 
 import { agentChatCompactCommand } from '../agent-chat-context';
 import { setAgentChatGoalMode, useAgentChatGoalModeStore } from '../agent-chat-goal-mode';
 import {
     agentChatGoalModeDraft,
-    completeAgentChatAction,
     isAgentChatGoalAction,
     isAgentChatGoalOffered,
 } from '../agent-chat-slash-commands';

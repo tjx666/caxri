@@ -2,14 +2,20 @@ import { useCallback, useMemo } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import { FlatList, Pressable, Text } from 'react-native';
 
+import type { TranslationKey } from '../../i18n';
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import type { TerminalKey } from './key-input';
 import { terminalViewStyles as styles } from './terminal-view-styles';
 
+/**
+ * Key caps (`Esc`, `Tab`, `Ctrl`, `Enter`) and their spoken names stay untranslated because they name physical keys;
+ * every other entry's label or spoken name is a translation key.
+ */
 interface KeyEntry {
     key: TerminalKey | 'paste';
-    label: string;
-    name: string;
+    label: string | { key: TranslationKey };
+    name: string | { key: TranslationKey };
 }
 
 interface TerminalKeyBarProperties {
@@ -24,15 +30,15 @@ const keys: KeyEntry[] = [
     { key: 'escape', label: 'Esc', name: 'Escape' },
     { key: 'tab', label: 'Tab', name: 'Tab' },
     { key: 'ctrl', label: 'Ctrl', name: 'Control' },
-    { key: 'up', label: '↑', name: 'Arrow up' },
-    { key: 'down', label: '↓', name: 'Arrow down' },
-    { key: 'left', label: '←', name: 'Arrow left' },
-    { key: 'right', label: '→', name: 'Arrow right' },
-    { key: '1', label: '1', name: 'One' },
-    { key: '2', label: '2', name: 'Two' },
-    { key: '3', label: '3', name: 'Three' },
+    { key: 'up', label: '↑', name: { key: 'terminal.key.arrowUp' } },
+    { key: 'down', label: '↓', name: { key: 'terminal.key.arrowDown' } },
+    { key: 'left', label: '←', name: { key: 'terminal.key.arrowLeft' } },
+    { key: 'right', label: '→', name: { key: 'terminal.key.arrowRight' } },
+    { key: '1', label: '1', name: { key: 'terminal.key.one' } },
+    { key: '2', label: '2', name: { key: 'terminal.key.two' } },
+    { key: '3', label: '3', name: { key: 'terminal.key.three' } },
     { key: 'enter', label: 'Enter', name: 'Enter' },
-    { key: 'paste', label: 'Paste', name: 'Paste from clipboard' },
+    { key: 'paste', label: { key: 'terminal.key.paste' }, name: { key: 'terminal.key.pasteName' } },
 ];
 
 const keyExtractor = (item: KeyEntry): string => item.key;
@@ -45,6 +51,9 @@ const TerminalKeyButton = ({
     onPaste,
     theme,
 }: TerminalKeyBarProperties & { item: KeyEntry }) => {
+    const { t } = useTranslation();
+    const text = (value: KeyEntry['label']): string =>
+        typeof value === 'string' ? value : t(value.key);
     const selected = item.key === 'ctrl' && ctrl;
     const accessibilityState = useMemo(
         () => ({ disabled: !canControl, selected }),
@@ -71,12 +80,10 @@ const TerminalKeyButton = ({
 
     return (
         <Pressable
-            accessibilityHint={
-                item.key === 'ctrl'
-                    ? 'Applies Control to the next Terminal key only.'
-                    : 'Sends this key to the Terminal.'
-            }
-            accessibilityLabel={item.name}
+            accessibilityHint={t(
+                item.key === 'ctrl' ? 'terminal.key.ctrlHint' : 'terminal.key.sendHint',
+            )}
+            accessibilityLabel={text(item.name)}
             accessibilityRole="button"
             accessibilityState={accessibilityState}
             disabled={!canControl}
@@ -84,7 +91,7 @@ const TerminalKeyButton = ({
             style={buttonStyle}
             testID={`terminal-key-${item.key}`}
         >
-            <Text style={labelStyle}>{item.label}</Text>
+            <Text style={labelStyle}>{text(item.label)}</Text>
         </Pressable>
     );
 };

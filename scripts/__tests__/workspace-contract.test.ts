@@ -354,6 +354,7 @@ describe('pnpm workspace contract', () => {
         expect(cliManifest.name).toBe('@caxri/cli');
         expect(protocolManifest.dependencies).toEqual({
             '@caxri/utils': 'workspace:*',
+            'fuse.js': '^7.5.0',
             'zod': 'catalog:',
         });
         expect(rootManifest.devDependencies?.['@caxri/cli']).toBeUndefined();

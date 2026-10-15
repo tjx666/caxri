@@ -1,0 +1,15 @@
+export const browser = {
+    'browser.back': 'Back',
+    'browser.close': 'Close browser',
+    'browser.closeMenu': 'Close page menu',
+    'browser.copied': 'Link copied',
+    'browser.copyLink': 'Copy link',
+    'browser.errorBody': 'Check the connection, then reload.',
+    'browser.errorTitle': "Couldn't load this page",
+    'browser.menu': 'Page menu',
+    'browser.menuHint': 'Copy, share, or open the page in another browser.',
+    'browser.openExternal': 'Open in browser',
+    'browser.reload': 'Reload',
+    'browser.share': 'Share',
+    'browser.stop': 'Stop loading',
+} as const;

@@ -14,15 +14,8 @@ export const agentChatChanges = {
     'agentChat.changes.openInEditor': 'Open in Editor',
     'agentChat.changes.openPathInEditor': 'Open {{path}} in Editor',
     'agentChat.changes.truncated': 'Truncated',
-    'agentChat.diff.kind.add': 'Added',
-    'agentChat.diff.kind.delete': 'Deleted',
-    'agentChat.diff.kind.update': 'Modified',
 
     // Turn changes card
-    'agentChat.artifacts.editedFiles': 'Edited {{count}} files',
-    'agentChat.artifacts.createdFile': 'Created {{name}}',
-    'agentChat.artifacts.deletedFile': 'Deleted {{name}}',
-    'agentChat.artifacts.editedFile': 'Edited {{name}}',
     'agentChat.changes.showFileChanges': 'Show changes: {{path}}, {{stat}}',
     'agentChat.changes.hideFileChanges': 'Hide changes: {{path}}, {{stat}}',
     'agentChat.changes.viewAllWithStat': 'View changes, {{stat}}',

@@ -1,10 +1,9 @@
 import { useMemo } from 'react';
 
-import type { AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatOlderHistory, AgentChatSnapshot } from '@caxri/protocol';
+import { hasOlderAgentChatHistory, splitAgentChatHistory } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
-import type { AgentChatOlderHistory } from '../agent-chat-history';
-import { hasOlderAgentChatHistory, splitAgentChatHistory } from '../agent-chat-history';
 import type { AgentChatRailMark } from '../agent-chat-rail-marks';
 import { agentChatRailMarks, sampleAgentChatRailMarks } from '../agent-chat-rail-marks';
 import type { AgentChatSettledChunk } from '../agent-chat-settled-chunks';

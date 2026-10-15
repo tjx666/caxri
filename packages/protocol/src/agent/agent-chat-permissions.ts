@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import { CaxriError } from '../transport/errors.js';
 import type { AgentChatSnapshot } from './agent-chat-contract.js';
+import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { isAgentChatLabelKey, translateAgentChatLabel } from './agent-chat-labels.js';
 import type { AgentProvider } from './agents.js';
 import { agentProviderIds } from './agents.js';
 
@@ -225,62 +227,31 @@ export function agentChatPermissionSelectionView<Snapshot extends PermissionSnap
     };
 }
 
-const PERMISSION_MODE_LABELS: Record<AgentChatPermissionMode, string> = {
-    readOnly: 'Read only',
-    ask: 'Ask for approval',
-    acceptEdits: 'Accept edits',
-    auto: 'Auto',
-    fullAccess: 'Full access',
-};
-
 /**
- * Codex names its workspace-write preset "Default"; keeping its own word avoids implying Codex asks before every edit.
- */
-const PROVIDER_LABELS: Partial<
-    Record<AgentProvider, Partial<Record<AgentChatPermissionMode, string>>>
-> = {
-    codex: { acceptEdits: 'Default' },
-};
-
-/**
- * The menu and trigger name of one level, in the provider's own words where it has them.
+ * The menu and trigger name of one level, in the provider's own words where it has them: Codex names its
+ * workspace-write preset "Default", and keeping its own word avoids implying Codex asks before every edit.
  */
 export function agentChatPermissionModeLabel(
     mode: AgentChatPermissionMode,
     provider?: AgentProvider,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
-    return (provider && PROVIDER_LABELS[provider]?.[mode]) ?? PERMISSION_MODE_LABELS[mode];
+    return t(
+        provider === 'codex' && mode === 'acceptEdits'
+            ? 'agentChat.permission.mode.codexDefault'
+            : `agentChat.permission.mode.${mode}`,
+    );
 }
 
-const PERMISSION_MODE_DESCRIPTIONS: Record<
-    AgentProvider,
-    Partial<Record<AgentChatPermissionMode, string>>
-> = {
-    claude: {
-        ask: 'Asks before edits and commands',
-        acceptEdits: 'Edits files without asking',
-        auto: 'A classifier approves safe actions',
-        fullAccess: 'Runs every tool without asking',
-    },
-    codex: {
-        readOnly: 'Reads files; asks before any change',
-        acceptEdits: 'Edits in the workspace; asks to go further',
-        auto: 'A reviewer agent handles approvals',
-        fullAccess: 'No sandbox and no approvals',
-    },
-    grok: {
-        ask: 'Asks before edits and commands',
-        auto: 'A classifier approves safe actions',
-        fullAccess: 'Runs every tool without asking',
-    },
-};
-
 /**
- * One line under a level in the menu, saying what it means for this provider.
+ * One line under a level in the menu, saying what it means for this provider; `undefined` when the provider does not
+ * offer the level.
  */
 export function agentChatPermissionModeDescription(
     provider: AgentProvider,
     mode: AgentChatPermissionMode,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string | undefined {
-    return PERMISSION_MODE_DESCRIPTIONS[provider][mode];
+    const key = `agentChat.permission.description.${provider}.${mode}`;
+    return isAgentChatLabelKey(key) ? t(key) : undefined;
 }

@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { NewSessionViewState } from '../hooks/use-new-session';
 import { newSessionStyles as styles } from './new-session-styles';
@@ -11,6 +12,7 @@ export const NewSessionStatus = ({
     state: NewSessionViewState;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const isEmpty = state.isDashboardLoaded && !state.dashboardError && state.projects.length === 0;
     return (
         <>
@@ -21,9 +23,11 @@ export const NewSessionStatus = ({
                         <ActivityIndicator color={theme.primary} />
                     ) : null}
                     <Text style={[styles.message, { color: theme.muted }]}>
-                        {state.status === 'connected'
-                            ? 'Loading Projects…'
-                            : 'Reconnect to load Projects.'}
+                        {t(
+                            state.status === 'connected'
+                                ? 'sessions.new.projectsLoading'
+                                : 'sessions.new.projectsReconnect',
+                        )}
                     </Text>
                 </View>
             ) : null}
@@ -33,7 +37,7 @@ export const NewSessionStatus = ({
                         accessibilityRole="alert"
                         style={[styles.message, { color: theme.danger }]}
                     >
-                        Unable to load Projects.
+                        {t('sessions.new.projectsFailed')}
                     </Text>
                     <Pressable
                         accessibilityRole="button"
@@ -41,17 +45,19 @@ export const NewSessionStatus = ({
                         style={styles.secondaryAction}
                         testID="new-session-project-retry"
                     >
-                        <Text style={[styles.secondaryText, { color: theme.primary }]}>Retry</Text>
+                        <Text style={[styles.secondaryText, { color: theme.primary }]}>
+                            {t('common.retry')}
+                        </Text>
                     </Pressable>
                 </View>
             ) : null}
             {isEmpty ? (
                 <View style={styles.status} testID="new-session-no-projects">
                     <Text style={[styles.message, { color: theme.text }]}>
-                        No Projects available
+                        {t('sessions.new.noProjectsTitle')}
                     </Text>
                     <Text style={[styles.message, { color: theme.muted }]}>
-                        Grant a Project in Caxri on your computer under Settings → Mobile.
+                        {t('sessions.new.noProjectsBody')}
                     </Text>
                 </View>
             ) : null}

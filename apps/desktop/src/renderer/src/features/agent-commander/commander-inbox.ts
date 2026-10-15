@@ -1,5 +1,5 @@
-import type { CommanderInboxItem, CommanderInboxKind } from '@caxri/protocol';
-import { isCommanderInboxQuestion } from '@caxri/protocol';
+import type { CommanderInboxItem } from '@caxri/protocol';
+import { commanderInboxKindLabel, isCommanderInboxQuestion } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
@@ -112,30 +112,6 @@ export function commanderInboxMergeState(
 }
 
 /**
- * The item's kind in the interface language: the localized counterpart of `@caxri/protocol`'s
- * `commanderInboxKindLabel`, which stays English for the phone and the CLI.
- */
-export function commanderInboxKindText(kind: CommanderInboxKind, t: Translate = translate): string {
-    return t(`agentCommander.inbox.kind.${kind}`);
-}
-
-/**
- * Whether the Commander has read the owner's latest reply, worded in the interface language; the localized counterpart
- * of `@caxri/protocol`'s `commanderInboxReplyState`. Undefined until the owner replied.
- */
-export function commanderInboxReplyText(
-    replyState: { isRead: boolean } | undefined,
-    t: Translate = translate,
-): string | undefined {
-    if (!replyState) return undefined;
-    return t(
-        replyState.isRead
-            ? 'agentCommander.inbox.replyState.read'
-            : 'agentCommander.inbox.replyState.delivered',
-    );
-}
-
-/**
  * Open items whose title or kind contains the query, case-insensitively, in Inbox order.
  */
 export function inboxMentionCandidates(
@@ -149,7 +125,7 @@ export function inboxMentionCandidates(
             item.status === 'open' &&
             (needle === '' ||
                 item.title.toLocaleLowerCase().includes(needle) ||
-                commanderInboxKindText(item.kind, t).toLocaleLowerCase().includes(needle)),
+                commanderInboxKindLabel(item.kind, t).toLocaleLowerCase().includes(needle)),
     );
 }
 
@@ -188,7 +164,7 @@ export function inboxMentionSuggestion(
         key: item.id,
         label: item.title,
         isLabelLiteral: false,
-        description: commanderInboxKindText(item.kind, t),
+        description: commanderInboxKindLabel(item.kind, t),
     };
 }
 

@@ -1,6 +1,7 @@
 import { agentChatSelectionView } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { setLocale } from '../../../i18n/locale-store';
 import {
     agentChatConfigureFailureMessage,
     agentChatConfigureScope,
@@ -41,6 +42,23 @@ describe('Agent Chat model choice', () => {
         expect(agentChatModelTrigger({ model: 'gpt-raw' }, true)).toMatchObject({
             model: 'gpt-raw',
             isInteractive: false,
+        });
+    });
+
+    describe('in Chinese', () => {
+        afterEach(() => setLocale('en'));
+
+        it('names the provider default and the effort in the reader language', () => {
+            setLocale('zh-CN');
+            expect(agentChatModelTrigger({ effort: 'medium', models }, true)).toMatchObject({
+                model: '默认',
+                effort: '中',
+            });
+            expect(
+                agentChatModelOptions({ model: 'opus', models }).efforts.map(
+                    (effort) => effort.label,
+                ),
+            ).toEqual(['低', '高', '超高']);
         });
     });
 

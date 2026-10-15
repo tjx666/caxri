@@ -1,5 +1,7 @@
 import { CaxriError } from '../transport/errors.js';
 import type { AgentChatModel, AgentChatSnapshot } from './agent-chat-contract.js';
+import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
+import { isAgentChatLabelKey, translateAgentChatLabel } from './agent-chat-labels.js';
 
 /**
  * The listed model a provider-reported model identifier belongs to. Claude Code lists aliases (`opus`) but reports the
@@ -223,23 +225,18 @@ function closestEffort(
 }
 
 /**
- * Display names for the effort levels the providers use; an unknown level is shown capitalized.
+ * The display name of one effort level, shared by the Desktop menu and the phone sheet. The known levels come from the
+ * shared label catalog in the reader's language (`t`, English by default); a level the catalog does not name is shown
+ * capitalized.
  */
-const EFFORT_LABELS: Record<string, string> = {
-    none: 'None',
-    minimal: 'Minimal',
-    low: 'Low',
-    medium: 'Medium',
-    high: 'High',
-    xhigh: 'Extra high',
-    max: 'Max',
-};
-
-/**
- * The display name of one effort level, shared by the Desktop menu and the phone sheet.
- */
-export function agentChatEffortLabel(effort: string): string {
-    return EFFORT_LABELS[effort] ?? `${effort.charAt(0).toUpperCase()}${effort.slice(1)}`;
+export function agentChatEffortLabel(
+    effort: string,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string {
+    const key = `agentChat.model.effort.${effort}`;
+    return isAgentChatLabelKey(key)
+        ? t(key)
+        : `${effort.charAt(0).toUpperCase()}${effort.slice(1)}`;
 }
 
 /**

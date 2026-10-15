@@ -1,11 +1,10 @@
 import type { RefObject } from 'react';
 import { useLayoutEffect, useRef } from 'react';
 
-import type { AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatOlderHistory, AgentChatSnapshot } from '@caxri/protocol';
+import { hasOlderAgentChatHistory } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-import type { AgentChatOlderHistory } from '../agent-chat-history';
-import { hasOlderAgentChatHistory } from '../agent-chat-history';
 import {
     agentChatHistoryQueryKey,
     cachedAgentChatHistory,

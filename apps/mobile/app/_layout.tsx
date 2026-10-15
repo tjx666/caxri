@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AppState, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -12,6 +12,7 @@ import { RouteErrorScreen } from '../src/components/route-error-screen';
 import { MobileClientProvider } from '../src/features/connection/mobile-client-provider';
 import { expoReadCache } from '../src/features/read-cache/expo-read-cache';
 import { ReadCacheContext } from '../src/features/read-cache/read-cache-context';
+import { syncSystemLocale } from '../src/i18n';
 
 const styles = StyleSheet.create({ root: { flex: 1 } });
 
@@ -39,7 +40,16 @@ export default function RootLayout() {
     ) {
         throw new Error('Acceptance route render fault');
     }
+    // Resolve the language before any screen renders, so the first paint is never English followed by a switch.
+    useState(syncSystemLocale);
     const [queryClient] = useState(() => new QueryClient());
+    // The reader can change the system language while Caxri is in the background; follow it on return.
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') syncSystemLocale();
+        });
+        return () => subscription.remove();
+    }, []);
     return (
         <GestureHandlerRootView style={styles.root}>
             <SafeAreaProvider>
@@ -53,6 +63,15 @@ export default function RootLayout() {
                                 {/* Boot and pairing redirects land on the host; sliding a whole new app in reads as a jump. */}
                                 <Stack.Screen name="h/[host-id]" options={{ animation: 'fade' }} />
                                 <Stack.Screen name="sessions" options={{ animation: 'none' }} />
+                                {/* The in-app browser slides over whatever opened it and returns there when closed. */}
+                                <Stack.Screen
+                                    name="browser"
+                                    options={{
+                                        animation: 'slide_from_bottom',
+                                        gestureEnabled: true,
+                                        presentation: 'fullScreenModal',
+                                    }}
+                                />
                             </Stack>
                         </MobileClientProvider>
                     </ReadCacheContext.Provider>

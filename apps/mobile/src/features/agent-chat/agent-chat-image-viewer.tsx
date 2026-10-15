@@ -8,6 +8,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { X } from 'lucide-react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatImageTarget, AgentChatViewerSwipe } from './agent-chat-images';
 import {
@@ -46,6 +47,7 @@ const ZoomableImage = ({
     onSwipe: (swipe: AgentChatViewerSwipe) => void;
     uri: string;
 }) => {
+    const { t } = useTranslation();
     const scale = useSharedValue(1);
     const savedScale = useSharedValue(1);
     const translateX = useSharedValue(0);
@@ -129,7 +131,7 @@ const ZoomableImage = ({
         });
     // As in Paseo's viewport, a drag or pinch wins over the double tap instead of all three racing for one touch.
     const gesture = Gesture.Exclusive(Gesture.Simultaneous(pan, pinch), doubleTap);
-    const a11y = agentChatViewerAccessibility(canTurnTo);
+    const a11y = agentChatViewerAccessibility(canTurnTo, t);
     const style = useAnimatedStyle(() => ({
         transform: [
             { translateX: translateX.value },
@@ -291,13 +293,14 @@ const ViewerContent = ({
     target: Omit<AgentChatImageTarget, 'variant'>;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const original = useAgentChatImage({ ...target, variant: 'original' });
     // Already loaded by the message strip; it stands in while the original loads, and when the provider's record has
     // no original (Codex).
     const thumbnail = useAgentChatImage({ ...target, variant: 'thumbnail' });
-    const content = agentChatViewerContent(original, thumbnail.uri);
-    const position = `image ${target.index + 1} of this message`;
+    const content = agentChatViewerContent(original, thumbnail.uri, t);
+    const number = target.index + 1;
     return (
         <GestureHandlerRootView
             style={[styles.backdrop, { backgroundColor: theme.scrim }]}
@@ -306,7 +309,7 @@ const ViewerContent = ({
             {content.placeholderUri ? (
                 <Image
                     accessibilityIgnoresInvertColors
-                    accessibilityLabel={`Preview of ${position}`}
+                    accessibilityLabel={t('chat.image.preview', { number })}
                     resizeMode="contain"
                     source={{ uri: content.placeholderUri }}
                     style={[styles.fill, styles.placeholder]}
@@ -315,9 +318,10 @@ const ViewerContent = ({
             ) : null}
             {content.imageUri ? (
                 <ZoomableImage
-                    accessibilityLabel={
-                        content.isPreview ? `Preview of ${position}` : `Full size ${position}`
-                    }
+                    accessibilityLabel={t(
+                        content.isPreview ? 'chat.image.preview' : 'chat.image.fullSize',
+                        { number },
+                    )}
                     canTurnTo={canTurnTo}
                     onSwipe={onSwipe}
                     uri={content.imageUri}
@@ -330,7 +334,7 @@ const ViewerContent = ({
                     style={[styles.note, { bottom: insets.bottom + 24, color: theme.onScrimMuted }]}
                     testID="agent-chat-image-viewer-preview-note"
                 >
-                    Showing a preview. The full-size image is not available.
+                    {t('chat.image.previewNote')}
                 </Text>
             ) : null}
             {original.isLoading ? (
@@ -350,14 +354,16 @@ const ViewerContent = ({
                     <Text style={[styles.status, { color: theme.onScrim }]}>{content.message}</Text>
                     {original.isError ? (
                         <Pressable
-                            accessibilityHint="Loads the full-size image again."
-                            accessibilityLabel="Retry loading the image"
+                            accessibilityHint={t('chat.image.retryHint')}
+                            accessibilityLabel={t('chat.image.retryLabel')}
                             accessibilityRole="button"
                             onPress={original.retry}
                             style={[styles.retry, { backgroundColor: theme.elevated }]}
                             testID="agent-chat-image-viewer-retry"
                         >
-                            <Text style={[styles.retryText, { color: theme.text }]}>Retry</Text>
+                            <Text style={[styles.retryText, { color: theme.text }]}>
+                                {t('common.retry')}
+                            </Text>
                         </Pressable>
                     ) : null}
                 </View>
@@ -372,7 +378,7 @@ const ViewerContent = ({
                 </Text>
             ) : null}
             <Pressable
-                accessibilityLabel="Close image"
+                accessibilityLabel={t('chat.image.close')}
                 accessibilityRole="button"
                 hitSlop={12}
                 onPress={onClose}

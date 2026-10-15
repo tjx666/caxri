@@ -10,8 +10,8 @@ import {
     interruptAndroidScreenrecord,
     startMobileAcceptanceRecording,
 } from '../../scripts/mobile-acceptance-runtime.ts';
-import type { AndroidDisplayState } from '../../scripts/mobile-android-cases.ts';
-import { parseAndroidDisplayState } from '../../scripts/mobile-android-cases.ts';
+import type { AndroidDisplayState } from '../../scripts/mobile-android-display-state.ts';
+import { parseAndroidDisplayState } from '../../scripts/mobile-android-display-state.ts';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(import.meta.dirname, '../..');
@@ -97,11 +97,13 @@ export const pushMobileFixture = (
     runMobileDeviceCommand(adb, ['-s', serial, 'push', localPath, remotePath], 'capture');
 
 /**
- * Reads only a fixed native control's bounds; the raw accessibility tree never leaves the device probe.
+ * Reads only a fixed native control's bounds; the raw accessibility tree never leaves the device probe. The query must
+ * match exactly one node; `className` narrows a text that another node also exposes, such as a page title the WebView
+ * reports as its own text.
  */
-async function mobileNativeControlBounds(
+export async function mobileNativeControlBounds(
     serial: string,
-    query: { text?: string; resourceId?: string; singleImageTile?: boolean },
+    query: { className?: string; text?: string; resourceId?: string; singleImageTile?: boolean },
 ): Promise<ReturnType<typeof androidBounds>> {
     const dumpPath = '/data/local/tmp/caxri-acceptance-native.xml';
     let source: string;
@@ -126,6 +128,7 @@ async function mobileNativeControlBounds(
                 const height = tile.bottom - tile.top;
                 return width >= 200 && height >= 200 && Math.abs(width - height) <= 2;
             }
+            if (query.className && !node.includes(`class="${query.className}"`)) return false;
             const attribute = query.text ? 'text' : 'resource-id';
             const value = query.text ?? query.resourceId;
             return new RegExp(String.raw`\b${attribute}="([^"]*)"`, 'u').exec(node)?.[1] === value;
@@ -384,15 +387,20 @@ export async function openMobilePairingLink(serial: string, pairingLink: string)
     }
 }
 
+interface FramebufferBounds {
+    bottom: number;
+    left: number;
+    right: number;
+    top: number;
+}
+
 /**
- * Hashes only the framebuffer rows and columns inside `bounds`, so a status-bar clock or an unrelated animation
- * elsewhere on screen cannot make two frames of an unchanged region look different. Raw `screencap` output is a small
- * header followed by RGBA pixels; the header length differs across Android releases, so it is derived from the size.
+ * Reads one raw framebuffer. Raw `screencap` output is a small header followed by RGBA pixels; the header length
+ * differs across Android releases, so it is derived from the size.
  */
-export async function mobileRegionFingerprint(
+async function readRawFramebuffer(
     serial: string,
-    bounds: { bottom: number; left: number; right: number; top: number },
-): Promise<string> {
+): Promise<{ frame: Buffer; header: number; height: number; width: number }> {
     const result = await execFileAsync(adb, ['-s', serial, 'exec-out', 'screencap'], {
         cwd: projectRoot,
         encoding: 'buffer',
@@ -404,6 +412,18 @@ export async function mobileRegionFingerprint(
     const header = frame.length - width * height * 4;
     if (header < 12 || header > 16)
         throw new Error('Android raw framebuffer has an unknown layout');
+    return { frame, header, height, width };
+}
+
+/**
+ * Hashes only the framebuffer rows and columns inside `bounds`, so a status-bar clock or an unrelated animation
+ * elsewhere on screen cannot make two frames of an unchanged region look different.
+ */
+export async function mobileRegionFingerprint(
+    serial: string,
+    bounds: FramebufferBounds,
+): Promise<string> {
+    const { frame, header, height, width } = await readRawFramebuffer(serial);
     const hash = createHash('sha256');
     for (let row = Math.max(0, bounds.top); row < Math.min(height, bounds.bottom); row += 1) {
         const start = header + (row * width + Math.max(0, bounds.left)) * 4;
@@ -415,6 +435,43 @@ export async function mobileRegionFingerprint(
         );
     }
     return hash.digest('hex');
+}
+
+/**
+ * The box around every pixel inside `bounds` within `tolerance` of `color` (`#rrggbb`) on each channel, or `undefined`
+ * when none matches. It finds a control by its color on a screen UIAutomator cannot read because it never idles.
+ */
+export async function mobileColorBounds(
+    serial: string,
+    bounds: FramebufferBounds,
+    color: string,
+    tolerance = 24,
+): Promise<FramebufferBounds | undefined> {
+    const target = [1, 3, 5].map((offset) => Number.parseInt(color.slice(offset, offset + 2), 16));
+    const { frame, header, height, width } = await readRawFramebuffer(serial);
+    let found: FramebufferBounds | undefined;
+    for (let row = Math.max(0, bounds.top); row < Math.min(height, bounds.bottom); row += 1)
+        for (
+            let column = Math.max(0, bounds.left);
+            column < Math.min(width, bounds.right);
+            column += 1
+        ) {
+            const pixel = header + (row * width + column) * 4;
+            if (
+                target.every(
+                    (value, channel) => Math.abs(frame[pixel + channel] - value) <= tolerance,
+                )
+            )
+                found = found
+                    ? {
+                          bottom: Math.max(found.bottom, row + 1),
+                          left: Math.min(found.left, column),
+                          right: Math.max(found.right, column + 1),
+                          top: Math.min(found.top, row),
+                      }
+                    : { bottom: row + 1, left: column, right: column + 1, top: row };
+        }
+    return found;
 }
 
 export async function captureMobileFramebuffer(serial: string, path: string): Promise<void> {

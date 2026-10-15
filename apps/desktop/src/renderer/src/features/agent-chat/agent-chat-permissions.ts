@@ -5,35 +5,9 @@ import type {
     AgentProvider,
     ProjectChatDefaults,
 } from '@caxri/protocol';
-import { agentChatPermissionModeDescription } from '@caxri/protocol';
+import { agentChatPermissionModeLabel } from '@caxri/protocol';
 
-import { isTranslationKey, translate } from '../../i18n';
-
-/**
- * The menu and trigger name of one level, translated. Codex names its workspace-write preset "Default"
- * (`agentChatPermissionModeLabel`), which keeps its own key.
- */
-export function agentChatPermissionModeName(
-    mode: AgentChatPermissionMode,
-    provider?: AgentProvider,
-): string {
-    if (provider === 'codex' && mode === 'acceptEdits')
-        return translate('agentChat.permission.mode.codexDefault');
-    return translate(`agentChat.permission.mode.${mode}`);
-}
-
-/**
- * One line under a level in the menu, translated where the key exists and otherwise the protocol's English line.
- */
-export function agentChatPermissionModeHint(
-    provider: AgentProvider,
-    mode: AgentChatPermissionMode,
-): string | undefined {
-    const key = `agentChat.permission.description.${provider}.${mode}`;
-    return isTranslationKey(key)
-        ? translate(key)
-        : agentChatPermissionModeDescription(provider, mode);
-}
+import { translate } from '../../i18n';
 
 /**
  * The composer's permission trigger: the level's name, or "Custom" for launch settings no level matches.
@@ -43,7 +17,7 @@ export function agentChatPermissionLabel(
     provider: AgentProvider,
 ): string {
     return snapshot.permissionMode
-        ? agentChatPermissionModeName(snapshot.permissionMode, provider)
+        ? agentChatPermissionModeLabel(snapshot.permissionMode, provider, translate)
         : translate('agentChat.permission.custom');
 }
 

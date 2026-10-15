@@ -12,6 +12,7 @@ import {
 import type { MethodResult } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import type { AttentionAnswerDraft } from './attention-answer';
@@ -59,7 +60,9 @@ const AttentionQuestionFields = ({
     questionIndex: number;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const selectedOptions = new Set(draft.selectedOptions);
+    const isLastQuestion = questionIndex + 1 >= questionCount;
     return (
         <View style={{ gap: 8 }}>
             <Text style={{ color: theme.text }}>{question.question}</Text>
@@ -86,9 +89,9 @@ const AttentionQuestionFields = ({
             {canAnswer ? (
                 <>
                     <TextInput
-                        accessibilityLabel="Your answer"
+                        accessibilityLabel={t('conversation.attention.answerLabel')}
                         onChangeText={onFreeTextChange}
-                        placeholder="Or enter your own answer"
+                        placeholder={t('conversation.attention.answerPlaceholder')}
                         placeholderTextColor={theme.muted}
                         style={{
                             color: theme.text,
@@ -100,9 +103,11 @@ const AttentionQuestionFields = ({
                         testID="attention-answer-input"
                     />
                     <Pressable
-                        accessibilityLabel={
-                            questionIndex + 1 < questionCount ? 'Next question' : 'Submit answers'
-                        }
+                        accessibilityLabel={t(
+                            isLastQuestion
+                                ? 'conversation.attention.submitAnswers'
+                                : 'conversation.attention.nextQuestion',
+                        )}
                         accessibilityRole="button"
                         accessibilityState={{ disabled: isAttentionAnswerDraftEmpty(draft) }}
                         disabled={isAttentionAnswerDraftEmpty(draft)}
@@ -111,7 +116,11 @@ const AttentionQuestionFields = ({
                         onPress={advance}
                     >
                         <Text style={{ color: theme.primary }}>
-                            {questionIndex + 1 < questionCount ? 'Next' : 'Submit'}
+                            {t(
+                                isLastQuestion
+                                    ? 'conversation.attention.submit'
+                                    : 'conversation.attention.next',
+                            )}
                         </Text>
                     </Pressable>
                 </>
@@ -140,6 +149,7 @@ const AttentionCard = ({
     ) => Promise<void>;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [questionIndex, setQuestionIndex] = useState(0);
     const answers = useRef<Record<string, AttentionAnswerDraft>>({});
     const [draft, setDraft] = useState<AttentionAnswerDraft>(emptyAttentionAnswerDraft);
@@ -158,7 +168,9 @@ const AttentionCard = ({
         try {
             await submit(item.id, answer);
         } catch (error_) {
-            setError(error_ instanceof Error ? error_.message : 'Unable to answer this request.');
+            setError(
+                error_ instanceof Error ? error_.message : t('conversation.attention.answerFailed'),
+            );
         } finally {
             setBusy(false);
         }
@@ -245,19 +257,19 @@ const AttentionCard = ({
                     </Text>
                     {onOpenTerminal ? (
                         <Pressable
-                            accessibilityLabel="Open Terminal"
+                            accessibilityLabel={t('conversation.attention.openTerminal')}
                             accessibilityRole="button"
                             onPress={onOpenTerminal}
                             style={{ justifyContent: 'center', minHeight: 44 }}
                             testID="attention-open-terminal"
                         >
                             <Text style={{ color: theme.primary, textDecorationLine: 'underline' }}>
-                                Open Terminal if the request is still waiting.
+                                {t('conversation.attention.openTerminalIfWaiting')}
                             </Text>
                         </Pressable>
                     ) : (
                         <Text style={{ color: theme.muted }}>
-                            Open Terminal if the request is still waiting.
+                            {t('conversation.attention.openTerminalIfWaiting')}
                         </Text>
                     )}
                 </View>
@@ -279,6 +291,7 @@ const AttentionAutoAllowBanner = ({
     onRevoke: (() => Promise<void>) | null;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const [busy, setBusy] = useState(false);
     return (
         <View
@@ -295,12 +308,11 @@ const AttentionAutoAllowBanner = ({
             testID="attention-auto-allow-banner"
         >
             <Text style={{ color: theme.text, flex: 1 }}>
-                Always allow is on: every later permission request in this Session is allowed
-                automatically.
+                {t('conversation.attention.autoAllowBanner')}
             </Text>
             {onRevoke ? (
                 <Pressable
-                    accessibilityLabel="Turn off Always allow"
+                    accessibilityLabel={t('conversation.attention.turnOffAlwaysAllow')}
                     accessibilityRole="button"
                     disabled={busy}
                     style={{ justifyContent: 'center', minHeight: 44, paddingHorizontal: 8 }}
@@ -314,7 +326,9 @@ const AttentionAutoAllowBanner = ({
                         }
                     }}
                 >
-                    <Text style={{ color: theme.primary, fontWeight: '600' }}>Turn off</Text>
+                    <Text style={{ color: theme.primary, fontWeight: '600' }}>
+                        {t('conversation.attention.turnOff')}
+                    </Text>
                 </Pressable>
             ) : null}
         </View>
@@ -338,6 +352,7 @@ export const AttentionCards = ({
     role: 'view' | 'reply' | 'control' | null;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { request, connectionScopeKey, isForeground, status } = useMobileClient();
     const { height: windowHeight } = useWindowDimensions();
     const [expanded, setExpanded] = useState(false);
@@ -361,14 +376,16 @@ export const AttentionCards = ({
                 if (item.status === 'pending' && !previouslySeen.has(item.id)) {
                     AccessibilityInfo.announceForAccessibility(
                         item.kind === 'permission'
-                            ? `New permission request: ${item.toolName}`
-                            : 'New Agent question',
+                            ? t('conversation.attention.announcePermission', {
+                                  tool: item.toolName,
+                              })
+                            : t('conversation.attention.announceQuestion'),
                     );
                 }
             }
         }
         seenRequestIds.current = new Set(attention.data.requests.map((item) => item.id));
-    }, [attention.data]);
+    }, [attention.data, t]);
     const requests = attentionRequestList(attention.data);
     const visible = visibleAttentionRequests(requests, expanded);
     const revokeAutoAllow = async () => {
@@ -426,14 +443,24 @@ export const AttentionCards = ({
                 ListHeaderComponent={
                     !expanded && hiddenCount > 0 ? (
                         <Pressable
-                            accessibilityLabel={`Show ${hiddenCount} more requests`}
+                            accessibilityLabel={t(
+                                hiddenCount === 1
+                                    ? 'conversation.attention.showMoreOne'
+                                    : 'conversation.attention.showMoreOther',
+                                { count: hiddenCount },
+                            )}
                             accessibilityRole="button"
                             onPress={() => setExpanded(true)}
                             style={{ justifyContent: 'center', minHeight: 44 }}
                             testID="attention-show-more"
                         >
                             <Text style={{ color: theme.primary, fontWeight: '600' }}>
-                                +{hiddenCount} more requests
+                                {t(
+                                    hiddenCount === 1
+                                        ? 'conversation.attention.moreOne'
+                                        : 'conversation.attention.moreOther',
+                                    { count: hiddenCount },
+                                )}
                             </Text>
                         </Pressable>
                     ) : null

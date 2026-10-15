@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, Text } from 'react-native';
 
+import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 
 /**
@@ -22,12 +23,13 @@ export function AttentionEmptyState({
     onOpenTerminal?: () => void;
     theme: MobileTheme;
 }) {
+    const { t } = useTranslation();
     if (banner) return banner;
     if (!fallbackToTerminal || !isSuccess) return null;
-    const fallbackCopy = "This Agent's requests need to be handled in Terminal.";
+    const fallbackCopy = t('conversation.attention.terminalFallback');
     return onOpenTerminal ? (
         <Pressable
-            accessibilityLabel="Open Terminal"
+            accessibilityLabel={t('conversation.attention.openTerminal')}
             accessibilityRole="button"
             onPress={onOpenTerminal}
             style={{ justifyContent: 'center', minHeight: 44, padding: 8 }}
