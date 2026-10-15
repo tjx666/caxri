@@ -143,6 +143,9 @@ describe('pnpm dependency contract', () => {
             '@esbuild-kit/core-utils>esbuild',
             'xcode>uuid',
             'react-devtools-core>shell-quote',
+            'react-scan>react-doctor',
+            'http-cache-semantics',
+            'source-map-js',
         ]);
         const overrideEntries = Object.entries(workspace.overrides ?? {});
         for (const [selector, version] of overrideEntries)

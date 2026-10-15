@@ -105,6 +105,18 @@ overrides:
   # tokens, without taking 1.12.0's unrelated parse changes on the REACT_EDITOR command path.
   # https://github.com/advisories/GHSA-pqg4-j6r4-53mv
   'react-devtools-core>shell-quote': 1.11.0
+  # react-scan declares react-doctor through the floating `latest` tag. Keep the already-reviewed 0.9.17 toolchain
+  # until a dedicated react-doctor upgrade can validate its binary and plugin changes.
+  'react-scan>react-doctor': 0.9.17
+  # Electron Builder's download path accepts http-cache-semantics 4.x. GitHub still marks <=4.2.0 as vulnerable,
+  # while upstream disputes the max-stale report; 4.3.0 exits the advisory range and includes later cache fixes.
+  # https://github.com/advisories/GHSA-ch52-4w7c-c8xp
+  # https://github.com/kornelski/http-cache-semantics/issues/56
+  http-cache-semantics: 4.3.0
+  # source-map-js 1.2.1 can spend unbounded time validating attacker-controlled indexed source-map offsets.
+  # Every current consumer accepts 1.x, and 1.2.2 is the upstream patched release.
+  # https://github.com/advisories/GHSA-68fv-2mgg-jv7q
+  source-map-js: 1.2.2
 
 auditConfig:
   ignoreGhsas:
