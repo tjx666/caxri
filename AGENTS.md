@@ -1,5 +1,9 @@
 # Caxri contributor guide
 
+Caxri is an open-source project. Its code, documentation, GitHub collaboration surfaces, Actions
+output, and Releases are public by default. Its current license is source-available rather than
+OSI-approved, so keep that legal distinction explicit in licensing claims.
+
 This file is the always-on standing orders. Task procedures, architecture contracts, and toolchain
 recipes live in `.agents/skills/`: load the owning skill instead of restating it here.
 
@@ -84,8 +88,9 @@ directories.
   question tool after the agent explains why the current worktree cannot own the change. Do not
   modify code directly on `main` or an unrelated task's branch unless the user explicitly requests
   it.
-- Before the public release, the maintainer iterates through coding agents and wants proactive
-  delivery: an implementation or bug-fix request that lands in a task worktree delegates the whole
+- Before the owner declares the first public compatibility release, the maintainer wants proactive
+  delivery from coding agents: an implementation or bug-fix request that lands in a task worktree
+  delegates the whole
   loop (commit, push, PR, CI repair, merge, issue closeout, primary-checkout sync) as defined in
   `switch-worktree`'s default delivery flow. Do not stop at a green local check to ask whether to
   open or merge the PR; only an explicit analysis-only, local-only, or no-merge instruction narrows
@@ -130,13 +135,13 @@ directories.
   titles, bodies, and comments use Simplified Chinese; keep their code, identifiers, paths, and
   commands in English. Contributor issue tracking lives in GitHub issues (`gh issue`); do not file
   repository work in Linear.
-- Caxri is private today and will most likely be published, so write every tracked file, commit
-  message, issue, and CI artifact as if it were already public. Never commit a private
+- Caxri is an open-source project, so write every tracked file, commit message, issue, and CI
+  artifact for a public audience. Never commit a private
   organization, repository, ticket identifier, tracker URL, internal hostname, internal file path,
   real person, home path carrying a real account name, or credential: not in a fixture, not in a
   comment, not in Chinese. Reference an upstream only after verifying it resolves without
   authentication. History cannot be cleaned retroactively once published, so prevention is the only
-  lever: `open-source-readiness`.
+  lever. Apply `oss-confidentiality` to content and `open-source-readiness` to publication mechanics.
 - Never write an em-dash (U+2014) in contributor prose: docs, skills, and code comments. Use a
   colon, semicolon, comma, period, or parentheses instead. Product copy (UI strings, Agent prompts)
   is out of scope; do not rewrite its punctuation as a side effect of a style rule. `bun run
@@ -221,24 +226,24 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
   hide, or regress its launch, input, resume, surface switch, suspension, or restore paths. For
   example, a Chat-only Fork action is fine, but a shared Agent menu change that breaks
   `claude --resume` in a PTY is a bug. See [ADR 0015](docs/adr/0015-chat-primary-agent-surface.md).
-- Until Caxri has a public release, optimize for the current architecture instead of preserving
-  compatibility with previous local builds. Do not add protocol adapters, legacy Host controls,
-  dual-read/write paths, or migration UI only to keep an unpublished build running. Fail clearly
-  and direct the operator to a documented reset or reinstall workflow.
+- Until the owner declares Caxri's first compatibility release, optimize for the current architecture
+  instead of preserving compatibility with previous local builds. Do not add protocol adapters,
+  legacy Host controls, dual-read/write paths, or migration UI only to keep an unpublished build
+  running. Fail clearly and direct the operator to a documented reset or reinstall workflow.
 - Database schema migrations remain allowed during active development so the current working data
   can evolve safely and upgrade behavior stays exercised. Do not treat schema migrations as a
   reason to preserve unrelated runtime, Host protocol, CLI, or UI compatibility layers.
 - Before the public compatibility commitment, the owner may declare an explicit clean-install
   cutoff. Never infer this cutoff or delete local data without explicit user authorization.
-- After a public release, backward compatibility becomes a product contract. Removing migrations
-  or compatibility paths then requires an explicit release policy, a supported upgrade path, and
-  validation against already released versions.
+- After the owner explicitly declares a compatibility release, backward compatibility becomes a
+  product contract. Removing migrations or compatibility paths then requires an explicit release
+  policy, a supported upgrade path, and validation against already released versions.
 - Repository visibility is not a release. The source being publicly readable does not trigger any
-  rule above that depends on a public release, does not create existing users to support, and does
-  not change the iteration strategy. The compatibility contract starts at the first published
-  release the owner declares, not at the moment the repository becomes readable. Never add a
-  compatibility layer, migration UI, deprecation path, or contributor-facing process because the
-  repository is public.
+  rule above that depends on a compatibility release, does not create existing users to support,
+  and does not change the iteration strategy. The compatibility contract starts at the first
+  release the owner explicitly declares as its baseline, not at the moment the repository becomes
+  readable or a development artifact is published. Never add a compatibility layer, migration UI,
+  deprecation path, or contributor-facing process because the repository is public.
 
 ## Skill routing
 
@@ -255,7 +260,8 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
 | Vitest unit/integration regressions                       | `unit-testing`          |
 | Playwright Electron workflows                             | `e2e-testing`           |
 | Terminal interaction reports, CDP, owned process stop     | `debug`                 |
-| Fixtures, sample data, or anything a public reader sees   | `open-source-readiness` |
+| Public-content confidentiality review                     | `oss-confidentiality`   |
+| Publication, history, Actions, and Release exposure audit | `open-source-readiness` |
 | Isolated worktrees and desktop lease                      | `switch-worktree`       |
 | GitHub issues                                             | `file-issue`            |
 | Commits                                                   | `commit`                |

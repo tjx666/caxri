@@ -29,6 +29,8 @@ This dimension is exempt from codebase calibration.
 - Logs, diagnostics, fixtures, errors, or tests expose source content, terminal output/snapshots,
   shell input, prompts, agent transcripts, credentials, environment values, or presigned URL query
   strings
+- Tracked files, branch or commit names, PR or issue metadata, Actions output, screenshots, traces,
+  packages, or Release assets cross an `oss-confidentiality` red line
 - Agent integration parses transcripts or writes provider-owned state instead of reading bounded,
   capability-detected metadata
 - Capacity/output/time limits are removed from an attacker- or repository-controlled path
@@ -56,6 +58,7 @@ This dimension is exempt from codebase calibration.
 - `.agents/skills/project-architecture/references/files-and-paths.md` for filesystem authority
 - `.agents/skills/project-architecture/references/agent-messaging.md` for Endpoint authority
 - `.agents/skills/debug/SKILL.md`
+- `.agents/skills/oss-confidentiality/SKILL.md` for public-content red lines and safe patterns
 
 ## Not violations
 

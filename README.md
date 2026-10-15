@@ -5,8 +5,9 @@ agents. It groups durable Agent and Shell Sessions beneath local Projects: Agent
 focused editor, Files and Source Control views, and reliable agent attention signals, in one
 Electron app.
 
-Caxri is in active development and has not made its first public release. Repository visibility
-does not establish a support or compatibility commitment.
+Caxri is in active development. Repository visibility and source-available development releases
+do not establish a support or compatibility commitment. The maintainer will declare any future
+compatibility commitment explicitly.
 
 ## Highlights
 

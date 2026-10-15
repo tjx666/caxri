@@ -1,60 +1,19 @@
 ---
 name: open-source-readiness
-description: Keep Caxri publishable. Use when writing fixtures, test data, sample paths, docs, or log/artifact plumbing; when a change would embed a real person, employer, private repository, ticket, host, or machine path; when auditing what the repository would expose if it became public; or when preparing the visibility flip itself.
+description: Audit and control Caxri's public exposure across Git history, GitHub data, Actions retention, Source Maps, packages, Releases, and repository visibility. Use for publication and release boundaries or whole-repository exposure audits; use oss-confidentiality for the content boundary of an individual public write.
 ---
 
 # Open Source Readiness
 
-Caxri is private today and will most likely be published. Treat every tracked file, commit message,
-issue, and CI artifact as already public, because by the time it is public it is too late to take
-any of them back.
+Caxri is an open-source project. This skill owns publication mechanics: what Git history, GitHub
+data, Actions output, packages, Releases, and repository visibility expose and how to audit them.
 
 That last clause is the whole reason this skill exists. It is not caution; it is a measured
 property of GitHub, recorded under [Why prevention is the only lever](#why-prevention-is-the-only-lever).
 
-## The rule
-
-Write nothing into a tracked file that you would have to remove before publishing.
-
-A reference is safe when an anonymous visitor can already reach the same thing. A reference is not
-safe merely because it looks harmless, is inside a test, is in a comment, or is written in Chinese.
-
-### Never write
-
-- **A private organization, repository, or project name.** Including in a URL, a Git remote fixture,
-  a worktree name, or a branch name.
-- **A real ticket identifier**, and especially a ticket URL: the slug in a tracker URL usually
-  carries the ticket's title, which is the part outsiders cannot otherwise read.
-- **An internal hostname**: preview deployments, staging, dashboards, admin panels, internal
-  gateways. Platform preview URLs encode the owning team's slug.
-- **An internal file path that implies internal structure**, and never one described as holding
-  credentials. Naming a secrets file is a disclosure even when its contents are absent.
-- **An absolute path containing a real account name**, whether the developer's or anyone else's.
-- **A real person's name, handle, or email**, outside the repository's own authorship metadata.
-- **A credential of any kind**, including one that is expired, revoked, or "just a test key".
-- **Non-public implementation behavior of an external service.** Do not record private filtering,
-  scoring, moderation, or data-handling rules. Document only publicly documented behavior, the
-  minimum authenticated request/response contract required by Caxri, and Caxri's local fail-closed
-  behavior.
-
-### Write instead
-
-| Instead of              | Use                                                       |
-| ----------------------- | --------------------------------------------------------- |
-| A private repository    | `owner/project`, `owner/example`                          |
-| A real ticket           | `TASK-123`, and a tracker URL only if the host is generic |
-| An internal host        | `example.internal`, `preview.example.com`                 |
-| A developer's home path | `/Users/me/...`, or an existing neighbour's placeholder   |
-| A real name             | `octocat`, or the role (`the maintainer`, `the reviewer`) |
-
-Keep substitutions **the same byte length** when a test asserts on offsets, column numbers, or
-wrapped-line positions. Terminal link and hard-wrap fixtures do assert on those; changing a string's
-length there silently moves the assertion instead of failing it.
-
-Naming an upstream that is genuinely public is fine and often necessary: a public npm package, a
-public repository, a public product URL, a published CLI's documented commands. **Verify rather than
-assume**: check the package on the registry, or fetch the repository and confirm it resolves without
-authentication. Over-correcting a public dependency into a fake one makes the code wrong.
+Before writing or publishing any individual item, Call the Skill tool with "oss-confidentiality".
+Its red lines, leak vectors, safe substitutions, and metadata review are authoritative for whether
+content may enter a public Caxri surface.
 
 ## Logs, diagnostics, and CI artifacts
 
@@ -67,6 +26,17 @@ values in diagnostic output. Two additions belong to publishability specifically
   account name of a self-hosted runner's host.
 - Upload the **narrowest path that proves the failure**, not the enclosing directory, and set a
   retention window rather than relying on the default.
+
+After destructive Actions cleanup, restore workflow availability explicitly:
+
+1. Read every expected workflow by file name. Deleting retained runs can leave a workflow recorded
+   as `deleted` even when its file exists on the default branch; a file-presence check is not enough.
+2. Enable required checks, CI, and dispatch-only workflows first, then read each one back as
+   `active` and validate the intended non-release path.
+3. Keep any `workflow_run` release workflow disabled until that validation completes. Enabling it
+   earlier creates a release workflow run when CI completes even when its publish job is skipped.
+4. Enable the release workflow last and read it back as `active`. Do not dispatch it as a recovery
+   probe.
 
 ## Before writing a new fixture
 
@@ -135,8 +105,8 @@ needing it.
 
 ## Related standing rules
 
-- Repository visibility is not a release. See the standing order in `AGENTS.md`; publishing the
-  source does not start a compatibility contract, create users, or invite contributors.
+- Repository visibility is not a compatibility release. See the standing order in `AGENTS.md`;
+  publishing the source does not by itself start a compatibility or support contract.
 - The live migration checklist and the audit of what current history would expose live under
   `.records/open-source/`, which is gitignored on purpose. **Never copy their contents into a
   tracked file, an issue, or a pull request**: those enumerate exactly the strings that must not
