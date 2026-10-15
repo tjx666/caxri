@@ -128,7 +128,9 @@ async function executeMobileAgentChatScenario(
                 snapshot.items.some((item) => item.type === 'fileChange') && !snapshot.activeTurnId,
         );
         const fileChange = changed.items.findLast((item) => item.type === 'fileChange');
-        if (!fileChange) throw new Error('The wrapped diff fixture did not finish');
+        if (!fileChange?.turnId) throw new Error('The wrapped diff fixture did not finish');
+        await tapMobileCheckByBounds(serial, `agent-chat-turn-${fileChange.turnId}`);
+        await waitForCheck(serial, `agent-chat-work-group-${fileChange.id}`);
         await tapMobileCheckByBounds(serial, `agent-chat-work-group-${fileChange.id}`);
         await waitForCheck(serial, `agent-chat-work-${fileChange.id}`);
         await tapMobileCheckByBounds(serial, `agent-chat-work-${fileChange.id}`);

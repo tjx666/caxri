@@ -200,6 +200,34 @@ export async function executeMobileChatPinScrollScenario(
         await tapMobileCheckByBounds(serial, 'conversation-jump-latest');
         await waitForNoCheck(serial, 'conversation-jump-latest');
         await capture(environment, 'latest', artifacts);
+        await sendFromPhone(serial, 'longstream');
+        const interrupted = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                Boolean(snapshot.activeTurnId) &&
+                snapshot.items.some(
+                    (item) =>
+                        item.turnId === snapshot.activeTurnId &&
+                        item.type === 'agentMessage' &&
+                        item.text.includes('Paragraph 02'),
+                ),
+            30_000,
+        );
+        // The phone must show the same user-owned Stop initiated through the paired Desktop action.
+        await chat.interrupt();
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                !snapshot.activeTurnId &&
+                snapshot.turns.some(
+                    (turn) =>
+                        turn.id === interrupted.activeTurnId &&
+                        turn.status === 'interrupted' &&
+                        turn.interruptionReason === 'user',
+                ),
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        await capture(environment, 'stopped-by-user', artifacts);
         await recording?.stop();
         recording = undefined;
 
