@@ -233,6 +233,17 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts remove feat/ex
 ```
 
 The command refuses dirty or untracked files, unpushed commits, an active dev process, the primary
-checkout, and a worktree holding the desktop lease. It preserves the Git branch and isolated
-profile. Add `--clean-profile` only when the user explicitly wants that profile deleted. Never
+checkout, and a worktree holding the desktop lease. It preserves the Git branch and deletes the
+isolated profile by default. Add `--preserve-profile` only when the profile is intentionally kept
+for manual recovery; preserved profiles are marked so orphan cleanup will not delete them. Never
 force-remove, auto-push, or delete a remote branch.
+
+Preview profiles that have no Git worktree admin identity with:
+
+```bash
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts prune-profiles --json
+```
+
+Apply the exact preview with `prune-profiles --apply --json`. The command deletes only UUID-named
+real directories, skips explicit preservation markers, registered or prunable worktrees, live dev
+processes, active Host lock owners, and the desktop lease owner, and reports per-profile failures.

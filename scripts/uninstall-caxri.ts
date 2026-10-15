@@ -1,14 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import {
-    lstat,
-    mkdir,
-    mkdtemp,
-    readdir,
-    realpath,
-    rename,
-    stat,
-    writeFile,
-} from 'node:fs/promises';
+import { lstat, readdir, realpath, rename, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
@@ -21,6 +11,13 @@ import {
     planHookConfigCleanups,
     readOptionalHookConfig,
 } from './uninstall-agent-hooks';
+import type { UninstallArchiveManifest } from './uninstall-archive-retention';
+import {
+    completedArchiveCandidates,
+    createArchiveDirectory,
+    pruneCompletedArchives,
+    writeArchiveManifest,
+} from './uninstall-archive-retention';
 
 const HOST_SHUTDOWN_TIMEOUT_MS = 10_000;
 const HOST_ENTRY_PATTERN = /(?:^|\/)server\/bundles\/server-core\.js(?:\s|$)/u;
@@ -48,6 +45,8 @@ interface FailedUninstallTarget {
 
 export interface CaxriUninstallResult {
     applied: boolean;
+    archivePruneCandidates: string[];
+    archivePruneFailures: FailedUninstallTarget[];
     archiveDirectory?: string;
     /**
      * Provider config files that had Caxri-owned hook entries removed.
@@ -61,23 +60,8 @@ export interface CaxriUninstallResult {
     hookConfigs: string[];
     hostPids: number[];
     movedTargets: string[];
+    prunedArchives: string[];
     targets: string[];
-}
-
-type ArchiveStatus = 'archived' | 'failed' | 'missing' | 'planned';
-
-interface ArchivedTarget {
-    archivedPath: string;
-    error?: string;
-    originalPath: string;
-    status: ArchiveStatus;
-}
-
-interface UninstallArchiveManifest {
-    archiveDirectory: string;
-    createdAt: string;
-    schemaVersion: 1;
-    targets: ArchivedTarget[];
 }
 
 interface OwnedHost {
@@ -124,8 +108,9 @@ Options:
   --keep-dev        Keep managed switch-worktree development profiles
   --help            Show this help
 
-Archives and an original-path manifest are kept in caxri-uninstall-archives beside the primary
-Caxri checkout. Caxri-owned Agent hook entries are removed from the Claude Code and Codex hook
+The newest successful non-empty archive and its original-path manifest are kept in
+caxri-uninstall-archives beside the primary Caxri checkout. Caxri-owned Agent hook entries are
+removed from the Claude Code and Codex hook
 configs so archived bridges are not left referenced; foreign hooks are preserved. Without --yes the
 command is a verified dry run. Project folders and user files are never targets.`;
 }
@@ -564,33 +549,6 @@ export function uninstallArchiveRoot(repoRoot: string): string {
     return join(dirname(root), `${basename(root)}-uninstall-archives`);
 }
 
-async function createArchiveDirectory(archiveRootPath: string): Promise<string> {
-    const root = resolve(archiveRootPath);
-    await mkdir(root, { recursive: true, mode: 0o700 });
-    const metadata = await lstat(root);
-    if (
-        !metadata.isDirectory() ||
-        metadata.isSymbolicLink() ||
-        (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
-    ) {
-        throw new Error(`Refusing unsafe Caxri uninstall archive root: ${root}`);
-    }
-    const timestamp = new Date().toISOString().replaceAll(/[:.]/gu, '-');
-    return mkdtemp(join(root, `uninstall-${timestamp}-`));
-}
-
-async function writeArchiveManifest(manifest: UninstallArchiveManifest): Promise<void> {
-    const temporaryPath = join(
-        manifest.archiveDirectory,
-        `.manifest-${process.pid}-${randomUUID()}.tmp`,
-    );
-    await writeFile(temporaryPath, `${JSON.stringify(manifest, null, 2)}\n`, {
-        encoding: 'utf8',
-        mode: 0o600,
-    });
-    await rename(temporaryPath, join(manifest.archiveDirectory, 'manifest.json'));
-}
-
 export async function uninstallCaxri(
     options: CaxriUninstallOptions,
     operationOverrides?: Partial<UninstallOperations>,
@@ -602,12 +560,15 @@ export async function uninstallCaxri(
     if (!options.apply)
         return {
             applied: false,
+            archivePruneCandidates: await completedArchiveCandidates(options.archiveRootPath),
+            archivePruneFailures: [],
             cleanedHookConfigs: [],
             cliRemoval: 'skipped',
             failedTargets: [],
             hookConfigs,
             hostPids,
             movedTargets: [],
+            prunedArchives: [],
             targets: plan.targets,
         };
 
@@ -630,6 +591,7 @@ export async function uninstallCaxri(
         plan.targets.length > 0 ? await createArchiveDirectory(options.archiveRootPath) : undefined;
 
     const movedTargets: string[] = [];
+    let isArchiveMoveFailed = false;
     if (archiveDirectory) {
         const manifest: UninstallArchiveManifest = {
             archiveDirectory,
@@ -657,6 +619,7 @@ export async function uninstallCaxri(
             } catch (error) {
                 if (fileSystemCode(error) === 'ENOENT') target.status = 'missing';
                 else {
+                    isArchiveMoveFailed = true;
                     target.error = errorMessage(error);
                     target.status = 'failed';
                     failedTargets.push({ message: target.error, path: target.originalPath });
@@ -666,6 +629,13 @@ export async function uninstallCaxri(
             await writeArchiveManifest(manifest);
         }
     }
+
+    const archivePruneCandidates =
+        archiveDirectory && !isArchiveMoveFailed && movedTargets.length > 0
+            ? await completedArchiveCandidates(options.archiveRootPath, basename(archiveDirectory))
+            : [];
+    const { failures: archivePruneFailures, pruned: prunedArchives } =
+        await pruneCompletedArchives(archivePruneCandidates);
 
     let cliRemoval: CaxriUninstallResult['cliRemoval'] = 'skipped';
     if (options.removeGlobalCli) {
@@ -678,12 +648,15 @@ export async function uninstallCaxri(
     }
     return {
         applied: true,
+        archivePruneCandidates,
+        archivePruneFailures,
         cleanedHookConfigs,
         cliRemoval,
         failedTargets,
         hookConfigs,
         hostPids,
         movedTargets,
+        prunedArchives,
         targets: plan.targets,
         ...(archiveDirectory && { archiveDirectory }),
     };
@@ -736,6 +709,10 @@ async function main(): Promise<void> {
         for (const target of result.targets) console.log(`Would archive: ${target}`);
         for (const path of result.hookConfigs)
             console.log(`Would remove Caxri-owned Agent hooks from: ${path}`);
+        for (const archive of result.archivePruneCandidates)
+            console.log(
+                `Would delete older completed archive after a successful uninstall: ${archive}`,
+            );
         if (options.removeGlobalCli) console.log('Would ensure global @caxri/cli is unlinked.');
         console.log(`Archive root: ${options.archiveRootPath}`);
         console.log('Re-run with --yes to apply this plan.');
@@ -750,6 +727,10 @@ async function main(): Promise<void> {
         console.log(`Removed Caxri-owned Agent hooks from ${path}.`);
     for (const failure of result.failedTargets)
         console.warn(`Could not move ${failure.path}: ${failure.message}`);
+    for (const archive of result.prunedArchives)
+        console.log(`Deleted older completed archive: ${archive}`);
+    for (const failure of result.archivePruneFailures)
+        console.warn(`Could not delete older archive ${failure.path}: ${failure.message}`);
     if (result.cliRemoval === 'failed')
         console.warn('Could not unlink global @caxri/cli; run bun run unlink:cli separately.');
     if (result.failedTargets.length > 0 || result.cliRemoval === 'failed') process.exitCode = 1;

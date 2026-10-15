@@ -100,8 +100,9 @@ beneath Git's canonical `caxri-worktree-state/profiles` root. Successful targets
 timestamped persistent archive under the primary checkout's sibling
 `../caxri-uninstall-archives`; its incrementally updated `manifest.json` maps every original path to
 its archived path or final failure status. Deriving both locations from Git's canonical common
-directory keeps the archive stable when invoked from a linked worktree. Project roots and user
-files are never targets.
+directory keeps the archive stable when invoked from a linked worktree. A successful non-empty
+archive replaces older completed archives, while failed, empty, unsafe, unrecognized, and newer
+concurrent archive entries are retained. Project roots and user files are never targets.
 
 The Process Explorer is a singleton Desktop Main-owned window with its own Renderer entry and narrow Preload. While open, it samples a fixed `/bin/ps` argv every two seconds, selects both the Desktop and detached Server process trees, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. It cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Server or PTY lifecycle.
 

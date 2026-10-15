@@ -4,6 +4,7 @@ import {
     lstat,
     mkdir,
     open,
+    readdir,
     readFile,
     rename,
     rm,
@@ -49,10 +50,14 @@ export interface RepoLockOptions {
 
 const WORKTREE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export function isWorktreeIdentity(value: string): boolean {
+    return WORKTREE_ID.test(value);
+}
+
 function validateWorktreeIdentity(value: string, path: string): string | undefined {
     const identity = value.trim();
     if (!identity) return undefined;
-    if (!WORKTREE_ID.test(identity)) {
+    if (!isWorktreeIdentity(identity)) {
         throw new CommandError(
             `Invalid worktree identity at ${path}; inspect it before continuing`,
         );
@@ -124,6 +129,35 @@ export async function listWorktrees(context: RepoContext): Promise<WorktreeRecor
     return parseWorktreePorcelain(
         await runCapture('git', ['worktree', 'list', '--porcelain'], context.root),
     );
+}
+
+export async function registeredWorktreeIdentities(context: RepoContext): Promise<Set<string>> {
+    const identityPaths = [join(context.commonDir, 'caxri-worktree-id')];
+    try {
+        const entries = await readdir(join(context.commonDir, 'worktrees'), {
+            withFileTypes: true,
+        });
+        identityPaths.push(
+            ...entries
+                .filter((entry) => entry.isDirectory())
+                .map((entry) =>
+                    join(context.commonDir, 'worktrees', entry.name, 'caxri-worktree-id'),
+                ),
+        );
+    } catch (error) {
+        if (errorCode(error) !== 'ENOENT') throw error;
+    }
+    const identities = await Promise.all(
+        identityPaths.map(async (identityPath) => {
+            try {
+                return validateWorktreeIdentity(await readFile(identityPath, 'utf8'), identityPath);
+            } catch (error) {
+                if (errorCode(error) === 'ENOENT') return;
+                throw error;
+            }
+        }),
+    );
+    return new Set(identities.filter((identity): identity is string => Boolean(identity)));
 }
 
 export function worktreeDirectory(context: RepoContext, branch: string): string {

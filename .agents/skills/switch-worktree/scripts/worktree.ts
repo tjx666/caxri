@@ -39,6 +39,7 @@ import {
     inspectWorktreeProcesses,
     stopWorktreeProcesses,
 } from './worktree-processes';
+import { finishProfileRemoval, prepareProfileRemoval } from './worktree-profile-removal';
 
 const SEMANTIC_BRANCH = /^(?:feat|fix|refactor|perf|docs|test|chore)\/[a-z0-9][a-z0-9._/-]*$/;
 
@@ -78,8 +79,8 @@ export interface CreateOptions {
 }
 
 export interface RemoveOptions {
-    cleanProfile: boolean;
     cwd: string;
+    preserveProfile: boolean;
     target: string;
 }
 
@@ -293,17 +294,6 @@ async function isRealDirectory(path: string): Promise<boolean> {
     } catch (error) {
         if (errorCode(error) === 'ENOENT') return false;
         throw error;
-    }
-}
-
-async function assertProfileCleanupSafe(path: string): Promise<void> {
-    try {
-        const stats = await lstat(path);
-        if (!stats.isDirectory() || stats.isSymbolicLink()) {
-            throw new CommandError(`Refusing to clean non-directory isolated profile: ${path}`);
-        }
-    } catch (error) {
-        if (errorCode(error) !== 'ENOENT') throw error;
     }
 }
 
@@ -682,18 +672,17 @@ export async function removeWorktree(
                 `Refusing to remove worktree holding desktop lease ${desktop.lease.label}`,
             );
         }
-        const profile = identity ? join(context.stateDir, 'profiles', identity) : undefined;
-        if (profile && options.cleanProfile) await assertProfileCleanupSafe(profile);
+        const profileRemoval = await prepareProfileRemoval(
+            context.stateDir,
+            identity,
+            options.preserveProfile,
+            worktree.path,
+        );
         await runCapture('git', ['worktree', 'remove', worktree.path], context.root);
         if (identity && processRecord)
             await unlinkIfExists(developmentProcessPath(context, identity));
-        if (profile && options.cleanProfile) {
-            await rm(profile, {
-                recursive: true,
-                force: true,
-            });
-        }
-        return { path: worktree.path, profileKept: !options.cleanProfile };
+        await finishProfileRemoval(profileRemoval);
+        return { path: worktree.path, profileKept: profileRemoval.kept };
     });
 }
 

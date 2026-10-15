@@ -441,7 +441,7 @@ describe('switch-worktree shared ownership', () => {
 
         const oldIdentity = first.worktreeId!;
         const oldProfile = first.profile!;
-        await removeWorktree({ cleanProfile: false, cwd: fixture.root, target: first.path });
+        await removeWorktree({ cwd: fixture.root, preserveProfile: true, target: first.path });
         expect(await isPathPresent(oldProfile)).toBe(true);
         const recreated = await createWorktree({
             branch: 'feat/recreate',
@@ -683,7 +683,7 @@ describe('switch-worktree safe removal', () => {
         const dirtyPath = join(created.path, 'dirty.txt');
         await writeFile(dirtyPath, 'dirty\n', 'utf8');
         await expect(
-            removeWorktree({ cleanProfile: false, cwd: fixture.root, target: created.path }),
+            removeWorktree({ cwd: fixture.root, preserveProfile: false, target: created.path }),
         ).rejects.toThrow('dirty worktree');
         await unlink(dirtyPath);
 
@@ -691,7 +691,7 @@ describe('switch-worktree safe removal', () => {
         await git(created.path, 'add', 'tracked.txt');
         await git(created.path, 'commit', '-m', 'unpushed');
         await expect(
-            removeWorktree({ cleanProfile: false, cwd: fixture.root, target: created.path }),
+            removeWorktree({ cwd: fixture.root, preserveProfile: false, target: created.path }),
         ).rejects.toThrow('unpushed commits');
         await git(created.path, 'push', '-u', 'origin', 'chore/remove-guards');
 
@@ -706,27 +706,27 @@ describe('switch-worktree safe removal', () => {
             worktreePath: created.path,
         });
         await expect(
-            removeWorktree({ cleanProfile: false, cwd: fixture.root, target: created.path }),
+            removeWorktree({ cwd: fixture.root, preserveProfile: false, target: created.path }),
         ).rejects.toThrow('active dev PID');
         await unlink(join(context.stateDir, 'processes', `${created.worktreeId}.json`));
 
         const lease = await acquireDesktopLease(created.path, 'performance benchmark');
         activeLeases.push(lease);
         await expect(
-            removeWorktree({ cleanProfile: false, cwd: fixture.root, target: created.path }),
+            removeWorktree({ cwd: fixture.root, preserveProfile: false, target: created.path }),
         ).rejects.toThrow('holding desktop lease');
     });
 
-    it('preserves the branch and removes the profile only when explicitly requested', async () => {
+    it('preserves the branch and removes the profile by default', async () => {
         const fixture = await createFixture();
         const created = await createWorktree({
             branch: 'chore/clean-profile',
             cwd: fixture.root,
             install: fakeInstall,
         });
-        const profile = created.profile!;
         const context = await repoContext(fixture.root);
-        await writeJsonAtomic(join(context.stateDir, 'processes', `${created.worktreeId}.json`), {
+        const processPath = join(context.stateDir, 'processes', `${created.worktreeId}.json`);
+        await writeJsonAtomic(processPath, {
             cdpPort: 9300,
             identity: 'stale-reused-pid',
             pid: process.pid,
@@ -735,19 +735,17 @@ describe('switch-worktree safe removal', () => {
             worktreeId: created.worktreeId,
             worktreePath: created.path,
         });
-
         const result = await removeWorktree({
-            cleanProfile: true,
             cwd: fixture.root,
+            preserveProfile: false,
             target: created.path,
         });
         expect(result).toEqual({ path: created.path, profileKept: false });
-        expect(await isPathPresent(profile)).toBe(false);
-        expect(
-            (
-                await git(fixture.root, 'show-ref', '--verify', 'refs/heads/chore/clean-profile')
-            ).trim(),
-        ).not.toBe('');
+        expect(await isPathPresent(created.profile!)).toBe(false);
+        expect(await isPathPresent(processPath)).toBe(false);
+        const branch = 'refs/heads/chore/clean-profile';
+        const branchReference = await git(fixture.root, 'show-ref', '--verify', branch);
+        expect(branchReference.trim()).not.toBe('');
     });
 
     it('rejects a forged worktree identity before profile cleanup can escape its state root', async () => {
@@ -766,7 +764,7 @@ describe('switch-worktree safe removal', () => {
         await writeFile(identityPath, '../../must-survive.txt\n', 'utf8');
 
         await expect(
-            removeWorktree({ cleanProfile: true, cwd: fixture.root, target: created.path }),
+            removeWorktree({ cwd: fixture.root, preserveProfile: false, target: created.path }),
         ).rejects.toThrow('Invalid worktree identity');
         expect(await readFile(sentinel, 'utf8')).toBe('safe\n');
     });
@@ -786,14 +784,14 @@ describe('switch-worktree safe removal', () => {
         await symlink(sentinelDirectory, profile);
 
         await expect(
-            removeWorktree({ cleanProfile: true, cwd: fixture.root, target: created.path }),
+            removeWorktree({ cwd: fixture.root, preserveProfile: false, target: created.path }),
         ).rejects.toThrow('Refusing to clean non-directory isolated profile');
         expect(await readFile(join(sentinelDirectory, 'keep.txt'), 'utf8')).toBe('safe\n');
 
         await unlink(profile);
         await writeFile(profile, 'not a directory\n', 'utf8');
         await expect(
-            removeWorktree({ cleanProfile: true, cwd: fixture.root, target: created.path }),
+            removeWorktree({ cwd: fixture.root, preserveProfile: false, target: created.path }),
         ).rejects.toThrow('Refusing to clean non-directory isolated profile');
         expect(await git(fixture.root, 'worktree', 'list', '--porcelain')).toContain(created.path);
     });

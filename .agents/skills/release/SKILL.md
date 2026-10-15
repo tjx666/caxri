@@ -93,4 +93,6 @@ after explicit authorization with `bun run uninstall:caxri -- --yes`. The comman
 Caxri installation state, application paths, and managed development profiles beneath the primary
 checkout's sibling `../caxri-uninstall-archives`, records every original path in `manifest.json`,
 strips Caxri-owned Agent hook entries from the Claude Code and Codex hook configs (foreign hooks
-stay), and never targets Project folders or user files.
+stay), and never targets Project folders or user files. After a new non-empty archive completes
+without a target move failure, it keeps that archive and deletes older completed archives; unsafe,
+incomplete, non-matching, and concurrently newer entries are retained.
