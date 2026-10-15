@@ -6,6 +6,9 @@ import type { AgentChatSnapshot, AgentChatTurn } from '@caxri/protocol';
 import { MAX_TRACKED_TURNS } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { chatTextDigest, chatTurnFinalMessage } from './chat-turn-answer';
+import { ChatTurnInterruption } from './chat-turn-interruption';
+import { finishedChatLifecycle } from './chat-turn-lifecycle';
+import { isClaudeCompactCommand } from './claude-input';
 import { claudeContextWindow, finishedClaudeTurn } from './claude-items';
 
 /**
@@ -30,6 +33,7 @@ export class ClaudeTurns {
      * `idle` that closes the previous turn, arriving after the next prompt went out, cannot end the new turn.
      */
     private isAcknowledged = false;
+    private isMaintenanceTurn = false;
 
     private contextWindowSize: number | undefined;
 
@@ -39,7 +43,7 @@ export class ClaudeTurns {
      */
     private backgroundTurnId: string | undefined;
 
-    isInterruptRequested = false;
+    private readonly userInterruption = new ChatTurnInterruption();
 
     count = 0;
 
@@ -66,8 +70,9 @@ export class ClaudeTurns {
         const snapshot = host.read();
         const id = snapshot.activeTurnId;
         if (!id) return;
-        const status: AgentChatTurn['status'] = this.isInterruptRequested ? 'interrupted' : outcome;
-        this.isInterruptRequested = false;
+        const interruptionReason = this.interruptionReason;
+        const status: AgentChatTurn['status'] = interruptionReason ? 'interrupted' : outcome;
+        this.userInterruption.clear();
         this.options.settleRequests();
         const finished = finishedClaudeTurn(
             host.read(),
@@ -75,6 +80,7 @@ export class ClaudeTurns {
             status,
             // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty error carries no detail either
             error || 'Claude could not finish this turn',
+            interruptionReason,
         );
         host.apply(finished.operations);
         if (this.contextWindowSize && snapshot.usage)
@@ -90,26 +96,30 @@ export class ClaudeTurns {
             status === 'completed' && hasWakingBackgroundWork(host.read());
         this.backgroundTurnId = isWaitingOnBackground ? id : undefined;
         const answer = status === 'completed' ? chatTurnFinalMessage(host.read(), id) : undefined;
+        const isMaintenance = this.isMaintenanceTurn;
+        this.isMaintenanceTurn = false;
         host.lifecycle(
-            status === 'failed'
-                ? {
-                      phase: 'turnFailed',
-                      agentSessionId,
-                      agentTurnId: id,
-                      agentFailure: 'provider_failed',
-                  }
-                : {
-                      phase: 'turnFinished',
-                      agentSessionId,
-                      agentTurnId: id,
-                      ...(answer && { agentResponseDigest: chatTextDigest(answer.text) }),
-                      ...(isWaitingOnBackground && { agentBackgroundWork: true as const }),
-                  },
+            finishedChatLifecycle(status, {
+                agentSessionId,
+                agentTurnId: id,
+                ...(isMaintenance && { activity: 'maintenance' }),
+                ...(answer && { agentResponseDigest: chatTextDigest(answer.text) }),
+                ...(isWaitingOnBackground && { agentBackgroundWork: true }),
+            }),
         );
     }
 
     get contextWindow(): number | undefined {
         return this.contextWindowSize;
+    }
+
+    requestInterrupt(): (() => void) | undefined {
+        const turnId = this.options.host.read().activeTurnId;
+        return turnId ? this.userInterruption.request(turnId) : undefined;
+    }
+
+    get interruptionReason(): AgentChatTurn['interruptionReason'] {
+        return this.userInterruption.reason(this.options.host.read().activeTurnId);
     }
 
     /**
@@ -125,8 +135,9 @@ export class ClaudeTurns {
         const sessionId = this.options.bindSession();
         if (isOwnPrompt) this.isAcknowledged = false;
         this.backgroundTurnId = undefined;
+        this.isMaintenanceTurn = prompt !== undefined && isClaudeCompactCommand(prompt);
         this.count += 1;
-        this.isInterruptRequested = false;
+        this.userInterruption.clear();
         host.apply([
             {
                 op: 'state',
@@ -142,6 +153,7 @@ export class ClaudeTurns {
         ]);
         host.lifecycle({
             phase: 'turnStarted',
+            ...(this.isMaintenanceTurn && { activity: 'maintenance' }),
             agentSessionId: sessionId,
             agentTurnId: id,
             ...(prompt !== undefined && { agentPromptDigest: chatTextDigest(prompt) }),
@@ -162,6 +174,10 @@ export class ClaudeTurns {
         // A message sent during the turn is folded into it; the turn ends with the last result.
         if ((result.queued_turn_count ?? 0) > 0) return;
         const isSuccess = result.subtype === 'success' && !result.is_error;
+        /**
+         * A successful result that raced Stop still completed normally.
+         */
+        if (isSuccess) this.userInterruption.clear();
         const error =
             result.subtype === 'success' ? result.result : result.errors.filter(Boolean).join('\n');
         this.end(isSuccess ? 'completed' : 'failed', error);

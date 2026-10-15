@@ -49,6 +49,53 @@ describe('Agent Chat idle maintenance', () => {
         expect(service.isSuspendable(terminal.id)).toBe(false);
     });
 
+    it.each(['claude', 'codex', 'grok'] as const)(
+        'does not report %s compaction as a new user task',
+        async (provider) => {
+            const { service, signals, terminal, until } = await fixture({ provider });
+            await until((snapshot) => snapshot.status === 'ready');
+            await service.send(terminal.id, { text: 'hello before maintenance' });
+            await until(
+                (snapshot) =>
+                    snapshot.turns.at(-1)?.status === 'completed' && !snapshot.activeTurnId,
+            );
+            const start = signals.length;
+            await service.compactIdle(terminal.id, service.idleLaunchId(terminal.id)!);
+            const compacted = await until(
+                (snapshot) =>
+                    snapshot.items.some(
+                        (item) => item.type === 'notice' && item.kind === 'compacted',
+                    ) && !snapshot.activeTurnId,
+            );
+            const maintenance = signals.slice(start);
+            const phases = maintenance
+                .filter((signal) => signal.activity !== 'maintenance')
+                .map((signal) => signal.phase);
+            expect(
+                maintenance
+                    .filter((signal) =>
+                        ['turnStarted', 'turnFinished', 'turnFailed'].includes(signal.phase),
+                    )
+                    .every((signal) => signal.activity === 'maintenance'),
+            ).toBe(true);
+            expect(phases).toContain('compactionStarted');
+            expect(phases).toContain('compactionFinished');
+            expect(phases).not.toContain('turnStarted');
+            expect(phases).not.toContain('turnFinished');
+            const next = signals.length;
+            await service.send(terminal.id, { text: 'hello after maintenance' });
+            await until(
+                (snapshot) =>
+                    snapshot.turns.at(-1)?.id !== compacted.turns.at(-1)?.id &&
+                    snapshot.turns.at(-1)?.status === 'completed' &&
+                    !snapshot.activeTurnId,
+            );
+            expect(signals.slice(next).map((signal) => signal.phase)).toEqual(
+                expect.arrayContaining(['turnStarted', 'turnFinished']),
+            );
+        },
+    );
+
     it('compacts only the idle launch batch compaction saw', async () => {
         const { service, terminal, until } = await fixture();
         await until((snapshot) => snapshot.status === 'ready');

@@ -380,12 +380,20 @@ export class TerminalSuspensionService {
      * as an interrupt, so without this an Escape that only closed a picker would leave a running turn guarded by the
      * idle clock alone (GitHub issue #1785).
      */
-    observeLifecycle(signal: Pick<AgentLifecycleSignal, 'agentId' | 'phase' | 'terminalId'>): void {
+    observeLifecycle(
+        signal: Pick<AgentLifecycleSignal, 'activity' | 'agentId' | 'phase' | 'terminalId'>,
+    ): void {
         const sample = this.sample(signal.terminalId);
         const now = this.now();
         sample.lastSignalAt = now;
         if (isMidTurnSignal(signal)) sample.turnInFlight = true;
         const isMainScope = signal.agentId === undefined;
+        if (
+            isMainScope &&
+            signal.activity === 'maintenance' &&
+            (signal.phase === 'turnFinished' || signal.phase === 'turnFailed')
+        )
+            this.observeAppliedLifecycle(signal);
         switch (signal.phase) {
             case 'turnStarted':
                 if (!isMainScope) return;
@@ -410,7 +418,7 @@ export class TerminalSuspensionService {
      * completion and one reconciled from provider metadata after its hook was lost.
      */
     observeAppliedLifecycle(
-        signal: Pick<AgentLifecycleSignal, 'agentId' | 'phase' | 'terminalId'>,
+        signal: Pick<AgentLifecycleSignal, 'activity' | 'agentId' | 'phase' | 'terminalId'>,
     ): void {
         if (signal.agentId !== undefined) return;
         if (signal.phase !== 'turnFinished' && signal.phase !== 'turnFailed') return;

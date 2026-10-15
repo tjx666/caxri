@@ -19,7 +19,10 @@ import { createRecoveringHookLaunchTracker } from './hook-launch-tracker';
 import { CodexHookSessionRebindTracker } from './hook-session-rebind';
 import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
 import { AgentIdleProof } from './idle-proof';
+import { AgentLifecycleProjection } from './lifecycle-projection';
 import { AgentLifecycleWatchdogs, isStandaloneEscape } from './lifecycle-watchdogs';
+import type { MaintenanceInputLease } from './maintenance-activity';
+import { MaintenanceActivity } from './maintenance-activity';
 import type { MetadataActivityBaseline } from './metadata-activity-baseline';
 import {
     isMetadataActivityBaselineMatch,
@@ -31,7 +34,6 @@ import { ProcessIdentityProbe } from './process-identity-probe';
 // oxlint-disable-next-line react-doctor/no-barrel-import -- Provider clusters require a public barrel.
 import { GrokTurnTracker } from './providers/grok';
 import type { AgentService } from './service';
-import type { SessionActivitySource } from './session-activity-log';
 import { hasSessionActivityChanged } from './session-activity-log';
 import { ShellProcessProbe } from './shell-process-probe';
 import type { ShellInputState, ShellPromotionCandidate } from './shell-promotion';
@@ -48,6 +50,8 @@ import { AgentWorkTracker } from './work-tracker';
  * no other module needs to track Agent Terminal identity.
  */
 export class AgentCoordinator {
+    private readonly lifecycle: AgentLifecycleProjection;
+    private readonly maintenance = new MaintenanceActivity(AGENT_COMPACTION_TIMEOUT_MS);
     private readonly lifecycleWatchdogs: AgentLifecycleWatchdogs;
     private readonly excludedAgentSessionIdsByTerminal = new Map<string, Set<string>>();
     private readonly refreshes: CoalescedScheduler<string>;
@@ -65,8 +69,8 @@ export class AgentCoordinator {
     private readonly attention = new AgentAttentionTracker();
     private readonly idleProof = new AgentIdleProof();
     private readonly work = new AgentWorkTracker(
-        (signal) => this.applyLifecycle(signal, 'deferredHook'),
-        { onWaitingChange: (terminalId) => this.emitAgentMetadataChange(terminalId) },
+        (signal) => this.lifecycle.apply(signal, 'deferredHook'),
+        { onWaitingChange: (terminalId) => this.lifecycle.emitMetadataChange(terminalId) },
     );
     /**
      * A `null` provider metadata baseline marks a real transition.
@@ -77,9 +81,9 @@ export class AgentCoordinator {
     constructor(
         private readonly database: CaxriDatabase,
         private readonly agents: AgentService,
-        private readonly emit: (event: ServerEvent) => void,
+        emit: (event: ServerEvent) => void,
         private readonly logger: StructuredLogger,
-        private readonly options: AgentCoordinatorOptions = {},
+        options: AgentCoordinatorOptions = {},
     ) {
         this.hookLaunches = createRecoveringHookLaunchTracker(
             (terminalId, launchId) => this.launchIdsByTerminal.get(terminalId) === launchId,
@@ -120,7 +124,7 @@ export class AgentCoordinator {
             },
             onInactive: (terminalId, provider) => {
                 if (!this.database.revokeForegroundAgentProvider(terminalId, provider)) return;
-                this.emitAgentMetadataChange(terminalId);
+                this.lifecycle.emitMetadataChange(terminalId);
             },
         });
         this.refreshes = new CoalescedScheduler(
@@ -137,7 +141,7 @@ export class AgentCoordinator {
         this.lifecycleWatchdogs = new AgentLifecycleWatchdogs(
             options.compactionTimeoutMs ?? AGENT_COMPACTION_TIMEOUT_MS,
             options.runningWatchdogIntervalMs ?? AGENT_RUNNING_WATCHDOG_INTERVAL_MS,
-            (terminalId) => this.emitAgentMetadataChange(terminalId),
+            (terminalId) => this.lifecycle.emitMetadataChange(terminalId),
             async (terminalId, launchId) => {
                 if (this.launchIdsByTerminal.get(terminalId) !== launchId) return false;
                 await this.probe(terminalId);
@@ -149,53 +153,22 @@ export class AgentCoordinator {
                 );
             },
         );
-    }
-
-    private emitAgentMetadataChange(terminalId: string): void {
-        const terminal = this.database.getTerminal(terminalId);
-        if (!terminal) return;
-        this.emit({
-            event: 'state.changed',
-            payload: {
-                kind: 'records',
-                sessionIds: [terminal.sessionId],
-                terminalIds: [terminal.id],
-            },
+        this.lifecycle = new AgentLifecycleProjection(database, logger, emit, {
+            idleProof: this.idleProof,
+            attention: this.attention,
+            watchdogs: this.lifecycleWatchdogs,
+            hookLaunches: this.hookLaunches,
+            onApplied: options.onLifecycleApplied,
         });
     }
 
     private forgetLifecycleState(terminalId: string): void {
+        this.maintenance.forget(terminalId);
         this.hookSessionRebinds.forget(terminalId);
         this.grokTurns.forget(terminalId);
         this.idleProof.invalidate(terminalId);
         this.attention.forget(terminalId);
         this.work.forget(terminalId);
-    }
-
-    private applyLifecycle(
-        event: AgentLifecycleSignal,
-        source: SessionActivitySource = 'hook',
-    ): void {
-        this.idleProof.apply(event, source === 'hook');
-        if (event.phase === 'turnFinished' || event.phase === 'turnFailed') {
-            this.attention.forget(event.terminalId);
-            this.lifecycleWatchdogs.stopRunningTurn(event.terminalId);
-            this.hookLaunches.markAuthoritative(
-                event.terminalId,
-                event.launchId,
-                event.agentTurnId,
-            );
-        }
-        if (
-            hasSessionActivityChanged(this.database, this.logger, {
-                applyWrite: () => this.database.updateAgentLifecycle(event),
-                phase: event.phase,
-                source,
-                terminalId: event.terminalId,
-            })
-        )
-            this.emitAgentMetadataChange(event.terminalId);
-        this.options.onLifecycleApplied?.(event);
     }
 
     /**
@@ -226,7 +199,7 @@ export class AgentCoordinator {
         this.shellInputs.delete(terminalId);
         this.shellPromotionCandidates.delete(terminalId);
         this.startedAtByTerminal.set(terminalId, candidate.startedAt);
-        this.emitAgentMetadataChange(terminalId);
+        this.lifecycle.emitMetadataChange(terminalId);
         if (candidate.lifecycleSignal) this.observeLifecycleSignal(candidate.lifecycleSignal);
         this.refreshes.schedule(terminalId);
         return true;
@@ -340,7 +313,7 @@ export class AgentCoordinator {
                     terminalId: terminal.id,
                 })
             )
-                this.emitAgentMetadataChange(terminal.id);
+                this.lifecycle.emitMetadataChange(terminal.id);
         } catch (error) {
             /**
              * A failed probe degrades Agent metadata to unknown; it never interrupts the Server.
@@ -397,7 +370,7 @@ export class AgentCoordinator {
         this.shellInputs.delete(terminal.id);
         this.shellPromotionCandidates.delete(terminal.id);
         this.startedAtByTerminal.set(terminal.id, candidate.startedAt);
-        this.emitAgentMetadataChange(terminal.id);
+        this.lifecycle.emitMetadataChange(terminal.id);
         this.refreshes.schedule(terminal.id);
         return true;
     }
@@ -458,7 +431,7 @@ export class AgentCoordinator {
         this.shellInputs.delete(terminal.id);
         this.shellPromotionCandidates.delete(terminal.id);
         this.startedAtByTerminal.set(terminal.id, candidate.startedAt);
-        this.emitAgentMetadataChange(terminal.id);
+        this.lifecycle.emitMetadataChange(terminal.id);
     }
 
     /**
@@ -502,7 +475,23 @@ export class AgentCoordinator {
      * sequences disable detection until submission. Provider metadata must confirm a candidate before identity
      * changes.
      */
-    observeInput(terminalId: string, data: string): boolean {
+    beginMaintenanceInput(terminalId: string, launchId: string): MaintenanceInputLease | undefined {
+        const terminal = this.database.getTerminal(terminalId);
+        if (!terminal?.provider || this.launchIdsByTerminal.get(terminalId) !== launchId)
+            return undefined;
+        return this.maintenance.arm({ terminalId, launchId, provider: terminal.provider });
+    }
+
+    classifyLifecycleSignal(signal: AgentLifecycleSignal): AgentLifecycleSignal {
+        if (
+            this.launchIdsByTerminal.get(signal.terminalId) !== signal.launchId ||
+            this.database.getTerminal(signal.terminalId)?.provider !== signal.provider
+        )
+            return signal;
+        return this.maintenance.classify(signal);
+    }
+
+    observeInput(terminalId: string, data: string, activity?: 'maintenance'): boolean {
         let state = this.shellInputs.get(terminalId);
         if (!state) {
             if (!this.database.getTerminal(terminalId)) return false;
@@ -514,6 +503,8 @@ export class AgentCoordinator {
             onSubmit: (command) => this.openPromotionCandidate(terminalId, command),
         });
         this.shellInputs.set(terminalId, scan.state);
+        if (activity !== 'maintenance' && scan.didSubmit)
+            this.maintenance.cancelPending(terminalId);
         return scan.didSubmit;
     }
 
@@ -579,7 +570,8 @@ export class AgentCoordinator {
      * for status; until then metadata remains a completion fallback when a later hook is lost, and it always owns
      * identity/title/usage. A parent completion claims authority even while child aggregation defers its lifecycle.
      */
-    observeLifecycleSignal(signal: AgentLifecycleSignal): AgentSignalDecision {
+    observeLifecycleSignal(rawSignal: AgentLifecycleSignal): AgentSignalDecision {
+        const signal = this.classifyLifecycleSignal(rawSignal);
         if (this.launchIdsByTerminal.get(signal.terminalId) !== signal.launchId)
             return 'staleLaunch';
         const terminal = this.database.getTerminal(signal.terminalId);
@@ -691,7 +683,7 @@ export class AgentCoordinator {
         }
         if (shouldRefreshMetadata) this.refreshes.schedule(signal.terminalId);
         if (canApplyLifecycle && !work.deferCompletion)
-            this.applyLifecycle({ ...signal, agentContinuedTurnId: work.continuedTurnId });
+            this.lifecycle.apply({ ...signal, agentContinuedTurnId: work.continuedTurnId });
         return 'accepted';
     }
 
@@ -780,6 +772,7 @@ export class AgentCoordinator {
     }
 
     close(): void {
+        this.maintenance.clear();
         this.refreshes.close();
         this.shellProcessProbe.close();
         this.shellInputs.clear();

@@ -138,6 +138,7 @@ export function finishedTurnOperations(
     turn: Json,
     shouldKeepRequest: (requestId: string, turnId: string) => boolean,
     keepOpen: ReadonlySet<string> = new Set(),
+    interruptionReason?: AgentChatTurn['interruptionReason'],
 ):
     | {
           id: string;
@@ -175,6 +176,7 @@ export function finishedTurnOperations(
         ...existing,
         id,
         status,
+        ...(status === 'interrupted' && interruptionReason && { interruptionReason }),
         ...(durationMs === undefined
             ? existing?.startedAt !== undefined && {
                   durationMs: Math.max(0, Date.now() - existing.startedAt),

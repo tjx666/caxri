@@ -270,7 +270,7 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          * retries, and for `answered` the user's own answers to a question request, so the transcript keeps what was
          * chosen after the request card goes away.
          */
-        kind: z.enum(['error', 'compacted', 'retrying', 'answered']),
+        kind: z.enum(['error', 'compacted', 'retrying', 'answered', 'output']),
         message: z.string().max(2_000).optional(),
         /**
          * For `answered`: every question asked with the answer given (empty when the user skipped it), so a Client can
@@ -353,6 +353,10 @@ export const agentChatQueuedMessageSchema = z.strictObject({
 export const agentChatTurnSchema = z.strictObject({
     id: z.string().min(1).max(200),
     status: z.enum(['running', 'completed', 'interrupted', 'failed']),
+    /**
+     * Only an exact turn stopped through Caxri has this attribution; provider history leaves it unknown.
+     */
+    interruptionReason: z.literal('user').optional(),
     startedAt: z.number().optional(),
     durationMs: z.number().nonnegative().optional(),
 });

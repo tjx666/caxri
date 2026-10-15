@@ -62,6 +62,7 @@ export function claudeQueryOptions({
          */
         enableFileCheckpointing: true,
         includePartialMessages: true,
+        includeHookEvents: true,
         // Subagent text and thinking reach the task tab, not only their tool calls.
         forwardSubagentText: true,
         /**

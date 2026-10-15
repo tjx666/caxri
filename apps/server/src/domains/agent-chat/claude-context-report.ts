@@ -238,7 +238,7 @@ function isPositive(value: unknown): value is number {
  */
 type LiveClaudeContext =
     | {
-          query: Query;
+          query: Pick<Query, 'getContextUsage'>;
           host: Pick<AgentChatSessionHost, 'apply' | 'read'>;
           isEnded: () => boolean;
       }
@@ -250,6 +250,7 @@ type LiveClaudeContext =
  */
 export class ClaudeContextTracker {
     private readonly ledger = new ClaudeContextLedger();
+    private compactedContextWindow: number | undefined;
 
     /**
      * Issue order of reads. The meter's refresh and the tab's read often overlap and can answer out of order; the
@@ -257,19 +258,25 @@ export class ClaudeContextTracker {
      */
     private issued = 0;
     private recordedSequence = 0;
+    private discardedSequence = 0;
 
     private readonly refresh = new ClaudeContextRefresh(async () => {
         const live = this.live();
         if (!live) return;
         const sequence = ++this.issued;
-        await refreshClaudeContextDetails(live.query, live.host, live.isEnded, (response) =>
-            this.record(response, sequence),
+        await refreshClaudeContextDetails(
+            live.query,
+            live.host,
+            live.isEnded,
+            (response) => this.record(response, sequence),
+            this.compactedContextWindow,
         );
     });
 
     constructor(private readonly live: () => LiveClaudeContext) {}
 
     private record(response: unknown, sequence: number): AgentChatContextComposition | undefined {
+        if (sequence <= this.discardedSequence) return undefined;
         const composition = claudeContextComposition(response);
         if (composition && sequence > this.recordedSequence) {
             this.recordedSequence = sequence;
@@ -283,6 +290,20 @@ export class ClaudeContextTracker {
      */
     request(): void {
         this.refresh.request();
+    }
+
+    /**
+     * The pre-compaction usage and cache age describe a context that no longer exists. Hide that sample immediately;
+     * only a fresh context answer may restore it. Identity fencing rejects reads already in flight at this boundary.
+     */
+    resetAfterCompaction(): void {
+        const live = this.live();
+        if (!live) return;
+        this.discardedSequence = this.issued;
+        this.compactedContextWindow =
+            live.host.read().usage?.contextWindow ?? this.compactedContextWindow;
+        live.host.apply([{ op: 'state', state: { usage: null } }]);
+        this.request();
     }
 
     /**

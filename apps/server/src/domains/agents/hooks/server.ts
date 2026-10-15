@@ -9,12 +9,20 @@ import { agentProviderIds, mobileAttentionQuestionSchema } from '@caxri/protocol
 import { ensureUnixSocketDirectory } from '@caxri/system';
 
 import { isOpaqueAgentSessionId } from '../contract';
-import type {
-    AgentLifecyclePhase,
-    AgentLifecycleSignal,
-    AgentSignalIgnoredReason,
-} from './contract';
+import type { AgentLifecyclePhase, AgentLifecycleSignal } from './contract';
 import { agentLifecyclePhases } from './contract';
+import type {
+    AgentHookSignalDiagnostic,
+    AgentHookSignalPresence,
+    AgentHookSignalRejectionReason,
+    AgentHookSignalResult,
+} from './server-diagnostics';
+
+export type {
+    AgentHookSignalDiagnostic,
+    AgentHookSignalRejectionReason,
+    AgentHookSignalResult,
+} from './server-diagnostics';
 import { validateToolSignal } from './tool-signal';
 import { validateTurnOutcomeSignal } from './turn-outcome-signal';
 
@@ -68,86 +76,6 @@ export interface HookWireAttention extends HookWireContext {
 
 type HookWirePacket = HookWireBridgeStarted | HookWireSignal | HookWireAttention;
 
-export type AgentHookSignalRejectionReason =
-    | 'downstreamRejected'
-    | 'invalidAgentCwd'
-    | 'invalidAgentId'
-    | 'invalidAgentSessionId'
-    | 'invalidAgentToolUseId'
-    | 'invalidAgentTurnId'
-    | 'invalidAgentDigest'
-    | 'invalidJson'
-    | 'invalidSignal'
-    | 'launchMismatch'
-    | 'payloadTooLarge'
-    | 'providerMismatch'
-    | 'schemaMismatch'
-    | 'terminalMismatch'
-    | 'transportError'
-    | 'transportTimeout'
-    | 'unknownToken';
-
-/**
- * Outcome of applying one authenticated signal downstream. An ignored signal always names its reason: an unexplained
- * drop reads identically to a lost hook in the log, which is the failure this contract exists to prevent.
- */
-export type AgentHookSignalResult =
-    | { disposition: 'accepted'; context?: string }
-    | { disposition: 'rejected' }
-    | { disposition: 'ignored'; reason: AgentSignalIgnoredReason };
-
-/**
- * Existence-only detail about the identifiers a signal carried. The values themselves stay on the provider's side of
- * the boundary; only whether they were present crosses into diagnostics.
- */
-interface AgentHookSignalPresence {
-    hasAgentCwd?: boolean;
-    hasAgentSessionId?: boolean;
-    hasAgentTurnId?: boolean;
-    worktreeCreateIntent?: boolean;
-}
-
-export type AgentHookSignalDiagnostic =
-    | {
-          outcome: 'started';
-          phase: AgentLifecyclePhase;
-          provider: AgentProvider;
-          terminalId: string;
-      }
-    | (AgentHookSignalPresence & {
-          /**
-           * Server-side handling cost for this signal, from the first received byte to the settled disposition. The
-           * bridge abandons the connection after its own 2s socket timeout, so this is the measurement that says how
-           * much headroom is left before signals start being lost to that timeout.
-           */
-          handlingMs?: number;
-          outcome: 'accepted';
-          phase: AgentLifecyclePhase;
-          provider: AgentProvider;
-          terminalId: string;
-      })
-    | (AgentHookSignalPresence & {
-          handlingMs?: number;
-          outcome: 'ignored';
-          phase?: AgentLifecyclePhase;
-          provider: AgentProvider;
-          reason: AgentSignalIgnoredReason;
-          /**
-           * Bounded wire token when `reason` is `unknownPhase`. Never used as a metric label.
-           */
-          receivedPhase?: string;
-          terminalId: string;
-      })
-    | (AgentHookSignalPresence & {
-          handlingMs?: number;
-          outcome: 'rejected';
-          phase?: AgentLifecyclePhase;
-          provider?: AgentProvider;
-          reason: AgentHookSignalRejectionReason;
-          receivedPhase?: string;
-          terminalId?: string;
-      });
-
 function isProvider(value: unknown): value is AgentProvider {
     return typeof value === 'string' && agentProviderIds.includes(value as AgentProvider);
 }
@@ -173,6 +101,7 @@ function parsePacket(
     const signal = value as Record<string, unknown>;
     if (
         signal.protocolVersion !== 1 ||
+        'activity' in signal ||
         typeof signal.schemaVersion !== 'number' ||
         typeof signal.launchId !== 'string' ||
         typeof signal.terminalId !== 'string' ||

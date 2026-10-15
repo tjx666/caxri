@@ -70,12 +70,16 @@ export type AgentSignalIgnoredReason =
     | 'unknownPhase';
 
 /**
- * Result of applying one authenticated lifecycle signal. `'accepted'` means the signal became durable state; every
- * other value is the reason it did not.
+ * Result of applying one authenticated lifecycle signal. `'accepted'` means the signal was processed, including
+ * internal maintenance; every other value is the reason it did not.
  */
 export type AgentSignalDecision = 'accepted' | AgentSignalIgnoredReason;
 
 export interface AgentLifecycleSignal {
+    /**
+     * Core-owned classification; provider hook packets may never supply it.
+     */
+    activity?: 'maintenance';
     /**
      * Absolute working directory the provider reports for the hook event itself, present on every phase. Claude Code's
      * built-in `EnterWorktree` moves its own session directory without touching the PTY, so this is the only public

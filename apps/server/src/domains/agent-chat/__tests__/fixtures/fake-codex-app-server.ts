@@ -70,7 +70,14 @@ import {
     threadResponse,
     wireTurn,
 } from './fake-codex-history.ts';
-import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
+import type {
+    FakeCodexIo,
+    FakeInput,
+    FakeItem,
+    FakeThread,
+    FakeTurn,
+    RpcMessage,
+} from './fake-codex-io.ts';
 import {
     completeMcpCalls,
     didHandleMcpStatusRequest,
@@ -95,6 +102,7 @@ import {
 } from './fake-codex-tasks.ts';
 import {
     fakeCodexStateDirectory,
+    isFakeCodexInterruptRejected,
     readFakeConfig,
     readSavedThread,
     recordThreadOpen,
@@ -104,21 +112,6 @@ import {
     threadPath,
 } from './fake-codex-threads.ts';
 
-/**
- * Loose JSON-RPC shapes: the fake only reads the fields it answers, and the Server's own schemas validate what it
- * emits.
- */
-interface RpcMessage {
-    id?: number;
-    method?: string;
-    params?: Record<string, unknown>;
-    result?: unknown;
-}
-interface FakeInput {
-    type: string;
-    text?: string;
-    url?: string;
-}
 if (process.argv.includes('--version')) {
     process.stdout.write('codex-cli 0.162.0\n');
     exitProcess(0);
@@ -569,7 +562,7 @@ function handle(message: RpcMessage) {
             return;
         }
         case 'turn/interrupt': {
-            const turn = state.activeTurn;
+            const turn = isFakeCodexInterruptRejected() ? undefined : state.activeTurn;
             if (!turn || turn.id !== parameters.turnId) {
                 send({ id, error: { code: -32600, message: 'no active turn to interrupt' } });
                 return;

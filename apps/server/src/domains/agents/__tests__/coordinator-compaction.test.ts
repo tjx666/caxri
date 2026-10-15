@@ -4,11 +4,12 @@ import { join } from 'node:path';
 
 import type { ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestAgentService } from '../../__tests__/create-test-domain-services';
 import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
+import type { AgentLifecycleSignal } from '../hooks/contract';
 import type { AgentAdapter } from '../service';
 
 const loggers: StructuredLogger[] = [];
@@ -41,6 +42,71 @@ afterEach(async () => {
 });
 
 describe('AgentCoordinator compaction', () => {
+    it('preserves Session state through a maintenance failure, then reports the next real task normally', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-maintenance-activity-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const onLifecycleApplied = vi.fn<(event: AgentLifecycleSignal) => void>();
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(() => Promise.reject(new Error('not used'))),
+            () => {},
+            createLogger(join(directory, 'logs')),
+            { onLifecycleApplied },
+        );
+        const identity = {
+            terminalId: created.terminal!.id,
+            launchId: 'launch',
+            provider: 'codex' as const,
+        };
+        try {
+            coordinator.beginTerminalLaunch(identity.terminalId, identity.launchId);
+            const before = database.getSession(created.session.id);
+            expect(
+                coordinator.beginMaintenanceInput(identity.terminalId, 'retired'),
+            ).toBeUndefined();
+            const lease = coordinator.beginMaintenanceInput(identity.terminalId, identity.launchId);
+            expect(lease).toBeDefined();
+            coordinator.observeInput(identity.terminalId, '/compact\r', 'maintenance');
+            coordinator.observeLifecycleSignal({
+                ...identity,
+                phase: 'turnStarted',
+                agentTurnId: 'compact',
+            });
+            coordinator.observeLifecycleSignal({ ...identity, phase: 'compactionStarted' });
+            expect(coordinator.agentOperation(identity.terminalId)).toBe('compacting');
+            coordinator.observeLifecycleSignal({
+                ...identity,
+                phase: 'turnFailed',
+                agentTurnId: 'compact',
+                agentFailure: 'provider_failed',
+            });
+            expect(coordinator.agentOperation(identity.terminalId)).toBeUndefined();
+            expect(database.getSession(created.session.id)).toEqual(before);
+            expect(onLifecycleApplied.mock.calls.map(([event]) => event.phase)).toEqual([
+                'compactionStarted',
+            ]);
+            coordinator.observeInput(identity.terminalId, 'Please inspect the example\r');
+            coordinator.observeLifecycleSignal({
+                ...identity,
+                phase: 'turnStarted',
+                agentTurnId: 'user',
+            });
+            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            coordinator.observeLifecycleSignal({
+                ...identity,
+                phase: 'turnFinished',
+                agentTurnId: 'user',
+            });
+            expect(database.getSession(created.session.id)?.lastActivityState).toBe('completed');
+            expect(onLifecycleApplied).toHaveBeenCalledTimes(3);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('tracks a transient Terminal operation without changing Session attention', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-compaction-'));
         temporaryDirectories.push(directory);

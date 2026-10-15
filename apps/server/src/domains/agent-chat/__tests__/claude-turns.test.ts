@@ -1,3 +1,4 @@
+import type { SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatSnapshot, AgentChatTask } from '@caxri/protocol';
 import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
@@ -40,6 +41,21 @@ function harness() {
 }
 
 describe('ClaudeTurns background work', () => {
+    it('keeps a successful result completed when it races a user Stop', () => {
+        const { host, turns } = harness();
+        turns.begin('turn-1');
+        turns.requestInterrupt();
+        turns.finish({
+            subtype: 'success',
+            is_error: false,
+            result: 'Done',
+            modelUsage: {},
+        } as SDKResultMessage);
+        expect(host.read().turns.at(-1)?.status).toBe('completed');
+        expect(host.read().turns.at(-1)).not.toHaveProperty('interruptionReason');
+        expect(turns.interruptionReason).toBeUndefined();
+    });
+
     it('reports a finished turn as waiting while a background subagent still runs', () => {
         const { events, setTasks, turns } = harness();
         turns.begin('turn-1');
