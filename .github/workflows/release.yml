@@ -179,6 +179,8 @@ jobs:
         run: bun run package:release-dmgs
       - name: Run targeted packaged smoke
         env:
+          # These specs do not request clipboard access on the disposable hosted desktop.
+          CAXRI_E2E_CLIPBOARD_PROTECTION: skip-hosted
           CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release.noindex/sourcemap/mac-arm64/Caxri.app/Contents/MacOS/Caxri
           CAXRI_BENCHMARK_PROJECT_ROOT: ${{ github.workspace }}
           CAXRI_PACKAGED_EXECUTABLE: ${{ github.workspace }}/release.noindex/sourcemap/mac-arm64/Caxri.app/Contents/MacOS/Caxri
@@ -403,6 +405,8 @@ jobs:
       - name: Verify packaged application
         id: verify-packaged
         env:
+          # Exclude cold Swift/AppKit clipboard preparation from the startup smoke.
+          CAXRI_E2E_CLIPBOARD_PROTECTION: skip-hosted
           CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release.noindex/sourcemap/mac-arm64/Caxri.app/Contents/MacOS/Caxri
           CAXRI_BENCHMARK_PROJECT_ROOT: ${{ github.workspace }}
           CAXRI_PACKAGED_EXECUTABLE: ${{ github.workspace }}/release.noindex/sourcemap/mac-arm64/Caxri.app/Contents/MacOS/Caxri

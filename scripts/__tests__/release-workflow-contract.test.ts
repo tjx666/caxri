@@ -35,6 +35,26 @@ function stepScript(name: string): string {
 }
 
 describe('Release workflow contract', () => {
+    it('keeps clipboard preparation outside disposable hosted packaged startup smokes', () => {
+        const parsed = parse(workflow) as {
+            jobs: Record<
+                string,
+                {
+                    steps: Array<{ env?: Record<string, string>; name?: string; run?: string }>;
+                }
+            >;
+        };
+        for (const [job, name] of [
+            ['rehearsal', 'Run targeted packaged smoke'],
+            ['release', 'Verify packaged application'],
+        ]) {
+            const step = parsed.jobs[job].steps.find((entry) => entry.name === name);
+            expect(step?.env?.CAXRI_E2E_CLIPBOARD_PROTECTION).toBe('skip-hosted');
+            expect(step?.run).toContain('e2e/startup.performance.e2e.ts');
+            expect(step?.run).toContain('e2e/agent-login-path.e2e.ts');
+        }
+    });
+
     it('keeps full E2E as an explicit receipt outside ordinary PR CI', () => {
         expect(releaseSkill).toContain('Ordinary PR and main-push CI');
         expect(releaseSkill).toContain('hosted-full');

@@ -7,6 +7,12 @@ description: Validate Caxri through focused Playwright Electron workflows, real 
 
 Use the smallest real Electron workflow that proves the changed boundary.
 
+Keep `playwright.config.ts` and its reporter-selection imports independent of workspace runtime
+packages. Node/Jiti loads this configuration before those packages are built; a warm local build
+can hide a broken import graph. Select reporters through
+`scripts/reporters/public-e2e-reporter-policy.ts`, and verify configuration changes against the
+pre-build Knip path as well as the focused log-safety contracts.
+
 ## When a behavior earns an Electron workflow
 
 E2E specs launch a real Electron app under the repository desktop lease, so each spec is expensive.
@@ -340,10 +346,11 @@ comparison is not a gate during that calibration. Inspect failures, repair the s
 for the authorized replacement checks. Do not merge or close without delivery authorization.
 
 Use `bun run --silent test:smoke` for the cheap post-change Electron launch gate when broad desktop
-startup confidence is useful but focused product E2E is unnecessary. The hosted smoke may skip
-clipboard preservation only through its fail-closed GitHub-hosted CI override because the spec does
-not request clipboard access; local focused runs still preserve the clipboard. A future smoke that
-needs clipboard access must remove that override and declare the capability. Keep implementation
+startup confidence is useful but focused product E2E is unnecessary. Hosted launch and packaged
+Release smokes that do not request clipboard access use the fail-closed
+`CAXRI_E2E_CLIPBOARD_PROTECTION=skip-hosted` override, excluding cold Swift/AppKit preparation on a
+disposable runner. Local focused runs still preserve the clipboard. A future smoke that needs
+clipboard access must remove that override and declare the capability. Keep implementation
 subagents scoped to explicit specs and test names; never delegate the full `bun run test:e2e` gate.
 
 ## Guarded Go fallback

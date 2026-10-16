@@ -5,32 +5,9 @@ import type { FullResult, Reporter, Suite, TestCase, TestResult } from '@playwri
 
 import { readPublicE2EDiagnostics } from './public-e2e-diagnostics';
 
-export const publicE2EReporterPath = './scripts/reporters/public-e2e-reporter.ts';
-const e2eReceiptReporterPath = './scripts/reporters/e2e-receipt-reporter.ts';
-
 type AttemptStatus = TestResult['status'];
 
 const attemptStatuses = ['failed', 'interrupted', 'passed', 'skipped', 'timedOut'] as const;
-
-export function shouldUsePublicE2EReporter(environment: NodeJS.ProcessEnv): boolean {
-    const ci = environment.CI;
-    return (
-        environment.GITHUB_ACTIONS === 'true' ||
-        (ci !== undefined && ci !== '' && ci !== '0' && ci !== 'false')
-    );
-}
-
-export function playwrightReporterArgument(
-    options: {
-        environment?: NodeJS.ProcessEnv;
-        includeReceipt?: boolean;
-    } = {},
-): string {
-    const environment = options.environment ?? process.env;
-    const reporters = [shouldUsePublicE2EReporter(environment) ? publicE2EReporterPath : 'line'];
-    if (options.includeReceipt) reporters.push(e2eReceiptReporterPath);
-    return `--reporter=${reporters.join(',')}`;
-}
 
 function repoLocation(test: TestCase): string {
     const file = relative(process.cwd(), test.location.file).replaceAll('\\', '/');

@@ -125,6 +125,20 @@ describe('public Actions E2E log boundary', () => {
         for (const run of directWorkflowRuns) expect(run).not.toMatch(alternateConfigPattern);
     });
 
+    it('keeps configuration-time reporter selection independent of unbuilt workspace packages', async () => {
+        const config = await readFile(new URL('playwright.config.ts', root), 'utf8');
+        expect(config).toContain("from './scripts/reporters/public-e2e-reporter-policy'");
+        expect(config).not.toMatch(/from ['"].*\/public-e2e-reporter['"]/u);
+        const policy = await readFile(
+            new URL('scripts/reporters/public-e2e-reporter-policy.ts', root),
+            'utf8',
+        );
+        const imports = policy.matchAll(/\b(?:from|import)\s*['"]([^'"]+)['"]/gu).toArray();
+        expect(imports.length).toBeGreaterThan(0);
+        for (const [, specifier] of imports) expect(specifier).toMatch(/^node:/u);
+        expect(policy).not.toMatch(/\b(?:import|require)\s*\(/u);
+    });
+
     it('allows no non-public reporter override in any executable repository source', async () => {
         const sources = await executableSources();
         const reporterOwners = sources
@@ -134,7 +148,7 @@ describe('public Actions E2E log boundary', () => {
         expect(reporterOwners).toEqual([
             '.agents/skills/quality-check/scripts/full-suite-authorization.ts',
             '.github/workflows/release.yml',
-            'scripts/reporters/public-e2e-reporter.ts',
+            'scripts/reporters/public-e2e-reporter-policy.ts',
         ]);
         const additiveReporterOwners = sources
             .filter(({ source }) => source.includes('--add-reporter'))

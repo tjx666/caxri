@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import process from 'node:process';
 
 import { runChildProcess } from './exec';
-import { playwrightReporterArgument } from './reporters/public-e2e-reporter';
+import { playwrightReporterArgument } from './reporters/public-e2e-reporter-policy';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 

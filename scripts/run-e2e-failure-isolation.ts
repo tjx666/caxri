@@ -10,7 +10,7 @@ import {
     releaseDesktopLease,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
 import { waitForChildExit } from './exec';
-import { playwrightReporterArgument } from './reporters/public-e2e-reporter';
+import { playwrightReporterArgument } from './reporters/public-e2e-reporter-policy';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 

@@ -19,7 +19,7 @@ const protectedPathPatterns = [
     // and re-creating the omission that let census infrastructure bypass full validation.
     /^scripts\/run-e2e-[^/]+\.ts$/,
     /^scripts\/fixtures\//,
-    /^scripts\/reporters\/(?:e2e-receipt-reporter|public-e2e-reporter)\.ts$/,
+    /^scripts\/reporters\//,
     /^e2e\/support\//,
     /^e2e\/editor\.performance\.e2e\.ts$/,
     /^e2e\/failure-isolation\.e2e\.ts$/,

@@ -476,6 +476,8 @@ describe('CI retry policy', () => {
             'scripts/ci-retry-policy.ts',
             'scripts/report-e2e-manifest.ts',
             'scripts/reporters/e2e-receipt-reporter.ts',
+            'scripts/reporters/public-e2e-diagnostics.ts',
+            'scripts/reporters/public-e2e-reporter-policy.ts',
             'scripts/run-ci-focused-checks.ts',
             'scripts/run-e2e-failure-isolation.ts',
             'scripts/run-e2e-pools.ts',
