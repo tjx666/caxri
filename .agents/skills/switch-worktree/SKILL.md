@@ -56,6 +56,11 @@ Before reporting completion, verify every applicable step above against current 
 local checks is not completion while PR creation, CI, merge, issue closeout, or synchronization is
 still pending. Continue authorized work; if a concrete blocker prevents progress, report the exact
 unfinished step and blocker instead of declaring the task complete.
+For a maintenance-disabled push URL, resolve the checkout's Git common directory and inspect the
+maintenance owner's current checkout handoff before classifying the delivery as blocked. A local
+remote override describes that repository's configuration, not GitHub availability. Resume the same
+delivery in the approved checkout when one is supplied; never bypass an active freeze, push from a
+retired checkout, or import its archived history into the replacement repository.
 Also check the original request and any supplied handoff for explicit final deliverables, and verify
 each against current evidence. A merged PR or Acceptance round does not satisfy an omitted artifact,
 report, or handoff requirement.
