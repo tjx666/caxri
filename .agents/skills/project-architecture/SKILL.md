@@ -6,8 +6,10 @@ description: Navigate Caxri's process, persistence, security, product, and toolc
 # Project Architecture
 
 Choose the topic that owns the current decision. Read that reference first; follow another topic
-only when the implementation crosses its boundary. For an unfamiliar area, search the listed files
-with `rg -n` before reading. Do not concatenate the reference directory or load every topic as
+only when the implementation crosses its boundary. For an unfamiliar area, resolve current owner
+paths with `rg --files` or `rg -l`, then search those verified files with `rg -n` before bounded reads.
+If a remembered path is missing, inventory the owner again instead of trying another guessed path.
+Do not concatenate the reference directory or load every topic as
 baseline context. [The architecture index](references/architecture.md) preserves the broader map.
 
 | Decision                                                                   | Read                                                       |
