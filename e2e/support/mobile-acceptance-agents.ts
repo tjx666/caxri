@@ -24,6 +24,7 @@ export async function fakeChatAgent(userDataDirectory: string, testDirectory: st
             codex: {
                 executableSource: fakeCodexChatExecutableSource({
                     stateDirectory: join(testDirectory, 'codex-threads'),
+                    nativeUsageHome: join(userDataDirectory, 'e2e-agents', 'codex'),
                 }),
             },
         },

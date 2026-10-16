@@ -15,10 +15,11 @@ import { chooseTerminalFromCreateMenu, VISIBLE_SESSION } from './helpers.ts';
  * The fake Codex provider definition whose `app-server` is the deterministic Server-test fixture; threads persist under
  * `directory`. Exported so a spec can combine it with other fake providers in one mode.
  */
-export function fakeCodexChatProvider(directory: string) {
+export function fakeCodexChatProvider(directory: string, nativeUsageHome?: string) {
     return {
         executableSource: fakeCodexChatExecutableSource({
             stateDirectory: join(directory, 'codex-threads'),
+            nativeUsageHome,
         }),
     };
 }
@@ -29,7 +30,9 @@ export function fakeCodexChatProvider(directory: string) {
 export function fakeCodexChatAgentMode(directory: string, userData: string) {
     return createFakeAgentMode({
         userDataDir: userData,
-        providers: { codex: fakeCodexChatProvider(directory) },
+        providers: {
+            codex: fakeCodexChatProvider(directory, join(userData, 'e2e-agents', 'codex')),
+        },
     });
 }
 

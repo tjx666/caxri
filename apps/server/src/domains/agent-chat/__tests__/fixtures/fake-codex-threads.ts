@@ -4,6 +4,7 @@
  * appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert the configuration
  * Caxri asked for.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,6 +17,14 @@ export function fakeCodexStateDirectory() {
         process.env.FAKE_CODEX_STATE_DIR ?? path.join(os.tmpdir(), 'caxri-fake-codex');
     fs.mkdirSync(directory, { recursive: true });
     return directory;
+}
+
+/**
+ * Native Codex transcript lookup derives the day folder from a UUIDv7 thread's creation time.
+ */
+export function fakeCodexThreadId(): string {
+    const timestamp = Date.now().toString(16).padStart(12, '0');
+    return `${timestamp.slice(0, 8)}-${timestamp.slice(8)}-7${crypto.randomUUID().slice(15)}`;
 }
 
 export function stateFile(name: string) {
@@ -43,11 +52,11 @@ export function saveThread(thread: FakeThread) {
  * production-only test RPC. The fake executable writes only its explicitly isolated E2E Codex home.
  */
 function writeContextPressureRollout(thread: FakeThread): void {
-    const codexHome = process.env.CODEX_HOME;
+    const codexHome = process.env.FAKE_CODEX_NATIVE_USAGE_HOME;
     if (
         !codexHome ||
         thread.parentThreadId ||
-        !process.env.CAXRI_E2E ||
+        codexHome !== process.env.CODEX_HOME ||
         !JSON.stringify(thread.turns).includes('contextpressure')
     )
         return;

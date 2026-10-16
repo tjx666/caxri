@@ -8,6 +8,7 @@ import process from 'node:process';
 
 import type { FakeCodexIo, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { runBrowserStep } from './fake-codex-mcp-calls.ts';
+import { fakeCodexThreadId } from './fake-codex-threads.ts';
 
 interface FakeTerminal {
     itemId: string;
@@ -85,7 +86,7 @@ export async function runSubagent(
     }: { isHeld: boolean; isBrowsing: boolean; needsApproval: boolean; fails?: boolean },
 ) {
     const parent = io.currentThread();
-    const child: FakeThread = { id: crypto.randomUUID(), turns: [], parentThreadId: parent.id };
+    const child: FakeThread = { id: fakeCodexThreadId(), turns: [], parentThreadId: parent.id };
     tasks.children.set(child.id, child);
     const prompt = 'Inspect the fixtures\nand report what you find.';
     const spawn = {

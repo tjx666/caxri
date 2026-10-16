@@ -3,11 +3,11 @@
  * `thread/fork`, which "Fork from here" uses to copy the turns before one into a new thread, and the
  * `thread/unsubscribe` that releases the fork.
  */
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import type { FakeThread } from './fake-codex-io.ts';
+import { fakeCodexThreadId } from './fake-codex-threads.ts';
 
 type Json = Record<string, unknown>;
 
@@ -55,7 +55,7 @@ export function forkThread(
     if (index === -1) return { error: { code: -32600, message: 'no such turn to fork before' } };
     const forked: FakeThread = {
         ...thread,
-        id: crypto.randomUUID(),
+        id: fakeCodexThreadId(),
         turns: thread.turns.slice(0, index),
     };
     fs.writeFileSync(threadPath(forked.id), JSON.stringify(forked));

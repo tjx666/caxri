@@ -93,6 +93,8 @@ async function executeMobileAgentChatScenario(
     const fixture = await createMobileAcceptanceFixture({ mode: 'agent-chat', serial });
     let isNetworkDisabled = false;
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+    let scenarioFailure: Error | undefined;
+    let cleanupFailure: Error | undefined;
     try {
         await fixture.pair();
         const chat = fixture.agentChat;
@@ -270,8 +272,18 @@ async function executeMobileAgentChatScenario(
             retry: 'resumed',
             status: 'passed',
         });
+    } catch (error) {
+        scenarioFailure =
+            error instanceof Error ? error : new Error('Mobile scenario failed', { cause: error });
     } finally {
-        await recording?.stop();
+        try {
+            await recording?.stop();
+        } catch (error) {
+            cleanupFailure =
+                error instanceof Error
+                    ? error
+                    : new Error('Mobile recording cleanup failed', { cause: error });
+        }
         if (isNetworkDisabled) {
             try {
                 await setMobileNetworkAvailable(serial, true);
@@ -279,8 +291,20 @@ async function executeMobileAgentChatScenario(
                 // Teardown must still stop the fixture; the scenario's own failure is the useful error.
             }
         }
-        await fixture.stop();
+        try {
+            await fixture.stop();
+        } catch (error) {
+            cleanupFailure ??=
+                error instanceof Error
+                    ? error
+                    : new Error('Mobile fixture cleanup failed', { cause: error });
+        }
     }
+    /**
+     * Keep a teardown race from replacing the scenario's first failure or skipping fixture cleanup.
+     */
+    if (scenarioFailure) throw scenarioFailure;
+    if (cleanupFailure) throw cleanupFailure;
 }
 
 /**

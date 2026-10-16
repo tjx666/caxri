@@ -79,6 +79,7 @@ import type {
     FakeTurn,
     RpcMessage,
 } from './fake-codex-io.ts';
+import { didHandleInitializeRequest } from './fake-codex-io.ts';
 import {
     completeMcpCalls,
     didHandleMcpStatusRequest,
@@ -103,6 +104,7 @@ import {
 } from './fake-codex-tasks.ts';
 import {
     fakeCodexStateDirectory,
+    fakeCodexThreadId,
     isFakeCodexInterruptRejected,
     readFakeConfig,
     readSavedThread,
@@ -426,20 +428,14 @@ function handle(message: RpcMessage) {
         return;
     }
     const { id, method, params: parameters = {} } = message;
+    if (didHandleInitializeRequest(io, id, method)) return;
     if (didHandleTaskRequest(io, id, method, parameters)) return;
     if (didHandleGoalRequest(io, id, method, parameters)) return;
     if (didHandleMcpStatusRequest(io, id, method, parameters)) return;
     switch (method) {
-        case 'initialize': {
-            send({ id, result: { userAgent: 'caxri/0.162.0 (fake)', platformOs: 'macos' } });
-            return;
-        }
-        case 'initialized': {
-            return;
-        }
         case 'thread/start': {
             recordThreadOpen(method, parameters);
-            state.thread = { id: crypto.randomUUID(), turns: [] };
+            state.thread = { id: fakeCodexThreadId(), turns: [] };
             send({ id, result: threadResponse(currentThread()) });
             return;
         }

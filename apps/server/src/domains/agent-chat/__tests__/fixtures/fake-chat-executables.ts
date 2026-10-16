@@ -31,13 +31,20 @@ ${options.claudeConfigDirectory ? `process.env.CLAUDE_CONFIG_DIR = ${JSON.string
  * A fake `codex` whose `app-server` is the JSON-RPC fixture. Threads persist under `stateDirectory`, so a resumed Chat
  * reads real history.
  */
-export function fakeCodexChatExecutableSource(options: { stateDirectory: string }): string {
+export function fakeCodexChatExecutableSource(options: {
+    stateDirectory: string;
+    /**
+     * App-only E2E flags are not inherited by providers, so native usage writes require an explicitly owned home.
+     */
+    nativeUsageHome?: string;
+}): string {
     return String.raw`#!${process.execPath}
 if (process.argv.includes('--version')) {
   process.stdout.write('codex-cli 0.162.0\n');
   process.exit(0);
 }
 process.env.FAKE_CODEX_STATE_DIR = ${JSON.stringify(options.stateDirectory)};
+process.env.FAKE_CODEX_NATIVE_USAGE_HOME = ${JSON.stringify(options.nativeUsageHome ?? '')};
 import(${JSON.stringify(pathToFileURL(FAKE_CODEX_APP_SERVER).href)});
 `;
 }
