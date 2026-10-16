@@ -33,9 +33,10 @@ compatibility commitment explicitly.
 
 ## Install on macOS
 
-The packaged app currently supports **Apple Silicon Macs**. You do not need to clone this
-repository or install Node.js, Bun, or `ni` to use it. Intel Macs can run from source using the
-development steps below; Windows and Linux desktop builds are not currently supported.
+The packaged app currently supports **Apple Silicon Macs running macOS 13 (Ventura) or later**.
+You do not need to clone this repository or install Node.js, Bun, or `ni` to use it. Intel Macs
+running macOS 13 or later can run from source using the development steps below; Windows and Linux
+desktop builds are not currently supported.
 
 1. **Prepare your Agent.** Install and sign in to at least one supported Agent CLI, such as
    Claude Code or Codex, following its vendor's instructions. Confirm that it works in Terminal
@@ -93,7 +94,7 @@ profile or Project folders. Contributor installation and release options are doc
 
 ### Development requirements
 
-- macOS (Apple Silicon or Intel for development from source)
+- macOS 13 or newer (Apple Silicon or Intel for development from source)
 - Node.js 24 or newer
 - Bun 1.3 or newer
 - Xcode Command Line Tools
