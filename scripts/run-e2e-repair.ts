@@ -10,7 +10,7 @@ import {
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
 import { selectAffectedE2ETests } from './ci-path-policy';
 import { waitForChildExit } from './exec';
-import { playwrightReporterArgument } from './reporters/public-e2e-reporter';
+import { playwrightReporterArgument } from './reporters/public-e2e-reporter-policy';
 
 type E2EPool = 'control' | 'desktop-exclusive' | 'parallel-safe';
 

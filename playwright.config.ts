@@ -5,7 +5,7 @@ import { defineConfig } from '@playwright/test';
 import {
     publicE2EReporterPath,
     shouldUsePublicE2EReporter,
-} from './scripts/reporters/public-e2e-reporter';
+} from './scripts/reporters/public-e2e-reporter-policy';
 
 export default defineConfig({
     globalSetup: './e2e/support/full-suite-guard.ts',

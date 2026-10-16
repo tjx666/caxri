@@ -10,11 +10,12 @@ import {
     annotateE2ETimings,
     readPublicE2EDiagnostics,
 } from '../reporters/public-e2e-diagnostics';
-import PublicE2EReporter, {
+import PublicE2EReporter from '../reporters/public-e2e-reporter';
+import {
     playwrightReporterArgument,
     publicE2EReporterPath,
     shouldUsePublicE2EReporter,
-} from '../reporters/public-e2e-reporter';
+} from '../reporters/public-e2e-reporter-policy';
 
 afterEach(() => {
     vi.restoreAllMocks();

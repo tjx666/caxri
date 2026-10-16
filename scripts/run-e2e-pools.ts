@@ -30,7 +30,7 @@ import {
     e2eProgressJournalPath,
     receiptFromProgressJournal,
 } from './reporters/e2e-receipt-reporter';
-import { playwrightReporterArgument } from './reporters/public-e2e-reporter';
+import { playwrightReporterArgument } from './reporters/public-e2e-reporter-policy';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
