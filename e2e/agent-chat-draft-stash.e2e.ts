@@ -50,6 +50,39 @@ test('Chat recalls first-line history and restores a stashed input after restart
                 )
                 .toBe(returnCaret);
 
+            const wrapped = 'Example wrapped input '.repeat(60);
+            await message.fill(wrapped);
+            await first.page.screenshot({ path: testInfo.outputPath('wrapped-before-up.png') });
+            await message.press('ArrowUp');
+            await first.page.screenshot({ path: testInfo.outputPath('wrapped-after-up.png') });
+            await expect(message).toHaveValue(wrapped);
+            const wrappedHistory = 'Example wrapped history '.repeat(12).trim();
+            await message.fill(wrappedHistory);
+            await chat.getByRole('button', { name: 'Send', exact: true }).click();
+            await expect(
+                chat.getByText(`Hello from fake Codex. You said: ${wrappedHistory.trim()}`, {
+                    exact: true,
+                }),
+            ).toBeVisible();
+            await message.fill('Example return draft');
+            await message.press('ArrowUp');
+            await expect(message).toHaveValue(wrappedHistory.trim());
+            await first.page.screenshot({
+                path: testInfo.outputPath('wrapped-history-recalled.png'),
+            });
+            await message.evaluate((element) =>
+                (element as HTMLTextAreaElement).setSelectionRange(0, 0),
+            );
+            await message.press('ArrowDown');
+            await expect(message).toHaveValue(wrappedHistory.trim());
+            await message.evaluate((element) => {
+                const input = element as HTMLTextAreaElement;
+                input.setSelectionRange(input.value.length, input.value.length);
+            });
+            await message.press('ArrowDown');
+            await expect(message).toHaveValue('Example return draft');
+            await message.fill(draft);
+
             await pasteAgentChatImage(message);
             await expect(chat.getByRole('button', { name: 'Remove screenshot.png' })).toBeVisible();
             await chat.getByRole('button', { name: 'Add files and more' }).click();

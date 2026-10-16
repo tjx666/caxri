@@ -10,6 +10,7 @@ import {
     agentChatPromptHistoryDirection,
     stepAgentChatPromptHistory,
 } from '../agent-chat-prompt-history';
+import { isAgentChatPromptHistoryBoundary } from '../agent-chat-prompt-history-layout';
 
 /**
  * ArrowUp/ArrowDown recall of the prompts this Chat sent (see `agent-chat-prompt-history`). The position is a ref: it
@@ -68,7 +69,8 @@ export function useAgentChatPromptHistory({
             entries: agentChatPromptHistory(items),
             position: position.current,
         });
-        if (!step) return false;
+        if (!step || !isAgentChatPromptHistoryBoundary(event.currentTarget, direction))
+            return false;
         event.preventDefault();
         const textarea = event.currentTarget;
         if (position.current?.recalled !== draft)

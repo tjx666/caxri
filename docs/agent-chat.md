@@ -661,9 +661,10 @@ several callbacks can share one item, so the transport id is never the key.
   device-local IndexedDB instead, because a few encoded images would exhaust the `localStorage`
   quota (`agent-chat-attachment-persistence.ts`): at most 128 MB of encoded images across all
   Chats, dropping the Chats whose images changed least recently first, deleted once the message
-  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on the first line recalls the
+  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on the first visual line recalls the
   prompts this Chat sent, newest first, and ArrowDown past the newest prompt restores the unsent text and caret.
-  Other lines retain normal caret navigation. The history is read from the user messages in the Chat's projection, so it needs
+  Other visual lines, including soft wraps without newline characters, retain native caret navigation in both directions.
+  The history is read from the user messages in the Chat's projection, so it needs
   no storage of its own and reaches only as far back as the projection keeps (see
   `truncated`). ArrowUp is left alone while an image is
   attached, an earlier message is being edited, or the command menu is open for typed text; a recalled `/command` that opens the menu
