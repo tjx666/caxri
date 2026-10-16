@@ -3,6 +3,8 @@ import process from 'node:process';
 
 import type { FullResult, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
 
+import { readPublicE2EDiagnostics } from './public-e2e-diagnostics';
+
 export const publicE2EReporterPath = './scripts/reporters/public-e2e-reporter.ts';
 const e2eReceiptReporterPath = './scripts/reporters/e2e-receipt-reporter.ts';
 
@@ -105,8 +107,8 @@ function failureLocation(
 
 /**
  * CI reporter whose stdout is safe to expose from a public Actions run. It intentionally drops worker stdout/stderr,
- * failure messages, source snippets, titles, annotations, attachments, steps, and DOM or Terminal values. The public
- * receipt retains the bounded failure classification used for diagnosis.
+ * failure messages, source snippets, titles, arbitrary annotations, attachments, steps, and DOM or Terminal values. The
+ * public receipt retains the bounded failure classification used for diagnosis.
  */
 class PublicE2EReporter implements Reporter {
     private attemptCounts = emptyAttemptCounts();
@@ -139,6 +141,7 @@ class PublicE2EReporter implements Reporter {
                 location: repoLocation(test),
                 retry: result.retry,
                 status: result.status,
+                ...readPublicE2EDiagnostics(result.annotations),
             })}`,
         );
     }
