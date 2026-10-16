@@ -127,6 +127,10 @@ dev app. Drive the real application over CDP, capture a screenshot of the affect
 check it before reporting completion. Passing unit or e2e gates alone does not count for visual
 changes.
 
+Wait for the intended surface to render before capturing it. For a file preview, match the asset's
+accessible name and decoded dimensions; the first loaded `img` may only be an Agent's brand icon.
+Wait for a paint frame, then inspect the captured pixels. A loaded node alone does not prove a preview.
+
 For Agent transcript adapters, verify event visibility in both directions: normal Hook lifecycle
 output (plain text, empty JSON, and control JSON) stays out of Chat, while explicit user feedback
 and command results remain visible. Replaying an event successfully is not proof that it belongs
