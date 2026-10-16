@@ -52,6 +52,57 @@ function emptyAttemptCounts(): Record<AttemptStatus, number> {
     };
 }
 
+function isCoordinate(value: number): boolean {
+    return Number.isSafeInteger(value) && value > 0 && value <= 1_000_000;
+}
+
+/**
+ * Playwright serializes ordinary assertion errors without a structured location. Only recover this spec's numbers.
+ */
+function stackFailureLocation(
+    file: string,
+    stack: string | undefined,
+): { line: number; column: number } | undefined {
+    const frames = stack?.split('\n', 100) ?? [];
+    const prefix = `${file}:`;
+    for (const frame of frames) {
+        const text = frame.trim();
+        if (!text.startsWith('at ')) continue;
+        const index = text.indexOf(prefix, 3);
+        const parenthesized = index > 3 && text[index - 1] === '(' && text.endsWith(')');
+        if (index !== 3 && !parenthesized) continue;
+        const coordinates = text.slice(index + prefix.length, parenthesized ? -1 : undefined);
+        const match = /^(\d{1,7}):(\d{1,7})$/u.exec(coordinates);
+        if (!match) continue;
+        const line = Number(match[1]);
+        const column = Number(match[2]);
+        if (isCoordinate(line) && isCoordinate(column)) return { line, column };
+    }
+    return undefined;
+}
+
+/**
+ * Only coordinates inside the current spec may leave the worker's error object. Never fall back to error text, source
+ * snippets, or unrelated stack files, which can contain private workspace data.
+ */
+function failureLocation(
+    test: TestCase,
+    result: TestResult,
+): { line: number; column: number } | undefined {
+    for (const error of result.errors) {
+        const location = error.location;
+        if (
+            location?.file === test.location.file &&
+            isCoordinate(location.line) &&
+            isCoordinate(location.column)
+        )
+            return { line: location.line, column: location.column };
+        const stackLocation = stackFailureLocation(test.location.file, error.stack);
+        if (stackLocation) return stackLocation;
+    }
+    return undefined;
+}
+
 /**
  * CI reporter whose stdout is safe to expose from a public Actions run. It intentionally drops worker stdout/stderr,
  * failure messages, source snippets, titles, annotations, attachments, steps, and DOM or Terminal values. The public
@@ -84,6 +135,7 @@ class PublicE2EReporter implements Reporter {
             `CAXRI_E2E_PUBLIC ${JSON.stringify({
                 durationMs,
                 event: 'test-end',
+                failureLocation: failureLocation(test, result),
                 location: repoLocation(test),
                 retry: result.retry,
                 status: result.status,
