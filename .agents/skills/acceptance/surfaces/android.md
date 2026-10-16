@@ -88,6 +88,10 @@ needs root and a framework restart, so it is not used. Both options accept only 
 
 ## Inspect and interact without leaking content
 
+Use public synthetic Project paths for recordings. Approval cards display their real working
+directory, so the native fixture uses `/tmp` on macOS instead of its account-specific system temp
+directory. Keep any earlier frames that expose the system temp path private and recapture them.
+
 Use Caxri's semantic helper. It first proves that Caxri owns the foreground Activity, then emits only
 stable `testID` values, structural flags, and bounds:
 

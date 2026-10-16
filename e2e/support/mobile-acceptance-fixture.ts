@@ -102,7 +102,11 @@ export async function createMobileAcceptanceFixture(
 ): Promise<MobileAcceptanceFixture> {
     if (input.mode === 'journey' && input.seedProject)
         throw new Error('A journey seeds its Project after the synthetic Agent action');
-    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-mobile-acceptance-'));
+    /**
+     * Approval cards display the real cwd, so recordings must avoid macOS's account-specific temp path.
+     */
+    const fixtureTemporaryRoot = process.platform === 'darwin' ? '/tmp' : tmpdir();
+    const testDirectory = await mkdtemp(join(fixtureTemporaryRoot, 'caxri-mobile-acceptance-'));
     const userData = join(testDirectory, 'user-data');
     const allowedRoot = join(testDirectory, 'allowed-project');
     const deniedRoot = join(testDirectory, 'denied-project');
