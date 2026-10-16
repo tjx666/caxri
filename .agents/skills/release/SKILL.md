@@ -80,6 +80,20 @@ beyond the packaged application itself.
   verification remains a release responsibility; product checks and release packaging run on
   GitHub-hosted runners. A future full E2E run uses the separately authorized route above and does
   not replace the release workflow's own targeted package validation.
+- Track Android build progress in the build step of the active release or rehearsal job. Android
+  backfill is a separate route. When a hosted build is anomalously stalled and REST log archives are
+  unavailable, inspect that step in an existing authenticated Actions browser session. Streamed
+  build stdout can reveal a fatal runtime error while the job is still active.
+- For a fatal JVM signal during Gradle or R8, preserve the attempt, step, and public stdout
+  coordinates. Leave JVM error reports and core dumps untouched because they may contain
+  environment values. If a confirmed fatal error leaves the job without a success path and it
+  remains running, preserve the evidence and cancel that attempt through the authorized workflow.
+  Treat this as a hosted-only toolchain/runtime failure under
+  [pull-request](../pull-request/SKILL.md)'s CI failure rules.
+  Obtain an independent verdict before exactly one exact-SHA replay of the failed hosted job;
+  keep its inputs and budgets unchanged.
+  A repeated runtime crash or a product assertion failure ends that retry path and requires
+  investigation.
 - Follow `RELEASING.md` when preparing the release commit and opening its pull request. Creating that
   commit, opening its pull request, and merging it still require explicit user authorization because
   the merge triggers the remote release.
