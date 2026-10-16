@@ -98,6 +98,10 @@ test('executes one report-bound Android product scenario', async ({}) => {
     test.setTimeout(300_000);
     const environment = requireEnvironment();
     const artifacts: string[] = [];
+    if (environment.caseId.startsWith('MOB-CHANGES-')) {
+        await executeMobileChangesScenario(environment, artifacts);
+        return;
+    }
     if (environment.caseId.startsWith('MOB-E2E-')) {
         test.setTimeout(420_000);
         if (!sourceCommit || !launchId)
@@ -644,12 +648,6 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 { ...environment, launchId, sourceCommit },
                 artifacts,
             );
-            break;
-        case 'MOB-CHANGES-01':
-        case 'MOB-CHANGES-02':
-        case 'MOB-CHANGES-03':
-        case 'MOB-CHANGES-04':
-            await executeMobileChangesScenario(environment, artifacts);
             break;
         default:
             if (!environment.caseId.startsWith('MOB-CHAT-'))

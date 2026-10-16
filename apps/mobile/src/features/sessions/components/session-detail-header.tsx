@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition, useReducedMotion } from 'react-native-reanimated';
 
 import type { LucideIcon } from 'lucide-react-native';
 import {
@@ -104,6 +104,10 @@ const SessionSegmentTab = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    /**
+     * Reduced-motion switches need native layout, without retaining the removed label's animated frame.
+     */
+    const reducedMotion = useReducedMotion();
     const { icon: Icon, label } = segmentPresentation(option, panels, isChat, t);
     /**
      * A zero badge reads as a value to act on; an empty Changes tab says the same thing without the noise.
@@ -119,9 +123,9 @@ const SessionSegmentTab = ({
             ].join(', ')}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            layout={tabLayoutTransition}
+            layout={reducedMotion ? undefined : tabLayoutTransition}
             onPress={onPress}
-            style={[styles.tab, selected ? { backgroundColor: theme.surface } : null]}
+            style={[styles.tab, { backgroundColor: selected ? theme.surface : 'transparent' }]}
             testID={segmentTestId(option)}
         >
             <View>
@@ -138,7 +142,7 @@ const SessionSegmentTab = ({
             </View>
             {selected ? (
                 <Animated.Text
-                    entering={tabLabelEntering}
+                    entering={reducedMotion ? undefined : tabLabelEntering}
                     numberOfLines={1}
                     style={[styles.tabText, { color }]}
                 >

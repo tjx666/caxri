@@ -368,6 +368,13 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'changes-ask-agent-draft-send',
     },
+    'MOB-CHANGES-05': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        motion: 'live',
+        recordingOwner: 'scenario',
+        scenario: 'changes-list-and-diff',
+    },
     'MOB-CROSS-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],
