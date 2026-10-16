@@ -176,7 +176,7 @@ const androidCases = {
     },
     'MOB-CHAT-01': {
         desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
+        media: ['screenshot', 'video'],
         recordingOwner: 'scenario',
         scenario: 'agent-chat',
     },
@@ -283,6 +283,12 @@ const androidCases = {
         media: ['screenshot'],
         recordingOwner: 'scenario',
         scenario: 'agent-chat-chinese-locale',
+    },
+    'MOB-CHAT-19': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-dashboard-states',
     },
     'MOB-CONV-01': {
         desktopProfile: 'managed-by-isolated-e2e',

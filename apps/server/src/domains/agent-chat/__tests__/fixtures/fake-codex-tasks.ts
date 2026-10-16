@@ -58,7 +58,11 @@ function beginChildTurn(io: FakeCodexIo, child: FakeThread, prompt: string): Fak
 function finishChildTurn(io: FakeCodexIo, child: FakeThread, turn: FakeTurn) {
     if (turn.finished) return;
     turn.finished = true;
-    turn.status = turn.interrupted ? 'interrupted' : 'completed';
+    turn.status = turn.interrupted
+        ? 'interrupted'
+        : turn.status === 'failed'
+          ? 'failed'
+          : 'completed';
     turn.durationMs = Date.now() - turn.startedAt;
     tasks.childTurns.delete(child.id);
     io.save(child);
@@ -77,7 +81,8 @@ export async function runSubagent(
         isHeld,
         isBrowsing,
         needsApproval,
-    }: { isHeld: boolean; isBrowsing: boolean; needsApproval: boolean },
+        fails,
+    }: { isHeld: boolean; isBrowsing: boolean; needsApproval: boolean; fails?: boolean },
 ) {
     const parent = io.currentThread();
     const child: FakeThread = { id: crypto.randomUUID(), turns: [], parentThreadId: parent.id };
@@ -122,6 +127,13 @@ export async function runSubagent(
         exitCode: 0,
         durationMs: 3,
     });
+    if (fails) {
+        childTurn.status = 'failed';
+        childTurn.error = { message: 'Synthetic child failure' };
+        finishChildTurn(io, child, childTurn);
+        await io.streamMessage(turn, 'The helper failed.', 0);
+        return;
+    }
     if (needsApproval) {
         const approval = io.serverRequest('item/commandExecution/requestApproval', {
             threadId: child.id,
@@ -304,10 +316,15 @@ export function didHandleTaskRequest(
                 const compaction = { type: 'contextCompaction', id: crypto.randomUUID() };
                 io.startItem(turn, compaction);
                 // Compaction takes a moment, so the Chat can show it in progress.
-                setTimeout(() => {
-                    io.completeItem(turn, compaction);
-                    io.finishTurn(turn);
-                }, 150);
+                setTimeout(
+                    () => {
+                        io.completeItem(turn, compaction);
+                        io.finishTurn(turn);
+                    },
+                    JSON.stringify(io.currentThread().turns).includes('contextpressure')
+                        ? 2500
+                        : 150,
+                );
             }, COMPACTION_START_DELAY_MS);
             return true;
         }

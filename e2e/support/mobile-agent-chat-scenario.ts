@@ -39,10 +39,12 @@ import {
     androidBounds,
     mobileSemantics,
     setMobileNetworkAvailable,
+    startMobileFramebufferRecording,
     tapMobileCheck,
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
+import { executeMobileDashboardStateScenario } from './mobile-dashboard-state-scenario';
 import { executeMobileReadCacheScenario } from './mobile-read-cache-scenario';
 
 /**
@@ -84,12 +86,13 @@ const PIXEL =
  * states.
  */
 async function executeMobileAgentChatScenario(
-    environment: MobileAgentScenarioEnvironment,
+    environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
     artifacts: string[],
 ): Promise<void> {
     const { serial } = environment;
     const fixture = await createMobileAcceptanceFixture({ mode: 'agent-chat', serial });
     let isNetworkDisabled = false;
+    let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
         await fixture.pair();
         const chat = fixture.agentChat;
@@ -102,11 +105,35 @@ async function executeMobileAgentChatScenario(
         await waitForCheck(serial, 'agent-chat-status-empty');
         await capture(environment, 'empty', artifacts);
 
-        await sendFromPhone(serial, 'hello');
+        await sendFromPhone(serial, 'contextpressure');
         await waitForMobile(
             () => chat.read(),
-            (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
+            (snapshot) => snapshot.usage?.totalTokens === 170000 && !snapshot.activeTurnId,
         );
+        await capture(environment, 'context-pressure-before', artifacts);
+        recording = environment.remoteVideoPath
+            ? await startMobileFramebufferRecording(serial, environment.remoteVideoPath)
+            : undefined;
+        const maintenance = await pageRequest<{ items: Array<{ outcome: string }> }>(
+            fixture.running.page,
+            'session.compactWarm',
+            {},
+        );
+        if (maintenance.items.every(({ outcome }) => outcome !== 'submitted'))
+            throw new Error('Native maintenance did not pass the real cache readiness gate');
+        await capture(environment, 'maintenance-chat', artifacts);
+        await tapMobileCheckByBounds(serial, 'session-detail-back');
+        await capture(environment, 'maintenance-home', artifacts);
+        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                !snapshot.activeTurnId &&
+                snapshot.items.some((item) => item.type === 'notice' && item.kind === 'compacted'),
+        );
+        await capture(environment, 'maintenance-completed', artifacts);
+        await recording?.stop();
+        recording = undefined;
         await sendFromPhone(serial, '/compact');
         const compacted = await waitForMobile(
             () => chat.read(),
@@ -238,6 +265,7 @@ async function executeMobileAgentChatScenario(
             status: 'passed',
         });
     } finally {
+        await recording?.stop();
         if (isNetworkDisabled) {
             try {
                 await setMobileNetworkAvailable(serial, true);
@@ -464,6 +492,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatBrowserScenario(environment, artifacts);
         case 'MOB-CHAT-18':
             return executeMobileChatChineseScenario(environment, artifacts);
+        case 'MOB-CHAT-19':
+            return executeMobileDashboardStateScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

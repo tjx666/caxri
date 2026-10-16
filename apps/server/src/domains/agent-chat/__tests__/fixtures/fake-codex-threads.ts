@@ -35,6 +35,40 @@ export function threadPath(id: string, extension = 'json') {
 
 export function saveThread(thread: FakeThread) {
     if (thread.turns.length > 0) fs.writeFileSync(threadPath(thread.id), JSON.stringify(thread));
+    writeContextPressureRollout(thread);
+}
+
+/**
+ * The public native usage record lets maintenance acceptance exercise the real transcript/cache gate, without a
+ * production-only test RPC. The fake executable writes only its explicitly isolated E2E Codex home.
+ */
+function writeContextPressureRollout(thread: FakeThread): void {
+    const codexHome = process.env.CODEX_HOME;
+    if (
+        !codexHome ||
+        thread.parentThreadId ||
+        !process.env.CAXRI_E2E ||
+        !JSON.stringify(thread.turns).includes('contextpressure')
+    )
+        return;
+    const timestamp = new Date().toISOString();
+    const directory = path.join(codexHome, 'sessions', ...timestamp.slice(0, 10).split('-'));
+    fs.mkdirSync(directory, { recursive: true });
+    const records = [
+        { type: 'session_meta', timestamp, payload: { id: thread.id, cwd: process.cwd() } },
+        {
+            type: 'event_msg',
+            timestamp,
+            payload: {
+                type: 'token_count',
+                info: { last_token_usage: { input_tokens: 170000 } },
+            },
+        },
+    ];
+    fs.writeFileSync(
+        path.join(directory, `rollout-${timestamp.slice(0, 10)}T00-00-00-${thread.id}.jsonl`),
+        `${records.map((record) => JSON.stringify(record)).join('\n')}\n`,
+    );
 }
 
 export function readSavedThread(id: string): FakeThread | undefined {

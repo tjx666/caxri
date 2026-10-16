@@ -17,8 +17,10 @@ import {
 } from './mobile-agent-chat-helpers';
 import { exerciseChatBackgroundWork } from './mobile-agent-chat-tasks-scenario';
 import {
+    adbShell,
     mobileRegionFingerprint,
     mobileSemantics,
+    observeMobileNode,
     startMobileFramebufferRecording,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -200,6 +202,8 @@ export async function executeMobileChatPinScrollScenario(
         await tapMobileCheckByBounds(serial, 'conversation-jump-latest');
         await waitForNoCheck(serial, 'conversation-jump-latest');
         await capture(environment, 'latest', artifacts);
+        const mainAction = checkBounds(await mobileSemantics(serial), 'agent-chat-composer-send');
+        if (!mainAction) throw new Error('The phone main Chat action is unavailable');
         await sendFromPhone(serial, 'longstream');
         const interrupted = await waitForMobile(
             () => chat.read(),
@@ -213,8 +217,15 @@ export async function executeMobileChatPinScrollScenario(
                 ),
             30_000,
         );
-        // The phone must show the same user-owned Stop initiated through the paired Desktop action.
-        await chat.interrupt();
+        // Stop is the phone's own main Chat action, distinct from stopping a background task.
+        const stop = await observeMobileNode(serial, 'agent-chat-composer-stop');
+        if (!stop.exists) throw new Error('The phone main Chat Stop is unavailable');
+        await adbShell(serial, [
+            'input',
+            'tap',
+            String(Math.floor((mainAction.left + mainAction.right) / 2)),
+            String(Math.floor((mainAction.top + mainAction.bottom) / 2)),
+        ]);
         await waitForMobile(
             () => chat.read(),
             (snapshot) =>
@@ -228,8 +239,28 @@ export async function executeMobileChatPinScrollScenario(
         );
         await waitForNoCheck(serial, 'agent-chat-activity');
         await capture(environment, 'stopped-by-user', artifacts);
+        await sendFromPhone(serial, 'streamfail');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                !snapshot.activeTurnId &&
+                snapshot.turns.at(-1)?.status === 'failed' &&
+                agentText(snapshot).includes('Partial reply.'),
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        await capture(environment, 'failed-stream-flushed', artifacts);
         await recording?.stop();
         recording = undefined;
+
+        await sendFromPhone(serial, 'crash');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                !snapshot.activeTurnId &&
+                snapshot.turns.at(-1)?.status === 'interrupted' &&
+                snapshot.turns.at(-1)?.interruptionReason !== 'user',
+        );
+        await capture(environment, 'unknown-interruption', artifacts);
 
         await finish(environment, artifacts, {
             pinnedOffsetRatio,
