@@ -47,6 +47,7 @@ describe('public E2E reporter policy', () => {
             attachments: [{ body: 'private attachment' }],
             duration: 12.4,
             error: { message: 'private DOM and Terminal output' },
+            errors: [],
             retry: 0,
             status: 'failed',
             stderr: ['private stderr'],
@@ -86,12 +87,98 @@ describe('public E2E reporter policy', () => {
         const test = {
             location: { column: 1, file: '/private/secret.e2e.ts', line: 1 },
         } as TestCase;
-        const result = { duration: 1, retry: 0, status: 'passed' } as TestResult;
+        const result = {
+            duration: 1,
+            errors: [],
+            retry: 0,
+            status: 'passed',
+        } as unknown as TestResult;
 
         reporter.onTestEnd(test, result);
 
         const output = log.mock.calls.flat().join('\n');
         expect(output).toContain('<outside-repository>:1:1');
         expect(output).not.toContain('/private/secret.e2e.ts');
+    });
+
+    it('reports only failure coordinates from the current spec', () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const reporter = new PublicE2EReporter();
+        const file = join(process.cwd(), 'e2e/example.e2e.ts');
+        const test = { location: { column: 2, file, line: 12 } } as TestCase;
+        const result = {
+            duration: 1,
+            errors: [
+                {
+                    location: { column: 9, file, line: 44 },
+                    message: 'private assertion values',
+                    snippet: 'private source',
+                    stack: 'private stack',
+                },
+            ],
+            retry: 0,
+            status: 'failed',
+        } as TestResult;
+
+        reporter.onTestEnd(test, result);
+
+        const output = log.mock.calls.flat().join('\n');
+        expect(output).toContain('"failureLocation":{"line":44,"column":9}');
+        expect(output).not.toContain('private');
+        expect(output).not.toContain(process.cwd());
+    });
+
+    it('finds current-spec coordinates in ordinary assertion stacks without publishing the stack', () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const reporter = new PublicE2EReporter();
+        const file = join(process.cwd(), 'e2e/example.e2e.ts');
+        const test = { location: { column: 2, file, line: 12 } } as TestCase;
+        const result = {
+            duration: 1,
+            errors: [
+                {
+                    message: 'private assertion values',
+                    stack: `Error: private assertion values\n    at helper (/private/other.ts:1:1)\n    at Object.run (${file}:48:13)`,
+                },
+            ],
+            retry: 0,
+            status: 'failed',
+        } as TestResult;
+
+        reporter.onTestEnd(test, result);
+
+        const output = log.mock.calls.flat().join('\n');
+        expect(output).toContain('"failureLocation":{"line":48,"column":13}');
+        expect(output).not.toContain('private');
+        expect(output).not.toContain('Object.run');
+        expect(output).not.toContain(process.cwd());
+    });
+
+    it.each([
+        undefined,
+        { file: '/private/other.e2e.ts', line: 44, column: 9 },
+        { file: join(process.cwd(), 'e2e/other.e2e.ts'), line: 44, column: 9 },
+        { file: join(process.cwd(), 'e2e/example.e2e.ts'), line: 0, column: 9 },
+        { file: join(process.cwd(), 'e2e/example.e2e.ts'), line: 44, column: 1.5 },
+        { file: join(process.cwd(), 'e2e/example.e2e.ts'), line: 1_000_001, column: 9 },
+    ])('omits untrusted failure coordinates (%j)', (location) => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const reporter = new PublicE2EReporter();
+        const test = {
+            location: { column: 2, file: join(process.cwd(), 'e2e/example.e2e.ts'), line: 12 },
+        } as TestCase;
+        const result = {
+            duration: 1,
+            errors: [{ location, message: 'private assertion', stack: 'private stack' }],
+            retry: 0,
+            status: 'failed',
+        } as TestResult;
+
+        reporter.onTestEnd(test, result);
+
+        const output = log.mock.calls.flat().join('\n');
+        expect(output).not.toContain('failureLocation');
+        expect(output).not.toContain('private');
+        expect(output).not.toContain(process.cwd());
     });
 });
