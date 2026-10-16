@@ -19,9 +19,10 @@ import {
     releaseDesktopLease,
     transferDesktopLease,
 } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
+import { createE2ELaunchTimer } from '../../scripts/reporters/public-e2e-diagnostics.ts';
 import { stubAppQuitDecision } from './app-quit.ts';
 import { assertE2EBuildIsFresh } from './build-freshness.ts';
-import type { ClipboardCapability, ClipboardFixture, ClipboardSnapshot } from './clipboard.ts';
+import type { ClipboardCapability, ClipboardSnapshot } from './clipboard.ts';
 import {
     armClipboardRestoreOnQuit,
     createClipboardCapability,
@@ -33,66 +34,16 @@ import { closeE2EApp } from './desktop-lease-lifecycle.ts';
 import type { E2EApp } from './electron-app.ts';
 import { flushE2EErrorToasts, registerE2ELaunch } from './error-gate.ts';
 import { releaseE2EHost } from './host-shutdown.ts';
+import type { E2EAgentMode, LaunchCaxriOptions } from './launch-options.ts';
+import { waitForRuntimeReady } from './runtime-ready.ts';
 import { stageDevelopmentTestExtension } from './test-extension.ts';
 import { resolveE2ELaunchPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
 const agentEnvironmentKeys = e2eAgentEnvironmentKeys();
 
-export interface LaunchCaxriOptions {
-    /**
-     * Electron `userData` directory; callers create this with `mkdtemp`.
-     */
-    userDataDir: string;
-    /**
-     * Project root exposed to the app through `CAXRI_TEST_ROOT_PATH`.
-     */
-    testRootPath: string;
-    /**
-     * Extra environment variables layered over `process.env` and the Caxri E2E defaults below. Agent executables and
-     * provider state belong in `agentMode`; use this only for a scenario-specific shell or tool environment.
-     */
-    env?: NodeJS.ProcessEnv;
-    /**
-     * Launches a packaged build instead of `.` (used by the startup benchmark).
-     */
-    executablePath?: string;
-    /**
-     * Bounded wait for another checkout's active desktop lease before launching this E2E instance.
-     */
-    desktopLeaseWaitMs?: number;
-    /**
-     * Hidden by default; use visible only for native focus, pointer, or desktop behavior.
-     */
-    windowMode?: 'hidden' | 'visible';
-    /**
-     * Keeps deterministic software rendering by default; WebGL renderer specs opt into GPU.
-     */
-    gpuMode?: 'disabled' | 'enabled';
-    /**
-     * Blocks host Agents by default; fake and real modes require an explicit per-spec choice.
-     */
-    agentMode?: E2EAgentMode;
-    /**
-     * Native quit choice; independent Host cleanup lets restart tests preserve tasks before a harness stop.
-     */
-    quitDecisionOnClose?: 'keep-running' | 'stop';
-    /**
-     * Restart workflows let the next launch inherit the same live Host; the final launch cleans it.
-     */
-    preserveHostOnClose?: boolean;
-    /**
-     * Declares that the spec needs the protected clipboard snapshot handle. Parallel-safe workers reject this
-     * capability before launching Electron; desktop-exclusive, control, and focused launches preserve the existing
-     * restore path.
-     */
-    clipboard?: boolean;
-    /**
-     * Seeds a native pasteboard fixture after the shared desktop lease is held and restores the pre-launch clipboard
-     * after the launch's own format-complete restoration has been verified.
-     */
-    clipboardFixture?: ClipboardFixture;
-}
+export type { LaunchCaxriOptions } from './launch-options.ts';
+export { runtimeStatus, waitForRuntimeReady } from './runtime-ready.ts';
 
 export interface RunningCaxri {
     app: E2EApp;
@@ -103,15 +54,6 @@ export interface RunningCaxri {
 export interface RunningCaxriWithClipboard extends RunningCaxri {
     clipboard: ClipboardCapability;
 }
-
-type E2EAgentMode =
-    | { mode: 'blocked' }
-    | {
-          mode: 'fake';
-          environment: NodeJS.ProcessEnv;
-          executables: Partial<Record<AgentProvider, string>>;
-      }
-    | { mode: 'real'; provider?: AgentProvider; surface?: 'chat' | 'pty' };
 
 async function e2eAgentEnvironment(
     userDataDirectory: string,
@@ -180,7 +122,9 @@ export function launchCaxriApp(
 ): Promise<RunningCaxriWithClipboard>;
 export function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri>;
 export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri> {
+    const markStage = createE2ELaunchTimer(options.onLaunchStage);
     await assertE2EBuildIsFresh();
+    markStage('freshnessMs');
     const {
         userDataDir,
         testRootPath,
@@ -198,6 +142,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
     const closeDecision = quitDecisionOnClose ?? (preserveHostOnClose ? 'keep-running' : 'stop');
     if (!executablePath) await stageDevelopmentTestExtension(projectRoot, userDataDir);
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
+    markStage('agentEnvironmentMs');
     const clipboardPolicy = resolveE2ELaunchPolicy(process.env, { clipboard, gpuMode, windowMode });
     if (clipboardFixture && !clipboard) {
         throw new Error('clipboardFixture requires clipboard access');
@@ -242,6 +187,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         },
     );
     let releasePromise: Promise<void> | undefined;
+    markStage('leaseAcquireMs');
     const releaseLease = (): Promise<void> =>
         (releasePromise ??= releaseE2EHost(userDataDir, preserveHostOnClose, () =>
             releaseDesktopLease(lease),
@@ -251,6 +197,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
     let clipboardSnapshot: ClipboardSnapshot | undefined;
     try {
         lease = await beginDesktopLeaseHandoff(lease);
+        markStage('leaseHandoffMs');
         app = await electron.launch({
             ...(executablePath && { executablePath }),
             // Specs assert English copy; pinning Chromium's locale keeps the system-following language English.
@@ -262,6 +209,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
             cwd: projectRoot,
             env: launchEnvironment,
         });
+        markStage('electronLaunchMs');
         let clipboardRestoreFailure: Error | undefined;
         let cleanupPromise: Promise<void> | undefined;
         const cleanup = (): Promise<void> =>
@@ -310,6 +258,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
             })());
         try {
             await registerE2ELaunch(app, userDataDir, cleanup);
+            markStage('errorGateRegisterMs');
             if (clipboardPolicy.protectClipboard) {
                 if (clipboardFixture) {
                     clipboardBaseline = await snapshotClipboard();
@@ -375,13 +324,16 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         });
         const electronPid = electronProcess.pid;
         if (!electronPid) throw new Error('Could not establish the Electron process identity');
+        markStage('lifecycleSetupMs');
         lease = await transferDesktopLease(lease, electronPid);
+        markStage('leaseTransferMs');
     } catch (error) {
         await releaseLease();
         throw error;
     }
     try {
         const page = await app.firstWindow();
+        markStage('firstWindowMs');
         if (clipboard && !clipboardSnapshot) {
             throw new Error('Clipboard access was declared without an active protected snapshot');
         }
@@ -407,20 +359,6 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
 }
 
 /**
- * Waits for the Runtime-ready signal that every spec relies on for readiness.
- *
- * The status bar only renders a _visible_ state chip while Caxri is degraded, so readiness is published as a data
- * attribute that exists in every visual state instead of as display copy.
- */
-export function runtimeStatus(page: Page) {
-    return page.locator('.statusbar');
-}
-
-export async function waitForRuntimeReady(page: Page): Promise<void> {
-    await expect(runtimeStatus(page)).toHaveAttribute('data-runtime-status', 'ready');
-}
-
-/**
  * Launches Caxri and waits for the Runtime to report ready.
  */
 export function launchCaxri(
@@ -429,7 +367,9 @@ export function launchCaxri(
 export function launchCaxri(options: LaunchCaxriOptions): Promise<RunningCaxri>;
 export async function launchCaxri(options: LaunchCaxriOptions): Promise<RunningCaxri> {
     const running = await launchCaxriApp(options);
+    const statusStartedAt = performance.now();
     await waitForRuntimeReady(running.page);
+    options.onLaunchStage?.('runtimeStatusWaitMs', performance.now() - statusStartedAt);
     return running;
 }
 

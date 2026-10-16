@@ -418,8 +418,10 @@ wall time alone hides it.
   screenshots, DOM snapshots, Terminal content, and auxiliary receipts never leave the disposable
   hosted runner.
 - GitHub-hosted Playwright commands use `scripts/reporters/public-e2e-reporter.ts`. It emits only
-  repository-relative locations, closed statuses, durations, counts, and run state. Test titles,
-  errors, source snippets, annotations, attachments, worker stdout/stderr, DOM values, and Terminal
+  repository-relative locations, closed statuses and failure phases, protocol error counts,
+  bounded startup timings, and run state. Dedicated diagnostic annotations are sanitized before
+  writing and revalidated by `scripts/reporters/public-e2e-diagnostics.ts`. Test titles, error text,
+  source snippets, arbitrary annotations, attachments, worker stdout/stderr, DOM values, and Terminal
   values are deliberately absent from the public Actions log. Local focused reproduction keeps the
   normal detailed reporter.
 - Every required output is checked before every launch. Each Playwright worker performs one full

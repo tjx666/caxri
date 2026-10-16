@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { annotateE2ETimings } from '../scripts/reporters/public-e2e-diagnostics.ts';
 import { realCodexSmokeArguments } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, openAddProjectDialog, pageRequest } from './support/helpers.ts';
@@ -11,6 +12,7 @@ import { runningWork } from './support/running-work.ts';
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 
 test('Finder-like launch PATH starts a Node-dependent Codex launcher', async () => {
+    const testInfo = test.info();
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-login-path-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -65,6 +67,8 @@ exec /bin/zsh "$@"
         userDataDir: userData,
         testRootPath: root,
         executablePath: packagedExecutable,
+        onLaunchStage: (stage, durationMs) =>
+            annotateE2ETimings(testInfo, 'agentLaunch', { [stage]: durationMs }),
         env: {
             HOME: home,
             CODEX_HOME: state,

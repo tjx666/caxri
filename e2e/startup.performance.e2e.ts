@@ -6,8 +6,10 @@ import process from 'node:process';
 import { connectToServer } from '@caxri/client/supervise';
 import { execFileAsync } from '@caxri/system';
 
+import { annotateE2ETimings } from '../scripts/reporters/public-e2e-diagnostics.ts';
 import type { E2EApp as ElectronApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
+import type { LaunchCaxriOptions } from './support/helpers.ts';
 import {
     launchCaxriApp,
     openAddProjectDialog,
@@ -28,12 +30,14 @@ async function launch(
     userData: string,
     sessionRoot: string,
     shouldPreserveHostOnClose: boolean,
+    onLaunchStage: LaunchCaxriOptions['onLaunchStage'],
 ): Promise<ElectronApp> {
     const { app } = await launchCaxriApp({
         userDataDir: userData,
         testRootPath: sessionRoot,
         executablePath,
         preserveHostOnClose: shouldPreserveHostOnClose,
+        onLaunchStage,
         env: { PATH: `${join(userData, 'benchmark-bin')}:${process.env.PATH ?? ''}` },
     });
     return app;
@@ -106,6 +110,7 @@ async function measureServerOwnerResources(serverCorePid: number): Promise<{
 }
 
 test('large Project opens Runtime, Terminal, files, and Git within three seconds', async () => {
+    const testInfo = test.info();
     // This is a machine-load-sensitive performance assertion, not a functional
     // check, so it only runs when a benchmark Project root is explicitly
     // provided. Without this the default suite would silently fall back to
@@ -137,17 +142,24 @@ exit 2
         { mode: 0o755 },
     );
     const launchedAt = performance.now();
-    let app = await launch(userData, sessionRoot, true);
+    let app = await launch(userData, sessionRoot, true, (stage, durationMs) =>
+        annotateE2ETimings(testInfo, 'coldLaunch', { [stage]: durationMs }),
+    );
+    const launchHelperMs = performance.now() - launchedAt;
 
     try {
         const page = await app.firstWindow();
+        const dialogStubStartedAt = performance.now();
         if (executablePath) {
             await app.evaluate(({ dialog }, root) => {
                 dialog.showOpenDialog = () =>
                     Promise.resolve({ canceled: false, filePaths: [root] });
             }, sessionRoot);
         }
+        const packagedDialogStubMs = executablePath ? performance.now() - dialogStubStartedAt : 0;
+        const runtimeStatusStartedAt = performance.now();
         await waitForRuntimeReady(page);
+        const runtimeStatusWaitMs = performance.now() - runtimeStatusStartedAt;
         const runtimeReadyMs = performance.now() - launchedAt;
 
         await openAddProjectDialog(page);
@@ -193,7 +205,9 @@ exit 2
 
         await app.close();
         const restoredAt = performance.now();
-        app = await launch(userData, sessionRoot, false);
+        app = await launch(userData, sessionRoot, false, (stage, durationMs) =>
+            annotateE2ETimings(testInfo, 'restoredLaunch', { [stage]: durationMs }),
+        );
         const restoredPage = await app.firstWindow();
         const restoredTerminalSurface = (async () => {
             await restoredPage.locator('.terminal-surface .xterm-rows').waitFor();
@@ -321,6 +335,9 @@ exit 2
         const result = {
             executable: executablePath ?? 'development',
             sessionRoot,
+            launchHelperMs,
+            packagedDialogStubMs,
+            runtimeStatusWaitMs,
             runtimeReadyMs: Math.round(runtimeReadyMs),
             terminalReadyMs: Math.round(terminalReadyMs),
             terminalEchoMs: Math.round(terminalEchoMs * 100) / 100,
@@ -372,6 +389,10 @@ exit 2
             ipcFailures,
             highFrequencyIpcLogs,
         };
+        // Public CI must not print the legacy result's executable or Project paths.
+        annotateE2ETimings(testInfo, 'benchmark', result);
+        const coldProfile = desktopRecords.find((record) => record.event === 'app.startup_profile');
+        annotateE2ETimings(testInfo, 'coldProfile', coldProfile?.fields ?? {});
         console.log(`CAXRI_STARTUP_BENCHMARK ${JSON.stringify(result)}`);
 
         expect(runtimeReadyMs).toBeLessThan(thresholdMs);

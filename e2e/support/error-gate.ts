@@ -14,6 +14,8 @@ import {
 } from '@caxri/system';
 import type { ElectronApplication, Page, TestInfo } from '@playwright/test';
 
+import { annotateE2EGateFailure } from '../../scripts/reporters/public-e2e-diagnostics.ts';
+
 const gateState: { current: E2EErrorGate | undefined } = { current: undefined };
 
 const ERROR_TOAST_BINDING = '__caxriE2EReportErrorToast';
@@ -169,6 +171,48 @@ class E2EErrorGate {
         }
     }
 
+    private async finalize(): Promise<void> {
+        const finalizations = await Promise.allSettled(
+            this.launches.map(({ app, finalizer }) => finalizer.finish(() => app.close())),
+        );
+        const finalizationFailures: unknown[] = [];
+        for (const result of finalizations) {
+            if (result.status === 'rejected') finalizationFailures.push(result.reason as unknown);
+        }
+        for (const { userDataDirectory } of this.launches) {
+            try {
+                this.captureLogs(userDataDirectory);
+            } catch (error) {
+                this.captureFailures.push(error);
+            }
+        }
+        await Promise.all(this.pendingAttachments);
+        const teardownFailures = [...finalizationFailures, ...this.captureFailures];
+        if (finalizationFailures.length > 0)
+            annotateE2EGateFailure(this.testInfo, 'cleanup-failed');
+        if (this.captureFailures.length > 0)
+            annotateE2EGateFailure(this.testInfo, 'capture-failed');
+        if (teardownFailures.length > 0)
+            throw new AggregateError(teardownFailures, 'Could not finalize E2E launches');
+        const logErrors = parseE2ELogErrors(this.logSnapshots.values().toArray());
+        try {
+            assertE2EErrorPolicy([...this.directErrors, ...logErrors], this.allowances);
+        } catch (error) {
+            annotateE2EGateFailure(
+                this.testInfo,
+                'policy-rejected',
+                [...this.directErrors, ...logErrors],
+                this.allowances,
+            );
+            if (this.toastCategories.length === 0) throw error;
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(
+                `${message}; toast categories: ${this.toastCategories.join(', ')}${describeToastCorrelation(logErrors)}`,
+                { cause: error },
+            );
+        }
+    }
+
     allow(allowances: readonly E2EErrorAllowance[]): void {
         this.allowances.push(...allowances);
     }
@@ -236,34 +280,11 @@ class E2EErrorGate {
     }
 
     async finish(): Promise<void> {
-        const finalizations = await Promise.allSettled(
-            this.launches.map(({ app, finalizer }) => finalizer.finish(() => app.close())),
-        );
-        const finalizationFailures: unknown[] = [];
-        for (const result of finalizations) {
-            if (result.status === 'rejected') finalizationFailures.push(result.reason as unknown);
-        }
-        for (const { userDataDirectory } of this.launches) {
-            try {
-                this.captureLogs(userDataDirectory);
-            } catch (error) {
-                this.captureFailures.push(error);
-            }
-        }
-        await Promise.all(this.pendingAttachments);
-        const teardownFailures = [...finalizationFailures, ...this.captureFailures];
-        if (teardownFailures.length > 0)
-            throw new AggregateError(teardownFailures, 'Could not finalize E2E launches');
-        const logErrors = parseE2ELogErrors(this.logSnapshots.values().toArray());
         try {
-            assertE2EErrorPolicy([...this.directErrors, ...logErrors], this.allowances);
+            await this.finalize();
         } catch (error) {
-            if (this.toastCategories.length === 0) throw error;
-            const message = error instanceof Error ? error.message : String(error);
-            throw new Error(
-                `${message}; toast categories: ${this.toastCategories.join(', ')}${describeToastCorrelation(logErrors)}`,
-                { cause: error },
-            );
+            annotateE2EGateFailure(this.testInfo, 'finalize-failed');
+            throw error;
         }
     }
 }
@@ -277,6 +298,12 @@ export async function runWithE2EErrorGate(
     gateState.current = gate;
     try {
         await runTest();
+        // Playwright's fixture use() resolves after a failed body; status preserves that failure across teardown.
+        if (testInfo.status && ['failed', 'timedOut', 'interrupted'].includes(testInfo.status))
+            annotateE2EGateFailure(testInfo, 'body-failed');
+    } catch (error) {
+        annotateE2EGateFailure(testInfo, 'body-failed');
+        throw error;
     } finally {
         try {
             await gate.finish();
