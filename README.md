@@ -31,6 +31,31 @@ compatibility commitment explicitly.
   [AGENTS.md](AGENTS.md) is the contributor standing orders; task-routed skills under
   `.agents/skills/` own the workflows.
 
+<!-- development-usage:start -->
+
+## Development usage
+
+Personal Caxri development usage from retained local logs, as of **2026-10-16 16:06:46.819 UTC**.
+Includes Codex, Claude Code, Grok Build, child agents, identifiable Caxri worktrees and auxiliary directories, and deduplicated Claude session backups.
+
+| Tool        | Tokens (input + output) | Known USD cost |
+| ----------- | ----------------------: | -------------: |
+| Codex       |          32,126,801,733 |     $15,432.31 |
+| Claude Code |          22,747,324,361 |     $11,841.26 |
+| Grok Build  |             558,492,406 |        $139.65 |
+| **Total**   |      **55,432,618,500** | **$27,413.22** |
+
+Codex and Claude costs are **standard API list-price equivalents**, using the price snapshot checked on 2026-10-16. Grok uses its recorded USD cost. These are not subscription payments or historical invoices.
+Token totals include cache reads and writes once; reasoning is already included in output. Long-context rates apply per request; unspecified Claude cache-write TTLs use the 5-minute rate.
+Unpriced usage: **513,884 tokens**. Grok sessions without usable usage: **20**. Deleted logs, other machines, hosted agents and unattributable work are outside this snapshot.
+
+Update with `bun run usage:development --write`; omit `--write` to preview, use `--json` for aggregate JSON, or `--as-of <ISO timestamp>` for a fixed cutoff. The active Codex accounting session and its identifiable descendants are excluded when `CODEX_THREAD_ID` is available.
+The script reads session files without changing them. Default backup paths use `~`; additional Claude project directories can be supplied with `--claude-backup <path>`. Prices are pinned in [the price snapshot](scripts/development-usage-prices.json); review that snapshot when model prices change.
+
+Pricing sources: [OpenAI](https://developers.openai.com/api/docs/pricing), [Anthropic](https://platform.claude.com/docs/en/about-claude/pricing).
+
+<!-- development-usage:end -->
+
 ## Install on macOS
 
 The packaged app currently supports **Apple Silicon Macs running macOS 13 (Ventura) or later**.

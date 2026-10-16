@@ -41,6 +41,7 @@
         "test:watch": "vitest",
         "refactor:parity": "bun run scripts/refactor-parity.ts",
         "update-model-prices": "bun run scripts/update-model-prices.ts",
+        "usage:development": "bun run scripts/update-development-usage.ts",
         "test:e2e": "bun run .agents/skills/quality-check/scripts/assert-full-suite-authorized.ts e2e && bun run build && playwright test",
         "test:e2e:mobile:android": "bun run scripts/mobile-android-acceptance.ts",
         "test:e2e:mobile:desktop": "bun run scripts/mobile-desktop-acceptance.ts",
