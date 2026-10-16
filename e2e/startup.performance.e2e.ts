@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
@@ -34,6 +34,7 @@ async function launch(
         testRootPath: sessionRoot,
         executablePath,
         preserveHostOnClose: shouldPreserveHostOnClose,
+        env: { PATH: `${join(userData, 'benchmark-bin')}:${process.env.PATH ?? ''}` },
     });
     return app;
 }
@@ -116,6 +117,25 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
     );
     const sessionRoot = resolve(process.env.CAXRI_BENCHMARK_PROJECT_ROOT!);
     const userData = await mkdtemp(join(tmpdir(), 'caxri-startup-benchmark-'));
+    /**
+     * Keep the real repository's local Git workload, but isolate PR discovery from network and login state when the
+     * benchmark root is on a named branch. Both cold and restored launches use this same offline response.
+     */
+    const benchmarkBin = join(userData, 'benchmark-bin');
+    await mkdir(benchmarkBin);
+    await writeFile(
+        join(benchmarkBin, 'gh'),
+        String.raw`#!/bin/sh
+# 为启动性能测试提供离线的无 PR 响应，不修改仓库或外部状态。
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  printf '%s\n' 'no pull requests found for branch benchmark' >&2
+  exit 1
+fi
+printf '%s\n' 'Unexpected GitHub CLI fixture invocation' >&2
+exit 2
+`,
+        { mode: 0o755 },
+    );
     const launchedAt = performance.now();
     let app = await launch(userData, sessionRoot, true);
 
