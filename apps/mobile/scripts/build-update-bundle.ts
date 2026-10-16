@@ -17,7 +17,7 @@ import {
 
 import { mobileVersionCode } from '../app.config';
 import mobilePackage from '../package.json';
-import { ANDROID_RELEASE_SIGNING_ENVIRONMENT } from '../plugins/with-android-release-signing';
+import ANDROID_RELEASE_SIGNING_ENVIRONMENT from '../plugins/android-release-signing-environment.json';
 import { resolveAndroidToolchain } from './android-toolchain';
 import {
     assertUpdateApkIdentity,

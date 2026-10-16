@@ -92,6 +92,27 @@ falls back to signals scoped to exact processes inside that installed bundle. Fo
 was already downloaded with a browser, clear the flag once with
 `xattr -dr com.apple.quarantine /Applications/Caxri.app`.
 
+## Backfill Android for an existing release
+
+When a published Desktop release is missing its Android download, the maintainer can dispatch the
+same workflow on `main` with an existing stable tag:
+
+```bash
+gh workflow run release.yml --ref main -f android_release_tag=v0.0.104
+```
+
+This route only adds Android assets to an existing, non-draft Release. It verifies the release
+commit is an ancestor of `main`, has the exact release subject and matching package version, then
+checks out that fixed commit and builds with the existing release signing key. Current trusted
+verification checks the package, version, arm64 ABI, signing certificate, and bundle integrity.
+Before uploading, it rechecks the remote tag and Release identity. A retry downloads existing
+Android assets and reuses only byte-identical files; conflicting assets are never replaced.
+Notes use a stable marker so interrupted publication can resume without duplicate sections.
+The original DMGs are unchanged; notes identify the APK's
+source commit rather than claiming that an older DMG contains it. Android backfill does not run
+Desktop packaging or change its publication gates. A dispatch with no tag keeps the existing
+no-publish rehearsal behavior.
+
 ## Current distribution boundary
 
 The DMG is intentionally unsigned. After downloading it on your own Mac, verify the accompanying

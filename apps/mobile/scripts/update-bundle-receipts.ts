@@ -1,4 +1,4 @@
-import { ANDROID_RELEASE_SIGNING_ENVIRONMENT } from '../plugins/with-android-release-signing';
+import ANDROID_RELEASE_SIGNING_ENVIRONMENT from '../plugins/android-release-signing-environment.json';
 
 export interface ApkBadging {
     packageName: string;
