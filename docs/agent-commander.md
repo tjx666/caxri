@@ -413,7 +413,13 @@ spawn and that report repeats them on the next launch instead of losing them. Se
 only the exact revisions the prompt reported, so a newer transition that lands before the launch
 runs stays owed. A Chat Commander has no launch argv, so `AgentChatService`'s `onReady` hook sends
 the same prompt as its first Chat message once the provider is ready, and settles it only after the
-Chat accepted it.
+Chat accepted it. Readiness carries the actual Chat launch identity and keeps one initial-submission
+token when the queue is empty. A first hand-over or receipt arriving later consumes that token
+without requiring a human message. A notice arriving after readiness uses the live-notice wording,
+so a new Chat is not falsely described as restarted. Starting any main-thread turn consumes it as well; subsequent
+notices use the normal finished-turn fence. An in-flight initial submission keeps its exact queue
+claim until acceptance, and its callback cannot clear the newer turn's baseline or interrupted-turn
+marker. A replacement launch invalidates callbacks from the previous launch.
 
 The cut-off turn comes from an `interrupted_turn` row the notifier writes when a main-thread
 Commander turn starts and deletes when that turn finishes or fails. A row still present at launch

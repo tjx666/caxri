@@ -20,6 +20,7 @@ export interface Fixture {
     finishTurn(launchId: string, turnId: string): void;
     writeCalls: Array<{ data: string; launchId: string; terminalId: string }>;
     writeResult: boolean;
+    delayedDeliveries?: Array<(wasAccepted: boolean) => void>;
 }
 
 export const COMMANDER_TERMINAL_ID = 'commander-terminal';
@@ -124,7 +125,8 @@ export function fixture(): Fixture {
         inputEpoch: () => state.currentEpoch,
         write: (terminalId, data, launchId, onDelivered) => {
             state.writeCalls.push({ data, launchId, terminalId });
-            onDelivered?.(state.writeResult);
+            if (onDelivered && state.delayedDeliveries) state.delayedDeliveries.push(onDelivered);
+            else onDelivered?.(state.writeResult);
             return state.writeResult;
         },
     });
