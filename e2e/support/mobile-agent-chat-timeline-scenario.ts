@@ -382,9 +382,21 @@ export async function executeMobileChatHistoryTasksScenario(
         for (let attempt = 0; !isRevealed && attempt < 30; attempt += 1) {
             // eslint-disable-next-line no-await-in-loop -- each read decides the next gesture.
             const nodes = await mobileSemantics(serial);
-            if (hasCheck(nodes, leftOutId)) {
+            const revealed = checkBounds(nodes, leftOutId);
+            const earlier = checkBounds(nodes, 'conversation-load-earlier');
+            /**
+             * Android semantics can include offscreen rows; existence alone does not prove a visible control.
+             */
+            const canTapEarlier =
+                earlier !== undefined &&
+                earlier.top >= frame.top &&
+                earlier.bottom <= frame.bottom &&
+                nodes.some(
+                    ({ checkId, enabled }) => checkId === 'conversation-load-earlier' && enabled,
+                );
+            if (revealed && revealed.bottom > frame.top && revealed.top < frame.bottom) {
                 isRevealed = true;
-            } else if (!isLoadEarlierTapped && hasCheck(nodes, 'conversation-load-earlier')) {
+            } else if (!isLoadEarlierTapped && canTapEarlier) {
                 isLoadEarlierSeen = true;
                 // eslint-disable-next-line no-await-in-loop -- the frame shows the control before it is used.
                 await capture(environment, 'load-earlier', artifacts);
