@@ -197,9 +197,9 @@ export default defineConfig(async ({ command }) => {
                         if (id !== resolvedReactScanBootModuleId) return;
                         return isReactScanEnabled
                             ? [
-                                  "import { scan } from 'react-scan';",
+                                  "import { scan, setOptions } from 'react-scan';",
                                   'scan({ enabled: false, showToolbar: false });',
-                                  'globalThis.__CAXRI_REACT_SCAN__ = { scan };',
+                                  'globalThis.__CAXRI_REACT_SCAN__ = { scan, setOptions };',
                               ].join('\n')
                             : 'export {};';
                     },
