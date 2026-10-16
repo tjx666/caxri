@@ -1,5 +1,18 @@
 # T3 Code (pingdotgg/t3code)
 
+## Preview tab ownership (2026-10-17)
+
+[Preview state](https://github.com/pingdotgg/t3code/blob/3b99fb2d2114f57c96bf92e4ed1c7ce5eaa67b1e/apps/web/src/previewStateStore.ts),
+checked at `3b99fb2d2114f57c96bf92e4ed1c7ce5eaa67b1e`, keeps tab state per scoped thread.
+An independent active-thread index serves the Electron host, so a thread-local consumer does not
+subscribe to every preview. Server epoch and revision control snapshot ordering; a suppressed-tab
+set prevents stale lists from reopening tabs the client closed. These findings concern browser
+preview tabs, not a claim that every Chat or editor uses this exact model.
+
+For Caxri, the useful design constraint is to separate persisted tab identity, visible selection,
+and process lifetime, while retaining its existing Server execution ownership. This is an inference
+from the source, not an implementation adopted in this delivery.
+
 _Researched 2026-08-06._
 
 - **Positioning**: "Agent harness control surface": a bring-your-own-subscription orchestrator that wraps installed provider CLIs (Claude Code, Codex, Cursor, Grok Build, OpenCode) behind unified web, Electron desktop, and native mobile (iOS/Android) clients, with first-class remote/multi-device control as the differentiator versus terminal-only harnesses.
