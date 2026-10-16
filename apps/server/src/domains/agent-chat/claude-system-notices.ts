@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+
 import { clip, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 
@@ -11,6 +13,44 @@ import type { AgentChatSessionHost } from './chat-provider';
 type Json = Record<string, unknown>;
 
 type NoticeHost = Pick<AgentChatSessionHost, 'apply' | 'lifecycle' | 'read'>;
+
+/**
+ * Claude Code emits hook feedback as informational banners, hook lifecycle output, or local command output. Keep
+ * text-bearing system frames in delivery order; lifecycle frames without text remain silent. Notices are split at the
+ * protocol's text bound rather than silently dropping the tail of a hook's output.
+ *
+ * @see https://platform.claude.com/docs/en/agent-sdk/typescript#sdkmessage
+ */
+export function onClaudeTranscriptOutput(host: NoticeHost, message: Json): void {
+    const content =
+        [
+            stringField(message.content),
+            stringField(message.output),
+            [stringField(message.stdout), stringField(message.stderr)].filter(Boolean).join('\n'),
+        ].find((text) => text?.trim()) ?? '';
+    if (!content.trim()) return;
+    const id = clip(`claude-output:${stringField(message.uuid) ?? randomUUID()}`, 180);
+    const turnId = host.read().activeTurnId;
+    const isMessage = message.subtype === 'local_command_output';
+    const limit = isMessage ? MAX_AGENT_CHAT_TEXT_LENGTH : 2_000;
+    for (let offset = 0; offset < content.length; offset += limit) {
+        const identity = { id: `${id}:${offset}`, ...(turnId && { turnId }) };
+        const text = content.slice(offset, offset + limit);
+        host.apply([
+            {
+                op: 'upsertItem',
+                item: isMessage
+                    ? { ...identity, type: 'agentMessage', text, streaming: false }
+                    : {
+                          ...identity,
+                          type: 'notice',
+                          kind: message.outcome === 'error' ? 'error' : 'output',
+                          message: text,
+                      },
+            },
+        ]);
+    }
+}
 
 function didClearCompacting(host: NoticeHost): boolean {
     if (host.read().operation !== 'compacting') return false;

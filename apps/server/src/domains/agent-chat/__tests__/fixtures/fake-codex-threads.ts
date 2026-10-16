@@ -22,6 +22,13 @@ export function stateFile(name: string) {
     return path.join(fakeCodexStateDirectory(), name);
 }
 
+/**
+ * Makes an explicitly controlled Stop fail while its original turn keeps running.
+ */
+export function isFakeCodexInterruptRejected(): boolean {
+    return fs.existsSync(stateFile('reject-interrupt'));
+}
+
 export function threadPath(id: string, extension = 'json') {
     return stateFile(`${id.replaceAll(/[^\w-]/gu, '_')}.${extension}`);
 }

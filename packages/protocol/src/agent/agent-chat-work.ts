@@ -1,6 +1,6 @@
 import { pathBasename } from '@caxri/utils';
 
-import type { AgentChatItem, AgentChatTurn } from './agent-chat-contract.js';
+import type { AgentChatItem, AgentChatItemStatus, AgentChatTurn } from './agent-chat-contract.js';
 import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
 import type { AgentToolKind, AgentToolPresentation } from './agent-tool-presentation.js';
@@ -10,6 +10,7 @@ import {
     agentToolOutcomeLabel,
     describeAgentTool,
     formatNoticeableDuration,
+    formatShortDuration,
     summarizeAgentToolGroup,
 } from './agent-tool-presentation.js';
 
@@ -23,18 +24,33 @@ export type AgentChatWorkItem = Extract<
 >;
 
 /**
- * `Worked for 2m 1s`, or how a turn that did not complete ended. A turn under a second reads as plain `Worked`, as a
- * work row drops its sub-second duration: `<1s` is noise.
+ * Successful work stays quiet below three seconds; unsuccessful work retains every known duration. Running clocks keep
+ * their independent one-second threshold.
+ */
+export function formatAgentChatFinishedDuration(
+    durationMs: number | undefined,
+    status: AgentChatItemStatus,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): string | null {
+    if (status === 'running') return formatNoticeableDuration(durationMs, t);
+    if (status === 'completed' && (durationMs === undefined || durationMs < 3_000)) return null;
+    return formatShortDuration(durationMs, t);
+}
+
+/**
+ * The finished turn's outcome and elapsed time, using the same visibility rules as its work rows.
  */
 export function agentChatTurnLabel(
-    turn: Pick<AgentChatTurn, 'durationMs' | 'status'>,
+    turn: Pick<AgentChatTurn, 'durationMs' | 'status' | 'interruptionReason'>,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
-    const duration = formatNoticeableDuration(turn.durationMs, t);
+    const duration = formatAgentChatFinishedDuration(turn.durationMs, turn.status, t);
     if (duration)
         return t(
             turn.status === 'interrupted'
-                ? 'agentChat.fold.stoppedAfter'
+                ? turn.interruptionReason === 'user'
+                    ? 'agentChat.fold.stoppedByYouAfter'
+                    : 'agentChat.fold.stoppedAfter'
                 : turn.status === 'failed'
                   ? 'agentChat.fold.failedAfter'
                   : 'agentChat.fold.workedFor',
@@ -42,7 +58,9 @@ export function agentChatTurnLabel(
         );
     return t(
         turn.status === 'interrupted'
-            ? 'agentChat.fold.stopped'
+            ? turn.interruptionReason === 'user'
+                ? 'agentChat.fold.stoppedByYou'
+                : 'agentChat.fold.stopped'
             : turn.status === 'failed'
               ? 'agentChat.fold.failed'
               : 'agentChat.fold.worked',
@@ -150,38 +168,55 @@ export function agentChatWorkVerb(
 }
 
 /**
- * The duration a work row shows: only once it is noticeable. A row of `<1s` labels says nothing a reader can act on.
+ * The duration a work row shows, using the same outcome rules as a finished turn.
  */
 export function agentChatWorkDuration(
     item: AgentChatWorkItem,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string | null {
     return item.type === 'command' || item.type === 'toolCall'
-        ? formatNoticeableDuration(item.durationMs, t)
+        ? formatAgentChatFinishedDuration(item.durationMs, item.status, t)
         : null;
 }
 
 /**
- * How a run of work renders: settled work collapses into one summary row once it holds at least two tool calls
- * (reasoning alone never earns a summary, which would hide the thought's title), and work still running stays out of
- * the summary as its own live rows, so the step in progress is always readable. `isLive` marks more work as running,
- * such as a tool call that returned while the background task it started keeps going.
+ * Tool names whose row starts a subagent, compared without case or separators: Claude Code's `Task` and `Agent`, and
+ * Codex's collab `spawnAgent` (also seen as `spawn_agent`).
+ */
+const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task', 'agent', 'spawnagent']);
+
+function normalizedToolName(name: string): string {
+    return name.toLowerCase().replaceAll(/[^a-z]/gu, '');
+}
+
+/**
+ * Whether a timeline row started a subagent. Such a row stays openable even when the live task list no longer knows it
+ * (a resumed conversation), because `agentChat.readTask` rebuilds a subagent from the item that started it.
+ */
+export function isAgentChatSubagentItem(item: AgentChatItem): boolean {
+    return item.type === 'toolCall' && SUBAGENT_TOOL_NAMES.has(normalizedToolName(item.name));
+}
+
+/**
+ * Ordinary tools enter their summary from the first frame, so completion never moves a temporary standalone row.
+ * Reasoning alone stays readable. Independently running tasks marked by `isIndependent` retain their own rows and
+ * controls.
  */
 export function splitAgentChatWork(
     items: readonly AgentChatWorkItem[],
-    isLive: (item: AgentChatWorkItem) => boolean = () => false,
+    isIndependent: (item: AgentChatWorkItem) => boolean = () => false,
 ): {
     summarized: readonly AgentChatWorkItem[];
     rows: readonly AgentChatWorkItem[];
 } {
-    const isRunning = (item: AgentChatWorkItem): boolean =>
-        isAgentChatWorkRunning(item) || isLive(item);
-    const settled = items.filter((item) => !isRunning(item));
-    const live = items.filter((item) => isRunning(item));
-    const toolCount = settled.filter((item) => item.type !== 'reasoning').length;
-    return toolCount >= 2
-        ? { summarized: settled, rows: live }
-        : { summarized: [], rows: [...settled, ...live] };
+    const isSeparate = (item: AgentChatWorkItem): boolean =>
+        isAgentChatSubagentItem(item) ||
+        (item.type === 'command' && item.background === true) ||
+        isIndependent(item);
+    const summarized = items.filter((item) => !isSeparate(item));
+    return summarized.some((item) => item.type !== 'reasoning')
+        ? { summarized, rows: items.filter((item) => isSeparate(item)) }
+        : { summarized: [], rows: items };
 }
 
 /**

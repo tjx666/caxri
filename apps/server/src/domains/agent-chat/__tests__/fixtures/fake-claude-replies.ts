@@ -9,6 +9,21 @@ import type { FakeClaudeIo } from './fake-claude-io.ts';
  * Streams thinking, a `TodoWrite` plan, and `Hello from fake Claude. <reply>`, leaving the turn's result to the caller.
  */
 export async function streamPlannedReply(io: FakeClaudeIo, reply: string) {
+    const hasNotices = reply.includes('synthetic output');
+    if (hasNotices) {
+        io.system('informational', {
+            content: 'Prompt dropped by a hook: Example prompt blocked for display test.',
+            level: 'notice',
+        });
+        io.system('hook_progress', {
+            hook_id: 'example-hook',
+            hook_name: 'Example',
+            hook_event: 'UserPromptSubmit',
+            stdout: 'Preparing example output.',
+            stderr: '',
+            output: '',
+        });
+    }
     const thinkingId = `msg_${crypto.randomUUID()}`;
     io.send(
         io.frame({
@@ -53,6 +68,19 @@ export async function streamPlannedReply(io: FakeClaudeIo, reply: string) {
         },
     });
     await io.didStreamFully(`Hello from fake Claude. ${reply}`, 5);
+    if (hasNotices) {
+        io.system('hook_response', {
+            hook_id: 'example-hook',
+            hook_name: 'Example',
+            hook_event: 'UserPromptSubmit',
+            stdout: '',
+            stderr: 'Example hook warning.',
+            output: '',
+            outcome: 'error',
+            exit_code: 1,
+        });
+        io.system('local_command_output', { content: 'Example mod command output.' });
+    }
 }
 
 /**

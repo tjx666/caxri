@@ -23,9 +23,7 @@ export const ChangesDiffRow = ({ line, theme }: { line: DiffLine; theme: MobileT
             <Text style={[styles.lineNumber, { color: theme.muted }]}>{line.oldLine ?? ''}</Text>
             <Text style={[styles.lineNumber, { color: theme.muted }]}>{line.newLine ?? ''}</Text>
             <Text style={[styles.marker, { color }]}>{line.marker}</Text>
-            <Text numberOfLines={1} style={[styles.diffText, { color }]}>
-                {line.content || ' '}
-            </Text>
+            <Text style={[styles.diffText, { color }]}>{line.content || ' '}</Text>
         </View>
     );
 };

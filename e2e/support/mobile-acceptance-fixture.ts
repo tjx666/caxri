@@ -4,13 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
-import type {
-    AgentChatMessageInput,
-    AgentChatSnapshot,
-    AppSettings,
-    BootstrapState,
-    MobileTimelineReadResult,
-} from '@caxri/protocol';
+import type { AppSettings, BootstrapState, MobileTimelineReadResult } from '@caxri/protocol';
 
 import type { RunningCaxri } from './helpers';
 import { createProjectSession, launchCaxri, pageRequest, sessionCard } from './helpers';
@@ -20,6 +14,8 @@ import {
     fakeFailingAgent,
     fakeWaitingAgent,
 } from './mobile-acceptance-agents';
+import type { MobileAgentChatDriver } from './mobile-agent-chat-driver';
+import { createMobileAgentChatDriver } from './mobile-agent-chat-driver';
 import {
     mobileSemantics,
     openMobilePairingLink,
@@ -44,14 +40,7 @@ export interface MobileAcceptanceFixture {
     /**
      * The Chat Terminal of an `agent-chat` fixture, driven by the deterministic fake of its `chatProvider`.
      */
-    agentChat?: {
-        read(): Promise<AgentChatSnapshot>;
-        /**
-         * Sends a message from the desktop side, for input the phone cannot compose (images).
-         */
-        send(message: AgentChatMessageInput): Promise<void>;
-        terminalId: string;
-    };
+    agentChat?: MobileAgentChatDriver;
     allowedProjectId: string;
     allowedSessionId?: string;
     deniedProjectId: string;
@@ -436,18 +425,7 @@ export async function createMobileAcceptanceFixture(
     let isChangesSeeded = false;
     return {
         ...(chatTerminalId && {
-            agentChat: {
-                read: () =>
-                    pageRequest<AgentChatSnapshot>(running.page, 'agentChat.read', {
-                        terminalId: chatTerminalId,
-                    }),
-                send: (message: AgentChatMessageInput) =>
-                    pageRequest<void>(running.page, 'agentChat.send', {
-                        terminalId: chatTerminalId,
-                        ...message,
-                    }),
-                terminalId: chatTerminalId,
-            },
+            agentChat: createMobileAgentChatDriver(running.page, chatTerminalId),
         }),
         allowedProjectId,
         allowedSessionId,

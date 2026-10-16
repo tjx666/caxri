@@ -37,6 +37,7 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
+import { interruptChatTurn } from './chat-turn-interruption';
 import { claudeResponseUsage } from './claude-context';
 import { ClaudeContextTracker } from './claude-context-report';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
@@ -64,7 +65,12 @@ import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { withClaudeShellHooks } from './claude-shell-hooks';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
-import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './claude-system-notices';
+import {
+    onClaudeApiRetry,
+    onClaudeCompactBoundary,
+    onClaudeStatus,
+    onClaudeTranscriptOutput,
+} from './claude-system-notices';
 import { ClaudeTasks } from './claude-tasks';
 import { ClaudeToolClock, settleClaudeToolResults } from './claude-tool-results';
 import { ClaudeTurns } from './claude-turns';
@@ -150,7 +156,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             sessionId: () => this.sessionId,
             isEnded: () => this.isEnded,
             onInterruptRequested: () => {
-                this.turns.isInterruptRequested = true;
+                this.turns.requestInterrupt();
             },
             planExitMode: () => this.permissions.planExitMode(),
         });
@@ -171,7 +177,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             host: options,
             query: () => (this.isOpen ? this.query : undefined),
             takeDeclined: (toolUseId) => this.requests.takeDeclined(toolUseId),
-            isInterruptRequested: () => this.turns.isInterruptRequested,
+            isInterruptRequested: () => this.turns.interruptionReason !== undefined,
             onTasksChanged: () => this.turns.onTasksChanged(),
         });
     }
@@ -280,6 +286,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'compact_boundary': {
                 onClaudeCompactBoundary(this.options, message);
+                this.context.resetAfterCompaction();
                 return;
             }
             case 'api_retry': {
@@ -287,7 +294,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             default: {
-                // Hook and other notifications are not conversation content.
+                onClaudeTranscriptOutput(this.options, message);
             }
         }
     }
@@ -338,7 +345,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         const snapshot = this.options.read();
         const { activeTurnId } = snapshot;
         const keys = this.requests.drain();
-        this.options.apply(endedSessionOperations(snapshot));
+        this.options.apply(endedSessionOperations(snapshot, this.turns.interruptionReason));
         for (const key of keys)
             this.options.lifecycle({
                 phase: 'attentionResolved',
@@ -524,15 +531,16 @@ class ClaudeChatSession implements AgentChatProviderSession {
     }
 
     async interrupt(): Promise<void> {
-        if (!this.options.read().activeTurnId) return;
+        const turnId = this.options.read().activeTurnId;
+        if (!turnId) return;
         const stream = this.requireOpen();
-        this.turns.isInterruptRequested = true;
-        try {
-            await withTimeout(stream.interrupt(), INTERRUPT_TIMEOUT_MS);
-        } catch (error) {
-            if (error instanceof CaxriError && error.code === 'TIMEOUT') await this.close();
-            // Otherwise the turn already ended; its `result` settles the projection.
-        }
+        await interruptChatTurn({
+            turnId,
+            readActiveTurnId: () => this.options.read().activeTurnId,
+            request: () => withTimeout(stream.interrupt(), INTERRUPT_TIMEOUT_MS),
+            rejectStop: this.turns.requestInterrupt(),
+            close: () => this.close(),
+        });
     }
 
     async stopTask(taskId: string): Promise<void> {

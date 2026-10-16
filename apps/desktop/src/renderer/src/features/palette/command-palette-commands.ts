@@ -82,7 +82,8 @@ export function commanderPaletteWhenContext({
 
 /**
  * The search value always carries the English catalog copy, so an English query finds a command in any language; with
- * `t`, the translated title, category, and description are appended when they differ from English.
+ * `t`, the translated title, category, and description are appended when they differ from English. The English title
+ * leads so a command prefix outranks weak matches in secondary metadata.
  */
 export function getStaticCommandPaletteValue(
     command: CommandDefinition,
@@ -105,8 +106,8 @@ export function getStaticCommandPaletteValue(
           )
         : [];
     return [
-        command.category,
         command.title,
+        command.category,
         command.id,
         command.description,
         ...(command.keywords ?? []),
@@ -123,8 +124,8 @@ export function getDynamicCommandPaletteValue(
 ): string {
     const title = commandTitle(command, t);
     return [
-        'Extension',
         command.title,
+        'Extension',
         command.id,
         command.description ?? '',
         ...(title === command.title ? [] : [title]),

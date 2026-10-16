@@ -4,6 +4,22 @@
 
 type Json = Record<string, unknown>;
 
+/**
+ * Loose wire shapes: the fake reads only the fields it answers.
+ */
+export interface RpcMessage {
+    id?: number;
+    method?: string;
+    params?: Record<string, unknown>;
+    result?: unknown;
+}
+
+export interface FakeInput {
+    type: string;
+    text?: string;
+    url?: string;
+}
+
 export interface FakeItem {
     id: string;
     type: string;

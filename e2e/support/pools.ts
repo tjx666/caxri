@@ -182,6 +182,10 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['opt-in-only'],
         why: 'Manual real Codex smoke; skipped unless bun run test:e2e:real-agent enables it.',
     },
+    'e2e/agent-chat-switch.performance.e2e.ts': {
+        reasons: ['benchmark', 'visible-window', 'opt-in-only'],
+        why: 'Agent Chat history paint benchmark; skipped outside its profiling benchmark step.',
+    },
     'e2e/renderer.performance.e2e.ts': {
         reasons: ['benchmark', 'visible-window', 'opt-in-only'],
         why: 'Renderer performance gate; skipped outside its benchmark step.',

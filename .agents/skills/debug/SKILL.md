@@ -132,10 +132,13 @@ To verify Agent UI in a dev instance, run fake providers, never the host CLI. Bu
 `e2eAgentEnvironmentKeys()` values together with `CAXRI_E2E=1` and `CAXRI_E2E_WINDOW_MODE=visible`, then
 start `switch-worktree dev`. Without `CAXRI_E2E=1` the fake executables are ignored while the isolated
 `CODEX_HOME` still applies, so the real Codex CLI starts at its login screen. Before using the Agent, confirm with
-`ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. To add a Project without a native
-folder picker, also export `V8_INSPECTOR_PORT=<port>` (electron-vite passes it to Main as `--inspect`) and
-replace `dialog.showOpenDialog` through `Runtime.evaluate`, as `e2e/support/packaged-project-dialog.ts` does.
-Delete that Project before stopping, so a later plain `dev` run does not restore the Agent with a real CLI.
+`ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. Set `CAXRI_TEST_ROOT_PATH` to the
+task-owned fixture folder to use the existing test-root grant without a native folder picker.
+If that fixture does not cover the flow, export `V8_INSPECTOR_PORT=<port>` (electron-vite passes it to
+Main as `--inspect`) and replace `dialog.showOpenDialog` through `Runtime.evaluate`, as
+`e2e/support/packaged-project-dialog.ts` does. Before stopping, either delete the fixture Project or
+close every fixture Terminal, archive its Sessions, and verify `app.bootstrap` contains no fixture
+Agent Terminals. A later plain `dev` run must not restore a synthetic conversation with a real CLI.
 
 A change limited to native menu entries (Renderer menu data that Main draws with `Menu.popup`) has
 no CDP-visible surface. Verify it with a Playwright Electron spec that opens the menu from its real

@@ -13,6 +13,7 @@ import {
     CircleSlash,
     Info,
     LoaderCircle,
+    Shrink,
     SquareSlash,
     SquareTerminal,
 } from 'lucide-react-native';
@@ -41,6 +42,7 @@ const eventIcon = (
             default:
                 return { Icon: Bell, color: theme.muted };
         }
+    if (event.kind === 'compacted') return { Icon: Shrink, color: theme.muted };
     if (event.kind === 'slashCommand') return { Icon: SquareSlash, color: theme.muted };
     if (event.kind === 'bashCommand') return { Icon: SquareTerminal, color: theme.muted };
     return { Icon: Info, color: theme.muted };
@@ -49,6 +51,7 @@ const eventIcon = (
 const eventLabel: Record<SystemEvent['kind'], TranslationKey> = {
     bashCommand: 'conversation.event.bashCommand',
     caveat: 'conversation.event.caveat',
+    compacted: 'agentChat.message.contextCompacted',
     slashCommand: 'conversation.event.slashCommand',
     taskNotification: 'conversation.event.taskNotification',
 };

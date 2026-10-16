@@ -33,9 +33,9 @@ type AgentChatMessageEntry = Extract<
 
 /**
  * One row of the phone's Chat timeline. Consecutive work becomes one `work` entry, split the way Desktop splits it
- * (`splitAgentChatWork`): settled work into a summary row once it holds two tool calls, and work still running as its
- * own live rows. A finished turn folds its work and commentary behind its `Worked for` row (`turn`) the way Desktop
- * does (`foldAgentChatTurn`), and ends with what it left behind (`artifacts`) under its final reply.
+ * (`splitAgentChatWork`): ordinary tools enter the same summary while running and after completion. A finished turn
+ * folds its work and commentary behind its `Worked for` row (`turn`) the way Desktop does (`foldAgentChatTurn`), and
+ * ends with what it left behind (`artifacts`) under its final reply.
  */
 export type AgentChatTimelineEntry =
     | { kind: 'message'; id: string; message: AgentChatMessageEntry }
@@ -91,8 +91,11 @@ const toMessage = (
             return {
                 id: item.id,
                 type: 'systemEvent',
-                kind: 'caveat',
+                kind: item.kind === 'compacted' ? 'compacted' : 'caveat',
                 summary: agentChatNoticeMessage(item, t).slice(0, 240),
+                ...(agentChatNoticeMessage(item, t).length > 240 && {
+                    detail: agentChatNoticeMessage(item, t),
+                }),
                 ...(item.kind === 'error' && { status: 'failed' as const }),
             };
         }
@@ -102,13 +105,21 @@ const toMessage = (
 /**
  * Visible items as entries, consecutive work grouped into one `work` entry.
  */
-function groupEntries(visible: readonly AgentChatItem[], t: Translate): AgentChatTimelineEntry[] {
+function groupEntries(
+    visible: readonly AgentChatItem[],
+    t: Translate,
+    taskItemIds: ReadonlySet<string>,
+): AgentChatTimelineEntry[] {
     const entries: AgentChatTimelineEntry[] = [];
     let work: AgentChatWorkItem[] = [];
     const flush = (): void => {
         const first = work.at(0);
         if (first)
-            entries.push({ kind: 'work', id: `work:${first.id}`, ...splitAgentChatWork(work) });
+            entries.push({
+                kind: 'work',
+                id: `work:${first.id}`,
+                ...splitAgentChatWork(work, (item) => taskItemIds.has(item.id)),
+            });
         work = [];
     };
     for (const item of visible) {
@@ -134,6 +145,7 @@ function finishedTurnEntries(
     artifacts: AgentChatTurnArtifacts | undefined,
     isExpanded: boolean,
     t: Translate,
+    taskItemIds: ReadonlySet<string>,
 ): AgentChatTimelineEntry[] {
     const finalReplyId = agentChatFinalReplyId(visible);
     const parts = foldAgentChatTurn(visible, finalReplyId);
@@ -155,11 +167,11 @@ function finishedTurnEntries(
     for (const part of parts) {
         if (part.kind === 'fold') {
             entries.push(row(isExpanded ? 'expanded' : 'collapsed'));
-            if (isExpanded) entries.push(...groupEntries(part.items, t));
+            if (isExpanded) entries.push(...groupEntries(part.items, t, taskItemIds));
             continue;
         }
         if (!hasFold && part.item.id === finalReplyId) entries.push(row(undefined));
-        entries.push(...groupEntries([part.item], t));
+        entries.push(...groupEntries([part.item], t, taskItemIds));
         if (part.item.id === finalReplyId) entries.push(...artifactsEntry);
     }
     if (!hasFold && finalReplyId === undefined) entries.push(row(undefined));
@@ -177,11 +189,14 @@ function finishedTurnEntries(
  */
 export function buildAgentChatTimeline(
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'> &
-        Partial<Pick<AgentChatSnapshot, 'truncated'>>,
+        Partial<Pick<AgentChatSnapshot, 'truncated' | 'tasks'>>,
     expandedTurnIds: ReadonlySet<string> = new Set(),
     t: Translate = translate,
 ): AgentChatTimelineEntry[] {
     const { activeTurnId, items, turns } = snapshot;
+    const taskItemIds = new Set(
+        snapshot.tasks?.flatMap((task) => (task.itemId ? [task.itemId] : [])),
+    );
     const finished = new Map(
         turns
             .filter((turn) => turn.status !== 'running' && turn.id !== activeTurnId)
@@ -205,8 +220,9 @@ export function buildAgentChatTimeline(
                       isComplete ? collectAgentChatTurnArtifacts(turn.id, segment) : undefined,
                       expandedTurnIds.has(turn.id),
                       t,
+                      taskItemIds,
                   )
-                : groupEntries(visible, t)),
+                : groupEntries(visible, t, taskItemIds)),
         );
         start = end;
     }

@@ -1,9 +1,10 @@
 import type { AgentChatSnapshot, AgentChatTask, AgentChatTaskSnapshot } from '@caxri/protocol';
 import {
     agentChatTaskElapsedMs,
+    agentChatTaskGlyphStatus,
     agentChatTaskStripView,
     canStopAgentChatTask,
-    formatNoticeableDuration,
+    formatAgentChatFinishedDuration,
     isAgentChatTaskTitleCommand,
 } from '@caxri/protocol';
 
@@ -98,7 +99,12 @@ export function agentChatTaskRow(
     );
     const title = task.title || kindLabel;
     const statusLabel = t(STATUS_LABELS[task.status]);
-    const elapsed = formatNoticeableDuration(agentChatTaskElapsedMs(task, now), t) ?? undefined;
+    const elapsed =
+        formatAgentChatFinishedDuration(
+            agentChatTaskElapsedMs(task, now),
+            agentChatTaskGlyphStatus(task.status),
+            t,
+        ) ?? undefined;
     // An all-whitespace summary is no summary.
     const summary = task.summary?.trim() ? task.summary.trim() : undefined;
     return {

@@ -68,6 +68,7 @@ async function fixture() {
         dimensions: (): undefined => undefined,
     };
     const coordinator = {
+        beginMaintenanceInput: vi.fn(() => ({ cancel: vi.fn() })),
         hasIdleProof: vi.fn(() => true),
         agentOperation: vi.fn<() => undefined>(() => {}),
         observeInput: vi.fn(() => true),

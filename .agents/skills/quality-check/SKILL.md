@@ -26,6 +26,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   added destination. `--staged` narrows this to the index. Lint and tests see existing files;
   deleted paths decide whether to typecheck and select the path-reference contract below.
 - Explicit files take priority over Git discovery.
+  Pass individual files, not directories; directory arguments are not expanded into their contents.
+  Use `rg --files` to discover the concrete paths before selecting a feature's files.
 - `--lint` applies ESLint, oxlint type-aware (`.oxlintrc.json`, TS files only), and Prettier fixes
   to supported files. Always inspect the resulting diff. Appending file paths to `bun run format`
   does not narrow formatting; use `bun run --silent check <files...> --lint` for a focused pass.

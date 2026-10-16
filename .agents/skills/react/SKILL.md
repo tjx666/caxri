@@ -14,11 +14,11 @@ This skill owns the shape of components, hooks, state, and their tests.
 A `.tsx` file holds at most three components. When a file wants a fourth, split by role before the
 `max-lines` gate ever matters; 800 physical lines is a hard stop, not a target:
 
-| Role                                                  | Split target                                 |
-| ----------------------------------------------------- | -------------------------------------------- |
-| Stateless presentation primitives shared by a feature | One `<feature>-primitives.tsx` grouping them |
-| A component that owns data fetching or a mutation     | Its own `.tsx` file                          |
-| Two components that mirror each other's structure     | One parameterized component or shared hook   |
+| Role                                                  | Split target                                        |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| Stateless presentation primitives shared by a feature | One file named after its primary exported component |
+| A component that owns data fetching or a mutation     | Its own `.tsx` file                                 |
+| Two components that mirror each other's structure     | One parameterized component or shared hook          |
 
 The three-component budget exists because a large `.tsx` hides duplication: two near-identical
 picker or dialog components in one file read as "local detail" and never get unified. Once each
@@ -49,6 +49,10 @@ Before writing a small helper or hook (`useDebouncedValue`, relative-time format
 keyboard predicates…), check `es-toolkit`, `@caxri/utils`, and the Renderer for an existing
 implementation. This codebase has already paid for per-feature copies of the same debounce hook
 and time formatter drifting apart; do not add another.
+
+Before working around a third-party component, inspect its installed public exports and type
+declarations. Reuse supported filtering or ranking APIs before assuming they are unavailable or
+copying an internal algorithm; verify dynamic query changes in the running UI too.
 
 - A generic pure function comes from `es-toolkit` first. When it lacks one, a browser-safe,
   dependency-free pure function goes to `@caxri/utils` (`packages/utils`) with a test under

@@ -1,5 +1,10 @@
 import type { AgentChatTask } from '@caxri/protocol';
-import { agentChatTaskElapsedMs, formatNoticeableDuration } from '@caxri/protocol';
+import {
+    agentChatTaskElapsedMs,
+    agentChatTaskGlyphStatus,
+    formatAgentChatFinishedDuration,
+    formatNoticeableDuration,
+} from '@caxri/protocol';
 import { Bot, SquareTerminal } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
@@ -34,6 +39,10 @@ function TickingElapsed({ task }: { task: AgentChatTask }) {
 export function AgentChatTaskElapsed({ task }: { task: AgentChatTask }) {
     const { t } = useTranslation();
     if (task.status === 'running') return <TickingElapsed task={task} />;
-    const label = formatNoticeableDuration(agentChatTaskElapsedMs(task, task.endedAt ?? 0), t);
+    const label = formatAgentChatFinishedDuration(
+        agentChatTaskElapsedMs(task, task.endedAt ?? 0),
+        agentChatTaskGlyphStatus(task.status),
+        t,
+    );
     return label ? <span className="shrink-0 tabular-nums">{label}</span> : null;
 }

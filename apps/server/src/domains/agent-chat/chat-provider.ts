@@ -43,6 +43,10 @@ type ChatLifecyclePhase = Extract<
 >;
 
 export interface ChatLifecycleEvent {
+    /**
+     * Core-owned classification; provider hook packets may never supply it.
+     */
+    activity?: 'maintenance';
     phase: ChatLifecyclePhase;
     agentSessionId?: string;
     agentTurnId?: string;

@@ -162,3 +162,53 @@ test('A message sent while reading above the end still rises to the top', async 
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('A long message rises while background work remains active', async ({}, testInfo) => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-long-rise-'));
+    const directory = await realpath(temporaryDirectory);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        const transcript = chat.getByRole('log');
+        await message.fill('table please');
+        await message.press('Enter');
+        await expect(chat.getByRole('table')).toHaveCount(1);
+        await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+        await message.fill('background quiet');
+        await message.press('Enter');
+        await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+        await expect(chat.getByText('Background work', { exact: true })).toBeVisible();
+
+        const text = [
+            'longstream next task',
+            'Please check the existing design before making the next change.',
+            '1. Explain the current behavior and the expected result.',
+            '2. Preserve the task output and keep the main conversation usable.',
+            '3. Verify the visible result with a synthetic example.',
+        ].join('\n\n');
+        await message.fill(text);
+        await message.press('Enter');
+        await expect(chat.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+        const sent = transcript.getByText(text, { exact: true });
+        await expect.poll(() => topInView(sent)).toBeGreaterThan(80);
+        await expect.poll(() => topInView(sent)).toBeLessThan(200);
+        await expect(
+            chat.locator('button:not([inert])', { hasText: 'Jump to latest' }),
+        ).toHaveCount(0);
+        await page.screenshot({
+            path: testInfo.outputPath('long-message-with-background-task.png'),
+        });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});

@@ -17,9 +17,7 @@ type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 type ToolGroup = Extract<ConversationEntry, { type: 'toolGroup' }>;
 
 /**
- * A summary row (`Ran 3 commands, read 2 files`) that lists its rows when tapped. Only settled work is summarized, so
- * the header carries how the group ended, never a spinner: a failed or declined member marks it, so a collapsed group
- * never hides an error.
+ * A summary row that lists its rows when tapped. Live work and unsuccessful outcomes stay visible while folded.
  */
 export const ConversationToolGroupView = ({
     children,
@@ -27,6 +25,7 @@ export const ConversationToolGroupView = ({
     duration,
     failure,
     id,
+    isRunning,
     kind,
     summary,
     testID,
@@ -40,6 +39,7 @@ export const ConversationToolGroupView = ({
      * The group's identity. The timeline's FlashList recycles this row for another group, which opens folded.
      */
     id: string;
+    isRunning?: boolean;
     /**
      * `null` marks a group mixing several kinds.
      */
@@ -76,6 +76,7 @@ export const ConversationToolGroupView = ({
                 >
                     {summary}
                 </Text>
+                {isRunning ? <ConversationStatusGlyph status="running" theme={theme} /> : null}
                 {failure ? <ConversationStatusGlyph status={failure} theme={theme} /> : null}
                 {duration ? (
                     <Text style={[styles.toolDuration, { color: theme.muted }]}>{duration}</Text>

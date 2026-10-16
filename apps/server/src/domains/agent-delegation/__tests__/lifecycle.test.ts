@@ -37,6 +37,28 @@ const signal = {
 };
 
 describe('Delegation continuation correlation', () => {
+    it('cannot finish a delegated task using a background maintenance completion', () => {
+        expect(
+            applyDelegationLifecycle(record, {
+                ...signal,
+                phase: 'turnFinished',
+                agentTurnId: 'first',
+                activity: 'maintenance',
+            }),
+        ).toBeUndefined();
+        const grok: StoredAgentDelegation = {
+            ...record,
+            receipt: { ...record.receipt, provider: 'grok' },
+        };
+        expect(
+            applyDelegationLifecycle(
+                grok,
+                { ...signal, provider: 'grok', phase: 'turnFinished', activity: 'maintenance' },
+                'evidence',
+            ),
+        ).toBeUndefined();
+    });
+
     it('retains exact Grok Stop evidence without claiming native completion', () => {
         const grok: StoredAgentDelegation = {
             ...record,

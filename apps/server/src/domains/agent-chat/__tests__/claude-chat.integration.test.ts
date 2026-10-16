@@ -62,6 +62,26 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         ]);
     });
 
+    it('preserves informational, hook, model, and mod command output in source order', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'synthetic output' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        const output = done.items.flatMap((item) =>
+            item.type === 'notice'
+                ? [item.message]
+                : item.type === 'agentMessage'
+                  ? [item.text]
+                  : [],
+        );
+        expect(output).toEqual([
+            'Prompt dropped by a hook: Example prompt blocked for display test.',
+            'Preparing example output.',
+            'Hello from fake Claude. You said: synthetic output',
+            'Example hook warning.',
+            'Example mod command output.',
+        ]);
+    });
+
     it('asks before a command and runs it once accepted', async () => {
         const { service, terminal, signals, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'please approve this' });

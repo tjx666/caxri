@@ -7,6 +7,7 @@ import { useTranslation } from '../../i18n';
 import { archiveSession } from '../session/session-archive-commands';
 import { setSessionPinned } from '../session/session-commands';
 import { sessionTitleForDisplay } from '../session/session-title';
+import { useSessionRowHoverStore } from './session-row-hover-store';
 
 /**
  * The Session hover-action chip, shared with the Activity row's mark-read button so a Session's pointer actions look
@@ -23,9 +24,11 @@ export const sessionRowActionButton =
  * `--session-hover-actions`, and the card reserves it on hover so overflowing titles fade before this cluster instead
  * of painting through the transparent Lucide strokes.
  */
-export function SessionRowActions({ session }: { session: SessionRecord }) {
+export function SessionRowActions({ rowId, session }: { rowId: string; session: SessionRecord }) {
+    const isHovered = useSessionRowHoverStore((state) => state.rowId === rowId);
     const pinned = isPinnedSession(session);
     const { t } = useTranslation();
+    if (!isHovered) return null;
     return (
         <div className="session-row-actions pointer-events-none absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100">
             <Tooltip

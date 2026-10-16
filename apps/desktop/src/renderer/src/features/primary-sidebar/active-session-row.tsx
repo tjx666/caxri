@@ -9,6 +9,7 @@ import { CommanderSessionMarker } from '../agent-commander/commander-session-mar
 import { sessionTitleForDisplay } from '../session/session-title';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionPullRequest } from './hooks/use-session-pull-request';
+import { useSessionRowHover } from './hooks/use-session-row-hover';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { SessionActivityCard } from './session-activity-card';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
@@ -249,8 +250,14 @@ export function ActiveSessionRow({
      * `SessionRowTrigger` inside, which is the element that owns the roving `tabIndex`: semantics on a wrapper that
      * focus never reaches describe nothing.
      */
+    const { actionRowId, hoverActions, leaveActions } = useSessionRowHover(rowId, session.id);
     const row = (
-        <div className="session-row group/session-row relative [--session-hover-actions:2.875rem]">
+        <div
+            className="session-row group/session-row relative [--session-hover-actions:2.875rem]"
+            onPointerEnter={hoverActions}
+            onPointerMove={hoverActions}
+            onPointerLeave={leaveActions}
+        >
             {sessionOrder.dropTarget?.anchorSessionId === session.id && (
                 <div
                     aria-hidden="true"
@@ -276,7 +283,7 @@ export function ActiveSessionRow({
                 />
             )}
             {/* The editor's own AI button takes the right edge while renaming; hover actions would cover it. */}
-            {!renaming && <SessionRowActions session={session} />}
+            {!renaming && <SessionRowActions rowId={actionRowId} session={session} />}
         </div>
     );
     if (renaming) return row;

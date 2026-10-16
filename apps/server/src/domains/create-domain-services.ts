@@ -15,6 +15,7 @@ import { createAgentChatService } from './chat-service-creation';
 import { createChatTerminalCreator } from './chat-terminal-creation';
 import { commanderHostOptions, CommanderTerminalHooks, createCommanderServices } from './commander';
 import { coreRoutedHandlers } from './core-routed';
+import { createTerminalActivityObservers } from './create-terminal-activity-observers';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
@@ -163,14 +164,13 @@ export async function createDomainServices(
                 workbenchRoots,
             });
         },
-        onOutputActivity: (terminalId, processId) =>
-            coordinator.observeOutput(terminalId, processId),
-        onInput: (terminalId, data, origin) => {
-            compactionReadiness.input(terminalId, data);
-            suspensionState.service?.observeInput(terminalId, data);
-            if (origin === 'human') commanderHooks.input(terminalId, data);
-            delegationState.service?.interruptTerminal(terminalId, true);
-        },
+        ...createTerminalActivityObservers(
+            compactionReadiness,
+            suspensionState,
+            commanderHooks,
+            delegationState,
+            coordinator,
+        ),
         onAgentStateChanged: dispatchState.observe,
         shellIntegration: (executable, environment) =>
             shellIntegration?.resolve(executable, environment),

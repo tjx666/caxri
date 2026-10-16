@@ -4,7 +4,7 @@ import process from 'node:process';
 import type { FullResult, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
 
 export const publicE2EReporterPath = './scripts/reporters/public-e2e-reporter.ts';
-export const e2eReceiptReporterPath = './scripts/reporters/e2e-receipt-reporter.ts';
+const e2eReceiptReporterPath = './scripts/reporters/e2e-receipt-reporter.ts';
 
 type AttemptStatus = TestResult['status'];
 
@@ -57,7 +57,7 @@ function emptyAttemptCounts(): Record<AttemptStatus, number> {
  * failure messages, source snippets, titles, annotations, attachments, steps, and DOM or Terminal values. The public
  * receipt retains the bounded failure classification used for diagnosis.
  */
-export class PublicE2EReporter implements Reporter {
+class PublicE2EReporter implements Reporter {
     private attemptCounts = emptyAttemptCounts();
     private globalErrorCount = 0;
     private planned = 0;

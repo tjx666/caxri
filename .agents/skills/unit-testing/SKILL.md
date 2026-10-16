@@ -19,6 +19,9 @@ Validate the smallest observable behavior below the Electron desktop boundary.
    there must be covered.
    Callback regressions must assert the callback was actually registered before invoking it;
    a no-op fallback can make an unreachable scenario falsely pass.
+   For repeated asynchronous operations, wait for the requested operation's identity before accepting completion.
+   For example, a new Chat send must complete a new turn id; the previous completed turn still in the snapshot
+   cannot satisfy its wait.
    For chunked or asynchronously parsed streams, preserve the original chunk boundaries and
    exercise the real encoder/parser when its buffering affects the result. Joining chunks before
    the assertion or checking enqueue alone cannot prove correct consumer output or reset ordering.
