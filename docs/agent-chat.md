@@ -137,6 +137,13 @@ command> <id>` (`agentResumeCommandLine`, from the provider catalog's `resumeArg
 
 ## Process lifecycle
 
+Provider Hook lifecycle frames are execution metadata, not conversation content. Routine
+progress, successful or cancelled hooks, and unknown system diagnostics stay out of Chat,
+including plain stdout, empty JSON, and control JSON. A failed hook produces one concise error
+summary from its name and exit code, never its raw output. Explicit informational feedback
+(including block reasons), model-refusal notices, and local slash-command results remain visible.
+This explicit event policy follows [Paseo's Claude adapter](https://github.com/getpaseo/paseo/blob/64693f21cf564389a0b74b57777267761e27f71c/packages/server/src/server/agent/providers/claude/agent.ts#L4531-L4607).
+
 `AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
 live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, or
 `grok agent --no-leader stdio`), spawned by Server Core. Its environment

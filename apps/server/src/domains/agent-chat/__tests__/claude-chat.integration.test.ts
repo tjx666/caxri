@@ -62,7 +62,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         ]);
     });
 
-    it('preserves informational, hook, model, and mod command output in source order', async () => {
+    it('keeps routine hook diagnostics out of Chat while preserving notices and command output', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'synthetic output' });
         const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
@@ -75,11 +75,24 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         );
         expect(output).toEqual([
             'Prompt dropped by a hook: Example prompt blocked for display test.',
-            'Preparing example output.',
             'Hello from fake Claude. You said: synthetic output',
-            'Example hook warning.',
+            'Hook "Example" failed (exit code 1).',
             'Example mod command output.',
         ]);
+    });
+
+    it('keeps a normal conversation clean when successful hooks emit text and control JSON', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'synthetic routine hooks' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items.map((item) => item.type)).toEqual([
+            'userMessage',
+            'reasoning',
+            'agentMessage',
+        ]);
+        expect(done.items.at(-1)).toMatchObject({
+            text: 'Hello from fake Claude. You said: synthetic routine hooks',
+        });
     });
 
     it('asks before a command and runs it once accepted', async () => {

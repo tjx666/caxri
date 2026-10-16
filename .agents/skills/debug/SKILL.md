@@ -127,6 +127,11 @@ dev app. Drive the real application over CDP, capture a screenshot of the affect
 check it before reporting completion. Passing unit or e2e gates alone does not count for visual
 changes.
 
+For Agent transcript adapters, verify event visibility in both directions: normal Hook lifecycle
+output (plain text, empty JSON, and control JSON) stays out of Chat, while explicit user feedback
+and command results remain visible. Replaying an event successfully is not proof that it belongs
+in the conversation. Cover both outcomes with synthetic SDK fixtures and inspected CDP captures.
+
 To verify Agent UI in a dev instance, run fake providers, never the host CLI. Build the environment with
 `e2e/support/agent-fixture.ts`'s `createFakeAgentMode` plus `createE2EAgentEnvironment`, export its
 `e2eAgentEnvironmentKeys()` values together with `CAXRI_E2E=1` and `CAXRI_E2E_WINDOW_MODE=visible`, then
