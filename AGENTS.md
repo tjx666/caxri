@@ -67,6 +67,11 @@ directories.
   hands.
 - Treat concrete UI improvement feedback with a clear, bounded outcome as an implementation
   request. Proceed through delivery unless the user explicitly asks for discussion or analysis only.
+- For requests that exclude new UI, classify each acceptance criterion separately. New behavior
+  alone does not imply new UI: keyboard handling in an existing input or sorting by the latest
+  message can remain in scope. Exclude only the criterion that requires new UI elements or needs an
+  unresolved product decision, and report unfinished or unverified criteria explicitly. Existing
+  implementation explains current behavior; it does not prove that it satisfies the request.
 - A request to review current local work authorizes the primary agent to repair validated P0/P1
   findings introduced by that work when the fix is unambiguous, local, and inside the requested
   scope. This applies to direct review, `deep-review`, and `dianjiang` review. Keep delegated
