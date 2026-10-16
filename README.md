@@ -31,27 +31,78 @@ compatibility commitment explicitly.
   [AGENTS.md](AGENTS.md) is the contributor standing orders; task-routed skills under
   `.agents/skills/` own the workflows.
 
-## Requirements
+## Install on macOS
 
-- macOS (Apple Silicon or Intel for development from source)
+The packaged app currently supports **Apple Silicon Macs running macOS 13 (Ventura) or later**.
+You do not need to clone this repository or install Node.js, Bun, or `ni` to use it. Intel Macs
+running macOS 13 or later can run from source using the development steps below; Windows and Linux
+desktop builds are not currently supported.
+
+1. **Prepare your Agent.** Install and sign in to at least one supported Agent CLI, such as
+   Claude Code or Codex, following its vendor's instructions. Confirm that it works in Terminal
+   before opening it in Caxri. Caxri uses your installed CLIs and their existing authentication;
+   it does not include an Agent subscription or credentials. You can also use Shell Sessions
+   without an Agent CLI.
+2. **Install the notification helper.** Current unsigned builds depend on the
+   [`alerter` CLI](https://github.com/vjeantet/alerter) for macOS system notifications, including
+   Agent completion and waiting-for-input banners. Install [Homebrew](https://brew.sh/) if needed,
+   then run:
+
+   ```bash
+   brew install vjeantet/tap/alerter
+   ```
+
+   Caxri looks for it at `/opt/homebrew/bin/alerter` or `/usr/local/bin/alerter`. Install it before
+   launching Caxri, or fully quit and reopen Caxri afterwards. Without it, system notifications
+   may not appear even when enabled in Settings.
+
+3. **Download and verify the app.** Open the
+   [latest release](https://github.com/tjx666/caxri/releases/latest) and download
+   `Caxri-VERSION-arm64.dmg` and its matching `Caxri-VERSION-arm64.dmg.sha256` file. Keep both
+   files in the same folder. In Terminal, change to that folder and verify the download,
+   replacing `VERSION` with the version in the downloaded filenames:
+
+   ```bash
+   cd ~/Downloads
+   shasum -a 256 -c Caxri-VERSION-arm64.dmg.sha256
+   ```
+
+   Continue only when the result is `OK`. Use the default `-arm64.dmg` asset; the
+   `-arm64-nosourcemap.dmg` asset is a smaller alternative without diagnostic Source Maps.
+
+4. **Install and open Caxri.** Open the DMG, drag **Caxri** into **Applications**, then launch it
+   from Applications. The current app is unsigned and unnotarized. If macOS says it is
+   **"damaged"**, after verifying the download above, run this command for the installed app
+   and open it again:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Caxri.app
+   ```
+
+5. **Start your first Session.** Add a local folder as a Project, create a Session beneath it,
+   and choose your installed Agent or Shell. To start Agents in the conversation view, enable
+   **Settings → General → Open Agents in Chat**. Check **Settings → Notifications → System
+   notifications** and allow the notification helper's notifications in macOS System Settings
+   if prompted.
+
+To update manually, finish your running tasks, quit Caxri, and repeat the download, verification,
+and installation steps with the new release. Installing the app does not require deleting your
+profile or Project folders. Contributor installation and release options are documented in
+[RELEASING.md](RELEASING.md).
+
+## Run from source
+
+### Development requirements
+
+- macOS 13 or newer (Apple Silicon or Intel for development from source)
 - Node.js 24 or newer
 - Bun 1.3 or newer
 - Xcode Command Line Tools
 - [`ni`](https://github.com/antfu-collective/ni)
 
-The verified packaged distribution target is macOS on Apple Silicon. A release publishes two
-unsigned disk images from the same commit and version:
+### Development quick start
 
-- `Caxri-<version>-arm64.dmg` includes production Source Maps and is the default install and update
-  asset.
-- `Caxri-<version>-arm64-nosourcemap.dmg` excludes product Source Maps and must be selected
-  explicitly.
-
-Each disk image has a matching `.sha256` file. Intel Macs can run from source but do not receive a
-published disk image. Windows and Linux desktop builds have not been validated and are not part of
-the current distribution scope.
-
-## Quick start
+Clone this repository and open its directory, then run:
 
 ```bash
 ni
