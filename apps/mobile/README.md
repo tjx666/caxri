@@ -2,6 +2,13 @@
 
 The Expo SDK 57 development client for Caxri's paired Agent Session companion.
 
+For Android installation, download `Caxri-Mobile-<version>-android-arm64.apk` from the
+[latest Release](https://github.com/tjx666/caxri/releases/latest). Open it on an arm64 Android phone,
+allow the browser or file manager to install apps when prompted, and pair from Desktop's
+**Settings > Mobile**. The [update guide](../../docs/mobile/update.md#install-from-github-releases)
+covers checksums, upgrades, and signing boundaries. iOS installation packages are not currently
+published.
+
 The [Conversation guide](../../docs/mobile/conversation.md) describes the authorized Agent timeline,
 native rendering, live updates, and Terminal fallback.
 The [Changes guide](../../docs/mobile/changes.md) describes authorized Git snapshots, bounded diffs,

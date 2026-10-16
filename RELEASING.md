@@ -1,6 +1,10 @@
 # Releasing Caxri
 
-Caxri currently produces two unsigned Apple Silicon DMGs. The canonical asset
+Caxri currently produces two unsigned Apple Silicon DMGs and one release-signed Android arm64 APK,
+each with a SHA-256 companion. The APK is copied from the verified update bundle embedded in both
+DMGs, so first installs from GitHub Releases and paired updates share one signing identity and
+version. See [Mobile installation and updates](docs/mobile/update.md#install-from-github-releases).
+The canonical DMG asset
 includes Source Maps; the `-nosourcemap` asset is the explicit smaller flavor. The event- and
 change-specific CI profile, including whether E2E runs, is owned by the decision matrix in
 [`docs/ci-performance.md`](docs/ci-performance.md). A commit whose subject is exactly

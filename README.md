@@ -90,6 +90,14 @@ and installation steps with the new release. Installing the app does not require
 profile or Project folders. Contributor installation and release options are documented in
 [RELEASING.md](RELEASING.md).
 
+## Install on Android
+
+Android phones can install the paired companion from the same
+[Release](https://github.com/tjx666/caxri/releases/latest): download
+`Caxri-Mobile-<version>-android-arm64.apk`, open it, and allow installation from the browser or
+file manager if prompted. Each APK has a `.sha256` companion and matches Desktop's bundled update.
+See [Mobile installation and updates](docs/mobile/update.md#install-from-github-releases).
+
 ## Run from source
 
 ### Development requirements
