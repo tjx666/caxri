@@ -151,20 +151,26 @@ describe('Release workflow contract', () => {
             >;
         };
         const rehearsal = parsed.jobs.rehearsal;
-        const source = workflow.match(/\n {2}rehearsal:\n([\s\S]*?)\n {2}release:/u)?.[1] ?? '';
+        /**
+         * Sibling publishing jobs have separate authority, so inspect only the parsed rehearsal job.
+         */
+        const source = JSON.stringify(rehearsal);
 
         expect(rehearsal.if).toContain("github.event_name == 'workflow_dispatch'");
         expect(rehearsal.needs).toBe('linux-natives');
         expect(rehearsal['runs-on']).toBe('macos-15');
         expect(rehearsal.permissions).toEqual({ contents: 'read' });
-        expect(JSON.stringify(rehearsal)).not.toContain('secrets.');
-        expect(source).toContain("install-android-toolchain: 'true'");
+        expect(source).not.toContain('secrets.');
+        expect(
+            rehearsal.steps?.some((step) => step.with?.['install-android-toolchain'] === 'true'),
+        ).toBe(true);
         expect(source).toContain('bun run --cwd apps/mobile build:update-bundle');
-        expect(source).toContain('run: bun run package:release-dmgs');
+        expect(rehearsal.steps?.some((step) => step.run === 'bun run package:release-dmgs')).toBe(
+            true,
+        );
         expect(source).toContain('release.noindex/sourcemap/mac-arm64/Caxri.app');
         expect(source).toContain('e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts');
         expect(source).not.toContain('gh release create');
-        expect(source).not.toContain('contents: write');
     });
 
     it('keeps publication credentials bounded on the hosted runner', () => {

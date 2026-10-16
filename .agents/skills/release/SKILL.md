@@ -65,6 +65,10 @@ beyond the packaged application itself.
   pull request squash-merged with the exact release subject, not a direct push; see `RELEASING.md`.
 - Normal commits follow the event plan in `docs/ci-performance.md`. Source pushes run hosted checks
   but never start full E2E, package, or publish a release automatically.
+- Before publishing a change to `.github/workflows/release.yml`, run
+  `rtk vitest run scripts/__tests__/release-workflow-contract.test.ts scripts/__tests__/release-android-assets.test.ts`
+  alongside the changed-file check. These contracts read workflow YAML as data, so import-based
+  affected-test selection does not discover them.
 - The release workflow validates the version and tag, builds the release-signed Android update APK
   that Desktop serves to paired phones (`docs/mobile/update.md`), rebuilds the unsigned Apple Silicon
   app in `include` and `omit` Source Map flavors, and publishes both DMGs plus the exact bundled
