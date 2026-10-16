@@ -351,11 +351,24 @@ jobs:
             (cd "$(dirname "$dmg")" && shasum -a 256 -c "$(basename "$dmg").sha256")
           done
 
+          # Publish the same signed APK that both Desktop flavors carry, rather than rebuilding it.
+          android="release.noindex/mobile/Caxri-Mobile-${version}-android-arm64.apk"
+          mkdir -p "$(dirname "$android")"
+          cp out/mobile-update/caxri-mobile.apk "$android"
+          cmp out/mobile-update/caxri-mobile.apk "$android"
+          (
+            cd "$(dirname "$android")"
+            shasum -a 256 "$(basename "$android")" > "$(basename "$android").sha256"
+            shasum -a 256 -c "$(basename "$android").sha256"
+          )
+
           {
             echo "sourcemap=${sourcemap}"
             echo "sourcemap_checksum=${sourcemap}.sha256"
             echo "nosourcemap=${nosourcemap}"
             echo "nosourcemap_checksum=${nosourcemap}.sha256"
+            echo "android=${android}"
+            echo "android_checksum=${android}.sha256"
           } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
@@ -367,10 +380,15 @@ jobs:
           RELEASE_SOURCEMAP_CHECKSUM: ${{ steps.artifact.outputs.sourcemap_checksum }}
           RELEASE_NOSOURCEMAP_DMG: ${{ steps.artifact.outputs.nosourcemap }}
           RELEASE_NOSOURCEMAP_CHECKSUM: ${{ steps.artifact.outputs.nosourcemap_checksum }}
+          RELEASE_ANDROID_APK: ${{ steps.artifact.outputs.android }}
+          RELEASE_ANDROID_CHECKSUM: ${{ steps.artifact.outputs.android_checksum }}
         run: |
           # The DMGs are unsigned/unnotarized: browser downloads get quarantined and Gatekeeper
           # reports the app as "damaged", so the notes lead with the terminal install path.
+          android_filename="$(basename "$RELEASE_ANDROID_APK")"
           notes="## Install
+
+          ### macOS (Apple Silicon)
 
           The DMG is unsigned, so a browser download is quarantined and macOS reports the app as \"damaged\". Install from the terminal instead:
 
@@ -379,13 +397,25 @@ jobs:
           bun run install:caxri -- --no-sourcemap # smaller no-map build
           \`\`\`
 
-          Already downloaded with a browser? Clear the quarantine flag once: \`xattr -dr com.apple.quarantine /Applications/Caxri.app\`"
+          Already downloaded with a browser? Clear the quarantine flag once: \`xattr -dr com.apple.quarantine /Applications/Caxri.app\`
+
+          ### Android (arm64)
+
+          1. Download \`${android_filename}\` from **Assets** below on your Android phone.
+          2. Open the downloaded APK. If Android asks, enable **Allow from this source** for the browser or file manager, then tap **Install**.
+          3. Open Caxri and pair with Desktop from **Settings > Mobile**. Use the same release version on both devices.
+
+          The APK is release-signed and matches the update package bundled with Desktop. Its \`.sha256\` companion verifies download integrity. Later releases can update the app in place without losing pairing data. Switching from a debug-signed development build requires uninstalling that build first, which clears local app data and requires pairing again.
+
+          iOS installation packages are not distributed through GitHub Releases."
 
           gh release create "$RELEASE_TAG" \
             "$RELEASE_SOURCEMAP_DMG" \
             "$RELEASE_SOURCEMAP_CHECKSUM" \
             "$RELEASE_NOSOURCEMAP_DMG" \
             "$RELEASE_NOSOURCEMAP_CHECKSUM" \
+            "$RELEASE_ANDROID_APK" \
+            "$RELEASE_ANDROID_CHECKSUM" \
             --target "$RELEASE_TARGET_SHA" \
             --title "Caxri ${RELEASE_TAG}" \
             --notes "$notes" \

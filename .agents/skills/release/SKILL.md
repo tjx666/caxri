@@ -67,8 +67,10 @@ beyond the packaged application itself.
   but never start full E2E, package, or publish a release automatically.
 - The release workflow validates the version and tag, builds the release-signed Android update APK
   that Desktop serves to paired phones (`docs/mobile/update.md`), rebuilds the unsigned Apple Silicon
-  app in `include` and `omit` Source Map flavors, and publishes both DMGs with one SHA-256 checksum
-  each. The canonical `Caxri-<version>-arm64.dmg` is the Source Map build and owns the focused
+  app in `include` and `omit` Source Map flavors, and publishes both DMGs plus the exact bundled
+  APK as `Caxri-Mobile-<version>-android-arm64.apk`, each with one SHA-256 checksum. Verify the APK
+  appears in the Release assets as well as inside Desktop; an embedded-only APK does not provide
+  the first-install download path. The canonical `Caxri-<version>-arm64.dmg` is the Source Map build and owns the focused
   packaged-app probe; the `-nosourcemap` asset receives structural, manifest, architecture, disk
   image, and checksum verification without duplicating the packaged Electron smoke. Packaged-app
   verification remains a release responsibility; product checks and release packaging run on

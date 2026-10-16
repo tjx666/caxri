@@ -9,6 +9,25 @@ A paired Android phone updates itself from the Desktop it is paired with. Each D
 carries the matching release-signed arm64 APK, so a phone never needs `adb`, a cable, or a download
 site to follow Desktop.
 
+## Install from GitHub Releases
+
+For a first install, open the [latest Release](https://github.com/tjx666/caxri/releases/latest)
+on an arm64 Android phone and download `Caxri-Mobile-<version>-android-arm64.apk` from **Assets**.
+Open the APK, enable **Allow from this source** for the browser or file manager if Android asks,
+and tap **Install**. Open Caxri, then pair it from Desktop's **Settings > Mobile**. Keep Desktop
+and Mobile on the same release version.
+
+The downloadable APK is the exact release-signed package embedded in both Desktop DMG flavors.
+Its `.sha256` companion names only the APK filename, so it can be checked from the download
+directory with `shasum -a 256 -c <apk-filename>.sha256`. The release fails if the APK is missing.
+Subsequent APK installs and Desktop-delivered updates use the same signing key and preserve app
+data. An existing debug-signed development client cannot be upgraded with the release-signed APK
+in place. Switching to the release app requires uninstalling that development client first, which
+clears its local app data and requires pairing again.
+
+iOS builds remain a source-development workflow. GitHub Releases do not provide an installable
+IPA; distributing to iPhones requires a separate Apple signing and distribution setup.
+
 ## User flow
 
 1. After a Desktop upgrade, the phone reads `mobile.update.check` when it connects and comes to the
