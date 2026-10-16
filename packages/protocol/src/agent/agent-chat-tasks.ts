@@ -32,6 +32,15 @@ export function findAgentChatTask(
 }
 
 /**
+ * A provider-paused task is still live: it can resume, accept Stop, and retain its output projection.
+ */
+export function isAgentChatTaskActive(
+    status: AgentChatTask['status'] | undefined,
+): status is 'running' | 'waiting' {
+    return status === 'running' || status === 'waiting';
+}
+
+/**
  * How long a task has run, or ran. A running task counts up from its start; an ended one prefers the provider's own
  * duration over the wall clock between start and end.
  */
@@ -39,10 +48,10 @@ export function agentChatTaskElapsedMs(
     task: Pick<AgentChatTask, 'endedAt' | 'startedAt' | 'status' | 'usage'>,
     now: number,
 ): number | undefined {
-    if (task.status !== 'running' && task.usage?.durationMs !== undefined)
+    if (!isAgentChatTaskActive(task.status) && task.usage?.durationMs !== undefined)
         return task.usage.durationMs;
     if (task.startedAt === undefined) return undefined;
-    const end = task.status === 'running' ? now : (task.endedAt ?? now);
+    const end = isAgentChatTaskActive(task.status) ? now : (task.endedAt ?? now);
     return Math.max(0, end - task.startedAt);
 }
 
@@ -50,7 +59,7 @@ export function agentChatTaskElapsedMs(
  * The item status whose glyph shows a task's status. A stopped task reads like an interrupted item.
  */
 export function agentChatTaskGlyphStatus(status: AgentChatTask['status']): AgentChatItemStatus {
-    return status === 'stopped' ? 'interrupted' : status;
+    return status === 'stopped' ? 'interrupted' : status === 'waiting' ? 'running' : status;
 }
 
 /**
@@ -65,7 +74,7 @@ export function isAgentChatTaskTitleCommand(
 }
 
 export function canStopAgentChatTask(task: Pick<AgentChatTask, 'canStop' | 'status'>): boolean {
-    return task.canStop && task.status === 'running';
+    return task.canStop && isAgentChatTaskActive(task.status);
 }
 
 /**
@@ -73,20 +82,20 @@ export function canStopAgentChatTask(task: Pick<AgentChatTask, 'canStop' | 'stat
  * the strip can reveal what just finished.
  */
 export function agentChatTaskStrip(tasks: readonly AgentChatTask[] | undefined): {
-    running: AgentChatTask[];
+    active: AgentChatTask[];
     ended: AgentChatTask[];
 } {
     const listed = tasks ?? [];
     // `filter` already copies, and the phone's Hermes runtime lacks ES2023 `toSorted`, so the copies sort in place.
-    const running = listed
-        .filter((task) => task.status === 'running')
+    const active = listed
+        .filter((task) => isAgentChatTaskActive(task.status))
         // eslint-disable-next-line unicorn/no-array-sort -- Sorts the fresh copy `filter` returned; see above.
         .sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
     const ended = listed
-        .filter((task) => task.status !== 'running')
+        .filter((task) => !isAgentChatTaskActive(task.status))
         // eslint-disable-next-line unicorn/no-array-sort -- Sorts the fresh copy `filter` returned; see above.
         .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
-    return { running, ended };
+    return { active, ended };
 }
 
 /**
@@ -102,9 +111,9 @@ export function agentChatTaskStripView(
         dismissedAt,
         latestTurnStartedAt,
     }: { dismissedAt: number | undefined; latestTurnStartedAt: number | undefined },
-): { running: AgentChatTask[]; ended: AgentChatTask[]; isDismissible: boolean } | undefined {
-    const { running, ended } = agentChatTaskStrip(tasks);
-    if (running.length > 0) return { running, ended, isDismissible: false };
+): { active: AgentChatTask[]; ended: AgentChatTask[]; isDismissible: boolean } | undefined {
+    const { active, ended } = agentChatTaskStrip(tasks);
+    if (active.length > 0) return { active, ended, isDismissible: false };
     if (latestTurnStartedAt === undefined) return undefined;
     const recent = ended.filter(
         (task) =>
@@ -112,7 +121,7 @@ export function agentChatTaskStripView(
             task.endedAt >= latestTurnStartedAt &&
             (dismissedAt === undefined || task.endedAt > dismissedAt),
     );
-    return recent.length > 0 ? { running, ended: recent, isDismissible: true } : undefined;
+    return recent.length > 0 ? { active, ended: recent, isDismissible: true } : undefined;
 }
 
 /**

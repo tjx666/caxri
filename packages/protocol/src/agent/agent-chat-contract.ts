@@ -300,7 +300,7 @@ export const agentChatTaskSchema = z.strictObject({
      */
     title: z.string().max(1_000),
     command: z.string().max(10_000).optional(),
-    status: z.enum(['running', 'completed', 'failed', 'stopped']),
+    status: z.enum(['running', 'waiting', 'completed', 'failed', 'stopped']),
     itemId: z.string().min(1).max(200).optional(),
     /**
      * Provider agent type, such as `general-purpose` or a custom agent's name.

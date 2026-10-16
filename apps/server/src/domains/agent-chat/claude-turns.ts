@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatSnapshot, AgentChatTurn } from '@caxri/protocol';
+import { isAgentChatTaskActive } from '@caxri/protocol';
 
 import { MAX_TRACKED_TURNS } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
@@ -17,7 +18,7 @@ import { claudeContextWindow, finishedClaudeTurn } from './claude-items';
  */
 function hasWakingBackgroundWork(snapshot: AgentChatSnapshot): boolean {
     return (snapshot.tasks ?? []).some(
-        (task) => task.kind === 'agent' && task.isBackground && task.status === 'running',
+        (task) => task.kind === 'agent' && task.isBackground && isAgentChatTaskActive(task.status),
     );
 }
 

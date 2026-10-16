@@ -7,6 +7,7 @@ import type {
 import {
     applyAgentChatTaskOperation,
     emptyAgentChatTaskSnapshot,
+    isAgentChatTaskActive,
     MAX_AGENT_CHAT_PATCH_OPERATIONS,
 } from '@caxri/protocol';
 
@@ -57,13 +58,13 @@ export class ChatTaskProjections {
 
     private evict(): void {
         while (this.tasks.size > MAX_TASK_PROJECTIONS) {
-            const running = new Set(
+            const active = new Set(
                 this.listed()
-                    .filter((task) => task.status === 'running')
+                    .filter((task) => isAgentChatTaskActive(task.status))
                     .map((task) => task.id),
             );
             const victim =
-                this.tasks.keys().find((taskId) => !running.has(taskId)) ??
+                this.tasks.keys().find((taskId) => !active.has(taskId)) ??
                 this.tasks.keys().next().value;
             if (victim === undefined) return;
             this.retireOne(victim);

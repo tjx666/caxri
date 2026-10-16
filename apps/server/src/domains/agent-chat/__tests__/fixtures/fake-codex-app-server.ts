@@ -253,6 +253,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runSubagent(io, turn, {
             isHeld: text.includes('hold'),
             isBrowsing: text.includes('browsestep'),
+            needsApproval: text.includes('child approval'),
         });
     } else if (text.includes('vanish')) {
         dropTerminalsSilently();

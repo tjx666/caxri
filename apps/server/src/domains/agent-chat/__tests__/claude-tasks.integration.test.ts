@@ -3,6 +3,41 @@ import { describe, expect, it, vi } from 'vitest';
 import { fixture } from './chat-service-fixture';
 
 describe('Claude Code background work in Agent Chat', () => {
+    it('stops a provider-paused background agent without resuming it', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'pause background agent' });
+        const paused = await until(
+            (snapshot) => !snapshot.activeTurnId && snapshot.tasks?.[0]?.status === 'waiting',
+        );
+        await service.stopTask(terminal.id, paused.tasks?.[0]?.id ?? '');
+        const stopped = await until((snapshot) => snapshot.tasks?.[0]?.status === 'stopped');
+        expect(stopped.tasks?.[0]).toMatchObject({ canStop: false, status: 'stopped' });
+    });
+
+    it('keeps a paused background agent active until it resumes and completes', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'pause background agent' });
+        const paused = await until(
+            (snapshot) =>
+                !snapshot.activeTurnId &&
+                snapshot.tasks?.[0]?.summary === 'At a synthetic pause checkpoint',
+        );
+        expect(paused.tasks?.[0]).toMatchObject({ status: 'waiting', canStop: true });
+        expect(paused.tasks?.[0]).not.toHaveProperty('endedAt');
+        await service.send(terminal.id, { text: 'resume synthetic task' });
+        const resumed = await until(
+            (snapshot) =>
+                !snapshot.activeTurnId &&
+                snapshot.tasks?.[0]?.summary === 'Resumed the synthetic task',
+        );
+        expect(resumed.tasks?.[0]).toMatchObject({ status: 'running', canStop: true });
+        expect(resumed.tasks?.[0]).not.toHaveProperty('endedAt');
+        await service.send(terminal.id, { text: 'finish synthetic task' });
+        const completed = await until((snapshot) => snapshot.tasks?.[0]?.status === 'completed');
+        expect(completed.tasks?.[0]).toMatchObject({ status: 'completed', canStop: false });
+        expect(completed.tasks?.[0]?.endedAt).toEqual(expect.any(Number));
+    });
+
     it('routes a subagent into its own task projection and lists its lifecycle', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'run a subagent' });

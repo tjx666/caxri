@@ -73,7 +73,11 @@ function finishChildTurn(io: FakeCodexIo, child: FakeThread, turn: FakeTurn) {
 export async function runSubagent(
     io: FakeCodexIo,
     turn: FakeTurn,
-    { isHeld, isBrowsing }: { isHeld: boolean; isBrowsing: boolean },
+    {
+        isHeld,
+        isBrowsing,
+        needsApproval,
+    }: { isHeld: boolean; isBrowsing: boolean; needsApproval: boolean },
 ) {
     const parent = io.currentThread();
     const child: FakeThread = { id: crypto.randomUUID(), turns: [], parentThreadId: parent.id };
@@ -118,6 +122,33 @@ export async function runSubagent(
         exitCode: 0,
         durationMs: 3,
     });
+    if (needsApproval) {
+        const approval = io.serverRequest('item/commandExecution/requestApproval', {
+            threadId: child.id,
+            turnId: childTurn.id,
+            itemId: crypto.randomUUID(),
+            command: 'git status',
+            cwd: process.cwd(),
+            reason: 'Inspect the synthetic project',
+        });
+        // eslint-disable-next-line no-void -- the child's request outlives the parent turn
+        void approval.then(async (response) => {
+            if (childTurn.finished) return;
+            const decision =
+                typeof response === 'object' && response !== null && 'decision' in response
+                    ? response.decision
+                    : undefined;
+            if (decision !== 'accept' && decision !== 'acceptForSession') {
+                childTurn.interrupted = true;
+                finishChildTurn(io, child, childTurn);
+                return;
+            }
+            await io.streamMessage(childTurn, 'Approved the synthetic check. '.repeat(20), 30);
+            finishChildTurn(io, child, childTurn);
+        });
+        await io.streamMessage(turn, 'A helper needs approval.', 0);
+        return;
+    }
     if (isHeld) {
         // eslint-disable-next-line no-void -- the child keeps working after the parent turn ends
         void io

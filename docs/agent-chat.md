@@ -389,8 +389,17 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
 - `agentChat.readTask` returns the live projection, or rebuilds one from the provider's record for a
   task this process never saw (a resumed Chat, an evicted projection); `taskId` may also be the id of
   the timeline row that started the task, so a subagent row stays openable after a restart.
-  `agentChat.stopTask` stops one task without ending the turn. A provider exit marks every running
+  `agentChat.stopTask` stops one task without ending the turn. A provider exit marks every active
   task stopped.
+- Running and waiting tasks are active: they retain their projection and Stop action, stay in the
+  active strip and mobile frame budget, and prevent idle suspension. Claude Code's explicit
+  `task_updated.patch.status = paused` maps to Waiting, with a pause glyph. The SDK supplies no
+  pause reason, so the label does not claim that user input or approval is required. Progress
+  updates keep that status until the provider explicitly resumes or ends the task.
+  Codex uses accepted blocking approvals or input requests of the child thread, not the parent's
+  `wait` tool or silence. The last request resolving resumes an ongoing child turn; a child turn
+  ending clears its pending requests without clearing another turn's requests. The parent remains
+  usable while the child waits.
 - **Claude Code.** A subagent's task id is its `Agent`/`Task` tool use id. Metadata comes from the
   tool call and the `task_started`, `task_progress`, `task_notification`, `task_updated`, and
   `background_tasks_changed` system messages. A background shell uses Claude's `task_id` and links
@@ -423,7 +432,7 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   (`caxri-agent-task://<terminalId>/<taskId>`, `packages/protocol/src/domain/agent-task-tab.ts`) in a
   split beside the Chat, reusing that side pane for later tasks. A subagent tab is a read-only
   timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
-  live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
+  live output, titled by the command without Codex's login-shell wrapper. Active tasks also appear
   in a Background work list above the composer, where each opens or stops on its own, and an `N
 ended` count expands the ended ones. When the last task ends, the strip collapses to that `N
 ended` row for the work that ended since the latest turn started, with a Dismiss button, instead
@@ -1003,9 +1012,9 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   row is already gone from the card. While a turn runs the Send button wears the queue glyph and the placeholder reads
   `Queue a follow-up`.
 - Background work. The snapshot and `state` patches carry the Chat's `tasks` as a bounded copy
-  (`clipAgentChatTasksForMobile`: every running task up to 24, the newest started kept, and the 10
+  (`clipAgentChatTasksForMobile`: every active task up to 24, the newest started kept, and the 10
   that ended most recently, with titles and command lines cut to 300 characters and summaries to
-  200). Above its composer the phone shows a one-row `Background work` pill (`2 running · 1 ended`)
+  200). Above its composer the phone shows a one-row `Background work` pill (`2 active · 1 ended`)
   by Desktop's strip rule (`agentChatTaskStripView`, shared from
   `packages/protocol/src/agent/agent-chat-tasks.ts` with the elapsed time and Stop rules), so a
   Chat without tasks (Grok Build) shows none, and once nothing runs the pill keeps the work that
