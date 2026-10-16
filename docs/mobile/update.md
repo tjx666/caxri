@@ -17,7 +17,11 @@ Open the APK, enable **Allow from this source** for the browser or file manager 
 and tap **Install**. Open Caxri, then pair it from Desktop's **Settings > Mobile**. Keep Desktop
 and Mobile on the same release version.
 
-The downloadable APK is the exact release-signed package embedded in both Desktop DMG flavors.
+New releases publish the exact release-signed APK embedded in both Desktop DMG flavors.
+An existing release can receive a separate APK rebuilt from its fixed published tag using the
+same release signing key. Its Release notes identify that source commit; the original DMGs stay
+unchanged and may not contain an update bundle. This backfill supplies the first-install download
+without changing the already published Desktop artifacts.
 Its `.sha256` companion names only the APK filename, so it can be checked from the download
 directory with `shasum -a 256 -c <apk-filename>.sha256`. The release fails if the APK is missing.
 Subsequent APK installs and Desktop-delivered updates use the same signing key and preserve app

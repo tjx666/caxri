@@ -1,0 +1,6 @@
+{
+    "keystorePath": "CAXRI_ANDROID_KEYSTORE_PATH",
+    "keystorePassword": "CAXRI_ANDROID_KEYSTORE_PASSWORD",
+    "keyAlias": "CAXRI_ANDROID_KEY_ALIAS",
+    "keyPassword": "CAXRI_ANDROID_KEY_PASSWORD"
+}

@@ -6,7 +6,12 @@ on:
     types: [completed]
     branches: [main]
   # Rehearses the hosted Linux natives and unsigned macOS package on main without publishing a Release.
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      android_release_tag:
+        description: 'Existing published tag to backfill with an Android APK; leave empty for the no-publish rehearsal'
+        type: string
+        default: ''
 
 concurrency:
   group: release-macos
@@ -21,6 +26,7 @@ jobs:
     name: Linux natives (${{ matrix.target }})
     if: >-
       (github.event_name == 'workflow_dispatch' &&
+      inputs.android_release_tag == '' &&
       github.ref == 'refs/heads/main' &&
       github.actor == 'tjx666' &&
       github.triggering_actor == 'tjx666') ||
@@ -103,6 +109,7 @@ jobs:
     name: Hosted macOS no-publish rehearsal
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      inputs.android_release_tag == '' &&
       github.ref == 'refs/heads/main' &&
       github.actor == 'tjx666' &&
       github.triggering_actor == 'tjx666'
@@ -180,6 +187,91 @@ jobs:
         run: |
           file "$CAXRI_PACKAGED_EXECUTABLE" | grep -q 'arm64'
           bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=./scripts/reporters/public-e2e-reporter.ts,./scripts/reporters/e2e-receipt-reporter.ts
+
+  android-backfill:
+    name: Backfill Android APK for published Release
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.android_release_tag != '' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'tjx666' &&
+      github.triggering_actor == 'tjx666'
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify backfill event trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.actor }}
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+      - name: Resolve the existing published release
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANDROID_RELEASE_TAG: ${{ inputs.android_release_tag }}
+        run: |
+          # Keep this trusted main helper outside the checkout replaced by the pinned release source.
+          backfill_root="$RUNNER_TEMP/caxri-android-backfill"
+          mkdir -p "$backfill_root/.agents/skills/release/scripts" "$backfill_root/apps/mobile/scripts" "$backfill_root/apps/mobile/plugins"
+          cp .agents/skills/release/scripts/android-release-backfill.ts "$backfill_root/.agents/skills/release/scripts/"
+          cp apps/mobile/scripts/update-bundle-receipts.ts "$backfill_root/apps/mobile/scripts/"
+          cp apps/mobile/plugins/android-release-signing-environment.json "$backfill_root/apps/mobile/plugins/"
+          bun run "$backfill_root/.agents/skills/release/scripts/android-release-backfill.ts" resolve "$ANDROID_RELEASE_TAG"
+      - name: Checkout the verified release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-android-toolchain: 'true'
+      - name: Build the release-signed Android bundle
+        id: signed_apk
+        env:
+          CAXRI_ANDROID_KEYSTORE_BASE64: ${{ secrets.CAXRI_ANDROID_KEYSTORE_BASE64 }}
+          CAXRI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.CAXRI_ANDROID_KEYSTORE_PASSWORD }}
+          CAXRI_ANDROID_KEY_ALIAS: ${{ secrets.CAXRI_ANDROID_KEY_ALIAS }}
+          CAXRI_ANDROID_KEY_PASSWORD: ${{ secrets.CAXRI_ANDROID_KEY_PASSWORD }}
+          ANDROID_RELEASE_TAG: ${{ inputs.android_release_tag }}
+        run: |
+          keystore="$RUNNER_TEMP/caxri-android-backfill.jks"
+          trap 'rm -f "$keystore"' EXIT
+          test -n "$CAXRI_ANDROID_KEYSTORE_BASE64"
+          printf '%s' "$CAXRI_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          CAXRI_ANDROID_KEYSTORE_PATH="$keystore" bun run --cwd apps/mobile build:update-bundle
+          CAXRI_ANDROID_KEYSTORE_PATH="$keystore" bun run "$RUNNER_TEMP/caxri-android-backfill/.agents/skills/release/scripts/android-release-backfill.ts" verify "$ANDROID_RELEASE_TAG"
+      - name: Publish Android assets to the existing Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANDROID_RELEASE_TAG: ${{ inputs.android_release_tag }}
+          ANDROID_RELEASE_SHA: ${{ steps.target.outputs.sha }}
+          ANDROID_RELEASE_ID: ${{ steps.target.outputs.release_id }}
+          ANDROID_VERIFIED_APK_SHA256: ${{ steps.signed_apk.outputs.apk_sha256 }}
+        run: >-
+          bun run "$RUNNER_TEMP/caxri-android-backfill/.agents/skills/release/scripts/android-release-backfill.ts" publish
+          "$ANDROID_RELEASE_TAG" "$ANDROID_RELEASE_SHA" "$ANDROID_RELEASE_ID" "$ANDROID_VERIFIED_APK_SHA256"
 
   release:
     # PR CI owns the product quality gates. The exact release commit's lightweight CI run rechecks

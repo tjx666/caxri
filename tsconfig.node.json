@@ -14,6 +14,8 @@
         "apps/desktop/src/renderer/__tests__/**/*.ts",
         "apps/desktop/src/shared/**/*.ts",
         "apps/server/**/*.ts",
+        "apps/mobile/scripts/update-bundle-receipts.ts",
+        "apps/mobile/plugins/android-release-signing-environment.json",
         "packages/**/*.ts",
         ".agents/skills/**/scripts/**/*.ts",
         "scripts/**/*.ts",

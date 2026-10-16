@@ -88,6 +88,18 @@ beyond the packaged application itself.
   quit confirmation are detected: `install:caxri` uses the installed version-matched CLI first so
   task shutdown is non-interactive, then applies the exact-path signal fallback before replacement.
 
+## Existing-release Android backfill
+
+For a requested Android download missing from an already published Release, use the canonical
+workflow's `android_release_tag` input on `main` after the backfill route is merged. Follow
+[RELEASING.md](../../../RELEASING.md#backfill-android-for-an-existing-release). The route pins and
+rechecks the published tag, independently verifies the release signing certificate and arm64 APK,
+and resumes partial publication only when existing assets match exactly. It refuses asset
+replacement. Inspect the
+published APK and checksum, download them anonymously, then verify installation on a disposable
+Android emulator. Do not claim an older DMG contains the rebuilt APK; preserve the source-commit
+explanation in its Release notes. Leave unrelated failed Desktop publication checks intact.
+
 ## Local uninstall
 
 Preview the pre-release local reset/uninstall plan with `bun run uninstall:caxri`. Apply it only

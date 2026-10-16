@@ -1,18 +1,13 @@
 import type { ConfigPlugin } from 'expo/config-plugins';
 import { withAppBuildGradle } from 'expo/config-plugins';
 
+import ANDROID_RELEASE_SIGNING_ENVIRONMENT from './android-release-signing-environment.json';
+
 /**
  * Gradle reads these at build time, so neither the keystore path nor its passwords are written into the generated
  * native project. Without `CAXRI_ANDROID_KEYSTORE_PATH` the release variant keeps the template debug signing that local
  * emulator Acceptance builds rely on; the Desktop bundle script refuses such an APK.
  */
-export const ANDROID_RELEASE_SIGNING_ENVIRONMENT = {
-    keystorePath: 'CAXRI_ANDROID_KEYSTORE_PATH',
-    keystorePassword: 'CAXRI_ANDROID_KEYSTORE_PASSWORD',
-    keyAlias: 'CAXRI_ANDROID_KEY_ALIAS',
-    keyPassword: 'CAXRI_ANDROID_KEY_PASSWORD',
-} as const;
-
 const environment = ANDROID_RELEASE_SIGNING_ENVIRONMENT;
 
 const RELEASE_SIGNING_CONFIG = `        release {
