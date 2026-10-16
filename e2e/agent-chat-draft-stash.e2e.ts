@@ -82,6 +82,7 @@ test('Chat recalls first-line history and restores a stashed input after restart
             await message.press('ArrowDown');
             await expect(message).toHaveValue('Example return draft');
             await message.fill(draft);
+            await expect(message).toHaveValue(draft);
 
             await pasteAgentChatImage(message);
             await expect(chat.getByRole('button', { name: 'Remove screenshot.png' })).toBeVisible();

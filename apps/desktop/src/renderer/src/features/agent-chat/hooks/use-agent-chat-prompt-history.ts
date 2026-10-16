@@ -11,6 +11,7 @@ import {
     stepAgentChatPromptHistory,
 } from '../agent-chat-prompt-history';
 import { isAgentChatPromptHistoryBoundary } from '../agent-chat-prompt-history-layout';
+import { useAgentChatInputSelection } from './use-agent-chat-input-selection';
 
 /**
  * ArrowUp/ArrowDown recall of the prompts this Chat sent (see `agent-chat-prompt-history`). The position is a ref: it
@@ -36,6 +37,7 @@ export function useAgentChatPromptHistory({
     items: readonly AgentChatItem[] | undefined;
     setDraft: (update: (current: string) => string) => void;
 }) {
+    const restoreSelection = useAgentChatInputSelection(draft);
     const position = useRef<AgentChatPromptHistoryPosition | undefined>(undefined);
     const returnSelection = useRef<
         | { start: number; end: number; direction: HTMLTextAreaElement['selectionDirection'] }
@@ -82,15 +84,14 @@ export function useAgentChatPromptHistory({
         const selection = step.position ? undefined : returnSelection.current;
         position.current = step.position;
         if (!step.position) returnSelection.current = undefined;
-        setDraft(() => step.prompt);
-        requestAnimationFrame(() => {
-            if (!textarea.isConnected || textarea.value !== step.prompt) return;
-            textarea.setSelectionRange(
-                selection?.start ?? step.prompt.length,
-                selection?.end ?? step.prompt.length,
-                selection?.direction,
-            );
+        restoreSelection({
+            textarea,
+            text: step.prompt,
+            start: selection?.start ?? step.prompt.length,
+            end: selection?.end ?? step.prompt.length,
+            direction: selection?.direction ?? 'none',
         });
+        setDraft(() => step.prompt);
         return true;
     };
     return { didHandleKey };

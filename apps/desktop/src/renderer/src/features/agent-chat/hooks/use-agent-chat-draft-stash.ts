@@ -4,12 +4,12 @@ import { useEffect, useRef } from 'react';
 import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { isImeComposing } from '../../../lib/ime';
 import { tryCommand } from '../../../stores/toasts';
-import { markAgentChatComposerSelectionPlaced } from '../agent-chat-composer-caret';
 import { isAgentChatStashKey } from '../agent-chat-composer-keys';
 import { currentAgentChatDraftStashStore } from '../agent-chat-draft-stash';
 import { readAgentChatAttachments, settleAgentChatAttachments } from '../agent-chat-drafts';
 import { setAgentChatGoalMode } from '../agent-chat-goal-mode';
 import type { useAgentChatAttachments } from './use-agent-chat-attachments';
+import { useAgentChatInputSelection } from './use-agent-chat-input-selection';
 
 interface DraftStashProperties {
     draft: string;
@@ -26,6 +26,7 @@ interface DraftStashProperties {
  * Ctrl+S checkpoints an input before clearing it, or explicitly restores its last checkpoint into a wholly empty input.
  */
 export function useAgentChatDraftStash(properties: DraftStashProperties) {
+    const restoreSelection = useAgentChatInputSelection(properties.draft);
     const latest = useLatestReference(properties);
     const mounted = useRef(false);
     const pending = useRef(false);
@@ -97,18 +98,16 @@ export function useAgentChatDraftStash(properties: DraftStashProperties) {
             }
             const stash = await store.read(before.terminalId);
             if (!stash || !isUnchanged()) return;
+            restoreSelection({
+                textarea: input,
+                text: stash.text,
+                start: stash.selectionStart,
+                end: stash.selectionEnd,
+                direction: stash.selectionDirection,
+            });
             before.setDraft(() => stash.text);
             before.images.replace(stash.attachments);
             setAgentChatGoalMode(before.terminalId, stash.isGoalMode);
-            requestAnimationFrame(() => {
-                if (!mounted.current || !input.isConnected || input.value !== stash.text) return;
-                input.setSelectionRange(
-                    Math.min(stash.selectionStart, stash.text.length),
-                    Math.min(stash.selectionEnd, stash.text.length),
-                    stash.selectionDirection,
-                );
-                markAgentChatComposerSelectionPlaced(input);
-            });
         }).finally(() => {
             pending.current = false;
         });
