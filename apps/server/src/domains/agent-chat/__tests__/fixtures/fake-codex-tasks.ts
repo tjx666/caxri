@@ -322,7 +322,7 @@ export function didHandleTaskRequest(
                         io.finishTurn(turn);
                     },
                     JSON.stringify(io.currentThread().turns).includes('contextpressure')
-                        ? 2500
+                        ? 8000
                         : 150,
                 );
             }, COMPACTION_START_DELAY_MS);

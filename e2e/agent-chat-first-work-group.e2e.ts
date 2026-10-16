@@ -62,6 +62,15 @@ test('ordinary tools share one summary from their first visible frame', async ({
             contentType: 'application/json',
         });
         await page.screenshot({ path: testInfo.outputPath('completed-tool-summary.png') });
+        await session.getByRole('textbox', { name: 'Message' }).fill('testrun');
+        await session.getByRole('textbox', { name: 'Message' }).press('Enter');
+        await expect(session.getByText('One test fails in', { exact: false })).toBeVisible();
+        await expect(session.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+        await session.getByRole('button', { name: 'Worked', exact: true }).last().click();
+        await summary.last().locator('..').getByRole('button').first().click();
+        await page.screenshot({
+            path: testInfo.outputPath('short-success-failed-command-times.png'),
+        });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

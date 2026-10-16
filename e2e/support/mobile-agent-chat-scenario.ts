@@ -121,9 +121,15 @@ async function executeMobileAgentChatScenario(
         );
         if (maintenance.items.every(({ outcome }) => outcome !== 'submitted'))
             throw new Error('Native maintenance did not pass the real cache readiness gate');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.operation === 'compacting',
+        );
         await capture(environment, 'maintenance-chat', artifacts);
         await tapMobileCheckByBounds(serial, 'session-detail-back');
         await capture(environment, 'maintenance-home', artifacts);
+        if ((await chat.read()).operation !== 'compacting')
+            throw new Error('The Home capture missed the running maintenance interval');
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForMobile(
             () => chat.read(),
