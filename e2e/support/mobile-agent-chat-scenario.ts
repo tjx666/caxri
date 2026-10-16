@@ -129,6 +129,7 @@ async function executeMobileAgentChatScenario(
         );
         await capture(environment, 'maintenance-chat', artifacts);
         await tapMobileCheckByBounds(serial, 'session-detail-back');
+        await waitForCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await capture(environment, 'maintenance-home', artifacts);
         if ((await chat.read()).operation !== 'compacting')
             throw new Error('The Home capture missed the running maintenance interval');

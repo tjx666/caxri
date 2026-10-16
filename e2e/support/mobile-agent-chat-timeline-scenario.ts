@@ -1,5 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { windowAgentChatSnapshotForMobile } from '@caxri/protocol';
+import { draculaTheme, windowAgentChatSnapshotForMobile } from '@caxri/protocol';
 
 import type { MobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
@@ -18,9 +18,9 @@ import {
 import { exerciseChatBackgroundWork } from './mobile-agent-chat-tasks-scenario';
 import {
     adbShell,
+    mobileColorBounds,
     mobileRegionFingerprint,
     mobileSemantics,
-    observeMobileNode,
     startMobileFramebufferRecording,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -218,13 +218,17 @@ export async function executeMobileChatPinScrollScenario(
             30_000,
         );
         // Stop is the phone's own main Chat action, distinct from stopping a background task.
-        const stop = await observeMobileNode(serial, 'agent-chat-composer-stop');
-        if (!stop.exists) throw new Error('The phone main Chat Stop is unavailable');
+        const stop = await waitForMobile(
+            () => mobileColorBounds(serial, mainAction, draculaTheme.colors.danger),
+            (bounds) => bounds !== undefined,
+        );
+        if (!stop) throw new Error('The phone main Chat Stop is unavailable');
+        await capture(environment, 'main-stop-live', artifacts);
         await adbShell(serial, [
             'input',
             'tap',
-            String(Math.floor((mainAction.left + mainAction.right) / 2)),
-            String(Math.floor((mainAction.top + mainAction.bottom) / 2)),
+            String(Math.floor((stop.left + stop.right) / 2)),
+            String(Math.floor((stop.top + stop.bottom) / 2)),
         ]);
         await waitForMobile(
             () => chat.read(),
