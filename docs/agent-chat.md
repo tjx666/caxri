@@ -652,14 +652,22 @@ several callbacks can share one item, so the transport id is never the key.
   device-local IndexedDB instead, because a few encoded images would exhaust the `localStorage`
   quota (`agent-chat-attachment-persistence.ts`): at most 128 MB of encoded images across all
   Chats, dropping the Chats whose images changed least recently first, deleted once the message
-  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer recalls the
-  prompts this Chat sent, newest first, and ArrowDown walks forward and back to an empty input,
-  like a shell. The history is read from the user messages in the Chat's projection, so it needs
+  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on the first line recalls the
+  prompts this Chat sent, newest first, and ArrowDown past the newest prompt restores the unsent text and caret.
+  Other lines retain normal caret navigation. The history is read from the user messages in the Chat's projection, so it needs
   no storage of its own and reaches only as far back as the projection keeps (see
-  `truncated`). ArrowUp is left alone while the input holds the user's own text, an image is
-  attached, or the command menu is open for typed text; a recalled `/command` that opens the menu
+  `truncated`). ArrowUp is left alone while an image is
+  attached, an earlier message is being edited, or the command menu is open for typed text; a recalled `/command` that opens the menu
   still walks on. A recalled prompt left in the input is an ordinary draft, so it persists like
-  one and editing it ends the walk. Its action row shows how much of the
+  one and editing it ends the walk. Ctrl+S saves the complete input as a device-local checkpoint and clears it;
+  Ctrl+S in an empty input restores that checkpoint, including its selection, attachments, pasted-file references,
+  and Goal mode. This follows [Claude Code's stash shortcut](https://code.claude.com/docs/en/interactive-mode#keyboard-shortcuts).
+  Checkpoints use a separate IndexedDB database in each Workbench, Commander and SSH composer scope, bounded to
+  50 Chats, one million text characters and 128 MB including encoded attachments. A save commits before clearing
+  the input; a failed save or input changed during a save leaves the live input untouched. Restoring keeps the saved
+  copy until the next successful save, so quitting before the restored text and images finish their separate writes
+  cannot destroy the only complete copy. Ctrl+S does not take over "Edit from here" or pending attachment reads.
+  Its action row shows how much of the
   context window is used, as a filling ring and a percentage with the token counts and what fills
   the window in its popover (opened by hover, or by Enter or Space on the focused ring), and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another

@@ -36,6 +36,10 @@ export function useAgentChatPromptHistory({
     setDraft: (update: (current: string) => string) => void;
 }) {
     const position = useRef<AgentChatPromptHistoryPosition | undefined>(undefined);
+    const returnSelection = useRef<
+        | { start: number; end: number; direction: HTMLTextAreaElement['selectionDirection'] }
+        | undefined
+    >(undefined);
     /**
      * Runs before the command menu's keys. An open menu keeps the arrows for its own rows unless the input still shows
      * a recalled prompt: recalling a sent `/command` opens the menu, and the next ArrowUp should keep walking back.
@@ -45,8 +49,6 @@ export function useAgentChatPromptHistory({
         isMenuOpen: boolean,
     ): boolean => {
         if (hasAttachments || isEditing) return false;
-        // A typed draft with no recall in progress never steps, so skip building the history.
-        if (!position.current && draft.length > 0) return false;
         if (isMenuOpen && position.current?.recalled !== draft) return false;
         const direction = agentChatPromptHistoryDirection(
             {
@@ -68,14 +70,25 @@ export function useAgentChatPromptHistory({
         });
         if (!step) return false;
         event.preventDefault();
-        position.current = step.position;
-        setDraft(() => step.prompt);
-        // A controlled value change leaves the caret where it was; put it at the end the way a shell does, which is
-        // also where the next ArrowUp or ArrowDown continues from.
         const textarea = event.currentTarget;
-        requestAnimationFrame(() =>
-            textarea.setSelectionRange(step.prompt.length, step.prompt.length),
-        );
+        if (position.current?.recalled !== draft)
+            returnSelection.current = {
+                start: textarea.selectionStart,
+                end: textarea.selectionEnd,
+                direction: textarea.selectionDirection,
+            };
+        const selection = step.position ? undefined : returnSelection.current;
+        position.current = step.position;
+        if (!step.position) returnSelection.current = undefined;
+        setDraft(() => step.prompt);
+        requestAnimationFrame(() => {
+            if (!textarea.isConnected || textarea.value !== step.prompt) return;
+            textarea.setSelectionRange(
+                selection?.start ?? step.prompt.length,
+                selection?.end ?? step.prompt.length,
+                selection?.direction,
+            );
+        });
         return true;
     };
     return { didHandleKey };
