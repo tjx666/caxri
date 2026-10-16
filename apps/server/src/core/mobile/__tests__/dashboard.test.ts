@@ -9,12 +9,56 @@ import {
 } from '../dashboard';
 
 describe('buildMobileDashboard', () => {
+    it('projects and bounds Sessions by canonical activity rather than visits', () => {
+        const common = {
+            projectId: 'project',
+            createdAt: 1,
+            lastActivityState: 'completed' as const,
+            attentionEpoch: 0,
+            hasUnread: false,
+        };
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Example Host',
+            deviceRole: 'view',
+            projects: [{ id: 'project', displayTitle: 'Example Project' }],
+            terminals: [],
+            sessions: [
+                {
+                    ...common,
+                    id: 'newer-visit',
+                    displayTitle: 'Older message',
+                    lastOpenedAt: 300,
+                    lastSessionActivityAt: 100,
+                },
+                {
+                    ...common,
+                    id: 'newer-message',
+                    displayTitle: 'Newer message',
+                    lastOpenedAt: 10,
+                    lastSessionActivityAt: 200,
+                },
+            ],
+        });
+        expect(result.sessions.map((session) => session.id)).toEqual([
+            'newer-message',
+            'newer-visit',
+        ]);
+        expect(result.sessions[0]).toMatchObject({
+            createdAt: 1,
+            lastSessionActivityAt: 200,
+            lastOpenedAt: 10,
+        });
+        expect(result.projects[0].lastActivityAt).toBe(200);
+    });
+
     it('prioritizes attention and stays within one encrypted frame for Desktop-scale inputs', () => {
         const longTitle = '🙂'.repeat(1_024);
         const sessions = Array.from({ length: 1_000 }, (_, index) => ({
             id: `session-${index}`,
             projectId: 'project-1',
             displayTitle: longTitle,
+            createdAt: index,
+            lastSessionActivityAt: index,
             lastOpenedAt: index,
             lastActivityState: index === 0 ? ('waiting' as const) : ('completed' as const),
             primaryAgentTerminalId: `terminal-${index}`,
@@ -68,6 +112,8 @@ describe('buildMobileDashboard', () => {
                     id: 'session-1',
                     projectId: 'project-1',
                     displayTitle: 'Visible',
+                    createdAt: 1,
+                    lastSessionActivityAt: 1,
                     lastOpenedAt: 1,
                     lastActivityState: 'completed',
                     attentionEpoch: 0,
@@ -77,6 +123,8 @@ describe('buildMobileDashboard', () => {
                     id: 'session-2',
                     projectId: 'project-other',
                     displayTitle: 'Hidden',
+                    createdAt: 2,
+                    lastSessionActivityAt: 2,
                     lastOpenedAt: 2,
                     lastActivityState: 'waiting',
                     attentionEpoch: 1,
@@ -103,6 +151,8 @@ describe('buildMobileDashboard', () => {
                     id: 'session-1',
                     projectId: 'project-1',
                     displayTitle: 'Shell Session',
+                    createdAt: 1,
+                    lastSessionActivityAt: 1,
                     lastOpenedAt: 1,
                     lastActivityState: 'idle',
                     attentionEpoch: 0,
@@ -133,6 +183,8 @@ describe('buildMobileArchivedSessions', () => {
             id,
             projectId,
             displayTitle: id,
+            createdAt: 1,
+            lastSessionActivityAt: 1,
             lastOpenedAt: 1,
             lastActivityState: 'completed' as const,
             primaryAgentTerminalId: `terminal-${id}`,
@@ -188,6 +240,8 @@ describe('buildMobileArchivedSessions', () => {
                 id: `session-${index}`,
                 projectId: 'project-1',
                 displayTitle: '🙂'.repeat(1_024),
+                createdAt: 1,
+                lastSessionActivityAt: 1,
                 lastOpenedAt: 1,
                 lastActivityState: 'completed' as const,
                 attentionEpoch: 0,

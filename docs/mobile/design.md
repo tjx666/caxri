@@ -155,6 +155,9 @@ no background of its own keeps its default dark text readable.
 
 - Group order stays `NEEDS ATTENTION`, `RUNNING`, `RECENT`. Unread attention sorts first in its
   group; otherwise newest first with stable identity tie-breaking.
+  Recency and the row's age use `lastSessionActivityAt`, the same Session Activity order as Desktop,
+  with creation time and ID breaking ties. `lastOpenedAt` is visit metadata: opening an older
+  Session does not make its messages newer. The Server bounds its dashboard in that same order.
 - Rows lead with the Agent's brand glyph and carry one status glyph that mirrors Desktop's Session
   indicator: an amber dot for unread attention, a spinner while running, an alert icon for a
   failure, and nothing once settled. State labels (`Waiting for you`, `Working`, `Failed`,

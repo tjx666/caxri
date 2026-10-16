@@ -1,4 +1,5 @@
 import type { MethodResult } from '@caxri/protocol';
+import { compareSessionActivityRecency } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
@@ -67,9 +68,7 @@ export const buildMobileSessionSections = (
         truncated: input.truncated,
     };
     const active = [...input.sessions];
-    active.sort(
-        (left, right) => right.lastOpenedAt - left.lastOpenedAt || left.id.localeCompare(right.id),
-    );
+    active.sort(compareSessionActivityRecency);
     for (const session of active) {
         const group = groupForSession(session);
         const item: MobileSessionItem = {
@@ -84,8 +83,7 @@ export const buildMobileSessionSections = (
     result.needsAttention.sort(
         (left, right) =>
             Number(right.hasUnread) - Number(left.hasUnread) ||
-            right.lastOpenedAt - left.lastOpenedAt ||
-            left.id.localeCompare(right.id),
+            compareSessionActivityRecency(left, right),
     );
     return result;
 };
