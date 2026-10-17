@@ -72,6 +72,11 @@ const TaskRow = ({
                         </Text>
                     ) : null}
                 </View>
+                {task.status === 'waiting' ? (
+                    <Text style={[styles.rowElapsed, { color: theme.muted }]}>
+                        {row.statusLabel}
+                    </Text>
+                ) : null}
                 {row.elapsed ? (
                     <Text style={[styles.rowElapsed, { color: theme.muted }]}>{row.elapsed}</Text>
                 ) : null}
@@ -103,7 +108,7 @@ const TaskList = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const now = useAgentChatTaskClock(pill.running.length > 0);
+    const now = useAgentChatTaskClock(pill.active.length > 0);
     const section = (title: string, tasks: AgentChatTask[]) =>
         tasks.length > 0 ? (
             <View>
@@ -126,7 +131,7 @@ const TaskList = ({
     return (
         // react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- The phone's task list holds at most a few dozen rows, bounded by `clipAgentChatTasksForMobile`.
         <ScrollView style={styles.list} testID="agent-chat-task-list">
-            {section(t('chat.tasks.sectionRunning'), pill.running)}
+            {section(t('chat.tasks.sectionActive'), pill.active)}
             {section(t('chat.tasks.sectionEnded'), pill.ended)}
         </ScrollView>
     );

@@ -4,6 +4,7 @@
  * appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert the configuration
  * Caxri asked for.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,6 +17,14 @@ export function fakeCodexStateDirectory() {
         process.env.FAKE_CODEX_STATE_DIR ?? path.join(os.tmpdir(), 'caxri-fake-codex');
     fs.mkdirSync(directory, { recursive: true });
     return directory;
+}
+
+/**
+ * Native Codex transcript lookup derives the day folder from a UUIDv7 thread's creation time.
+ */
+export function fakeCodexThreadId(): string {
+    const timestamp = Date.now().toString(16).padStart(12, '0');
+    return `${timestamp.slice(0, 8)}-${timestamp.slice(8)}-7${crypto.randomUUID().slice(15)}`;
 }
 
 export function stateFile(name: string) {
@@ -35,6 +44,40 @@ export function threadPath(id: string, extension = 'json') {
 
 export function saveThread(thread: FakeThread) {
     if (thread.turns.length > 0) fs.writeFileSync(threadPath(thread.id), JSON.stringify(thread));
+    writeContextPressureRollout(thread);
+}
+
+/**
+ * The public native usage record lets maintenance acceptance exercise the real transcript/cache gate, without a
+ * production-only test RPC. The fake executable writes only its explicitly isolated E2E Codex home.
+ */
+function writeContextPressureRollout(thread: FakeThread): void {
+    const codexHome = process.env.FAKE_CODEX_NATIVE_USAGE_HOME;
+    if (
+        !codexHome ||
+        thread.parentThreadId ||
+        codexHome !== process.env.CODEX_HOME ||
+        !JSON.stringify(thread.turns).includes('contextpressure')
+    )
+        return;
+    const timestamp = new Date().toISOString();
+    const directory = path.join(codexHome, 'sessions', ...timestamp.slice(0, 10).split('-'));
+    fs.mkdirSync(directory, { recursive: true });
+    const records = [
+        { type: 'session_meta', timestamp, payload: { id: thread.id, cwd: process.cwd() } },
+        {
+            type: 'event_msg',
+            timestamp,
+            payload: {
+                type: 'token_count',
+                info: { last_token_usage: { input_tokens: 170000 } },
+            },
+        },
+    ];
+    fs.writeFileSync(
+        path.join(directory, `rollout-${timestamp.slice(0, 10)}T00-00-00-${thread.id}.jsonl`),
+        `${records.map((record) => JSON.stringify(record)).join('\n')}\n`,
+    );
 }
 
 export function readSavedThread(id: string): FakeThread | undefined {

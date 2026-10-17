@@ -5,6 +5,7 @@ import {
     agentChatTaskStripView,
     canStopAgentChatTask,
     formatAgentChatFinishedDuration,
+    isAgentChatTaskActive,
     isAgentChatTaskTitleCommand,
 } from '@caxri/protocol';
 
@@ -24,11 +25,11 @@ export const AGENT_CHAT_TASK_POLL_MS = 1_500;
  * reports no tasks, never shows one).
  */
 export interface AgentChatTaskPill {
-    running: AgentChatTask[];
+    active: AgentChatTask[];
     ended: AgentChatTask[];
     isDismissible: boolean;
     /**
-     * `2 running · 1 ended`, or `3 ended` once nothing runs.
+     * `2 active · 1 ended`, or `3 ended` once nothing runs.
      */
     label: string;
 }
@@ -44,8 +45,8 @@ export function agentChatTaskPill(
     });
     if (!view) return undefined;
     const parts = [
-        ...(view.running.length > 0
-            ? [t('chat.tasks.runningCount', { count: view.running.length })]
+        ...(view.active.length > 0
+            ? [t('chat.tasks.activeCount', { count: view.active.length })]
             : []),
         ...(view.ended.length > 0
             ? [t('chat.tasks.endedCount', { count: view.ended.length })]
@@ -56,6 +57,7 @@ export function agentChatTaskPill(
 
 const STATUS_LABELS = {
     running: 'chat.tasks.status.running',
+    waiting: 'chat.tasks.status.waiting',
     completed: 'chat.tasks.status.completed',
     failed: 'chat.tasks.status.failed',
     stopped: 'chat.tasks.status.stopped',
@@ -148,11 +150,11 @@ export function agentChatTaskDetailContent(
         ...(detail.truncated
             ? [t(isOutput ? 'chat.tasks.earlierOutput' : 'chat.tasks.earlierMessages')]
             : []),
-        ...(detail.isOutputCapped && task.status === 'running'
+        ...(detail.isOutputCapped && isAgentChatTaskActive(task.status)
             ? [t('chat.tasks.outputCapped')]
             : []),
     ];
-    const isRunning = task.status === 'running';
+    const isRunning = isAgentChatTaskActive(task.status);
     if (isOutput) {
         const output = (detail.output ?? '').replace(/\n+$/u, '');
         return output

@@ -2,6 +2,7 @@ import type { Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatTask } from '@caxri/protocol';
 import {
     CaxriError,
+    isAgentChatTaskActive,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
     MAX_AGENT_CHAT_TEXT_LENGTH,
 } from '@caxri/protocol';
@@ -157,7 +158,8 @@ export class ClaudeTasks {
      */
     private settleAgentResult(toolUseId: string, block: Json): void {
         const task = this.list.get(toolUseId);
-        if (task?.kind !== 'agent' || task.isBackground || task.status !== 'running') return;
+        if (task?.kind !== 'agent' || task.isBackground || !isAgentChatTaskActive(task.status))
+            return;
         const isError = block.is_error === true;
         this.finish(
             task.id,
@@ -167,7 +169,7 @@ export class ClaudeTasks {
 
     private finish(
         id: string,
-        status: AgentChatTask['status'],
+        status: Exclude<AgentChatTask['status'], 'running' | 'waiting'>,
         fields: Partial<AgentChatTask> = {},
     ): void {
         const task = this.list.upsert(id, { ...fields, status, canStop: false });
@@ -270,14 +272,19 @@ export class ClaudeTasks {
         const known = this.known.get(claudeId);
         const status = claudeTaskStatus(patch.status);
         if (!known?.id) {
-            if (known && patch.is_backgrounded === true && (!status || status === 'running'))
+            if (
+                known &&
+                patch.is_backgrounded === true &&
+                (!status || isAgentChatTaskActive(status))
+            ) {
                 this.listShell(claudeId, known);
-            else if (status && status !== 'running') this.known.delete(claudeId);
+                if (status) this.list.upsert(clip(claudeId, 200), { status });
+            } else if (status && !isAgentChatTaskActive(status)) this.known.delete(claudeId);
             return;
         }
         const task = this.list.get(known.id);
         if (!task) return;
-        if (status && status !== 'running') {
+        if (status && !isAgentChatTaskActive(status)) {
             this.finish(task.id, status);
             return;
         }
@@ -286,7 +293,10 @@ export class ClaudeTasks {
         const description = stringField(patch.description);
         this.list.upsert(task.id, {
             isBackground,
-            ...(task.status === 'running' && { canStop: task.kind === 'shell' || isBackground }),
+            ...(status && { status }),
+            ...(isAgentChatTaskActive(status ?? task.status) && {
+                canStop: task.kind === 'shell' || isBackground,
+            }),
             ...(description &&
                 task.kind === 'agent' &&
                 !known.isWorkflow && { title: description }),
@@ -296,7 +306,7 @@ export class ClaudeTasks {
     private onTaskProgress(message: Json): void {
         const claudeId = stringField(message.task_id);
         const id = claudeId && this.listedId(claudeId);
-        if (!id || this.list.get(id)?.status !== 'running') return;
+        if (!id || !isAgentChatTaskActive(this.list.get(id)?.status)) return;
         const usage = claudeTaskUsage(message.usage);
         const lastToolName = stringField(message.last_tool_name);
         const summary = stringField(message.summary);
@@ -312,7 +322,7 @@ export class ClaudeTasks {
         if (!claudeId) return;
         const id = this.listedId(claudeId);
         const status = claudeTaskStatus(message.status);
-        if (!id || !status || status === 'running') {
+        if (!id || !status || isAgentChatTaskActive(status)) {
             if (!id) this.known.delete(claudeId);
             return;
         }
@@ -339,7 +349,7 @@ export class ClaudeTasks {
             const known = this.known.get(claudeId);
             if (known?.id) {
                 const task = this.list.get(known.id);
-                if (task?.status === 'running' && !task.isBackground)
+                if (task && isAgentChatTaskActive(task.status) && !task.isBackground)
                     this.list.upsert(task.id, { isBackground: true, canStop: true });
             } else if (entry.task_type === 'local_bash')
                 this.listShell(claudeId, {
@@ -353,7 +363,8 @@ export class ClaudeTasks {
             if (live.has(claudeId) || !this.inLevel.has(claudeId)) continue;
             this.inLevel.delete(claudeId);
             const task = this.list.get(id);
-            if (task?.status === 'running' && task.isBackground) this.finish(id, 'stopped');
+            if (task && isAgentChatTaskActive(task.status) && task.isBackground)
+                this.finish(id, 'stopped');
         }
     }
 
@@ -369,7 +380,7 @@ export class ClaudeTasks {
             .filter(
                 (task) =>
                     task.kind === 'shell' &&
-                    task.status === 'running' &&
+                    isAgentChatTaskActive(task.status) &&
                     this.claudeIds.has(task.id),
             )
             .map((task) => task.id);
@@ -435,7 +446,7 @@ export class ClaudeTasks {
             { op: 'state', state: { output, truncated: isTruncated } },
         ]);
         // The final read of an ended shell needs no change detection afterwards.
-        if (this.list.get(id)?.status !== 'running') this.outputs.delete(id);
+        if (!isAgentChatTaskActive(this.list.get(id)?.status)) this.outputs.delete(id);
     }
 
     private onTaskFrame(message: Json): boolean {
@@ -572,8 +583,8 @@ export class ClaudeTasks {
     async stop(taskId: string): Promise<void> {
         const task = this.list.get(taskId) ?? this.list.byItem(taskId);
         const claudeId = task && this.claudeIds.get(task.id);
-        if (!claudeId || task.status !== 'running')
-            throw new CaxriError('CONFLICT', 'This task is no longer running');
+        if (!claudeId || !isAgentChatTaskActive(task.status))
+            throw new CaxriError('CONFLICT', 'This task is no longer active');
         const query = this.options.query();
         if (!query) throw new CaxriError('UNAVAILABLE', 'Claude Chat is not running');
         await query.stopTask(claudeId);

@@ -1,16 +1,13 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
 import { isMidTurnSignal, isStandaloneEscape } from '../agents';
-import type {
-    AgentCommanderRowReader,
-    CaxriDatabase,
-    CommanderPendingNoticesModel,
-    DeliveredNotice,
-} from '../db';
 import { agentCommanderTerminal } from '../db';
+import { CommanderChatBootstrap } from './completion-notice-chat-bootstrap';
+import type { LaunchPromptClaim } from './completion-notice-launch';
+import { createCommanderLaunchClaim, settleCommanderLaunchClaim } from './completion-notice-launch';
+import type { CommanderCompletionNotifierOptions } from './completion-notice-options';
 import type {
     CommanderCompletionNoticeStatus,
     CommanderHandoverNoticeEntry,
@@ -70,70 +67,6 @@ export function classifyCommanderCompletionNotice(
     return undefined;
 }
 
-export interface CommanderCompletionNotifierOptions {
-    /**
-     * `agentCommanderRows` filters every created Session and is reserved for receipts that need that list; every other
-     * path identifies the Commander Terminal through the constant-time `agentCommanderTerminal` reader.
-     */
-    database: Pick<CaxriDatabase, 'agentCommanderRows' | 'getSession'> &
-        AgentCommanderRowReader & {
-            commanderPendingNotices: Pick<
-                CommanderPendingNoticesModel,
-                'clearTurn' | 'list' | 'markTurnStarted' | 'putDelegation' | 'removeDelegations'
-            >;
-        };
-    /**
-     * The same idle proof delegation follow-ups fence resume against (`AgentCoordinator.hasIdleProof`,
-     * `apps/server/src/domains/agent-delegation/service.ts`). Proves the exact launch and turn actually finished; it
-     * says nothing about a later draft, which the input-epoch check below covers.
-     */
-    hasIdleProof(terminalId: string, launchId: string, turnId: string): boolean;
-    /**
-     * `TerminalManager.inputEpoch`: bumps once per human keystroke written to the Terminal, but not for this module's
-     * own injected write (see `write` below). Comparing it to the value captured at the finished turn's start is the
-     * same fence `AgentDelegationService` uses before a follow-up resumes (`service.ts` ~260-300).
-     */
-    inputEpoch(terminalId: string): number;
-    logger?: StructuredLogger;
-    now?: () => number;
-    /**
-     * Delivers and submits one notice line, given without a line terminator. A PTY Commander gets a paste and an Enter,
-     * as fenced exact-launch writes with `origin: 'delegation'` (`TerminalManager.writeAgentExact`) so the line never
-     * bumps the input epoch a later notice's fence reads; a Chat Commander gets a Chat message.
-     */
-    write(
-        terminalId: string,
-        data: string,
-        launchId: string,
-        onDelivered?: (wasAccepted: boolean) => void,
-    ): boolean;
-}
-
-/**
- * What the launch prompt built for one Commander launch carried, settled once that launch is running.
- */
-interface LaunchPromptClaim {
-    /**
-     * When the prompt was built. A turn marker set after it belongs to the new launch, not the one this prompt resumed.
-     */
-    claimedAt: number;
-    /**
-     * The exact revisions the prompt reported; a newer transition that lands before the launch runs stays owed.
-     */
-    delegations: DeliveredNotice[];
-    hasInterruptedTurn: boolean;
-    /**
-     * The Inbox events the prompt reported; an entry replaced by a later event before the launch runs stays owed.
-     */
-    inbox: Array<CommanderInboxNoticeEntry & { queuedAt: number }>;
-    /**
-     * The hand-over events the prompt reported, settled like `inbox`.
-     */
-    handovers: Array<CommanderHandoverNoticeEntry & { queuedAt: number }>;
-    oldestQueuedAt: number;
-    terminalId: string;
-}
-
 /**
  * Pushes delegation completion, failure, and needs-input transitions into the Agent Commander Terminal as a bounded,
  * Server-generated system notice, so the Commander can report them without polling `agent delegate wait` in 300-second
@@ -155,6 +88,7 @@ interface LaunchPromptClaim {
  * between spawn and that report repeats them on the next launch rather than losing them.
  */
 export class CommanderCompletionNotifier {
+    private readonly chatBootstrap = new CommanderChatBootstrap();
     /**
      * Inbox events by item, in memory only: the Inbox service re-queues unacknowledged replies after a restart. A later
      * event replaces an earlier one, since the Commander reads the item's current state with `commander inbox show`.
@@ -269,6 +203,44 @@ export class CommanderCompletionNotifier {
         this.blockedTurns = 0;
     }
 
+    private settleLaunchClaim(claim: LaunchPromptClaim, shouldClearInterruptedTurn = true): void {
+        if (this.launchClaim === claim) this.launchClaim = undefined;
+        settleCommanderLaunchClaim({
+            claim,
+            options: this.options,
+            pendingInbox: this.pendingInbox,
+            pendingHandovers: this.pendingHandovers,
+            now: this.now(),
+            shouldClearInterruptedTurn,
+        });
+    }
+
+    private tryChatBootstrap(terminalId: string, shouldResumePrompt = false): boolean {
+        if (this.commander()?.terminalId !== terminalId) return false;
+        if (this.chatBootstrap.isInFlight(terminalId)) return true;
+        const lease = this.chatBootstrap.claim(terminalId);
+        if (!lease) return false;
+        const prompt = this.launchPrompt(terminalId);
+        const claim = this.launchClaim;
+        if (prompt === undefined || !claim) {
+            this.chatBootstrap.settle(lease, false);
+            return true;
+        }
+        const text = shouldResumePrompt
+            ? prompt
+            : formatCommanderCompletionNotice(claim.delegations, claim.inbox, claim.handovers);
+        this.options.write(terminalId, text, lease.launchId, (wasAccepted) => {
+            if (!this.chatBootstrap.settle(lease, wasAccepted)) return;
+            if (!wasAccepted) return;
+            /**
+             * Chat can start and finish its notice turn before acceptance resolves. Preserve that lifecycle.
+             */
+            this.settleLaunchClaim(claim, !lease.started);
+            this.tryFlush(terminalId);
+        });
+        return true;
+    }
+
     private reportDeliveryFailed(reason: CommanderCompletionNoticeDeliveryFailure): void {
         this.options.logger?.write(
             'warn',
@@ -288,6 +260,7 @@ export class CommanderCompletionNotifier {
         const handovers = this.pendingHandovers.values().toArray();
         const pendingCount = pending.length + inbox.length + handovers.length;
         if (pendingCount === 0) return;
+        if (this.tryChatBootstrap(terminalId)) return;
         const deferral = this.deferral(terminalId);
         if (deferral) {
             if (isTurnFinished) this.blockedTurns += 1;
@@ -410,6 +383,7 @@ export class CommanderCompletionNotifier {
          */
         const isMainThread = !signal.agentId;
         if (signal.phase === 'turnStarted') {
+            if (isMainThread) this.chatBootstrap.started(signal.terminalId, signal.launchId);
             if (isMainThread)
                 this.options.database.commanderPendingNotices.markTurnStarted(this.now());
             this.turnStartBaseline = {
@@ -439,25 +413,22 @@ export class CommanderCompletionNotifier {
          * Commander's launch is still between this call and `onLaunched` must leave the Commander's claim alone.
          */
         if (this.commander()?.terminalId !== terminalId) return undefined;
-        this.launchClaim = undefined;
-        const notices = this.options.database.commanderPendingNotices.list();
-        const inbox = this.pendingInbox.values().toArray();
-        const handovers = this.pendingHandovers.values().toArray();
-        if (notices.length === 0 && inbox.length === 0 && handovers.length === 0) return undefined;
-        const delegations = notices.filter((notice) => notice.kind === 'delegation');
-        const hasInterruptedTurn = notices.some((notice) => notice.kind === 'interrupted_turn');
-        this.launchClaim = {
-            claimedAt: this.now(),
-            delegations,
-            hasInterruptedTurn,
-            inbox,
-            handovers,
-            oldestQueuedAt: Math.min(
-                ...[...notices, ...inbox, ...handovers].map((notice) => notice.queuedAt),
-            ),
+        this.launchClaim = createCommanderLaunchClaim(
+            this.options,
             terminalId,
-        };
-        return formatCommanderResumePrompt(delegations, hasInterruptedTurn, inbox, handovers);
+            this.pendingInbox.values().toArray(),
+            this.pendingHandovers.values().toArray(),
+            this.now(),
+        );
+        const claim = this.launchClaim;
+        return claim
+            ? formatCommanderResumePrompt(
+                  claim.delegations,
+                  claim.hasInterruptedTurn,
+                  claim.inbox,
+                  claim.handovers,
+              )
+            : undefined;
     }
 
     /**
@@ -467,27 +438,9 @@ export class CommanderCompletionNotifier {
     onLaunched(terminalId: string, didLaunchAgent: boolean): void {
         const claim = this.launchClaim;
         if (!didLaunchAgent || !claim || claim.terminalId !== terminalId) return;
-        this.launchClaim = undefined;
-        const store = this.options.database.commanderPendingNotices;
-        store.removeDelegations(claim.delegations);
-        if (claim.hasInterruptedTurn) store.clearTurn(claim.claimedAt);
-        for (const entry of claim.inbox)
-            if (this.pendingInbox.get(entry.itemId) === entry)
-                this.pendingInbox.delete(entry.itemId);
-        for (const entry of claim.handovers)
-            if (this.pendingHandovers.get(entry.handoverId) === entry)
-                this.pendingHandovers.delete(entry.handoverId);
+        this.settleLaunchClaim(claim);
         this.lastFinishedTurn = undefined;
         this.turnStartBaseline = undefined;
-        this.options.logger?.write('info', logEventCatalog.agentCommander.resumePromptDelivered, {
-            fields: {
-                count: claim.delegations.length,
-                inboxCount: claim.inbox.length,
-                handoverCount: claim.handovers.length,
-                interruptedTurn: claim.hasInterruptedTurn,
-                waitMs: Math.max(0, this.now() - claim.oldestQueuedAt),
-            },
-        });
     }
 
     /**
@@ -495,12 +448,15 @@ export class CommanderCompletionNotifier {
      * message once the provider is ready. The Chat path of `write` ignores the launch ID. The claim settles only after
      * the Chat accepted the message, so a send that failed leaves the notices owed to the next launch.
      */
-    onChatReady(terminalId: string): void {
-        const prompt = this.launchPrompt(terminalId);
-        if (prompt === undefined) return;
-        this.options.write(terminalId, prompt, '', (wasAccepted) => {
-            if (wasAccepted) this.onLaunched(terminalId, true);
-        });
+    onChatReady(terminalId: string, launchId: string): void {
+        if (this.commander()?.terminalId !== terminalId) return;
+        this.chatBootstrap.ready(terminalId, launchId);
+        if (
+            this.pendingCount() === 0 &&
+            this.options.database.commanderPendingNotices.list().length === 0
+        )
+            return;
+        if (!this.tryChatBootstrap(terminalId, true)) this.tryFlush(terminalId);
     }
 
     /**
@@ -508,7 +464,13 @@ export class CommanderCompletionNotifier {
      * notices stay owed.
      */
     onStopped(): void {
+        this.launchClaim = undefined;
+        this.chatBootstrap.reset();
         this.options.database.commanderPendingNotices.clearTurn();
+    }
+
+    forgetHandovers(handoverIds: readonly string[]): void {
+        for (const handoverId of handoverIds) this.pendingHandovers.delete(handoverId);
     }
 
     /**

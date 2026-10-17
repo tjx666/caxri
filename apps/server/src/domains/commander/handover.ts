@@ -67,6 +67,10 @@ export interface CommanderHandoverServiceOptions {
         sessionId: string;
     }): void;
     /**
+     * Discards queued updates when the user returns the associated hand-overs.
+     */
+    forgetNotices?(handoverIds: readonly string[]): void;
+    /**
      * Resolves a folder to the root of the Project that should own it: the repository root of a worktree, the folder
      * itself otherwise. Rejects a folder that no longer exists.
      */
@@ -110,6 +114,7 @@ function conversationKey(conversation: CommanderConversationReference): string {
  */
 export class CommanderHandoverService {
     private readonly now: () => number;
+    private readonly inFlight = new Set<Promise<CommanderHandoverResult>>();
     /**
      * Agent Terminals of current hand-overs, so the per-keystroke input hook answers in constant time.
      */
@@ -244,46 +249,7 @@ export class CommanderHandoverService {
         return { outcomes };
     }
 
-    /**
-     * Agent conversations the user may hand over, newest first, each matched to the Project that would own it.
-     */
-    async conversations(): Promise<{ conversations: CommanderConversation[] }> {
-        const discovered =
-            (await this.options.discoverConversations?.(this.boundProviderSessionIds())) ?? [];
-        const projects = this.options.database.listVisibleProjects();
-        return {
-            conversations: await Promise.all(
-                discovered.slice(0, MAX_COMMANDER_CONVERSATIONS).map(async (conversation) => ({
-                    ...conversation,
-                    projectId: (await conversationProject(projects, conversation.cwd))?.id ?? null,
-                })),
-            ),
-        };
-    }
-
-    managedSessions(): CommanderManagedSessions {
-        const rows = this.options.database.agentCommanderRows();
-        return {
-            sessionIds: [...(rows?.sessionIds ?? [])],
-            ...(rows && { commanderSessionId: rows.sessionId }),
-            inputTakeBackSessionIds: [...new Set(this.targets.values())],
-            chatTakeBackSessionIds: [
-                ...new Set(
-                    [...this.targets].flatMap(([terminalId, sessionId]) => {
-                        const terminal = this.options.database.getTerminal(terminalId);
-                        return terminal && isChatTerminal(terminal) ? [sessionId] : [];
-                    }),
-                ),
-            ],
-            inputTakeBacks: [...this.inputTakeBacks],
-        };
-    }
-
-    /**
-     * Hands every entry over on its own: a refused entry never blocks the rest. Conversations are imported into a new
-     * Session first, adding their folder as a Project when no visible Project contains it.
-     */
-    async handOver(request: CommanderHandoverRequest): Promise<CommanderHandoverResult> {
+    private async runHandOver(request: CommanderHandoverRequest): Promise<CommanderHandoverResult> {
         const { database } = this.options;
         const sessionIds = request.sessionIds ?? [];
         const conversations = request.conversations ?? [];
@@ -411,6 +377,67 @@ export class CommanderHandoverService {
     }
 
     /**
+     * Agent conversations the user may hand over, newest first, each matched to the Project that would own it.
+     */
+    async conversations(): Promise<{ conversations: CommanderConversation[] }> {
+        const discovered =
+            (await this.options.discoverConversations?.(this.boundProviderSessionIds())) ?? [];
+        const projects = this.options.database.listVisibleProjects();
+        return {
+            conversations: await Promise.all(
+                discovered.slice(0, MAX_COMMANDER_CONVERSATIONS).map(async (conversation) => ({
+                    ...conversation,
+                    projectId: (await conversationProject(projects, conversation.cwd))?.id ?? null,
+                })),
+            ),
+        };
+    }
+
+    managedSessions(): CommanderManagedSessions {
+        const rows = this.options.database.agentCommanderRows();
+        return {
+            sessionIds: [...(rows?.sessionIds ?? [])],
+            ...(rows && { commanderSessionId: rows.sessionId }),
+            inputTakeBackSessionIds: [...new Set(this.targets.values())],
+            chatTakeBackSessionIds: [
+                ...new Set(
+                    [...this.targets].flatMap(([terminalId, sessionId]) => {
+                        const terminal = this.options.database.getTerminal(terminalId);
+                        return terminal && isChatTerminal(terminal) ? [sessionId] : [];
+                    }),
+                ),
+            ],
+            inputTakeBacks: [...this.inputTakeBacks],
+        };
+    }
+
+    /**
+     * Hands every entry over on its own: a refused entry never blocks the rest. Conversations are imported into a new
+     * Session first, adding their folder as a Project when no visible Project contains it.
+     */
+    async handOver(request: CommanderHandoverRequest): Promise<CommanderHandoverResult> {
+        const pending = this.runHandOver(request);
+        this.inFlight.add(pending);
+        try {
+            return await pending;
+        } finally {
+            this.inFlight.delete(pending);
+        }
+    }
+
+    /**
+     * Waits for imports already underway, then returns every manual hand-over, including continued and cleared ones.
+     * Commander-created Sessions and running Agents keep their existing state.
+     */
+    async returnAllForStop(): Promise<number> {
+        await Promise.allSettled(this.inFlight);
+        const handovers = commanderHandovers(this.options.database);
+        for (const handover of handovers) this.takeBack(handover.sessionId);
+        this.options.forgetNotices?.(handovers.map((handover) => handover.id));
+        return handovers.length;
+    }
+
+    /**
      * Removes a Session from the Commander's management. Its Agents keep running; tasks the Commander already started
      * there keep their receipts, but the Commander can no longer start or continue one, and the hand-over's own task is
      * dropped while it is still pending.
@@ -497,23 +524,27 @@ export class CommanderHandoverService {
     }
 
     /**
-     * Forgets each hand-over the Commander has not continued whose ledger task Clear Commander Data deleted, so no
-     * relaunch announces, and no continuation picks up, work the user cleared without its note. The Session stays the
-     * Commander's, as any Session does after its task is deleted. Returns how many went.
+     * Forgets continuation data for cleared tasks, retaining manual ownership provenance so an explicit Stop can return
+     * those Sessions too. No relaunch announces work whose task and note the user cleared.
      */
     forgetClearedTasks(): number {
         const { database } = this.options;
         const handovers = commanderHandovers(database);
-        const kept = handovers.filter(
-            (handover) =>
+        let forgotten = 0;
+        const kept = handovers.map((handover) => {
+            if (
                 handover.firstDelegationId !== undefined ||
                 handover.taskId === undefined ||
-                database.commanderTasks.get(handover.taskId) !== undefined,
-        );
-        if (kept.length === handovers.length) return 0;
+                database.commanderTasks.get(handover.taskId) !== undefined
+            )
+                return handover;
+            forgotten++;
+            return { ...handover, taskId: undefined, target: undefined };
+        });
+        if (forgotten === 0) return 0;
         writeCommanderHandovers(database, kept);
         this.refreshTargets();
-        return handovers.length - kept.length;
+        return forgotten;
     }
 
     /**

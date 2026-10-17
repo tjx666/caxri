@@ -86,9 +86,9 @@ to last render: the component was dragged along, it did not need to run).
 ```js
 // count.js, pipe with: agent-browser --cdp 9222 eval --stdin < count.js
 (async () => {
-  const { scan } = await import('/@id/react-scan'); // Vite dev id; else 'react-scan'
+  const { scan, setOptions } = globalThis.__CAXRI_REACT_SCAN__ ?? (await import('/@id/react-scan'));
   const counts = {};
-  scan({
+  const options = {
     enabled: true,
     showToolbar: false,
     onRender(fiber, renders) {
@@ -102,9 +102,11 @@ to last render: the component was dragged along, it did not need to run).
         if (r.unnecessary) c.unnecessary++;
       }
     },
-  });
+  };
+  scan(options);
+  setOptions(options);
   await new Promise((resolve) => setTimeout(resolve, 10000));
-  scan({ enabled: true, showToolbar: true, onRender: undefined });
+  setOptions({ enabled: false, showToolbar: false, onRender: undefined });
   const rows = Object.entries(counts).toSorted((a, b) => b[1].total - a[1].total);
   return `${rows.length} components\n${rows
     .slice(0, 60)
@@ -112,6 +114,11 @@ to last render: the component was dragged along, it did not need to run).
     .join('\n')}`;
 })();
 ```
+
+Before interpreting an empty sample, trigger one controlled interaction and prove that the
+callback records it. `scan()` can restore persisted paused options; `setOptions()` after startup
+arms this audit explicitly. Report callbacks and render records separately, not as React commits.
+Compare settled idle, enter, hold, and leave samples before attributing hover updates to a defect.
 
 **Key by instance, not by name.** The snippet above aggregates every
 `<ConfigProvider>` in the tree under one row. That is fine for a steady-state

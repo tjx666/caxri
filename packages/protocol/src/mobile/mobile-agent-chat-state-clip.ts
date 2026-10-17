@@ -1,4 +1,5 @@
 import type { AgentChatSnapshot } from '../agent/agent-chat-contract.js';
+import { isAgentChatTaskActive } from '../agent/agent-chat-tasks.js';
 
 /**
  * Marks where the phone's copy of an item was shortened. Visible in the transcript so a clipped reply never reads as
@@ -110,11 +111,11 @@ export function clipAgentChatTasksForMobile(tasks: AgentChatTasks): AgentChatTas
     // `filter` returns fresh copies to sort in place; the phone's Hermes runtime lacks ES2023 `toSorted`.
     const kept = new Set([
         ...tasks
-            .filter((task) => task.status === 'running')
+            .filter((task) => isAgentChatTaskActive(task.status))
             .sort(newestFirst('startedAt'))
             .slice(0, MOBILE_AGENT_CHAT_TASKS_MAX_ITEMS),
         ...tasks
-            .filter((task) => task.status !== 'running')
+            .filter((task) => !isAgentChatTaskActive(task.status))
             .sort(newestFirst('endedAt'))
             .slice(0, MOBILE_AGENT_CHAT_ENDED_TASKS_MAX_ITEMS),
     ]);

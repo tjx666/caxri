@@ -113,7 +113,11 @@ class CodexChatSession implements AgentChatProviderSession {
         this.permissions = new CodexPermissions(options, this.settings, opening.planMode);
         this.models = new CodexModelSettings(options, this.permissions);
         this.deliveries = new CodexDeliveryCheck(options, () => this.threadId);
-        this.requests = new CodexRequestBroker(options, () => this.threadId);
+        this.requests = new CodexRequestBroker(options, () => this.threadId, {
+            pending: (threadId, key, turnId, isBlocking) =>
+                this.tasks.onRequestPending(threadId, key, turnId, isBlocking),
+            resolved: (key) => this.tasks.onRequestResolved(key),
+        });
         this.goals = new CodexGoals(options, () => this.threadId);
         this.commands = new CodexChatCommands(
             options,
@@ -212,6 +216,10 @@ class CodexChatSession implements AgentChatProviderSession {
          */
         if (method !== 'serverRequest/resolved' && this.tasks.isOtherThread(threadId)) {
             this.tasks.onChildNotification(threadId, method, parameters);
+            if (method === 'turn/completed' && isRecord(parameters.turn)) {
+                const turnId = stringField(parameters.turn.id);
+                if (turnId) this.requests.settleTurn(threadId, turnId);
+            }
             return;
         }
         const turnId = stringField(parameters.turnId);

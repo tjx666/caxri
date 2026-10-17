@@ -8,6 +8,7 @@ import process from 'node:process';
 
 import type { FakeCodexIo, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { runBrowserStep } from './fake-codex-mcp-calls.ts';
+import { fakeCodexThreadId } from './fake-codex-threads.ts';
 
 interface FakeTerminal {
     itemId: string;
@@ -58,7 +59,11 @@ function beginChildTurn(io: FakeCodexIo, child: FakeThread, prompt: string): Fak
 function finishChildTurn(io: FakeCodexIo, child: FakeThread, turn: FakeTurn) {
     if (turn.finished) return;
     turn.finished = true;
-    turn.status = turn.interrupted ? 'interrupted' : 'completed';
+    turn.status = turn.interrupted
+        ? 'interrupted'
+        : turn.status === 'failed'
+          ? 'failed'
+          : 'completed';
     turn.durationMs = Date.now() - turn.startedAt;
     tasks.childTurns.delete(child.id);
     io.save(child);
@@ -73,10 +78,15 @@ function finishChildTurn(io: FakeCodexIo, child: FakeThread, turn: FakeTurn) {
 export async function runSubagent(
     io: FakeCodexIo,
     turn: FakeTurn,
-    { isHeld, isBrowsing }: { isHeld: boolean; isBrowsing: boolean },
+    {
+        isHeld,
+        isBrowsing,
+        needsApproval,
+        fails,
+    }: { isHeld: boolean; isBrowsing: boolean; needsApproval: boolean; fails?: boolean },
 ) {
     const parent = io.currentThread();
-    const child: FakeThread = { id: crypto.randomUUID(), turns: [], parentThreadId: parent.id };
+    const child: FakeThread = { id: fakeCodexThreadId(), turns: [], parentThreadId: parent.id };
     tasks.children.set(child.id, child);
     const prompt = 'Inspect the fixtures\nand report what you find.';
     const spawn = {
@@ -118,6 +128,40 @@ export async function runSubagent(
         exitCode: 0,
         durationMs: 3,
     });
+    if (fails) {
+        childTurn.status = 'failed';
+        childTurn.error = { message: 'Synthetic child failure' };
+        finishChildTurn(io, child, childTurn);
+        await io.streamMessage(turn, 'The helper failed.', 0);
+        return;
+    }
+    if (needsApproval) {
+        const approval = io.serverRequest('item/commandExecution/requestApproval', {
+            threadId: child.id,
+            turnId: childTurn.id,
+            itemId: crypto.randomUUID(),
+            command: 'git status',
+            cwd: process.cwd(),
+            reason: 'Inspect the synthetic project',
+        });
+        // eslint-disable-next-line no-void -- the child's request outlives the parent turn
+        void approval.then(async (response) => {
+            if (childTurn.finished) return;
+            const decision =
+                typeof response === 'object' && response !== null && 'decision' in response
+                    ? response.decision
+                    : undefined;
+            if (decision !== 'accept' && decision !== 'acceptForSession') {
+                childTurn.interrupted = true;
+                finishChildTurn(io, child, childTurn);
+                return;
+            }
+            await io.streamMessage(childTurn, 'Approved the synthetic check. '.repeat(20), 30);
+            finishChildTurn(io, child, childTurn);
+        });
+        await io.streamMessage(turn, 'A helper needs approval.', 0);
+        return;
+    }
     if (isHeld) {
         // eslint-disable-next-line no-void -- the child keeps working after the parent turn ends
         void io
@@ -273,10 +317,15 @@ export function didHandleTaskRequest(
                 const compaction = { type: 'contextCompaction', id: crypto.randomUUID() };
                 io.startItem(turn, compaction);
                 // Compaction takes a moment, so the Chat can show it in progress.
-                setTimeout(() => {
-                    io.completeItem(turn, compaction);
-                    io.finishTurn(turn);
-                }, 150);
+                setTimeout(
+                    () => {
+                        io.completeItem(turn, compaction);
+                        io.finishTurn(turn);
+                    },
+                    JSON.stringify(io.currentThread().turns).includes('contextpressure')
+                        ? 8000
+                        : 150,
+                );
             }, COMPACTION_START_DELAY_MS);
             return true;
         }

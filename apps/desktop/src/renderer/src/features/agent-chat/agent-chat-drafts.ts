@@ -186,7 +186,7 @@ const attachmentPersistence =
                   agentChatAttachmentDatabaseName(currentAgentChatComposerScope()),
               ),
           });
-const attachmentHydration: { started: boolean } = { started: false };
+const attachmentHydration: { started: boolean; ready?: Promise<void> } = { started: false };
 
 /**
  * Keeps the Agent Commander window's unsent images, text drafts, and "Edit from here" in its own scope (see
@@ -447,13 +447,22 @@ export function returnUnsentAgentChatMessage(
 function hydrateAgentChatAttachments(): void {
     if (!attachmentPersistence || attachmentHydration.started) return;
     attachmentHydration.started = true;
-    // eslint-disable-next-line no-void -- hydrate swallows storage failures; an unreadable store restores nothing
-    void attachmentPersistence.hydrate().then((restored) => {
+    attachmentHydration.ready = (async () => {
+        const restored = await attachmentPersistence.hydrate();
         for (const [terminalId, list] of restored) {
             if (returnListeners.has(terminalId)) returnUnsentAgentChatMessage(terminalId, '', list);
             else if (!attachments.has(terminalId)) attachments.set(terminalId, list);
         }
-    });
+    })();
+}
+
+/**
+ * Waits for initial image hydration and earlier writes before a complete draft checkpoint is captured.
+ */
+export async function settleAgentChatAttachments(): Promise<void> {
+    hydrateAgentChatAttachments();
+    await attachmentHydration.ready;
+    await attachmentPersistence?.flushed();
 }
 
 /**

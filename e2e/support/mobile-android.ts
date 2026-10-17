@@ -276,7 +276,8 @@ export async function mobileSemantics(serial: string): Promise<MobileSemanticNod
 }
 
 /**
- * Compares native text inside the device helper and returns no text or raw accessibility XML.
+ * Compares native text inside the device helper and returns no text or raw accessibility XML. Like semantic capture,
+ * this waits for UIAutomator idle and cannot observe a live streaming screen.
  */
 export async function observeMobileNode(
     serial: string,

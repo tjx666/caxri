@@ -1,5 +1,19 @@
 # Paseo (getpaseo/paseo)
 
+## Workspace tab retention (2026-10-17)
+
+Source checked at `d152f1529ffc5f771506917e9776f6162f6eb357`:
+[mounted-tab set](https://github.com/getpaseo/paseo/blob/d152f1529ffc5f771506917e9776f6162f6eb357/packages/app/src/screens/workspace/use-mounted-tab-set.ts)
+and [panel host](https://github.com/getpaseo/paseo/blob/d152f1529ffc5f771506917e9776f6162f6eb357/packages/app/src/screens/workspace/workspace-panel-host.tsx).
+The host retains a three-tab LRU and protects modified tabs from eviction. It derives the new active
+tab in the current render, then commits its LRU in a layout effect; switching does not require an
+empty intermediate render. Visibility and interaction are separate host inputs, and tab identity
+includes the server, workspace, and target.
+
+For Caxri, this supports evaluating bounded view retention inside the existing Session and pane
+model, rather than introducing another execution owner. This is a design inference, not a measured
+performance comparison or a copied implementation.
+
 _Researched 2026-08-06._
 
 - **Positioning**: Self-hostable orchestrator for coding agents: "one interface for Claude Code, Codex, Copilot, OpenCode, and Pi" that runs agents on your own machines and drives them from desktop, mobile, web, or CLI. Frames itself as not a hosted agent, not an IDE, and not a model provider; it wraps existing CLIs rather than shipping its own agent.

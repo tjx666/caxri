@@ -164,24 +164,57 @@ describe('stepAgentChatPromptHistory', () => {
         expect(down2).toEqual({ position: undefined, prompt: '' });
     });
 
-    it('never replaces a draft the user typed or edited', () => {
+    it('preserves a typed multiline draft while browsing and restores it past the newest prompt', () => {
+        const draft = 'my first line\nmy second line';
+        const up = stepAgentChatPromptHistory({
+            current: draft,
+            direction: 'backward',
+            entries,
+            position: undefined,
+        });
+        expect(up?.prompt).toBe('third');
+        const older = stepAgentChatPromptHistory({
+            current: 'third',
+            direction: 'backward',
+            entries,
+            position: up?.position,
+        });
+        expect(older?.prompt).toBe('second');
+        const newer = stepAgentChatPromptHistory({
+            current: 'second',
+            direction: 'forward',
+            entries,
+            position: older?.position,
+        });
         expect(
             stepAgentChatPromptHistory({
-                current: 'my own text',
-                direction: 'backward',
+                current: 'third',
+                direction: 'forward',
                 entries,
-                position: undefined,
+                position: newer?.position,
             }),
-        ).toBeUndefined();
-        // The recalled prompt was edited, so browsing is over.
+        ).toEqual({ position: undefined, prompt: draft });
+    });
+
+    it('starts a fresh browse with the edited prompt as its return draft', () => {
+        const up = stepAgentChatPromptHistory({
+            current: 'second, edited',
+            direction: 'backward',
+            entries,
+            position: { entryId: 'u2', recalled: 'second' },
+        });
+        expect(up?.prompt).toBe('third');
         expect(
             stepAgentChatPromptHistory({
-                current: 'second, edited',
-                direction: 'backward',
+                current: 'third',
+                direction: 'forward',
                 entries,
-                position: { entryId: 'u2', recalled: 'second' },
+                position: up?.position,
             }),
-        ).toBeUndefined();
+        ).toEqual({ position: undefined, prompt: 'second, edited' });
+    });
+
+    it('falls through without a browse or available history', () => {
         expect(
             stepAgentChatPromptHistory({
                 current: '',

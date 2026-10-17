@@ -1,10 +1,16 @@
+/* eslint-disable no-await-in-loop -- Each native task state must settle before the next interaction. */
 import type { AgentChatSnapshot, AgentChatTask } from '@caxri/protocol';
 import { draculaTheme } from '@caxri/protocol';
 
 import type { MobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture } from './mobile-agent-actions-scenarios';
-import { sendFromPhone, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import {
+    sendFromPhone,
+    typeChatDraft,
+    waitForCheck,
+    waitForNoCheck,
+} from './mobile-agent-chat-helpers';
 import {
     adbShell,
     mobileColorBounds,
@@ -137,4 +143,113 @@ export async function exerciseChatBackgroundWork(
     if (!tail.exists || tail.textMatches !== true)
         throw new Error('The task output tail did not follow the command');
     await capture(environment, 'task-stopped', artifacts);
+    await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+    await waitForNoCheck(serial, 'agent-chat-tasks-sheet');
+
+    await chat.send({ text: 'subagent hold' });
+    const active = await waitForMobile(
+        () => chat.read(),
+        (snapshot) =>
+            !snapshot.activeTurnId &&
+            snapshot.tasks?.some(
+                (candidate) => candidate.kind === 'agent' && candidate.status === 'running',
+            ) === true,
+    );
+    const runningChild = active.tasks?.find(
+        (candidate) => candidate.kind === 'agent' && candidate.status === 'running',
+    );
+    if (!runningChild) throw new Error('The background Agent did not remain running');
+    await capture(environment, 'agent-running-pill', artifacts);
+    await tapMobileCheckByBounds(serial, 'agent-chat-tasks');
+    const runningStop = centerOf(await waitForStop(serial, sheetRegion));
+    await capture(environment, 'agent-running-sheet', artifacts);
+    await adbShell(serial, ['input', 'tap', String(runningStop.x), String(runningStop.y)]);
+    await waitForMobile(
+        () => chat.read(),
+        (snapshot) =>
+            snapshot.tasks?.some(
+                (candidate) => candidate.id === runningChild.id && candidate.status === 'stopped',
+            ) === true,
+    );
+    await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+    await waitForNoCheck(serial, 'agent-chat-tasks-sheet');
+
+    // An accepted child approval stays active after its parent finishes, with an independently usable main composer.
+    await chat.send({ text: 'subagent child approval' });
+    const waiting = await waitForMobile(
+        () => chat.read(),
+        (snapshot) =>
+            !snapshot.activeTurnId &&
+            snapshot.tasks?.some(
+                (candidate) => candidate.kind === 'agent' && candidate.status === 'waiting',
+            ) === true,
+    );
+    const child = waiting.tasks?.find((candidate) => candidate.status === 'waiting');
+    if (!child) throw new Error('The child did not wait for approval');
+    await capture(environment, 'agent-waiting-pill', artifacts);
+    await typeChatDraft(serial, 'hello');
+    const editable = await observeMobileNode(serial, 'agent-chat-composer-input', {
+        kind: 'equals',
+        value: 'hello',
+    });
+    if (!editable.textMatches) throw new Error('A waiting child blocked the main composer');
+    await capture(environment, 'agent-waiting-main-draft', artifacts);
+    await adbShell(serial, ['input', 'keyevent', ...Array.from('hello', () => 'KEYCODE_DEL')]);
+    await tapMobileCheckByBounds(serial, 'agent-chat-tasks');
+    const waitingStop = await waitForStop(serial, sheetRegion);
+    await capture(environment, 'agent-waiting-sheet', artifacts);
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(Math.floor(screen.width / 4)),
+        String(centerOf(waitingStop).y),
+    ]);
+    const childStop = await waitForStop(
+        serial,
+        sheetRegion,
+        (stop) => Math.abs(centerOf(stop).y - centerOf(waitingStop).y) > 8,
+    );
+    await capture(environment, 'agent-waiting-detail', artifacts);
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(centerOf(childStop).x),
+        String(centerOf(childStop).y),
+    ]);
+    await waitForMobile(
+        () => chat.read(),
+        (snapshot) =>
+            snapshot.tasks?.some(
+                (candidate) => candidate.id === child.id && candidate.status === 'stopped',
+            ) === true,
+    );
+    await waitForNoCheck(serial, 'agent-chat-task-stop');
+    await capture(environment, 'agent-stopped-detail', artifacts);
+    await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+    await waitForNoCheck(serial, 'agent-chat-tasks-sheet');
+
+    for (const [message, status] of [
+        ['subagent', 'completed'],
+        ['subagent child failure', 'failed'],
+    ] as const) {
+        const previous = new Set((await chat.read()).tasks?.map(({ id }) => id));
+        await chat.send({ text: message });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                !snapshot.activeTurnId &&
+                snapshot.tasks?.some(
+                    (candidate) =>
+                        !previous.has(candidate.id) &&
+                        candidate.kind === 'agent' &&
+                        candidate.status === status,
+                ) === true,
+        );
+        await tapMobileCheckByBounds(serial, 'agent-chat-tasks');
+        await waitForCheck(serial, 'agent-chat-tasks-sheet');
+        await capture(environment, `agent-${status}-sheet`, artifacts);
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        await waitForNoCheck(serial, 'agent-chat-tasks-sheet');
+    }
 }
+/* eslint-enable no-await-in-loop */

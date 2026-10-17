@@ -103,3 +103,18 @@ export interface FakeCodexIo {
      */
     serverRequest(method: string, parameters: Json): Promise<unknown>;
 }
+
+/**
+ * The fixture's stateless protocol handshake is shared independently of thread scenarios.
+ */
+export function didHandleInitializeRequest(
+    io: FakeCodexIo,
+    id: number | string | undefined,
+    method: string | undefined,
+): boolean {
+    if (method === 'initialize') {
+        io.send({ id, result: { userAgent: 'caxri/0.162.0 (fake)', platformOs: 'macos' } });
+        return true;
+    }
+    return method === 'initialized';
+}

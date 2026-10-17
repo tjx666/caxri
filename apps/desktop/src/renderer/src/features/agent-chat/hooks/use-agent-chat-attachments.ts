@@ -166,6 +166,14 @@ export function useAgentChatAttachments(terminalId: string) {
         };
         update((current) => attachmentsWithReturned(current, returned));
     };
+    /**
+     * Replaces an entire input checkpoint; callers must first wait for pending file reads.
+     */
+    const replace = (next: readonly AgentChatAttachment[]): void => {
+        reserved.current = reservationOf(next);
+        writeAgentChatAttachments(terminalId, next);
+        setAttachments([...next]);
+    };
     return {
         attachments,
         readingCount,
@@ -180,5 +188,6 @@ export function useAgentChatAttachments(terminalId: string) {
         removePaths,
         clearSent,
         restoreUnsent,
+        replace,
     };
 }

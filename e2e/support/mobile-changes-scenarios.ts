@@ -223,6 +223,7 @@ export async function executeMobileChangesScenario(
         }
         await openChanges(environment.serial, sessionId, environment.caseId === 'MOB-CHANGES-03');
         switch (environment.caseId) {
+            case 'MOB-CHANGES-05':
             case 'MOB-CHANGES-01': {
                 const rows = changedRowIds(await safeChangesSemantics(environment.serial));
                 expect(rows).toHaveLength(3);

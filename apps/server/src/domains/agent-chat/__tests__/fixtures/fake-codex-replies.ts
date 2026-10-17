@@ -115,8 +115,8 @@ export async function runTestCommands(io: FakeCodexIo, turn: FakeTurn) {
 }
 
 /**
- * How long the `longstream` turn holds a quiet thought before its reply starts. A phone Acceptance case reads the
- * pinned layout through UIAutomator in this window, which a streaming reply would keep from settling.
+ * How long the `longstream` turn holds a quiet thought before its reply starts, giving native input time to land. Phone
+ * acceptance measures the pinned layout from framebuffer pixels because running activity cannot idle.
  */
 const LONG_STREAM_PAUSE_MS = 8_000;
 

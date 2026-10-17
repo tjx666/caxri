@@ -5,8 +5,8 @@ import type { AgentChatService } from '../agent-chat';
 import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { TerminalManager } from '../terminal';
-import type { CommanderCompletionNotifierOptions } from './completion-notice';
 import { CommanderCompletionNotifier } from './completion-notice';
+import type { CommanderCompletionNotifierOptions } from './completion-notice-options';
 
 async function sendChatNotice(
     agentChat: Pick<AgentChatService, 'send'>,

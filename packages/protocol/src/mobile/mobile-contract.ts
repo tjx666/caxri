@@ -95,6 +95,8 @@ export const mobileAccessStatusSchema = z.strictObject({
 
 export const mobileDashboardSessionSchema = z.strictObject({
     id: identifierSchema,
+    createdAt: sessionRecordSchema.shape.createdAt,
+    lastSessionActivityAt: sessionRecordSchema.shape.lastSessionActivityAt,
     projectId: identifierSchema,
     displayTitle: z.string().min(1).max(100),
     projectTitle: z.string().min(1).max(100),

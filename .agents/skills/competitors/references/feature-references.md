@@ -115,12 +115,13 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## Paseo (Apache-2.0)
 
-| Caxri feature                                | Borrowed                                                                 | Evidence                                                                                                                     |
-| -------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| Activity group headings                      | Glyph before each heading                                                | `docs/activity-view.md`                                                                                                      |
-| Diff stat colors                             | Green and red at equal lightness                                         | `packages/protocol/src/domain/diff-stat-colors.ts`                                                                           |
-| Mobile read cache, image viewer, model sheet | 50 cached messages per Chat; pinch, pan, double-tap viewer; bottom sheet | `apps/mobile/src/features/read-cache/read-cache-model.ts`; `apps/mobile/src/features/agent-chat/agent-chat-image-viewer.tsx` |
-| Copy Resume Command                          | Continue a conversation in another client (with Jean)                    | `paseo.md`; `jean.md`; `apps/desktop/src/renderer/src/features/terminal/terminal-surface-commands.ts`                        |
+| Caxri feature                                | Borrowed                                                                                | Evidence                                                                                                                     |
+| -------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Activity group headings                      | Glyph before each heading                                                               | `docs/activity-view.md`                                                                                                      |
+| Diff stat colors                             | Green and red at equal lightness                                                        | `packages/protocol/src/domain/diff-stat-colors.ts`                                                                           |
+| Mobile read cache, image viewer, model sheet | 50 cached messages per Chat; pinch, pan, double-tap viewer; bottom sheet                | `apps/mobile/src/features/read-cache/read-cache-model.ts`; `apps/mobile/src/features/agent-chat/agent-chat-image-viewer.tsx` |
+| Copy Resume Command                          | Continue a conversation in another client (with Jean)                                   | `paseo.md`; `jean.md`; `apps/desktop/src/renderer/src/features/terminal/terminal-surface-commands.ts`                        |
+| Agent Chat system-event visibility           | Explicit system-subtype handling keeps routine Hook diagnostics out of the conversation | `docs/agent-chat.md`; `apps/server/src/domains/agent-chat/claude-system-notices.ts`                                          |
 
 ## Superset, Synara, Muxy, Herdr, Kero
 
@@ -141,6 +142,8 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 | Streaming Markdown parser | Streamdown, LobeHub, assistant-ui | Re-parse only the tail with per-block reuse; count-based CI gate | `packages/markdown/src/streaming-parser.ts`; `chat-markdown-rendering.md` |
 
 ## Codex app and Claude Code (closed or product references)
+
+The Chat composer's Ctrl+S draft checkpoint follows [Claude Code's interactive shortcut](https://code.claude.com/docs/en/interactive-mode#keyboard-shortcuts): stash text, cursor, pasted content and input mode, then explicitly restore into an empty input. Caxri includes its existing image/path attachments and Goal mode in one device-local IndexedDB checkpoint (`agent-chat-draft-stash.ts`).
 
 | Caxri feature                                                 | Reference   | Borrowed                                                                                                                                                   | Evidence                                                                                                                               |
 | ------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |

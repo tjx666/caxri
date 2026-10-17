@@ -15,6 +15,8 @@ export async function streamPlannedReply(io: FakeClaudeIo, reply: string) {
             content: 'Prompt dropped by a hook: Example prompt blocked for display test.',
             level: 'notice',
         });
+    }
+    if (hasNotices || reply.includes('synthetic routine hooks')) {
         io.system('hook_progress', {
             hook_id: 'example-hook',
             hook_name: 'Example',
@@ -23,6 +25,28 @@ export async function streamPlannedReply(io: FakeClaudeIo, reply: string) {
             stderr: '',
             output: '',
         });
+        for (const stdout of [
+            '{}',
+            JSON.stringify({
+                hookSpecificOutput: {
+                    hookEventName: 'PreToolUse',
+                    permissionDecision: 'allow',
+                    permissionDecisionReason: 'Synthetic hook decision.',
+                },
+            }),
+        ]) {
+            io.system('hook_response', {
+                hook_id: crypto.randomUUID(),
+                hook_name: 'Example',
+                hook_event: 'PreToolUse',
+                stdout,
+                stderr: '',
+                output: stdout,
+                outcome: 'success',
+                exit_code: 0,
+            });
+        }
+        io.system('synthetic_diagnostic', { content: 'Synthetic provider diagnostic.' });
     }
     const thinkingId = `msg_${crypto.randomUUID()}`;
     io.send(
@@ -73,7 +97,7 @@ export async function streamPlannedReply(io: FakeClaudeIo, reply: string) {
             hook_id: 'example-hook',
             hook_name: 'Example',
             hook_event: 'UserPromptSubmit',
-            stdout: '',
+            stdout: '{}',
             stderr: 'Example hook warning.',
             output: '',
             outcome: 'error',

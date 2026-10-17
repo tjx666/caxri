@@ -19,7 +19,8 @@ import {
 } from './support/helpers.ts';
 import type { RendererPerformanceWindow } from './support/renderer-performance.ts';
 
-test('measures switching until the target Session Chat history is painted', async () => {
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('measures switching until the target Session Chat history is painted', async ({}, testInfo) => {
     test.skip(
         process.env.CAXRI_RENDERER_BENCHMARK !== '1',
         'benchmark: run through bun run benchmark:renderer',
@@ -61,6 +62,7 @@ test('measures switching until the target Session Chat history is painted', asyn
                 );
             }
             targets.push({ id: await selectedSessionId(page), marker: `table please ${name} 2` });
+            await page.screenshot({ path: testInfo.outputPath(`history-${name}.png`) });
         }
         const samples: RendererPerformanceScenarioDiagnostic[] = [];
         for (let index = 0; index < 6; index++) {

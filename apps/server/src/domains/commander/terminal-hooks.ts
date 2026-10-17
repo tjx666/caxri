@@ -44,7 +44,8 @@ export class CommanderTerminalHooks {
     /**
      * The Chat equivalent of `launchPrompt`: a Chat Commander takes what it missed as its first message once ready.
      */
-    readonly chatReady = (terminalId: string): void => this.notifier?.onChatReady(terminalId);
+    readonly chatReady = (terminalId: string, launchId: string): void =>
+        this.notifier?.onChatReady(terminalId, launchId);
 
     readonly launchPrompt = (terminal: TerminalRecord): string | undefined =>
         this.notifier?.launchPrompt(terminal.id);

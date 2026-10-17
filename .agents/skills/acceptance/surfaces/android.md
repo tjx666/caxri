@@ -88,6 +88,10 @@ needs root and a framework restart, so it is not used. Both options accept only 
 
 ## Inspect and interact without leaking content
 
+Use public synthetic Project paths for recordings. Approval cards display their real working
+directory, so the native fixture uses `/tmp` on macOS instead of its account-specific system temp
+directory. Keep any earlier frames that expose the system temp path private and recapture them.
+
 Use Caxri's semantic helper. It first proves that Caxri owns the foreground Activity, then emits only
 stable `testID` values, structural flags, and bounds:
 
@@ -105,7 +109,10 @@ so the helper fails as `driver-failed`. A running Chat turn never idles even und
 the activity line's elapsed time and native spinner keep changing. Read semantics before the turn
 starts or after it ends (or while it waits on the user), and follow a running turn with
 `mobileRegionFingerprint` and framebuffer captures instead (`MOB-CHAT-13` measures the slot with
-a short turn first). A running background task's sheet and detail redraw their elapsed time every second, so they
+a short turn first). `android:device observe` and `observeMobileNode` use the same idle-dependent dump;
+they are sanitized observations, not an immediate bypass. To press Stop during a live reply, capture
+the composer action's bounds while idle, verify Stop's theme color there with `mobileColorBounds`,
+and tap the current color bounds. A running background task's sheet and detail redraw their elapsed time every second, so they
 never idle either: `MOB-CHAT-16` finds Stop there by its theme color with `mobileColorBounds`, re-reads it until two
 reads agree (the sheet grows as output arrives), and reads semantics again once the task has stopped.
 On Android 36, deprecated `uiautomator runtest` can abort before executing a test and still print

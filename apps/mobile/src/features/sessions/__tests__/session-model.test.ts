@@ -16,6 +16,8 @@ const session = (overrides: Partial<MobileSession> = {}): MobileSession => ({
     displayTitle: 'Mobile phase one',
     projectTitle: 'Caxri',
     lastOpenedAt: 100,
+    createdAt: 1,
+    lastSessionActivityAt: overrides.lastOpenedAt ?? 100,
     lastActivityState: 'waiting',
     primaryAgentTerminalId: 'terminal-1',
     attentionEpoch: 3,
@@ -25,6 +27,35 @@ const session = (overrides: Partial<MobileSession> = {}): MobileSession => ({
 });
 
 describe('mobile session model', () => {
+    it('orders Recent by message activity instead of reopening an older Session', () => {
+        const newerMessage = {
+            ...session({
+                id: 'newer-message',
+                lastOpenedAt: 10,
+                lastActivityState: 'completed',
+                hasUnread: false,
+            }),
+            createdAt: 1,
+            lastSessionActivityAt: 200,
+        };
+        const newerVisit = {
+            ...session({
+                id: 'newer-visit',
+                lastOpenedAt: 300,
+                lastActivityState: 'completed',
+                hasUnread: false,
+            }),
+            createdAt: 1,
+            lastSessionActivityAt: 100,
+        };
+        const result = buildMobileSessionSections({
+            sessions: [newerVisit, newerMessage],
+            total: 2,
+            truncated: false,
+        });
+        expect(result.recent.map((item) => item.id)).toEqual(['newer-message', 'newer-visit']);
+    });
+
     it('groups attention, running, and recent Sessions with stable newest-first order', () => {
         const result = buildMobileSessionSections({
             total: 3,

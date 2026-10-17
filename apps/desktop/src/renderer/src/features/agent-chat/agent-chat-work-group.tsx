@@ -6,7 +6,6 @@ import {
     agentChatFileChangesStat,
     agentChatOutputLanguage,
     agentChatReasoningTitle,
-    agentChatTaskGlyphStatus,
     agentChatToolCallArguments,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
@@ -52,7 +51,7 @@ import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMcpGlyph } from './agent-chat-mcp-glyph';
 import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
-import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
+import { AgentChatTaskElapsed, AgentChatTaskStatus } from './agent-chat-task-glyph';
 import { AgentChatTaskOpenButton } from './agent-chat-task-open-button';
 import { agentChatTaskActivity } from './agent-chat-tasks';
 import { agentChatWorkSummaryGlyph, describeAgentChatWorkRow } from './agent-chat-timeline';
@@ -405,7 +404,7 @@ function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?:
                     <AgentChatTaskElapsed task={task} />
                     {/* A running task already sweeps its title and ticks its timer; a spinner would say it a third time. */}
                     {task.status !== 'completed' && task.status !== 'running' && (
-                        <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
+                        <AgentChatTaskStatus status={task.status} />
                     )}
                 </>
             ) : (

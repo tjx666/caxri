@@ -137,6 +137,13 @@ command> <id>` (`agentResumeCommandLine`, from the provider catalog's `resumeArg
 
 ## Process lifecycle
 
+Provider Hook lifecycle frames are execution metadata, not conversation content. Routine
+progress, successful or cancelled hooks, and unknown system diagnostics stay out of Chat,
+including plain stdout, empty JSON, and control JSON. A failed hook produces one concise error
+summary from its name and exit code, never its raw output. Explicit informational feedback
+(including block reasons), model-refusal notices, and local slash-command results remain visible.
+This explicit event policy follows [Paseo's Claude adapter](https://github.com/getpaseo/paseo/blob/64693f21cf564389a0b74b57777267761e27f71c/packages/server/src/server/agent/providers/claude/agent.ts#L4531-L4607).
+
 `AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
 live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, or
 `grok agent --no-leader stdio`), spawned by Server Core. Its environment
@@ -382,8 +389,17 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
 - `agentChat.readTask` returns the live projection, or rebuilds one from the provider's record for a
   task this process never saw (a resumed Chat, an evicted projection); `taskId` may also be the id of
   the timeline row that started the task, so a subagent row stays openable after a restart.
-  `agentChat.stopTask` stops one task without ending the turn. A provider exit marks every running
+  `agentChat.stopTask` stops one task without ending the turn. A provider exit marks every active
   task stopped.
+- Running and waiting tasks are active: they retain their projection and Stop action, stay in the
+  active strip and mobile frame budget, and prevent idle suspension. Claude Code's explicit
+  `task_updated.patch.status = paused` maps to Waiting, with a pause glyph. The SDK supplies no
+  pause reason, so the label does not claim that user input or approval is required. Progress
+  updates keep that status until the provider explicitly resumes or ends the task.
+  Codex uses accepted blocking approvals or input requests of the child thread, not the parent's
+  `wait` tool or silence. The last request resolving resumes an ongoing child turn; a child turn
+  ending clears its pending requests without clearing another turn's requests. The parent remains
+  usable while the child waits.
 - **Claude Code.** A subagent's task id is its `Agent`/`Task` tool use id. Metadata comes from the
   tool call and the `task_started`, `task_progress`, `task_notification`, `task_updated`, and
   `background_tasks_changed` system messages. A background shell uses Claude's `task_id` and links
@@ -416,7 +432,7 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   (`caxri-agent-task://<terminalId>/<taskId>`, `packages/protocol/src/domain/agent-task-tab.ts`) in a
   split beside the Chat, reusing that side pane for later tasks. A subagent tab is a read-only
   timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
-  live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
+  live output, titled by the command without Codex's login-shell wrapper. Active tasks also appear
   in a Background work list above the composer, where each opens or stops on its own, and an `N
 ended` count expands the ended ones. When the last task ends, the strip collapses to that `N
 ended` row for the work that ended since the latest turn started, with a Dismiss button, instead
@@ -645,14 +661,23 @@ several callbacks can share one item, so the transport id is never the key.
   device-local IndexedDB instead, because a few encoded images would exhaust the `localStorage`
   quota (`agent-chat-attachment-persistence.ts`): at most 128 MB of encoded images across all
   Chats, dropping the Chats whose images changed least recently first, deleted once the message
-  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer recalls the
-  prompts this Chat sent, newest first, and ArrowDown walks forward and back to an empty input,
-  like a shell. The history is read from the user messages in the Chat's projection, so it needs
+  that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on the first visual line recalls the
+  prompts this Chat sent, newest first, and ArrowDown past the newest prompt restores the unsent text and caret.
+  Other visual lines, including soft wraps without newline characters, retain native caret navigation in both directions.
+  The history is read from the user messages in the Chat's projection, so it needs
   no storage of its own and reaches only as far back as the projection keeps (see
-  `truncated`). ArrowUp is left alone while the input holds the user's own text, an image is
-  attached, or the command menu is open for typed text; a recalled `/command` that opens the menu
+  `truncated`). ArrowUp is left alone while an image is
+  attached, an earlier message is being edited, or the command menu is open for typed text; a recalled `/command` that opens the menu
   still walks on. A recalled prompt left in the input is an ordinary draft, so it persists like
-  one and editing it ends the walk. Its action row shows how much of the
+  one and editing it ends the walk. Ctrl+S saves the complete input as a device-local checkpoint and clears it;
+  Ctrl+S in an empty input restores that checkpoint, including its selection, attachments, pasted-file references,
+  and Goal mode. This follows [Claude Code's stash shortcut](https://code.claude.com/docs/en/interactive-mode#keyboard-shortcuts).
+  Checkpoints use a separate IndexedDB database in each Workbench, Commander and SSH composer scope, bounded to
+  50 Chats, one million text characters and 128 MB including encoded attachments. A save commits before clearing
+  the input; a failed save or input changed during a save leaves the live input untouched. Restoring keeps the saved
+  copy until the next successful save, so quitting before the restored text and images finish their separate writes
+  cannot destroy the only complete copy. Ctrl+S does not take over "Edit from here" or pending attachment reads.
+  Its action row shows how much of the
   context window is used, as a filling ring and a percentage with the token counts and what fills
   the window in its popover (opened by hover, or by Enter or Space on the focused ring), and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
@@ -988,9 +1013,9 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   row is already gone from the card. While a turn runs the Send button wears the queue glyph and the placeholder reads
   `Queue a follow-up`.
 - Background work. The snapshot and `state` patches carry the Chat's `tasks` as a bounded copy
-  (`clipAgentChatTasksForMobile`: every running task up to 24, the newest started kept, and the 10
+  (`clipAgentChatTasksForMobile`: every active task up to 24, the newest started kept, and the 10
   that ended most recently, with titles and command lines cut to 300 characters and summaries to
-  200). Above its composer the phone shows a one-row `Background work` pill (`2 running · 1 ended`)
+  200). Above its composer the phone shows a one-row `Background work` pill (`2 active · 1 ended`)
   by Desktop's strip rule (`agentChatTaskStripView`, shared from
   `packages/protocol/src/agent/agent-chat-tasks.ts` with the elapsed time and Stop rules), so a
   Chat without tasks (Grok Build) shows none, and once nothing runs the pill keeps the work that

@@ -33,6 +33,17 @@ const detail = (overrides: Partial<AgentChatTaskSnapshot> = {}): AgentChatTaskSn
 });
 
 describe('agentChatTaskPill', () => {
+    it('labels paused work Waiting while retaining its active count and Stop', () => {
+        const waiting = task({ id: 'paused', status: 'waiting', startedAt: 1 });
+        expect(agentChatTaskPill({ tasks: [waiting], turns: [] }, undefined)?.label).toBe(
+            '1 active',
+        );
+        expect(agentChatTaskRow(waiting, 2000)).toMatchObject({
+            statusLabel: 'Waiting',
+            canStop: true,
+        });
+    });
+
     it('counts running and ended work while anything runs', () => {
         const pill = agentChatTaskPill(
             {
@@ -44,7 +55,7 @@ describe('agentChatTaskPill', () => {
             },
             undefined,
         );
-        expect(pill?.label).toBe('1 running · 1 ended');
+        expect(pill?.label).toBe('1 active · 1 ended');
         expect(pill?.isDismissible).toBe(false);
     });
 

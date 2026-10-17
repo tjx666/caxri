@@ -15,19 +15,39 @@ type Json = Record<string, unknown>;
 type NoticeHost = Pick<AgentChatSessionHost, 'apply' | 'lifecycle' | 'read'>;
 
 /**
- * Claude Code emits hook feedback as informational banners, hook lifecycle output, or local command output. Keep
- * text-bearing system frames in delivery order; lifecycle frames without text remain silent. Notices are split at the
- * protocol's text bound rather than silently dropping the tail of a hook's output.
+ * Only explicitly user-facing SDK frames belong in Chat. Hook stdout is a control/diagnostic channel, even when it
+ * contains readable text or JSON. Follow Paseo's explicit system-subtype handling rather than rendering unknown frames.
+ * Hook failures get a concise summary; the CLI emits actionable block reasons separately as informational.
  *
  * @see https://platform.claude.com/docs/en/agent-sdk/typescript#sdkmessage
+ * @see https://github.com/getpaseo/paseo/blob/64693f21cf564389a0b74b57777267761e27f71c/packages/server/src/server/agent/providers/claude/agent.ts#L4531-L4607
  */
 export function onClaudeTranscriptOutput(host: NoticeHost, message: Json): void {
-    const content =
-        [
-            stringField(message.content),
-            stringField(message.output),
-            [stringField(message.stdout), stringField(message.stderr)].filter(Boolean).join('\n'),
-        ].find((text) => text?.trim()) ?? '';
+    let content: string;
+    let isError = false;
+    switch (message.subtype) {
+        case 'informational':
+        case 'local_command_output':
+        case 'model_refusal_fallback':
+        case 'model_refusal_no_fallback': {
+            content = stringField(message.content) ?? '';
+            break;
+        }
+        case 'hook_response': {
+            if (message.outcome !== 'error') return;
+            const name = clip(stringField(message.hook_name) ?? 'Unknown', 100);
+            const code =
+                typeof message.exit_code === 'number' && Number.isSafeInteger(message.exit_code)
+                    ? ` (exit code ${message.exit_code})`
+                    : '';
+            content = `Hook "${name}" failed${code}.`;
+            isError = true;
+            break;
+        }
+        default: {
+            return;
+        }
+    }
     if (!content.trim()) return;
     const id = clip(`claude-output:${stringField(message.uuid) ?? randomUUID()}`, 180);
     const turnId = host.read().activeTurnId;
@@ -44,7 +64,7 @@ export function onClaudeTranscriptOutput(host: NoticeHost, message: Json): void 
                     : {
                           ...identity,
                           type: 'notice',
-                          kind: message.outcome === 'error' ? 'error' : 'output',
+                          kind: isError ? 'error' : 'output',
                           message: text,
                       },
             },

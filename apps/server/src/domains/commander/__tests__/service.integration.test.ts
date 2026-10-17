@@ -85,15 +85,23 @@ describe('Agent Commander service', () => {
     });
 
     it('stops the Commander idempotently and restores it on the next ensure', async () => {
-        const { cancelRestore, restoreTerminals, sendTerminalChange, service, stopTerminal } =
-            await fixture();
+        const {
+            cancelRestore,
+            handovers,
+            restoreTerminals,
+            sendTerminalChange,
+            service,
+            stopTerminal,
+        } = await fixture();
         await expect(service.stop()).resolves.toBeNull();
         expect(stopTerminal).not.toHaveBeenCalled();
+        expect(handovers.returnAllForStop).toHaveBeenCalledOnce();
 
         const { identity } = await service.ensure();
         await service.stop();
         expect(cancelRestore).toHaveBeenCalledExactlyOnceWith(identity.sessionId);
         expect(stopTerminal).toHaveBeenCalledExactlyOnceWith(identity.terminalId);
+        expect(handovers.returnAllForStop).toHaveBeenCalledTimes(2);
         expect(sendTerminalChange).toHaveBeenCalledExactlyOnceWith(identity.terminalId);
         expect(service.status()).toEqual({ state: 'stopped' });
 

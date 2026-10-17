@@ -154,7 +154,7 @@ export async function startChat(
         logger.write('info', logEventCatalog.agentChat.processStarted, {
             fields: { terminalId, outcome: 'ready', mode, durationMs: Date.now() - startedAt },
         });
-        options.onReady?.(terminalId);
+        options.onReady?.(terminalId, launchId);
     } catch (error) {
         if (state.session === session) state.session = undefined;
         await session?.close();

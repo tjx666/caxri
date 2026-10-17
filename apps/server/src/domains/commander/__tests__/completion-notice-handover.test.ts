@@ -10,6 +10,36 @@ describe('CommanderCompletionNotifier hand-over notices', () => {
         f = fixture();
     });
 
+    it('forgets only updates belonging to returned hand-overs', () => {
+        f.rows.terminalId = undefined;
+        f.notifier.notifyHandover({
+            handoverId: 'returned',
+            sessionId: 'session-1',
+            event: 'busy',
+        });
+        f.notifier.notifyHandover({
+            handoverId: 'retained',
+            sessionId: 'session-2',
+            event: 'ready',
+        });
+        f.notifier.onStopped();
+        f.notifier.forgetHandovers(['returned']);
+        f.rows.terminalId = COMMANDER_TERMINAL_ID;
+        const prompt = f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
+        expect(prompt).not.toContain('hand-over returned');
+        expect(prompt).toContain('hand-over retained');
+    });
+
+    it('keeps owed notices when a stopped launch reports delivery late', () => {
+        f.rows.terminalId = undefined;
+        f.notifier.notifyHandover({ handoverId: 'owed', sessionId: 'session-1', event: 'ready' });
+        f.rows.terminalId = COMMANDER_TERMINAL_ID;
+        expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toContain('hand-over owed');
+        f.notifier.onStopped();
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toContain('hand-over owed');
+    });
+
     it('delivers hand-over events at the next idle point and carries unsent ones in the launch prompt', () => {
         f.rows.terminalId = undefined;
         f.notifier.notifyHandover({

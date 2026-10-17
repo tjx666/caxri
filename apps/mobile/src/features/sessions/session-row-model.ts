@@ -25,11 +25,11 @@ const ageMinutes = (at: number, now: number): number =>
  * The compact age a Session row shows (`now`, `5m`, `2h`, `3d`).
  */
 export const sessionAgeLabel = (
-    lastOpenedAt: number,
+    lastActivityAt: number,
     now: number,
     t: Translate = translate,
 ): string => {
-    const minutes = ageMinutes(lastOpenedAt, now);
+    const minutes = ageMinutes(lastActivityAt, now);
     if (minutes < 1) return t('sessions.age.now');
     if (minutes < 60) return t('sessions.age.minutes', { count: minutes });
     const hours = Math.floor(minutes / 60);

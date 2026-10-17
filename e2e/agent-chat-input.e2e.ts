@@ -10,6 +10,7 @@ import {
     fakeCodexChatAgentMode,
     openAgentChat,
 } from './support/agent-chat-fixture.ts';
+import { pasteAgentChatImage } from './support/agent-chat-image-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
@@ -25,26 +26,6 @@ const PIXEL_PNG = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
     'base64',
 );
-
-/**
- * Pastes a generated PNG into the message box the way the system clipboard delivers a screenshot.
- */
-async function pasteImage(message: Locator): Promise<void> {
-    await message.evaluate(async (element) => {
-        const canvas = new OffscreenCanvas(96, 64);
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('2D canvas unavailable');
-        const gradient = context.createLinearGradient(0, 0, 96, 64);
-        gradient.addColorStop(0, '#3b82f6');
-        gradient.addColorStop(1, '#f97316');
-        context.fillStyle = gradient;
-        context.fillRect(0, 0, 96, 64);
-        const blob = await canvas.convertToBlob({ type: 'image/png' });
-        const clipboardData = new DataTransfer();
-        clipboardData.items.add(new File([blob], 'screenshot.png', { type: 'image/png' }));
-        element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData }));
-    });
-}
 
 /**
  * Pastes a noise PNG over the 5 MB image limit, like a Retina screenshot of dense content; noise does not compress, so
@@ -107,7 +88,7 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         const message = chat.getByRole('textbox', { name: 'Message' });
         await expect(message).toBeVisible();
 
-        await pasteImage(message);
+        await pasteAgentChatImage(message);
         const attached = chat.getByRole('list', { name: 'Attachments' });
         await expect(attached.getByRole('button', { name: 'Remove screenshot.png' })).toBeVisible();
         // A drop anywhere on the Chat, here the empty transcript far above the input, attaches like one on the composer.
@@ -307,7 +288,7 @@ test("a Claude Code Chat sends an image, restores its preview on resume, and off
         const message = chat.getByRole('textbox', { name: 'Message' });
         await expect(message).toHaveAttribute('placeholder', 'Message Claude');
 
-        await pasteImage(message);
+        await pasteAgentChatImage(message);
         await expect(chat.getByRole('button', { name: 'Remove screenshot.png' })).toBeVisible();
         // An image alone is a message.
         await message.press('Enter');

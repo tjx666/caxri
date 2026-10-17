@@ -8,6 +8,13 @@ import {
 } from '../mobile-android-cases';
 
 describe('mobile Android Acceptance cases', () => {
+    it('compares the same Changes fixture with reduced and normal system motion', () => {
+        expect(mobileAndroidAcceptanceCase('MOB-CHANGES-01').motion).toBeUndefined();
+        expect(mobileAndroidAcceptanceCase('MOB-CHANGES-05').motion).toBe('live');
+        expect(mobileAndroidAcceptanceCase('MOB-CHANGES-05').scenario).toBe(
+            mobileAndroidAcceptanceCase('MOB-CHANGES-01').scenario,
+        );
+    });
     it('routes frozen ids to one bounded evidence scenario', () => {
         expect(mobileAndroidAcceptanceCase('MOB-FDN-01')).toEqual({
             desktopProfile: 'not-required',
@@ -180,6 +187,7 @@ describe('mobile Android Acceptance cases', () => {
             'MOB-CHANGES-02',
             'MOB-CHANGES-03',
             'MOB-CHANGES-04',
+            'MOB-CHANGES-05',
             'MOB-UI-01',
             'MOB-UI-02',
             'MOB-UI-03',

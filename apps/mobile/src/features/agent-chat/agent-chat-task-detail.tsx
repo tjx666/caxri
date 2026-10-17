@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 
 import type { AgentChatTask } from '@caxri/protocol';
-import { Bot, Check, CircleSlash, Square, SquareTerminal, X } from 'lucide-react-native';
+import { isAgentChatTaskActive } from '@caxri/protocol';
+import { Bot, Check, CircleSlash, Pause, Square, SquareTerminal, X } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
@@ -54,6 +55,9 @@ export const AgentChatTaskStatusGlyph = ({
     switch (status) {
         case 'running': {
             return <ActivityIndicator color={theme.muted} size="small" style={styles.spinner} />;
+        }
+        case 'waiting': {
+            return <Pause color={theme.muted} size={14} />;
         }
         case 'completed': {
             return <Check color={theme.success} size={14} />;
@@ -207,7 +211,7 @@ export const AgentChatTaskDetailBody = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const now = useAgentChatTaskClock(task.status === 'running');
+    const now = useAgentChatTaskClock(isAgentChatTaskActive(task.status));
     const row = agentChatTaskRow(task, now, t);
     const { detail, isError, isLoading } = useAgentChatTaskDetail(terminalId, task);
     const content = detail ? agentChatTaskDetailContent(task, detail, t) : undefined;

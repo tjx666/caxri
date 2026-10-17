@@ -1,5 +1,5 @@
 import type { AgentChatTaskSnapshot } from '@caxri/protocol';
-import { agentChatTaskSnapshotSchema, CaxriError } from '@caxri/protocol';
+import { agentChatTaskSnapshotSchema, canStopAgentChatTask, CaxriError } from '@caxri/protocol';
 
 import type { AgentChatProviderSession } from './chat-provider';
 import type { ChatState } from './chat-states';
@@ -45,7 +45,7 @@ export async function stopChatTask(state: ChatState | undefined, taskId: string)
     const task = state?.projection.snapshot.tasks?.find(
         (candidate) => candidate.id === taskId || candidate.itemId === taskId,
     );
-    if (!state?.session?.isOpen || task?.status !== 'running' || !task.canStop)
-        throw new CaxriError('CONFLICT', 'This task is no longer running');
+    if (!task || !state?.session?.isOpen || !canStopAgentChatTask(task))
+        throw new CaxriError('CONFLICT', 'This task is no longer active');
     await state.session.stopTask(task.id);
 }
