@@ -52,8 +52,6 @@ describe('mobile Agent Chat projection', () => {
             projectId: 'project-1',
             displayTitle: 'Fix tests',
             projectTitle: 'Example',
-            createdAt: 1,
-            lastSessionActivityAt: 1,
             lastOpenedAt: 1,
             lastActivityState: 'idle',
             attentionEpoch: 0,

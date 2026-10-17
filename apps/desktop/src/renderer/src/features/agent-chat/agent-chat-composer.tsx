@@ -17,7 +17,6 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
-import { agentChatComposerKeyHandler } from './agent-chat-composer-keys';
 import { AgentChatComposerStrip } from './agent-chat-composer-strip';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatDropOverlay } from './agent-chat-drop-overlay';
@@ -38,7 +37,6 @@ import { useAgentChatComposerEnter } from './hooks/use-agent-chat-composer-enter
 import { useAgentChatComposerInput } from './hooks/use-agent-chat-composer-input';
 import { useAgentChatComposerSend } from './hooks/use-agent-chat-composer-send';
 import { useAgentChatDraft } from './hooks/use-agent-chat-draft';
-import { useAgentChatDraftStash } from './hooks/use-agent-chat-draft-stash';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHandoff } from './hooks/use-agent-chat-handoff';
 import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
@@ -230,7 +228,6 @@ export function AgentChatComposer({
         terminalId,
         workbenchRoot,
     });
-    const hasPendingAttachments = isAttaching || sessionMenu.isPreparing;
     const { choose, compact, complete, edit, goalMode, hasContent, isSendable, isSending, submit } =
         useAgentChatComposerSend({
             canSend: sendBlock === undefined,
@@ -247,7 +244,7 @@ export function AgentChatComposer({
             focusInput,
             images,
             // A Session chosen from the `@` list is not in the draft until its reference is written.
-            isAttaching: hasPendingAttachments,
+            isAttaching: isAttaching || sessionMenu.isPreparing,
             onSent,
             setDraft,
             terminalId,
@@ -258,16 +255,6 @@ export function AgentChatComposer({
         isEditing: edit.isEditing,
         items: snapshot?.items,
         setDraft,
-    });
-    const stash = useAgentChatDraftStash({
-        draft,
-        images,
-        isAttaching: hasPendingAttachments,
-        isEditing: edit.isEditing,
-        isGoalMode: goalMode.isOn,
-        isSending,
-        setDraft,
-        terminalId,
     });
     const { sendAction } = edit;
     const nextQueuedId = agentChatNextQueuedId(queue, isTurnRunning);
@@ -400,16 +387,15 @@ export function AgentChatComposer({
                         onClick={(event) => sessionMenu.trackCaret(event.currentTarget)}
                         onKeyUp={sessionMenu.trackCaretKey}
                         onSelect={(event) => sessionMenu.followSelection(event.currentTarget)}
-                        onKeyDown={agentChatComposerKeyHandler([
-                            stash.didHandleKey,
-                            sessionMenu.notePressedKey,
-                            (event) =>
-                                history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen),
-                            (event) => menu.didHandleKey(event, { choose, complete }),
-                            sessionMenu.didHandleKey,
-                            goalMode.didHandleKey,
-                            composerKeys.onKeyDown,
-                        ])}
+                        onKeyDown={(event) => {
+                            sessionMenu.notePressedKey(event);
+                            if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen))
+                                return;
+                            if (menu.didHandleKey(event, { choose, complete })) return;
+                            if (sessionMenu.didHandleKey(event)) return;
+                            if (goalMode.didHandleKey(event)) return;
+                            composerKeys.onKeyDown(event);
+                        }}
                         onPaste={fileInput.onPaste}
                     />
                     <AgentChatComposerActions

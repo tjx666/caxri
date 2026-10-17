@@ -15,7 +15,20 @@ import {
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
-import type { RendererPerformanceWindow } from './support/renderer-performance.ts';
+
+interface RendererPerformanceBrowserApi {
+    begin(action: 'session.switch'): string;
+    end(scenarioId: string): RendererPerformanceScenarioDiagnostic;
+    status(): {
+        frameSampleCount: number;
+        pendingRequestCount: number;
+        scenarioId: string | null;
+    };
+}
+
+type RendererPerformanceWindow = typeof globalThis & {
+    caxriPerformance?: RendererPerformanceBrowserApi;
+};
 
 type RendererPerformanceSurface = keyof RendererPerformanceScenarioDiagnostic['react']['surfaces'];
 

@@ -2,10 +2,10 @@ import type { AgentChatItem } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 /**
- * Shell-style prompt recall for the Chat composer: ArrowUp on its first line walks back through the prompts this Chat
- * sent, ArrowDown walks forward and restores the unsent draft past the newest one. The history is derived from the
- * Chat's own `userMessage` items on every keypress, so there is nothing to persist or keep in sync, and it survives a
- * restart because the conversation does. This follows t3code's `composerPromptHistory`.
+ * Shell-style prompt recall for the Chat composer: ArrowUp on an empty input walks back through the prompts this Chat
+ * sent, ArrowDown walks forward and empties the input past the newest one. The history is derived from the Chat's own
+ * `userMessage` items on every keypress, so there is nothing to persist or keep in sync, and it survives a restart
+ * because the conversation does. This follows t3code's `composerPromptHistory`.
  */
 export interface AgentChatPromptHistoryEntry {
     /**
@@ -22,10 +22,6 @@ export interface AgentChatPromptHistoryEntry {
 export interface AgentChatPromptHistoryPosition {
     entryId: string;
     recalled: string;
-    /**
-     * The unsent text to put back after walking past the newest prompt.
-     */
-    draft?: string;
 }
 
 export type AgentChatPromptHistoryDirection = 'backward' | 'forward';
@@ -77,9 +73,9 @@ export function agentChatPromptHistoryDirection(
 }
 
 /**
- * The next prompt to show, or `undefined` when the key should fall through. The caller checks caret boundaries before
- * stepping. Browsing saves the unsent text rather than discarding it, and forward past the newest entry puts it back.
- * Editing a recalled prompt starts a fresh browse with that edited text as the return draft.
+ * The next prompt to show, or `undefined` when the key should fall through. Backward starts only from an empty input
+ * and stops at the oldest entry; forward past the newest entry empties the input and ends browsing. An input that no
+ * longer matches the recalled prompt is a draft of the user's own, so browsing starts over.
  */
 export function stepAgentChatPromptHistory({
     current,
@@ -94,24 +90,22 @@ export function stepAgentChatPromptHistory({
 }): { position: AgentChatPromptHistoryPosition | undefined; prompt: string } | undefined {
     const activeIndex = position?.recalled === current ? activeEntryIndex(entries, position) : -1;
     if (direction === 'backward') {
+        if (activeIndex === -1 && current.length > 0) return undefined;
         const index = (activeIndex === -1 ? entries.length : activeIndex) - 1;
-        return index < 0
-            ? undefined
-            : recall(entries, index, activeIndex === -1 ? current : position?.draft);
+        return index < 0 ? undefined : recall(entries, index);
     }
     if (activeIndex === -1) return undefined;
-    if (activeIndex + 1 >= entries.length)
-        return { position: undefined, prompt: position?.draft ?? '' };
-    return recall(entries, activeIndex + 1, position?.draft);
+    // Past the newest prompt the input empties, the way a shell returns to its blank line.
+    if (activeIndex + 1 >= entries.length) return { position: undefined, prompt: '' };
+    return recall(entries, activeIndex + 1);
 }
 
 function recall(
     entries: readonly AgentChatPromptHistoryEntry[],
     index: number,
-    draft?: string,
 ): { position: AgentChatPromptHistoryPosition; prompt: string } {
     const { id, prompt } = entries[index];
-    return { position: { entryId: id, recalled: prompt, ...(draft && { draft }) }, prompt };
+    return { position: { entryId: id, recalled: prompt }, prompt };
 }
 
 /**

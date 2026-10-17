@@ -11,9 +11,10 @@ import { useColorizedCode } from './use-colorized-code';
 
 /**
  * A titled block of code, lifted onto `--elevated` with its header inside the same panel as the Codex app sets it: the
- * label, a soft-wrap toggle for long lines, and a Copy button revealed on hover or keyboard focus, over code painted
- * with the editor's colors. Markdown fences, Agent Chat tool output, and a background shell's output share it so they
- * read the same, set in the `meta` tier DESIGN.md gives every monospace preview and diff.
+ * label, a soft-wrap toggle for long lines, and a Copy button that stay visible (hover-only controls are undiscoverable
+ * on a block the reader is scrolling past), over the code painted with the editor's colors. Markdown fences, Agent Chat
+ * tool output, and a background shell's output share it so they read the same, set in the `meta` tier DESIGN.md gives
+ * every monospace preview and diff.
  */
 export function CodeView({
     className,
@@ -52,7 +53,7 @@ export function CodeView({
         isWrapped ? 'core.codeView.disableWordWrap' : 'core.codeView.enableWordWrap',
     );
     return (
-        <div className="group/code overflow-hidden rounded-lg bg-elevated">
+        <div className="overflow-hidden rounded-lg bg-elevated">
             {/* Chrome, not content: a selection running through the block copies the code without its language label. */}
             <div className="flex h-8 items-center gap-1.5 pt-1 pr-1.5 pl-3 text-[12px] text-muted select-none">
                 <CodeXml aria-hidden className="size-3.5 shrink-0" />
@@ -74,7 +75,6 @@ export function CodeView({
                     </button>
                 </Tooltip>
                 <CopyIconButton
-                    className="opacity-0 transition-opacity group-focus-within/code:opacity-100 group-hover/code:opacity-100"
                     copy={() => writeToClipboardWithFeedback(navigator.clipboard, code)}
                     label={t('core.copy.code')}
                 />

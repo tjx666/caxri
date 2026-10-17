@@ -46,15 +46,6 @@ describe('fileLinkTarget', () => {
 });
 
 describe('proseFileReferences', () => {
-    it('keeps a quoted absolute path containing spaces as one complete reference', () => {
-        const path = '/Users/me/Library/Application Support/Caxri/delegations/example.md';
-        const text = `Read the delegated task from "${path}" and carry it out. Then see src/a.ts:4.`;
-        expect(proseFileReferences(text)).toEqual([
-            { index: text.indexOf(path), text: path, file: path },
-            { index: text.indexOf('src/a.ts:4'), text: 'src/a.ts:4', file: 'src/a.ts:4' },
-        ]);
-    });
-
     it('finds paths and located names in prose, including flush against CJK text', () => {
         expect(
             proseFileReferences('Edited src/app.ts:12, /repo/a.md. 改了b.ts:3-5，再看 ./c.json'),

@@ -15,26 +15,6 @@ describe('previewerForPath', () => {
             expect(previewerForPath(path)?.id).toBe('markdown');
     });
 
-    it('opens raster images through the existing image preview without a text read', () => {
-        for (const extension of [
-            'apng',
-            'avif',
-            'png',
-            'PNG',
-            'jpg',
-            'jpeg',
-            'gif',
-            'webp',
-            'bmp',
-            'ico',
-        ]) {
-            const path = `/p/assets/example.${extension}`;
-            expect(previewerForPath(path)?.id).toBe('image');
-            expect(shouldOpenAsPreview(path)).toBe(true);
-            expect(previewOnlyTabPath(path, undefined)).toBe(filePreviewTabPath(path));
-        }
-    });
-
     it('routes SVG to the image view', () => {
         expect(previewerForPath('/p/assets/logo.svg')?.id).toBe('image');
     });

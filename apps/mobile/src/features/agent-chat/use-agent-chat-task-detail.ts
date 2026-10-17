@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { AgentChatTask } from '@caxri/protocol';
-import { isAgentChatTaskActive } from '@caxri/protocol';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { useTranslation } from '../../i18n';
@@ -35,7 +34,7 @@ export const useAgentChatTaskDetail = (
 ) => {
     const { connectionScopeKey, isForeground, request, status } = useMobileClient();
     const isObservable = connectionScopeKey !== null && isForeground && status === 'connected';
-    const isRunning = isAgentChatTaskActive(task.status);
+    const isRunning = task.status === 'running';
     const query = useQuery({
         enabled: isObservable,
         gcTime: 30_000,
@@ -83,7 +82,7 @@ export const useAgentChatTaskStop = (terminalId: string) => {
     );
     const isStopping = useCallback(
         (task: Pick<AgentChatTask, 'id' | 'status'>): boolean =>
-            isAgentChatTaskActive(task.status) && stoppingIds.has(task.id),
+            task.status === 'running' && stoppingIds.has(task.id),
         [stoppingIds],
     );
     const errorFor = useCallback(

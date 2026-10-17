@@ -20,8 +20,8 @@ const FEEDBACK_TONES = {
     },
     output: {
         Icon: SquareTerminal,
-        color: 'text-muted',
-        card: 'border-border bg-surface',
+        color: 'text-warning',
+        card: 'border-warning/30 bg-warning/5',
         size: 'size-4',
     },
 };
@@ -49,7 +49,7 @@ export function AgentChatFeedback({ item }: { item: Extract<AgentChatItem, { typ
             <Icon className={cn('mt-0.5 shrink-0', tone.size)} />
             <div className="min-w-0 flex-1 select-text">
                 {item.title && <div className="mb-1 font-medium">{item.title}</div>}
-                <div className="wrap-anywhere whitespace-pre-wrap text-foreground">
+                <div className="wrap-anywhere whitespace-pre-wrap">
                     {agentChatNoticeMessage(item, t)}
                 </div>
             </div>

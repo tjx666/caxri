@@ -21,8 +21,6 @@ import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract
 import { AgentIdleProof } from './idle-proof';
 import { AgentLifecycleProjection } from './lifecycle-projection';
 import { AgentLifecycleWatchdogs, isStandaloneEscape } from './lifecycle-watchdogs';
-import type { MaintenanceInputLease } from './maintenance-activity';
-import { MaintenanceActivity } from './maintenance-activity';
 import type { MetadataActivityBaseline } from './metadata-activity-baseline';
 import {
     isMetadataActivityBaselineMatch,
@@ -51,7 +49,6 @@ import { AgentWorkTracker } from './work-tracker';
  */
 export class AgentCoordinator {
     private readonly lifecycle: AgentLifecycleProjection;
-    private readonly maintenance = new MaintenanceActivity(AGENT_COMPACTION_TIMEOUT_MS);
     private readonly lifecycleWatchdogs: AgentLifecycleWatchdogs;
     private readonly excludedAgentSessionIdsByTerminal = new Map<string, Set<string>>();
     private readonly refreshes: CoalescedScheduler<string>;
@@ -163,7 +160,6 @@ export class AgentCoordinator {
     }
 
     private forgetLifecycleState(terminalId: string): void {
-        this.maintenance.forget(terminalId);
         this.hookSessionRebinds.forget(terminalId);
         this.grokTurns.forget(terminalId);
         this.idleProof.invalidate(terminalId);
@@ -475,23 +471,7 @@ export class AgentCoordinator {
      * sequences disable detection until submission. Provider metadata must confirm a candidate before identity
      * changes.
      */
-    beginMaintenanceInput(terminalId: string, launchId: string): MaintenanceInputLease | undefined {
-        const terminal = this.database.getTerminal(terminalId);
-        if (!terminal?.provider || this.launchIdsByTerminal.get(terminalId) !== launchId)
-            return undefined;
-        return this.maintenance.arm({ terminalId, launchId, provider: terminal.provider });
-    }
-
-    classifyLifecycleSignal(signal: AgentLifecycleSignal): AgentLifecycleSignal {
-        if (
-            this.launchIdsByTerminal.get(signal.terminalId) !== signal.launchId ||
-            this.database.getTerminal(signal.terminalId)?.provider !== signal.provider
-        )
-            return signal;
-        return this.maintenance.classify(signal);
-    }
-
-    observeInput(terminalId: string, data: string, activity?: 'maintenance'): boolean {
+    observeInput(terminalId: string, data: string): boolean {
         let state = this.shellInputs.get(terminalId);
         if (!state) {
             if (!this.database.getTerminal(terminalId)) return false;
@@ -503,8 +483,6 @@ export class AgentCoordinator {
             onSubmit: (command) => this.openPromotionCandidate(terminalId, command),
         });
         this.shellInputs.set(terminalId, scan.state);
-        if (activity !== 'maintenance' && scan.didSubmit)
-            this.maintenance.cancelPending(terminalId);
         return scan.didSubmit;
     }
 
@@ -570,8 +548,7 @@ export class AgentCoordinator {
      * for status; until then metadata remains a completion fallback when a later hook is lost, and it always owns
      * identity/title/usage. A parent completion claims authority even while child aggregation defers its lifecycle.
      */
-    observeLifecycleSignal(rawSignal: AgentLifecycleSignal): AgentSignalDecision {
-        const signal = this.classifyLifecycleSignal(rawSignal);
+    observeLifecycleSignal(signal: AgentLifecycleSignal): AgentSignalDecision {
         if (this.launchIdsByTerminal.get(signal.terminalId) !== signal.launchId)
             return 'staleLaunch';
         const terminal = this.database.getTerminal(signal.terminalId);
@@ -772,7 +749,6 @@ export class AgentCoordinator {
     }
 
     close(): void {
-        this.maintenance.clear();
         this.refreshes.close();
         this.shellProcessProbe.close();
         this.shellInputs.clear();

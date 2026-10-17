@@ -10,8 +10,6 @@ import {
     agentChatPromptHistoryDirection,
     stepAgentChatPromptHistory,
 } from '../agent-chat-prompt-history';
-import { isAgentChatPromptHistoryBoundary } from '../agent-chat-prompt-history-layout';
-import { useAgentChatInputSelection } from './use-agent-chat-input-selection';
 
 /**
  * ArrowUp/ArrowDown recall of the prompts this Chat sent (see `agent-chat-prompt-history`). The position is a ref: it
@@ -37,12 +35,7 @@ export function useAgentChatPromptHistory({
     items: readonly AgentChatItem[] | undefined;
     setDraft: (update: (current: string) => string) => void;
 }) {
-    const restoreSelection = useAgentChatInputSelection(draft);
     const position = useRef<AgentChatPromptHistoryPosition | undefined>(undefined);
-    const returnSelection = useRef<
-        | { start: number; end: number; direction: HTMLTextAreaElement['selectionDirection'] }
-        | undefined
-    >(undefined);
     /**
      * Runs before the command menu's keys. An open menu keeps the arrows for its own rows unless the input still shows
      * a recalled prompt: recalling a sent `/command` opens the menu, and the next ArrowUp should keep walking back.
@@ -52,6 +45,8 @@ export function useAgentChatPromptHistory({
         isMenuOpen: boolean,
     ): boolean => {
         if (hasAttachments || isEditing) return false;
+        // A typed draft with no recall in progress never steps, so skip building the history.
+        if (!position.current && draft.length > 0) return false;
         if (isMenuOpen && position.current?.recalled !== draft) return false;
         const direction = agentChatPromptHistoryDirection(
             {
@@ -71,27 +66,16 @@ export function useAgentChatPromptHistory({
             entries: agentChatPromptHistory(items),
             position: position.current,
         });
-        if (!step || !isAgentChatPromptHistoryBoundary(event.currentTarget, direction))
-            return false;
+        if (!step) return false;
         event.preventDefault();
-        const textarea = event.currentTarget;
-        if (position.current?.recalled !== draft)
-            returnSelection.current = {
-                start: textarea.selectionStart,
-                end: textarea.selectionEnd,
-                direction: textarea.selectionDirection,
-            };
-        const selection = step.position ? undefined : returnSelection.current;
         position.current = step.position;
-        if (!step.position) returnSelection.current = undefined;
-        restoreSelection({
-            textarea,
-            text: step.prompt,
-            start: selection?.start ?? step.prompt.length,
-            end: selection?.end ?? step.prompt.length,
-            direction: selection?.direction ?? 'none',
-        });
         setDraft(() => step.prompt);
+        // A controlled value change leaves the caret where it was; put it at the end the way a shell does, which is
+        // also where the next ArrowUp or ArrowDown continues from.
+        const textarea = event.currentTarget;
+        requestAnimationFrame(() =>
+            textarea.setSelectionRange(step.prompt.length, step.prompt.length),
+        );
         return true;
     };
     return { didHandleKey };

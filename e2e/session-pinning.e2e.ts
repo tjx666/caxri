@@ -67,13 +67,6 @@ test('pinning lifts Sessions from several Projects into one group that survives 
             await row.getByRole('button', { name: `Pin ${title}` }).click();
         };
 
-        await page().mouse.move(0, 0);
-        await expect(page().locator('.session-row-actions')).toHaveCount(0);
-        await projectRow(alphaProject.id, alpha.id).hover();
-        await expect(page().locator('.session-row-actions')).toHaveCount(1);
-        await page().mouse.move(0, 0);
-        await expect(page().locator('.session-row-actions')).toHaveCount(0);
-
         await togglePin(projectRow(alphaProject.id, alpha.id), 'Alpha');
         await expect.poll(() => pinnedOrder(page())).toEqual([alpha.id]);
         // Pinning moves the Session: it leaves its own Project group and is listed once, under Pinned. The emptied

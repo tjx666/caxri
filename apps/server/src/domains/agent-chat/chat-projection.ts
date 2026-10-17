@@ -11,7 +11,6 @@ import type {
 import {
     applyAgentChatOperation,
     emptyAgentChatSnapshot,
-    isAgentChatTaskActive,
     MAX_AGENT_CHAT_ITEMS,
     MAX_AGENT_CHAT_PATCH_OPERATIONS,
 } from '@caxri/protocol';
@@ -166,8 +165,7 @@ export class ChatProjection {
         const tasks = this.snapshot.tasks ?? [];
         for (const task of tasks) {
             const old = before.get(task.id);
-            if (isAgentChatTaskActive(task.status) || (old && !isAgentChatTaskActive(old.status)))
-                continue;
+            if (task.status === 'running' || (old && old.status !== 'running')) continue;
             this.options.logger.write('info', logEventCatalog.agentChat.taskFinished, {
                 fields: {
                     terminalId: this.options.terminalId,

@@ -8,7 +8,7 @@ import type {
     SessionQueryResult,
     TerminalQueryResult,
 } from '@caxri/protocol';
-import { compareSessionActivityRecency, MOBILE_ARCHIVED_SESSIONS_MAX } from '@caxri/protocol';
+import { MOBILE_ARCHIVED_SESSIONS_MAX } from '@caxri/protocol';
 
 export const MOBILE_DASHBOARD_MAX_BYTES = 48 * 1024;
 const MAXIMUM_DASHBOARD_SESSIONS = 64;
@@ -49,10 +49,7 @@ export const buildMobileDashboard = (input: {
         if (session.archivedAt !== undefined) continue;
         lastActivityByProject.set(
             session.projectId,
-            Math.max(
-                lastActivityByProject.get(session.projectId) ?? 0,
-                session.lastSessionActivityAt,
-            ),
+            Math.max(lastActivityByProject.get(session.projectId) ?? 0, session.lastOpenedAt),
         );
     }
     const visibleProjects = input.projects.slice(0, 128).map((project) => ({
@@ -75,7 +72,8 @@ export const buildMobileDashboard = (input: {
             (left, right) =>
                 priority(left) - priority(right) ||
                 Number(right.hasUnread) - Number(left.hasUnread) ||
-                compareSessionActivityRecency(left, right),
+                right.lastOpenedAt - left.lastOpenedAt ||
+                left.id.localeCompare(right.id),
         );
     const sessions: MobileDashboardResult['sessions'] = [];
     for (const session of active) {
@@ -98,8 +96,6 @@ export const buildMobileDashboard = (input: {
             : undefined;
         const candidate: MobileDashboardResult['sessions'][number] = {
             id: session.id,
-            createdAt: session.createdAt,
-            lastSessionActivityAt: session.lastSessionActivityAt,
             projectId: session.projectId,
             displayTitle: title(session.displayTitle),
             projectTitle: title(projects.get(session.projectId)?.displayTitle ?? 'Project'),

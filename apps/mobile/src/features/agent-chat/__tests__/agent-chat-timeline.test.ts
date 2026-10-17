@@ -166,22 +166,6 @@ describe('buildAgentChatTimeline', () => {
         );
     });
 
-    it('preserves the full system output and gives completed compaction its own event kind', () => {
-        const output = 'Example hook output. '.repeat(50);
-        const entries = buildAgentChatTimeline({
-            items: [
-                { id: 'output', type: 'notice', kind: 'output', message: output },
-                { id: 'compact', type: 'notice', kind: 'compacted' },
-            ],
-            turns: [],
-        });
-        expect(entries[0]).toMatchObject({
-            kind: 'message',
-            message: { summary: output.slice(0, 240), detail: output },
-        });
-        expect(entries[1]).toMatchObject({ kind: 'message', message: { kind: 'compacted' } });
-    });
-
     it('keeps a static row before the reply when a finished turn had nothing to fold', () => {
         const entries = buildAgentChatTimeline({
             items: [

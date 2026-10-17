@@ -62,7 +62,6 @@ export type AgentChatTimelineEntry =
            * How the turn ended, so a failed or stopped turn's fold row carries its tone, not only its words.
            */
           status: AgentChatTurn['status'];
-          interruptionReason?: AgentChatTurn['interruptionReason'];
           /**
            * When the turn started and ended (epoch ms), for the fold row's tooltip; absent when the provider did not
            * say.
@@ -154,9 +153,6 @@ function foldTurn(
                       kind: 'turn',
                       id: `turn:${turn.id}`,
                       status: turn.status,
-                      ...(turn.interruptionReason && {
-                          interruptionReason: turn.interruptionReason,
-                      }),
                       ...(turn.durationMs !== undefined && { durationMs: turn.durationMs }),
                       ...(turn.startedAt !== undefined && { startedAt: turn.startedAt }),
                       ...(turn.startedAt !== undefined &&

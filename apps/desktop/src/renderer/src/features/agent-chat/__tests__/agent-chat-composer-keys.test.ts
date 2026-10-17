@@ -1,12 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type { AgentChatComposerKey } from '../agent-chat-composer-keys';
-import {
-    agentChatComposerKeyAction,
-    agentChatComposerKeyHandler,
-    isAgentChatPlainPasteKey,
-    isAgentChatStashKey,
-} from '../agent-chat-composer-keys';
+import { agentChatComposerKeyAction, isAgentChatPlainPasteKey } from '../agent-chat-composer-keys';
 
 const press = (
     key: string,
@@ -23,30 +18,6 @@ const press = (
 });
 
 const idle = { isBusy: false, isEditing: false, isTurnRunning: false };
-
-describe('agentChatComposerKeyHandler', () => {
-    it('stops a consumed stash shortcut before later composer actions', () => {
-        const laterAction = vi.fn();
-        const handle = agentChatComposerKeyHandler([() => true, laterAction]);
-        handle(press('s', { ctrlKey: true }));
-        expect(laterAction).not.toHaveBeenCalled();
-    });
-});
-
-describe('isAgentChatStashKey', () => {
-    it('uses Control+S without taking the editor Save shortcut or modified and composing keys', () => {
-        expect(isAgentChatStashKey(press('s', { ctrlKey: true }))).toBe(true);
-        expect(isAgentChatStashKey(press('S', { ctrlKey: true }))).toBe(true);
-        for (const modifiers of [
-            {},
-            { metaKey: true },
-            { ctrlKey: true, altKey: true },
-            { ctrlKey: true, shiftKey: true },
-            { ctrlKey: true, isComposing: true },
-        ])
-            expect(isAgentChatStashKey(press('s', modifiers))).toBe(false);
-    });
-});
 
 describe('agentChatComposerKeyAction', () => {
     it('interrupts a running turn with Escape, but not on a repeat or while composing', () => {

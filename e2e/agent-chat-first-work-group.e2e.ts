@@ -1,8 +1,6 @@
-import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import type { SessionCompactionResult } from '@caxri/protocol';
 
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture';
 import { expect, test } from './support/fixtures';
@@ -10,7 +8,6 @@ import {
     closeAppQuietly,
     createProjectSession,
     launchCaxri,
-    pageRequest,
     VISIBLE_SESSION,
 } from './support/helpers';
 
@@ -87,22 +84,6 @@ test('ordinary tools share one summary from their first visible frame', async ({
         await page.screenshot({
             path: testInfo.outputPath('short-success-failed-command-times.png'),
         });
-        await session.getByRole('textbox', { name: 'Message' }).fill('contextpressure');
-        await session.getByRole('textbox', { name: 'Message' }).press('Enter');
-        await expect(
-            session.getByText('Hello from fake Codex. You said: contextpressure'),
-        ).toBeVisible();
-        await expect(session.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
-        const nativeFiles = await readdir(agentMode.environment.CODEX_HOME!, { recursive: true });
-        expect(nativeFiles.filter((file) => file.includes('rollout-'))).not.toHaveLength(0);
-        const maintenance = await pageRequest<SessionCompactionResult>(
-            page,
-            'session.compactWarm',
-            {},
-        );
-        expect(maintenance.items).toEqual(
-            expect.arrayContaining([expect.objectContaining({ outcome: 'submitted' })]),
-        );
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

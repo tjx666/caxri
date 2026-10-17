@@ -52,7 +52,7 @@ import readline from 'node:readline';
 
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
 import type { FakeClaudeIo, QueuedTurn } from './fake-claude-io.ts';
-import { queuedTurn, rejectFakeClaudeControl } from './fake-claude-io.ts';
+import { queuedTurn } from './fake-claude-io.ts';
 import {
     FAKE_CLAUDE_COMMANDS,
     FAKE_CLAUDE_MODEL,
@@ -540,11 +540,14 @@ lines.on('line', (line) => {
     if (message.type === 'control_request') {
         const request = message.request as Json;
         if (request.subtype === 'set_model' && isControlled('reject-model-change')) {
-            rejectFakeClaudeControl(send, message.request_id, 'Model switch rejected');
-            return;
-        }
-        if (request.subtype === 'interrupt' && isControlled('reject-interrupt')) {
-            rejectFakeClaudeControl(send, message.request_id, 'Interrupt rejected');
+            send({
+                type: 'control_response',
+                response: {
+                    subtype: 'error',
+                    request_id: message.request_id,
+                    error: 'Model switch rejected',
+                },
+            });
             return;
         }
         if (request.subtype === 'interrupt') state.interrupted = true;
@@ -569,7 +572,10 @@ lines.on('line', (line) => {
                 ? rewindFiles(request, transcriptPath, configDirectory)
                 : taskControl(scenarioIo, request);
         if (answer.error !== undefined) {
-            rejectFakeClaudeControl(send, message.request_id, answer.error);
+            send({
+                type: 'control_response',
+                response: { subtype: 'error', request_id: message.request_id, error: answer.error },
+            });
             return;
         }
         send({

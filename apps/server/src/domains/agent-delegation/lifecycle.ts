@@ -94,7 +94,7 @@ export function applyDelegationLifecycle(
     isChatTerminal?: (terminalId: string) => boolean,
 ): StoredAgentDelegation | undefined {
     const isGrokStop = signal.provider === 'grok' && signal.phase === 'turnFinished';
-    if (signal.activity === 'maintenance' || isGrokStop !== (source === 'evidence')) return;
+    if (isGrokStop !== (source === 'evidence')) return;
     if (
         !isDelegationActive(record.receipt) ||
         signal.agentId ||

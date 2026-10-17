@@ -31,7 +31,6 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
-import { finishedChatLifecycle } from './chat-turn-lifecycle';
 import {
     grokCommands,
     grokContextWindow,
@@ -66,7 +65,6 @@ interface ActiveTurn {
     id: string;
     startedAt: number;
     isCompaction: boolean;
-    isUserInterrupted?: boolean;
     /**
      * Settle every `interrupt()` waiting for the cancelled prompt to answer; a repeated Stop adds another.
      */
@@ -204,11 +202,9 @@ class GrokChatSession implements AgentChatProviderSession {
         ]);
         this.options.lifecycle({
             phase: 'turnStarted',
-            ...(isCompaction && { activity: 'maintenance' }),
             agentSessionId: this.sessionId,
             agentTurnId: turnId,
         });
-        if (isCompaction) this.options.lifecycle({ phase: 'compactionStarted' });
     }
 
     private finishTurn(
@@ -249,17 +245,7 @@ class GrokChatSession implements AgentChatProviderSession {
             op: 'state',
             state: {
                 turns: snapshot.turns.map((existing) =>
-                    existing.id === turnId
-                        ? {
-                              ...existing,
-                              status,
-                              durationMs,
-                              ...(status === 'interrupted' &&
-                                  turn.isUserInterrupted && {
-                                      interruptionReason: 'user' as const,
-                                  }),
-                          }
-                        : existing,
+                    existing.id === turnId ? { ...existing, status, durationMs } : existing,
                 ),
                 activeTurnId: null,
                 ...(usage && { usage }),
@@ -269,11 +255,14 @@ class GrokChatSession implements AgentChatProviderSession {
         this.requests.settleTurn(turnId);
         this.options.onTurnFinished(status, durationMs);
         this.options.lifecycle(
-            finishedChatLifecycle(status, {
-                agentSessionId: this.sessionId,
-                agentTurnId: turnId,
-                ...(turn.isCompaction && { activity: 'maintenance' }),
-            }),
+            status === 'failed'
+                ? {
+                      phase: 'turnFailed',
+                      agentSessionId: this.sessionId,
+                      agentTurnId: turnId,
+                      agentFailure: 'provider_failed',
+                  }
+                : { phase: 'turnFinished', agentSessionId: this.sessionId, agentTurnId: turnId },
         );
         if (status === 'completed' && turn.isCompaction)
             this.options.lifecycle({ phase: 'compactionFinished' });
@@ -335,12 +324,7 @@ class GrokChatSession implements AgentChatProviderSession {
         this.activeTurn = undefined;
         this.updates.dropStreaming();
         const unanswered = this.requests.drain();
-        this.options.apply(
-            endedSessionOperations(
-                snapshot,
-                turn?.id === activeTurnId && turn?.isUserInterrupted ? 'user' : undefined,
-            ),
-        );
+        this.options.apply(endedSessionOperations(snapshot));
         this.requests.resolveAttention(unanswered);
         const waiting = turn?.onFinished ?? [];
         for (const settle of waiting) settle();
@@ -548,7 +532,6 @@ class GrokChatSession implements AgentChatProviderSession {
         const connection = this.requireConnection();
         const turn = this.activeTurn;
         if (!turn) return;
-        turn.isUserInterrupted = true;
         const finished = new Promise<boolean>((resolve) => {
             turn.onFinished.push(() => resolve(true));
             setTimeout(() => resolve(false), INTERRUPT_TIMEOUT_MS).unref();

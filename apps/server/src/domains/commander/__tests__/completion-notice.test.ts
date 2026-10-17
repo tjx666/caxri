@@ -439,14 +439,14 @@ describe('CommanderCompletionNotifier', () => {
     it('sends a ready Chat Commander what it missed as its first message, settled only once accepted', () => {
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
         f.writeResult = false;
-        f.notifier.onChatReady(COMMANDER_TERMINAL_ID, 'launch-1');
+        f.notifier.onChatReady(COMMANDER_TERMINAL_ID);
         expect(f.writeCalls.at(-1)?.data).toContain('Missed 1 delegation update');
         expect(f.notices.list()).toHaveLength(1);
 
         f.writeResult = true;
-        f.notifier.onChatReady(COMMANDER_TERMINAL_ID, 'launch-1');
+        f.notifier.onChatReady(COMMANDER_TERMINAL_ID);
         expect(f.notices.list()).toHaveLength(0);
-        f.notifier.onChatReady(COMMANDER_TERMINAL_ID, 'launch-1');
+        f.notifier.onChatReady(COMMANDER_TERMINAL_ID);
         expect(f.writeCalls).toHaveLength(2);
     });
 

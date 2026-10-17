@@ -37,7 +37,6 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
-import { interruptChatTurn } from './chat-turn-interruption';
 import { claudeResponseUsage } from './claude-context';
 import { ClaudeContextTracker } from './claude-context-report';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
@@ -156,7 +155,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             sessionId: () => this.sessionId,
             isEnded: () => this.isEnded,
             onInterruptRequested: () => {
-                this.turns.requestInterrupt();
+                this.turns.isInterruptRequested = true;
             },
             planExitMode: () => this.permissions.planExitMode(),
         });
@@ -177,7 +176,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             host: options,
             query: () => (this.isOpen ? this.query : undefined),
             takeDeclined: (toolUseId) => this.requests.takeDeclined(toolUseId),
-            isInterruptRequested: () => this.turns.interruptionReason !== undefined,
+            isInterruptRequested: () => this.turns.isInterruptRequested,
             onTasksChanged: () => this.turns.onTasksChanged(),
         });
     }
@@ -286,7 +285,6 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'compact_boundary': {
                 onClaudeCompactBoundary(this.options, message);
-                this.context.resetAfterCompaction();
                 return;
             }
             case 'api_retry': {
@@ -346,7 +344,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         const snapshot = this.options.read();
         const { activeTurnId } = snapshot;
         const keys = this.requests.drain();
-        this.options.apply(endedSessionOperations(snapshot, this.turns.interruptionReason));
+        this.options.apply(endedSessionOperations(snapshot));
         for (const key of keys)
             this.options.lifecycle({
                 phase: 'attentionResolved',
@@ -532,16 +530,15 @@ class ClaudeChatSession implements AgentChatProviderSession {
     }
 
     async interrupt(): Promise<void> {
-        const turnId = this.options.read().activeTurnId;
-        if (!turnId) return;
+        if (!this.options.read().activeTurnId) return;
         const stream = this.requireOpen();
-        await interruptChatTurn({
-            turnId,
-            readActiveTurnId: () => this.options.read().activeTurnId,
-            request: () => withTimeout(stream.interrupt(), INTERRUPT_TIMEOUT_MS),
-            rejectStop: this.turns.requestInterrupt(),
-            close: () => this.close(),
-        });
+        this.turns.isInterruptRequested = true;
+        try {
+            await withTimeout(stream.interrupt(), INTERRUPT_TIMEOUT_MS);
+        } catch (error) {
+            if (error instanceof CaxriError && error.code === 'TIMEOUT') await this.close();
+            // Otherwise the turn already ended; its `result` settles the projection.
+        }
     }
 
     async stopTask(taskId: string): Promise<void> {

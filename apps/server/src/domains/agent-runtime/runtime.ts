@@ -160,9 +160,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         onSignal: async (rawSignal) => {
             // Only Codex reaches the transcript read here (issue caxri#1345): every other provider's own StopFailure
             // hook already classifies its failure, so `resolvePrimaryTurnFailure` is unset and this returns immediately.
-            const signal = coordinator.classifyLifecycleSignal(
-                await reconcilePrimaryTurnFailure(database, agentEnvironment, rawSignal),
-            );
+            const signal = await reconcilePrimaryTurnFailure(database, agentEnvironment, rawSignal);
             const decision = await provenance.handleAgentLifecycleSignal(
                 coordinator,
                 workbenchRoots,
@@ -296,8 +294,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
          * Entry for lifecycle signals a Chat synthesizes from its provider protocol. It takes the same provenance and
          * downstream path as an authenticated hook signal.
          */
-        observeChatLifecycleSignal: async (rawSignal: AgentLifecycleSignal) => {
-            const signal = coordinator.classifyLifecycleSignal(rawSignal);
+        observeChatLifecycleSignal: async (signal: AgentLifecycleSignal) => {
             const decision = await provenance.handleAgentLifecycleSignal(
                 coordinator,
                 workbenchRoots,

@@ -19,8 +19,6 @@ const session: MobileSessionItem = {
     displayTitle: 'Agent work',
     projectTitle: 'Project',
     lastOpenedAt: 100,
-    createdAt: 1,
-    lastSessionActivityAt: 100,
     lastActivityState: 'running',
     primaryAgentTerminalId: 'terminal-one',
     primaryAgentEndpoint: { hostId: 'host-one', endpointId: 'endpoint-one', generation: 2 },

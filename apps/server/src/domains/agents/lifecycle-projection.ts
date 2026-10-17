@@ -19,7 +19,7 @@ interface Options {
 }
 
 /**
- * Keeps internal lifecycle cleanup while projecting only user tasks into durable Session activity.
+ * Applies lifecycle cleanup and projects Session activity.
  */
 export class AgentLifecycleProjection {
     constructor(
@@ -50,8 +50,6 @@ export class AgentLifecycleProjection {
             watchdogs.stopRunningTurn(event.terminalId);
             hookLaunches.markAuthoritative(event.terminalId, event.launchId, event.agentTurnId);
         }
-        // Maintenance still closes idle proof and watchdogs, but cannot create task attention or completion effects.
-        if (event.activity === 'maintenance') return;
         if (
             hasSessionActivityChanged(this.database, this.logger, {
                 applyWrite: () => this.database.updateAgentLifecycle(event),

@@ -25,23 +25,6 @@ function task(overrides: Partial<AgentChatTask> & Pick<AgentChatTask, 'id'>): Ag
 }
 
 describe('agentChatTasksByItem', () => {
-    it('keeps waiting work live, timed and stoppable instead of counting it as ended', () => {
-        const waiting = task({
-            id: 'paused',
-            status: 'waiting',
-            startedAt: 100,
-            usage: { durationMs: 25 },
-        });
-        expect(agentChatTaskElapsedMs(waiting, 1000)).toBe(900);
-        expect(canStopAgentChatTask(waiting)).toBe(true);
-        expect(
-            agentChatTaskStripView([waiting], {
-                dismissedAt: undefined,
-                latestTurnStartedAt: undefined,
-            }),
-        ).toEqual({ active: [waiting], ended: [], isDismissible: false });
-    });
-
     it('keys tasks by the item that started them', () => {
         const shell = task({ id: 'shell-1', kind: 'shell', itemId: 'command-1' });
         const byItem = agentChatTasksByItem([shell, task({ id: 'agent-1' })]);
@@ -111,9 +94,9 @@ describe('agentChatTaskStrip', () => {
             task({ id: 'early', kind: 'shell', startedAt: 10 }),
             task({ id: 'stopped', status: 'stopped', endedAt: 40 }),
         ]);
-        expect(strip.active.map((entry) => entry.id)).toEqual(['early', 'late']);
+        expect(strip.running.map((entry) => entry.id)).toEqual(['early', 'late']);
         expect(strip.ended.map((entry) => entry.id)).toEqual(['stopped', 'done']);
-        expect(agentChatTaskStrip(undefined)).toEqual({ active: [], ended: [] });
+        expect(agentChatTaskStrip(undefined)).toEqual({ running: [], ended: [] });
     });
 });
 
@@ -125,7 +108,7 @@ describe('agentChatTaskStripView', () => {
             [task({ id: 'run' }), task({ id: 'old', status: 'completed', endedAt: 10 })],
             none,
         );
-        expect(view?.active.map(({ id }) => id)).toEqual(['run']);
+        expect(view?.running.map(({ id }) => id)).toEqual(['run']);
         expect(view?.ended.map(({ id }) => id)).toEqual(['old']);
         expect(view?.isDismissible).toBe(false);
     });
@@ -139,7 +122,7 @@ describe('agentChatTaskStripView', () => {
             ],
             none,
         );
-        expect(view?.active).toEqual([]);
+        expect(view?.running).toEqual([]);
         expect(view?.ended.map(({ id }) => id)).toEqual(['during']);
         expect(view?.isDismissible).toBe(true);
     });

@@ -92,7 +92,7 @@ const toMessage = (
             return {
                 id: item.id,
                 type: 'systemEvent',
-                kind: item.kind === 'compacted' ? 'compacted' : 'caveat',
+                kind: 'caveat',
                 summary: agentChatNoticeMessage(item, t).slice(0, 240),
                 ...(agentChatNoticeMessage(item, t).length > 240 && {
                     detail: agentChatNoticeMessage(item, t),

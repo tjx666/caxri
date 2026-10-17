@@ -144,8 +144,6 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## Codex app and Claude Code (closed or product references)
 
-The Chat composer's Ctrl+S draft checkpoint follows [Claude Code's interactive shortcut](https://code.claude.com/docs/en/interactive-mode#keyboard-shortcuts): stash text, cursor, pasted content and input mode, then explicitly restore into an empty input. Caxri includes its existing image/path attachments and Goal mode in one device-local IndexedDB checkpoint (`agent-chat-draft-stash.ts`).
-
 | Caxri feature                                                 | Reference   | Borrowed                                                                                                                                                   | Evidence                                                                                                                               |
 | ------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Chat composer layout, 8px control radius                      | Codex app   | `+` menu, Plan chip, model pill, round Send and Stop, effort popover; visual tokens                                                                        | `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/components/ui/button.tsx`                                                  |

@@ -18,47 +18,6 @@ function itemTexts(items: AgentChatSnapshot['items']): string[] {
 }
 
 describe('Codex Chat background work with a fake app-server', () => {
-    it('marks a child waiting on its own approval and resumes only after resolution', async () => {
-        const { service, terminal, until } = await fixture();
-        await service.send(terminal.id, { text: 'use a subagent with child approval' });
-        const pending = await until(
-            (snapshot) => !snapshot.activeTurnId && snapshot.requests.length > 0,
-        );
-        expect(agentTask(pending)).toMatchObject({ status: 'waiting', canStop: true });
-        expect(agentTask(pending)).not.toHaveProperty('endedAt');
-        await service.send(terminal.id, { text: 'Example parent input' });
-        const parentDone = await until(
-            (snapshot) =>
-                !snapshot.activeTurnId &&
-                snapshot.turns.at(-1)?.status === 'completed' &&
-                snapshot.turns.at(-1)?.id !== pending.turns.at(-1)?.id,
-        );
-        expect(agentTask(parentDone)?.status).toBe('waiting');
-        expect(parentDone.requests).toHaveLength(1);
-        service.respond(terminal.id, pending.requests[0].id, {
-            kind: 'decision',
-            decision: 'accept',
-        });
-        const resumed = await until(
-            (snapshot) =>
-                agentTask(snapshot)?.status === 'running' && snapshot.requests.length === 0,
-        );
-        expect(agentTask(resumed)).not.toHaveProperty('endedAt');
-        const done = await until((snapshot) => agentTask(snapshot)?.status === 'completed');
-        expect(agentTask(done)?.canStop).toBe(false);
-    });
-
-    it('clears a stopped child turn approval without waiting for a separate resolved event', async () => {
-        const { service, terminal, until } = await fixture();
-        await service.send(terminal.id, { text: 'use a subagent with child approval' });
-        const pending = await until(
-            (snapshot) => !snapshot.activeTurnId && snapshot.requests.length > 0,
-        );
-        await service.stopTask(terminal.id, agentTask(pending)?.id ?? '');
-        const stopped = await until((snapshot) => agentTask(snapshot)?.status === 'stopped');
-        expect(stopped.requests).toEqual([]);
-    });
-
     it('projects a subagent thread into its own task, not the parent timeline', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'use a subagent' });

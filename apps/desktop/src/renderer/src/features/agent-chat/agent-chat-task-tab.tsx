@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 
 import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol';
 import {
+    agentChatTaskGlyphStatus,
     canStopAgentChatTask,
-    isAgentChatTaskActive,
     isAgentChatTaskTitleCommand,
 } from '@caxri/protocol';
 import { ArrowLeft, RotateCcw, Square } from 'lucide-react';
@@ -18,11 +18,8 @@ import { stopAgentChatTask } from './agent-chat-commands';
 import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
-import {
-    AgentChatTaskElapsed,
-    AgentChatTaskGlyph,
-    AgentChatTaskStatus,
-} from './agent-chat-task-glyph';
+import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
+import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { revealAgentChat } from './agent-chat-task-opener';
 import { AgentChatTaskOutput } from './agent-chat-task-output';
 import {
@@ -63,7 +60,7 @@ function TaskHeader({
     title: string;
 }) {
     const { t } = useTranslation();
-    const isRunning = isAgentChatTaskActive(task?.status);
+    const isRunning = task?.status === 'running';
     // Polled every two seconds while the subagent runs, like the status bar's usage chip.
     const { data: billed } = usePolledQuery(
         'terminal.agentTaskUsage',
@@ -103,7 +100,7 @@ function TaskHeader({
             {task && (
                 <div className="flex shrink-0 items-center gap-2 text-[12px] leading-5 text-muted">
                     <AgentChatTaskElapsed task={task} />
-                    <AgentChatTaskStatus status={task.status} />
+                    <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
                     {canStopAgentChatTask(task) && (
                         <Button
                             className="min-h-6 gap-1 px-1.5"
@@ -224,7 +221,7 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
         taskTitle === ''
             ? t(kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent')
             : taskTitle;
-    const isRunning = isAgentChatTaskActive(task?.status);
+    const isRunning = task?.status === 'running';
     const body = isUnavailable ? (
         <div className={STATE_CLASS_NAME}>
             <p className="m-0 text-foreground">{t('agentChat.tasks.unavailable')}</p>

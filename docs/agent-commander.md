@@ -192,12 +192,6 @@ Commander is working; the menu and the Command Palette run in the Workbench, whi
 `commander.status` because it cannot see the Commander's Terminal. Main logs a failed stop as `agent_commander.stop_failed` with its error
 code.
 
-Closing the window keeps Commander management running in the background. Explicit **Stop Commander**
-returns every manually handed-over Session, including ones the Commander already continued or whose
-task the user cleared. It preserves running Agents and task records; an unstarted hand-over task is
-marked dropped. Sessions created by the Commander remain managed. Reopening the Commander does not
-reclaim returned Sessions or replay their pending hand-over notices.
-
 ## Title bar and Command Palette
 
 The title bar keeps only the controls used all the time: the Commander Agent chip, the surface
@@ -419,13 +413,7 @@ spawn and that report repeats them on the next launch instead of losing them. Se
 only the exact revisions the prompt reported, so a newer transition that lands before the launch
 runs stays owed. A Chat Commander has no launch argv, so `AgentChatService`'s `onReady` hook sends
 the same prompt as its first Chat message once the provider is ready, and settles it only after the
-Chat accepted it. Readiness carries the actual Chat launch identity and keeps one initial-submission
-token when the queue is empty. A first hand-over or receipt arriving later consumes that token
-without requiring a human message. A notice arriving after readiness uses the live-notice wording,
-so a new Chat is not falsely described as restarted. Starting any main-thread turn consumes it as well; subsequent
-notices use the normal finished-turn fence. An in-flight initial submission keeps its exact queue
-claim until acceptance, and its callback cannot clear the newer turn's baseline or interrupted-turn
-marker. A replacement launch invalidates callbacks from the previous launch.
+Chat accepted it.
 
 The cut-off turn comes from an `interrupted_turn` row the notifier writes when a main-thread
 Commander turn starts and deletes when that turn finishes or fails. A row still present at launch

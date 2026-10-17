@@ -27,7 +27,6 @@ export const agentSystemEventKindSchema = z.enum([
     'slashCommand',
     'bashCommand',
     'caveat',
-    'compacted',
 ]);
 
 /**

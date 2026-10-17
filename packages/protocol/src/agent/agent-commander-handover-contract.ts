@@ -85,8 +85,7 @@ export const commanderHandoverSchema = z.strictObject({
     target: commanderHandoverTargetSchema.optional(),
     ownershipReason: commanderHandoverOwnershipReasonSchema.optional(),
     /**
-     * The Commander task recorded for the hand-over; the first continuation links its root delegation to it. Clearing
-     * an uncontinued task removes this and its target, retaining provenance until the Session is returned.
+     * The Commander task recorded for the hand-over; the first continuation links its root delegation to it.
      */
     taskId: identifierSchema.optional(),
     /**

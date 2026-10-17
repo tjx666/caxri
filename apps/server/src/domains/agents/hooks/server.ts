@@ -101,7 +101,6 @@ function parsePacket(
     const signal = value as Record<string, unknown>;
     if (
         signal.protocolVersion !== 1 ||
-        'activity' in signal ||
         typeof signal.schemaVersion !== 'number' ||
         typeof signal.launchId !== 'string' ||
         typeof signal.terminalId !== 'string' ||

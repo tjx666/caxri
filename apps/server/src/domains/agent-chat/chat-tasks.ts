@@ -1,5 +1,5 @@
 import type { AgentChatTask } from '@caxri/protocol';
-import { isAgentChatTaskActive, MAX_AGENT_CHAT_TASKS } from '@caxri/protocol';
+import { MAX_AGENT_CHAT_TASKS } from '@caxri/protocol';
 
 import { clip } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
@@ -51,8 +51,8 @@ export class ChatTaskList {
         const task = bounded(merged);
         if (TERMINAL_STATUSES.has(task.status) && task.endedAt === undefined)
             task.endedAt = Date.now();
-        // An active task, including one paused by its provider, has not ended.
-        if (isAgentChatTaskActive(task.status)) delete task.endedAt;
+        // A task taken back running (a terminal its provider still lists after a resume) has not ended.
+        if (task.status === 'running') delete task.endedAt;
         if (index === -1) tasks.push(task);
         else tasks[index] = task;
         this.publish(trim(tasks));
@@ -64,11 +64,11 @@ export class ChatTaskList {
      */
     stopAll(): void {
         const tasks = this.host.read().tasks;
-        if (!tasks?.some((task) => isAgentChatTaskActive(task.status))) return;
+        if (!tasks?.some((task) => task.status === 'running')) return;
         const endedAt = Date.now();
         this.publish(
             tasks.map((task) =>
-                isAgentChatTaskActive(task.status)
+                task.status === 'running'
                     ? { ...task, status: 'stopped' as const, canStop: false, endedAt }
                     : task,
             ),

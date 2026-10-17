@@ -40,12 +40,10 @@ import {
     androidBounds,
     mobileSemantics,
     setMobileNetworkAvailable,
-    startMobileFramebufferRecording,
     tapMobileCheck,
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
-import { executeMobileDashboardStateScenario } from './mobile-dashboard-state-scenario';
 import { executeMobileReadCacheScenario } from './mobile-read-cache-scenario';
 
 /**
@@ -87,15 +85,12 @@ const PIXEL =
  * states.
  */
 async function executeMobileAgentChatScenario(
-    environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
+    environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
 ): Promise<void> {
     const { serial } = environment;
     const fixture = await createMobileAcceptanceFixture({ mode: 'agent-chat', serial });
     let isNetworkDisabled = false;
-    let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
-    let scenarioFailure: Error | undefined;
-    let cleanupFailure: Error | undefined;
     try {
         await fixture.pair();
         const chat = fixture.agentChat;
@@ -108,42 +103,11 @@ async function executeMobileAgentChatScenario(
         await waitForCheck(serial, 'agent-chat-status-empty');
         await capture(environment, 'empty', artifacts);
 
-        await sendFromPhone(serial, 'contextpressure');
+        await sendFromPhone(serial, 'hello');
         await waitForMobile(
             () => chat.read(),
-            (snapshot) => snapshot.usage?.totalTokens === 170000 && !snapshot.activeTurnId,
+            (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
         );
-        await capture(environment, 'context-pressure-before', artifacts);
-        recording = environment.remoteVideoPath
-            ? await startMobileFramebufferRecording(serial, environment.remoteVideoPath)
-            : undefined;
-        const maintenance = await pageRequest<{ items: Array<{ outcome: string }> }>(
-            fixture.running.page,
-            'session.compactWarm',
-            {},
-        );
-        if (maintenance.items.every(({ outcome }) => outcome !== 'submitted'))
-            throw new Error('Native maintenance did not pass the real cache readiness gate');
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) => snapshot.operation === 'compacting',
-        );
-        await capture(environment, 'maintenance-chat', artifacts);
-        await tapMobileCheckByBounds(serial, 'session-detail-back');
-        await waitForCheck(serial, `session-row-${fixture.allowedSessionId}`);
-        await capture(environment, 'maintenance-home', artifacts);
-        if ((await chat.read()).operation !== 'compacting')
-            throw new Error('The Home capture missed the running maintenance interval');
-        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) =>
-                !snapshot.activeTurnId &&
-                snapshot.items.some((item) => item.type === 'notice' && item.kind === 'compacted'),
-        );
-        await capture(environment, 'maintenance-completed', artifacts);
-        await recording?.stop();
-        recording = undefined;
         await sendFromPhone(serial, '/compact');
         const compacted = await waitForMobile(
             () => chat.read(),
@@ -274,18 +238,7 @@ async function executeMobileAgentChatScenario(
             retry: 'resumed',
             status: 'passed',
         });
-    } catch (error) {
-        scenarioFailure =
-            error instanceof Error ? error : new Error('Mobile scenario failed', { cause: error });
     } finally {
-        try {
-            await recording?.stop();
-        } catch (error) {
-            cleanupFailure =
-                error instanceof Error
-                    ? error
-                    : new Error('Mobile recording cleanup failed', { cause: error });
-        }
         if (isNetworkDisabled) {
             try {
                 await setMobileNetworkAvailable(serial, true);
@@ -293,20 +246,8 @@ async function executeMobileAgentChatScenario(
                 // Teardown must still stop the fixture; the scenario's own failure is the useful error.
             }
         }
-        try {
-            await fixture.stop();
-        } catch (error) {
-            cleanupFailure ??=
-                error instanceof Error
-                    ? error
-                    : new Error('Mobile fixture cleanup failed', { cause: error });
-        }
+        await fixture.stop();
     }
-    /**
-     * Keep a teardown race from replacing the scenario's first failure or skipping fixture cleanup.
-     */
-    if (scenarioFailure) throw scenarioFailure;
-    if (cleanupFailure) throw cleanupFailure;
 }
 
 /**
@@ -526,8 +467,6 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatChineseScenario(environment, artifacts);
         case 'MOB-CHAT-20':
             return executeMobileChatFeedbackScenario(environment, artifacts);
-        case 'MOB-CHAT-19':
-            return executeMobileDashboardStateScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

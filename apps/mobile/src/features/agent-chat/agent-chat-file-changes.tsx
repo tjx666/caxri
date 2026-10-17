@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatDiffLine, AgentChatFileChange } from '@caxri/protocol';
 import {
@@ -27,7 +27,7 @@ const EXPANDED_FILE_LIMIT = 3;
 /**
  * One changed file: its Git status letter in the file's Git color, the path with its directory muted as Desktop draws
  * it (clipped at its start so the file name stays), the `+N -M` stat, and a disclosure for its colored diff, which
- * wraps within the available phone width instead of adding another horizontal scroll area.
+ * scrolls sideways rather than wrapping code.
  */
 export const AgentChatFileDiff = ({
     initiallyExpanded,
@@ -97,11 +97,18 @@ export const AgentChatFileDiff = ({
             </Pressable>
             {isExpanded ? (
                 rows.length > 0 ? (
-                    <View style={[styles.diff, { borderColor: theme.border, borderTopWidth: 1 }]}>
-                        {rows.map((line) => (
-                            <ChangesDiffRow key={line.id} line={line} theme={theme} />
-                        ))}
-                    </View>
+                    <ScrollView
+                        contentContainerStyle={styles.diff}
+                        horizontal
+                        nestedScrollEnabled
+                        style={{ borderColor: theme.border, borderTopWidth: 1 }}
+                    >
+                        <View>
+                            {rows.map((line) => (
+                                <ChangesDiffRow key={line.id} line={line} theme={theme} />
+                            ))}
+                        </View>
+                    </ScrollView>
                 ) : (
                     <Text style={[styles.empty, { color: theme.muted }]}>
                         {t('chat.changes.noDiff')}

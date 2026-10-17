@@ -40,20 +40,6 @@ const thought = (id: string, turnId?: string): AgentChatItem => ({
 });
 
 describe('agentChatTurnLabel', () => {
-    it('attributes a known Caxri Stop while leaving an unknown interruption unchanged', () => {
-        expect(agentChatTurnLabel({ status: 'interrupted', interruptionReason: 'user' })).toBe(
-            'Stopped by you',
-        );
-        expect(
-            agentChatTurnLabel({
-                status: 'interrupted',
-                interruptionReason: 'user',
-                durationMs: 3_000,
-            }),
-        ).toBe('Stopped by you after 3s');
-        expect(agentChatTurnLabel({ status: 'interrupted' })).toBe('Stopped');
-    });
-
     it('names how the turn ended', () => {
         expect(agentChatTurnLabel({ status: 'completed', durationMs: 45_000 })).toBe(
             'Worked for 45s',

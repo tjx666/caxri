@@ -41,16 +41,14 @@ export function formatAgentChatFinishedDuration(
  * The finished turn's outcome and elapsed time, using the same visibility rules as its work rows.
  */
 export function agentChatTurnLabel(
-    turn: Pick<AgentChatTurn, 'durationMs' | 'status' | 'interruptionReason'>,
+    turn: Pick<AgentChatTurn, 'durationMs' | 'status'>,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
     const duration = formatAgentChatFinishedDuration(turn.durationMs, turn.status, t);
     if (duration)
         return t(
             turn.status === 'interrupted'
-                ? turn.interruptionReason === 'user'
-                    ? 'agentChat.fold.stoppedByYouAfter'
-                    : 'agentChat.fold.stoppedAfter'
+                ? 'agentChat.fold.stoppedAfter'
                 : turn.status === 'failed'
                   ? 'agentChat.fold.failedAfter'
                   : 'agentChat.fold.workedFor',
@@ -58,9 +56,7 @@ export function agentChatTurnLabel(
         );
     return t(
         turn.status === 'interrupted'
-            ? turn.interruptionReason === 'user'
-                ? 'agentChat.fold.stoppedByYou'
-                : 'agentChat.fold.stopped'
+            ? 'agentChat.fold.stopped'
             : turn.status === 'failed'
               ? 'agentChat.fold.failed'
               : 'agentChat.fold.worked',

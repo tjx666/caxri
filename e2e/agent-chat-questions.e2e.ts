@@ -41,10 +41,8 @@ test('a Chat asks several questions behind tabs and lists the answers once sent'
         await page.keyboard.press('Enter');
         await expect(questionTabs.nth(1)).toHaveAttribute('aria-selected', 'true');
         await expect(questions.getByRole('radio', { name: /^Free and Hobby/u })).toBeFocused();
-        await page.screenshot({ path: testInfo.outputPath('agent-chat-questions-middle.png') });
         await page.keyboard.press('2');
         await expect(questionTabs.nth(2)).toHaveAttribute('aria-selected', 'true');
-        await page.screenshot({ path: testInfo.outputPath('agent-chat-questions-final.png') });
         // Going back keeps the earlier answer, and changing it there moves on to the question still unanswered
         // without resetting the one answered in between.
         await questionTabs.nth(0).click();
