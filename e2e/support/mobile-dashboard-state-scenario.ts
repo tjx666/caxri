@@ -1,3 +1,5 @@
+import { setTimeout as delay } from 'node:timers/promises';
+
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { checkBounds, hasCheck, waitForCheck } from './mobile-agent-chat-helpers';
@@ -57,9 +59,16 @@ export async function executeMobileDashboardStateScenario(
         recording = environment.remoteVideoPath
             ? await startMobileFramebufferRecording(serial, environment.remoteVideoPath)
             : undefined;
+        /**
+         * Keep both settled states readable in the recording. An immediate fixture update can precede Android's first
+         * encoded frame, and stopping as soon as it moves produces a clip below Acceptance's three-second minimum. This
+         * dwell controls evidence duration; the semantic predicates still own application readiness.
+         */
+        if (recording) await delay(2_000);
         await fixture.triggerRunningToWaiting();
         await waitForMobile(rowTop, (top) => Number.isFinite(top) && top < before, 15_000);
         await capture(environment, 'home-running-to-waiting', artifacts);
+        if (recording) await delay(2_000);
         await recording?.stop();
         recording = undefined;
         await finish(environment, artifacts, { states: 3, liveTransition: 'running-to-waiting' });
