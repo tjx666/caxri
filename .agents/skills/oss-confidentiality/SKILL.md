@@ -97,7 +97,7 @@ Prioritize screenshots and logs in PR and issue bodies, comments, and review com
 embedded images, attachments, and linked evidence. Reading the surrounding prose is not enough.
 
 - Open and visually inspect every screenshot for private repository names, paths, accounts, hosts,
-  source, Terminal output, and Agent conversations, including background windows and sidebars.
+  non-public source, Terminal output, and Agent conversations, including background windows and sidebars.
 - Read pasted logs and linked or attached log files for the same red lines, including credentials
   and environment values. Inspect the actual content, not only the filename or link label.
 - Gitleaks does not replace visual inspection. If an attachment cannot be accessed or read, record
