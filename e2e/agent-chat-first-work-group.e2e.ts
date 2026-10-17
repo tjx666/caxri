@@ -25,7 +25,10 @@ test('ordinary tools share one summary from their first visible frame', async ({
         await openAgentChat(page, 'Codex Chat');
         const session = page.locator(VISIBLE_SESSION);
         const samples = await page.evaluateHandle(() => {
-            const state = { running: true, groups: [] as string[][] };
+            const state = {
+                running: true,
+                frames: [] as Array<{ groups: string[]; standalone: number }>,
+            };
             const sample = () => {
                 const groups = [
                     ...document.querySelectorAll<HTMLElement>(
@@ -34,7 +37,17 @@ test('ordinary tools share one summary from their first visible frame', async ({
                 ].filter(
                     (element) => (element.parentElement?.getBoundingClientRect().height ?? 0) > 0,
                 );
-                if (groups.length > 0) state.groups.push(groups.map(({ id }) => id));
+                const standalone = [
+                    ...document.querySelectorAll<HTMLElement>(
+                        '.workbench-session:not([hidden]) [data-agent-chat-work-item]',
+                    ),
+                ].filter(
+                    (element) =>
+                        element.getBoundingClientRect().height > 0 &&
+                        !element.closest('[data-disclosure="agent-chat-work-group"]'),
+                ).length;
+                if (groups.length > 0 || standalone > 0)
+                    state.frames.push({ groups: groups.map(({ id }) => id), standalone });
                 if (state.running) requestAnimationFrame(sample);
             };
             requestAnimationFrame(sample);
@@ -48,15 +61,18 @@ test('ordinary tools share one summary from their first visible frame', async ({
         await expect(session.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
         const frames = await samples.evaluate((state) => {
             state.running = false;
-            return state.groups;
+            return state.frames;
         });
         expect(frames.length).toBeGreaterThan(1);
-        expect(frames.every((groups) => groups.length === 1)).toBe(true);
-        expect(new Set(frames.flat()).size).toBe(1);
+        expect(
+            frames.every(({ groups, standalone }) => groups.length === 1 && standalone === 0),
+        ).toBe(true);
+        expect(new Set(frames.flatMap(({ groups }) => groups)).size).toBe(1);
         await testInfo.attach('first-frame-group-counts', {
             body: JSON.stringify({
                 frames: frames.length,
                 groupsPerFrame: 1,
+                standaloneRowsPerFrame: 0,
                 stableGroupIdentity: true,
             }),
             contentType: 'application/json',
