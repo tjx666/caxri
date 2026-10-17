@@ -66,10 +66,10 @@ import { withClaudeShellHooks } from './claude-shell-hooks';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
 import {
+    didApplyClaudeFeedback,
     onClaudeApiRetry,
     onClaudeCompactBoundary,
     onClaudeStatus,
-    onClaudeTranscriptOutput,
 } from './claude-system-notices';
 import { ClaudeTasks } from './claude-tasks';
 import { ClaudeToolClock, settleClaudeToolResults } from './claude-tool-results';
@@ -294,7 +294,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             default: {
-                onClaudeTranscriptOutput(this.options, message);
+                didApplyClaudeFeedback(this.options, message);
             }
         }
     }
@@ -314,6 +314,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             case 'assistant': {
+                if (didApplyClaudeFeedback(this.options, message)) return;
                 this.onAssistant(message.message);
                 return;
             }

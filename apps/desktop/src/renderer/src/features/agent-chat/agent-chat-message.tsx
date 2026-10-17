@@ -11,6 +11,7 @@ import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import { AgentChatFeedback } from './agent-chat-feedback';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
@@ -129,6 +130,7 @@ export function AgentChatReply({
  */
 export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type: 'notice' }> }) {
     const { t } = useTranslation();
+    if (item.title || item.kind === 'warning') return <AgentChatFeedback item={item} />;
     const isError = item.kind === 'error';
     return (
         <div

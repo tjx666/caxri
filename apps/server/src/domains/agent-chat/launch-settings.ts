@@ -99,6 +99,10 @@ export interface ClaudeChatSettings {
      * A `--settings` file path or JSON string, passed through unchanged.
      */
     settings?: string;
+    /**
+     * Local plugin directories must follow the Session when switching from Terminal to Chat.
+     */
+    pluginDirectories?: string[];
 }
 
 const CLAUDE_PERMISSION_MODES = new Set<string>([
@@ -134,6 +138,7 @@ const CLAUDE_VALUE_OPTIONS = new Map<
     ],
     ['--add-dir', (settings, value) => settings.additionalDirectories.push(value)],
     ['--settings', (settings, value) => (settings.settings = value)],
+    ['--plugin-dir', (settings, value) => (settings.pluginDirectories ??= []).push(value)],
     ['--allowedTools', (settings, value) => settings.allowedTools.push(...toolList(value))],
     ['--allowed-tools', (settings, value) => settings.allowedTools.push(...toolList(value))],
     ['--disallowedTools', (settings, value) => settings.disallowedTools.push(...toolList(value))],
@@ -176,6 +181,7 @@ export function claudeChatSettings(launch: AgentLaunchSettings): ClaudeChatSetti
         permissionMode: isAutonomous ? 'bypassPermissions' : (parsed.permissionMode ?? 'default'),
         ...(parsed.model && { model: parsed.model }),
         ...(parsed.settings && { settings: parsed.settings }),
+        ...(parsed.pluginDirectories && { pluginDirectories: parsed.pluginDirectories }),
         additionalDirectories: parsed.additionalDirectories,
         allowedTools: parsed.allowedTools,
         disallowedTools: parsed.disallowedTools,

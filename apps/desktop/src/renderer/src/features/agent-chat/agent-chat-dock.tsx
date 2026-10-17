@@ -49,12 +49,22 @@ function AgentChatRecoveryBanner({
                 {notice.detail && <p className="m-0 wrap-anywhere text-muted">{notice.detail}</p>}
             </div>
             {notice.canOpenAsTerminal && onOpenAsTerminal && (
-                <Button size="sm" variant="secondary" onClick={onOpenAsTerminal}>
+                <Button
+                    className="shrink-0 self-center"
+                    size="sm"
+                    variant="secondary"
+                    onClick={onOpenAsTerminal}
+                >
                     <SquareTerminal className="size-3.5" />
                     {t('agentChat.dock.openAsTerminal')}
                 </Button>
             )}
-            <Button size="sm" variant="secondary" onClick={onRecover}>
+            <Button
+                className="shrink-0 self-center"
+                size="sm"
+                variant="secondary"
+                onClick={onRecover}
+            >
                 <RotateCcw className="size-3.5" />
                 {t(isDetached ? 'agentChat.dock.resume' : 'common.retry')}
             </Button>

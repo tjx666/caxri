@@ -132,7 +132,13 @@ export function fakeClaudeFastMode(session: { fastMode?: boolean }): Record<stri
  */
 export function fakeClaudeSessionAnswer(
     subtype: unknown,
-    session: { model: string; effort?: string; ultracode?: boolean; fastMode?: boolean },
+    session: {
+        model: string;
+        effort?: string;
+        ultracode?: boolean;
+        fastMode?: boolean;
+        isLargeContextTurn?: boolean;
+    },
 ): Record<string, unknown> | undefined {
     switch (subtype) {
         case 'initialize': {
@@ -147,7 +153,22 @@ export function fakeClaudeSessionAnswer(
             };
         }
         case 'get_context_usage': {
-            return FAKE_CLAUDE_CONTEXT_USAGE;
+            if (!session.isLargeContextTurn) return FAKE_CLAUDE_CONTEXT_USAGE;
+            const totalTokens = 141_240;
+            return {
+                ...FAKE_CLAUDE_CONTEXT_USAGE,
+                totalTokens,
+                percentage: 88,
+                categories: FAKE_CLAUDE_CONTEXT_USAGE.categories.map((category) => ({
+                    ...category,
+                    tokens:
+                        category.name === 'Messages'
+                            ? totalTokens - 1500
+                            : category.kind === 'free'
+                              ? 160_000 - totalTokens
+                              : category.tokens,
+                })),
+            };
         }
         case 'get_settings': {
             const isUltracodeAvailable =

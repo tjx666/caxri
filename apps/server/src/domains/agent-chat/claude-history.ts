@@ -14,6 +14,7 @@ import {
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
+import { claudeFeedbackItems } from './claude-feedback';
 import { claudeUserImageCount, isClaudeCompactCommand, isQueuedClaudePrompt } from './claude-input';
 import { claudeAssistantItems, ClaudeBlockIds, text } from './claude-items';
 import { settleClaudeToolItem } from './claude-tool-results';
@@ -54,7 +55,11 @@ function applySystemRecord(state: HistoryState, record: Json): void {
         state.items.set(id, { id, ...(turnId && { turnId }), type: 'notice', kind: 'compacted' });
         return;
     }
-    if (record.subtype !== 'turn_duration') return;
+    if (record.subtype !== 'turn_duration') {
+        for (const item of claudeFeedbackItems(record))
+            state.items.set(item.id, { ...item, ...recordTime(record) });
+        return;
+    }
     const current = state.turns.at(-1);
     const { durationMs } = record;
     if (current && typeof durationMs === 'number' && durationMs >= 0)
@@ -146,6 +151,14 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
         applySteeredRecord(state, record.attachment, record);
         return;
     }
+    if (record.type === 'attachment') {
+        const feedback = claudeFeedbackItems(
+            record,
+            record.parentUuid == null ? undefined : state.turnId,
+        );
+        for (const item of feedback) state.items.set(item.id, { ...item, ...recordTime(record) });
+        return;
+    }
     if (record.isMeta === true) return;
     if (record.type === 'system') {
         applySystemRecord(state, record);
@@ -154,6 +167,15 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
     const message = isRecord(record.message) ? record.message : undefined;
     if (!message) return;
     if (record.type === 'assistant') {
+        const feedback = claudeFeedbackItems(
+            record,
+            record.parentUuid == null ? undefined : state.turnId,
+        );
+        if (feedback.length > 0) {
+            for (const item of feedback)
+                state.items.set(item.id, { ...item, ...recordTime(record) });
+            return;
+        }
         const mapped = claudeAssistantItems(message, state.turnId, state.ids);
         const time = recordTime(record);
         for (const item of mapped.items) {

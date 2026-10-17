@@ -9,6 +9,34 @@ import type { FakeClaudeIo } from './fake-claude-io.ts';
  * Streams thinking, a `TodoWrite` plan, and `Hello from fake Claude. <reply>`, leaving the turn's result to the caller.
  */
 export async function streamPlannedReply(io: FakeClaudeIo, reply: string) {
+    if (reply.includes('synthetic feedback')) {
+        io.system('hook_response', {
+            hook_name: 'SessionStart:startup',
+            outcome: 'error',
+            exit_code: 1,
+            stderr: 'Example configuration could not be read.\nCheck the test configuration file.',
+            stdout: '',
+            output: '',
+        });
+        io.system('informational', {
+            level: 'warning',
+            content: 'Prompt dropped by a hook.',
+            prompt_submit_outcome: {
+                kind: 'dropped_by_hook',
+                reason: 'Example mod blocked this input.\nChoose another test input to continue.',
+            },
+        });
+        io.send(
+            io.frame({
+                type: 'assistant',
+                message: { content: [] },
+                local_command_run: { command: 'display-test', args: '', plugin: 'output-test-mod' },
+                local_command_source:
+                    '<local-command-stdout>Example mod output.\nReview these details before continuing.</local-command-stdout>',
+            }),
+        );
+        return;
+    }
     const hasNotices = reply.includes('synthetic output');
     if (hasNotices) {
         io.system('informational', {

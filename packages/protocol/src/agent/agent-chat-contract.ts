@@ -270,7 +270,11 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          * retries, and for `answered` the user's own answers to a question request, so the transcript keeps what was
          * chosen after the request card goes away.
          */
-        kind: z.enum(['error', 'compacted', 'retrying', 'answered', 'output']),
+        kind: z.enum(['error', 'warning', 'compacted', 'retrying', 'answered', 'output']),
+        /**
+         * Provider feedback heading, kept separate from its complete readable details.
+         */
+        title: z.string().max(200).optional(),
         message: z.string().max(2_000).optional(),
         /**
          * For `answered`: every question asked with the answer given (empty when the user skipped it), so a Client can

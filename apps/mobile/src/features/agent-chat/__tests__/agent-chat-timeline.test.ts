@@ -137,6 +137,35 @@ describe('buildAgentChatTimeline', () => {
         ).toEqual(['u-t1', 'turn:t1', 'a-t1', 'u-t2', 'turn:t2', 'work:c-t2', 'a-t2']);
     });
 
+    it('keeps provider feedback severity, source, and complete details in dedicated cards', () => {
+        const notices = [
+            {
+                id: 'failure',
+                type: 'notice' as const,
+                kind: 'error' as const,
+                title: 'Hook failed',
+                message: 'Configuration missing.\nCheck the file.',
+            },
+            {
+                id: 'blocked',
+                type: 'notice' as const,
+                kind: 'warning' as const,
+                title: 'Input blocked by Hook',
+                message: 'Choose another input.',
+            },
+            {
+                id: 'command',
+                type: 'notice' as const,
+                kind: 'output' as const,
+                title: 'Example · /display-test',
+                message: 'Command result.',
+            },
+        ];
+        expect(buildAgentChatTimeline({ items: notices, turns: [] })).toEqual(
+            notices.map((notice) => ({ kind: 'feedback', id: notice.id, notice })),
+        );
+    });
+
     it('preserves the full system output and gives completed compaction its own event kind', () => {
         const output = 'Example hook output. '.repeat(50);
         const entries = buildAgentChatTimeline({

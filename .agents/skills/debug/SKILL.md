@@ -71,8 +71,9 @@ ordinary E2E, CI, or Acceptance to discover or invoke a host provider.
   available, no approval prompts, and one predeclared bounded input. Do not automate or persist a
   provider trust decision merely to create a temporary Project; fence an existing Project with
   before/after session identities instead. Never fall back to another provider.
-- Do not read, screenshot, record, print, or persist Terminal output, prompts, responses, or Agent
-  transcripts. Observe only content-free signals such as exact input bytes, process lifecycle,
+- Except for the explicitly authorized public-safe Hook/mod contract probe below, do not read,
+  screenshot, record, print, or persist Terminal output, prompts, responses, or Agent transcripts.
+  Otherwise observe only content-free signals such as exact input bytes, process lifecycle,
   provider turn state, structured status events, and exit status.
 - Stop every process started by the probe, interrupt any submitted turn, and remove exact diagnostic
   sessions or temporary state without touching unrelated user sessions.
@@ -134,9 +135,16 @@ Wait for a paint frame, then inspect the captured pixels. A loaded node alone do
 For Agent transcript adapters, verify event visibility in both directions: normal Hook lifecycle
 output (plain text, empty JSON, and control JSON) stays out of Chat, while explicit user feedback
 and command results remain visible. Replaying an event successfully is not proof that it belongs
-in the conversation. Cover both outcomes with synthetic SDK fixtures and inspected CDP captures.
+in the conversation. Ground fixtures in the installed provider's actual event and persisted-record shapes; a fabricated
+message only proves the renderer, not provider integration. Verify both live delivery and
+Terminal-to-Chat history restoration, preserve warning/error severity and readable reasons, and
+inspect CDP captures for each path, including multiline text, adjacent action alignment, and
+source/severity distinctions. When the user authorizes a real Hook/mod reproduction, use a
+one-off public-safe plugin and isolated configuration, block model network requests, and capture
+only that test's generated feedback. Never use private hooks or existing business transcripts.
 
-To verify Agent UI in a dev instance, run fake providers, never the host CLI. Build the environment with
+For ordinary Agent UI verification in a dev instance, run fake providers. Outside the controlled
+exception above, never discover or invoke a host CLI. Build the environment with
 `e2e/support/agent-fixture.ts`'s `createFakeAgentMode` plus `createE2EAgentEnvironment`, export its
 `e2eAgentEnvironmentKeys()` values together with `CAXRI_E2E=1` and `CAXRI_E2E_WINDOW_MODE=visible`, then
 start `switch-worktree dev`. Without `CAXRI_E2E=1` the fake executables are ignored while the isolated
