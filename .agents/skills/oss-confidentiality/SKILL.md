@@ -7,8 +7,7 @@ description: Protect Caxri's public repository, GitHub metadata, CI output, and 
 
 Caxri is an open-source project. Anything written to tracked files, commits, issues, pull requests,
 Actions output, or Releases can be read and copied anonymously. This skill owns the content boundary:
-what must not enter those public surfaces and what to write instead. `open-source-readiness` owns the
-broader publication, history, Actions-retention, and release audit.
+what must not enter those public surfaces and how to review content, history, and public artifacts.
 
 The current license is source-available and not OSI-approved. Preserve that distinction in legal or
 license claims even when using the project's established open-source terminology.
@@ -83,10 +82,34 @@ Before a public write or mutation:
 4. Run `bun run gitleaks -- --staged` for staged repository changes. For committed changes, reuse a
    successful exact-head CI range scan or explicitly provide the base and head revisions to
    `scripts/gitleaks-scan.ts`; reserve a plain `bun run gitleaks` for an intentional full-history
-   scan. For a broad, fixture-heavy, history, Actions, or release audit, also Call the Skill tool
-   with "open-source-readiness" and use its targeted scans.
+   scan. For broad or fixture-heavy audits, also inspect identifying home paths, private ticket
+   identifiers, and internal or preview hosts; credential scanning does not cover every private fact.
+   Inspect surrounding diffs when tracing a finding through Git history.
 5. Replace, omit, or move every red-line item before the write. Never quote a secret or private
    identifier in the remediation record.
 
 When confidentiality is genuinely ambiguous, treat the content as confidential. Publishing later
 is reversible; unpublishing from clones, caches, pull refs, artifacts, or downloads is not.
+
+## PR and issue screenshots and logs
+
+Prioritize screenshots and logs in PR and issue bodies, comments, and review comments, including
+embedded images, attachments, and linked evidence. Reading the surrounding prose is not enough.
+
+- Open and visually inspect every screenshot for private repository names, paths, accounts, hosts,
+  non-public source, Terminal output, and Agent conversations, including background windows and sidebars.
+- Read pasted logs and linked or attached log files for the same red lines, including credentials
+  and environment values. Inspect the actual content, not only the filename or link label.
+- Gitleaks does not replace visual inspection. If an attachment cannot be accessed or read, record
+  it as unverified and do not describe the review as complete or publish it as reviewed evidence.
+- Prefer synthetic reproductions. Inspect the final sanitized image or log before publishing it,
+  and describe findings without repeating the private content.
+
+## Public artifacts and history
+
+Upload the narrowest file set that proves the result, not an enclosing directory. Set an explicit
+Actions artifact retention window. Review retained Actions logs and artifacts when auditing public
+exposure; screenshots, traces, videos, and runner paths can disclose private information.
+
+History rewrites do not retract copies in clones, forks, cached views, or pull-request refs, and do
+not edit issue or PR content. Review before publication rather than relying on later deletion.

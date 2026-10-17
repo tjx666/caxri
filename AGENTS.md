@@ -146,7 +146,7 @@ directories.
   real person, home path carrying a real account name, or credential: not in a fixture, not in a
   comment, not in Chinese. Reference an upstream only after verifying it resolves without
   authentication. History cannot be cleaned retroactively once published, so prevention is the only
-  lever. Apply `oss-confidentiality` to content and `open-source-readiness` to publication mechanics.
+  lever. Apply `oss-confidentiality` to public content, history, and artifacts.
 - Never write an em-dash (U+2014) in contributor prose: docs, skills, and code comments. Use a
   colon, semicolon, comma, period, or parentheses instead. Product copy (UI strings, Agent prompts)
   is out of scope; do not rewrite its punctuation as a side effect of a style rule. `bun run
@@ -252,23 +252,22 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
 
 ## Skill routing
 
-| Work                                                      | Load                    |
-| --------------------------------------------------------- | ----------------------- |
-| Substantial new product feature; competing approaches     | `competitors`           |
-| Process, IPC, package, persistence, or toolchain contract | `project-architecture`  |
-| File placement, naming, splits, test location             | `source-layout`         |
-| Adding/editing a doc, ADR, or retiring a plan/spike       | `write-docs`            |
-| React composition, hooks, shared helpers                  | `react`                 |
-| Renderer visual and interaction design                    | `DESIGN.md`             |
-| React render-count audit over CDP with react-scan         | `react-rerender-audit`  |
-| Focused lint / type / test / knip; formatting             | `quality-check`         |
-| Vitest unit/integration regressions                       | `unit-testing`          |
-| Playwright Electron workflows                             | `e2e-testing`           |
-| Terminal interaction reports, CDP, owned process stop     | `debug`                 |
-| Public-content confidentiality review                     | `oss-confidentiality`   |
-| Publication, history, Actions, and Release exposure audit | `open-source-readiness` |
-| Isolated worktrees and desktop lease                      | `switch-worktree`       |
-| GitHub issues                                             | `file-issue`            |
-| Commits                                                   | `commit`                |
-| Pull requests and CI watch                                | `pull-request`          |
-| Packaging, GitHub Release, local uninstall                | `$release`              |
+| Work                                                      | Load                   |
+| --------------------------------------------------------- | ---------------------- |
+| Substantial new product feature; competing approaches     | `competitors`          |
+| Process, IPC, package, persistence, or toolchain contract | `project-architecture` |
+| File placement, naming, splits, test location             | `source-layout`        |
+| Adding/editing a doc, ADR, or retiring a plan/spike       | `write-docs`           |
+| React composition, hooks, shared helpers                  | `react`                |
+| Renderer visual and interaction design                    | `DESIGN.md`            |
+| React render-count audit over CDP with react-scan         | `react-rerender-audit` |
+| Focused lint / type / test / knip; formatting             | `quality-check`        |
+| Vitest unit/integration regressions                       | `unit-testing`         |
+| Playwright Electron workflows                             | `e2e-testing`          |
+| Terminal interaction reports, CDP, owned process stop     | `debug`                |
+| Public-content confidentiality review                     | `oss-confidentiality`  |
+| Isolated worktrees and desktop lease                      | `switch-worktree`      |
+| GitHub issues                                             | `file-issue`           |
+| Commits                                                   | `commit`               |
+| Pull requests and CI watch                                | `pull-request`         |
+| Packaging, GitHub Release, local uninstall                | `$release`             |
