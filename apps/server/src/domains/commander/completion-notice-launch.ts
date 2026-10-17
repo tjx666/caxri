@@ -1,7 +1,7 @@
 import { logEventCatalog } from '@caxri/system';
 
 import type { DeliveredNotice } from '../db';
-import type { CommanderCompletionNotifierOptions } from './completion-notice';
+import type { CommanderCompletionNotifierOptions } from './completion-notice-options';
 import type {
     CommanderCompletionNoticeEntry,
     CommanderHandoverNoticeEntry,

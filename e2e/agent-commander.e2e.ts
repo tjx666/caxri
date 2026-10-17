@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { isDeepStrictEqual } from 'node:util';
 
-import type { CommanderSnapshot, CommanderStatus } from '@caxri/protocol';
+import type { CommanderManagedSessions, CommanderSnapshot, CommanderStatus } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { dropFinderFiles } from './support/finder-file-drop.ts';
@@ -45,10 +45,24 @@ test('Agent Commander keeps running after its window closes and stops on request
             running.page,
             'commander.snapshot',
         );
+        const { selectedSessionId } = await pageRequest<{ selectedSessionId: string }>(
+            running.page,
+            'app.bootstrap',
+        );
+        await pageRequest(running.page, 'commander.session.handOver', {
+            sessionIds: [selectedSessionId],
+        });
 
         await firstWindow.close();
         await expect.poll(() => running.app.windows().length).toBe(1);
         await expect(chip).toContainText('Commander');
+        expect(
+            (await pageRequest<CommanderManagedSessions>(running.page, 'commander.managedSessions'))
+                .sessionIds,
+        ).toContain(selectedSessionId);
+        await running.page.screenshot({
+            path: testInfo.outputPath('commander-closed-still-managed.png'),
+        });
         await testInfo.attach('commander-running-in-background', {
             body: await chip.screenshot(),
             contentType: 'image/png',
@@ -57,10 +71,24 @@ test('Agent Commander keeps running after its window closes and stops on request
         await running.app.evaluate(({ Menu }) => {
             Menu.getApplicationMenu()?.getMenuItemById('command.agentCommander.stop')?.click();
         });
+        await expect
+            .poll(
+                async () =>
+                    (
+                        await pageRequest<CommanderManagedSessions>(
+                            running.page,
+                            'commander.managedSessions',
+                        )
+                    ).sessionIds,
+            )
+            .toEqual([]);
         await expect(chip).toHaveCount(0);
         await expect
             .poll(() => pageRequest<CommanderStatus>(running.page, 'commander.status'))
             .toEqual({ state: 'stopped' });
+        await running.page.screenshot({
+            path: testInfo.outputPath('commander-stopped-returned.png'),
+        });
 
         await pageRequest(running.page, 'agentCommander.open');
         const reopenedWindow = await commanderWindow();

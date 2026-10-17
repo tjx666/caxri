@@ -192,6 +192,12 @@ Commander is working; the menu and the Command Palette run in the Workbench, whi
 `commander.status` because it cannot see the Commander's Terminal. Main logs a failed stop as `agent_commander.stop_failed` with its error
 code.
 
+Closing the window keeps Commander management running in the background. Explicit **Stop Commander**
+returns every manually handed-over Session, including ones the Commander already continued or whose
+task the user cleared. It preserves running Agents and task records; an unstarted hand-over task is
+marked dropped. Sessions created by the Commander remain managed. Reopening the Commander does not
+reclaim returned Sessions or replay their pending hand-over notices.
+
 ## Title bar and Command Palette
 
 The title bar keeps only the controls used all the time: the Commander Agent chip, the surface
