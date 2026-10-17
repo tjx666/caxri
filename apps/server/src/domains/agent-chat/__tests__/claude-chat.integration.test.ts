@@ -76,7 +76,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         expect(output).toEqual([
             'Prompt dropped by a hook: Example prompt blocked for display test.',
             'Hello from fake Claude. You said: synthetic output',
-            'Hook "Example" failed (exit code 1).',
+            'Example hook warning.',
             'Example mod command output.',
         ]);
     });

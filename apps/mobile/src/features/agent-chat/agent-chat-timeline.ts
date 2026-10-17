@@ -38,6 +38,7 @@ type AgentChatMessageEntry = Extract<
  * ends with what it left behind (`artifacts`) under its final reply.
  */
 export type AgentChatTimelineEntry =
+    | { kind: 'feedback'; id: string; notice: Extract<AgentChatItem, { type: 'notice' }> }
     | { kind: 'message'; id: string; message: AgentChatMessageEntry }
     | {
           kind: 'work';
@@ -128,7 +129,9 @@ function groupEntries(
             continue;
         }
         flush();
-        entries.push({ kind: 'message', id: item.id, message: toMessage(item, t) });
+        if (item.type === 'notice' && (item.title || item.kind === 'warning'))
+            entries.push({ kind: 'feedback', id: item.id, notice: item });
+        else entries.push({ kind: 'message', id: item.id, message: toMessage(item, t) });
     }
     flush();
     return entries;

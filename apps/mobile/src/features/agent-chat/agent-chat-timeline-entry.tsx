@@ -2,6 +2,7 @@ import { memo } from 'react';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationEntry } from '../conversation/conversation-entry';
+import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatPendingMessage } from './agent-chat-pending-message';
 import type { AgentChatTimelineEntry as Entry } from './agent-chat-timeline';
 import { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
@@ -25,6 +26,9 @@ export const AgentChatTimelineEntry = memo(
         theme: MobileTheme;
     }) => {
         switch (entry.kind) {
+            case 'feedback': {
+                return <AgentChatFeedback item={entry.notice} theme={theme} />;
+            }
             case 'message': {
                 return <ConversationEntry entry={entry.message} theme={theme} />;
             }

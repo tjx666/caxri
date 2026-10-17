@@ -314,6 +314,7 @@ export function agentChatNoticeMessage(
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
     switch (item.kind) {
+        case 'warning':
         case 'output': {
             return item.message ?? '';
         }

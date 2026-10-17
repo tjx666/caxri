@@ -85,6 +85,9 @@ export function claudeQueryOptions({
         allowDangerouslySkipPermissions: true,
         ...(settings.model && { model: settings.model }),
         ...(settings.settings && { settings: settings.settings }),
+        ...(settings.pluginDirectories?.length && {
+            plugins: settings.pluginDirectories.map((path) => ({ type: 'local' as const, path })),
+        }),
         ...(settings.additionalDirectories.length > 0 && {
             additionalDirectories: settings.additionalDirectories,
         }),

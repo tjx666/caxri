@@ -139,10 +139,17 @@ command> <id>` (`agentResumeCommandLine`, from the provider catalog's `resumeArg
 
 Provider Hook lifecycle frames are execution metadata, not conversation content. Routine
 progress, successful or cancelled hooks, and unknown system diagnostics stay out of Chat,
-including plain stdout, empty JSON, and control JSON. A failed hook produces one concise error
-summary from its name and exit code, never its raw output. Explicit informational feedback
-(including block reasons), model-refusal notices, and local slash-command results remain visible.
-This explicit event policy follows [Paseo's Claude adapter](https://github.com/getpaseo/paseo/blob/64693f21cf564389a0b74b57777267761e27f71c/packages/server/src/server/agent/providers/claude/agent.ts#L4531-L4607).
+including plain stdout, empty JSON, and control JSON. Failed hooks show their name, exit code,
+and readable failure details in an error callout. Structured control JSON stays hidden.
+Explicit blocking reasons keep their full text and warning severity. Local mod command results
+use a separate callout with the plugin and command name, so they cannot be confused with an
+assistant reply. The same feedback survives Terminal-to-Chat switching and history restoration;
+live SDK events and persisted records have distinct envelopes. Local `--plugin-dir` launch
+arguments also carry through to the Chat SDK.
+
+The feedback callouts follow [Paseo's notification presentation](https://github.com/getpaseo/paseo/blob/64693f21cf564389a0b74b57777267761e27f71c/packages/app/src/components/message.tsx):
+severity color, an icon, and a readable body. Successful command output stays neutral; blocked
+input is a warning and a failed Hook is an error.
 
 `AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
 live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, or

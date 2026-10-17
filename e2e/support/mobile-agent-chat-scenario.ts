@@ -11,6 +11,7 @@ import {
     executeMobileChatModelRefusedScenario,
     executeMobileChatPreviewScenario,
 } from './mobile-agent-chat-error-scenario';
+import { executeMobileChatFeedbackScenario } from './mobile-agent-chat-feedback-scenario';
 import {
     agentText,
     hasCheck,
@@ -523,6 +524,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatBrowserScenario(environment, artifacts);
         case 'MOB-CHAT-18':
             return executeMobileChatChineseScenario(environment, artifacts);
+        case 'MOB-CHAT-20':
+            return executeMobileChatFeedbackScenario(environment, artifacts);
         case 'MOB-CHAT-19':
             return executeMobileDashboardStateScenario(environment, artifacts);
         default:
