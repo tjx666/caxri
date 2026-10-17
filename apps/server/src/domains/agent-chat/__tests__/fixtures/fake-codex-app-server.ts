@@ -16,7 +16,6 @@
  *   over about 30 seconds, which `turn/interrupt` can stop.
  * - `weblink`: a reply that only links the message's first `http(s)` URL; matched before any keyword the URL may hold.
  * - `fail`: a failed turn with a provider error.
- * - `contextpressure`: the default reply reports high context usage for compaction checks.
  * - `crash`: the process exits mid-turn, after saving the turn's user message as an interrupted turn.
  * - `table`: a reply exercising the transcript's Markdown: headings, nested and task lists, cited files, a quote, a
  *   table, and a fenced code block, streamed in small chunks.
@@ -79,7 +78,6 @@ import type {
     FakeTurn,
     RpcMessage,
 } from './fake-codex-io.ts';
-import { didHandleInitializeRequest } from './fake-codex-io.ts';
 import {
     completeMcpCalls,
     didHandleMcpStatusRequest,
@@ -104,8 +102,6 @@ import {
 } from './fake-codex-tasks.ts';
 import {
     fakeCodexStateDirectory,
-    fakeCodexThreadId,
-    isFakeCodexInterruptRejected,
     readFakeConfig,
     readSavedThread,
     recordThreadOpen,
@@ -256,8 +252,6 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runSubagent(io, turn, {
             isHeld: text.includes('hold'),
             isBrowsing: text.includes('browsestep'),
-            needsApproval: text.includes('child approval'),
-            fails: text.includes('child failure'),
         });
     } else if (text.includes('vanish')) {
         dropTerminalsSilently();
@@ -279,7 +273,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
     } else if (text.includes('bigdiff')) {
-        await runBigDiff(io, turn, text.includes('wrap'));
+        await runBigDiff(io, turn);
     } else if (text.includes('browsestep')) {
         await runBrowserStep(io, turn);
     } else if (text.includes('explore')) {
@@ -300,6 +294,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         // Commentary before the work, which the Chat shows without the Copy action only the final reply carries.
         await streamMessage(turn, 'Looking around the project.', 0);
         ran('cat src/app.ts', 'export const answer: number = 42;\n');
+        if (text.includes('gradual')) await delay(200);
         ran('git status --short', ' M src/app.ts\n');
         // Enough reads that the expanded group scrolls, each shown as the file it read rather than its command line.
         for (let start = 1; start <= 81; start += 10) {
@@ -340,7 +335,6 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     } else if (text.includes('table')) {
         await runMarkdownTable(io, turn);
     } else if (text.includes('fail')) {
-        if (text.includes('streamfail')) await streamMessage(turn, 'Partial reply.', 30);
         turn.status = 'failed';
         turn.error = { message: 'Fake provider failure' };
         notify('error', { turnId: turn.id, willRetry: false, error: turn.error });
@@ -377,10 +371,10 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         notify('thread/tokenUsage/updated', {
             turnId: turn.id,
             tokenUsage: {
-                total: { totalTokens: text.includes('contextpressure') ? 170000 : 1200 },
+                total: { totalTokens: 1200 },
                 last: {
-                    totalTokens: text.includes('contextpressure') ? 170000 : 1200,
-                    inputTokens: text.includes('contextpressure') ? 169950 : 1150,
+                    totalTokens: 1200,
+                    inputTokens: 1150,
                     cachedInputTokens: 900,
                     outputTokens: 50,
                 },
@@ -428,14 +422,20 @@ function handle(message: RpcMessage) {
         return;
     }
     const { id, method, params: parameters = {} } = message;
-    if (didHandleInitializeRequest(io, id, method)) return;
     if (didHandleTaskRequest(io, id, method, parameters)) return;
     if (didHandleGoalRequest(io, id, method, parameters)) return;
     if (didHandleMcpStatusRequest(io, id, method, parameters)) return;
     switch (method) {
+        case 'initialize': {
+            send({ id, result: { userAgent: 'caxri/0.162.0 (fake)', platformOs: 'macos' } });
+            return;
+        }
+        case 'initialized': {
+            return;
+        }
         case 'thread/start': {
             recordThreadOpen(method, parameters);
-            state.thread = { id: fakeCodexThreadId(), turns: [] };
+            state.thread = { id: crypto.randomUUID(), turns: [] };
             send({ id, result: threadResponse(currentThread()) });
             return;
         }
@@ -565,7 +565,7 @@ function handle(message: RpcMessage) {
             return;
         }
         case 'turn/interrupt': {
-            const turn = isFakeCodexInterruptRejected() ? undefined : state.activeTurn;
+            const turn = state.activeTurn;
             if (!turn || turn.id !== parameters.turnId) {
                 send({ id, error: { code: -32600, message: 'no active turn to interrupt' } });
                 return;

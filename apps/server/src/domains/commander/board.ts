@@ -139,7 +139,7 @@ export function commanderBoard(input: {
     const handovers = new Map(
         (input.handovers ?? []).flatMap(
             (handover): Array<[string, CommanderBoardRow['handover']]> =>
-                handover.firstDelegationId || !handover.taskId
+                handover.firstDelegationId
                     ? []
                     : [
                           [

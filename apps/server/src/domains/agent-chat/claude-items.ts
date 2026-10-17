@@ -488,7 +488,6 @@ export function finishedClaudeTurn(
     id: string,
     status: AgentChatTurn['status'],
     error: string | undefined,
-    interruptionReason?: AgentChatTurn['interruptionReason'],
 ): { durationMs?: number; operations: AgentChatPatchOperation[] } {
     const operations: AgentChatPatchOperation[] = [];
     for (const item of snapshot.items) {
@@ -517,13 +516,7 @@ export function finishedClaudeTurn(
         state: {
             turns: snapshot.turns.map((turn) =>
                 turn.id === id
-                    ? {
-                          ...turn,
-                          status,
-                          ...(status === 'interrupted' &&
-                              interruptionReason && { interruptionReason }),
-                          ...(durationMs !== undefined && { durationMs }),
-                      }
+                    ? { ...turn, status, ...(durationMs !== undefined && { durationMs }) }
                     : turn,
             ),
             requests: [],

@@ -71,7 +71,6 @@ export function createCommanderServices({
             }),
         logger,
         notify: (entry) => hooks.notifier?.notifyHandover(entry),
-        forgetNotices: (ids) => hooks.notifier?.forgetHandovers(ids),
         resolveProjectRoot,
         sendFullStateChange,
     });

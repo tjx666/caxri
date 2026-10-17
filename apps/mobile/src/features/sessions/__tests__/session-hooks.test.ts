@@ -21,8 +21,6 @@ const session = (overrides: Partial<MobileSession> = {}): MobileSession => ({
     displayTitle: 'Mobile phase one',
     projectTitle: 'Caxri',
     lastOpenedAt: 100,
-    createdAt: 1,
-    lastSessionActivityAt: overrides.lastOpenedAt ?? 100,
     lastActivityState: 'waiting',
     primaryAgentTerminalId: 'terminal-1',
     attentionEpoch: 3,

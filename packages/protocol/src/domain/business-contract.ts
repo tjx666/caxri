@@ -63,8 +63,6 @@ export const projectQueryResultSchema = z.union([
 
 const sessionSummarySchema = sessionRecordSchema.pick({
     id: true,
-    createdAt: true,
-    lastSessionActivityAt: true,
     projectId: true,
     displayTitle: true,
     archivedAt: true,

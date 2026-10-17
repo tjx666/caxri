@@ -37,7 +37,7 @@ export interface AgentChatServiceOptions {
      * Runs once a Chat's provider is ready, after its state is persisted as running. The Agent Commander uses it to
      * send what a restart cut off, the Chat equivalent of a PTY launch prompt.
      */
-    onReady?(terminalId: string, launchId: string): void;
+    onReady?(terminalId: string): void;
     /**
      * Runs after a Chat's provider process state is durably written (`starting`, `running`, `stopped`, `suspended`,
      * `detached`, `failed`, `dead`), the Chat counterpart of `TerminalManagerOptions.onAgentStateChanged`, so Agent

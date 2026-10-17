@@ -1,11 +1,17 @@
 import type {
+    AgentChatGoalChange,
     AgentChatMessageInput,
     AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatPermission,
     AgentChatResponse,
 } from '@caxri/protocol';
-import { AGENT_CHAT_GOAL_COMMAND, CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import {
+    AGENT_CHAT_GOAL_COMMAND,
+    CaxriError,
+    MAX_AGENT_CHAT_TEXT_LENGTH,
+    parseAgentChatGoalArguments,
+} from '@caxri/protocol';
 
 import {
     clip,
@@ -26,12 +32,9 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { chatTextDigest } from './chat-turn-answer';
-import { interruptChatTurn } from './chat-turn-interruption';
-import { finishedChatLifecycle } from './chat-turn-lifecycle';
-import { CodexChatCommands } from './codex-chat-commands';
 import type { CodexThreadSettings } from './codex-chat-types';
 import { CodexComputerUseBindings } from './codex-computer-use';
-import { CodexDeliveryCheck } from './codex-delivery-check';
+import { CodexDeliveryCheck, TURN_REQUEST_TIMEOUT_MS } from './codex-delivery-check';
 import { CodexGoals } from './codex-goals';
 import {
     CODEX_COMMANDS,
@@ -98,7 +101,6 @@ class CodexChatSession implements AgentChatProviderSession {
     private readonly permissions: CodexPermissions;
 
     private readonly goals: CodexGoals;
-    private readonly commands: CodexChatCommands;
 
     constructor(private readonly options: AgentChatSessionHost) {
         const opening = codexOpeningSettings(options);
@@ -113,19 +115,8 @@ class CodexChatSession implements AgentChatProviderSession {
         this.permissions = new CodexPermissions(options, this.settings, opening.planMode);
         this.models = new CodexModelSettings(options, this.permissions);
         this.deliveries = new CodexDeliveryCheck(options, () => this.threadId);
-        this.requests = new CodexRequestBroker(options, () => this.threadId, {
-            pending: (threadId, key, turnId, isBlocking) =>
-                this.tasks.onRequestPending(threadId, key, turnId, isBlocking),
-            resolved: (key) => this.tasks.onRequestResolved(key),
-        });
+        this.requests = new CodexRequestBroker(options, () => this.threadId);
         this.goals = new CodexGoals(options, () => this.threadId);
-        this.commands = new CodexChatCommands(
-            options,
-            this.goals,
-            () => this.requireConnection(),
-            () => this.threadId,
-            () => this.close(),
-        );
     }
 
     private requireConnection(): JsonRpcConnection {
@@ -169,7 +160,6 @@ class CodexChatSession implements AgentChatProviderSession {
         this.pendingPromptDigest = undefined;
         this.options.lifecycle({
             phase: 'turnStarted',
-            ...this.commands.beginTurn(id),
             agentSessionId: this.threadId,
             agentTurnId: id,
             ...(agentPromptDigest && { agentPromptDigest }),
@@ -187,7 +177,6 @@ class CodexChatSession implements AgentChatProviderSession {
             turn,
             (requestId, finishedTurnId) => this.requests.outlivesTurn(requestId, finishedTurnId),
             backgrounded,
-            this.commands.interruptionReason(turnId),
         );
         if (!finished) return;
         const { id, status, durationMs, operations } = finished;
@@ -201,11 +190,14 @@ class CodexChatSession implements AgentChatProviderSession {
         void this.tasks.reconcileTerminals();
         this.options.onTurnFinished(status, durationMs);
         this.options.lifecycle(
-            finishedChatLifecycle(status, {
-                agentSessionId: this.threadId,
-                agentTurnId: id,
-                ...this.commands.finishTurn(id),
-            }),
+            status === 'failed'
+                ? {
+                      phase: 'turnFailed',
+                      agentSessionId: this.threadId,
+                      agentTurnId: id,
+                      agentFailure: 'provider_failed',
+                  }
+                : { phase: 'turnFinished', agentSessionId: this.threadId, agentTurnId: id },
         );
     }
 
@@ -216,10 +208,6 @@ class CodexChatSession implements AgentChatProviderSession {
          */
         if (method !== 'serverRequest/resolved' && this.tasks.isOtherThread(threadId)) {
             this.tasks.onChildNotification(threadId, method, parameters);
-            if (method === 'turn/completed' && isRecord(parameters.turn)) {
-                const turnId = stringField(parameters.turn.id);
-                if (turnId) this.requests.settleTurn(threadId, turnId);
-            }
             return;
         }
         const turnId = stringField(parameters.turnId);
@@ -296,8 +284,6 @@ class CodexChatSession implements AgentChatProviderSession {
         const item = mapped && this.thumbnails.apply(mapped, raw);
         const operations: AgentChatPatchOperation[] = item ? [{ op: 'upsertItem', item }] : [];
         const type = isRecord(raw) ? raw.type : undefined;
-        const shouldReportCompaction =
-            type === 'contextCompaction' && this.commands.onCompaction(isStarted);
         if (type === 'contextCompaction')
             operations.push({
                 op: 'state',
@@ -308,10 +294,9 @@ class CodexChatSession implements AgentChatProviderSession {
         if (type === 'userMessage') this.deliveries.rememberEcho(raw.clientId);
         switch (type) {
             case 'contextCompaction': {
-                if (shouldReportCompaction)
-                    this.options.lifecycle({
-                        phase: isStarted ? 'compactionStarted' : 'compactionFinished',
-                    });
+                this.options.lifecycle({
+                    phase: isStarted ? 'compactionStarted' : 'compactionFinished',
+                });
                 break;
             }
             case 'commandExecution': {
@@ -341,10 +326,7 @@ class CodexChatSession implements AgentChatProviderSession {
     private onEnd(end: ChatProcessEnd): void {
         const snapshot = this.options.read();
         const { activeTurnId } = snapshot;
-        const operations = endedSessionOperations(
-            snapshot,
-            this.commands.interruptionReason(activeTurnId),
-        );
+        const operations = endedSessionOperations(snapshot);
         const unanswered = this.requests.drain();
         this.options.apply(operations);
         this.tasks.end();
@@ -510,8 +492,27 @@ class CodexChatSession implements AgentChatProviderSession {
         return name === AGENT_CHAT_GOAL_COMMAND;
     }
 
-    runCommand(name: string, arguments_?: string): Promise<void> {
-        return this.commands.run(name, arguments_);
+    async runCommand(name: string, arguments_?: string): Promise<void> {
+        if (name === AGENT_CHAT_GOAL_COMMAND) {
+            const change: AgentChatGoalChange | undefined = parseAgentChatGoalArguments(arguments_);
+            if (!change) throw new CaxriError('VALIDATION', 'Describe the goal after /goal');
+            await this.goals.change(this.requireConnection(), change);
+            return;
+        }
+        if (name !== 'compact')
+            throw new CaxriError('VALIDATION', `/${name} is not available in Codex Chat`);
+        if (this.options.read().activeTurnId)
+            throw new CaxriError(
+                'CONFLICT',
+                'Wait for the current turn to finish before compacting',
+            );
+        const connection = this.requireConnection();
+        // Codex runs compaction as its own turn, so the usual turn and `contextCompaction` events report it.
+        await connection.request(
+            'thread/compact/start',
+            { threadId: this.threadId },
+            TURN_REQUEST_TIMEOUT_MS,
+        );
     }
 
     configure(change: AgentChatModelChange): Promise<void> {
@@ -544,18 +545,19 @@ class CodexChatSession implements AgentChatProviderSession {
         const { activeTurnId } = this.options.read();
         if (!activeTurnId) return;
         await this.goals.pauseForInterrupt(connection);
-        await interruptChatTurn({
-            turnId: activeTurnId,
-            readActiveTurnId: () => this.options.read().activeTurnId,
-            request: () =>
-                connection.request(
-                    'turn/interrupt',
-                    { threadId: this.threadId, turnId: activeTurnId },
-                    INTERRUPT_TIMEOUT_MS,
-                ),
-            rejectStop: this.commands.requestInterrupt(activeTurnId),
-            close: () => this.close(),
-        });
+        try {
+            await connection.request(
+                'turn/interrupt',
+                { threadId: this.threadId, turnId: activeTurnId },
+                INTERRUPT_TIMEOUT_MS,
+            );
+        } catch (error) {
+            if (error instanceof CaxriError && error.code === 'TIMEOUT') {
+                await this.close();
+                return;
+            }
+            // The turn already ended between the read and the request; `turn/completed` settles the projection.
+        }
     }
 
     async refreshTasks(): Promise<void> {
@@ -586,7 +588,6 @@ class CodexChatSession implements AgentChatProviderSession {
     async close(): Promise<void> {
         this.requested = true;
         await this.connection?.close();
-        this.commands.clear();
     }
 }
 

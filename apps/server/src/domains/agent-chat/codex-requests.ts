@@ -11,17 +11,6 @@ interface PendingRequest {
     transportId: number | string;
     kind: CodexRequestKind;
     turnId?: string;
-    threadId?: string;
-}
-
-interface TaskRequestObserver {
-    pending(
-        threadId: string | undefined,
-        key: string,
-        turnId: string | undefined,
-        isBlocking: boolean,
-    ): void;
-    resolved(key: string): void;
 }
 
 /**
@@ -36,7 +25,6 @@ export class CodexRequestBroker {
     constructor(
         private readonly host: AgentChatSessionHost,
         private readonly threadId: () => string | undefined,
-        private readonly taskRequests: TaskRequestObserver,
     ) {}
 
     /**
@@ -73,21 +61,13 @@ export class CodexRequestBroker {
             return;
         }
         const turnId = stringField(request.params.turnId);
-        const threadId = stringField(request.params.threadId) ?? this.threadId();
         const isNew = !this.pending.has(key);
         this.pending.set(key, {
             transportId: request.id,
             kind,
-            ...(threadId && { threadId }),
             ...(turnId && { turnId: clip(turnId, 200) }),
         });
         const mapped: AgentChatRequest = mapCodexRequest(kind, key, request.params);
-        this.taskRequests.pending(
-            threadId,
-            key,
-            turnId,
-            kind !== 'question' || request.params.isBlocking !== false,
-        );
         const { requests } = this.host.read();
         this.host.apply([
             {
@@ -110,7 +90,6 @@ export class CodexRequestBroker {
 
     settle(key: string): void {
         if (!this.pending.delete(key)) return;
-        this.taskRequests.resolved(key);
         const { requests } = this.host.read();
         this.host.apply([
             { op: 'state', state: { requests: requests.filter((request) => request.id !== key) } },
@@ -130,15 +109,6 @@ export class CodexRequestBroker {
             if (pending.transportId === transportId) this.settle(key);
     }
 
-    settleTurn(threadId: string, turnId: string): void {
-        for (const [key, request] of this.pending)
-            if (
-                request.threadId === threadId &&
-                (request.turnId === undefined || request.turnId === turnId)
-            )
-                this.settle(key);
-    }
-
     /**
      * Whether request `requestId` belongs to a turn other than `finishedTurnId` and outlives it. A request of the
      * finished turn, or one with no known turn, is dropped and reported as not outliving it.
@@ -146,7 +116,7 @@ export class CodexRequestBroker {
     outlivesTurn(requestId: string, finishedTurnId: string): boolean {
         const pending = this.pending.get(requestId);
         if (pending?.turnId !== undefined && pending.turnId !== finishedTurnId) return true;
-        if (this.pending.delete(requestId)) this.taskRequests.resolved(requestId);
+        this.pending.delete(requestId);
         return false;
     }
 
@@ -156,7 +126,6 @@ export class CodexRequestBroker {
     drain(): string[] {
         const keys = this.pending.keys().toArray();
         this.pending.clear();
-        for (const key of keys) this.taskRequests.resolved(key);
         return keys;
     }
 

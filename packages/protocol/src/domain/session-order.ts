@@ -4,10 +4,7 @@ import type { SessionRecord } from './domain.js';
  * Canonical newest-first Session Activity order. The ID comparison avoids locale-dependent fallbacks for records whose
  * logical clocks and creation timestamps are equal.
  */
-export function compareSessionActivityRecency(
-    left: Pick<SessionRecord, 'id' | 'createdAt' | 'lastSessionActivityAt'>,
-    right: Pick<SessionRecord, 'id' | 'createdAt' | 'lastSessionActivityAt'>,
-): number {
+export function compareSessionActivityRecency(left: SessionRecord, right: SessionRecord): number {
     return (
         right.lastSessionActivityAt - left.lastSessionActivityAt ||
         right.createdAt - left.createdAt ||

@@ -1,10 +1,5 @@
 import type { AgentChatTask, AgentChatTaskPatchOperation } from '@caxri/protocol';
-import {
-    CaxriError,
-    isAgentChatTaskActive,
-    MAX_AGENT_CHAT_TASK_ITEMS,
-    MAX_AGENT_CHAT_TEXT_LENGTH,
-} from '@caxri/protocol';
+import { CaxriError, MAX_AGENT_CHAT_TASK_ITEMS, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost, ChatTaskHistory } from './chat-provider';
@@ -12,7 +7,6 @@ import { ChatTaskList } from './chat-tasks';
 import { CodexBackgroundTerminals } from './codex-background-terminals';
 import { CodexComputerUseBindings } from './codex-computer-use';
 import { mapCodexItem } from './codex-items';
-import { CodexTaskRequests } from './codex-task-requests';
 import { historyItems } from './codex-turns';
 import { JsonRpcRequestError } from './json-rpc-connection';
 
@@ -121,7 +115,6 @@ function parentThreadId(thread: Json): string | undefined {
 
 export class CodexTasks {
     private readonly list: ChatTaskList;
-    private readonly requestWaits: CodexTaskRequests;
 
     private readonly children = new Map<string, ChildThread>();
 
@@ -142,21 +135,7 @@ export class CodexTasks {
         },
     ) {
         this.list = new ChatTaskList(host);
-        this.requestWaits = new CodexTaskRequests((threadId) =>
-            this.refreshRequestStatus(threadId),
-        );
         this.terminals = new CodexBackgroundTerminals(host, this.list, options);
-    }
-
-    private activeStatus(threadId: string): 'running' | 'waiting' {
-        return this.requestWaits.isWaiting(threadId) ? 'waiting' : 'running';
-    }
-
-    private refreshRequestStatus(threadId: string): void {
-        const task = this.list.get(threadId);
-        if (!task || !isAgentChatTaskActive(task.status)) return;
-        if (this.requestWaits.isWaiting(threadId) || this.children.get(threadId)?.activeTurnId)
-            this.list.upsert(threadId, { status: this.activeStatus(threadId) });
     }
 
     private rememberReceivers(itemId: string, receivers: string[]): void {
@@ -181,9 +160,6 @@ export class CodexTasks {
                 canStop: false,
             }),
             ...fields,
-            ...((fields.status ?? existing?.status ?? 'running') === 'running' && {
-                status: this.activeStatus(threadId),
-            }),
         });
         if (!isNew) return;
         const pending = this.pendingThreads.get(threadId) ?? [];
@@ -217,7 +193,7 @@ export class CodexTasks {
                 const id = stringField(turn?.id);
                 if (!id) return;
                 child.activeTurnId = clip(id, 200);
-                this.list.upsert(threadId, { status: this.activeStatus(threadId), canStop: true });
+                this.list.upsert(threadId, { status: 'running', canStop: true });
                 return;
             }
             case 'turn/completed': {
@@ -297,7 +273,6 @@ export class CodexTasks {
             });
         this.applyTask(threadId, operations);
         if (child.activeTurnId === turnId) child.activeTurnId = undefined;
-        this.requestWaits.clearTurn(threadId, turnId);
         const durationMs =
             typeof turn.durationMs === 'number' && turn.durationMs >= 0
                 ? turn.durationMs
@@ -310,24 +285,6 @@ export class CodexTasks {
                 usage: { ...previous, durationMs: (previous?.durationMs ?? 0) + durationMs },
             }),
         });
-    }
-
-    /**
-     * Only accepted blocking requests of another thread pause a listed child. A parent's `wait` tool is unrelated.
-     */
-    onRequestPending(
-        threadId: string | undefined,
-        key: string,
-        turnId: string | undefined,
-        isBlocking: boolean,
-    ): void {
-        if (!this.isOtherThread(threadId)) return;
-        if (isBlocking) this.requestWaits.open(key, threadId, turnId);
-        else this.requestWaits.resolve(key);
-    }
-
-    onRequestResolved(key: string): void {
-        this.requestWaits.resolve(key);
     }
 
     /**
@@ -445,10 +402,7 @@ export class CodexTasks {
              */
             const isLive = this.children.get(threadId)?.activeTurnId !== undefined;
             this.list.upsert(threadId, {
-                ...(status &&
-                    (!isLive || status === 'running') && {
-                        status: status === 'running' ? this.activeStatus(threadId) : status,
-                    }),
+                ...(status && (!isLive || status === 'running') && { status }),
                 ...(summary && { summary }),
             });
         }
@@ -501,10 +455,8 @@ export class CodexTasks {
         this.terminals.replay(turns);
         for (const threadId of this.children.keys()) {
             const task = this.list.get(threadId);
-            if (isAgentChatTaskActive(task?.status))
-                this.list.upsert(threadId, { status: 'stopped' });
+            if (task?.status === 'running') this.list.upsert(threadId, { status: 'stopped' });
         }
-        this.requestWaits.clear();
         this.children.clear();
     }
 
@@ -520,8 +472,8 @@ export class CodexTasks {
 
     async stopTask(taskId: string): Promise<void> {
         const task = this.list.get(taskId);
-        if (!task || !isAgentChatTaskActive(task.status))
-            throw new CaxriError('CONFLICT', 'This task is no longer active');
+        if (task?.status !== 'running')
+            throw new CaxriError('CONFLICT', 'This task is no longer running');
         try {
             if (task.kind === 'agent') {
                 const turnId = this.children.get(taskId)?.activeTurnId;

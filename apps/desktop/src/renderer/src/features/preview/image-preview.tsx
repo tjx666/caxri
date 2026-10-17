@@ -79,7 +79,7 @@ function useImageObjectUrl(
 }
 
 /**
- * The image reading view for SVG and raster images. It zooms and pans (see `PreviewZoomView`), opening at Fit.
+ * The image reading view, currently reached for SVG. It zooms and pans (see `PreviewZoomView`), opening at Fit.
  *
  * It reads the file again when it is rewritten on disk, so an SVG an Agent regenerates shows its current state. A read
  * that fails says why and offers the recovery that fits: Retry for a read that can succeed later, the default app for a

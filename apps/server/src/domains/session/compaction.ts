@@ -23,10 +23,7 @@ interface Options {
     agentChat: Pick<AgentChatService, 'compactIdle' | 'idleLaunchId' | 'isLive'>;
     database: CaxriDatabase;
     logger?: StructuredLogger;
-    coordinator: Pick<
-        AgentCoordinator,
-        'agentOperation' | 'beginMaintenanceInput' | 'hasIdleProof' | 'observeInput'
-    >;
+    coordinator: Pick<AgentCoordinator, 'agentOperation' | 'hasIdleProof' | 'observeInput'>;
     terminals: Pick<TerminalManager, 'agentLaunchId' | 'agentProcessId' | 'writeAgentExact'>;
     readiness: CompactionReadiness;
     environment: AgentEnvironment;
@@ -160,11 +157,6 @@ export class SessionCompaction {
     }
 
     private deliver(target: Target): Promise<SessionCompactionOutcome> {
-        const lease = this.options.coordinator.beginMaintenanceInput(
-            target.terminal.id,
-            target.launchId,
-        );
-        if (!lease) return Promise.resolve('changed');
         return new Promise((resolve) => {
             const timer = setTimeout(() => resolve('delivery_unknown'), 2_000);
             const settle = (outcome: SessionCompactionOutcome): void => {
@@ -177,20 +169,11 @@ export class SessionCompaction {
                     '/compact\r',
                     target.launchId,
                     'maintenance',
-                    (delivered) => {
-                        if (!delivered) lease.cancel();
-                        settle(delivered ? 'submitted' : 'failed');
-                    },
+                    (delivered) => settle(delivered ? 'submitted' : 'failed'),
                 );
-                if (!accepted) {
-                    lease.cancel();
-                    settle('failed');
-                } else {
-                    this.options.coordinator.observeInput(
-                        target.terminal.id,
-                        '/compact\r',
-                        'maintenance',
-                    );
+                if (!accepted) settle('failed');
+                else {
+                    this.options.coordinator.observeInput(target.terminal.id, '/compact\r');
                 }
             } catch {
                 settle('delivery_unknown');

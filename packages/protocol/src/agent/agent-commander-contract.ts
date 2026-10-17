@@ -275,8 +275,7 @@ export const commanderMethods = {
     /**
      * Idempotently stops the Commander Terminal's process and parks the Terminal as `detached`: its row, screen, and
      * Agent conversation stay, and the next `commander.ensure` resumes that conversation. Sessions the Commander
-     * delegated into keep running. Every manually handed-over Session returns to the user, including continued ones;
-     * task records are retained, and Commander-created Sessions remain managed.
+     * delegated into keep running; only its watch over them pauses.
      */
     'commander.stop': {
         ...commandPolicy('server', 'control'),

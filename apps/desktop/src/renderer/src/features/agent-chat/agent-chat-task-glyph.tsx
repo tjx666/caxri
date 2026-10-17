@@ -1,16 +1,9 @@
 import type { AgentChatTask } from '@caxri/protocol';
-import {
-    agentChatTaskElapsedMs,
-    agentChatTaskGlyphStatus,
-    formatAgentChatFinishedDuration,
-    formatNoticeableDuration,
-    isAgentChatTaskActive,
-} from '@caxri/protocol';
-import { Bot, Pause, SquareTerminal } from 'lucide-react';
+import { agentChatTaskElapsedMs, formatNoticeableDuration } from '@caxri/protocol';
+import { Bot, SquareTerminal } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { useClockTick } from './hooks/use-clock-tick';
 
 /**
@@ -28,21 +21,6 @@ export function AgentChatTaskGlyph({
     return <Icon aria-hidden="true" className={cn('size-3.5 shrink-0', className)} />;
 }
 
-/**
- * Provider-paused work stays visibly distinct from running work without adding a timeline item status.
- */
-export function AgentChatTaskStatus({ status }: { status: AgentChatTask['status'] }) {
-    const { t } = useTranslation();
-    return status === 'waiting' ? (
-        <span className="inline-flex items-center gap-1 text-muted">
-            <Pause aria-hidden="true" className="size-3.5" />
-            {t('agentChat.tasks.waiting')}
-        </span>
-    ) : (
-        <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(status)} />
-    );
-}
-
 function TickingElapsed({ task }: { task: AgentChatTask }) {
     const { t } = useTranslation();
     const label = formatNoticeableDuration(agentChatTaskElapsedMs(task, useClockTick('second')), t);
@@ -55,11 +33,7 @@ function TickingElapsed({ task }: { task: AgentChatTask }) {
  */
 export function AgentChatTaskElapsed({ task }: { task: AgentChatTask }) {
     const { t } = useTranslation();
-    if (isAgentChatTaskActive(task.status)) return <TickingElapsed task={task} />;
-    const label = formatAgentChatFinishedDuration(
-        agentChatTaskElapsedMs(task, task.endedAt ?? 0),
-        agentChatTaskGlyphStatus(task.status),
-        t,
-    );
+    if (task.status === 'running') return <TickingElapsed task={task} />;
+    const label = formatNoticeableDuration(agentChatTaskElapsedMs(task, task.endedAt ?? 0), t);
     return label ? <span className="shrink-0 tabular-nums">{label}</span> : null;
 }

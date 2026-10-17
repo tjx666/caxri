@@ -78,25 +78,21 @@ function liveBackground(): Json[] {
     }));
 }
 
-function endBackground(
-    io: FakeClaudeIo,
-    taskId: string,
-    status: 'completed' | 'failed' | 'stopped',
-) {
+function endBackground(io: FakeClaudeIo, taskId: string, status: 'completed' | 'stopped') {
     const task = tasks.background.get(taskId);
     if (!task) return;
     clearInterval(task.timer);
     tasks.background.delete(taskId);
     io.system('task_updated', {
         task_id: taskId,
-        patch: { status: status === 'stopped' ? 'killed' : status, end_time: Date.now() },
+        patch: { status: status === 'stopped' ? 'killed' : 'completed', end_time: Date.now() },
     });
     io.system('task_notification', {
         task_id: taskId,
         tool_use_id: task.toolUseId,
         status,
         output_file: '',
-        summary: status === 'stopped' ? 'Stopped' : status === 'failed' ? 'Failed' : 'Finished',
+        summary: status === 'stopped' ? 'Stopped' : 'Finished',
         usage: { total_tokens: 0, tool_uses: 0, duration_ms: 300 },
     });
     io.system('background_tasks_changed', { tasks: liveBackground() });
@@ -356,31 +352,7 @@ function startWorkflow(io: FakeClaudeIo, startedAt: number, finishAfterMs?: numb
  * Starts the background task a message asks for, or returns false when it asks for none.
  */
 export function didStartBackgroundTask(io: FakeClaudeIo, startedAt: number, text: string): boolean {
-    if (text.includes('pause background agent')) {
-        startBackgroundAgent(io, startedAt);
-        for (const [taskId, task] of tasks.background) {
-            if (task.kind !== 'agent') continue;
-            io.system('task_updated', {
-                task_id: taskId,
-                patch: { status: 'paused', total_paused_ms: 0 },
-            });
-            io.system('task_progress', {
-                task_id: taskId,
-                summary: 'At a synthetic pause checkpoint',
-            });
-        }
-    } else if (text.includes('resume synthetic task')) {
-        for (const [taskId, task] of tasks.background) {
-            if (task.kind !== 'agent') continue;
-            io.system('task_updated', { task_id: taskId, patch: { status: 'running' } });
-            io.system('task_progress', { task_id: taskId, summary: 'Resumed the synthetic task' });
-        }
-        io.result(startedAt, 'done');
-    } else if (text.includes('finish synthetic task') || text.includes('fail synthetic task')) {
-        for (const taskId of tasks.background.keys())
-            endBackground(io, taskId, text.includes('fail') ? 'failed' : 'completed');
-        io.result(startedAt, 'done');
-    } else if (text.includes('quick workflow')) startWorkflow(io, startedAt, 300);
+    if (text.includes('quick workflow')) startWorkflow(io, startedAt, 300);
     else if (text.includes('workflow')) startWorkflow(io, startedAt);
     else if (text.includes('quick background agent')) startBackgroundAgent(io, startedAt, 300);
     else if (text.includes('background agent')) startBackgroundAgent(io, startedAt);

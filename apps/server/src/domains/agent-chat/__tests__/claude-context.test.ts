@@ -1,14 +1,10 @@
-import type { AgentChatPatchOperation, AgentChatSnapshot } from '@caxri/protocol';
-import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
     claudeCacheTtlMinutes,
     claudeContextDetails,
     ClaudeContextRefresh,
-    refreshClaudeContextDetails,
 } from '../claude-context';
-import { ClaudeContextTracker } from '../claude-context-report';
 
 describe('claudeCacheTtlMinutes', () => {
     it('reads the cache lifetime from the split of a cache write', () => {
@@ -102,97 +98,5 @@ describe('ClaudeContextRefresh', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
         refresh.request();
         await vi.waitFor(() => expect(calls).toBe(2));
-    });
-});
-
-describe('refreshClaudeContextDetails', () => {
-    it('replaces the pre-compaction token total with the authoritative context answer', async () => {
-        let snapshot: AgentChatSnapshot = {
-            ...emptyAgentChatSnapshot('example'),
-            usage: { totalTokens: 243_000, contextWindow: 1_000_000 },
-        };
-        const host = {
-            read: () => snapshot,
-            apply: (operations: AgentChatPatchOperation[]) => {
-                for (const operation of operations)
-                    snapshot = applyAgentChatOperation(snapshot, operation);
-            },
-        };
-        await refreshClaudeContextDetails(
-            {
-                getContextUsage: vi.fn().mockResolvedValue({
-                    totalTokens: 12_000,
-                    rawMaxTokens: 280_000,
-                    categories: [],
-                }),
-            },
-            host,
-            () => false,
-        );
-        expect(snapshot.usage?.totalTokens).toBe(12_000);
-    });
-
-    it('does not overwrite a newer usage sample even when its token count is unchanged', async () => {
-        const original = {
-            ...emptyAgentChatSnapshot('example'),
-            usage: { totalTokens: 243_000, contextWindow: 1_000_000, lastResponseAt: 1 },
-        };
-        let snapshot = original;
-        const apply = vi.fn();
-        await refreshClaudeContextDetails(
-            {
-                getContextUsage: vi.fn().mockImplementation(() => {
-                    snapshot = { ...original, usage: { ...original.usage, lastResponseAt: 2 } };
-                    return Promise.resolve({ totalTokens: 12_000, categories: [] });
-                }),
-            },
-            { read: () => snapshot, apply },
-            () => false,
-        );
-        expect(apply).not.toHaveBeenCalled();
-    });
-});
-
-describe('Claude compaction context boundary', () => {
-    it('clears the old pressure and cache immediately and rejects an in-flight pre-compaction answer', async () => {
-        let snapshot: AgentChatSnapshot = {
-            ...emptyAgentChatSnapshot('example'),
-            usage: {
-                totalTokens: 243_000,
-                contextWindow: 1_000_000,
-                lastResponseAt: 1,
-                cacheTtlMinutes: 5,
-            },
-        };
-        const host = {
-            read: () => snapshot,
-            apply: (operations: AgentChatPatchOperation[]) => {
-                for (const operation of operations)
-                    snapshot = applyAgentChatOperation(snapshot, operation);
-            },
-        };
-        const old = Promise.withResolvers<unknown>();
-        const fresh = Promise.withResolvers<unknown>();
-        const getContextUsage = vi
-            .fn()
-            .mockReturnValueOnce(old.promise)
-            .mockReturnValueOnce(fresh.promise);
-        const tracker = new ClaudeContextTracker(() => ({
-            query: { getContextUsage },
-            host,
-            isEnded: () => false,
-        }));
-        tracker.request();
-        await vi.waitFor(() => expect(getContextUsage).toHaveBeenCalledTimes(1));
-        tracker.resetAfterCompaction();
-        expect(snapshot.usage).toBeUndefined();
-        old.resolve({ totalTokens: 243_000, categories: [] });
-        await vi.waitFor(() => expect(getContextUsage).toHaveBeenCalledTimes(2));
-        expect(snapshot.usage).toBeUndefined();
-        fresh.resolve({ totalTokens: 12_000, rawMaxTokens: 280_000, categories: [] });
-        await vi.waitFor(() => expect(snapshot.usage?.totalTokens).toBe(12_000));
-        expect(snapshot.usage).toMatchObject({ contextWindow: 1_000_000 });
-        expect(snapshot.usage?.lastResponseAt).toBeUndefined();
-        expect(snapshot.usage?.cacheTtlMinutes).toBeUndefined();
     });
 });

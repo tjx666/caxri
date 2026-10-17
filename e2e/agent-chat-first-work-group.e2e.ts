@@ -1,8 +1,6 @@
-import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import type { SessionCompactionResult } from '@caxri/protocol';
 
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture';
 import { expect, test } from './support/fixtures';
@@ -10,7 +8,6 @@ import {
     closeAppQuietly,
     createProjectSession,
     launchCaxri,
-    pageRequest,
     VISIBLE_SESSION,
 } from './support/helpers';
 
@@ -28,7 +25,10 @@ test('ordinary tools share one summary from their first visible frame', async ({
         await openAgentChat(page, 'Codex Chat');
         const session = page.locator(VISIBLE_SESSION);
         const samples = await page.evaluateHandle(() => {
-            const state = { running: true, groups: [] as string[][] };
+            const state = {
+                running: true,
+                frames: [] as Array<{ groups: string[]; standalone: number }>,
+            };
             const sample = () => {
                 const groups = [
                     ...document.querySelectorAll<HTMLElement>(
@@ -37,7 +37,17 @@ test('ordinary tools share one summary from their first visible frame', async ({
                 ].filter(
                     (element) => (element.parentElement?.getBoundingClientRect().height ?? 0) > 0,
                 );
-                if (groups.length > 0) state.groups.push(groups.map(({ id }) => id));
+                const standalone = [
+                    ...document.querySelectorAll<HTMLElement>(
+                        '.workbench-session:not([hidden]) [data-agent-chat-work-item]',
+                    ),
+                ].filter(
+                    (element) =>
+                        element.getBoundingClientRect().height > 0 &&
+                        !element.closest('[data-disclosure="agent-chat-work-group"]'),
+                ).length;
+                if (groups.length > 0 || standalone > 0)
+                    state.frames.push({ groups: groups.map(({ id }) => id), standalone });
                 if (state.running) requestAnimationFrame(sample);
             };
             requestAnimationFrame(sample);
@@ -51,15 +61,18 @@ test('ordinary tools share one summary from their first visible frame', async ({
         await expect(session.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
         const frames = await samples.evaluate((state) => {
             state.running = false;
-            return state.groups;
+            return state.frames;
         });
         expect(frames.length).toBeGreaterThan(1);
-        expect(frames.every((groups) => groups.length === 1)).toBe(true);
-        expect(new Set(frames.flat()).size).toBe(1);
+        expect(
+            frames.every(({ groups, standalone }) => groups.length === 1 && standalone === 0),
+        ).toBe(true);
+        expect(new Set(frames.flatMap(({ groups }) => groups)).size).toBe(1);
         await testInfo.attach('first-frame-group-counts', {
             body: JSON.stringify({
                 frames: frames.length,
                 groupsPerFrame: 1,
+                standaloneRowsPerFrame: 0,
                 stableGroupIdentity: true,
             }),
             contentType: 'application/json',
@@ -87,22 +100,6 @@ test('ordinary tools share one summary from their first visible frame', async ({
         await page.screenshot({
             path: testInfo.outputPath('short-success-failed-command-times.png'),
         });
-        await session.getByRole('textbox', { name: 'Message' }).fill('contextpressure');
-        await session.getByRole('textbox', { name: 'Message' }).press('Enter');
-        await expect(
-            session.getByText('Hello from fake Codex. You said: contextpressure'),
-        ).toBeVisible();
-        await expect(session.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
-        const nativeFiles = await readdir(agentMode.environment.CODEX_HOME!, { recursive: true });
-        expect(nativeFiles.filter((file) => file.includes('rollout-'))).not.toHaveLength(0);
-        const maintenance = await pageRequest<SessionCompactionResult>(
-            page,
-            'session.compactWarm',
-            {},
-        );
-        expect(maintenance.items).toEqual(
-            expect.arrayContaining([expect.objectContaining({ outcome: 'submitted' })]),
-        );
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

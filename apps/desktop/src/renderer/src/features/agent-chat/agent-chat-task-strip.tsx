@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 
 import type { AgentChatTask } from '@caxri/protocol';
 import {
+    agentChatTaskGlyphStatus,
     agentChatTasksLatestEnd,
     agentChatTaskStripView,
     canStopAgentChatTask,
@@ -20,11 +21,8 @@ import {
     stopAgentChatTask,
     useAgentChatTaskStopStore,
 } from './agent-chat-commands';
-import {
-    AgentChatTaskElapsed,
-    AgentChatTaskGlyph,
-    AgentChatTaskStatus,
-} from './agent-chat-task-glyph';
+import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
+import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 
 const TASK_ENTRY_CLASS_NAME =
     'flex min-w-0 flex-1 items-center gap-2 rounded border-0 bg-transparent px-2 py-0.5 text-left text-muted';
@@ -62,7 +60,7 @@ function TaskEntry({
                 {task.status === 'running' ? (
                     <Spinner className="size-3.5" role="presentation" />
                 ) : (
-                    <AgentChatTaskStatus status={task.status} />
+                    <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
                 )}
             </span>
         </>
@@ -148,7 +146,7 @@ export function AgentChatTaskStrip({
     const [isShowingEnded, setShowingEnded] = useState(false);
     const endedListId = useId();
     if (!view) return null;
-    const { active, ended, isDismissible } = view;
+    const { running, ended, isDismissible } = view;
     return (
         <section
             aria-label={t('agentChat.tasks.backgroundWork')}
@@ -160,9 +158,9 @@ export function AgentChatTaskStrip({
                     {t('agentChat.tasks.backgroundWork')}
                 </span>
                 <span className="shrink-0 tabular-nums">
-                    {active.length > 0 &&
-                        t('agentChat.tasks.activeCount', { count: active.length })}
-                    {active.length > 0 && ended.length > 0 && ' · '}
+                    {running.length > 0 &&
+                        t('agentChat.tasks.runningCount', { count: running.length })}
+                    {running.length > 0 && ended.length > 0 && ' · '}
                     {ended.length > 0 && (
                         <button
                             aria-controls={endedListId}
@@ -192,9 +190,9 @@ export function AgentChatTaskStrip({
                     </Tooltip>
                 )}
             </h3>
-            {active.length > 0 && (
+            {running.length > 0 && (
                 <ul className="m-0 flex max-h-32 list-none flex-col overflow-y-auto p-0">
-                    {active.map((task) => (
+                    {running.map((task) => (
                         <TaskEntry
                             key={task.id}
                             task={task}
@@ -214,7 +212,7 @@ export function AgentChatTaskStrip({
                     aria-label={t('agentChat.tasks.endedList')}
                     className={cn(
                         'm-0 flex max-h-32 list-none flex-col overflow-y-auto p-0',
-                        active.length > 0 && 'mt-1 border-t border-border pt-1',
+                        running.length > 0 && 'mt-1 border-t border-border pt-1',
                     )}
                 >
                     {ended.map((task) => (

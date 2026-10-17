@@ -1,5 +1,4 @@
 import type { TerminalRecord } from '@caxri/protocol';
-import { isAgentChatTaskActive } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import type { ChatState, ChatStates } from './chat-states';
@@ -22,7 +21,7 @@ export function isChatIdleForSuspension(
         snapshot.activeTurnId === undefined &&
         snapshot.requests.length === 0 &&
         snapshot.operation === undefined &&
-        !snapshot.tasks?.some((task) => isAgentChatTaskActive(task.status)) &&
+        !snapshot.tasks?.some((task) => task.status === 'running') &&
         (snapshot.queue?.length ?? 0) === 0 &&
         (snapshot.queueLength ?? 0) === 0
     );

@@ -1,17 +1,6 @@
 import { agentChatEscapeAction, agentChatSubmitDelivery } from './agent-chat-presentation';
 
 /**
- * Routes a composer key in priority order; a consumed shortcut must not reach history, suggestions or submission.
- */
-export function agentChatComposerKeyHandler<Event>(
-    handlers: ReadonlyArray<(event: Event) => boolean | void>,
-): (event: Event) => void {
-    return (event) => {
-        for (const handle of handlers) if (handle(event)) return;
-    };
-}
-
-/**
  * The fields of a composer `keydown` the Chat's shortcuts read; `isComposing` comes from `isImeComposing`.
  */
 export interface AgentChatComposerKey {
@@ -22,20 +11,6 @@ export interface AgentChatComposerKey {
     metaKey: boolean;
     repeat: boolean;
     shiftKey: boolean;
-}
-
-/**
- * Ctrl+S matches Claude Code's draft stash; Cmd+S remains the editor's Save shortcut.
- */
-export function isAgentChatStashKey(key: AgentChatComposerKey): boolean {
-    return (
-        key.ctrlKey &&
-        !key.altKey &&
-        !key.metaKey &&
-        !key.shiftKey &&
-        !key.isComposing &&
-        key.key.toLowerCase() === 's'
-    );
 }
 
 export type AgentChatComposerKeyAction =

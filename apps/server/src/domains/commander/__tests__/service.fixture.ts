@@ -61,10 +61,7 @@ export async function fixture() {
         clear: vi.fn<() => number>(() => 0),
         counts: vi.fn<() => { open: number; closed: number }>(() => ({ open: 0, closed: 0 })),
     };
-    const handovers = {
-        forgetClearedTasks: vi.fn<() => number>(() => 0),
-        returnAllForStop: vi.fn<() => Promise<number>>(() => Promise.resolve(0)),
-    };
+    const handovers = { forgetClearedTasks: vi.fn<() => number>(() => 0) };
     const onStopped = vi.fn<() => void>();
     const service = new AgentCommanderService({
         cancelRestore,

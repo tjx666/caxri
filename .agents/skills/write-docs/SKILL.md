@@ -9,6 +9,14 @@ Most code changes do not need a docs change; agents can read code. Write or touc
 behavior a future agent cannot recover from source alone changed: a product contract, a process
 boundary, an operator procedure, or a decision that would otherwise look arbitrary.
 
+## Numbered requirement documents
+
+Keep user-supplied requirement numbers and original intent stable. A reference to item 4 means
+item 4 in that document, not item 4 in an agent's response. Keep implementation status and evidence
+separate from the requirement; never rewrite the requirement to match the behavior that was built.
+For example, an icon beside a Running group heading is not evidence about Session-row status icons.
+When scope changes, retain status and implementation evidence only for the items the user requests.
+
 ## Doc kinds
 
 Every doc has exactly one kind, and each kind has exactly one responsibility. Do not restate one

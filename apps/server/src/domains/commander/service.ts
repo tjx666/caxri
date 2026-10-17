@@ -38,9 +38,9 @@ export interface AgentCommanderServiceOptions {
      */
     inbox: Pick<CommanderInboxService, 'clear' | 'counts'>;
     /**
-     * Manual hand-overs retain ownership provenance after Clear Commander Data deletes their continuation tasks.
+     * Commander hand-overs, which forget the ones whose task Clear Commander Data deleted.
      */
-    handovers: Pick<CommanderHandoverService, 'forgetClearedTasks' | 'returnAllForStop'>;
+    handovers: Pick<CommanderHandoverService, 'forgetClearedTasks'>;
     /**
      * Creates the Terminal row, lets `beforeStart` record it, then launches it. Recording first matters: the launch
      * issues the Agent Endpoint, which reads the recorded identity to grant the Commander role.
@@ -221,7 +221,6 @@ export class AgentCommanderService {
         await settled(this.ensuring);
         const rows = this.options.database.agentCommanderRows();
         if (!rows?.terminalId) {
-            await this.options.handovers.returnAllForStop();
             this.options.logger?.write('info', logEventCatalog.agentCommander.stopped, {
                 fields: { outcome: 'not_running' },
             });
@@ -231,7 +230,6 @@ export class AgentCommanderService {
         await this.options.cancelRestore(rows.sessionId);
         await this.options.stopTerminal(rows.terminalId);
         this.options.onStopped?.();
-        await this.options.handovers.returnAllForStop();
         this.options.sendTerminalChange(rows.terminalId);
         this.options.logger?.write('info', logEventCatalog.agentCommander.stopped, {
             fields: {
@@ -325,8 +323,8 @@ export class AgentCommanderService {
     }
 
     /**
-     * Explicit Stop returns every manually handed-over Session, even when the Commander is already stopped. Running
-     * Agents, task records, and Commander-created Sessions remain.
+     * Idempotent: stopping a Commander that is not running changes nothing. Sessions the Commander delegated into keep
+     * running; their receipts wait for the Commander's next turn.
      */
     async stop(): Promise<null> {
         const pending = (this.stopping ??= this.runStop());

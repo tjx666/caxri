@@ -4,7 +4,7 @@ import type { MarkdownBlockOptions } from '@caxri/markdown';
 import { createStreamingMarkdownParser, createStreamingMarkdownRepair } from '@caxri/markdown';
 import type { AgentChatItem, AgentChatTurnArtifacts } from '@caxri/protocol';
 import { agentChatNoticeMessage } from '@caxri/protocol';
-import { CircleAlert, Shrink } from 'lucide-react';
+import { CircleAlert } from 'lucide-react';
 
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
@@ -140,7 +140,6 @@ export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type:
             )}
         >
             {isError && <CircleAlert className="mt-0.5 size-3.5 shrink-0" />}
-            {item.kind === 'compacted' && <Shrink className="mt-0.5 size-3.5 shrink-0" />}
             <span className="wrap-anywhere whitespace-pre-line select-text">
                 {agentChatNoticeMessage(item, t)}
             </span>

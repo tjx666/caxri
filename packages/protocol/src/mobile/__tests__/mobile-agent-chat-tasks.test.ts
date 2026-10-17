@@ -20,14 +20,6 @@ import {
 
 const bytes = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
 
-it('keeps waiting work in the active mobile budget ahead of ended work', () => {
-    const waiting = task({ id: 'paused', status: 'waiting', startedAt: 1 });
-    const ended = Array.from({ length: 15 }, (_, index) =>
-        task({ id: `ended-${index}`, status: 'completed', endedAt: index + 2 }),
-    );
-    expect(clipAgentChatTasksForMobile([waiting, ...ended])).toContainEqual(waiting);
-});
-
 function task(overrides: Partial<AgentChatTask> & Pick<AgentChatTask, 'id'>): AgentChatTask {
     return {
         kind: 'shell',

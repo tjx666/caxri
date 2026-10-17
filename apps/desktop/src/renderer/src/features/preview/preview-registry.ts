@@ -34,11 +34,6 @@ export interface PreviewerRegistration {
 const PREVIEWERS: readonly PreviewerRegistration[] = [
     { id: 'markdown', extensions: ['markdown', 'md', 'mdx'], defaultView: 'source' },
     { id: 'image', extensions: ['svg'], defaultView: 'source' },
-    {
-        id: 'image',
-        extensions: ['apng', 'avif', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico'],
-        defaultView: 'preview',
-    },
     { id: 'table', extensions: ['csv', 'tsv'], defaultView: 'source' },
     { id: 'mermaid', extensions: ['mermaid', 'mmd'], defaultView: 'source' },
     { id: 'pdf', extensions: ['pdf'], defaultView: 'preview' },

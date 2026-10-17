@@ -179,14 +179,6 @@ export async function fixture(
         await mkdir(stateDirectory, { recursive: true });
         await writeFile(join(stateDirectory, 'unsubscribe-fails'), '');
     };
-    /**
-     * Makes the active Claude/Codex turn reject Stop without ending or interrupting itself.
-     */
-    const rejectInterrupt = async () => {
-        const root = provider === 'claude' ? claudeConfigDirectory : stateDirectory;
-        await mkdir(root, { recursive: true });
-        await writeFile(join(root, 'reject-interrupt'), '');
-    };
     const sessionOpens = async () =>
         (await readFile(join(grokStateDirectory, 'session-opens.jsonl'), 'utf8'))
             .trim()
@@ -231,7 +223,6 @@ export async function fixture(
         threadOpens,
         holdCodexThreadWriter,
         failCodexUnsubscribe,
-        rejectInterrupt,
         setCodexWorkspaceWriteConfig,
         sessionOpens,
     };

@@ -4,7 +4,6 @@ import type {
     AgentChatPatchOperation,
     AgentChatResponse,
     AgentChatSnapshot,
-    AgentChatTurn,
 } from '@caxri/protocol';
 import { agentChatModelSchema, CaxriError, MAX_AGENT_CHAT_MODELS } from '@caxri/protocol';
 
@@ -119,10 +118,7 @@ export function closeDanglingItem(item: AgentChatItem): AgentChatItem | undefine
  * Operations for a provider process that ended: open items close as interrupted, the running turn is interrupted, a
  * compaction stops, and every pending request goes away with the process that asked it.
  */
-export function endedSessionOperations(
-    snapshot: AgentChatSnapshot,
-    interruptionReason?: AgentChatTurn['interruptionReason'],
-): AgentChatPatchOperation[] {
+export function endedSessionOperations(snapshot: AgentChatSnapshot): AgentChatPatchOperation[] {
     const operations: AgentChatPatchOperation[] = [];
     for (const item of snapshot.items) {
         const closed = closeDanglingItem(item);
@@ -138,13 +134,7 @@ export function endedSessionOperations(
             ...(snapshot.operation === 'compacting' && { operation: null }),
             ...(activeTurnId && {
                 turns: snapshot.turns.map((turn) =>
-                    turn.id === activeTurnId
-                        ? {
-                              ...turn,
-                              status: 'interrupted' as const,
-                              ...(interruptionReason && { interruptionReason }),
-                          }
-                        : turn,
+                    turn.id === activeTurnId ? { ...turn, status: 'interrupted' as const } : turn,
                 ),
             }),
         },

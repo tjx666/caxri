@@ -56,8 +56,6 @@ export const agentChatLabelsEn = {
     'agentChat.fold.durationMinutesSeconds': '{{minutes}}m {{seconds}}s',
     'agentChat.fold.durationUnderOneSecond': '<1s',
     'agentChat.fold.stoppedAfter': 'Stopped after {{duration}}',
-    'agentChat.fold.stoppedByYouAfter': 'Stopped by you after {{duration}}',
-    'agentChat.fold.stoppedByYou': 'Stopped by you',
     'agentChat.fold.failedAfter': 'Failed after {{duration}}',
     'agentChat.fold.worked': 'Worked',
     'agentChat.fold.stopped': 'Stopped',

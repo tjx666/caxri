@@ -61,15 +61,5 @@ and idle proof after its asynchronous read and immediately before submission. It
 before writing, so repeat clicks and ambiguous delivery never trigger automatic retries. Ordinary
 human input remains available; the command does not take over the user's keyboard.
 
-Batch compaction is maintenance, not a new user task. Server Core binds its lifecycle to the current
-launch and turn, keeps readiness and watchdog cleanup active, and excludes it from durable user-task
-state, delegation completion, and task notifications. A maintenance PTY write still invalidates
-stale input proof and advances the input epoch, but never records human intervention or resets the
-last manual-input time. Explicitly rejected delivery cancels the pending marker; uncertain delivery
-keeps bounded intent without retrying. A later user submission cannot inherit that marker.
-
-Only Server Core assigns the internal maintenance classification. Hook payloads containing an
-`activity` field are rejected rather than allowed to suppress user-task state.
-
 Each request checks at most 200 Sessions and reports any deferred count. Reads are sequential to bound
 memory use. A delivered command proceeds in the provider independently of the batch notification.

@@ -141,9 +141,9 @@ export async function refreshClaudeContextDetails(
     host: Pick<AgentChatSessionHost, 'apply' | 'read'>,
     isEnded: () => boolean,
     onAnswer?: (response: unknown) => void,
-    fallbackContextWindow?: number,
 ): Promise<void> {
     const before = host.read().usage;
+    if (!before) return;
     let response: unknown;
     try {
         response = await readClaudeContextUsage(query);
@@ -152,27 +152,10 @@ export async function refreshClaudeContextDetails(
     }
     onAnswer?.(response);
     const usage = host.read().usage;
-    if (usage !== before || isEnded()) return;
-    const totalTokens = isRecord(response) ? response.totalTokens : undefined;
-    const total =
-        typeof totalTokens === 'number' && Number.isFinite(totalTokens) && totalTokens >= 0
-            ? Math.trunc(totalTokens)
-            : usage?.totalTokens;
-    if (total === undefined) return;
-    const contextWindow = usage?.contextWindow ?? fallbackContextWindow;
+    if (isEnded() || usage?.totalTokens !== before.totalTokens) return;
     // The previous rows were kept only until this answer; an answer without rows drops them.
-    const details = claudeContextDetails(response, contextWindow);
-    const next = withCacheRewriteEstimate(
-        {
-            ...usage,
-            totalTokens: total,
-            ...(contextWindow && { contextWindow }),
-            ...details,
-        },
-        host.read().model,
-    );
-    if (next.breakdown === usage?.breakdown) delete next.breakdown;
-    if (details.compactWindow === undefined) delete next.compactWindow;
+    const next = { ...usage, ...claudeContextDetails(response, usage.contextWindow) };
+    if (next.breakdown === usage.breakdown) delete next.breakdown;
     host.apply([{ op: 'state', state: { usage: next } }]);
 }
 

@@ -12,12 +12,9 @@ import { isRecord } from './chat-items';
 export function claudeTaskStatus(status: unknown): AgentChatTask['status'] | undefined {
     switch (status) {
         case 'pending':
-        case 'running': {
-            return 'running';
-        }
+        case 'running':
         case 'paused': {
-            // The SDK supplies no pause reason, so Waiting does not claim user input or approval is required.
-            return 'waiting';
+            return 'running';
         }
         case 'completed':
         case 'failed': {

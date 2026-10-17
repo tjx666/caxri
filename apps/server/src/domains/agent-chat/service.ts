@@ -29,7 +29,6 @@ import { forkChat } from './chat-fork';
 import { readChatTerminalHistory } from './chat-history';
 import { isAgentChatCommandListed } from './chat-items';
 import { requireChatTerminal } from './chat-launch';
-import { deliverChatMessage } from './chat-message-delivery';
 import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
@@ -253,9 +252,18 @@ export class AgentChatService {
     ): Promise<void> {
         assertE2EAgentChatInput(readE2EAgentPolicy(), message.text);
         if (origin === 'human') this.delegation.observeHumanInput(terminalId);
-        await this.enqueue(terminalId, (session, state) =>
-            deliverChatMessage(session, state, message, delivery),
-        );
+        await this.enqueue(terminalId, async (session, state) => {
+            if (delivery === 'steer' && state.projection.snapshot.activeTurnId) {
+                await session.send(message, { delivery: 'steered' });
+                state.followUps.logSteered();
+                return;
+            }
+            if (state.followUps.mustWait()) {
+                state.followUps.add({ id: randomUUID(), kind: 'message', message });
+                return;
+            }
+            await session.send(message);
+        });
     }
 
     async runCommand(terminalId: string, name: string, arguments_?: string): Promise<void> {

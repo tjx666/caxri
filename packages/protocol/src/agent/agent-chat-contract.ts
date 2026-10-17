@@ -304,7 +304,7 @@ export const agentChatTaskSchema = z.strictObject({
      */
     title: z.string().max(1_000),
     command: z.string().max(10_000).optional(),
-    status: z.enum(['running', 'waiting', 'completed', 'failed', 'stopped']),
+    status: z.enum(['running', 'completed', 'failed', 'stopped']),
     itemId: z.string().min(1).max(200).optional(),
     /**
      * Provider agent type, such as `general-purpose` or a custom agent's name.
@@ -357,10 +357,6 @@ export const agentChatQueuedMessageSchema = z.strictObject({
 export const agentChatTurnSchema = z.strictObject({
     id: z.string().min(1).max(200),
     status: z.enum(['running', 'completed', 'interrupted', 'failed']),
-    /**
-     * Only an exact turn stopped through Caxri has this attribution; provider history leaves it unknown.
-     */
-    interruptionReason: z.literal('user').optional(),
     startedAt: z.number().optional(),
     durationMs: z.number().nonnegative().optional(),
 });

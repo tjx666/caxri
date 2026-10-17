@@ -1,5 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { draculaTheme, windowAgentChatSnapshotForMobile } from '@caxri/protocol';
+import { windowAgentChatSnapshotForMobile } from '@caxri/protocol';
 
 import type { MobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
@@ -17,8 +17,6 @@ import {
 } from './mobile-agent-chat-helpers';
 import { exerciseChatBackgroundWork } from './mobile-agent-chat-tasks-scenario';
 import {
-    adbShell,
-    mobileColorBounds,
     mobileRegionFingerprint,
     mobileSemantics,
     startMobileFramebufferRecording,
@@ -202,69 +200,8 @@ export async function executeMobileChatPinScrollScenario(
         await tapMobileCheckByBounds(serial, 'conversation-jump-latest');
         await waitForNoCheck(serial, 'conversation-jump-latest');
         await capture(environment, 'latest', artifacts);
-        const mainAction = checkBounds(await mobileSemantics(serial), 'agent-chat-composer-send');
-        if (!mainAction) throw new Error('The phone main Chat action is unavailable');
-        await sendFromPhone(serial, 'longstream');
-        const interrupted = await waitForMobile(
-            () => chat.read(),
-            (snapshot) =>
-                Boolean(snapshot.activeTurnId) &&
-                snapshot.items.some(
-                    (item) =>
-                        item.turnId === snapshot.activeTurnId &&
-                        item.type === 'agentMessage' &&
-                        item.text.includes('Paragraph 02'),
-                ),
-            30_000,
-        );
-        // Stop is the phone's own main Chat action, distinct from stopping a background task.
-        const stop = await waitForMobile(
-            () => mobileColorBounds(serial, mainAction, draculaTheme.colors.danger),
-            (bounds) => bounds !== undefined,
-        );
-        if (!stop) throw new Error('The phone main Chat Stop is unavailable');
-        await capture(environment, 'main-stop-live', artifacts);
-        await adbShell(serial, [
-            'input',
-            'tap',
-            String(Math.floor((stop.left + stop.right) / 2)),
-            String(Math.floor((stop.top + stop.bottom) / 2)),
-        ]);
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) =>
-                !snapshot.activeTurnId &&
-                snapshot.turns.some(
-                    (turn) =>
-                        turn.id === interrupted.activeTurnId &&
-                        turn.status === 'interrupted' &&
-                        turn.interruptionReason === 'user',
-                ),
-        );
-        await waitForNoCheck(serial, 'agent-chat-activity');
-        await capture(environment, 'stopped-by-user', artifacts);
-        await sendFromPhone(serial, 'streamfail');
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) =>
-                !snapshot.activeTurnId &&
-                snapshot.turns.at(-1)?.status === 'failed' &&
-                agentText(snapshot).includes('Partial reply.'),
-        );
-        await waitForNoCheck(serial, 'agent-chat-activity');
-        await capture(environment, 'failed-stream-flushed', artifacts);
         await recording?.stop();
         recording = undefined;
-
-        await sendFromPhone(serial, 'crash');
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) =>
-                !snapshot.activeTurnId &&
-                snapshot.turns.at(-1)?.status === 'interrupted' &&
-                snapshot.turns.at(-1)?.interruptionReason !== 'user',
-        );
-        await capture(environment, 'unknown-interruption', artifacts);
 
         await finish(environment, artifacts, {
             pinnedOffsetRatio,
@@ -382,21 +319,9 @@ export async function executeMobileChatHistoryTasksScenario(
         for (let attempt = 0; !isRevealed && attempt < 30; attempt += 1) {
             // eslint-disable-next-line no-await-in-loop -- each read decides the next gesture.
             const nodes = await mobileSemantics(serial);
-            const revealed = checkBounds(nodes, leftOutId);
-            const earlier = checkBounds(nodes, 'conversation-load-earlier');
-            /**
-             * Android semantics can include offscreen rows; existence alone does not prove a visible control.
-             */
-            const canTapEarlier =
-                earlier !== undefined &&
-                earlier.top >= frame.top &&
-                earlier.bottom <= frame.bottom &&
-                nodes.some(
-                    ({ checkId, enabled }) => checkId === 'conversation-load-earlier' && enabled,
-                );
-            if (revealed && revealed.bottom > frame.top && revealed.top < frame.bottom) {
+            if (hasCheck(nodes, leftOutId)) {
                 isRevealed = true;
-            } else if (!isLoadEarlierTapped && canTapEarlier) {
+            } else if (!isLoadEarlierTapped && hasCheck(nodes, 'conversation-load-earlier')) {
                 isLoadEarlierSeen = true;
                 // eslint-disable-next-line no-await-in-loop -- the frame shows the control before it is used.
                 await capture(environment, 'load-earlier', artifacts);

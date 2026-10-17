@@ -5,20 +5,6 @@
 type Json = Record<string, unknown>;
 
 /**
- * Uses the SDK's error response without changing the active turn's state.
- */
-export function rejectFakeClaudeControl(
-    send: (message: Json) => void,
-    requestId: unknown,
-    error: unknown,
-): void {
-    send({
-        type: 'control_response',
-        response: { subtype: 'error', request_id: requestId, error },
-    });
-}
-
-/**
  * What the scenario modules beside `fake-claude-cli.ts` need from the CLI process that hosts them.
  */
 export interface FakeClaudeIo {

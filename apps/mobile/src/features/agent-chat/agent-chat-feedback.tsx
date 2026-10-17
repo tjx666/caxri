@@ -29,12 +29,7 @@ export function AgentChatFeedback({
     item: Extract<AgentChatItem, { type: 'notice' }>;
     theme: MobileTheme;
 }) {
-    const color =
-        item.kind === 'error'
-            ? theme.danger
-            : item.kind === 'warning'
-              ? theme.warning
-              : theme.muted;
+    const color = item.kind === 'error' ? theme.danger : theme.warning;
     const Icon =
         item.kind === 'error'
             ? CircleAlert
@@ -53,7 +48,7 @@ export function AgentChatFeedback({
                         {item.title}
                     </Text>
                 )}
-                <Text selectable style={[styles.body, { color: theme.text }]}>
+                <Text selectable style={[styles.body, { color }]}>
                     {item.message}
                 </Text>
             </View>

@@ -173,36 +173,6 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
     }
 });
 
-// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('opens PNG directly in the existing image preview', async ({}, testInfo) => {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-png-preview-'));
-    const root = join(directory, 'project');
-    await mkdir(root);
-    const png = Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
-        'base64',
-    );
-    await writeFile(join(root, 'example.png'), png);
-    const running = await launchCaxri({
-        testRootPath: root,
-        userDataDir: join(directory, 'profile'),
-    });
-    try {
-        await createProjectSession(running.page, 'shell');
-        await running.page.getByRole('treeitem', { name: 'example.png', exact: true }).click();
-        const image = running.page.getByRole('img', { name: 'example.png', exact: true });
-        await expect(image).toBeVisible();
-        await expect
-            .poll(() => image.evaluate((element) => (element as HTMLImageElement).naturalWidth))
-            .toBe(1);
-        await expect(running.page.getByText('1 × 1', { exact: true })).toBeVisible();
-        await running.page.screenshot({ path: testInfo.outputPath('png-preview.png') });
-    } finally {
-        await running.app.close();
-        await rm(directory, { recursive: true, force: true });
-    }
-});
-
 /**
  * The three formats added beside Markdown each cross the Renderer/Server boundary differently: a PDF is the only
  * preview that opens directly and reads through `files.readAsset` into a pdf.js worker, while CSV and Mermaid render
