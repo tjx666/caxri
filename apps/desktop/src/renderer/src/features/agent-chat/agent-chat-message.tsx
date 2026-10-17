@@ -4,13 +4,14 @@ import type { MarkdownBlockOptions } from '@caxri/markdown';
 import { createStreamingMarkdownParser, createStreamingMarkdownRepair } from '@caxri/markdown';
 import type { AgentChatItem, AgentChatTurnArtifacts } from '@caxri/protocol';
 import { agentChatNoticeMessage } from '@caxri/protocol';
-import { CircleAlert, Shrink, SquareTerminal, TriangleAlert } from 'lucide-react';
+import { CircleAlert, Shrink } from 'lucide-react';
 
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import { AgentChatFeedback } from './agent-chat-feedback';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
@@ -129,40 +130,20 @@ export function AgentChatReply({
  */
 export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type: 'notice' }> }) {
     const { t } = useTranslation();
+    if (item.title || item.kind === 'warning') return <AgentChatFeedback item={item} />;
     const isError = item.kind === 'error';
-    const isWarning = item.kind === 'warning';
-    const isFeedback = !!item.title || isWarning;
     return (
         <div
             className={cn(
                 'flex items-start gap-2 text-[12px] leading-5',
-                isError ? 'text-danger' : isWarning ? 'text-warning' : 'text-muted',
-                isFeedback && 'rounded-lg border px-3 py-2.5',
-                isFeedback &&
-                    (isError
-                        ? 'border-danger/30 bg-danger/5'
-                        : isWarning
-                          ? 'border-warning/30 bg-warning/5'
-                          : 'border-border bg-surface'),
+                isError ? 'text-danger' : 'text-muted',
             )}
         >
             {isError && <CircleAlert className="mt-0.5 size-3.5 shrink-0" />}
-            {isWarning && <TriangleAlert className="mt-0.5 size-4 shrink-0" />}
-            {isFeedback && !isError && !isWarning && (
-                <SquareTerminal className="mt-0.5 size-4 shrink-0" />
-            )}
             {item.kind === 'compacted' && <Shrink className="mt-0.5 size-3.5 shrink-0" />}
-            <div className="min-w-0 flex-1 select-text">
-                {item.title && <div className="mb-1 font-medium">{item.title}</div>}
-                <div
-                    className={cn(
-                        'wrap-anywhere whitespace-pre-wrap',
-                        isFeedback && 'text-foreground',
-                    )}
-                >
-                    {agentChatNoticeMessage(item, t)}
-                </div>
-            </div>
+            <span className="wrap-anywhere whitespace-pre-line select-text">
+                {agentChatNoticeMessage(item, t)}
+            </span>
         </div>
     );
 }
